@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  X, Star, Trash2, Plus, Check, Paperclip, Wallet, Pencil, AlertTriangle,
+  X, Star, Trash2, Plus, Check, Paperclip, Wallet, Pencil, AlertTriangle, CheckCircle2,
 } from 'lucide-react'
 import { FaWhatsapp } from 'react-icons/fa'
 import { FiInstagram, FiGlobe, FiMail } from 'react-icons/fi'
@@ -12,7 +12,7 @@ import { supabase } from '@/lib/supabase'
 import {
   EventSupplier, Supplier, SupplierPayment, EventBudget, Currency, formatCurrency,
   BUDGET_CATEGORIES, BUDGET_CATEGORY_LABELS, BudgetCategory,
-  SUBCATEGORIES_BY_CATEGORY, SupplierStatus,
+  SupplierStatus,
   PAYMENT_METHODS, PAYMENT_METHOD_LABELS, PaymentMethod,
   PAID_BY_OPTIONS, PAID_BY_LABELS, PaidBy,
 } from '@/lib/types'
@@ -24,6 +24,7 @@ interface Props {
   item: SupplierWithDetails
   eventId: string
   currency: Currency
+  budgets: EventBudget[]
   onClose: () => void
   onSaved: (updated: SupplierWithDetails) => void
   onDeleted: (id: string) => void
@@ -40,13 +41,12 @@ const STATUS_OPTIONS: { value: SupplierStatus; label: string }[] = [
 const COUNTRY_CODES = ['+52', '+1', '+34', '+57', '+54', '+55', '+56', '+51']
 
 export default function SupplierDetailModal({
-  item, eventId, currency, onClose, onSaved, onDeleted,
+  item, eventId, currency, budgets, onClose, onSaved, onDeleted,
 }: Props) {
   const router = useRouter()
 
   const [name, setName]               = useState(item.supplier.name)
   const [category, setCategory]       = useState<BudgetCategory>(item.supplier.category)
-  const [subcategory, setSubcategory] = useState(item.supplier.subcategory ?? '')
 
   const [phone, setPhone]               = useState(item.supplier.phone ?? '')
   const [phoneCountryCode, setPhoneCountryCode] = useState(item.supplier.phone_country_code ?? '+52')
@@ -57,6 +57,7 @@ export default function SupplierDetailModal({
   const [status, setStatus]                 = useState<SupplierStatus>(item.status)
   const [quotedAmount, setQuotedAmount]     = useState<string>(item.quoted_amount?.toString() ?? '')
   const [contractAmount, setContractAmount] = useState<string>(item.contract_amount?.toString() ?? '')
+  const [eventBudgetId, setEventBudgetId]   = useState<string>((item as any).event_budget_id ?? '')
 
   const [supplierNotes, setSupplierNotes] = useState<string>(item.event_notes ?? '')
 
@@ -86,6 +87,19 @@ export default function SupplierDetailModal({
   const payProgress = contractNum > 0 ? Math.min((totalPaid / contractNum) * 100, 100) : 0
 
   const hasReview = item.rating !== null || (item.review_text && item.review_text.length > 0)
+
+  // ─── Partidas filtradas por categoria ────────
+  const budgetsForCategory = budgets.filter(b => b.category === category)
+  const selectedBudget = eventBudgetId ? budgets.find(b => b.id === eventBudgetId) : null
+  const budgetMeta = selectedBudget?.budget_amount || 0
+
+  // Comparacion cotizacion vs meta
+  const quotedNum = parseFloat(quotedAmount) || 0
+  const isQuotedOverBudget = selectedBudget && quotedNum > 0 && budgetMeta > 0 && quotedNum > budgetMeta
+  const isQuotedUnderBudget = selectedBudget && quotedNum > 0 && budgetMeta > 0 && quotedNum <= budgetMeta
+
+  // Comparacion contratado vs meta
+  const isContractOverBudget = selectedBudget && contractNum > 0 && budgetMeta > 0 && contractNum > budgetMeta
 
   useEffect(() => {
     document.body.style.overflow = 'hidden'
@@ -121,13 +135,16 @@ export default function SupplierDetailModal({
     const isNowFinalState = status === 'contratado' || status === 'descartado'
     const reachedFinalState = !wasFinalState && isNowFinalState
 
+    // Subcategoria se lee de la partida vinculada
+    const subcategoryFromBudget = selectedBudget?.subcategory || null
+
     try {
       const { error: supErr } = await supabase
         .from('suppliers')
         .update({
           name:               name.trim(),
           category,
-          subcategory:        subcategory.trim() || null,
+          subcategory:        subcategoryFromBudget,
           phone:              phone.trim() || null,
           phone_country_code: phone.trim() ? phoneCountryCode : null,
           instagram:          instagram.trim() || null,
@@ -145,6 +162,7 @@ export default function SupplierDetailModal({
           quoted_amount:   quotedAmount   ? parseFloat(quotedAmount)   : null,
           contract_amount: contractAmount ? parseFloat(contractAmount) : null,
           event_notes:     supplierNotes.trim() || null,
+          event_budget_id: eventBudgetId || null,
         })
         .eq('id', item.id)
         .select('*, supplier:suppliers(*)')
@@ -198,7 +216,6 @@ export default function SupplierDetailModal({
   }
 
   const openEditPaymentForm = (p: SupplierPayment) => {
-    // Si ya está abierto el form de nuevo pago, lo cerramos
     setShowNewPaymentForm(false)
     setEditingPaymentId(p.id)
     setPayAmount(p.amount.toString())
@@ -313,7 +330,7 @@ export default function SupplierDetailModal({
         ...item.supplier,
         name: name.trim(),
         category,
-        subcategory: subcategory.trim() || null,
+        subcategory: selectedBudget?.subcategory || null,
         phone: phone.trim() || null,
         phone_country_code: phone.trim() ? phoneCountryCode : null,
         instagram: instagram.trim() || null,
@@ -335,9 +352,7 @@ export default function SupplierDetailModal({
     router.push(`/events/${eventId}/presupuesto`)
   }
 
-  const subcategoryOptions = SUBCATEGORIES_BY_CATEGORY[category] || []
-
-  // Subcomponente: form de pago (para reusar entre nuevo y edición inline)
+  // Subcomponente: form de pago
   const renderPaymentForm = (mode: 'new' | 'edit') => (
     <div className="space-y-2 rounded-lg border border-[#48C9B0] bg-[#48C9B0]/5 p-3">
       <div className="text-[10px] font-semibold uppercase tracking-wider text-[#888]">
@@ -474,7 +489,7 @@ export default function SupplierDetailModal({
                   <Field label="Categoría">
                     <select
                       value={category}
-                      onChange={e => setCategory(e.target.value as BudgetCategory)}
+                      onChange={e => { setCategory(e.target.value as BudgetCategory); setEventBudgetId('') }}
                       className="input-base"
                     >
                       {BUDGET_CATEGORIES.map(c => (
@@ -482,30 +497,43 @@ export default function SupplierDetailModal({
                       ))}
                     </select>
                   </Field>
-                  <Field label="Subcategoría" className="md:col-span-2">
-                    <input
-                      type="text"
-                      value={subcategory}
-                      onChange={e => setSubcategory(e.target.value)}
-                      placeholder="Ej. DJ, Banquetero, Florista..."
-                      className="input-base"
-                    />
-                    {subcategoryOptions.length > 0 && (
-                      <div className="mt-2 flex flex-wrap gap-1.5">
-                        {subcategoryOptions.map(s => (
-                          <button
-                            key={s}
-                            type="button"
-                            onClick={() => setSubcategory(s)}
-                            className={`rounded-full border px-2.5 py-1 text-xs transition-all ${
-                              subcategory === s
-                                ? 'border-[#48C9B0] bg-[#48C9B0]/10 text-[#1D1E20]'
-                                : 'border-[#e8e8e8] bg-white text-[#666] hover:border-[#48C9B0]'
-                            }`}
+
+                  {/* PARTIDA DEL PRESUPUESTO (reemplaza subcategoria) */}
+                  <Field label="Partida del presupuesto" className="md:col-span-2">
+                    {budgetsForCategory.length > 0 ? (
+                      <>
+                        <div className="flex items-center gap-2">
+                          <Wallet size={14} className="shrink-0 text-[#888]" />
+                          <select
+                            value={eventBudgetId}
+                            onChange={e => setEventBudgetId(e.target.value)}
+                            className="input-base flex-1"
                           >
-                            {s}
-                          </button>
-                        ))}
+                            <option value="">Sin partida</option>
+                            {budgetsForCategory.map(b => (
+                              <option key={b.id} value={b.id}>
+                                {b.subcategory || BUDGET_CATEGORY_LABELS[b.category]} — {formatCurrency(b.budget_amount, currency)}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        {selectedBudget && (
+                          <p className="mt-1 text-[10px] text-[#888]">
+                            Meta para esta partida: {formatCurrency(budgetMeta, currency)}
+                          </p>
+                        )}
+                      </>
+                    ) : (
+                      <div className="flex items-center gap-2 rounded-lg border border-dashed border-[#e0e0e0] bg-[#fafafa] px-3 py-3">
+                        <Wallet size={14} className="shrink-0 text-[#aaa]" />
+                        <div>
+                          <p className="text-xs text-[#888]">
+                            No hay partidas de {BUDGET_CATEGORY_LABELS[category]}
+                          </p>
+                          <p className="text-[10px] text-[#aaa]">
+                            Créalas en la sección Presupuesto
+                          </p>
+                        </div>
                       </div>
                     )}
                   </Field>
@@ -604,7 +632,7 @@ export default function SupplierDetailModal({
                 </div>
               </Section>
 
-              {/* ④ PRESUPUESTO ASIGNADO */}
+              {/* ④ PRESUPUESTO ASIGNADO (desde presupuesto) */}
               {linkedBudget && (
                 <Section title="Presupuesto asignado">
                   <button
@@ -624,7 +652,7 @@ export default function SupplierDetailModal({
                         </div>
                       </div>
                     </div>
-                    <span className="text-xs font-medium text-[#48C9B0]">Editar →</span>
+                    <span className="text-xs font-medium text-[#48C9B0]">Ver →</span>
                   </button>
                 </Section>
               )}
@@ -641,7 +669,7 @@ export default function SupplierDetailModal({
                       className="input-base"
                     />
                     {quotedAmount && (
-                      <p className="mt-1 text-xs text-[#888]">{formatCurrency(parseFloat(quotedAmount), currency)}</p>
+                      <p className="mt-1 text-xs text-[#888]">{formatCurrency(quotedNum, currency)}</p>
                     )}
                   </Field>
                   <Field label={`Monto contratado (${currency})`}>
@@ -653,10 +681,34 @@ export default function SupplierDetailModal({
                       className="input-base"
                     />
                     {contractAmount && (
-                      <p className="mt-1 text-xs text-[#888]">{formatCurrency(parseFloat(contractAmount), currency)}</p>
+                      <p className="mt-1 text-xs text-[#888]">{formatCurrency(contractNum, currency)}</p>
                     )}
                   </Field>
                 </div>
+
+                {/* Comparacion contra meta de la partida */}
+                {selectedBudget && (quotedNum > 0 || contractNum > 0) && (
+                  <div className="mt-3">
+                    {(isContractOverBudget || isQuotedOverBudget) ? (
+                      <div className="flex items-start gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+                        <AlertTriangle size={13} className="mt-0.5 shrink-0 text-amber-500" />
+                        <p className="text-[11px] text-amber-700">
+                          {isContractOverBudget
+                            ? `El monto contratado supera la meta de "${selectedBudget.subcategory}" por ${formatCurrency(contractNum - budgetMeta, currency)}`
+                            : `La cotización supera la meta de "${selectedBudget.subcategory}" por ${formatCurrency(quotedNum - budgetMeta, currency)}`
+                          }
+                        </p>
+                      </div>
+                    ) : isQuotedUnderBudget ? (
+                      <div className="flex items-start gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2">
+                        <CheckCircle2 size={13} className="mt-0.5 shrink-0 text-emerald-500" />
+                        <p className="text-[11px] text-emerald-700">
+                          Dentro del presupuesto de "{selectedBudget.subcategory}" — quedan {formatCurrency(budgetMeta - (contractNum || quotedNum), currency)} disponibles
+                        </p>
+                      </div>
+                    ) : null}
+                  </div>
+                )}
               </Section>
 
               {/* ⑥ PAGOS */}
@@ -683,7 +735,6 @@ export default function SupplierDetailModal({
                         )
                       }
                     >
-                      {/* Resumen progreso */}
                       {contractNum > 0 && (
                         <div className={`mb-3 rounded-lg border p-3 ${
                           isOverpaid
@@ -718,7 +769,6 @@ export default function SupplierDetailModal({
                         </div>
                       )}
 
-                      {/* Form de NUEVO pago: arriba de la lista */}
                       <AnimatePresence>
                         {showNewPaymentForm && (
                           <motion.div
@@ -733,7 +783,6 @@ export default function SupplierDetailModal({
                         )}
                       </AnimatePresence>
 
-                      {/* Lista de pagos (con form inline cuando se edita uno) */}
                       {payments.length === 0 && !showNewPaymentForm ? (
                         <p className="py-2 text-xs text-[#aaa]">Sin pagos registrados</p>
                       ) : (
@@ -742,7 +791,6 @@ export default function SupplierDetailModal({
                             const isEditing = editingPaymentId === p.id
                             return (
                               <li key={p.id} className="space-y-1.5">
-                                {/* Card del pago */}
                                 {!isEditing && (
                                   <div className="flex items-center justify-between gap-3 rounded-lg border border-[#e8e8e8] bg-white px-3 py-2 text-sm">
                                     <button
@@ -777,7 +825,6 @@ export default function SupplierDetailModal({
                                   </div>
                                 )}
 
-                                {/* Form inline de EDICIÓN: aparece justo en lugar del pago */}
                                 <AnimatePresence>
                                   {isEditing && (
                                     <motion.div

@@ -329,11 +329,11 @@ export const SUPPLIER_STATUS_LABELS: Record<SupplierStatus, string> = {
 
 // Colores por estado para badges (clases tailwind)
 export const SUPPLIER_STATUS_COLORS: Record<SupplierStatus, string> = {
-  contactado: 'bg-blue-100 text-blue-700',
-  cotizacion: 'bg-purple-100 text-purple-700',
-  negociacion: 'bg-yellow-100 text-yellow-700',
-  contratado: 'bg-green-100 text-green-700',
-  descartado: 'bg-gray-100 text-gray-600',
+  contactado: 'bg-amber-100 text-amber-700',
+  cotizacion: 'bg-blue-100 text-blue-700',
+  negociacion: 'bg-gray-100 text-gray-600',
+  contratado: 'bg-emerald-100 text-emerald-700',
+  descartado: 'bg-red-100 text-red-600',
 }
 
 export const SUPPLIER_MOODS = ['no', 'normal', 'love'] as const

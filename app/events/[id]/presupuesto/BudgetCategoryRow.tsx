@@ -1,13 +1,18 @@
 'use client'
 
 import { useState } from 'react'
-import { ChevronDown, ChevronRight, Plus } from 'lucide-react'
+import { ChevronDown, ChevronRight, Plus, AlertTriangle } from 'lucide-react'
 import {
   BudgetCategory, BUDGET_CATEGORY_LABELS,
-  EventBudget, Currency, formatCurrency,
+  EventBudget, EventSupplier, Supplier,
+  Currency, formatCurrency,
 } from '@/lib/types'
 import BudgetItemRow from './BudgetItemRow'
 import HealthBar from '@/app/components/ui/HealthBar'
+
+type EventSupplierWithName = EventSupplier & {
+  supplier: Pick<Supplier, 'id' | 'name' | 'category'>
+}
 
 type Props = {
   category: BudgetCategory
@@ -15,20 +20,26 @@ type Props = {
   currency: Currency
   contractedByItem: Record<string, number>
   paidByItem: Record<string, number>
-  // Ahora abre el modal en lugar de chips
+  eventSuppliersById: Record<string, EventSupplierWithName>
+  availableSuppliersForCategory: EventSupplierWithName[]
   onOpenAddModal: (category: BudgetCategory) => void
-  onUpdateItem: (id: string, updates: { subcategory?: string; budget_amount?: number }) => void
+  onUpdateItem: (id: string, updates: { subcategory?: string; budget_amount?: number; event_supplier_id?: string | null }) => void
   onDeleteItem: (id: string) => void
 }
 
 export default function BudgetCategoryRow({
   category, items, currency, contractedByItem, paidByItem,
+  eventSuppliersById, availableSuppliersForCategory,
   onOpenAddModal, onUpdateItem, onDeleteItem,
 }: Props) {
   const [expanded, setExpanded] = useState(true)
 
-  const totalBudget     = items.reduce((sum, i) => sum + i.budget_amount, 0)
-  const totalContracted = items.reduce((sum, i) => sum + (contractedByItem[i.id] || 0), 0)
+  const safeItems       = items || []
+  const totalBudget     = safeItems.reduce((sum, i) => sum + i.budget_amount, 0)
+  const totalContracted = safeItems.reduce((sum, i) => sum + (contractedByItem[i.id] || 0), 0)
+
+  // Ambar cuando la suma de contratado rebasa el presupuesto de la categoria
+  const isOverBudget = totalContracted > totalBudget && totalBudget > 0
 
   return (
     <div className="rounded-xl border border-[#e8e8e8] bg-white">
@@ -40,11 +51,20 @@ export default function BudgetCategoryRow({
           ? <ChevronDown size={16} className="shrink-0 text-[#888]" />
           : <ChevronRight size={16} className="shrink-0 text-[#888]" />
         }
-        <h3 className="flex-1 text-sm font-semibold text-[#1D1E20]">{BUDGET_CATEGORY_LABELS[category]}</h3>
+        <h3 className="flex-1 text-sm font-semibold text-[#1D1E20] flex items-center gap-1.5">
+          {BUDGET_CATEGORY_LABELS[category]}
+          {isOverBudget && (
+            <AlertTriangle
+              size={13}
+              className="shrink-0 text-amber-500"
+              title="El total contratado supera el presupuesto de la categoría"
+            />
+          )}
+        </h3>
         <span className="hidden text-xs text-[#888] sm:inline">
-          {items.length} {items.length === 1 ? 'partida' : 'partidas'}
+          {safeItems.length} {safeItems.length === 1 ? 'partida' : 'partidas'}
         </span>
-        <span className="text-sm font-semibold tabular-nums text-[#1D1E20]">
+        <span className={`text-sm font-semibold tabular-nums ${isOverBudget ? 'text-amber-600' : 'text-[#1D1E20]'}`}>
           {formatCurrency(totalBudget, currency)}
         </span>
       </button>
@@ -57,30 +77,37 @@ export default function BudgetCategoryRow({
 
       {expanded && (
         <div className="border-t border-[#f0f0f0]">
-          {items.length > 0 && (
+          {safeItems.length > 0 && (
             <div className="hidden grid-cols-[1fr_140px_140px_140px_140px_40px] gap-3 border-b border-[#f5f5f5] bg-[#fafafa] px-4 py-2 text-[10px] font-semibold uppercase tracking-wider text-[#888] sm:grid">
-              <span>Partida</span>
+              <span>Partida / Proveedor</span>
               <span className="text-right">Estimado</span>
-              <span className="text-right">Cotizado</span>
+              <span className="text-right">Contratado</span>
               <span className="text-right">Pagado</span>
               <span className="text-right">Por pagar</span>
               <span />
             </div>
           )}
 
-          {items.map(item => (
-            <BudgetItemRow
-              key={item.id}
-              item={item}
-              currency={currency}
-              contractedAmount={contractedByItem[item.id] || 0}
-              paidAmount={paidByItem[item.id] || 0}
-              onUpdate={onUpdateItem}
-              onDelete={onDeleteItem}
-            />
-          ))}
+          {safeItems.map(item => {
+            const linked = item.event_supplier_id
+              ? eventSuppliersById[item.event_supplier_id] || null
+              : null
+            return (
+              <BudgetItemRow
+                key={item.id}
+                item={item}
+                currency={currency}
+                contractedAmount={contractedByItem[item.id] || 0}
+                paidAmount={paidByItem[item.id] || 0}
+                availableSuppliers={availableSuppliersForCategory}
+                linkedSupplier={linked}
+                onUpdate={onUpdateItem}
+                onDelete={onDeleteItem}
+              />
+            )
+          })}
 
-          {items.length === 0 && (
+          {safeItems.length === 0 && (
             <div className="px-4 py-4 text-center text-xs text-[#aaa]">Sin partidas todavía</div>
           )}
 

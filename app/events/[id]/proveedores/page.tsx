@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation'
 import { Search, Plus } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import {
-  Event, EventSupplier, Supplier, BudgetCategory, BUDGET_CATEGORIES, BUDGET_CATEGORY_LABELS,
+  Event, EventBudget, EventSupplier, Supplier, BudgetCategory, BUDGET_CATEGORIES, BUDGET_CATEGORY_LABELS,
   SUPPLIER_STATUSES, SUPPLIER_STATUS_LABELS, Currency, formatCurrency,
 } from '@/lib/types'
 import SupplierModal from './SupplierModal'
@@ -22,6 +22,7 @@ export default function ProveedoresPage() {
 
   const [event, setEvent]           = useState<Event | null>(null)
   const [items, setItems]           = useState<SupplierWithDetails[]>([])
+  const [budgets, setBudgets]       = useState<EventBudget[]>([])
   const [loading, setLoading]       = useState(true)
   const [search, setSearch]         = useState('')
   const [filterCategory, setFilterCategory] = useState<BudgetCategory | ''>('')
@@ -33,19 +34,29 @@ export default function ProveedoresPage() {
 
   const loadAll = async () => {
     setLoading(true)
-    const [eventRes, suppliersRes] = await Promise.all([
-      supabase.from('events').select('*').eq('id', eventId).single(),
-      supabase
-        .from('event_suppliers')
-        .select('*, supplier:suppliers(*)')
-        .eq('event_id', eventId)
-        .order('created_at', { ascending: false }),
-    ])
+    try {
+      const [eventRes, suppliersRes, budgetsRes] = await Promise.all([
+        supabase.from('events').select('*').eq('id', eventId).single(),
+        supabase
+          .from('event_suppliers')
+          .select('*, supplier:suppliers(*)')
+          .eq('event_id', eventId)
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('event_budgets')
+          .select('*')
+          .eq('event_id', eventId)
+          .order('created_at', { ascending: true }),
+      ])
 
-    if (eventRes.data)     setEvent(eventRes.data as Event)
-    if (suppliersRes.data) setItems(suppliersRes.data as SupplierWithDetails[])
-
-    setLoading(false)
+      if (eventRes.data)     setEvent(eventRes.data as Event)
+      if (suppliersRes.data) setItems(suppliersRes.data as SupplierWithDetails[])
+      if (budgetsRes.data)   setBudgets(budgetsRes.data as EventBudget[])
+    } catch (err: any) {
+      console.error('Error cargando proveedores:', err?.message ?? err, err)
+    } finally {
+      setLoading(false)
+    }
   }
 
   const handleCreateSupplier = async (data: {
@@ -56,9 +67,15 @@ export default function ProveedoresPage() {
     phone_country_code: string | null
     instagram: string | null
     quoted_amount: number | null
+    event_budget_id: string | null
   }) => {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { alert('Sesión expirada'); return }
+
+    // Buscar la subcategoria de la partida vinculada (para guardar en suppliers como referencia)
+    const linkedBudget = data.event_budget_id
+      ? budgets.find(b => b.id === data.event_budget_id)
+      : null
 
     const { data: newSupplier, error: supErr } = await supabase
       .from('suppliers')
@@ -66,7 +83,7 @@ export default function ProveedoresPage() {
         user_id:            user.id,
         name:               data.name,
         category:           data.category,
-        subcategory:        data.subcategory,
+        subcategory:        linkedBudget?.subcategory || data.subcategory,
         phone:              data.phone,
         phone_country_code: data.phone_country_code,
         instagram:          data.instagram,
@@ -75,20 +92,27 @@ export default function ProveedoresPage() {
       .select()
       .single()
 
-    if (supErr) { console.error(supErr); throw supErr }
+    if (supErr) {
+      console.error('Error creando supplier:', supErr?.message ?? supErr, supErr)
+      throw supErr
+    }
 
     const { data: newEventSupplier, error: esErr } = await supabase
       .from('event_suppliers')
       .insert({
-        event_id:      eventId,
-        supplier_id:   newSupplier.id,
-        status:        'contactado',
-        quoted_amount: data.quoted_amount,
+        event_id:        eventId,
+        supplier_id:     newSupplier.id,
+        status:          'contactado',
+        quoted_amount:   data.quoted_amount,
+        event_budget_id: data.event_budget_id,
       })
       .select('*, supplier:suppliers(*)')
       .single()
 
-    if (esErr) { console.error(esErr); throw esErr }
+    if (esErr) {
+      console.error('Error creando event_supplier:', esErr?.message ?? esErr, esErr)
+      throw esErr
+    }
 
     if (newEventSupplier) {
       setItems(prev => [newEventSupplier as SupplierWithDetails, ...prev])
@@ -241,6 +265,7 @@ export default function ProveedoresPage() {
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
         currency={currency}
+        budgets={budgets}
         onSubmit={handleCreateSupplier}
       />
 
@@ -249,6 +274,7 @@ export default function ProveedoresPage() {
           item={selectedItem}
           eventId={eventId}
           currency={currency}
+          budgets={budgets}
           onClose={() => setSelectedItem(null)}
           onSaved={handleSavedItem}
           onDeleted={handleDeletedItem}

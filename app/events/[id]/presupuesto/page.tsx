@@ -18,6 +18,12 @@ type EventSupplierWithName = EventSupplier & {
   supplier: Pick<Supplier, 'id' | 'name'>
 }
 
+type SupplierPaymentRow = {
+  id: string
+  event_supplier_id: string
+  amount: number
+}
+
 export default function PresupuestoPage() {
   const { id } = useParams()
   const eventId = id as string
@@ -25,6 +31,7 @@ export default function PresupuestoPage() {
   const [event, setEvent]                   = useState<Event | null>(null)
   const [budgets, setBudgets]               = useState<EventBudget[]>([])
   const [eventSuppliers, setEventSuppliers] = useState<EventSupplierWithName[]>([])
+  const [payments, setPayments]             = useState<SupplierPaymentRow[]>([])
   const [loading, setLoading]               = useState(true)
   const [search, setSearch]                 = useState('')
 
@@ -39,38 +46,98 @@ export default function PresupuestoPage() {
 
   const loadAll = async () => {
     setLoading(true)
-    const [eventRes, budgetsRes, suppliersRes] = await Promise.all([
-      supabase.from('events').select('*').eq('id', eventId).single(),
-      supabase.from('event_budgets').select('*').eq('event_id', eventId).order('created_at', { ascending: true }),
-      supabase.from('event_suppliers').select('*, supplier:suppliers(id, name)').eq('event_id', eventId),
-    ])
+    try {
+      const [eventRes, budgetsRes, suppliersRes] = await Promise.all([
+        supabase.from('events').select('*').eq('id', eventId).single(),
+        supabase.from('event_budgets').select('*').eq('event_id', eventId).order('created_at', { ascending: true }),
+        supabase.from('event_suppliers').select('*, supplier:suppliers(id, name, category)').eq('event_id', eventId),
+      ])
 
-    if (eventRes.data)     setEvent(eventRes.data as Event)
-    if (suppliersRes.data) setEventSuppliers(suppliersRes.data as EventSupplierWithName[])
+      if (eventRes.data)     setEvent(eventRes.data as Event)
+      const supplierRows = (suppliersRes.data || []) as EventSupplierWithName[]
+      setEventSuppliers(supplierRows)
 
-    let currentBudgets = (budgetsRes.data || []) as EventBudget[]
-    if (currentBudgets.length === 0) {
-      const seed = buildSeedBudgets(eventId)
-      const { data: inserted } = await supabase.from('event_budgets').insert(seed).select()
-      if (inserted) currentBudgets = inserted as EventBudget[]
+      const supplierIds = supplierRows.map(s => s.id)
+      if (supplierIds.length > 0) {
+        const { data: paymentsData, error: paymentsError } = await supabase
+          .from('supplier_payments')
+          .select('id, event_supplier_id, amount')
+          .in('event_supplier_id', supplierIds)
+        if (paymentsError) {
+          console.error('Error cargando pagos:', paymentsError?.message ?? paymentsError, paymentsError)
+        }
+        setPayments((paymentsData || []) as SupplierPaymentRow[])
+      } else {
+        setPayments([])
+      }
+
+      let currentBudgets = (budgetsRes.data || []) as EventBudget[]
+      if (currentBudgets.length === 0) {
+        const seed = buildSeedBudgets(eventId)
+        const { data: inserted, error: seedError } = await supabase.from('event_budgets').insert(seed).select()
+        if (seedError) {
+          console.error('Error sembrando presupuesto:', seedError?.message ?? seedError, seedError)
+        }
+        if (inserted) currentBudgets = inserted as EventBudget[]
+      }
+
+      setBudgets(currentBudgets)
+    } catch (err: any) {
+      console.error('Error cargando presupuesto:', err?.message ?? err, err)
+    } finally {
+      setLoading(false)
     }
-
-    setBudgets(currentBudgets)
-    setLoading(false)
   }
 
+  // ============================================
+  // CALCULOS DERIVADOS
+  // ============================================
+
+  // Suma de pagos por event_supplier_id
+  const paidByEventSupplier: Record<string, number> = {}
+  payments.forEach(p => {
+    paidByEventSupplier[p.event_supplier_id] = (paidByEventSupplier[p.event_supplier_id] || 0) + Number(p.amount || 0)
+  })
+
+  // Mapa global de proveedores indexados por id (para que el row encuentre su linked supplier)
+  const eventSuppliersById: Record<string, EventSupplierWithName> = {}
+  eventSuppliers.forEach(es => { eventSuppliersById[es.id] = es })
+
+  // Proveedores disponibles para vincular, indexados por categoria.
+  // Solo incluye los que tienen contract_amount (cotizados/contratados).
+  const availableSuppliersByCategory: Record<string, EventSupplierWithName[]> = {}
+  BUDGET_CATEGORIES.forEach(cat => { availableSuppliersByCategory[cat] = [] })
+  eventSuppliers.forEach(es => {
+    if (!es.supplier) return
+    if (es.contract_amount === null || es.contract_amount === undefined) return
+    // La categoria del proveedor en suppliers.category (texto libre dentro de las 14)
+    // Asumimos que viene en es.supplier o lo lee del row de event_suppliers.
+    // El select original filtraba por supplier.contract_amount, ahora filtramos por la categoria
+    // de la partida. Como event_suppliers no guarda categoria, leemos de suppliers.
+    // Si tu schema guarda category en event_suppliers en vez de suppliers, ajusta esta linea.
+    const cat = (es as any).supplier?.category || (es as any).category
+    if (cat && availableSuppliersByCategory[cat]) {
+      availableSuppliersByCategory[cat].push(es)
+    }
+  })
+
+  // Para cada partida: contratado y pagado desde el proveedor vinculado
   const contractedByItem: Record<string, number> = {}
   const paidByItem: Record<string, number>       = {}
   budgets.forEach(b => {
     if (b.event_supplier_id) {
-      const supplier = eventSuppliers.find(es => es.id === b.event_supplier_id)
-      contractedByItem[b.id] = supplier?.contract_amount || 0
-      paidByItem[b.id]       = 0
+      const supplier = eventSuppliersById[b.event_supplier_id]
+      contractedByItem[b.id] = Number(supplier?.contract_amount || 0)
+      paidByItem[b.id]       = paidByEventSupplier[b.event_supplier_id] || 0
     } else {
       contractedByItem[b.id] = 0
       paidByItem[b.id]       = 0
     }
   })
+
+  // ============================================
+  // FILTRO + AGRUPACION POR CATEGORIA
+  // ============================================
 
   const filteredBudgets = search.trim()
     ? budgets.filter(b => {
@@ -85,23 +152,28 @@ export default function PresupuestoPage() {
     if (itemsByCategory[b.category]) itemsByCategory[b.category].push(b)
   })
 
-  const totalBudget     = budgets.reduce((sum, b) => sum + b.budget_amount, 0)
-  const totalContracted = Object.values(contractedByItem).reduce((sum, v) => sum + v, 0)
-  const totalPaid       = Object.values(paidByItem).reduce((sum, v) => sum + v, 0)
+  // ============================================
+  // METRICAS GLOBALES
+  // ============================================
 
-  // Abre modal con categoria pre-seleccionada (desde "+ Agregar partida")
+  const totalBudget     = budgets.reduce((sum, b) => sum + b.budget_amount, 0)
+  const totalContracted = budgets.reduce((sum, b) => sum + (contractedByItem[b.id] || 0), 0)
+  const totalPaid       = budgets.reduce((sum, b) => sum + (paidByItem[b.id] || 0), 0)
+
+  // ============================================
+  // HANDLERS
+  // ============================================
+
   const openAddModalForCategory = (category: BudgetCategory) => {
     setModalCategory(category)
     setModalOpen(true)
   }
 
-  // Abre modal sin categoria pre-seleccionada (desde "Nueva partida" del toolbar)
   const openAddModalGeneric = () => {
     setModalCategory(null)
     setModalOpen(true)
   }
 
-  // Submit del modal
   const handleModalSubmit = async (data: {
     category: BudgetCategory
     subcategory: string
@@ -109,18 +181,27 @@ export default function PresupuestoPage() {
     event_supplier_id: string | null
     notes: string | null
   }) => {
-    const { data: inserted, error } = await supabase
-      .from('event_budgets')
-      .insert({ event_id: eventId, ...data })
-      .select()
-      .single()
+    try {
+      const { data: inserted, error } = await supabase
+        .from('event_budgets')
+        .insert({ event_id: eventId, ...data })
+        .select()
+        .single()
 
-    if (error) {
-      if (error.code === '23505') alert('Ya existe una partida con ese nombre en esta categoría')
-      else { console.error(error); alert('Error agregando partida') }
-      throw error
+      if (error) {
+        if (error.code === '23505') {
+          alert('Ya existe una partida con ese nombre en esta categoría')
+        } else {
+          console.error('Error creando partida:', error?.message ?? error, error)
+          alert(`No se pudo crear la partida: ${error?.message ?? 'Intenta de nuevo'}`)
+        }
+        throw error
+      }
+      if (inserted) setBudgets(prev => [...prev, inserted as EventBudget])
+    } catch (err: any) {
+      console.error('Error en handleModalSubmit:', err?.message ?? err, err)
+      throw err
     }
-    if (inserted) setBudgets(prev => [...prev, inserted as EventBudget])
   }
 
   const handleUpdateItem = async (
@@ -129,7 +210,10 @@ export default function PresupuestoPage() {
   ) => {
     setBudgets(prev => prev.map(b => b.id === itemId ? { ...b, ...updates } : b))
     const { error } = await supabase.from('event_budgets').update(updates).eq('id', itemId)
-    if (error) loadAll()
+    if (error) {
+      console.error('Error actualizando partida:', error?.message ?? error, error)
+      loadAll()
+    }
   }
 
   const handleDeleteItem = async (itemId: string) => {
@@ -138,7 +222,10 @@ export default function PresupuestoPage() {
     if (!confirm(confirmText)) return
     setBudgets(prev => prev.filter(b => b.id !== itemId))
     const { error } = await supabase.from('event_budgets').delete().eq('id', itemId)
-    if (error) loadAll()
+    if (error) {
+      console.error('Error borrando partida:', error?.message ?? error, error)
+      loadAll()
+    }
   }
 
   const handleExport = (format: 'excel' | 'pdf') => {
@@ -231,6 +318,8 @@ export default function PresupuestoPage() {
               currency={currency}
               contractedByItem={contractedByItem}
               paidByItem={paidByItem}
+              eventSuppliersById={eventSuppliersById}
+              availableSuppliersForCategory={availableSuppliersByCategory[category] || []}
               onOpenAddModal={openAddModalForCategory}
               onUpdateItem={handleUpdateItem}
               onDeleteItem={handleDeleteItem}
@@ -239,7 +328,6 @@ export default function PresupuestoPage() {
         })}
       </div>
 
-      {/* MODAL */}
       <BudgetItemModal
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}

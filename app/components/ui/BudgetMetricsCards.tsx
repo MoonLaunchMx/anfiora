@@ -24,7 +24,7 @@ export default function BudgetMetricsCards({
       {/* DESKTOP */}
       <div className="hidden grid-cols-4 gap-3 sm:grid">
         <Card icon={<Wallet className="text-[#48C9B0]" size={16} />} label="Estimado" value={formatCurrency(totalBudget, currency)} />
-        <Card icon={<FileCheck className="text-[#888]" size={16} />} label="Cotizado" value={formatCurrency(totalContracted, currency)} />
+        <Card icon={<FileCheck className="text-[#888]" size={16} />} label="Contratado" value={formatCurrency(totalContracted, currency)} />
         <Card
           icon={<CheckCircle2 className="text-[#888]" size={16} />}
           label="Pagado"
@@ -32,10 +32,10 @@ export default function BudgetMetricsCards({
           subValue={`Por pagar: ${formatCurrency(totalPending, currency)}`}
         />
         <Card
-          icon={<AlertCircle className={isOverBudget ? 'text-red-500' : 'text-[#48C9B0]'} size={16} />}
+          icon={<AlertCircle className={isOverBudget ? 'text-amber-500' : 'text-[#48C9B0]'} size={16} />}
           label={balanceLabel}
           value={formatCurrency(Math.abs(balance), currency)}
-          valueClass={isOverBudget ? 'text-red-600' : 'text-[#1D1E20]'}
+          valueClass={isOverBudget ? 'text-amber-600' : 'text-[#1D1E20]'}
           progressBar={<HealthBar budgeted={totalBudget} contracted={totalContracted} className="mt-2" />}
         />
       </div>
@@ -44,12 +44,12 @@ export default function BudgetMetricsCards({
       <div className="rounded-xl border border-[#e8e8e8] bg-white p-4 sm:hidden">
         <div className="grid grid-cols-2 gap-x-4 gap-y-3">
           <Stat label="Estimado" value={formatCurrency(totalBudget, currency)} />
-          <Stat label="Cotizado" value={formatCurrency(totalContracted, currency)} />
+          <Stat label="Contratado" value={formatCurrency(totalContracted, currency)} />
           <Stat label="Pagado"   value={formatCurrency(totalPaid, currency)} />
           <Stat
             label={balanceLabel}
             value={formatCurrency(Math.abs(balance), currency)}
-            valueClass={isOverBudget ? 'text-red-600' : 'text-[#1D1E20]'}
+            valueClass={isOverBudget ? 'text-amber-600' : 'text-[#1D1E20]'}
           />
         </div>
         <div className="mt-4 border-t border-[#f0f0f0] pt-3">

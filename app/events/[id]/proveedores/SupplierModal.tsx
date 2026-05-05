@@ -1,10 +1,10 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { X, Phone, ChevronDown } from 'lucide-react'
+import { X, Phone, ChevronDown, Wallet, AlertTriangle, CheckCircle2 } from 'lucide-react'
 import {
-  BudgetCategory, BUDGET_CATEGORIES, BUDGET_CATEGORY_LABELS, SUBCATEGORIES_BY_CATEGORY,
-  Currency, formatCurrency,
+  BudgetCategory, BUDGET_CATEGORIES, BUDGET_CATEGORY_LABELS,
+  EventBudget, Currency, formatCurrency,
 } from '@/lib/types'
 import { FiInstagram } from 'react-icons/fi'
 
@@ -12,6 +12,7 @@ type Props = {
   isOpen: boolean
   onClose: () => void
   currency: Currency
+  budgets: EventBudget[]
   onSubmit: (data: {
     name: string
     category: BudgetCategory
@@ -20,33 +21,43 @@ type Props = {
     phone_country_code: string | null
     instagram: string | null
     quoted_amount: number | null
+    event_budget_id: string | null
   }) => Promise<void>
 }
 
 const COUNTRY_CODES = ['+52', '+1', '+34', '+57', '+54', '+55', '+56', '+51']
 
-export default function SupplierModal({ isOpen, onClose, currency, onSubmit }: Props) {
-  const [name, setName]               = useState('')
-  const [category, setCategory]       = useState<BudgetCategory>('Venue')
-  const [subcategory, setSubcategory] = useState('')
-  const [phone, setPhone]             = useState('')
-  const [phoneCode, setPhoneCode]     = useState('+52')
-  const [instagram, setInstagram]     = useState('')
-  const [quotedAmount, setQuotedAmount] = useState('')
-  const [showAdvanced, setShowAdvanced] = useState(false)
-  const [submitting, setSubmitting]   = useState(false)
+export default function SupplierModal({ isOpen, onClose, currency, budgets, onSubmit }: Props) {
+  const [name, setName]                   = useState('')
+  const [category, setCategory]           = useState<BudgetCategory>('Venue')
+  const [phone, setPhone]                 = useState('')
+  const [phoneCode, setPhoneCode]         = useState('+52')
+  const [instagram, setInstagram]         = useState('')
+  const [quotedAmount, setQuotedAmount]   = useState('')
+  const [eventBudgetId, setEventBudgetId] = useState('')
+  const [showAdvanced, setShowAdvanced]   = useState(false)
+  const [submitting, setSubmitting]       = useState(false)
 
   useEffect(() => {
     if (isOpen) {
-      setName(''); setCategory('Venue'); setSubcategory('')
+      setName(''); setCategory('Venue')
       setPhone(''); setPhoneCode('+52'); setInstagram('')
-      setQuotedAmount(''); setShowAdvanced(false); setSubmitting(false)
+      setQuotedAmount(''); setEventBudgetId('')
+      setShowAdvanced(false); setSubmitting(false)
     }
   }, [isOpen])
 
   if (!isOpen) return null
 
-  const suggestions = SUBCATEGORIES_BY_CATEGORY[category] || []
+  // Partidas filtradas por la categoria seleccionada
+  const budgetsForCategory = budgets.filter(b => b.category === category)
+  const selectedBudget = eventBudgetId ? budgets.find(b => b.id === eventBudgetId) : null
+
+  // Comparacion cotizacion vs meta
+  const quotedNum = parseFloat(quotedAmount) || 0
+  const budgetMeta = selectedBudget?.budget_amount || 0
+  const isOverBudget = selectedBudget && quotedNum > 0 && budgetMeta > 0 && quotedNum > budgetMeta
+  const isUnderBudget = selectedBudget && quotedNum > 0 && budgetMeta > 0 && quotedNum <= budgetMeta
 
   const validate = (): string | null => {
     if (!name.trim()) return 'Escribe el nombre del proveedor'
@@ -60,17 +71,17 @@ export default function SupplierModal({ isOpen, onClose, currency, onSubmit }: P
 
     setSubmitting(true)
     try {
-      // Limpia @ del instagram si viene
       const cleanInsta = instagram.trim().replace(/^@/, '')
 
       await onSubmit({
         name:               name.trim(),
         category,
-        subcategory:        subcategory.trim() || null,
+        subcategory:        selectedBudget?.subcategory || null,
         phone:              phone.trim() || null,
         phone_country_code: phone.trim() ? phoneCode : null,
         instagram:          cleanInsta || null,
-        quoted_amount:      quotedAmount ? parseFloat(quotedAmount) : null,
+        quoted_amount:      quotedNum || null,
+        event_budget_id:    eventBudgetId || null,
       })
       onClose()
     } catch (e) {
@@ -124,7 +135,7 @@ export default function SupplierModal({ isOpen, onClose, currency, onSubmit }: P
                 </label>
                 <select
                   value={category}
-                  onChange={e => { setCategory(e.target.value as BudgetCategory); setSubcategory('') }}
+                  onChange={e => { setCategory(e.target.value as BudgetCategory); setEventBudgetId('') }}
                   className="w-full rounded-lg border border-[#e0e0e0] bg-white px-3 py-2 text-sm text-[#1D1E20] outline-none transition focus:border-[#48C9B0]"
                 >
                   {BUDGET_CATEGORIES.map(cat => (
@@ -176,7 +187,7 @@ export default function SupplierModal({ isOpen, onClose, currency, onSubmit }: P
                 </div>
               </div>
 
-              {/* Avanzado: subcategoria + cotizacion */}
+              {/* Avanzado */}
               <button
                 type="button"
                 onClick={() => setShowAdvanced(p => !p)}
@@ -189,30 +200,40 @@ export default function SupplierModal({ isOpen, onClose, currency, onSubmit }: P
               {showAdvanced && (
                 <div className="space-y-4 rounded-lg border border-[#f0f0f0] bg-[#fafafa] p-3">
 
-                  {/* Subcategoria */}
+                  {/* Partida del presupuesto */}
                   <div>
-                    <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-[#888]">
-                      Subcategoría
+                    <label className="mb-1 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-[#888]">
+                      <Wallet size={12} />
+                      Partida del presupuesto
                     </label>
-                    <input
-                      type="text"
-                      value={subcategory}
-                      onChange={e => setSubcategory(e.target.value)}
-                      placeholder="Ej. DJ noche, Catering..."
-                      className="w-full rounded-lg border border-[#e0e0e0] bg-white px-3 py-2 text-sm text-[#1D1E20] outline-none transition focus:border-[#48C9B0]"
-                    />
-                    {suggestions.length > 0 && (
-                      <div className="mt-2 flex flex-wrap gap-1.5">
-                        {suggestions.map(sug => (
-                          <button
-                            key={sug}
-                            type="button"
-                            onClick={() => setSubcategory(sug)}
-                            className="rounded-full border border-[#e0e0e0] bg-white px-2.5 py-1 text-[11px] text-[#555] transition hover:border-[#48C9B0] hover:text-[#48C9B0]"
-                          >
-                            {sug}
-                          </button>
-                        ))}
+                    {budgetsForCategory.length > 0 ? (
+                      <>
+                        <select
+                          value={eventBudgetId}
+                          onChange={e => setEventBudgetId(e.target.value)}
+                          className="w-full rounded-lg border border-[#e0e0e0] bg-white px-3 py-2 text-sm text-[#1D1E20] outline-none transition focus:border-[#48C9B0]"
+                        >
+                          <option value="">Sin partida (no comparar)</option>
+                          {budgetsForCategory.map(b => (
+                            <option key={b.id} value={b.id}>
+                              {b.subcategory || BUDGET_CATEGORY_LABELS[b.category]} — {formatCurrency(b.budget_amount, currency)}
+                            </option>
+                          ))}
+                        </select>
+                        {selectedBudget && (
+                          <p className="mt-1 text-[10px] text-[#888]">
+                            Meta para esta partida: {formatCurrency(budgetMeta, currency)}
+                          </p>
+                        )}
+                      </>
+                    ) : (
+                      <div className="rounded-lg border border-dashed border-[#e0e0e0] bg-white px-3 py-3 text-center">
+                        <p className="text-xs text-[#888]">
+                          No hay partidas de {BUDGET_CATEGORY_LABELS[category]} en tu presupuesto
+                        </p>
+                        <p className="mt-0.5 text-[10px] text-[#aaa]">
+                          Créalas primero en la sección Presupuesto
+                        </p>
                       </div>
                     )}
                   </div>
@@ -236,8 +257,26 @@ export default function SupplierModal({ isOpen, onClose, currency, onSubmit }: P
                     />
                     {quotedAmount && (
                       <p className="mt-1 text-[10px] text-[#aaa]">
-                        {formatCurrency(parseFloat(quotedAmount) || 0, currency)}
+                        {formatCurrency(quotedNum, currency)}
                       </p>
+                    )}
+
+                    {/* Comparacion contra meta */}
+                    {isOverBudget && (
+                      <div className="mt-2 flex items-start gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+                        <AlertTriangle size={13} className="mt-0.5 shrink-0 text-amber-500" />
+                        <p className="text-[11px] text-amber-700">
+                          Supera la meta de "{selectedBudget?.subcategory}" por {formatCurrency(quotedNum - budgetMeta, currency)}
+                        </p>
+                      </div>
+                    )}
+                    {isUnderBudget && (
+                      <div className="mt-2 flex items-start gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2">
+                        <CheckCircle2 size={13} className="mt-0.5 shrink-0 text-emerald-500" />
+                        <p className="text-[11px] text-emerald-700">
+                          Dentro del presupuesto — quedan {formatCurrency(budgetMeta - quotedNum, currency)} disponibles
+                        </p>
+                      </div>
                     )}
                   </div>
                 </div>
