@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { useParams, usePathname, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { Users, Images, Music2, Settings, LayoutGrid, PanelLeftClose, PanelLeftOpen, CalendarDays, House, User, LogOut } from 'lucide-react'
+import { Users, Images, Music2, Settings, LayoutGrid, PanelLeftClose, PanelLeftOpen, CalendarDays, House, User, LogOut, Wallet, Briefcase, Heart } from 'lucide-react'
 import { Event } from '@/lib/types'
 import { EventAccessProvider, useEventAccess } from '@/lib/event-access-context'
 
@@ -23,15 +23,119 @@ const EVENT_STATUS_STYLES: Record<string, { dot: string; badge: string; label: s
   completed: { dot: 'bg-[#888]',    badge: 'border-[#e0e0e0] bg-[#f8f8f8] text-[#888]',    label: 'Completado' },
 }
 
-// Todos los nav items posibles
-const NAV_ITEMS = [
-  { label: 'Invitados',     labelMobile: 'Invitados', path: '',               adminOnly: false, iconOutline: <Users       width={18} height={18} strokeWidth={1.5} />, iconFilled: <Users       width={18} height={18} strokeWidth={2.5} /> },
-  { label: 'Mesas',         labelMobile: 'Mesas',     path: '/mesas',         adminOnly: false, iconOutline: <LayoutGrid  width={18} height={18} strokeWidth={1.5} />, iconFilled: <LayoutGrid  width={18} height={18} strokeWidth={2.5} /> },
-  { label: 'Timeline',      labelMobile: 'Timeline',  path: '/timeline',      adminOnly: false, iconOutline: <CalendarDays width={18} height={18} strokeWidth={1.5} />, iconFilled: <CalendarDays width={18} height={18} strokeWidth={2.5} /> },
-  { label: 'Album',         labelMobile: 'Album',     path: '/album',         adminOnly: false, iconOutline: <Images      width={18} height={18} strokeWidth={1.5} />, iconFilled: <Images      width={18} height={18} strokeWidth={2.5} /> },
-  { label: 'Playlist',      labelMobile: 'Playlist',  path: '/playlist',      adminOnly: false, iconOutline: <Music2      width={18} height={18} strokeWidth={1.5} />, iconFilled: <Music2      width={18} height={18} strokeWidth={2.5} /> },
-  { label: 'Configuracion', labelMobile: 'Config',    path: '/configuracion', adminOnly: true,  iconOutline: <Settings    width={18} height={18} strokeWidth={1.5} />, iconFilled: <Settings    width={18} height={18} strokeWidth={2.5} /> },
+// Tipos para nav: discriminated union entre item simple y grupo con sub-items
+type NavSubItem = {
+  label: string
+  labelMobile?: string
+  path: string
+  pro?: boolean
+  iconOutline: React.ReactNode
+  iconFilled: React.ReactNode
+}
+
+type NavItem = {
+  type: 'item'
+  label: string
+  labelMobile: string
+  path: string
+  adminOnly: boolean
+  iconOutline: React.ReactNode
+  iconFilled: React.ReactNode
+}
+
+type NavGroup = {
+  type: 'group'
+  label: string
+  labelMobile: string
+  defaultPath: string
+  // icono solo para mobile bottom nav y desktop colapsado del grupo
+  iconOutline: React.ReactNode
+  iconFilled: React.ReactNode
+  children: NavSubItem[]
+}
+
+type NavEntry = NavItem | NavGroup
+
+// Configuracion del nav. Items simples van como type:'item'.
+// Grupos llevan type:'group' con sus children. En desktop expandido el grupo
+// se renderiza como header de texto sin icono y sus children indentados.
+// En desktop colapsado y en mobile bottom nav los children NO se muestran:
+// se muestra el icono del grupo y al click va al defaultPath.
+const NAV_ITEMS: NavEntry[] = [
+  {
+    type: 'item',
+    label: 'Invitados', labelMobile: 'Invitados', path: '', adminOnly: false,
+    iconOutline: <Users       width={18} height={18} strokeWidth={1.5} />,
+    iconFilled:  <Users       width={18} height={18} strokeWidth={2.5} />,
+  },
+  {
+    type: 'item',
+    label: 'Mesas', labelMobile: 'Mesas', path: '/mesas', adminOnly: false,
+    iconOutline: <LayoutGrid  width={18} height={18} strokeWidth={1.5} />,
+    iconFilled:  <LayoutGrid  width={18} height={18} strokeWidth={2.5} />,
+  },
+  {
+    type: 'item',
+    label: 'Timeline', labelMobile: 'Timeline', path: '/timeline', adminOnly: false,
+    iconOutline: <CalendarDays width={18} height={18} strokeWidth={1.5} />,
+    iconFilled:  <CalendarDays width={18} height={18} strokeWidth={2.5} />,
+  },
+{
+    type: 'group',
+    label: 'Finanzas', labelMobile: 'Finanzas',
+    defaultPath: '/presupuesto',
+    iconOutline: <Wallet width={18} height={18} strokeWidth={1.5} />,
+    iconFilled:  <Wallet width={18} height={18} strokeWidth={2.5} />,
+    children: [
+      {
+        label: 'Presupuesto', path: '/presupuesto',
+        iconOutline: <Wallet    width={16} height={16} strokeWidth={1.5} />,
+        iconFilled:  <Wallet    width={16} height={16} strokeWidth={2.5} />,
+      },
+      {
+        label: 'Proveedores', path: '/proveedores', pro: true,
+        iconOutline: <Briefcase width={16} height={16} strokeWidth={1.5} />,
+        iconFilled:  <Briefcase width={16} height={16} strokeWidth={2.5} />,
+      },
+    ],
+  },
+  {
+    type: 'group',
+    label: 'Recuerdos', labelMobile: 'Recuerdos',
+    defaultPath: '/album',
+    iconOutline: <Heart width={18} height={18} strokeWidth={1.5} />,
+    iconFilled:  <Heart width={18} height={18} strokeWidth={2.5} />,
+    children: [
+      {
+        label: 'Album', path: '/album',
+        iconOutline: <Images width={16} height={16} strokeWidth={1.5} />,
+        iconFilled:  <Images width={16} height={16} strokeWidth={2.5} />,
+      },
+      {
+        label: 'Playlist', path: '/playlist',
+        iconOutline: <Music2 width={16} height={16} strokeWidth={1.5} />,
+        iconFilled:  <Music2 width={16} height={16} strokeWidth={2.5} />,
+      },
+    ],
+  },
+  {
+    type: 'item',
+    label: 'Configuracion', labelMobile: 'Config', path: '/configuracion', adminOnly: true,
+    iconOutline: <Settings    width={18} height={18} strokeWidth={1.5} />,
+    iconFilled:  <Settings    width={18} height={18} strokeWidth={2.5} />,
+  },
 ]
+
+// Badge PRO reutilizable. Decorativo en MVP, funcional cuando llegue Stripe.
+function ProBadge({ active = false }: { active?: boolean }) {
+  return (
+    <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider
+      ${active ? 'bg-white text-[#1D1E20]' : 'bg-[#1D1E20] text-white'}
+    `}>
+      PRO
+    </span>
+  )
+}
 
 function getInitials(name: string, email: string): string {
   if (name) {
@@ -51,13 +155,11 @@ function Avatar({ initials, size = 'md' }: { initials: string; size?: 'sm' | 'md
   )
 }
 
-// Componente interno que consume el context — necesita estar dentro del Provider
 function EventLayoutInner({ children }: { children: React.ReactNode }) {
   const { id } = useParams()
   const pathname = usePathname()
   const router = useRouter()
 
-  // Leer rol del context — filtra nav items según permisos
   const { canAdmin } = useEventAccess()
 
   const [event, setEvent]             = useState<Event | null>(null)
@@ -71,8 +173,11 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
   const navScrollRef = useRef<HTMLDivElement>(null)
   const avatarRef    = useRef<HTMLDivElement>(null)
 
-  // Nav items visibles según rol — Configuracion solo para owner/admin
-  const visibleNavItems = NAV_ITEMS.filter(item => !item.adminOnly || canAdmin)
+  // Filtra entries respetando adminOnly. Los grupos siempre se muestran (no tienen adminOnly).
+  const visibleEntries = NAV_ITEMS.filter(entry => {
+    if (entry.type === 'item') return !entry.adminOnly || canAdmin
+    return true
+  })
 
   useEffect(() => {
     const stored = localStorage.getItem('gf_sidebar_collapsed')
@@ -96,7 +201,6 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
     return () => document.removeEventListener('mousedown', handler)
   }, [])
 
-  // Auth
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'INITIAL_SESSION' && !session) {
@@ -111,7 +215,6 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
     return () => subscription.unsubscribe()
   }, [router])
 
-  // Cargar evento
   useEffect(() => {
     if (!authChecked) return
     const loadEvent = async () => {
@@ -124,19 +227,6 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
     }
     loadEvent()
   }, [id, authChecked])
-
-  // Scroll nav al item activo
-  useEffect(() => {
-    const container = navScrollRef.current
-    if (!container) return
-    const activeIndex = visibleNavItems.findIndex(item => {
-      if (item.path === '') return pathname === `/events/${id}`
-      return pathname.startsWith(`/events/${id}${item.path}`)
-    })
-    if (activeIndex === -1) return
-    const itemWidth = container.scrollWidth / visibleNavItems.length
-    container.scrollTo({ left: Math.max(0, itemWidth * activeIndex - itemWidth * 2), behavior: 'smooth' })
-  }, [pathname, id, visibleNavItems.length])
 
   const formatDate = (d: string) => {
     const [year, month, day] = d.split('T')[0].split('-').map(Number)
@@ -158,11 +248,16 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
     return 'active'
   }
 
+  // Si path es '' significa la raiz del evento (Invitados). Cualquier otro path
+  // se considera activo si pathname empieza con la ruta completa.
   const isActive = (path: string) => {
     const full = `/events/${id}${path}`
     if (path === '') return pathname === `/events/${id}`
-    return pathname.startsWith(full)
+    return pathname === full || pathname.startsWith(full + '/')
   }
+
+  // Para grupos: el grupo esta activo si cualquiera de sus children esta activo
+  const isGroupActive = (group: NavGroup) => group.children.some(child => isActive(child.path))
 
   const navigate = (path: string) => {
     router.push(`/events/${id}${path}`)
@@ -173,6 +268,42 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
     await supabase.auth.signOut()
     window.location.href = '/'
   }
+
+  // Construye lista plana de items para mobile bottom nav y desktop colapsado.
+  // Los grupos colapsan en un solo entry (con su icono y defaultPath).
+  const flatNavForCompact = visibleEntries.map(entry => {
+    if (entry.type === 'item') {
+      return {
+        key: entry.path,
+        label: entry.label,
+        labelMobile: entry.labelMobile,
+        path: entry.path,
+        iconOutline: entry.iconOutline,
+        iconFilled: entry.iconFilled,
+        active: isActive(entry.path),
+      }
+    }
+    // grupo: usa defaultPath, pero el activo se calcula con todos sus children
+    return {
+      key: entry.label,
+      label: entry.label,
+      labelMobile: entry.labelMobile,
+      path: entry.defaultPath,
+      iconOutline: entry.iconOutline,
+      iconFilled: entry.iconFilled,
+      active: isGroupActive(entry),
+    }
+  })
+
+  // Scroll bottom nav al item activo en mobile
+  useEffect(() => {
+    const container = navScrollRef.current
+    if (!container) return
+    const activeIndex = flatNavForCompact.findIndex(item => item.active)
+    if (activeIndex === -1) return
+    const itemWidth = container.scrollWidth / (flatNavForCompact.length + 1)
+    container.scrollTo({ left: Math.max(0, itemWidth * activeIndex - itemWidth * 2), behavior: 'smooth' })
+  }, [pathname, id, flatNavForCompact.length])
 
   if (!authChecked) {
     return (
@@ -210,6 +341,65 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
         Cerrar sesion
       </button>
     </div>
+  )
+
+  // Renderiza un item simple (no grupo) en sidebar expandido
+  const renderSidebarItem = (entry: NavItem) => (
+    <button
+      key={entry.path}
+      onClick={() => navigate(entry.path)}
+      className={`flex w-full items-center gap-2.5 border-l-[3px] px-4 py-2.5 text-left text-sm transition
+        ${isActive(entry.path)
+          ? 'border-[#48C9B0] bg-white font-semibold text-[#1D1E20]'
+          : 'border-transparent font-normal text-[#888] hover:bg-white/60 hover:text-[#1D1E20]'
+        }`}
+    >
+      {isActive(entry.path) ? entry.iconFilled : entry.iconOutline}
+      <span>{entry.label}</span>
+    </button>
+  )
+
+  // Renderiza un grupo (header sin icono + sub-items con icono indentados)
+  const renderSidebarGroup = (group: NavGroup) => (
+    <div key={group.label} className="mt-1">
+      <div className="px-4 pb-1 pt-3 text-[10px] font-semibold uppercase tracking-wider text-[#aaa]">
+        {group.label}
+      </div>
+      {group.children.map(child => {
+        const active = isActive(child.path)
+        return (
+          <button
+            key={child.path}
+            onClick={() => navigate(child.path)}
+            className={`flex w-full items-center gap-2.5 border-l-[3px] py-2.5 pl-7 pr-4 text-left text-sm transition
+              ${active
+                ? 'border-[#48C9B0] bg-white font-semibold text-[#1D1E20]'
+                : 'border-transparent font-normal text-[#888] hover:bg-white/60 hover:text-[#1D1E20]'
+              }`}
+          >
+            {active ? child.iconFilled : child.iconOutline}
+            <span className="flex-1">{child.label}</span>
+            {child.pro && <ProBadge />}
+          </button>
+        )
+      })}
+    </div>
+  )
+
+  // Renderiza item compacto (sidebar colapsado): solo icono
+  const renderCollapsedItem = (item: typeof flatNavForCompact[number]) => (
+    <button
+      key={item.key}
+      onClick={() => router.push(`/events/${id}${item.path}`)}
+      title={item.label}
+      className={`flex w-full items-center justify-center border-l-[3px] py-2.5 transition
+        ${item.active
+          ? 'border-[#48C9B0] bg-white text-[#1D1E20]'
+          : 'border-transparent text-[#888] hover:bg-white/60 hover:text-[#1D1E20]'
+        }`}
+    >
+      {item.active ? item.iconFilled : item.iconOutline}
+    </button>
   )
 
   return (
@@ -312,26 +502,15 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
           className="hidden shrink-0 flex-col overflow-hidden border-r border-[#e8e8e8] bg-[#f8f5f0] lg:flex"
           style={{ width: collapsed ? '56px' : '224px', transition: 'width 0.2s ease' }}
         >
-          <nav className="flex-1 py-2">
-            {visibleNavItems.map(item => (
-              <button
-                key={item.path}
-                onClick={() => navigate(item.path)}
-                title={collapsed ? item.label : undefined}
-                className={`flex w-full items-center border-l-[3px] py-2.5 text-left text-sm transition
-                  ${collapsed ? 'justify-center px-0' : 'gap-2.5 px-4'}
-                  ${isActive(item.path)
-                    ? 'border-[#48C9B0] bg-white font-semibold text-[#1D1E20]'
-                    : 'border-transparent font-normal text-[#888] hover:bg-white/60 hover:text-[#1D1E20]'
-                  }`}
-              >
-                {isActive(item.path) ? item.iconFilled : item.iconOutline}
-                {!collapsed && <span>{item.label}</span>}
-              </button>
-            ))}
+          <nav className="flex-1 overflow-y-auto py-2">
+            {collapsed
+              ? flatNavForCompact.map(item => renderCollapsedItem(item))
+              : visibleEntries.map(entry =>
+                  entry.type === 'item' ? renderSidebarItem(entry) : renderSidebarGroup(entry)
+                )
+            }
           </nav>
 
-          {/* Avatar desktop fijo al fondo */}
           <div className="shrink-0 border-t border-[#e8e8e8]">
             <div ref={avatarRef} className="relative px-3 py-3">
               <button
@@ -384,20 +563,9 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
                 )}
               </div>
               <nav className="flex-1 py-2">
-                {visibleNavItems.map(item => (
-                  <button
-                    key={item.path}
-                    onClick={() => navigate(item.path)}
-                    className={`flex w-full items-center gap-2.5 border-l-[3px] px-4 py-2.5 text-left text-sm transition
-                      ${isActive(item.path)
-                        ? 'border-[#48C9B0] bg-white font-semibold text-[#1D1E20]'
-                        : 'border-transparent font-normal text-[#888] hover:bg-white/60 hover:text-[#1D1E20]'
-                      }`}
-                  >
-                    {isActive(item.path) ? item.iconFilled : item.iconOutline}
-                    <span>{item.label}</span>
-                  </button>
-                ))}
+                {visibleEntries.map(entry =>
+                  entry.type === 'item' ? renderSidebarItem(entry) : renderSidebarGroup(entry)
+                )}
               </nav>
             </div>
           </>
@@ -428,16 +596,16 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
           <House width={18} height={18} strokeWidth={1.5} />
           <span>Inicio</span>
         </button>
-        {visibleNavItems.map(item => (
+        {flatNavForCompact.map(item => (
           <button
-            key={item.path}
-            onClick={() => navigate(item.path)}
+            key={item.key}
+            onClick={() => router.push(`/events/${id}${item.path}`)}
             className={`flex shrink-0 flex-col items-center justify-center gap-1 py-2.5 text-[10px] font-medium transition
-              ${isActive(item.path) ? 'text-[#48C9B0]' : 'text-[#bbb]'}`}
+              ${item.active ? 'text-[#48C9B0]' : 'text-[#bbb]'}`}
             style={{ width: '20vw', scrollSnapAlign: 'center' }}
           >
-            {isActive(item.path) ? item.iconFilled : item.iconOutline}
-            <span>{item.labelMobile ?? item.label}</span>
+            {item.active ? item.iconFilled : item.iconOutline}
+            <span>{item.labelMobile}</span>
           </button>
         ))}
       </nav>
@@ -446,7 +614,6 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
   )
 }
 
-// Wrapper que provee el context primero, luego renderiza el inner
 export default function EventLayout({ children }: { children: React.ReactNode }) {
   const { id } = useParams()
 
