@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { X, Briefcase } from 'lucide-react'
+import { X } from 'lucide-react'
 import {
   BudgetCategory, BUDGET_CATEGORIES, BUDGET_CATEGORY_LABELS, SUBCATEGORIES_BY_CATEGORY,
   Currency, formatCurrency, EventSupplier, Supplier, SUPPLIER_STATUS_LABELS,
@@ -15,9 +15,7 @@ type Props = {
   isOpen: boolean
   onClose: () => void
   currency: Currency
-  // Categoria pre-seleccionada cuando abre desde "+ Agregar partida" dentro de una categoria
   initialCategory?: BudgetCategory | null
-  // Proveedores del evento para vincular
   eventSuppliers: EventSupplierWithName[]
   onSubmit: (data: {
     category: BudgetCategory
@@ -31,14 +29,13 @@ type Props = {
 export default function BudgetItemModal({
   isOpen, onClose, currency, initialCategory, eventSuppliers, onSubmit,
 }: Props) {
-  const [category, setCategory]            = useState<BudgetCategory>('Venue')
-  const [subcategory, setSubcategory]      = useState('')
-  const [amount, setAmount]                = useState('')
-  const [supplierId, setSupplierId]        = useState<string>('')
-  const [notes, setNotes]                  = useState('')
-  const [submitting, setSubmitting]        = useState(false)
+  const [category, setCategory]       = useState<BudgetCategory>('Venue')
+  const [subcategory, setSubcategory] = useState('')
+  const [amount, setAmount]           = useState('')
+  const [supplierId, setSupplierId]   = useState('')
+  const [notes, setNotes]             = useState('')
+  const [submitting, setSubmitting]   = useState(false)
 
-  // Reset al abrir
   useEffect(() => {
     if (isOpen) {
       setCategory(initialCategory || 'Venue')
@@ -54,14 +51,13 @@ export default function BudgetItemModal({
 
   const suggestions = SUBCATEGORIES_BY_CATEGORY[category] || []
 
-  // Filtrar proveedores que correspondan a la categoria seleccionada
   const matchingSuppliers = eventSuppliers.filter(es =>
     es.supplier && es.contract_amount !== null
   )
 
   const handleSubmit = async () => {
     if (!subcategory.trim()) {
-      alert('Escribe el nombre de la partida')
+      alert('Escribe el nombre del concepto')
       return
     }
     setSubmitting(true)
@@ -83,20 +79,14 @@ export default function BudgetItemModal({
 
   return (
     <>
-      {/* Overlay */}
-      <div
-        onClick={onClose}
-        className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm"
-      />
+      <div onClick={onClose} className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm" />
 
-      {/* Modal */}
       <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4">
         <div className="flex max-h-[90vh] w-full max-w-md flex-col overflow-hidden rounded-t-2xl bg-white shadow-xl sm:rounded-2xl">
 
-          {/* HEADER */}
           <div className="flex shrink-0 items-center justify-between border-b border-[#f0f0f0] px-5 py-4">
             <div>
-              <h2 className="text-base font-bold text-[#1D1E20]">Nueva partida</h2>
+              <h2 className="text-base font-bold text-[#1D1E20]">Agregar concepto</h2>
               <p className="text-xs text-[#888]">Agrega un nuevo gasto al presupuesto</p>
             </div>
             <button
@@ -107,7 +97,6 @@ export default function BudgetItemModal({
             </button>
           </div>
 
-          {/* BODY scrollable */}
           <div className="flex-1 overflow-y-auto px-5 py-4">
             <div className="space-y-4">
 
@@ -127,10 +116,10 @@ export default function BudgetItemModal({
                 </select>
               </div>
 
-              {/* Partida (subcategoria) */}
+              {/* Concepto */}
               <div>
                 <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-[#888]">
-                  Partida
+                  Concepto
                 </label>
                 <input
                   type="text"
@@ -139,7 +128,6 @@ export default function BudgetItemModal({
                   placeholder="Ej. Pastel principal, DJ noche..."
                   className="w-full rounded-lg border border-[#e0e0e0] bg-white px-3 py-2 text-sm text-[#1D1E20] outline-none transition focus:border-[#48C9B0]"
                 />
-                {/* Sugerencias rapidas */}
                 {suggestions.length > 0 && (
                   <div className="mt-2 flex flex-wrap gap-1.5">
                     {suggestions.map(sug => (
@@ -156,10 +144,10 @@ export default function BudgetItemModal({
                 )}
               </div>
 
-              {/* Monto estimado */}
+              {/* Presupuesto */}
               <div>
                 <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-[#888]">
-                  Monto estimado
+                  Presupuesto
                 </label>
                 <input
                   type="text"
@@ -167,8 +155,7 @@ export default function BudgetItemModal({
                   value={amount}
                   onChange={e => {
                     const cleaned = e.target.value.replace(/[^0-9.]/g, '')
-                    const parts = cleaned.split('.')
-                    if (parts.length > 2) return
+                    if (cleaned.split('.').length > 2) return
                     setAmount(cleaned)
                   }}
                   placeholder="0.00"
@@ -181,10 +168,9 @@ export default function BudgetItemModal({
                 )}
               </div>
 
-              {/* Proveedor (opcional) */}
+              {/* Proveedor opcional */}
               <div>
-                <label className="mb-1 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-[#888]">
-                  <Briefcase size={12} />
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-[#888]">
                   Proveedor (opcional)
                 </label>
                 {matchingSuppliers.length > 0 ? (
@@ -208,9 +194,9 @@ export default function BudgetItemModal({
                   </>
                 ) : (
                   <div className="rounded-lg border border-dashed border-[#e0e0e0] bg-[#fafafa] px-3 py-3 text-center">
-                    <p className="text-xs text-[#888]">Aún no tienes proveedores</p>
+                    <p className="text-xs text-[#888]">Aún no tienes proveedores contratados</p>
                     <p className="mt-0.5 text-[10px] text-[#aaa]">
-                      Créalos en la sección Proveedores para vincularlos a tus partidas
+                      Vincúlalos desde la sección Proveedores
                     </p>
                   </div>
                 )}
@@ -233,7 +219,6 @@ export default function BudgetItemModal({
             </div>
           </div>
 
-          {/* FOOTER */}
           <div className="flex shrink-0 items-center justify-end gap-2 border-t border-[#f0f0f0] bg-[#fafafa] px-5 py-3">
             <button
               onClick={onClose}
@@ -247,7 +232,7 @@ export default function BudgetItemModal({
               disabled={submitting || !subcategory.trim()}
               className="rounded-lg bg-[#48C9B0] px-4 py-2 text-xs font-semibold text-white transition hover:bg-[#3aa896] disabled:opacity-50"
             >
-              {submitting ? 'Guardando...' : 'Agregar partida'}
+              {submitting ? 'Guardando...' : 'Agregar concepto'}
             </button>
           </div>
 

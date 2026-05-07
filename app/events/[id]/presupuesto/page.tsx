@@ -9,6 +9,7 @@ import {
   Currency, EventSupplier, Supplier,
 } from '@/lib/types'
 import BudgetMetricsCards from '@/app/components/ui/BudgetMetricsCards'
+import StatsCollapse, { useStatsToggle, StatsToggleButton } from '@/app/components/ui/StatsCollapse'
 import BudgetCategoryRow from './BudgetCategoryRow'
 import BudgetItemModal from './BudgetItemModal'
 import { buildSeedBudgets } from './lib/seed'
@@ -35,9 +36,10 @@ export default function PresupuestoPage() {
   const [loading, setLoading]               = useState(true)
   const [search, setSearch]                 = useState('')
 
-  // Estado del modal
-  const [modalOpen, setModalOpen]                   = useState(false)
-  const [modalCategory, setModalCategory]           = useState<BudgetCategory | null>(null)
+  const [modalOpen, setModalOpen]         = useState(false)
+  const [modalCategory, setModalCategory] = useState<BudgetCategory | null>(null)
+
+  const statsToggle = useStatsToggle(eventId, 'presupuesto')
 
   useEffect(() => {
     if (!eventId) return
@@ -53,7 +55,7 @@ export default function PresupuestoPage() {
         supabase.from('event_suppliers').select('*, supplier:suppliers(id, name, category)').eq('event_id', eventId),
       ])
 
-      if (eventRes.data)     setEvent(eventRes.data as Event)
+      if (eventRes.data) setEvent(eventRes.data as Event)
       const supplierRows = (suppliersRes.data || []) as EventSupplierWithName[]
       setEventSuppliers(supplierRows)
 
@@ -89,39 +91,25 @@ export default function PresupuestoPage() {
     }
   }
 
-  // ============================================
-  // CALCULOS DERIVADOS
-  // ============================================
-
-  // Suma de pagos por event_supplier_id
   const paidByEventSupplier: Record<string, number> = {}
   payments.forEach(p => {
     paidByEventSupplier[p.event_supplier_id] = (paidByEventSupplier[p.event_supplier_id] || 0) + Number(p.amount || 0)
   })
 
-  // Mapa global de proveedores indexados por id (para que el row encuentre su linked supplier)
   const eventSuppliersById: Record<string, EventSupplierWithName> = {}
   eventSuppliers.forEach(es => { eventSuppliersById[es.id] = es })
 
-  // Proveedores disponibles para vincular, indexados por categoria.
-  // Solo incluye los que tienen contract_amount (cotizados/contratados).
   const availableSuppliersByCategory: Record<string, EventSupplierWithName[]> = {}
   BUDGET_CATEGORIES.forEach(cat => { availableSuppliersByCategory[cat] = [] })
   eventSuppliers.forEach(es => {
     if (!es.supplier) return
     if (es.contract_amount === null || es.contract_amount === undefined) return
-    // La categoria del proveedor en suppliers.category (texto libre dentro de las 14)
-    // Asumimos que viene en es.supplier o lo lee del row de event_suppliers.
-    // El select original filtraba por supplier.contract_amount, ahora filtramos por la categoria
-    // de la partida. Como event_suppliers no guarda categoria, leemos de suppliers.
-    // Si tu schema guarda category en event_suppliers en vez de suppliers, ajusta esta linea.
     const cat = (es as any).supplier?.category || (es as any).category
     if (cat && availableSuppliersByCategory[cat]) {
       availableSuppliersByCategory[cat].push(es)
     }
   })
 
-  // Para cada partida: contratado y pagado desde el proveedor vinculado
   const contractedByItem: Record<string, number> = {}
   const paidByItem: Record<string, number>       = {}
   budgets.forEach(b => {
@@ -134,10 +122,6 @@ export default function PresupuestoPage() {
       paidByItem[b.id]       = 0
     }
   })
-
-  // ============================================
-  // FILTRO + AGRUPACION POR CATEGORIA
-  // ============================================
 
   const filteredBudgets = search.trim()
     ? budgets.filter(b => {
@@ -152,17 +136,9 @@ export default function PresupuestoPage() {
     if (itemsByCategory[b.category]) itemsByCategory[b.category].push(b)
   })
 
-  // ============================================
-  // METRICAS GLOBALES
-  // ============================================
-
   const totalBudget     = budgets.reduce((sum, b) => sum + b.budget_amount, 0)
   const totalContracted = budgets.reduce((sum, b) => sum + (contractedByItem[b.id] || 0), 0)
   const totalPaid       = budgets.reduce((sum, b) => sum + (paidByItem[b.id] || 0), 0)
-
-  // ============================================
-  // HANDLERS
-  // ============================================
 
   const openAddModalForCategory = (category: BudgetCategory) => {
     setModalCategory(category)
@@ -236,7 +212,7 @@ export default function PresupuestoPage() {
       totalBudget, totalContracted, totalPaid,
     }
     if (format === 'excel') exportToExcel(exportData)
-    else                    exportToPDF(exportData)
+    else exportToPDF(exportData)
   }
 
   if (loading || !event) {
@@ -253,24 +229,29 @@ export default function PresupuestoPage() {
 
   return (
     <div className="overflow-y-auto p-4 sm:p-6">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-[#1D1E20] sm:text-3xl">Presupuesto</h1>
-        <p className="mt-1 text-sm text-[#888]">
-          Controla cada partida del evento. Los montos cotizados y pagados se actualizan desde Proveedores.
-        </p>
+      <div className="mb-4 flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-xl font-bold text-[#1D1E20]">Presupuesto</h1>
+          <p className="mt-0.5 text-xs text-[#888]">Sincroniza proveedores con tu presupuesto.</p>
+        </div>
+        <div className="lg:hidden pt-1">
+          <StatsToggleButton visible={statsToggle.visible} onClick={statsToggle.toggle} />
+        </div>
       </div>
 
-      <div className="mb-6">
-        <BudgetMetricsCards
-          totalBudget={totalBudget}
-          totalContracted={totalContracted}
-          totalPaid={totalPaid}
-          currency={currency}
-        />
+      <div className="mb-4">
+        <StatsCollapse visible={statsToggle.visible}>
+          <BudgetMetricsCards
+            totalBudget={totalBudget}
+            totalContracted={totalContracted}
+            totalPaid={totalPaid}
+            currency={currency}
+          />
+        </StatsCollapse>
       </div>
 
       <div className="mb-4 flex flex-wrap items-center gap-2">
-        <div className="relative flex-1 min-w-[180px]">
+        <div className="relative flex-1 min-w-[160px]">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#aaa]" />
           <input
             type="text"

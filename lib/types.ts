@@ -295,6 +295,7 @@ export type Supplier = {
   email: string | null
   website: string | null
   instagram: string | null
+  facebook: string | null
   country: string | null
   city: string | null
   state_region: string | null
@@ -309,10 +310,11 @@ export type SupplierUpdate = Partial<Omit<Supplier, 'id' | 'user_id' | 'created_
 // ─── FINANZAS — EVENT SUPPLIERS ──────────────────────────────────────────────
 // Relacion proveedor <-> evento (el SRM real)
 
+// Reemplaza toda la sección FINANZAS — EVENT SUPPLIERS
+
 export const SUPPLIER_STATUSES = [
-  'contactado',
+  'nuevo',
   'cotizacion',
-  'negociacion',
   'contratado',
   'descartado',
 ] as const
@@ -320,18 +322,15 @@ export const SUPPLIER_STATUSES = [
 export type SupplierStatus = typeof SUPPLIER_STATUSES[number]
 
 export const SUPPLIER_STATUS_LABELS: Record<SupplierStatus, string> = {
-  contactado: 'Contactado',
-  cotizacion: 'En cotización',
-  negociacion: 'Negociando',
+  nuevo:      'Nuevo',
+  cotizacion: 'Cotizado',
   contratado: 'Contratado',
   descartado: 'Descartado',
 }
 
-// Colores por estado para badges (clases tailwind)
 export const SUPPLIER_STATUS_COLORS: Record<SupplierStatus, string> = {
-  contactado: 'bg-amber-100 text-amber-700',
+  nuevo:      'bg-gray-100 text-gray-600',
   cotizacion: 'bg-blue-100 text-blue-700',
-  negociacion: 'bg-gray-100 text-gray-600',
   contratado: 'bg-emerald-100 text-emerald-700',
   descartado: 'bg-red-100 text-red-600',
 }
@@ -392,6 +391,7 @@ export type EventSupplier = {
   event_notes: string | null
   external_files_url: string | null
   has_pro_files: boolean
+  event_budget_id: string | null
   created_at: string
 }
 

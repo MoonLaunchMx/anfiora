@@ -1,11 +1,13 @@
 'use client'
 
-import { Phone, MoreVertical } from 'lucide-react'
+import { Mail, Globe } from 'lucide-react'
 import {
   Currency, formatCurrency, BUDGET_CATEGORY_LABELS,
-  EventSupplier, Supplier, SUPPLIER_STATUS_LABELS, SUPPLIER_STATUS_COLORS,
+  EventSupplier, Supplier, EventBudget,
+  SUPPLIER_STATUS_LABELS, SUPPLIER_STATUS_COLORS,
 } from '@/lib/types'
 import { FiInstagram } from 'react-icons/fi'
+import { FaWhatsapp } from 'react-icons/fa'
 
 type SupplierWithDetails = EventSupplier & {
   supplier: Supplier
@@ -13,29 +15,36 @@ type SupplierWithDetails = EventSupplier & {
 
 type Props = {
   item: SupplierWithDetails
+  budgets: EventBudget[]
   currency: Currency
   onClick: () => void
 }
 
-export default function SupplierCard({ item, currency, onClick }: Props) {
+export default function SupplierCard({ item, budgets, currency, onClick }: Props) {
   const s = item.supplier
 
-  const waLink = s.phone
-    ? `https://wa.me/${(s.phone_country_code || '+52').replace('+', '')}${s.phone}`
-    : null
-
-  const igLink = s.instagram ? `https://instagram.com/${s.instagram}` : null
+  const waLink  = s.phone ? `https://wa.me/${(s.phone_country_code || '+52').replace('+', '')}${s.phone}` : null
+  const igLink  = s.instagram ? `https://instagram.com/${s.instagram.replace('@', '')}` : null
+  const webLink = s.website || null
+  const mailLink = s.email ? `mailto:${s.email}` : null
 
   const openLink = (e: React.MouseEvent, url: string) => {
     e.stopPropagation()
     window.open(url, '_blank', 'noopener,noreferrer')
   }
 
+  // Cotización vs meta de la partida vinculada
+  const linkedBudget = budgets.find(b => b.id === item.event_budget_id)
+  const meta = linkedBudget?.budget_amount ?? null
+  const cotizado = item.quoted_amount ?? item.contract_amount ?? null
+  const exceeds = meta !== null && cotizado !== null && cotizado > meta
+
   return (
     <div
       onClick={onClick}
       className="cursor-pointer rounded-xl border border-[#e8e8e8] bg-white p-4 transition hover:border-[#48C9B0] hover:shadow-sm"
     >
+      {/* Header: categoría + badge status */}
       <div className="mb-2 flex items-center justify-between gap-2">
         <span className="text-[10px] font-semibold uppercase tracking-wider text-[#888]">
           {BUDGET_CATEGORY_LABELS[s.category]}
@@ -45,58 +54,85 @@ export default function SupplierCard({ item, currency, onClick }: Props) {
         </span>
       </div>
 
+      {/* Nombre */}
       <h3 className="mb-1 text-sm font-bold text-[#1D1E20]">{s.name}</h3>
 
-      {s.subcategory && (
+      {/* Subcategoría / partida */}
+      {linkedBudget ? (
+        <p className="mb-3 text-xs text-[#888]">
+          {linkedBudget.subcategory || BUDGET_CATEGORY_LABELS[linkedBudget.category]}
+        </p>
+      ) : s.subcategory ? (
         <p className="mb-3 text-xs text-[#888]">{s.subcategory}</p>
+      ) : (
+        <div className="mb-3" />
       )}
 
-      {(item.contract_amount || item.quoted_amount) && (
-        <div className="mb-3 rounded-lg bg-[#fafafa] p-2.5">
-          {item.contract_amount ? (
+      {/* Cotización vs meta */}
+      {cotizado !== null && (
+        <div className={`mb-3 rounded-lg p-2.5 ${exceeds ? 'bg-amber-50' : 'bg-[#fafafa]'}`}>
+          <div className="flex items-center justify-between gap-2">
             <div>
-              <p className="text-[10px] uppercase tracking-wider text-[#888]">Contratado</p>
-              <p className="text-sm font-bold tabular-nums text-[#1D1E20]">
-                {formatCurrency(item.contract_amount, currency)}
+              <p className="text-[10px] uppercase tracking-wider text-[#888]">
+                {item.contract_amount ? 'Contratado' : 'Cotizado'}
+              </p>
+              <p className={`text-sm font-bold tabular-nums ${exceeds ? 'text-amber-600' : 'text-[#1D1E20]'}`}>
+                {formatCurrency(cotizado, currency)}
               </p>
             </div>
-          ) : (
-            <div>
-              <p className="text-[10px] uppercase tracking-wider text-[#888]">Cotizado</p>
-              <p className="text-sm font-semibold tabular-nums text-[#666]">
-                {formatCurrency(item.quoted_amount || 0, currency)}
-              </p>
-            </div>
+            {meta !== null && (
+              <div className="text-right">
+                <p className="text-[10px] uppercase tracking-wider text-[#888]">Meta</p>
+                <p className="text-sm font-semibold tabular-nums text-[#888]">
+                  {formatCurrency(meta, currency)}
+                </p>
+              </div>
+            )}
+          </div>
+          {exceeds && (
+            <p className="mt-1 text-[10px] font-medium text-amber-600">Excede la partida</p>
           )}
         </div>
       )}
 
-      <div className="flex items-center gap-2">
+      {/* Botones de contacto */}
+      <div className="flex items-center gap-1.5">
         {waLink && (
           <button
             onClick={e => openLink(e, waLink)}
-            title="Abrir WhatsApp"
+            title="WhatsApp"
             className="flex h-8 w-8 items-center justify-center rounded-full bg-[#f0fdfb] text-[#1a9e88] transition hover:bg-[#48C9B0] hover:text-white"
           >
-            <Phone size={14} />
+            <FaWhatsapp size={14} />
           </button>
         )}
         {igLink && (
           <button
             onClick={e => openLink(e, igLink)}
-            title="Abrir Instagram"
+            title="Instagram"
             className="flex h-8 w-8 items-center justify-center rounded-full bg-[#fff0f5] text-[#e1306c] transition hover:bg-[#e1306c] hover:text-white"
           >
             <FiInstagram size={14} />
           </button>
         )}
-        <div className="flex-1" />
-        <button
-          onClick={e => { e.stopPropagation(); onClick() }}
-          className="flex h-7 w-7 items-center justify-center rounded text-[#aaa] hover:bg-[#f5f5f5] hover:text-[#1D1E20]"
-        >
-          <MoreVertical size={14} />
-        </button>
+        {webLink && (
+          <button
+            onClick={e => openLink(e, webLink)}
+            title="Sitio web"
+            className="flex h-8 w-8 items-center justify-center rounded-full bg-[#f5f5f5] text-[#555] transition hover:bg-[#1D1E20] hover:text-white"
+          >
+            <Globe size={14} />
+          </button>
+        )}
+        {mailLink && (
+          <button
+            onClick={e => openLink(e, mailLink)}
+            title="Email"
+            className="flex h-8 w-8 items-center justify-center rounded-full bg-[#f5f5f5] text-[#555] transition hover:bg-[#1D1E20] hover:text-white"
+          >
+            <Mail size={14} />
+          </button>
+        )}
       </div>
     </div>
   )

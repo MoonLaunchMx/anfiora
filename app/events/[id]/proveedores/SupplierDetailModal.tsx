@@ -7,12 +7,12 @@ import {
   X, Star, Trash2, Plus, Check, Paperclip, Wallet, Pencil, AlertTriangle, CheckCircle2,
 } from 'lucide-react'
 import { FaWhatsapp } from 'react-icons/fa'
-import { FiInstagram, FiGlobe, FiMail } from 'react-icons/fi'
+import { FiInstagram, FiGlobe, FiMail, FiFacebook } from 'react-icons/fi'
 import { supabase } from '@/lib/supabase'
 import {
   EventSupplier, Supplier, SupplierPayment, EventBudget, Currency, formatCurrency,
   BUDGET_CATEGORIES, BUDGET_CATEGORY_LABELS, BudgetCategory,
-  SupplierStatus,
+  SupplierStatus, SUPPLIER_STATUSES, SUPPLIER_STATUS_LABELS,
   PAYMENT_METHODS, PAYMENT_METHOD_LABELS, PaymentMethod,
   PAID_BY_OPTIONS, PAID_BY_LABELS, PaidBy,
 } from '@/lib/types'
@@ -30,14 +30,6 @@ interface Props {
   onDeleted: (id: string) => void
 }
 
-const STATUS_OPTIONS: { value: SupplierStatus; label: string }[] = [
-  { value: 'contactado',  label: 'Contactado'  },
-  { value: 'cotizacion',  label: 'Cotización'  },
-  { value: 'negociacion', label: 'Negociación' },
-  { value: 'contratado',  label: 'Contratado'  },
-  { value: 'descartado',  label: 'Descartado'  },
-]
-
 const COUNTRY_CODES = ['+52', '+1', '+34', '+57', '+54', '+55', '+56', '+51']
 
 export default function SupplierDetailModal({
@@ -45,60 +37,52 @@ export default function SupplierDetailModal({
 }: Props) {
   const router = useRouter()
 
-  const [name, setName]               = useState(item.supplier.name)
-  const [category, setCategory]       = useState<BudgetCategory>(item.supplier.category)
-
-  const [phone, setPhone]               = useState(item.supplier.phone ?? '')
+  const [name, setName]             = useState(item.supplier.name)
+  const [category, setCategory]     = useState<BudgetCategory>(item.supplier.category)
+  const [phone, setPhone]           = useState(item.supplier.phone ?? '')
   const [phoneCountryCode, setPhoneCountryCode] = useState(item.supplier.phone_country_code ?? '+52')
-  const [instagram, setInstagram]       = useState(item.supplier.instagram ?? '')
-  const [website, setWebsite]           = useState(item.supplier.website ?? '')
-  const [email, setEmail]               = useState(item.supplier.email ?? '')
+  const [instagram, setInstagram]   = useState(item.supplier.instagram ?? '')
+  const [facebook, setFacebook]     = useState((item.supplier as any).facebook ?? '')
+  const [website, setWebsite]       = useState(item.supplier.website ?? '')
+  const [email, setEmail]           = useState(item.supplier.email ?? '')
 
   const [status, setStatus]                 = useState<SupplierStatus>(item.status)
   const [quotedAmount, setQuotedAmount]     = useState<string>(item.quoted_amount?.toString() ?? '')
   const [contractAmount, setContractAmount] = useState<string>(item.contract_amount?.toString() ?? '')
   const [eventBudgetId, setEventBudgetId]   = useState<string>((item as any).event_budget_id ?? '')
+  const [supplierNotes, setSupplierNotes]   = useState<string>(item.event_notes ?? '')
 
-  const [supplierNotes, setSupplierNotes] = useState<string>(item.event_notes ?? '')
-
-  // ─── Pagos ───────────────────────────────────
-  const [payments, setPayments] = useState<SupplierPayment[]>([])
+  const [payments, setPayments]             = useState<SupplierPayment[]>([])
   const [showNewPaymentForm, setShowNewPaymentForm] = useState(false)
-  const [editingPaymentId, setEditingPaymentId] = useState<string | null>(null)
-  const [payAmount, setPayAmount]   = useState('')
-  const [payDate, setPayDate]       = useState(new Date().toISOString().slice(0, 10))
-  const [payMethod, setPayMethod]   = useState<PaymentMethod>('transferencia')
-  const [payBy, setPayBy]           = useState<PaidBy>('pareja')
+  const [editingPaymentId, setEditingPaymentId]     = useState<string | null>(null)
+  const [payAmount, setPayAmount]       = useState('')
+  const [payDate, setPayDate]           = useState(new Date().toISOString().slice(0, 10))
+  const [payMethod, setPayMethod]       = useState<PaymentMethod>('transferencia')
+  const [payBy, setPayBy]               = useState<PaidBy>('pareja')
   const [payReference, setPayReference] = useState('')
-  const [savingPay, setSavingPay] = useState(false)
+  const [savingPay, setSavingPay]       = useState(false)
 
   const [linkedBudget, setLinkedBudget] = useState<EventBudget | null>(null)
-
-  const [saving, setSaving]     = useState(false)
-  const [deleting, setDeleting] = useState(false)
+  const [saving, setSaving]             = useState(false)
+  const [deleting, setDeleting]         = useState(false)
   const [showProModal, setShowProModal] = useState(false)
   const [showReviewModal, setShowReviewModal] = useState(false)
 
-  const totalPaid = payments.reduce((sum, p) => sum + (p.amount || 0), 0)
-  const contractNum = contractAmount ? parseFloat(contractAmount) : 0
-  const remaining = contractNum - totalPaid
-  const isOverpaid = contractNum > 0 && totalPaid > contractNum
+  const totalPaid      = payments.reduce((sum, p) => sum + (p.amount || 0), 0)
+  const contractNum    = contractAmount ? parseFloat(contractAmount) : 0
+  const remaining      = contractNum - totalPaid
+  const isOverpaid     = contractNum > 0 && totalPaid > contractNum
   const overpaidAmount = isOverpaid ? totalPaid - contractNum : 0
-  const payProgress = contractNum > 0 ? Math.min((totalPaid / contractNum) * 100, 100) : 0
+  const payProgress    = contractNum > 0 ? Math.min((totalPaid / contractNum) * 100, 100) : 0
+  const hasReview      = item.rating !== null || (item.review_text && item.review_text.length > 0)
 
-  const hasReview = item.rating !== null || (item.review_text && item.review_text.length > 0)
-
-  // ─── Partidas filtradas por categoria ────────
   const budgetsForCategory = budgets.filter(b => b.category === category)
-  const selectedBudget = eventBudgetId ? budgets.find(b => b.id === eventBudgetId) : null
-  const budgetMeta = selectedBudget?.budget_amount || 0
+  const selectedBudget     = eventBudgetId ? budgets.find(b => b.id === eventBudgetId) : null
+  const budgetMeta         = selectedBudget?.budget_amount || 0
 
-  // Comparacion cotizacion vs meta
-  const quotedNum = parseFloat(quotedAmount) || 0
-  const isQuotedOverBudget = selectedBudget && quotedNum > 0 && budgetMeta > 0 && quotedNum > budgetMeta
-  const isQuotedUnderBudget = selectedBudget && quotedNum > 0 && budgetMeta > 0 && quotedNum <= budgetMeta
-
-  // Comparacion contratado vs meta
+  const quotedNum            = parseFloat(quotedAmount) || 0
+  const isQuotedOverBudget   = selectedBudget && quotedNum > 0 && budgetMeta > 0 && quotedNum > budgetMeta
+  const isQuotedUnderBudget  = selectedBudget && quotedNum > 0 && budgetMeta > 0 && quotedNum <= budgetMeta
   const isContractOverBudget = selectedBudget && contractNum > 0 && budgetMeta > 0 && contractNum > budgetMeta
 
   useEffect(() => {
@@ -106,7 +90,6 @@ export default function SupplierDetailModal({
     loadPayments()
     loadLinkedBudget()
     return () => { document.body.style.overflow = '' }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const loadPayments = async () => {
@@ -131,11 +114,9 @@ export default function SupplierDetailModal({
     if (!name.trim()) { alert('El nombre es obligatorio'); return }
     setSaving(true)
 
-    const wasFinalState = item.status === 'contratado' || item.status === 'descartado'
+    const wasFinalState  = item.status === 'contratado' || item.status === 'descartado'
     const isNowFinalState = status === 'contratado' || status === 'descartado'
     const reachedFinalState = !wasFinalState && isNowFinalState
-
-    // Subcategoria se lee de la partida vinculada
     const subcategoryFromBudget = selectedBudget?.subcategory || null
 
     try {
@@ -148,6 +129,7 @@ export default function SupplierDetailModal({
           phone:              phone.trim() || null,
           phone_country_code: phone.trim() ? phoneCountryCode : null,
           instagram:          instagram.trim() || null,
+          facebook:           facebook.trim() || null,
           website:            website.trim() || null,
           email:              email.trim() || null,
         })
@@ -199,7 +181,6 @@ export default function SupplierDetailModal({
     }
   }
 
-  // ─── Pagos: helpers ───────────────────────────
   const resetPaymentForm = () => {
     setPayAmount('')
     setPayDate(new Date().toISOString().slice(0, 10))
@@ -210,10 +191,7 @@ export default function SupplierDetailModal({
     setShowNewPaymentForm(false)
   }
 
-  const openNewPaymentForm = () => {
-    resetPaymentForm()
-    setShowNewPaymentForm(true)
-  }
+  const openNewPaymentForm = () => { resetPaymentForm(); setShowNewPaymentForm(true) }
 
   const openEditPaymentForm = (p: SupplierPayment) => {
     setShowNewPaymentForm(false)
@@ -234,12 +212,9 @@ export default function SupplierDetailModal({
         ? (payments.find(p => p.id === editingPaymentId)?.amount ?? 0)
         : 0
       const projectedTotal = totalPaid - previousAmount + amt
-
       if (projectedTotal > contractNum) {
         const excess = projectedTotal - contractNum
-        const ok = confirm(
-          `Este pago hará que excedas el monto contratado por ${formatCurrency(excess, currency)}.\n\n¿Continuar de todos modos?`
-        )
+        const ok = confirm(`Este pago hará que excedas el monto contratado por ${formatCurrency(excess, currency)}.\n\n¿Continuar de todos modos?`)
         if (!ok) return
       }
     }
@@ -261,22 +236,16 @@ export default function SupplierDetailModal({
           .eq('id', editingPaymentId)
           .select()
           .single()
-
         if (error) throw error
-        if (data) {
-          setPayments(prev => prev.map(p => p.id === editingPaymentId ? (data as SupplierPayment) : p))
-        }
+        if (data) setPayments(prev => prev.map(p => p.id === editingPaymentId ? (data as SupplierPayment) : p))
       } else {
         const { data, error } = await supabase
           .from('supplier_payments')
           .insert({ event_supplier_id: item.id, ...payload })
           .select()
           .single()
-
         if (error) throw error
-        if (data) {
-          setPayments(prev => [data as SupplierPayment, ...prev])
-        }
+        if (data) setPayments(prev => [data as SupplierPayment, ...prev])
       }
 
       resetPaymentForm()
@@ -296,27 +265,11 @@ export default function SupplierDetailModal({
     if (editingPaymentId === paymentId) resetPaymentForm()
   }
 
-  // ─── Helpers links ───────────────────────────
-  const openWhatsApp = () => {
-    if (!phone) return
-    const cleanPhone = phone.replace(/\D/g, '')
-    const cc = phoneCountryCode.replace(/\D/g, '')
-    window.open(`https://wa.me/${cc}${cleanPhone}`, '_blank', 'noopener,noreferrer')
-  }
-  const openInstagram = () => {
-    if (!instagram) return
-    const handle = instagram.replace('@', '').trim()
-    window.open(`https://instagram.com/${handle}`, '_blank', 'noopener,noreferrer')
-  }
-  const openWebsite = () => {
-    if (!website) return
-    const url = website.startsWith('http') ? website : `https://${website}`
-    window.open(url, '_blank', 'noopener,noreferrer')
-  }
-  const openEmail = () => {
-    if (!email) return
-    window.open(`mailto:${email}`, '_blank', 'noopener,noreferrer')
-  }
+  const openWhatsApp  = () => { if (!phone) return; const cc = phoneCountryCode.replace(/\D/g, ''); window.open(`https://wa.me/${cc}${phone.replace(/\D/g, '')}`, '_blank', 'noopener,noreferrer') }
+  const openInstagram = () => { if (!instagram) return; window.open(`https://instagram.com/${instagram.replace('@', '').trim()}`, '_blank', 'noopener,noreferrer') }
+  const openFacebook  = () => { if (!facebook) return; const handle = facebook.replace(/^(https?:\/\/)?(www\.)?facebook\.com\//, '').replace(/^@/, '').trim(); window.open(`https://facebook.com/${handle}`, '_blank', 'noopener,noreferrer') }
+  const openWebsite   = () => { if (!website) return; window.open(website.startsWith('http') ? website : `https://${website}`, '_blank', 'noopener,noreferrer') }
+  const openEmail     = () => { if (!email) return; window.open(`mailto:${email}`, '_blank', 'noopener,noreferrer') }
 
   const handleReviewSaved = (updates: { rating: number | null; review_text: string | null; mood: any; response_speed: any }) => {
     onSaved({
@@ -328,90 +281,43 @@ export default function SupplierDetailModal({
       event_notes:     supplierNotes.trim() || null,
       supplier: {
         ...item.supplier,
-        name: name.trim(),
+        name:               name.trim(),
         category,
-        subcategory: selectedBudget?.subcategory || null,
-        phone: phone.trim() || null,
+        subcategory:        selectedBudget?.subcategory || null,
+        phone:              phone.trim() || null,
         phone_country_code: phone.trim() ? phoneCountryCode : null,
-        instagram: instagram.trim() || null,
-        website: website.trim() || null,
-        email: email.trim() || null,
+        instagram:          instagram.trim() || null,
+        facebook:           facebook.trim() || null,
+        website:            website.trim() || null,
+        email:              email.trim() || null,
       },
     } as SupplierWithDetails)
     setShowReviewModal(false)
     onClose()
   }
 
-  const handleReviewSkipped = () => {
-    setShowReviewModal(false)
-    onClose()
-  }
+  const handleReviewSkipped = () => { setShowReviewModal(false); onClose() }
+  const goToBudget = () => { onClose(); router.push(`/events/${eventId}/presupuesto`) }
 
-  const goToBudget = () => {
-    onClose()
-    router.push(`/events/${eventId}/presupuesto`)
-  }
-
-  // Subcomponente: form de pago
   const renderPaymentForm = (mode: 'new' | 'edit') => (
     <div className="space-y-2 rounded-lg border border-[#48C9B0] bg-[#48C9B0]/5 p-3">
       <div className="text-[10px] font-semibold uppercase tracking-wider text-[#888]">
         {mode === 'edit' ? 'Editar pago' : 'Nuevo pago'}
       </div>
       <div className="grid grid-cols-2 gap-2">
-        <input
-          type="number" inputMode="decimal"
-          value={payAmount}
-          onChange={e => setPayAmount(e.target.value)}
-          placeholder={`Monto (${currency})`}
-          className="input-base"
-          autoFocus
-        />
-        <input
-          type="date"
-          value={payDate}
-          onChange={e => setPayDate(e.target.value)}
-          className="input-base"
-        />
-        <select
-          value={payMethod}
-          onChange={e => setPayMethod(e.target.value as PaymentMethod)}
-          className="input-base"
-        >
-          {PAYMENT_METHODS.map(m => (
-            <option key={m} value={m}>{PAYMENT_METHOD_LABELS[m]}</option>
-          ))}
+        <input type="number" inputMode="decimal" value={payAmount} onChange={e => setPayAmount(e.target.value)} placeholder={`Monto (${currency})`} className="input-base" autoFocus />
+        <input type="date" value={payDate} onChange={e => setPayDate(e.target.value)} className="input-base" />
+        <select value={payMethod} onChange={e => setPayMethod(e.target.value as PaymentMethod)} className="input-base">
+          {PAYMENT_METHODS.map(m => <option key={m} value={m}>{PAYMENT_METHOD_LABELS[m]}</option>)}
         </select>
-        <select
-          value={payBy}
-          onChange={e => setPayBy(e.target.value as PaidBy)}
-          className="input-base"
-        >
-          {PAID_BY_OPTIONS.map(p => (
-            <option key={p} value={p}>{PAID_BY_LABELS[p]}</option>
-          ))}
+        <select value={payBy} onChange={e => setPayBy(e.target.value as PaidBy)} className="input-base">
+          {PAID_BY_OPTIONS.map(p => <option key={p} value={p}>{PAID_BY_LABELS[p]}</option>)}
         </select>
       </div>
-      <input
-        type="text"
-        value={payReference}
-        onChange={e => setPayReference(e.target.value)}
-        placeholder="Referencia o nota (opcional)"
-        className="input-base"
-      />
+      <input type="text" value={payReference} onChange={e => setPayReference(e.target.value)} placeholder="Referencia o nota (opcional)" className="input-base" />
       <div className="flex justify-end gap-2 pt-1">
-        <button
-          onClick={resetPaymentForm}
-          disabled={savingPay}
-          className="px-3 py-1 text-xs text-[#666] hover:text-[#1D1E20]"
-        >
-          Cancelar
-        </button>
-        <button
-          onClick={handleSavePayment}
-          disabled={savingPay || !payAmount}
-          className="flex items-center gap-1 rounded-lg bg-[#48C9B0] px-3 py-1 text-xs font-semibold text-white hover:bg-[#3aa896] disabled:opacity-50"
-        >
+        <button onClick={resetPaymentForm} disabled={savingPay} className="px-3 py-1 text-xs text-[#666] hover:text-[#1D1E20]">Cancelar</button>
+        <button onClick={handleSavePayment} disabled={savingPay || !payAmount} className="flex items-center gap-1 rounded-lg bg-[#48C9B0] px-3 py-1 text-xs font-semibold text-white hover:bg-[#3aa896] disabled:opacity-50">
           <Check size={12} />
           {savingPay ? 'Guardando...' : (mode === 'edit' ? 'Actualizar' : 'Agregar')}
         </button>
@@ -446,11 +352,7 @@ export default function SupplierDetailModal({
                   {name || 'Sin nombre'}
                 </h2>
               </div>
-              <button
-                onClick={onClose}
-                className="-mr-2 flex-shrink-0 rounded-lg p-2 text-[#aaa] transition-colors hover:bg-[#f5f5f5] hover:text-[#1D1E20]"
-                aria-label="Cerrar"
-              >
+              <button onClick={onClose} className="-mr-2 flex-shrink-0 rounded-lg p-2 text-[#aaa] transition-colors hover:bg-[#f5f5f5] hover:text-[#1D1E20]">
                 <X size={20} />
               </button>
             </div>
@@ -461,22 +363,19 @@ export default function SupplierDetailModal({
               {/* ① ESTADO */}
               <Section title="Estado">
                 <div className="flex flex-wrap gap-2">
-                  {STATUS_OPTIONS.map(opt => {
-                    const active = status === opt.value
-                    return (
-                      <button
-                        key={opt.value}
-                        onClick={() => setStatus(opt.value)}
-                        className={`rounded-lg border px-3 py-2 text-sm transition-all ${
-                          active
-                            ? 'border-[#1D1E20] bg-[#1D1E20] font-medium text-white'
-                            : 'border-[#e8e8e8] bg-white text-[#666] hover:bg-[#fafafa]'
-                        }`}
-                      >
-                        {opt.label}
-                      </button>
-                    )
-                  })}
+                  {SUPPLIER_STATUSES.map(s => (
+                    <button
+                      key={s}
+                      onClick={() => setStatus(s)}
+                      className={`rounded-lg border px-3 py-2 text-sm transition-all ${
+                        status === s
+                          ? 'border-[#1D1E20] bg-[#1D1E20] font-medium text-white'
+                          : 'border-[#e8e8e8] bg-white text-[#666] hover:bg-[#fafafa]'
+                      }`}
+                    >
+                      {SUPPLIER_STATUS_LABELS[s]}
+                    </button>
+                  ))}
                 </div>
               </Section>
 
@@ -487,29 +386,17 @@ export default function SupplierDetailModal({
                     <input type="text" value={name} onChange={e => setName(e.target.value)} className="input-base" />
                   </Field>
                   <Field label="Categoría">
-                    <select
-                      value={category}
-                      onChange={e => { setCategory(e.target.value as BudgetCategory); setEventBudgetId('') }}
-                      className="input-base"
-                    >
-                      {BUDGET_CATEGORIES.map(c => (
-                        <option key={c} value={c}>{BUDGET_CATEGORY_LABELS[c]}</option>
-                      ))}
+                    <select value={category} onChange={e => { setCategory(e.target.value as BudgetCategory); setEventBudgetId('') }} className="input-base">
+                      {BUDGET_CATEGORIES.map(c => <option key={c} value={c}>{BUDGET_CATEGORY_LABELS[c]}</option>)}
                     </select>
                   </Field>
-
-                  {/* PARTIDA DEL PRESUPUESTO (reemplaza subcategoria) */}
-                  <Field label="Partida del presupuesto" className="md:col-span-2">
+                  <Field label="Concepto del presupuesto" className="md:col-span-2">
                     {budgetsForCategory.length > 0 ? (
                       <>
                         <div className="flex items-center gap-2">
                           <Wallet size={14} className="shrink-0 text-[#888]" />
-                          <select
-                            value={eventBudgetId}
-                            onChange={e => setEventBudgetId(e.target.value)}
-                            className="input-base flex-1"
-                          >
-                            <option value="">Sin partida</option>
+                          <select value={eventBudgetId} onChange={e => setEventBudgetId(e.target.value)} className="input-base flex-1">
+                            <option value="">Sin concepto</option>
                             {budgetsForCategory.map(b => (
                               <option key={b.id} value={b.id}>
                                 {b.subcategory || BUDGET_CATEGORY_LABELS[b.category]} — {formatCurrency(b.budget_amount, currency)}
@@ -518,22 +405,13 @@ export default function SupplierDetailModal({
                           </select>
                         </div>
                         {selectedBudget && (
-                          <p className="mt-1 text-[10px] text-[#888]">
-                            Meta para esta partida: {formatCurrency(budgetMeta, currency)}
-                          </p>
+                          <p className="mt-1 text-[10px] text-[#888]">Meta: {formatCurrency(budgetMeta, currency)}</p>
                         )}
                       </>
                     ) : (
                       <div className="flex items-center gap-2 rounded-lg border border-dashed border-[#e0e0e0] bg-[#fafafa] px-3 py-3">
                         <Wallet size={14} className="shrink-0 text-[#aaa]" />
-                        <div>
-                          <p className="text-xs text-[#888]">
-                            No hay partidas de {BUDGET_CATEGORY_LABELS[category]}
-                          </p>
-                          <p className="text-[10px] text-[#aaa]">
-                            Créalas en la sección Presupuesto
-                          </p>
-                        </div>
+                        <p className="text-xs text-[#888]">No hay conceptos de {BUDGET_CATEGORY_LABELS[category]} — créalos en Presupuesto</p>
                       </div>
                     )}
                   </Field>
@@ -545,26 +423,11 @@ export default function SupplierDetailModal({
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                   <Field label="WhatsApp">
                     <div className="flex gap-1.5">
-                      <select
-                        value={phoneCountryCode}
-                        onChange={e => setPhoneCountryCode(e.target.value)}
-                        className="country-code-select"
-                      >
+                      <select value={phoneCountryCode} onChange={e => setPhoneCountryCode(e.target.value)} className="country-code-select">
                         {COUNTRY_CODES.map(cc => <option key={cc} value={cc}>{cc}</option>)}
                       </select>
-                      <input
-                        type="tel"
-                        value={phone}
-                        onChange={e => setPhone(e.target.value)}
-                        placeholder="55 1234 5678"
-                        className="input-base min-w-0 flex-1"
-                      />
-                      <button
-                        onClick={openWhatsApp}
-                        disabled={!phone}
-                        className="flex flex-shrink-0 items-center justify-center rounded-lg border border-[#e8e8e8] px-3 text-emerald-600 transition-colors hover:bg-emerald-50 disabled:opacity-30"
-                        title="Abrir en WhatsApp"
-                      >
+                      <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="55 1234 5678" className="input-base min-w-0 flex-1" />
+                      <button onClick={openWhatsApp} disabled={!phone} className="flex flex-shrink-0 items-center justify-center rounded-lg border border-[#e8e8e8] px-3 text-emerald-600 transition-colors hover:bg-emerald-50 disabled:opacity-30">
                         <FaWhatsapp size={18} />
                       </button>
                     </div>
@@ -572,19 +435,8 @@ export default function SupplierDetailModal({
 
                   <Field label="Email">
                     <div className="flex gap-1.5">
-                      <input
-                        type="email"
-                        value={email}
-                        onChange={e => setEmail(e.target.value)}
-                        placeholder="contacto@proveedor.com"
-                        className="input-base min-w-0 flex-1"
-                      />
-                      <button
-                        onClick={openEmail}
-                        disabled={!email}
-                        className="flex flex-shrink-0 items-center justify-center rounded-lg border border-[#e8e8e8] px-3 text-[#1D1E20] transition-colors hover:bg-[#fafafa] disabled:opacity-30"
-                        title="Enviar email"
-                      >
+                      <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="contacto@proveedor.com" className="input-base min-w-0 flex-1" />
+                      <button onClick={openEmail} disabled={!email} className="flex flex-shrink-0 items-center justify-center rounded-lg border border-[#e8e8e8] px-3 text-[#1D1E20] transition-colors hover:bg-[#fafafa] disabled:opacity-30">
                         <FiMail size={18} />
                       </button>
                     </div>
@@ -592,39 +444,26 @@ export default function SupplierDetailModal({
 
                   <Field label="Instagram">
                     <div className="flex gap-1.5">
-                      <input
-                        type="text"
-                        value={instagram}
-                        onChange={e => setInstagram(e.target.value)}
-                        placeholder="@usuario"
-                        className="input-base min-w-0 flex-1"
-                      />
-                      <button
-                        onClick={openInstagram}
-                        disabled={!instagram}
-                        className="flex flex-shrink-0 items-center justify-center rounded-lg border border-[#e8e8e8] px-3 text-pink-600 transition-colors hover:bg-pink-50 disabled:opacity-30"
-                        title="Abrir Instagram"
-                      >
+                      <input type="text" value={instagram} onChange={e => setInstagram(e.target.value)} placeholder="@usuario" className="input-base min-w-0 flex-1" />
+                      <button onClick={openInstagram} disabled={!instagram} className="flex flex-shrink-0 items-center justify-center rounded-lg border border-[#e8e8e8] px-3 text-pink-600 transition-colors hover:bg-pink-50 disabled:opacity-30">
                         <FiInstagram size={18} />
                       </button>
                     </div>
                   </Field>
 
-                  <Field label="Website">
+                  <Field label="Facebook">
                     <div className="flex gap-1.5">
-                      <input
-                        type="text"
-                        value={website}
-                        onChange={e => setWebsite(e.target.value)}
-                        placeholder="proveedor.com"
-                        className="input-base min-w-0 flex-1"
-                      />
-                      <button
-                        onClick={openWebsite}
-                        disabled={!website}
-                        className="flex flex-shrink-0 items-center justify-center rounded-lg border border-[#e8e8e8] px-3 text-[#1D1E20] transition-colors hover:bg-[#fafafa] disabled:opacity-30"
-                        title="Abrir website"
-                      >
+                      <input type="text" value={facebook} onChange={e => setFacebook(e.target.value)} placeholder="fb.com/proveedor" className="input-base min-w-0 flex-1" />
+                      <button onClick={openFacebook} disabled={!facebook} className="flex flex-shrink-0 items-center justify-center rounded-lg border border-[#e8e8e8] px-3 text-blue-600 transition-colors hover:bg-blue-50 disabled:opacity-30">
+                        <FiFacebook size={18} />
+                      </button>
+                    </div>
+                  </Field>
+
+                  <Field label="Website" className="md:col-span-2">
+                    <div className="flex gap-1.5">
+                      <input type="text" value={website} onChange={e => setWebsite(e.target.value)} placeholder="proveedor.com" className="input-base min-w-0 flex-1" />
+                      <button onClick={openWebsite} disabled={!website} className="flex flex-shrink-0 items-center justify-center rounded-lg border border-[#e8e8e8] px-3 text-[#1D1E20] transition-colors hover:bg-[#fafafa] disabled:opacity-30">
                         <FiGlobe size={18} />
                       </button>
                     </div>
@@ -632,24 +471,17 @@ export default function SupplierDetailModal({
                 </div>
               </Section>
 
-              {/* ④ PRESUPUESTO ASIGNADO (desde presupuesto) */}
+              {/* ④ PRESUPUESTO ASIGNADO */}
               {linkedBudget && (
                 <Section title="Presupuesto asignado">
-                  <button
-                    onClick={goToBudget}
-                    className="flex w-full items-center justify-between gap-3 rounded-lg border border-[#e8e8e8] bg-[#fafafa] px-4 py-3 text-left transition-colors hover:border-[#48C9B0] hover:bg-white"
-                  >
+                  <button onClick={goToBudget} className="flex w-full items-center justify-between gap-3 rounded-lg border border-[#e8e8e8] bg-[#fafafa] px-4 py-3 text-left transition-colors hover:border-[#48C9B0] hover:bg-white">
                     <div className="flex items-center gap-3">
                       <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white">
                         <Wallet size={16} className="text-[#48C9B0]" />
                       </div>
                       <div>
-                        <div className="text-xs text-[#888]">
-                          {linkedBudget.subcategory || BUDGET_CATEGORY_LABELS[linkedBudget.category as BudgetCategory]}
-                        </div>
-                        <div className="text-sm font-semibold text-[#1D1E20]">
-                          Meta: {formatCurrency(linkedBudget.budget_amount, currency)}
-                        </div>
+                        <div className="text-xs text-[#888]">{linkedBudget.subcategory || BUDGET_CATEGORY_LABELS[linkedBudget.category as BudgetCategory]}</div>
+                        <div className="text-sm font-semibold text-[#1D1E20]">Meta: {formatCurrency(linkedBudget.budget_amount, currency)}</div>
                       </div>
                     </div>
                     <span className="text-xs font-medium text-[#48C9B0]">Ver →</span>
@@ -661,32 +493,14 @@ export default function SupplierDetailModal({
               <Section title="Comercial">
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                   <Field label={`Cotización (${currency})`}>
-                    <input
-                      type="number" inputMode="decimal"
-                      value={quotedAmount}
-                      onChange={e => setQuotedAmount(e.target.value)}
-                      placeholder="0.00"
-                      className="input-base"
-                    />
-                    {quotedAmount && (
-                      <p className="mt-1 text-xs text-[#888]">{formatCurrency(quotedNum, currency)}</p>
-                    )}
+                    <input type="number" inputMode="decimal" value={quotedAmount} onChange={e => setQuotedAmount(e.target.value)} placeholder="0.00" className="input-base" />
+                    {quotedAmount && <p className="mt-1 text-xs text-[#888]">{formatCurrency(quotedNum, currency)}</p>}
                   </Field>
                   <Field label={`Monto contratado (${currency})`}>
-                    <input
-                      type="number" inputMode="decimal"
-                      value={contractAmount}
-                      onChange={e => setContractAmount(e.target.value)}
-                      placeholder="0.00"
-                      className="input-base"
-                    />
-                    {contractAmount && (
-                      <p className="mt-1 text-xs text-[#888]">{formatCurrency(contractNum, currency)}</p>
-                    )}
+                    <input type="number" inputMode="decimal" value={contractAmount} onChange={e => setContractAmount(e.target.value)} placeholder="0.00" className="input-base" />
+                    {contractAmount && <p className="mt-1 text-xs text-[#888]">{formatCurrency(contractNum, currency)}</p>}
                   </Field>
                 </div>
-
-                {/* Comparacion contra meta de la partida */}
                 {selectedBudget && (quotedNum > 0 || contractNum > 0) && (
                   <div className="mt-3">
                     {(isContractOverBudget || isQuotedOverBudget) ? (
@@ -695,15 +509,14 @@ export default function SupplierDetailModal({
                         <p className="text-[11px] text-amber-700">
                           {isContractOverBudget
                             ? `El monto contratado supera la meta de "${selectedBudget.subcategory}" por ${formatCurrency(contractNum - budgetMeta, currency)}`
-                            : `La cotización supera la meta de "${selectedBudget.subcategory}" por ${formatCurrency(quotedNum - budgetMeta, currency)}`
-                          }
+                            : `La cotización supera la meta de "${selectedBudget.subcategory}" por ${formatCurrency(quotedNum - budgetMeta, currency)}`}
                         </p>
                       </div>
                     ) : isQuotedUnderBudget ? (
                       <div className="flex items-start gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2">
                         <CheckCircle2 size={13} className="mt-0.5 shrink-0 text-emerald-500" />
                         <p className="text-[11px] text-emerald-700">
-                          Dentro del presupuesto de "{selectedBudget.subcategory}" — quedan {formatCurrency(budgetMeta - (contractNum || quotedNum), currency)} disponibles
+                          Dentro del presupuesto — quedan {formatCurrency(budgetMeta - (contractNum || quotedNum), currency)} disponibles
                         </p>
                       </div>
                     ) : null}
@@ -713,76 +526,42 @@ export default function SupplierDetailModal({
 
               {/* ⑥ PAGOS */}
               <AnimatePresence initial={false}>
-                {item.status === 'contratado' && (
-                  <motion.div
-                    key="pagos-section"
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    exit={{ opacity: 0, height: 0 }}
-                    className="overflow-hidden"
-                  >
+                {status === 'contratado' && (
+                  <motion.div key="pagos-section" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
                     <Section
                       title="Pagos"
-                      action={
-                        !showNewPaymentForm && !editingPaymentId && (
-                          <button
-                            onClick={openNewPaymentForm}
-                            className="flex items-center gap-1 text-xs font-medium text-[#48C9B0] hover:text-[#3aa896]"
-                          >
-                            <Plus size={12} />
-                            Registrar pago
-                          </button>
-                        )
-                      }
+                      action={!showNewPaymentForm && !editingPaymentId && (
+                        <button onClick={openNewPaymentForm} className="flex items-center gap-1 text-xs font-medium text-[#48C9B0] hover:text-[#3aa896]">
+                          <Plus size={12} />Registrar pago
+                        </button>
+                      )}
                     >
                       {contractNum > 0 && (
-                        <div className={`mb-3 rounded-lg border p-3 ${
-                          isOverpaid
-                            ? 'border-amber-300 bg-amber-50'
-                            : 'border-[#e8e8e8] bg-[#fafafa]'
-                        }`}>
+                        <div className={`mb-3 rounded-lg border p-3 ${isOverpaid ? 'border-amber-300 bg-amber-50' : 'border-[#e8e8e8] bg-[#fafafa]'}`}>
                           <div className="flex items-center justify-between text-xs">
-                            <span className="text-[#888]">
-                              Pagado <span className="font-semibold text-[#1D1E20]">{formatCurrency(totalPaid, currency)}</span> / {formatCurrency(contractNum, currency)}
-                            </span>
+                            <span className="text-[#888]">Pagado <span className="font-semibold text-[#1D1E20]">{formatCurrency(totalPaid, currency)}</span> / {formatCurrency(contractNum, currency)}</span>
                             <span className={`font-medium ${isOverpaid ? 'text-amber-700' : 'text-[#1D1E20]'}`}>
-                              {isOverpaid
-                                ? `+${formatCurrency(overpaidAmount, currency)} de más`
-                                : remaining > 0
-                                  ? `Falta ${formatCurrency(remaining, currency)}`
-                                  : 'Liquidado'
-                              }
+                              {isOverpaid ? `+${formatCurrency(overpaidAmount, currency)} de más` : remaining > 0 ? `Falta ${formatCurrency(remaining, currency)}` : 'Liquidado'}
                             </span>
                           </div>
                           <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-[#e8e8e8]">
-                            <div
-                              className={`h-full transition-all ${isOverpaid ? 'bg-amber-500' : 'bg-[#48C9B0]'}`}
-                              style={{ width: `${payProgress}%` }}
-                            />
+                            <div className={`h-full transition-all ${isOverpaid ? 'bg-amber-500' : 'bg-[#48C9B0]'}`} style={{ width: `${payProgress}%` }} />
                           </div>
                           {isOverpaid && (
                             <div className="mt-2 flex items-start gap-1.5 text-[11px] text-amber-700">
                               <AlertTriangle size={12} className="mt-0.5 flex-shrink-0" />
-                              <span>Los pagos exceden el monto contratado. Revisa si hay un error o ajusta el monto contratado.</span>
+                              <span>Los pagos exceden el monto contratado.</span>
                             </div>
                           )}
                         </div>
                       )}
-
                       <AnimatePresence>
                         {showNewPaymentForm && (
-                          <motion.div
-                            key="new-payment-form"
-                            initial={{ opacity: 0, height: 0 }}
-                            animate={{ opacity: 1, height: 'auto' }}
-                            exit={{ opacity: 0, height: 0 }}
-                            className="mb-3 overflow-hidden"
-                          >
+                          <motion.div key="new-payment-form" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="mb-3 overflow-hidden">
                             {renderPaymentForm('new')}
                           </motion.div>
                         )}
                       </AnimatePresence>
-
                       {payments.length === 0 && !showNewPaymentForm ? (
                         <p className="py-2 text-xs text-[#aaa]">Sin pagos registrados</p>
                       ) : (
@@ -793,11 +572,7 @@ export default function SupplierDetailModal({
                               <li key={p.id} className="space-y-1.5">
                                 {!isEditing && (
                                   <div className="flex items-center justify-between gap-3 rounded-lg border border-[#e8e8e8] bg-white px-3 py-2 text-sm">
-                                    <button
-                                      onClick={() => openEditPaymentForm(p)}
-                                      className="min-w-0 flex-1 text-left"
-                                      title="Editar pago"
-                                    >
+                                    <button onClick={() => openEditPaymentForm(p)} className="min-w-0 flex-1 text-left">
                                       <div className="font-semibold text-[#1D1E20]">{formatCurrency(p.amount, currency)}</div>
                                       <div className="truncate text-[10px] text-[#888]">
                                         {p.payment_date}
@@ -807,33 +582,14 @@ export default function SupplierDetailModal({
                                       </div>
                                     </button>
                                     <div className="flex flex-shrink-0 items-center gap-1">
-                                      <button
-                                        onClick={() => openEditPaymentForm(p)}
-                                        className="rounded p-1 text-[#aaa] transition-colors hover:bg-[#f5f5f5] hover:text-[#1D1E20]"
-                                        aria-label="Editar pago"
-                                      >
-                                        <Pencil size={13} />
-                                      </button>
-                                      <button
-                                        onClick={() => handleDeletePayment(p.id)}
-                                        className="rounded p-1 text-[#aaa] transition-colors hover:bg-red-50 hover:text-red-600"
-                                        aria-label="Eliminar pago"
-                                      >
-                                        <Trash2 size={13} />
-                                      </button>
+                                      <button onClick={() => openEditPaymentForm(p)} className="rounded p-1 text-[#aaa] hover:bg-[#f5f5f5] hover:text-[#1D1E20]"><Pencil size={13} /></button>
+                                      <button onClick={() => handleDeletePayment(p.id)} className="rounded p-1 text-[#aaa] hover:bg-red-50 hover:text-red-600"><Trash2 size={13} /></button>
                                     </div>
                                   </div>
                                 )}
-
                                 <AnimatePresence>
                                   {isEditing && (
-                                    <motion.div
-                                      key={`edit-form-${p.id}`}
-                                      initial={{ opacity: 0, height: 0 }}
-                                      animate={{ opacity: 1, height: 'auto' }}
-                                      exit={{ opacity: 0, height: 0 }}
-                                      className="overflow-hidden"
-                                    >
+                                    <motion.div key={`edit-form-${p.id}`} initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
                                       {renderPaymentForm('edit')}
                                     </motion.div>
                                   )}
@@ -850,21 +606,12 @@ export default function SupplierDetailModal({
 
               {/* ⑦ NOTAS */}
               <Section title="Notas del proveedor">
-                <textarea
-                  value={supplierNotes}
-                  onChange={e => setSupplierNotes(e.target.value)}
-                  rows={3}
-                  placeholder="Detalles, acuerdos, observaciones..."
-                  className="input-base w-full resize-none"
-                />
+                <textarea value={supplierNotes} onChange={e => setSupplierNotes(e.target.value)} rows={3} placeholder="Detalles, acuerdos, observaciones..." className="input-base w-full resize-none" />
               </Section>
 
               {/* ⑧ ARCHIVOS PRO */}
               <Section title="Archivos">
-                <button
-                  onClick={() => setShowProModal(true)}
-                  className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-[#e8e8e8] bg-[#fafafa] px-4 py-4 text-sm text-[#666] transition-colors hover:border-[#1D1E20] hover:bg-white"
-                >
+                <button onClick={() => setShowProModal(true)} className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-[#e8e8e8] bg-[#fafafa] px-4 py-4 text-sm text-[#666] transition-colors hover:border-[#1D1E20] hover:bg-white">
                   <Paperclip size={16} />
                   <span>Añadir archivos</span>
                   <span className="rounded bg-[#1D1E20] px-1.5 py-0.5 text-[9px] font-bold uppercase text-white">PRO</span>
@@ -878,23 +625,13 @@ export default function SupplierDetailModal({
                     {item.rating && (
                       <div className="mb-1 flex gap-0.5">
                         {[1, 2, 3, 4, 5].map(n => (
-                          <Star
-                            key={n}
-                            size={16}
-                            className={n <= (item.rating ?? 0) ? 'fill-amber-400 text-amber-400' : 'text-[#d4d4d4]'}
-                          />
+                          <Star key={n} size={16} className={n <= (item.rating ?? 0) ? 'fill-amber-400 text-amber-400' : 'text-[#d4d4d4]'} />
                         ))}
                       </div>
                     )}
-                    {item.review_text && (
-                      <p className="mb-2 text-sm text-[#1D1E20]">{item.review_text}</p>
-                    )}
-                    <button
-                      onClick={() => setShowReviewModal(true)}
-                      className="flex items-center gap-1 text-xs font-medium text-[#48C9B0] hover:text-[#3aa896]"
-                    >
-                      <Pencil size={11} />
-                      Editar review
+                    {item.review_text && <p className="mb-2 text-sm text-[#1D1E20]">{item.review_text}</p>}
+                    <button onClick={() => setShowReviewModal(true)} className="flex items-center gap-1 text-xs font-medium text-[#48C9B0] hover:text-[#3aa896]">
+                      <Pencil size={11} />Editar review
                     </button>
                   </div>
                 </Section>
@@ -905,27 +642,13 @@ export default function SupplierDetailModal({
 
             {/* FOOTER */}
             <div className="flex flex-shrink-0 items-center justify-between gap-2 border-t border-[#e8e8e8] bg-white px-5 py-3 md:px-6">
-              <button
-                onClick={handleDelete}
-                disabled={deleting || saving}
-                className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm text-red-600 transition-colors hover:bg-red-50 disabled:opacity-50"
-              >
+              <button onClick={handleDelete} disabled={deleting || saving} className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm text-red-600 transition-colors hover:bg-red-50 disabled:opacity-50">
                 <Trash2 size={15} />
                 <span>{deleting ? 'Eliminando...' : 'Eliminar'}</span>
               </button>
               <div className="flex items-center gap-2">
-                <button
-                  onClick={onClose}
-                  disabled={saving || deleting}
-                  className="px-4 py-2 text-sm text-[#666] hover:text-[#1D1E20] disabled:opacity-50"
-                >
-                  Cancelar
-                </button>
-                <button
-                  onClick={handleSave}
-                  disabled={saving || deleting}
-                  className="rounded-lg bg-[#48C9B0] px-5 py-2 text-sm font-semibold text-white hover:bg-[#3aa896] disabled:opacity-50"
-                >
+                <button onClick={onClose} disabled={saving || deleting} className="px-4 py-2 text-sm text-[#666] hover:text-[#1D1E20] disabled:opacity-50">Cancelar</button>
+                <button onClick={handleSave} disabled={saving || deleting} className="rounded-lg bg-[#48C9B0] px-5 py-2 text-sm font-semibold text-white hover:bg-[#3aa896] disabled:opacity-50">
                   {saving ? 'Guardando...' : 'Guardar cambios'}
                 </button>
               </div>
@@ -934,32 +657,12 @@ export default function SupplierDetailModal({
             {/* Mini-modal PRO */}
             <AnimatePresence>
               {showProModal && (
-                <motion.div
-                  key="pro-modal"
-                  initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                  className="absolute inset-0 z-10 flex items-center justify-center bg-black/40 p-4"
-                  onClick={() => setShowProModal(false)}
-                >
-                  <motion.div
-                    initial={{ scale: 0.95, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    exit={{ scale: 0.95, opacity: 0 }}
-                    className="max-w-sm rounded-2xl bg-white p-6 text-center shadow-xl"
-                    onClick={e => e.stopPropagation()}
-                  >
-                    <div className="mb-3 inline-block rounded-full bg-[#1D1E20] px-2.5 py-1 text-[10px] font-bold uppercase text-white">
-                      Próximamente PRO
-                    </div>
+                <motion.div key="pro-modal" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-10 flex items-center justify-center bg-black/40 p-4" onClick={() => setShowProModal(false)}>
+                  <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="max-w-sm rounded-2xl bg-white p-6 text-center shadow-xl" onClick={e => e.stopPropagation()}>
+                    <div className="mb-3 inline-block rounded-full bg-[#1D1E20] px-2.5 py-1 text-[10px] font-bold uppercase text-white">Próximamente PRO</div>
                     <h3 className="mb-2 text-base font-semibold text-[#1D1E20]">Archivos del proveedor</h3>
-                    <p className="mb-5 text-sm text-[#666]">
-                      Sube contratos, cotizaciones y comprobantes. Disponible próximamente en plan PRO.
-                    </p>
-                    <button
-                      onClick={() => setShowProModal(false)}
-                      className="w-full rounded-lg bg-[#1D1E20] px-4 py-2 text-sm font-semibold text-white hover:bg-black"
-                    >
-                      Entendido
-                    </button>
+                    <p className="mb-5 text-sm text-[#666]">Sube contratos, cotizaciones y comprobantes. Disponible próximamente en plan PRO.</p>
+                    <button onClick={() => setShowProModal(false)} className="w-full rounded-lg bg-[#1D1E20] px-4 py-2 text-sm font-semibold text-white hover:bg-black">Entendido</button>
                   </motion.div>
                 </motion.div>
               )}
@@ -968,37 +671,10 @@ export default function SupplierDetailModal({
         </motion.div>
 
         <style jsx global>{`
-          .input-base {
-            width: 100%;
-            padding: 0.5rem 0.75rem;
-            font-size: 0.875rem;
-            border: 1px solid #e8e8e8;
-            border-radius: 0.5rem;
-            background-color: white;
-            color: #1D1E20;
-            outline: none;
-            transition: border-color 0.15s;
-          }
-          .input-base:focus {
-            border-color: #48C9B0;
-          }
-          .country-code-select {
-            width: 78px;
-            flex-shrink: 0;
-            padding: 0.5rem 0.5rem;
-            font-size: 0.875rem;
-            border: 1px solid #e8e8e8;
-            border-radius: 0.5rem;
-            background-color: white;
-            color: #1D1E20;
-            outline: none;
-            transition: border-color 0.15s;
-            text-align: center;
-            text-align-last: center;
-          }
-          .country-code-select:focus {
-            border-color: #48C9B0;
-          }
+          .input-base { width: 100%; padding: 0.5rem 0.75rem; font-size: 0.875rem; border: 1px solid #e8e8e8; border-radius: 0.5rem; background-color: white; color: #1D1E20; outline: none; transition: border-color 0.15s; }
+          .input-base:focus { border-color: #48C9B0; }
+          .country-code-select { width: 78px; flex-shrink: 0; padding: 0.5rem 0.5rem; font-size: 0.875rem; border: 1px solid #e8e8e8; border-radius: 0.5rem; background-color: white; color: #1D1E20; outline: none; transition: border-color 0.15s; text-align: center; text-align-last: center; }
+          .country-code-select:focus { border-color: #48C9B0; }
         `}</style>
       </AnimatePresence>
 
@@ -1018,13 +694,7 @@ export default function SupplierDetailModal({
   )
 }
 
-function Section({
-  title, children, action,
-}: {
-  title: string
-  children: React.ReactNode
-  action?: React.ReactNode
-}) {
+function Section({ title, children, action }: { title: string; children: React.ReactNode; action?: React.ReactNode }) {
   return (
     <section>
       <div className="mb-2 flex items-center justify-between">
@@ -1036,13 +706,7 @@ function Section({
   )
 }
 
-function Field({
-  label, children, className = '',
-}: {
-  label: string
-  children: React.ReactNode
-  className?: string
-}) {
+function Field({ label, children, className = '' }: { label: string; children: React.ReactNode; className?: string }) {
   return (
     <div className={className}>
       <label className="mb-1 block text-xs text-[#888]">{label}</label>

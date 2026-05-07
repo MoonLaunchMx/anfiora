@@ -14,7 +14,7 @@ No test suite is configured.
 
 ## Architecture Overview
 
-**Anfiora** is a Next.js 16 (App Router) + React 19 + TypeScript event management platform. It helps organizers manage guest lists, collect RSVPs via WhatsApp (with Claude AI interpretation), run collaborative photo albums and playlists, handle seating charts, food planning, and event timelines.
+**Anfiora** is a Next.js 16 (App Router) + React 19 + TypeScript event management platform. It helps organizers manage guest lists, collect RSVPs via WhatsApp (with Claude AI interpretation), run collaborative photo albums and playlists, handle seating charts, food planning, event timelines, budgets, and suppliers.
 
 ## Stack (no cambiar)
 
@@ -27,6 +27,9 @@ No test suite is configured.
 - **Animaciones:** Framer Motion
 - **Drag and drop:** @dnd-kit/core + @dnd-kit/sortable + @dnd-kit/utilities
 - **Spotify:** Spotify Web API (Client Credentials) — búsqueda y preview de canciones
+- **Excel export:** `xlsx` (SheetJS) — usado en presupuesto
+- **PDF export:** `jspdf` + `jspdf-autotable` — usado en presupuesto
+- **Iconos extra:** `react-icons` (FaWhatsapp, FiInstagram, FiGlobe, FiMail) — complementa Lucide
 
 ## Routing Structure
 
@@ -35,11 +38,13 @@ Uses **Next.js App Router** exclusively. Most page components are `'use client'`
 - `/landing` — public marketing page (bilingual es/en)
 - `/dashboard` — authenticated user dashboard
 - `/events/[id]/` — guest list
-- `/events/[id]/album` — collaborative photo album (QR-based)
 - `/events/[id]/mesas` — seating chart
-- `/events/[id]/playlist` — collaborative playlist
 - `/events/[id]/comida` — food/shopping planner
 - `/events/[id]/timeline` — tasks and reminders
+- `/events/[id]/presupuesto` — budget management (partidas por categoría, export Excel/PDF)
+- `/events/[id]/proveedores` — supplier management (status pipeline, pagos, reviews)
+- `/events/[id]/album` — collaborative photo album (QR-based)
+- `/events/[id]/playlist` — collaborative playlist
 - `/events/[id]/configuracion` — event settings
 - `/admin` — admin panel
 - `/api/webhook/whatsapp` — POST endpoint for 360Dialog WhatsApp messages
@@ -49,17 +54,21 @@ Uses **Next.js App Router** exclusively. Most page components are `'use client'`
 
 ## Nav items — sidebar desktop + bottom nav mobile
 
-| Label | Ruta |
-|---|---|
-| Invitados | /events/[id] |
-| Mesas | /events/[id]/mesas |
-| Comida | /events/[id]/comida |
-| Timeline | /events/[id]/timeline |
-| Álbum | /events/[id]/album |
-| Playlist | /events/[id]/playlist |
-| Configuración | /events/[id]/configuracion |
+El nav usa un sistema de **NavEntry** con dos tipos: `item` simple y `group` con sub-items.
 
-Sidebar desktop colapsable (iconos en modo colapsado, texto completo al expandir). Bottom nav mobile con scroll horizontal snap.
+| Entrada | Tipo | Sub-items |
+|---|---|---|
+| Invitados | item | — |
+| Mesas | item | — |
+| Timeline | item | — |
+| Finanzas | group | Presupuesto, Proveedores (PRO badge) |
+| Recuerdos | group | Album, Playlist |
+| Configuración | item (adminOnly) | — |
+
+- **Sidebar desktop expandido:** grupos muestran header de texto + sub-items indentados
+- **Sidebar desktop colapsado:** grupos colapsan en un ícono → navega a `defaultPath`
+- **Bottom nav mobile:** grupos colapsan igual, navega a `defaultPath`
+- `Comida` está disponible en ruta pero **no aparece en el nav** (acceso directo o legacy)
 
 ## Data Layer
 
@@ -69,7 +78,7 @@ Sidebar desktop colapsable (iconos en modo colapsado, texto completo al expandir
 
 All TypeScript types are defined in `lib/types.ts`. Check there first before querying Supabase.
 
-## Schema Supabase (9 tablas — no agregar más en MVP)
+## Schema Supabase (14 tablas)
 
 ```sql
 -- users: perfiles de planners
@@ -81,7 +90,8 @@ events (
   id, user_id, name, event_date, event_end_date, event_time,
   venue, address, event_type, total_guests,
   guest_tags ARRAY,
-  event_status TEXT   -- 'active' | 'paused' | 'cancelled' | 'completed'
+  event_status TEXT,   -- 'active' | 'paused' | 'cancelled' | 'completed'
+  currency TEXT        -- 'MXN' | 'USD' | 'EUR' | 'GBP' | 'COP' | 'ARS' | 'BRL' | 'CLP' | 'PEN'
 )
 
 -- event_settings: configuración separada del evento (1-a-1 con events)
@@ -137,6 +147,58 @@ timeline_tasks (
   is_highlighted, is_completed,
   reminder_date, created_at
 )
+
+-- event_budgets: partidas del presupuesto del evento
+event_budgets (
+  id, event_id,
+  category TEXT,        -- BudgetCategory (14 valores)
+  subcategory TEXT,     -- nombre libre de la partida
+  budget_amount NUMERIC,
+  event_supplier_id UUID,  -- FK a event_suppliers (nullable)
+  notes TEXT,
+  created_at
+)
+
+-- suppliers: catálogo global de proveedores (por user)
+suppliers (
+  id, user_id,
+  name TEXT,
+  category TEXT,        -- BudgetCategory
+  subcategory TEXT,     -- referencia a la partida vinculada
+  phone TEXT,
+  phone_country_code TEXT,
+  instagram TEXT,
+  website TEXT,
+  email TEXT,
+  country TEXT,
+  created_at
+)
+
+-- event_suppliers: proveedor vinculado a un evento específico
+event_suppliers (
+  id, event_id, supplier_id,
+  status TEXT,           -- SupplierStatus (5 valores)
+  quoted_amount NUMERIC,
+  contract_amount NUMERIC,
+  event_notes TEXT,
+  event_budget_id UUID,  -- FK a event_budgets (nullable)
+  rating INTEGER,        -- 1-5
+  review_text TEXT,
+  mood TEXT,             -- 'no' | 'normal' | 'love'
+  response_speed TEXT,   -- 'lentisimo' | 'normal' | 'bueno' | 'rapidos'
+  created_at
+)
+
+-- supplier_payments: pagos registrados a un proveedor del evento
+supplier_payments (
+  id, event_supplier_id,
+  amount NUMERIC,
+  payment_date DATE,
+  payment_method TEXT,   -- PaymentMethod
+  paid_by TEXT,          -- PaidBy
+  reference TEXT,
+  created_at
+)
 ```
 
 ### RsvpStatus (6 valores — todos deben estar en STATUS_LABEL/STATUS_COLORS)
@@ -151,6 +213,26 @@ timeline_tasks (
 
 ```ts
 'active' | 'paused' | 'cancelled' | 'completed'
+```
+
+### SupplierStatus (5 valores)
+
+```ts
+'contactado' | 'cotizacion' | 'negociacion' | 'contratado' | 'descartado'
+```
+
+### BudgetCategory (14 valores)
+
+```ts
+'Planeacion' | 'Venue' | 'Banquete' | 'Bebidas' | 'Audio y Video' | 'Imagen' |
+'Decoracion' | 'Ceremonia' | 'Entretenimiento' | 'Papeleria' | 'Logistica' |
+'Recuerdos' | 'Digital' | 'Otro'
+```
+
+### Currency (9 valores)
+
+```ts
+'MXN' | 'USD' | 'EUR' | 'GBP' | 'COP' | 'ARS' | 'BRL' | 'CLP' | 'PEN'
 ```
 
 ### FoodCategory / FoodItem (tipos para comida)
@@ -189,18 +271,37 @@ app/
 ├── events/
 │   ├── new/page.tsx
 │   └── [id]/
-│       ├── layout.tsx
-│       ├── page.tsx
+│       ├── layout.tsx                  → nav grupal (NavItem | NavGroup), sidebar colapsable
+│       ├── page.tsx                    → guest list
 │       ├── album/page.tsx
 │       ├── comida/page.tsx             → planificador de comida/compras
 │       ├── mesas/page.tsx
 │       ├── timeline/page.tsx
 │       ├── configuracion/page.tsx
-│       └── playlist/page.tsx
+│       ├── playlist/page.tsx
+│       ├── presupuesto/
+│       │   ├── page.tsx                → presupuesto por categorías, export Excel/PDF, seed automático
+│       │   ├── BudgetCategoryRow.tsx   → fila colapsable por categoría con HealthBar
+│       │   ├── BudgetItemModal.tsx     → modal nueva partida
+│       │   ├── BudgetItemRow.tsx       → fila editable con picker de proveedor inline
+│       │   └── lib/
+│       │       ├── exports.ts          → exportToExcel + exportToPDF (xlsx + jspdf)
+│       │       └── seed.ts             → partidas iniciales para bodas MX
+│       └── proveedores/
+│           ├── page.tsx                → lista/grid de proveedores con filtros
+│           ├── SupplierCard.tsx        → card con links WA/IG y status badge
+│           ├── SupplierDetailModal.tsx → modal completo: estado, contacto, comercial, pagos, review
+│           ├── SupplierModal.tsx       → modal nuevo proveedor (datos esenciales)
+│           ├── SupplierReviewModal.tsx → modal de review tras contratar/descartar
+│           ├── SupplierKanbanView.tsx  → vista kanban (WIP)
+│           └── SupplierListView.tsx    → vista lista (WIP)
 └── components/
     ├── WhatsAppFAB.tsx
     ├── PostHogProvider.tsx             → analytics
-    └── auth/AuthModal.tsx
+    ├── auth/AuthModal.tsx
+    └── ui/
+        ├── BudgetMetricsCards.tsx      → 4 tarjetas: estimado/contratado/pagado/balance
+        └── HealthBar.tsx               → barra de progreso presupuesto (verde/amarillo/rojo)
 
 lib/
 ├── supabase.ts
@@ -269,9 +370,14 @@ Supabase email/password auth via `AuthModal` component. Session stored client-si
 ## Contexto técnico importante
 
 - **event_settings vs events:** `message_templates`, `template_names`, `playlist_token`, `playlist_categories`, `album_url` viven en `event_settings`, NO en `events`.
+- **currency en events:** campo `currency` (TEXT) en tabla `events`. Default `'MXN'`. Usar `formatCurrency(amount, currency)` de `lib/types.ts` para mostrar montos.
+- **Presupuesto seed:** al cargar `presupuesto` por primera vez (0 partidas), se auto-insertan 10 partidas base para bodas MX (`lib/seed.ts`). Es intencional.
+- **Presupuesto ↔ Proveedores:** la conexión es bidireccional. `event_budgets.event_supplier_id` apunta al proveedor vinculado; `event_suppliers.event_budget_id` apunta a la partida. La actualización es manual (el usuario vincula desde ambos lados).
+- **Montos derivados:** `contractedByItem` y `paidByItem` en `presupuesto/page.tsx` son calculados en el cliente a partir de `event_suppliers.contract_amount` y suma de `supplier_payments`. No se guardan en `event_budgets`.
+- **SupplierDetailModal estilos:** usa `<style jsx global>` con clases `.input-base` y `.country-code-select` — no Tailwind — para los inputs del modal de proveedor.
 - **Dos clientes Supabase:** `lib/supabase.ts` (browser) y `SUPABASE_SERVICE_ROLE_KEY` solo en API routes.
 - **Spotify API:** Client Credentials (sin OAuth). Preview de audio bloqueado por CORS en localhost — funciona solo en producción con HTTPS.
-- **CSV encoding:** leer con UTF-8 primero; si hay `�`, releer con `windows-1252`. Excel en México guarda en Windows-1252.
+- **CSV encoding:** leer con UTF-8 primero; si hay `?`, releer con `windows-1252`. Excel en México guarda en Windows-1252.
 - **Batch insert:** `supabase.from('guests').insert(arrayCompleto)` — nunca loop de inserts individuales.
 - **Playlist límite 3 canciones:** localStorage (UX) + conteo por `guest_name` en DB (validación real).
 - **Drag and drop playlist:** @dnd-kit con `PointerSensor` (distance: 5) y `TouchSensor` (delay: 200).
@@ -293,7 +399,7 @@ Spanish (`es`) and English (`en`) supported on landing page and auth modal via l
 - **Framer Motion** para animaciones
 - **Botones CTA:** siempre en teal `#48C9B0`
 - **Negro `#1D1E20`** exclusivamente para dropdowns de filtro
-- **Lucide React** para íconos — no SVGs manuales (excepción: play/pause en playlist)
+- **Lucide React** para íconos — no SVGs manuales (excepción: play/pause en playlist, iconos WA/IG en proveedores usan `react-icons`)
 - **Idioma UI:** español
 
 ## Reglas de código
@@ -301,7 +407,7 @@ Spanish (`es`) and English (`en`) supported on landing page and auth modal via l
 1. **Código completo** — nunca fragmentos, siempre el archivo entero listo para pegar
 2. **Un paso a la vez** — terminar y confirmar antes de proponer el siguiente
 3. **Full file replacement** — nunca edits parciales
-4. **Sin tablas nuevas** en Supabase durante MVP
+4. **Sin tablas nuevas** en Supabase durante MVP (ya hay 14; evitar crecer más)
 5. **Sin OAuth, sin Stripe, sin tests** durante MVP
 6. **Sin comentarios** salvo cuando el WHY es no-obvio
 
@@ -351,6 +457,8 @@ Checklist antes de cualquier cambio en Supabase:
 - **CSV import:** batch insert, encoding UTF-8/Windows-1252, detección duplicados.
 - **CSV export:** incluye acompañantes separados por `|`.
 - **Analytics:** PostHog integrado via `PostHogProvider`.
+- **Presupuesto:** partidas por 14 categorías. Seed automático en primer acceso. Vinculación a proveedor inline (picker). Montos derivados de proveedores (contratado/pagado). HealthBar por categoría y global. Indicador ámbar cuando se supera lo estimado. Export a Excel (xlsx) y PDF (jspdf). Multi-moneda.
+- **Proveedores:** pipeline de 5 estados. Cards con links WA/IG. Modal de detalle completo: identidad, contacto, comercial, pagos, notas, archivos (PRO futuro), review. Registro de pagos con método/responsable/referencia. Review post-contratación (estrellas, mood, velocidad). Vinculación bidireccional con presupuesto. Indicadores ámbar cuando se supera el estimado.
 
 ## Planes (MXN)
 
