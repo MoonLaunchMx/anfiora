@@ -1,12 +1,12 @@
 'use client'
-
+ 
 import { useEffect, useState, useRef } from 'react'
 import { useParams, usePathname, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { Users, Images, Music2, Settings, LayoutGrid, PanelLeftClose, PanelLeftOpen, CalendarDays, House, User, LogOut, Wallet, Briefcase, Heart } from 'lucide-react'
+import { Users, Images, Music2, Settings, LayoutGrid, PanelLeftClose, PanelLeftOpen, CalendarDays, House, User, LogOut, Wallet, Briefcase, Heart, MessageCircle } from 'lucide-react'
 import { Event } from '@/lib/types'
 import { EventAccessProvider, useEventAccess } from '@/lib/event-access-context'
-
+ 
 const EVENT_TYPE_LABELS: Record<string, string> = {
   boda:        'Boda',
   cumpleanos:  'Cumpleanos',
@@ -15,15 +15,14 @@ const EVENT_TYPE_LABELS: Record<string, string> = {
   bautizo:     'Bautizo',
   otro:        'Otro',
 }
-
+ 
 const EVENT_STATUS_STYLES: Record<string, { dot: string; badge: string; label: string }> = {
   active:    { dot: 'bg-[#48C9B0]', badge: 'border-[#c8ede7] bg-[#f0fdfb] text-[#1a9e88]', label: 'Activo' },
   paused:    { dot: 'bg-blue-400',  badge: 'border-blue-200 bg-blue-50 text-blue-700',      label: 'Pausado' },
   cancelled: { dot: 'bg-red-400',   badge: 'border-red-200 bg-red-50 text-red-600',         label: 'Cancelado' },
   completed: { dot: 'bg-[#888]',    badge: 'border-[#e0e0e0] bg-[#f8f8f8] text-[#888]',    label: 'Completado' },
 }
-
-// Tipos para nav: discriminated union entre item simple y grupo con sub-items
+ 
 type NavSubItem = {
   label: string
   labelMobile?: string
@@ -32,55 +31,59 @@ type NavSubItem = {
   iconOutline: React.ReactNode
   iconFilled: React.ReactNode
 }
-
+ 
+// ── pro?: boolean agregado para soportar badge PRO en items simples ──
 type NavItem = {
   type: 'item'
   label: string
   labelMobile: string
   path: string
   adminOnly: boolean
+  pro?: boolean
   iconOutline: React.ReactNode
   iconFilled: React.ReactNode
 }
-
+ 
 type NavGroup = {
   type: 'group'
   label: string
   labelMobile: string
   defaultPath: string
-  // icono solo para mobile bottom nav y desktop colapsado del grupo
   iconOutline: React.ReactNode
   iconFilled: React.ReactNode
   children: NavSubItem[]
 }
-
+ 
 type NavEntry = NavItem | NavGroup
-
-// Configuracion del nav. Items simples van como type:'item'.
-// Grupos llevan type:'group' con sus children. En desktop expandido el grupo
-// se renderiza como header de texto sin icono y sus children indentados.
-// En desktop colapsado y en mobile bottom nav los children NO se muestran:
-// se muestra el icono del grupo y al click va al defaultPath.
+ 
 const NAV_ITEMS: NavEntry[] = [
   {
     type: 'item',
     label: 'Invitados', labelMobile: 'Invitados', path: '', adminOnly: false,
-    iconOutline: <Users       width={18} height={18} strokeWidth={1.5} />,
-    iconFilled:  <Users       width={18} height={18} strokeWidth={2.5} />,
+    iconOutline: <Users         width={18} height={18} strokeWidth={1.5} />,
+    iconFilled:  <Users         width={18} height={18} strokeWidth={2.5} />,
+  },
+  // ── Mensajes con badge PRO decorativo (add-on WhatsApp Automatizado) ──
+  {
+    type: 'item',
+    label: 'Mensajes', labelMobile: 'Mensajes', path: '/mensajes', adminOnly: false,
+    pro: true,
+    iconOutline: <MessageCircle width={18} height={18} strokeWidth={1.5} />,
+    iconFilled:  <MessageCircle width={18} height={18} strokeWidth={2.5} />,
   },
   {
     type: 'item',
     label: 'Mesas', labelMobile: 'Mesas', path: '/mesas', adminOnly: false,
-    iconOutline: <LayoutGrid  width={18} height={18} strokeWidth={1.5} />,
-    iconFilled:  <LayoutGrid  width={18} height={18} strokeWidth={2.5} />,
+    iconOutline: <LayoutGrid    width={18} height={18} strokeWidth={1.5} />,
+    iconFilled:  <LayoutGrid    width={18} height={18} strokeWidth={2.5} />,
   },
   {
     type: 'item',
     label: 'Timeline', labelMobile: 'Timeline', path: '/timeline', adminOnly: false,
-    iconOutline: <CalendarDays width={18} height={18} strokeWidth={1.5} />,
-    iconFilled:  <CalendarDays width={18} height={18} strokeWidth={2.5} />,
+    iconOutline: <CalendarDays  width={18} height={18} strokeWidth={1.5} />,
+    iconFilled:  <CalendarDays  width={18} height={18} strokeWidth={2.5} />,
   },
-{
+  {
     type: 'group',
     label: 'Finanzas', labelMobile: 'Finanzas',
     defaultPath: '/presupuesto',
@@ -121,12 +124,11 @@ const NAV_ITEMS: NavEntry[] = [
   {
     type: 'item',
     label: 'Configuracion', labelMobile: 'Config', path: '/configuracion', adminOnly: true,
-    iconOutline: <Settings    width={18} height={18} strokeWidth={1.5} />,
-    iconFilled:  <Settings    width={18} height={18} strokeWidth={2.5} />,
+    iconOutline: <Settings      width={18} height={18} strokeWidth={1.5} />,
+    iconFilled:  <Settings      width={18} height={18} strokeWidth={2.5} />,
   },
 ]
-
-// Badge PRO reutilizable. Decorativo en MVP, funcional cuando llegue Stripe.
+ 
 function ProBadge({ active = false }: { active?: boolean }) {
   return (
     <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider
@@ -136,7 +138,7 @@ function ProBadge({ active = false }: { active?: boolean }) {
     </span>
   )
 }
-
+ 
 function getInitials(name: string, email: string): string {
   if (name) {
     const parts = name.trim().split(' ').filter(Boolean)
@@ -145,7 +147,7 @@ function getInitials(name: string, email: string): string {
   }
   return email?.[0]?.toUpperCase() || '?'
 }
-
+ 
 function Avatar({ initials, size = 'md' }: { initials: string; size?: 'sm' | 'md' }) {
   const cls = size === 'sm' ? 'h-7 w-7 text-[11px]' : 'h-8 w-8 text-[12px]'
   return (
@@ -154,14 +156,14 @@ function Avatar({ initials, size = 'md' }: { initials: string; size?: 'sm' | 'md
     </div>
   )
 }
-
+ 
 function EventLayoutInner({ children }: { children: React.ReactNode }) {
   const { id } = useParams()
   const pathname = usePathname()
   const router = useRouter()
-
+ 
   const { canAdmin } = useEventAccess()
-
+ 
   const [event, setEvent]             = useState<Event | null>(null)
   const [drawerOpen, setDrawerOpen]   = useState(false)
   const [authChecked, setAuthChecked] = useState(false)
@@ -169,28 +171,27 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
   const [userName, setUserName]       = useState('')
   const [userEmail, setUserEmail]     = useState('')
   const [avatarOpen, setAvatarOpen]   = useState(false)
-
+ 
   const navScrollRef = useRef<HTMLDivElement>(null)
   const avatarRef    = useRef<HTMLDivElement>(null)
-
-  // Filtra entries respetando adminOnly. Los grupos siempre se muestran (no tienen adminOnly).
+ 
   const visibleEntries = NAV_ITEMS.filter(entry => {
     if (entry.type === 'item') return !entry.adminOnly || canAdmin
     return true
   })
-
+ 
   useEffect(() => {
     const stored = localStorage.getItem('gf_sidebar_collapsed')
     if (stored === 'true') setCollapsed(true)
   }, [])
-
+ 
   const toggleSidebar = () => {
     setCollapsed(prev => {
       localStorage.setItem('gf_sidebar_collapsed', String(!prev))
       return !prev
     })
   }
-
+ 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (avatarRef.current && !avatarRef.current.contains(e.target as Node)) {
@@ -200,7 +201,7 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
   }, [])
-
+ 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'INITIAL_SESSION' && !session) {
@@ -214,7 +215,7 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
     })
     return () => subscription.unsubscribe()
   }, [router])
-
+ 
   useEffect(() => {
     if (!authChecked) return
     const loadEvent = async () => {
@@ -227,14 +228,14 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
     }
     loadEvent()
   }, [id, authChecked])
-
+ 
   const formatDate = (d: string) => {
     const [year, month, day] = d.split('T')[0].split('-').map(Number)
     return new Date(year, month - 1, day).toLocaleDateString('es-MX', {
       day: 'numeric', month: 'long', year: 'numeric'
     })
   }
-
+ 
   const getDisplayStatus = (): 'active' | 'paused' | 'cancelled' | 'completed' => {
     const es = event?.event_status || 'active'
     if (es === 'paused' || es === 'cancelled') return es
@@ -247,30 +248,25 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
     }
     return 'active'
   }
-
-  // Si path es '' significa la raiz del evento (Invitados). Cualquier otro path
-  // se considera activo si pathname empieza con la ruta completa.
+ 
   const isActive = (path: string) => {
     const full = `/events/${id}${path}`
     if (path === '') return pathname === `/events/${id}`
     return pathname === full || pathname.startsWith(full + '/')
   }
-
-  // Para grupos: el grupo esta activo si cualquiera de sus children esta activo
+ 
   const isGroupActive = (group: NavGroup) => group.children.some(child => isActive(child.path))
-
+ 
   const navigate = (path: string) => {
     router.push(`/events/${id}${path}`)
     setDrawerOpen(false)
   }
-
+ 
   const handleLogout = async () => {
     await supabase.auth.signOut()
     window.location.href = '/'
   }
-
-  // Construye lista plana de items para mobile bottom nav y desktop colapsado.
-  // Los grupos colapsan en un solo entry (con su icono y defaultPath).
+ 
   const flatNavForCompact = visibleEntries.map(entry => {
     if (entry.type === 'item') {
       return {
@@ -283,7 +279,6 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
         active: isActive(entry.path),
       }
     }
-    // grupo: usa defaultPath, pero el activo se calcula con todos sus children
     return {
       key: entry.label,
       label: entry.label,
@@ -294,8 +289,7 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
       active: isGroupActive(entry),
     }
   })
-
-  // Scroll bottom nav al item activo en mobile
+ 
   useEffect(() => {
     const container = navScrollRef.current
     if (!container) return
@@ -304,7 +298,7 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
     const itemWidth = container.scrollWidth / (flatNavForCompact.length + 1)
     container.scrollTo({ left: Math.max(0, itemWidth * activeIndex - itemWidth * 2), behavior: 'smooth' })
   }, [pathname, id, flatNavForCompact.length])
-
+ 
   if (!authChecked) {
     return (
       <div className="flex h-screen items-center justify-center bg-white">
@@ -315,11 +309,11 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
       </div>
     )
   }
-
+ 
   const initials      = getInitials(userName, userEmail)
   const displayStatus = event ? getDisplayStatus() : null
   const badgeStyle    = displayStatus ? EVENT_STATUS_STYLES[displayStatus] : null
-
+ 
   const AvatarDropdown = () => (
     <div className="absolute bottom-full right-0 z-50 mb-2 w-52 overflow-hidden rounded-xl border border-[#e8e8e8] bg-white shadow-lg">
       <div className="border-b border-[#f0f0f0] px-4 py-3">
@@ -342,24 +336,27 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
       </button>
     </div>
   )
-
-  // Renderiza un item simple (no grupo) en sidebar expandido
-  const renderSidebarItem = (entry: NavItem) => (
-    <button
-      key={entry.path}
-      onClick={() => navigate(entry.path)}
-      className={`flex w-full items-center gap-2.5 border-l-[3px] px-4 py-2.5 text-left text-sm transition
-        ${isActive(entry.path)
-          ? 'border-[#48C9B0] bg-white font-semibold text-[#1D1E20]'
-          : 'border-transparent font-normal text-[#888] hover:bg-white/60 hover:text-[#1D1E20]'
-        }`}
-    >
-      {isActive(entry.path) ? entry.iconFilled : entry.iconOutline}
-      <span>{entry.label}</span>
-    </button>
-  )
-
-  // Renderiza un grupo (header sin icono + sub-items con icono indentados)
+ 
+  // ── renderSidebarItem: flex-1 en label + ProBadge si entry.pro ──
+  const renderSidebarItem = (entry: NavItem) => {
+    const active = isActive(entry.path)
+    return (
+      <button
+        key={entry.path}
+        onClick={() => navigate(entry.path)}
+        className={`flex w-full items-center gap-2.5 border-l-[3px] px-4 py-2.5 text-left text-sm transition
+          ${active
+            ? 'border-[#48C9B0] bg-white font-semibold text-[#1D1E20]'
+            : 'border-transparent font-normal text-[#888] hover:bg-white/60 hover:text-[#1D1E20]'
+          }`}
+      >
+        {active ? entry.iconFilled : entry.iconOutline}
+        <span className="flex-1">{entry.label}</span>
+        {entry.pro && <ProBadge active={active} />}
+      </button>
+    )
+  }
+ 
   const renderSidebarGroup = (group: NavGroup) => (
     <div key={group.label} className="mt-1">
       <div className="px-4 pb-1 pt-3 text-[10px] font-semibold uppercase tracking-wider text-[#aaa]">
@@ -379,14 +376,13 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
           >
             {active ? child.iconFilled : child.iconOutline}
             <span className="flex-1">{child.label}</span>
-            {child.pro && <ProBadge />}
+            {child.pro && <ProBadge active={active} />}
           </button>
         )
       })}
     </div>
   )
-
-  // Renderiza item compacto (sidebar colapsado): solo icono
+ 
   const renderCollapsedItem = (item: typeof flatNavForCompact[number]) => (
     <button
       key={item.key}
@@ -401,10 +397,10 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
       {item.active ? item.iconFilled : item.iconOutline}
     </button>
   )
-
+ 
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-white font-sans text-[#1D1E20]">
-
+ 
       {/* HEADER MOBILE */}
       <header className="flex h-12 shrink-0 items-center justify-between border-b border-[#e8e8e8] bg-white px-4 sm:hidden">
         <div className="flex min-w-0 flex-1 items-center gap-2">
@@ -446,13 +442,13 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
           )}
         </div>
       </header>
-
+ 
       {/* HEADER DESKTOP */}
       <header className="hidden h-14 shrink-0 items-center justify-between border-b border-[#e8e8e8] bg-white px-4 sm:flex sm:h-16 sm:px-6">
         <button onClick={() => router.push('/dashboard')} className="shrink-0">
           <img src="/images/Logo-010526newest.svg" alt="Anfiora" className="h-10 sm:h-11 lg:h-14" />
         </button>
-
+ 
         {event && (
           <div className="flex min-w-0 flex-1 items-center justify-center gap-2 px-4">
             <span className="max-w-[200px] truncate text-sm font-semibold text-[#1D1E20] lg:max-w-xs">
@@ -476,7 +472,7 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
             )}
           </div>
         )}
-
+ 
         <div className="flex shrink-0 items-center gap-3">
           <button onClick={() => router.push('/dashboard')} className="text-xs text-[#999] transition hover:text-[#48C9B0]">
             Mis eventos
@@ -493,10 +489,10 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
           </button>
         </div>
       </header>
-
+ 
       {/* BODY */}
       <div className="flex min-h-0 flex-1 overflow-hidden">
-
+ 
         {/* SIDEBAR desktop lg+ */}
         <aside
           className="hidden shrink-0 flex-col overflow-hidden border-r border-[#e8e8e8] bg-[#f8f5f0] lg:flex"
@@ -510,7 +506,7 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
                 )
             }
           </nav>
-
+ 
           <div className="shrink-0 border-t border-[#e8e8e8]">
             <div ref={avatarRef} className="relative px-3 py-3">
               <button
@@ -544,7 +540,7 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
             </div>
           </div>
         </aside>
-
+ 
         {/* DRAWER tablet */}
         {drawerOpen && (
           <>
@@ -570,13 +566,13 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
             </div>
           </>
         )}
-
+ 
         {/* MAIN CONTENT */}
         <main className="flex min-h-0 flex-1 flex-col overflow-hidden bg-white pb-16 sm:pb-0">
           {children}
         </main>
       </div>
-
+ 
       {/* BOTTOM NAV mobile */}
       <nav
         ref={navScrollRef}
@@ -609,14 +605,14 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
           </button>
         ))}
       </nav>
-
+ 
     </div>
   )
 }
-
+ 
 export default function EventLayout({ children }: { children: React.ReactNode }) {
   const { id } = useParams()
-
+ 
   return (
     <EventAccessProvider eventId={id as string}>
       <EventLayoutInner>{children}</EventLayoutInner>

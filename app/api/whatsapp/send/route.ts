@@ -22,7 +22,7 @@ async function isTwilioRequest(request: Request): Promise<boolean> {
 }
 
 export async function POST(request: NextRequest) {
-  // ── Clonar antes de validar — formData solo se puede leer una vez ─────────
+  // ── Clonar antes de validar — formData solo se puede leer una vez ────────
   const cloned = request.clone()
   const valid  = await isTwilioRequest(cloned)
   if (!valid) return new NextResponse('Unauthorized', { status: 403 })
@@ -42,14 +42,11 @@ export async function POST(request: NextRequest) {
 
     if (!text || !phone) return twimlResponse()
 
-    // ── Buscar invitado — prioriza evento activo más próximo ─────────────────
     const { data: guests, error: guestError } = await supabase
       .from('guests')
       .select('id, name, event_id, rsvp_status')
       .eq('phone', phone)
       .limit(1)
-
-    console.log('[Webhook] Guests encontrados:', JSON.stringify(guests))
 
     if (guestError || !guests || guests.length === 0) {
       console.log(`[Webhook] Número no registrado: ${phone}`)
@@ -67,7 +64,7 @@ export async function POST(request: NextRequest) {
 
     const eventName = event?.name ?? 'tu evento'
 
-    // ── Guardar mensaje entrante ──────────────────────────────────────────────
+    // ── Guardar mensaje entrante con log de error ────────────────────────────
     const { error: insertInboundError } = await supabase.from('wa_messages').insert({
       guest_id:   guest.id,
       event_id:   guest.event_id,
@@ -75,7 +72,7 @@ export async function POST(request: NextRequest) {
       content:    text,
       created_at: new Date().toISOString(),
     })
-    console.log('[DB] Insert inbound:', insertInboundError ? JSON.stringify(insertInboundError) : 'OK')
+    console.log('[DB] Insert inbound:', insertInboundError ?? 'OK')
 
     const interpretation = await interpretRSVPMessage(text, guestName, eventName)
     console.log(`[AI RSVP] ${guestName}: "${text}" → ${interpretation.intent} (${interpretation.confidence})`)
@@ -94,7 +91,7 @@ export async function POST(request: NextRequest) {
       const replyText = buildReplyMessage(interpretation.intent, guestName, eventName)
 
       if (replyText) {
-        // ── Guardar mensaje saliente ─────────────────────────────────────────
+        // ── Guardar mensaje saliente con log de error ──────────────────────
         const { error: insertOutboundError } = await supabase.from('wa_messages').insert({
           guest_id:   guest.id,
           event_id:   guest.event_id,
@@ -102,7 +99,7 @@ export async function POST(request: NextRequest) {
           content:    replyText,
           created_at: new Date().toISOString(),
         })
-        console.log('[DB] Insert outbound:', insertOutboundError ? JSON.stringify(insertOutboundError) : 'OK')
+        console.log('[DB] Insert outbound:', insertOutboundError ?? 'OK')
 
         await sendWhatsAppReply(from, replyText)
       }
