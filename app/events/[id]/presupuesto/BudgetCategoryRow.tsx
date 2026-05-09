@@ -54,7 +54,9 @@ export default function BudgetCategoryRow({
         <h3 className="flex-1 text-sm font-semibold text-[#1D1E20] flex items-center gap-1.5">
           {BUDGET_CATEGORY_LABELS[category]}
           {isOverBudget && (
-            <AlertTriangle size={13} className="shrink-0 text-amber-500" />
+              <span title="El total contratado supera el presupuesto de la categoría">
+                <AlertTriangle size={13} className="shrink-0 text-amber-500" />
+              </span>
           )}
         </h3>
         {/* Contador de conceptos */}
