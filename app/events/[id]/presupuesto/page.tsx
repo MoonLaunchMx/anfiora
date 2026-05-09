@@ -1,8 +1,9 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useParams } from 'next/navigation'
-import { Search, FileSpreadsheet, FileText, Plus } from 'lucide-react'
+import { Search, FileSpreadsheet, FileText, Plus, Upload, X, AlertTriangle, Check } from 'lucide-react'
+import * as XLSX from 'xlsx'
 import { supabase } from '@/lib/supabase'
 import {
   Event, EventBudget, BudgetCategory, BUDGET_CATEGORIES, BUDGET_CATEGORY_LABELS,
@@ -13,7 +14,7 @@ import StatsCollapse, { useStatsToggle, StatsToggleButton } from '@/app/componen
 import BudgetCategoryRow from './BudgetCategoryRow'
 import BudgetItemModal from './BudgetItemModal'
 import { buildSeedBudgets } from './lib/seed'
-import { exportToExcel, exportToPDF } from './lib/exports'
+import { exportToExcel, exportToPDF, downloadImportTemplate } from './lib/exports'
 
 type EventSupplierWithName = EventSupplier & {
   supplier: Pick<Supplier, 'id' | 'name' | 'category'>
@@ -23,6 +24,14 @@ type SupplierPaymentRow = {
   id: string
   event_supplier_id: string
   amount: number
+}
+
+// Fila parseada del Excel antes de resolver duplicados
+type ImportRow = {
+  category: BudgetCategory
+  subcategory: string
+  budget_amount: number
+  isDuplicate: boolean
 }
 
 export default function PresupuestoPage() {
@@ -39,6 +48,14 @@ export default function PresupuestoPage() {
   const [modalOpen, setModalOpen]         = useState(false)
   const [modalCategory, setModalCategory] = useState<BudgetCategory | null>(null)
 
+  // Import state
+  const [importModalOpen, setImportModalOpen] = useState(false)
+  const [importRows, setImportRows]           = useState<ImportRow[]>([])
+  const [importError, setImportError]         = useState('')
+  const [importing, setImporting]             = useState(false)
+  const [importMode, setImportMode]           = useState<'todos' | 'nuevos'>('nuevos')
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
   const statsToggle = useStatsToggle(eventId, 'presupuesto')
 
   useEffect(() => {
@@ -52,7 +69,6 @@ export default function PresupuestoPage() {
       const [eventRes, budgetsRes, suppliersRes] = await Promise.all([
         supabase.from('events').select('*').eq('id', eventId).single(),
         supabase.from('event_budgets').select('*').eq('event_id', eventId).order('created_at', { ascending: true }),
-        // Traemos category del supplier para agrupar por categoria en availableSuppliersByCategory
         supabase.from('event_suppliers').select('*, supplier:suppliers(id, name, category)').eq('event_id', eventId),
       ])
 
@@ -66,9 +82,7 @@ export default function PresupuestoPage() {
           .from('supplier_payments')
           .select('id, event_supplier_id, amount')
           .in('event_supplier_id', supplierIds)
-        if (paymentsError) {
-          console.error('Error cargando pagos:', paymentsError?.message ?? paymentsError, paymentsError)
-        }
+        if (paymentsError) console.error('Error cargando pagos:', paymentsError?.message ?? paymentsError)
         setPayments((paymentsData || []) as SupplierPaymentRow[])
       } else {
         setPayments([])
@@ -78,9 +92,7 @@ export default function PresupuestoPage() {
       if (currentBudgets.length === 0) {
         const seed = buildSeedBudgets(eventId)
         const { data: inserted, error: seedError } = await supabase.from('event_budgets').insert(seed).select()
-        if (seedError) {
-          console.error('Error sembrando presupuesto:', seedError?.message ?? seedError, seedError)
-        }
+        if (seedError) console.error('Error sembrando presupuesto:', seedError?.message ?? seedError)
         if (inserted) currentBudgets = inserted as EventBudget[]
       }
 
@@ -92,22 +104,18 @@ export default function PresupuestoPage() {
     }
   }
 
-  // Pagos acumulados por event_supplier
   const paidByEventSupplier: Record<string, number> = {}
   payments.forEach(p => {
     paidByEventSupplier[p.event_supplier_id] = (paidByEventSupplier[p.event_supplier_id] || 0) + Number(p.amount || 0)
   })
 
-  // Lookup rapido de event_suppliers por id
   const eventSuppliersById: Record<string, EventSupplierWithName> = {}
   eventSuppliers.forEach(es => { eventSuppliersById[es.id] = es })
 
-  // Solo contratados agrupados por categoria del supplier — para el picker inline en BudgetItemRow
   const availableSuppliersByCategory: Record<string, EventSupplierWithName[]> = {}
   BUDGET_CATEGORIES.forEach(cat => { availableSuppliersByCategory[cat] = [] })
   eventSuppliers.forEach(es => {
     if (!es.supplier) return
-    // Solo contratados — son los unicos con contract_amount real y pagos registrados
     if (es.status !== 'contratado') return
     const cat = es.supplier.category
     if (cat && availableSuppliersByCategory[cat]) {
@@ -115,7 +123,6 @@ export default function PresupuestoPage() {
     }
   })
 
-  // Montos contratados y pagados por item de presupuesto
   const contractedByItem: Record<string, number> = {}
   const paidByItem: Record<string, number>       = {}
   budgets.forEach(b => {
@@ -155,6 +162,138 @@ export default function PresupuestoPage() {
     setModalCategory(null)
     setModalOpen(true)
   }
+
+  // ── IMPORT ────────────────────────────────────────────────────────────────
+
+  // Mapeo de labels UI → BudgetCategory key
+  const LABEL_TO_CATEGORY: Record<string, BudgetCategory> = {}
+  BUDGET_CATEGORIES.forEach(cat => {
+    LABEL_TO_CATEGORY[BUDGET_CATEGORY_LABELS[cat].toLowerCase()] = cat
+    LABEL_TO_CATEGORY[cat.toLowerCase()] = cat
+  })
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setImportError('')
+
+    const reader = new FileReader()
+    reader.onload = (ev) => {
+      try {
+        const data = new Uint8Array(ev.target?.result as ArrayBuffer)
+        const wb   = XLSX.read(data, { type: 'array' })
+        const ws   = wb.Sheets[wb.SheetNames[0]]
+        const raw  = XLSX.utils.sheet_to_json<any>(ws, { header: 1 })
+
+        // Buscar fila de encabezado (Categoria, Concepto, Presupuesto)
+        let headerIdx = -1
+        for (let i = 0; i < raw.length; i++) {
+          const row = raw[i].map((c: any) => String(c || '').toLowerCase())
+          if (row.includes('categoria') || row.includes('categoría')) {
+            headerIdx = i
+            break
+          }
+        }
+
+        if (headerIdx === -1) {
+          setImportError('No se encontró la fila de encabezados. Usa la plantilla de Anfiora.')
+          return
+        }
+
+        const headers = raw[headerIdx].map((c: any) => String(c || '').toLowerCase())
+        const catIdx  = headers.findIndex((h: string) => h.includes('categor'))
+        const conIdx  = headers.findIndex((h: string) => h.includes('concepto') || h.includes('partida'))
+        const amtIdx  = headers.findIndex((h: string) => h.includes('presupuesto') || h.includes('estimado') || h.includes('monto'))
+
+        if (catIdx === -1 || conIdx === -1) {
+          setImportError('El archivo debe tener columnas "Categoria" y "Concepto".')
+          return
+        }
+
+        const parsed: ImportRow[] = []
+        const existingKeys = new Set(
+          budgets.map(b => `${b.category}||${b.subcategory.toLowerCase().trim()}`)
+        )
+
+        for (let i = headerIdx + 1; i < raw.length; i++) {
+          const row = raw[i]
+          if (!row || row.length === 0) continue
+
+          const catRaw = String(row[catIdx] || '').trim()
+          const conRaw = String(row[conIdx] || '').trim()
+          const amtRaw = amtIdx >= 0 ? Number(row[amtIdx]) || 0 : 0
+
+          if (!catRaw || !conRaw) continue
+          // Saltar filas de ejemplo
+          if (conRaw.toLowerCase().startsWith('ejemplo:')) continue
+
+          const category = LABEL_TO_CATEGORY[catRaw.toLowerCase()]
+          if (!category) continue // categoría no reconocida, ignorar
+
+          const isDuplicate = existingKeys.has(`${category}||${conRaw.toLowerCase()}`)
+
+          parsed.push({
+            category,
+            subcategory:   conRaw,
+            budget_amount: amtRaw,
+            isDuplicate,
+          })
+        }
+
+        if (parsed.length === 0) {
+          setImportError('No se encontraron conceptos válidos en el archivo.')
+          return
+        }
+
+        setImportRows(parsed)
+        setImportModalOpen(true)
+      } catch (err: any) {
+        setImportError('Error leyendo el archivo. Asegúrate de que sea un .xlsx válido.')
+        console.error(err)
+      }
+    }
+    reader.readAsArrayBuffer(file)
+    // Reset input para permitir re-subir el mismo archivo
+    e.target.value = ''
+  }
+
+  const handleImport = async () => {
+    setImporting(true)
+    try {
+      const toInsert = importMode === 'todos'
+        ? importRows
+        : importRows.filter(r => !r.isDuplicate)
+
+      if (toInsert.length === 0) {
+        setImportModalOpen(false)
+        return
+      }
+
+      const { data: inserted, error } = await supabase
+        .from('event_budgets')
+        .insert(toInsert.map(r => ({
+          event_id:          eventId,
+          category:          r.category,
+          subcategory:       r.subcategory,
+          budget_amount:     r.budget_amount,
+          event_supplier_id: null,
+          notes:             null,
+        })))
+        .select()
+
+      if (error) throw error
+      if (inserted) setBudgets(prev => [...prev, ...(inserted as EventBudget[])])
+      setImportModalOpen(false)
+      setImportRows([])
+    } catch (err: any) {
+      console.error('Error importando:', err?.message ?? err)
+      alert(`Error importando: ${err?.message ?? 'Intenta de nuevo'}`)
+    } finally {
+      setImporting(false)
+    }
+  }
+
+  // ── HANDLERS EXISTENTES ───────────────────────────────────────────────────
 
   const handleModalSubmit = async (data: {
     category: BudgetCategory
@@ -234,6 +373,8 @@ export default function PresupuestoPage() {
   }
 
   const currency: Currency = event.currency || 'MXN'
+  const duplicateCount = importRows.filter(r => r.isDuplicate).length
+  const newCount       = importRows.filter(r => !r.isDuplicate).length
 
   return (
     <div className="overflow-y-auto p-4 sm:p-6">
@@ -270,6 +411,7 @@ export default function PresupuestoPage() {
           />
         </div>
 
+        {/* Export Excel */}
         <button
           onClick={() => handleExport('excel')}
           className="hidden items-center gap-1.5 rounded-lg border border-[#e0e0e0] bg-white px-3 py-1.5 text-xs font-medium text-[#555] transition hover:border-[#48C9B0] hover:text-[#48C9B0] sm:flex"
@@ -278,6 +420,7 @@ export default function PresupuestoPage() {
           Excel
         </button>
 
+        {/* Export PDF */}
         <button
           onClick={() => handleExport('pdf')}
           className="flex items-center gap-1.5 rounded-lg border border-[#e0e0e0] bg-white px-3 py-1.5 text-xs font-medium text-[#555] transition hover:border-[#48C9B0] hover:text-[#48C9B0]"
@@ -286,6 +429,32 @@ export default function PresupuestoPage() {
           <span className="hidden sm:inline">PDF</span>
         </button>
 
+        {/* Importar — abre file picker oculto */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".xlsx,.xls"
+          className="hidden"
+          onChange={handleFileChange}
+        />
+        <button
+          onClick={() => fileInputRef.current?.click()}
+          className="hidden items-center gap-1.5 rounded-lg border border-[#e0e0e0] bg-white px-3 py-1.5 text-xs font-medium text-[#555] transition hover:border-[#48C9B0] hover:text-[#48C9B0] sm:flex"
+        >
+          <Upload size={14} />
+          Importar
+        </button>
+
+        {/* Plantilla */}
+        <button
+          onClick={downloadImportTemplate}
+          className="hidden items-center gap-1.5 rounded-lg border border-dashed border-[#e0e0e0] bg-white px-3 py-1.5 text-xs font-medium text-[#aaa] transition hover:border-[#48C9B0] hover:text-[#48C9B0] sm:flex"
+        >
+          <FileSpreadsheet size={14} />
+          Plantilla
+        </button>
+
+        {/* Nuevo concepto */}
         <button
           onClick={openAddModalGeneric}
           className="flex items-center gap-1.5 rounded-lg bg-[#48C9B0] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#3aa896]"
@@ -294,6 +463,16 @@ export default function PresupuestoPage() {
           <span>Nuevo concepto</span>
         </button>
       </div>
+
+      {importError && (
+        <div className="mb-4 flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+          <AlertTriangle size={14} className="shrink-0 text-amber-500" />
+          <p className="text-xs text-amber-700">{importError}</p>
+          <button onClick={() => setImportError('')} className="ml-auto text-amber-400 hover:text-amber-600">
+            <X size={14} />
+          </button>
+        </div>
+      )}
 
       <div className="space-y-3 pb-6">
         {BUDGET_CATEGORIES.map(category => {
@@ -317,6 +496,7 @@ export default function PresupuestoPage() {
         })}
       </div>
 
+      {/* ── MODAL DE CONCEPTO ── */}
       <BudgetItemModal
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
@@ -325,6 +505,136 @@ export default function PresupuestoPage() {
         eventSuppliers={eventSuppliers}
         onSubmit={handleModalSubmit}
       />
+
+      {/* ── MODAL DE IMPORT ── */}
+      {importModalOpen && (
+        <>
+          <div
+            onClick={() => setImportModalOpen(false)}
+            className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm"
+          />
+          <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4">
+            <div className="flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-t-2xl bg-white shadow-xl sm:rounded-2xl">
+
+              {/* Header */}
+              <div className="flex shrink-0 items-center justify-between border-b border-[#f0f0f0] px-5 py-4">
+                <div>
+                  <h2 className="text-base font-bold text-[#1D1E20]">Importar presupuesto</h2>
+                  <p className="text-xs text-[#888]">
+                    {importRows.length} concepto{importRows.length !== 1 ? 's' : ''} encontrado{importRows.length !== 1 ? 's' : ''}
+                    {duplicateCount > 0 && ` · ${duplicateCount} duplicado${duplicateCount !== 1 ? 's' : ''}`}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setImportModalOpen(false)}
+                  className="flex h-8 w-8 items-center justify-center rounded-full text-[#aaa] hover:bg-[#f5f5f5] hover:text-[#1D1E20]"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              {/* Opciones si hay duplicados */}
+              {duplicateCount > 0 && (
+                <div className="shrink-0 border-b border-[#f0f0f0] bg-amber-50 px-5 py-3">
+                  <p className="mb-2 text-xs font-semibold text-amber-700">
+                    {duplicateCount} concepto{duplicateCount !== 1 ? 's' : ''} ya existe{duplicateCount === 1 ? '' : 'n'} en tu presupuesto
+                  </p>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setImportMode('nuevos')}
+                      className={`flex-1 rounded-lg border px-3 py-2 text-xs font-medium transition ${
+                        importMode === 'nuevos'
+                          ? 'border-[#1D1E20] bg-[#1D1E20] text-white'
+                          : 'border-[#e0e0e0] bg-white text-[#555] hover:border-[#1D1E20]'
+                      }`}
+                    >
+                      Solo importar nuevos ({newCount})
+                    </button>
+                    <button
+                      onClick={() => setImportMode('todos')}
+                      className={`flex-1 rounded-lg border px-3 py-2 text-xs font-medium transition ${
+                        importMode === 'todos'
+                          ? 'border-[#1D1E20] bg-[#1D1E20] text-white'
+                          : 'border-[#e0e0e0] bg-white text-[#555] hover:border-[#1D1E20]'
+                      }`}
+                    >
+                      Importar todos ({importRows.length})
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Lista de conceptos */}
+              <div className="flex-1 overflow-y-auto px-5 py-3">
+                <div className="space-y-1">
+                  {importRows.map((row, idx) => {
+                    const skip = importMode === 'nuevos' && row.isDuplicate
+                    return (
+                      <div
+                        key={idx}
+                        className={`flex items-center gap-3 rounded-lg px-3 py-2 text-xs ${
+                          skip ? 'opacity-40' : 'bg-[#fafafa]'
+                        }`}
+                      >
+                        {/* Icono estado */}
+                        <div className="shrink-0">
+                          {row.isDuplicate ? (
+                            <span title="Duplicado" className="text-amber-500">
+                              <AlertTriangle size={13} />
+                            </span>
+                          ) : (
+                            <Check size={13} className="text-[#48C9B0]" />
+                          )}
+                        </div>
+                        {/* Categoría */}
+                        <span className="w-28 shrink-0 text-[#888]">
+                          {BUDGET_CATEGORY_LABELS[row.category]}
+                        </span>
+                        {/* Concepto */}
+                        <span className="flex-1 font-medium text-[#1D1E20]">{row.subcategory}</span>
+                        {/* Monto */}
+                        <span className="shrink-0 tabular-nums text-[#888]">
+                          {row.budget_amount > 0
+                            ? `$${row.budget_amount.toLocaleString('es-MX')}`
+                            : '—'
+                          }
+                        </span>
+                        {/* Badge duplicado */}
+                        {row.isDuplicate && (
+                          <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
+                            duplicado
+                          </span>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="flex shrink-0 items-center justify-end gap-2 border-t border-[#f0f0f0] bg-[#fafafa] px-5 py-3">
+                <button
+                  onClick={() => setImportModalOpen(false)}
+                  disabled={importing}
+                  className="rounded-lg px-4 py-2 text-xs font-medium text-[#666] hover:bg-[#f0f0f0] disabled:opacity-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleImport}
+                  disabled={importing || (importMode === 'nuevos' && newCount === 0)}
+                  className="rounded-lg bg-[#48C9B0] px-4 py-2 text-xs font-semibold text-white hover:bg-[#3aa896] disabled:opacity-50"
+                >
+                  {importing
+                    ? 'Importando...'
+                    : `Importar ${importMode === 'nuevos' ? newCount : importRows.length} concepto${(importMode === 'nuevos' ? newCount : importRows.length) !== 1 ? 's' : ''}`
+                  }
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   )
 }
