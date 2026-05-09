@@ -23,9 +23,9 @@ type Props = {
 export default function SupplierCard({ item, budgets, currency, onClick }: Props) {
   const s = item.supplier
 
-  const waLink  = s.phone ? `https://wa.me/${(s.phone_country_code || '+52').replace('+', '')}${s.phone}` : null
-  const igLink  = s.instagram ? `https://instagram.com/${s.instagram.replace('@', '')}` : null
-  const webLink = s.website || null
+  const waLink   = s.phone ? `https://wa.me/${(s.phone_country_code || '+52').replace('+', '')}${s.phone}` : null
+  const igLink   = s.instagram ? `https://instagram.com/${s.instagram.replace('@', '')}` : null
+  const webLink  = s.website || null
   const mailLink = s.email ? `mailto:${s.email}` : null
 
   const openLink = (e: React.MouseEvent, url: string) => {
@@ -33,11 +33,19 @@ export default function SupplierCard({ item, budgets, currency, onClick }: Props
     window.open(url, '_blank', 'noopener,noreferrer')
   }
 
-  // Cotización vs meta de la partida vinculada
+  // Cotización vs meta
   const linkedBudget = budgets.find(b => b.id === item.event_budget_id)
-  const meta = linkedBudget?.budget_amount ?? null
+  const meta     = linkedBudget?.budget_amount ?? null
   const cotizado = item.quoted_amount ?? item.contract_amount ?? null
-  const exceeds = meta !== null && cotizado !== null && cotizado > meta
+  const exceeds  = meta !== null && cotizado !== null && cotizado > meta
+  const saves    = meta !== null && cotizado !== null && cotizado < meta
+  const saving   = saves ? meta - cotizado : 0
+
+  // Colores según estado
+  const blockBg    = exceeds ? 'bg-red-50'      : saves ? 'bg-emerald-50' : 'bg-[#fafafa]'
+  const amountColor = exceeds ? 'text-red-600'   : saves ? 'text-emerald-600' : 'text-[#1D1E20]'
+  const labelColor  = exceeds ? 'text-red-500'   : saves ? 'text-emerald-500' : ''
+  const labelText   = exceeds ? 'Excede la partida' : saves ? `Ahorro de ${formatCurrency(saving, currency)}` : ''
 
   return (
     <div
@@ -70,13 +78,13 @@ export default function SupplierCard({ item, budgets, currency, onClick }: Props
 
       {/* Cotización vs meta */}
       {cotizado !== null && (
-        <div className={`mb-3 rounded-lg p-2.5 ${exceeds ? 'bg-amber-50' : 'bg-[#fafafa]'}`}>
+        <div className={`mb-3 rounded-lg p-2.5 ${blockBg}`}>
           <div className="flex items-center justify-between gap-2">
             <div>
               <p className="text-[10px] uppercase tracking-wider text-[#888]">
                 {item.contract_amount ? 'Contratado' : 'Cotizado'}
               </p>
-              <p className={`text-sm font-bold tabular-nums ${exceeds ? 'text-amber-600' : 'text-[#1D1E20]'}`}>
+              <p className={`text-sm font-bold tabular-nums ${amountColor}`}>
                 {formatCurrency(cotizado, currency)}
               </p>
             </div>
@@ -89,8 +97,10 @@ export default function SupplierCard({ item, budgets, currency, onClick }: Props
               </div>
             )}
           </div>
-          {exceeds && (
-            <p className="mt-1 text-[10px] font-medium text-amber-600">Excede la partida</p>
+          {labelText && (
+            <p className={`mt-1 text-[10px] font-medium ${labelColor}`}>
+              {labelText}
+            </p>
           )}
         </div>
       )}

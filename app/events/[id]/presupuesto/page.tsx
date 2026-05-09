@@ -15,6 +15,8 @@ import BudgetCategoryRow from './BudgetCategoryRow'
 import BudgetItemModal from './BudgetItemModal'
 import { buildSeedBudgets } from './lib/seed'
 import { exportToExcel, exportToPDF, downloadImportTemplate } from './lib/exports'
+import SupplierDetailModal from '../proveedores/SupplierDetailModal'
+import SupplierReviewModal from '../proveedores/SupplierReviewModal'
 
 type EventSupplierWithName = EventSupplier & {
   supplier: Pick<Supplier, 'id' | 'name' | 'category'>
@@ -26,7 +28,6 @@ type SupplierPaymentRow = {
   amount: number
 }
 
-// Fila parseada del Excel antes de resolver duplicados
 type ImportRow = {
   category: BudgetCategory
   subcategory: string
@@ -55,6 +56,10 @@ export default function PresupuestoPage() {
   const [importing, setImporting]             = useState(false)
   const [importMode, setImportMode]           = useState<'todos' | 'nuevos'>('nuevos')
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Supplier detail desde presupuesto
+  const [selectedSupplier, setSelectedSupplier] = useState<EventSupplierWithName | null>(null)
+  const [reviewSupplier, setReviewSupplier]     = useState<EventSupplierWithName | null>(null)
 
   const statsToggle = useStatsToggle(eventId, 'presupuesto')
 
@@ -165,7 +170,6 @@ export default function PresupuestoPage() {
 
   // ── IMPORT ────────────────────────────────────────────────────────────────
 
-  // Mapeo de labels UI → BudgetCategory key
   const LABEL_TO_CATEGORY: Record<string, BudgetCategory> = {}
   BUDGET_CATEGORIES.forEach(cat => {
     LABEL_TO_CATEGORY[BUDGET_CATEGORY_LABELS[cat].toLowerCase()] = cat
@@ -185,7 +189,6 @@ export default function PresupuestoPage() {
         const ws   = wb.Sheets[wb.SheetNames[0]]
         const raw  = XLSX.utils.sheet_to_json<any>(ws, { header: 1 })
 
-        // Buscar fila de encabezado (Categoria, Concepto, Presupuesto)
         let headerIdx = -1
         for (let i = 0; i < raw.length; i++) {
           const row = raw[i].map((c: any) => String(c || '').toLowerCase())
@@ -224,20 +227,13 @@ export default function PresupuestoPage() {
           const amtRaw = amtIdx >= 0 ? Number(row[amtIdx]) || 0 : 0
 
           if (!catRaw || !conRaw) continue
-          // Saltar filas de ejemplo
           if (conRaw.toLowerCase().startsWith('ejemplo:')) continue
 
           const category = LABEL_TO_CATEGORY[catRaw.toLowerCase()]
-          if (!category) continue // categoría no reconocida, ignorar
+          if (!category) continue
 
           const isDuplicate = existingKeys.has(`${category}||${conRaw.toLowerCase()}`)
-
-          parsed.push({
-            category,
-            subcategory:   conRaw,
-            budget_amount: amtRaw,
-            isDuplicate,
-          })
+          parsed.push({ category, subcategory: conRaw, budget_amount: amtRaw, isDuplicate })
         }
 
         if (parsed.length === 0) {
@@ -253,7 +249,6 @@ export default function PresupuestoPage() {
       }
     }
     reader.readAsArrayBuffer(file)
-    // Reset input para permitir re-subir el mismo archivo
     e.target.value = ''
   }
 
@@ -264,10 +259,7 @@ export default function PresupuestoPage() {
         ? importRows
         : importRows.filter(r => !r.isDuplicate)
 
-      if (toInsert.length === 0) {
-        setImportModalOpen(false)
-        return
-      }
+      if (toInsert.length === 0) { setImportModalOpen(false); return }
 
       const { data: inserted, error } = await supabase
         .from('event_budgets')
@@ -293,7 +285,7 @@ export default function PresupuestoPage() {
     }
   }
 
-  // ── HANDLERS EXISTENTES ───────────────────────────────────────────────────
+  // ── HANDLERS ──────────────────────────────────────────────────────────────
 
   const handleModalSubmit = async (data: {
     category: BudgetCategory
@@ -331,24 +323,16 @@ export default function PresupuestoPage() {
   ) => {
     setBudgets(prev => prev.map(b => b.id === itemId ? { ...b, ...updates } : b))
     const { error } = await supabase.from('event_budgets').update(updates).eq('id', itemId)
-    if (error) {
-      console.error('Error actualizando concepto:', error?.message ?? error, error)
-      loadAll()
-    }
+    if (error) { console.error('Error actualizando concepto:', error?.message ?? error, error); loadAll() }
   }
 
   const handleDeleteItem = async (itemId: string) => {
     const item = budgets.find(b => b.id === itemId)
-    const confirmText = item?.subcategory
-      ? `¿Borrar el concepto "${item.subcategory}"?`
-      : '¿Borrar este concepto?'
+    const confirmText = item?.subcategory ? `¿Borrar el concepto "${item.subcategory}"?` : '¿Borrar este concepto?'
     if (!confirm(confirmText)) return
     setBudgets(prev => prev.filter(b => b.id !== itemId))
     const { error } = await supabase.from('event_budgets').delete().eq('id', itemId)
-    if (error) {
-      console.error('Error borrando concepto:', error?.message ?? error, error)
-      loadAll()
-    }
+    if (error) { console.error('Error borrando concepto:', error?.message ?? error, error); loadAll() }
   }
 
   const handleExport = (format: 'excel' | 'pdf') => {
@@ -411,7 +395,6 @@ export default function PresupuestoPage() {
           />
         </div>
 
-        {/* Export Excel */}
         <button
           onClick={() => handleExport('excel')}
           className="hidden items-center gap-1.5 rounded-lg border border-[#e0e0e0] bg-white px-3 py-1.5 text-xs font-medium text-[#555] transition hover:border-[#48C9B0] hover:text-[#48C9B0] sm:flex"
@@ -420,7 +403,6 @@ export default function PresupuestoPage() {
           Excel
         </button>
 
-        {/* Export PDF */}
         <button
           onClick={() => handleExport('pdf')}
           className="flex items-center gap-1.5 rounded-lg border border-[#e0e0e0] bg-white px-3 py-1.5 text-xs font-medium text-[#555] transition hover:border-[#48C9B0] hover:text-[#48C9B0]"
@@ -429,7 +411,6 @@ export default function PresupuestoPage() {
           <span className="hidden sm:inline">PDF</span>
         </button>
 
-        {/* Importar — abre file picker oculto */}
         <input
           ref={fileInputRef}
           type="file"
@@ -445,7 +426,6 @@ export default function PresupuestoPage() {
           Importar
         </button>
 
-        {/* Plantilla */}
         <button
           onClick={downloadImportTemplate}
           className="hidden items-center gap-1.5 rounded-lg border border-dashed border-[#e0e0e0] bg-white px-3 py-1.5 text-xs font-medium text-[#aaa] transition hover:border-[#48C9B0] hover:text-[#48C9B0] sm:flex"
@@ -454,7 +434,6 @@ export default function PresupuestoPage() {
           Plantilla
         </button>
 
-        {/* Nuevo concepto */}
         <button
           onClick={openAddModalGeneric}
           className="flex items-center gap-1.5 rounded-lg bg-[#48C9B0] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#3aa896]"
@@ -491,6 +470,7 @@ export default function PresupuestoPage() {
               onOpenAddModal={openAddModalForCategory}
               onUpdateItem={handleUpdateItem}
               onDeleteItem={handleDeleteItem}
+              onOpenSupplier={setSelectedSupplier}
             />
           )
         })}
@@ -516,7 +496,6 @@ export default function PresupuestoPage() {
           <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4">
             <div className="flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-t-2xl bg-white shadow-xl sm:rounded-2xl">
 
-              {/* Header */}
               <div className="flex shrink-0 items-center justify-between border-b border-[#f0f0f0] px-5 py-4">
                 <div>
                   <h2 className="text-base font-bold text-[#1D1E20]">Importar presupuesto</h2>
@@ -533,7 +512,6 @@ export default function PresupuestoPage() {
                 </button>
               </div>
 
-              {/* Opciones si hay duplicados */}
               {duplicateCount > 0 && (
                 <div className="shrink-0 border-b border-[#f0f0f0] bg-amber-50 px-5 py-3">
                   <p className="mb-2 text-xs font-semibold text-amber-700">
@@ -564,7 +542,6 @@ export default function PresupuestoPage() {
                 </div>
               )}
 
-              {/* Lista de conceptos */}
               <div className="flex-1 overflow-y-auto px-5 py-3">
                 <div className="space-y-1">
                   {importRows.map((row, idx) => {
@@ -576,7 +553,6 @@ export default function PresupuestoPage() {
                           skip ? 'opacity-40' : 'bg-[#fafafa]'
                         }`}
                       >
-                        {/* Icono estado */}
                         <div className="shrink-0">
                           {row.isDuplicate ? (
                             <span title="Duplicado" className="text-amber-500">
@@ -586,20 +562,13 @@ export default function PresupuestoPage() {
                             <Check size={13} className="text-[#48C9B0]" />
                           )}
                         </div>
-                        {/* Categoría */}
                         <span className="w-28 shrink-0 text-[#888]">
                           {BUDGET_CATEGORY_LABELS[row.category]}
                         </span>
-                        {/* Concepto */}
                         <span className="flex-1 font-medium text-[#1D1E20]">{row.subcategory}</span>
-                        {/* Monto */}
                         <span className="shrink-0 tabular-nums text-[#888]">
-                          {row.budget_amount > 0
-                            ? `$${row.budget_amount.toLocaleString('es-MX')}`
-                            : '—'
-                          }
+                          {row.budget_amount > 0 ? `$${row.budget_amount.toLocaleString('es-MX')}` : '—'}
                         </span>
-                        {/* Badge duplicado */}
                         {row.isDuplicate && (
                           <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
                             duplicado
@@ -611,7 +580,6 @@ export default function PresupuestoPage() {
                 </div>
               </div>
 
-              {/* Footer */}
               <div className="flex shrink-0 items-center justify-end gap-2 border-t border-[#f0f0f0] bg-[#fafafa] px-5 py-3">
                 <button
                   onClick={() => setImportModalOpen(false)}
@@ -634,6 +602,43 @@ export default function PresupuestoPage() {
             </div>
           </div>
         </>
+      )}
+
+      {/* ── SUPPLIER DETAIL DESDE PRESUPUESTO ── */}
+      {selectedSupplier && (
+        <SupplierDetailModal
+          item={selectedSupplier as any}
+          eventId={eventId}
+          currency={currency}
+          budgets={budgets}
+          onClose={() => setSelectedSupplier(null)}
+          onSaved={updated => {
+            setEventSuppliers(prev => prev.map(es => es.id === updated.id ? { ...es, ...updated } : es))
+            setSelectedSupplier(null)
+          }}
+          onDeleted={deletedId => {
+            setEventSuppliers(prev => prev.filter(es => es.id !== deletedId))
+            setSelectedSupplier(null)
+          }}
+          onReviewNeeded={item => {
+            setSelectedSupplier(null)
+            setReviewSupplier(item as any)
+          }}
+        />
+      )}
+
+      {/* Review fuera del DetailModal — evita stacking context */}
+      {reviewSupplier && (
+        <SupplierReviewModal
+          eventSupplierId={reviewSupplier.id}
+          supplierName={reviewSupplier.supplier.name}
+          initialRating={(reviewSupplier as any).rating ?? null}
+          initialReview={(reviewSupplier as any).review_text ?? null}
+          initialMood={(reviewSupplier as any).mood ?? null}
+          initialSpeed={(reviewSupplier as any).response_speed ?? null}
+          onSaved={() => { setReviewSupplier(null); loadAll() }}
+          onSkip={() => setReviewSupplier(null)}
+        />
       )}
     </div>
   )

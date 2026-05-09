@@ -25,12 +25,13 @@ type Props = {
   onOpenAddModal: (category: BudgetCategory) => void
   onUpdateItem: (id: string, updates: { subcategory?: string; budget_amount?: number; event_supplier_id?: string | null }) => void
   onDeleteItem: (id: string) => void
+  onOpenSupplier: (supplier: EventSupplierWithName) => void
 }
 
 export default function BudgetCategoryRow({
   category, items, currency, contractedByItem, paidByItem,
   eventSuppliersById, availableSuppliersForCategory,
-  onOpenAddModal, onUpdateItem, onDeleteItem,
+  onOpenAddModal, onUpdateItem, onDeleteItem, onOpenSupplier,
 }: Props) {
   const [expanded, setExpanded] = useState(true)
 
@@ -38,7 +39,6 @@ export default function BudgetCategoryRow({
   const totalBudget     = safeItems.reduce((sum, i) => sum + i.budget_amount, 0)
   const totalContracted = safeItems.reduce((sum, i) => sum + (contractedByItem[i.id] || 0), 0)
 
-  // Ambar cuando la suma de contratado rebasa el presupuesto de la categoria
   const isOverBudget = totalContracted > totalBudget && totalBudget > 0
 
   return (
@@ -54,12 +54,11 @@ export default function BudgetCategoryRow({
         <h3 className="flex-1 text-sm font-semibold text-[#1D1E20] flex items-center gap-1.5">
           {BUDGET_CATEGORY_LABELS[category]}
           {isOverBudget && (
-              <span title="El total contratado supera el presupuesto de la categoría">
-                <AlertTriangle size={13} className="shrink-0 text-amber-500" />
-              </span>
+            <span title="El total contratado supera el presupuesto de la categoría">
+              <AlertTriangle size={13} className="shrink-0 text-amber-500" />
+            </span>
           )}
         </h3>
-        {/* Contador de conceptos */}
         <span className="hidden text-xs text-[#888] sm:inline">
           {safeItems.length} {safeItems.length === 1 ? 'concepto' : 'conceptos'}
         </span>
@@ -78,7 +77,6 @@ export default function BudgetCategoryRow({
         <div className="border-t border-[#f0f0f0]">
           {safeItems.length > 0 && (
             <div className="hidden grid-cols-[1fr_140px_140px_140px_140px_40px] gap-3 border-b border-[#f5f5f5] bg-[#fafafa] px-4 py-2 text-[10px] font-semibold uppercase tracking-wider text-[#888] sm:grid">
-              {/* Header columnas — concepto reemplaza partida */}
               <span>Concepto / Proveedor</span>
               <span className="text-right">Estimado</span>
               <span className="text-right">Contratado</span>
@@ -103,6 +101,7 @@ export default function BudgetCategoryRow({
                 linkedSupplier={linked}
                 onUpdate={onUpdateItem}
                 onDelete={onDeleteItem}
+                onOpenSupplier={onOpenSupplier}
               />
             )
           })}

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Trash2, Plus, X, Briefcase, AlertTriangle } from 'lucide-react'
+import { Trash2, Plus, X, Briefcase, AlertTriangle, ExternalLink } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   EventBudget, EventSupplier, Supplier,
@@ -21,12 +21,13 @@ type Props = {
   linkedSupplier: EventSupplierWithName | null
   onUpdate: (id: string, updates: { subcategory?: string; budget_amount?: number; event_supplier_id?: string | null }) => void
   onDelete: (id: string) => void
+  onOpenSupplier: (supplier: EventSupplierWithName) => void
 }
 
 export default function BudgetItemRow({
   item, currency, contractedAmount, paidAmount,
   availableSuppliers, linkedSupplier,
-  onUpdate, onDelete,
+  onUpdate, onDelete, onOpenSupplier,
 }: Props) {
   const [localName, setLocalName]         = useState(item.subcategory || '')
   const [localAmount, setLocalAmount]     = useState(item.budget_amount.toString())
@@ -39,7 +40,6 @@ export default function BudgetItemRow({
   const safeSuppliers = availableSuppliers || []
   const pendingAmount = contractedAmount - paidAmount
   const hasNoData     = !linkedSupplier
-  // Ambar cuando contratado supera lo presupuestado
   const isOverBudget  = !hasNoData && contractedAmount > item.budget_amount && item.budget_amount > 0
 
   const lastSavedName   = useRef(item.subcategory || '')
@@ -87,7 +87,6 @@ export default function BudgetItemRow({
     ? localAmount
     : formatCurrency(parseFloat(localAmount) || 0, currency)
 
-  // Ambar si hay sobrepago o excede presupuesto
   const pendingColorClass = hasNoData
     ? 'text-[#bbb]'
     : (pendingAmount < 0 || isOverBudget)
@@ -97,9 +96,22 @@ export default function BudgetItemRow({
   const SupplierBlock = () => (
     <div className="relative" ref={pickerRef}>
       {linkedSupplier ? (
-        <div className="group inline-flex items-center gap-1.5 rounded-md bg-[#f8f5f0] px-2 py-1 text-xs text-[#1D1E20]">
+        // Proveedor vinculado — clickeable para abrir DetailModal
+        <div className="inline-flex items-center gap-1.5 rounded-md bg-[#f8f5f0] px-2 py-1 text-xs text-[#1D1E20]">
           <Briefcase size={11} className="shrink-0 text-[#888]" />
-          <span className="truncate max-w-[200px]">{linkedSupplier.supplier.name}</span>
+          <button
+            onClick={() => onOpenSupplier(linkedSupplier)}
+            className="truncate max-w-[180px] font-medium text-[#1D1E20] transition hover:text-[#48C9B0]"
+          >
+            {linkedSupplier.supplier.name}
+          </button>
+          <button
+            onClick={() => onOpenSupplier(linkedSupplier)}
+            className="text-[#aaa] transition hover:text-[#48C9B0]"
+            title="Ver proveedor"
+          >
+            <ExternalLink size={10} />
+          </button>
           <button
             onClick={handleUnlinkSupplier}
             className="flex h-4 w-4 items-center justify-center rounded text-[#aaa] transition hover:bg-white hover:text-red-500"
@@ -171,7 +183,6 @@ export default function BudgetItemRow({
               placeholder="Nombre del concepto..."
               className="flex-1 rounded border border-transparent px-2 py-1 text-sm text-[#1D1E20] outline-none transition focus:border-[#48C9B0] focus:bg-white"
             />
-            {/* span wrapper porque Lucide no acepta prop title */}
             {isOverBudget && (
               <span title="El monto contratado supera lo estimado">
                 <AlertTriangle size={14} className="shrink-0 text-amber-500" />
@@ -233,7 +244,6 @@ export default function BudgetItemRow({
                 placeholder="Nombre del concepto..."
                 className="flex-1 rounded border border-transparent px-2 py-1 text-sm font-medium text-[#1D1E20] outline-none focus:border-[#48C9B0] focus:bg-white"
               />
-              {/* span wrapper porque Lucide no acepta prop title */}
               {isOverBudget && (
                 <span title="El monto contratado supera lo estimado">
                   <AlertTriangle size={14} className="shrink-0 text-amber-500" />
