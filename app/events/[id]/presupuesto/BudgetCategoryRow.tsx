@@ -57,7 +57,6 @@ export default function BudgetCategoryRow({
             <AlertTriangle
               size={13}
               className="shrink-0 text-amber-500"
-              title="El total contratado supera el presupuesto de la categoría"
             />
           )}
         </h3>
