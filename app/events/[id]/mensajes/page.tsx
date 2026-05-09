@@ -1,16 +1,16 @@
 'use client'
- 
+
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { useParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import {
   MessageCircle, Clock, Send, Sparkles, Info,
   AlertCircle, CheckCircle, XCircle,
-  Megaphone, X,
+  Megaphone, X, ChevronLeft, ChevronRight,
 } from 'lucide-react'
- 
+
 // ─── Tipos ───────────────────────────────────────────────────────────────────
- 
+
 type RsvpStatus =
   | 'pending'
   | 'confirmed'
@@ -18,7 +18,7 @@ type RsvpStatus =
   | 'mensaje_enviado'
   | 'respondio'
   | 'accion_necesaria'
- 
+
 interface Guest {
   id: string
   name: string
@@ -29,7 +29,7 @@ interface Guest {
   allergies: string[] | null
   event_id: string
 }
- 
+
 interface WaMessage {
   id: string
   guest_id: string
@@ -38,20 +38,20 @@ interface WaMessage {
   content: string
   created_at: string
 }
- 
+
 interface TableAssignment {
   table_name: string | null
   table_number: number | null
 }
- 
+
 interface Conversation {
   guest: Guest
   lastMessage: WaMessage
   messages: WaMessage[]
 }
- 
-// ─── Constantes de estilos RSVP ───────────────────────────────────────────────
- 
+
+// ─── Constantes RSVP ─────────────────────────────────────────────────────────
+
 const RSVP_CONFIG: Record<RsvpStatus, { label: string; bg: string; text: string; icon: React.ReactNode }> = {
   confirmed:        { label: 'Confirmado',      bg: 'bg-emerald-50', text: 'text-emerald-700', icon: <CheckCircle   size={12} /> },
   pending:          { label: 'Pendiente',        bg: 'bg-amber-50',   text: 'text-amber-700',   icon: <Clock         size={12} /> },
@@ -60,11 +60,11 @@ const RSVP_CONFIG: Record<RsvpStatus, { label: string; bg: string; text: string;
   respondio:        { label: 'Respondió',        bg: 'bg-purple-50',  text: 'text-purple-700',  icon: <MessageCircle size={12} /> },
   accion_necesaria: { label: 'Acción necesaria', bg: 'bg-orange-50',  text: 'text-orange-700',  icon: <AlertCircle   size={12} /> },
 }
- 
+
 const SIDE_LABEL: Record<string, string> = { novia: 'Novia', novio: 'Novio' }
- 
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
- 
+
 function tiempoRelativo(fecha: string): string {
   const diff = Math.floor((Date.now() - new Date(fecha).getTime()) / 1000)
   if (diff < 60)     return 'ahora'
@@ -73,11 +73,11 @@ function tiempoRelativo(fecha: string): string {
   if (diff < 172800) return 'ayer'
   return new Date(fecha).toLocaleDateString('es-MX', { day: 'numeric', month: 'short' })
 }
- 
+
 function formatHora(fecha: string): string {
   return new Date(fecha).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })
 }
- 
+
 function formatFechaChat(fecha: string): string {
   const d    = new Date(fecha)
   const hoy  = new Date()
@@ -86,15 +86,15 @@ function formatFechaChat(fecha: string): string {
   if (d.toDateString() === ayer.toDateString()) return 'Ayer'
   return d.toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' })
 }
- 
+
 function iniciales(name: string): string {
   const parts = name.trim().split(' ').filter(Boolean)
   if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase()
   return parts[0]?.[0]?.toUpperCase() || '?'
 }
- 
+
 // ─── Badge RSVP ──────────────────────────────────────────────────────────────
- 
+
 function RsvpBadge({ status, size = 'sm' }: { status: RsvpStatus; size?: 'sm' | 'md' }) {
   const cfg = RSVP_CONFIG[status] ?? RSVP_CONFIG.pending
   return (
@@ -107,9 +107,215 @@ function RsvpBadge({ status, size = 'sm' }: { status: RsvpStatus; size?: 'sm' | 
     </span>
   )
 }
- 
-// ─── PANEL LISTA — fuera del componente principal para evitar re-renders ──────
- 
+
+// ─── MODAL PRÓXIMAMENTE ───────────────────────────────────────────────────────
+
+const DEMOS = [
+  '/images/wa-demo-1.png',
+  '/images/wa-demo-2.png',
+  '/images/wa-demo-3.png',
+]
+
+// ─── Regex validación email básica ───────────────────────────────────────────
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+function ModalProximamente({ onClose }: { onClose: () => void }) {
+  const [slide, setSlide]       = useState(0)
+  const [correo, setCorreo]     = useState('')
+  const [enviado, setEnviado]   = useState(false)
+  const [sending, setSending]   = useState(false)
+  const [errorEmail, setErrorEmail] = useState('')
+
+  async function notificar() {
+    // ── Validar formato antes de hacer nada ──
+    if (!correo.trim()) return
+    if (!EMAIL_REGEX.test(correo.trim())) {
+      setErrorEmail('Ingresa un correo válido, por ejemplo: nombre@dominio.com')
+      return
+    }
+    setErrorEmail('')
+    setSending(true)
+    try {
+      await supabase.from('waitlist_whatsapp').insert({ email: correo.trim() })
+    } catch (err: any) {
+      console.error('[waitlist]', err?.message ?? err)
+    }
+    setEnviado(true)
+    setSending(false)
+  }
+
+  return (
+    <div
+      className="absolute inset-0 z-50 flex items-center justify-center bg-black/40 p-4 md:p-6"
+      onClick={onClose}
+    >
+      <div
+        className="flex w-full h-full overflow-hidden rounded-2xl bg-white shadow-2xl flex-col md:flex-row"
+        onClick={e => e.stopPropagation()}
+      >
+
+        {/* ── CARRUSEL — solo desktop, columna izquierda ── */}
+        <div className="hidden md:flex md:w-[52%] flex-col bg-[#f8f5f0] shrink-0">
+          <div className="flex flex-1 items-center justify-center overflow-hidden p-6">
+            <img
+              src={DEMOS[slide]}
+              alt={`Demo ${slide + 1}`}
+              style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+              className="rounded-lg shadow-sm"
+            />
+          </div>
+          <div className="flex flex-col items-center gap-2 pb-5">
+            <div className="flex items-center gap-4">
+              <button
+                onClick={() => setSlide(s => Math.max(0, s - 1))}
+                disabled={slide === 0}
+                className="flex h-7 w-7 items-center justify-center rounded-full border border-[#e8e8e8] bg-white text-[#888] transition hover:border-[#48C9B0] hover:text-[#48C9B0] disabled:opacity-30"
+              >
+                <ChevronLeft size={14} />
+              </button>
+              <div className="flex gap-1.5">
+                {DEMOS.map((_, i) => (
+                  <button
+                    key={i}
+                    onClick={() => setSlide(i)}
+                    className={`h-1.5 rounded-full transition-all ${i === slide ? 'w-5 bg-[#48C9B0]' : 'w-1.5 bg-[#ccc]'}`}
+                  />
+                ))}
+              </div>
+              <button
+                onClick={() => setSlide(s => Math.min(DEMOS.length - 1, s + 1))}
+                disabled={slide === DEMOS.length - 1}
+                className="flex h-7 w-7 items-center justify-center rounded-full border border-[#e8e8e8] bg-white text-[#888] transition hover:border-[#48C9B0] hover:text-[#48C9B0] disabled:opacity-30"
+              >
+                <ChevronRight size={14} />
+              </button>
+            </div>
+            <span className="text-[10px] text-[#9ca3af]">{slide + 1} / {DEMOS.length}</span>
+          </div>
+        </div>
+
+        {/* ── CONTENIDO — columna única mobile, columna derecha desktop ── */}
+        <div className="flex flex-1 flex-col md:border-l border-[#f0f0f0] overflow-hidden">
+
+          {/* Header */}
+          <div className="flex shrink-0 items-center justify-between border-b border-[#f0f0f0] px-6 py-4">
+            <img src="/images/logo.svg" alt="Anfiora" className="h-20" />
+            <button
+              onClick={onClose}
+              className="flex h-7 w-7 items-center justify-center rounded-lg text-[#bbb] transition hover:bg-[#f5f5f5] hover:text-[#1D1E20]"
+            >
+              <X size={15} />
+            </button>
+          </div>
+
+          {/* Contenido scrolleable */}
+          <div className="flex flex-1 flex-col overflow-y-auto px-6 py-5 gap-4">
+
+            {/* Título y descripción */}
+            <div>
+              <span className="inline-flex rounded-full bg-[#48C9B0]/15 px-3 py-0.5 text-[11px] font-semibold text-[#1D9E75]">
+                Próximamente
+              </span>
+              <h2 className="mt-2 text-[17px] font-bold leading-snug text-[#1D1E20]">
+                Tu asistente personal de confirmaciones
+              </h2>
+              <p className="mt-1.5 text-xs leading-relaxed text-[#6b7280]">
+                Las confirmaciones que tardabas semanas en recopilar, listas en 48 horas — sin un solo mensaje manual.
+              </p>
+            </div>
+
+            {/* Features */}
+            <div className="space-y-1.5">
+              {[
+                'Envío masivo con plantillas personalizadas',
+                'Respuestas automáticas 24/7 vía WhatsApp',
+                'FAQs antes, durante y después del evento',
+                'Actualización automática de estatus y alergias',
+              ].map(item => (
+                <div key={item} className="flex items-center gap-2">
+                  <CheckCircle size={13} className="shrink-0 text-[#48C9B0]" />
+                  <span className="text-xs text-[#1D1E20]">{item}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* Tabla comparación */}
+            <div>
+              <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-[#9ca3af]">
+                Lo que cobran otros por hacer esto manual
+              </p>
+              <div className="overflow-hidden rounded-xl border border-[#e8e8e8] text-[11px]">
+                <div className="grid grid-cols-3 border-b border-[#e8e8e8] bg-[#fafafa]">
+                  <div className="px-3 py-2 text-[#9ca3af]" />
+                  <div className="border-l border-[#e8e8e8] px-3 py-2 text-[#9ca3af]">Guest List Experts</div>
+                  <div className="border-l border-[#48C9B0]/30 bg-[#f0fdfb] px-3 py-2 font-semibold text-[#1D9E75]">Anfiora IA</div>
+                </div>
+                {[
+                  { campo: 'Precio',         ellos: '$7,000–$8,000',    nosotros: '$1,490 MXN' },
+                  { campo: 'Método',         ellos: 'WhatsApp manual',  nosotros: 'Automatizado 24/7' },
+                  { campo: 'Disponibilidad', ellos: 'Solo previo',      nosotros: 'Antes, durante y después' },
+                  { campo: 'Alergias',       ellos: 'Tú las recopilas', nosotros: 'Se actualizan solas' },
+                ].map((row, i, arr) => (
+                  <div
+                    key={row.campo}
+                    className={`grid grid-cols-3 ${i < arr.length - 1 ? 'border-b border-[#f0f0f0]' : ''}`}
+                  >
+                    <div className="px-3 py-2 font-medium text-[#9ca3af]">{row.campo}</div>
+                    <div className="border-l border-[#f0f0f0] px-3 py-2 text-[#6b7280]">{row.ellos}</div>
+                    <div className="border-l border-[#48C9B0]/20 bg-[#f0fdfb]/50 px-3 py-2 font-semibold text-[#1D9E75]">{row.nosotros}</div>
+                  </div>
+                ))}
+              </div>
+              <p className="mt-2 text-center text-[11px] text-[#6b7280]">
+                Ahorras hasta <span className="font-bold text-[#1D1E20]">$6,510 MXN</span> — y tu IA trabaja mientras duermes.
+              </p>
+            </div>
+
+            {/* CTA — input + botón en columna, validación de email ── */}
+            <div className="pb-2">
+              {enviado ? (
+                <div className="flex items-center justify-center gap-2 rounded-xl bg-[#f0fdfb] py-3 text-sm font-semibold text-[#1D9E75]">
+                  <CheckCircle size={15} />
+                  Te avisamos en cuanto esté disponible
+                </div>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  <input
+                    type="email"
+                    placeholder="tu@correo.com"
+                    value={correo}
+                    onChange={e => { setCorreo(e.target.value); setErrorEmail('') }}
+                    onKeyDown={e => { if (e.key === 'Enter') notificar() }}
+                    className={`w-full rounded-xl border bg-[#fafafa] px-3.5 py-2.5 text-sm text-[#1D1E20] placeholder:text-[#bbb] focus:outline-none transition
+                      ${errorEmail ? 'border-red-400 focus:border-red-400' : 'border-[#e8e8e8] focus:border-[#48C9B0]'}`}
+                  />
+                  {/* ── Error de validación ── */}
+                  {errorEmail && (
+                    <div className="flex items-center gap-1.5 text-[11px] text-red-500">
+                      <AlertCircle size={11} className="shrink-0" />
+                      {errorEmail}
+                    </div>
+                  )}
+                  <button
+                    onClick={notificar}
+                    disabled={!correo.trim() || sending}
+                    className="w-full rounded-xl bg-[#48C9B0] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#3ab89f] disabled:opacity-40"
+                  >
+                    {sending ? '...' : 'Quiero acceso anticipado'}
+                  </button>
+                </div>
+              )}
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── PANEL LISTA ──────────────────────────────────────────────────────────────
+
 interface PanelListaProps {
   cargando: boolean
   convsFiltradas: Conversation[]
@@ -118,10 +324,11 @@ interface PanelListaProps {
   totalEnviados: number
   onSelect: (conv: Conversation) => void
   onBusqueda: (v: string) => void
+  onBroadcast: () => void
 }
- 
+
 function PanelLista({
-  cargando, convsFiltradas, seleccionada, busqueda, totalEnviados, onSelect, onBusqueda
+  cargando, convsFiltradas, seleccionada, busqueda, totalEnviados, onSelect, onBusqueda, onBroadcast
 }: PanelListaProps) {
   return (
     <div className="flex h-full flex-col">
@@ -143,7 +350,7 @@ function PanelLista({
           />
         </div>
         <button
-          onClick={() => {/* TODO: broadcast */ }}
+          onClick={onBroadcast}
           className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#1D1E20] py-2 text-xs font-semibold text-white transition hover:bg-[#333]"
         >
           <Megaphone size={13} />
@@ -164,7 +371,7 @@ function PanelLista({
           </div>
         </div>
       </div>
- 
+
       <div className="flex-1 overflow-y-auto">
         {cargando ? (
           [1, 2, 3, 4].map(i => (
@@ -227,9 +434,9 @@ function PanelLista({
     </div>
   )
 }
- 
-// ─── PANEL CHAT — fuera del componente principal ──────────────────────────────
- 
+
+// ─── PANEL CHAT ───────────────────────────────────────────────────────────────
+
 interface PanelChatProps {
   conv: Conversation
   mensaje: string
@@ -240,7 +447,7 @@ interface PanelChatProps {
   onEnviar: () => void
   onToggleDetalles: () => void
 }
- 
+
 function PanelChat({
   conv, mensaje, enviando, errorEnvio, chatBottomRef,
   onMensajeChange, onEnviar, onToggleDetalles
@@ -252,10 +459,9 @@ function PanelChat({
     if (grupo) grupo.msgs.push(msg)
     else porFecha.push({ fecha, msgs: [msg] })
   })
- 
+
   return (
     <div className="flex h-full flex-col">
-      {/* Header */}
       <div className="flex shrink-0 items-center gap-3 border-b border-[#e8e8e8] bg-white px-4 py-3">
         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#48C9B0] text-sm font-semibold text-white">
           {iniciales(conv.guest.name)}
@@ -274,8 +480,7 @@ function PanelChat({
           <Info size={15} />
         </button>
       </div>
- 
-      {/* Mensajes */}
+
       <div className="flex-1 overflow-y-auto bg-[#fafafa] px-4 py-4">
         {porFecha.map(({ fecha, msgs }) => (
           <div key={fecha}>
@@ -316,8 +521,7 @@ function PanelChat({
         ))}
         <div ref={chatBottomRef} />
       </div>
- 
-      {/* Input */}
+
       <div className="shrink-0 border-t border-[#e8e8e8] bg-white px-4 py-3">
         {errorEnvio && (
           <div className="mb-2 flex items-center gap-2 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600">
@@ -351,16 +555,16 @@ function PanelChat({
     </div>
   )
 }
- 
-// ─── PANEL DETALLES — fuera del componente principal ─────────────────────────
- 
+
+// ─── PANEL DETALLES ───────────────────────────────────────────────────────────
+
 interface PanelDetallesProps {
   conv: Conversation
   mesa: TableAssignment | null
   cargandoMesa: boolean
   onClose: () => void
 }
- 
+
 function PanelDetalles({ conv, mesa, cargandoMesa, onClose }: PanelDetallesProps) {
   const g = conv.guest
   return (
@@ -374,7 +578,6 @@ function PanelDetalles({ conv, mesa, cargandoMesa, onClose }: PanelDetallesProps
           <X size={14} />
         </button>
       </div>
- 
       <div className="flex flex-col items-center border-b border-[#f3f4f6] px-4 py-5">
         <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-[#48C9B0] text-lg font-semibold text-white">
           {iniciales(g.name)}
@@ -382,7 +585,6 @@ function PanelDetalles({ conv, mesa, cargandoMesa, onClose }: PanelDetallesProps
         <p className="mb-1.5 text-sm font-semibold text-[#1D1E20]">{g.name}</p>
         <RsvpBadge status={g.rsvp_status} size="md" />
       </div>
- 
       <div className="flex-1 space-y-0 divide-y divide-[#f3f4f6] px-4">
         {g.side && (
           <div className="py-3">
@@ -390,7 +592,6 @@ function PanelDetalles({ conv, mesa, cargandoMesa, onClose }: PanelDetallesProps
             <p className="text-sm text-[#1D1E20]">{SIDE_LABEL[g.side] ?? g.side}</p>
           </div>
         )}
- 
         <div className="py-3">
           <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-[#9ca3af]">Mesa</p>
           {cargandoMesa ? (
@@ -401,7 +602,6 @@ function PanelDetalles({ conv, mesa, cargandoMesa, onClose }: PanelDetallesProps
             <p className="text-sm text-[#bbb]">Sin asignar</p>
           )}
         </div>
- 
         {g.tags && g.tags.length > 0 && (
           <div className="py-3">
             <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-[#9ca3af]">Tags</p>
@@ -414,7 +614,6 @@ function PanelDetalles({ conv, mesa, cargandoMesa, onClose }: PanelDetallesProps
             </div>
           </div>
         )}
- 
         {g.allergies && g.allergies.length > 0 && (
           <div className="py-3">
             <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-[#9ca3af]">Alergias</p>
@@ -427,7 +626,6 @@ function PanelDetalles({ conv, mesa, cargandoMesa, onClose }: PanelDetallesProps
             </div>
           </div>
         )}
- 
         <div className="py-3">
           <div className="flex items-start gap-2.5 rounded-xl border border-[#48C9B0]/20 bg-[#48C9B0]/8 p-3">
             <Sparkles size={14} className="mt-0.5 shrink-0 text-[#48C9B0]" />
@@ -443,9 +641,9 @@ function PanelDetalles({ conv, mesa, cargandoMesa, onClose }: PanelDetallesProps
     </div>
   )
 }
- 
+
 // ─── EMPTY STATE ──────────────────────────────────────────────────────────────
- 
+
 function EmptyChat() {
   return (
     <div className="flex h-full flex-col items-center justify-center px-8 text-center">
@@ -457,12 +655,12 @@ function EmptyChat() {
     </div>
   )
 }
- 
+
 // ─── COMPONENTE PRINCIPAL ─────────────────────────────────────────────────────
- 
+
 export default function MensajesPage() {
   const { id: eventId } = useParams<{ id: string }>()
- 
+
   const [conversaciones, setConversaciones] = useState<Conversation[]>([])
   const [seleccionada, setSeleccionada]     = useState<Conversation | null>(null)
   const [cargando, setCargando]             = useState(true)
@@ -473,15 +671,16 @@ export default function MensajesPage() {
   const [enviando, setEnviando]             = useState(false)
   const [errorEnvio, setErrorEnvio]         = useState<string | null>(null)
   const [busqueda, setBusqueda]             = useState('')
- 
+  const [modalProximo, setModalProximo]     = useState(false)
+
   const chatBottomRef = useRef<HTMLDivElement>(null)
- 
+
   useEffect(() => {
     if (seleccionada) {
       setTimeout(() => chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 80)
     }
   }, [seleccionada?.guest.id, seleccionada?.messages.length])
- 
+
   const cargar = useCallback(async () => {
     setCargando(true)
     const { data: mensajes } = await supabase
@@ -489,17 +688,17 @@ export default function MensajesPage() {
       .select('*')
       .eq('event_id', eventId)
       .order('created_at', { ascending: true })
- 
+
     if (!mensajes || mensajes.length === 0) { setCargando(false); return }
- 
+
     const guestIds = [...new Set(mensajes.map((m: WaMessage) => m.guest_id))]
     const { data: guests } = await supabase
       .from('guests')
       .select('id, name, phone, rsvp_status, side, tags, allergies, event_id')
       .in('id', guestIds)
- 
+
     if (!guests) { setCargando(false); return }
- 
+
     const convs: Conversation[] = guestIds
       .map((gid) => {
         const guest = guests.find((g: Guest) => g.id === gid)
@@ -508,23 +707,23 @@ export default function MensajesPage() {
         return { guest, lastMessage: msgs[msgs.length - 1], messages: msgs }
       })
       .filter(Boolean) as Conversation[]
- 
+
     convs.sort((a, b) =>
       new Date(b.lastMessage.created_at).getTime() - new Date(a.lastMessage.created_at).getTime()
     )
- 
+
     setConversaciones(convs)
- 
+
     if (seleccionada) {
       const actualizada = convs.find(c => c.guest.id === seleccionada.guest.id)
       if (actualizada) setSeleccionada(actualizada)
     }
- 
+
     setCargando(false)
   }, [eventId, seleccionada?.guest.id])
- 
+
   useEffect(() => { cargar() }, [eventId])
- 
+
   useEffect(() => {
     if (!seleccionada) { setMesa(null); return }
     setCargandoMesa(true)
@@ -543,7 +742,7 @@ export default function MensajesPage() {
         setCargandoMesa(false)
       })
   }, [seleccionada?.guest.id])
- 
+
   async function enviarMensaje() {
     if (!mensaje.trim() || !seleccionada || enviando) return
     setEnviando(true)
@@ -571,19 +770,19 @@ export default function MensajesPage() {
       setEnviando(false)
     }
   }
- 
+
   const convsFiltradas = conversaciones.filter(c =>
     c.guest.name.toLowerCase().includes(busqueda.toLowerCase()) ||
     c.guest.phone.includes(busqueda)
   )
- 
+
   const totalEnviados = conversaciones.reduce(
     (acc, c) => acc + c.messages.filter(m => m.direction === 'sent').length, 0
   )
- 
+
   return (
-    <div className="flex h-full overflow-hidden bg-white text-[#1D1E20]">
- 
+    <div className="relative flex h-full overflow-hidden bg-white text-[#1D1E20]">
+
       {/* COL 1 — Lista */}
       <div className={`
         w-full shrink-0 border-r border-[#e8e8e8]
@@ -598,9 +797,10 @@ export default function MensajesPage() {
           totalEnviados={totalEnviados}
           onSelect={(conv) => { setSeleccionada(conv); setDetallesOpen(false) }}
           onBusqueda={setBusqueda}
+          onBroadcast={() => setModalProximo(true)}
         />
       </div>
- 
+
       {/* COL 2 — Chat */}
       <div className={`flex-1 flex flex-col min-w-0 ${seleccionada ? 'flex' : 'hidden lg:flex'}`}>
         {seleccionada ? (
@@ -618,7 +818,7 @@ export default function MensajesPage() {
           <EmptyChat />
         )}
       </div>
- 
+
       {/* COL 3 — Detalles */}
       {seleccionada && (
         <>
@@ -645,7 +845,12 @@ export default function MensajesPage() {
           </div>
         </>
       )}
- 
+
+      {/* Modal — absolute inset-0, click fuera cierra, click dentro no */}
+      {modalProximo && (
+        <ModalProximamente onClose={() => setModalProximo(false)} />
+      )}
+
     </div>
   )
 }
