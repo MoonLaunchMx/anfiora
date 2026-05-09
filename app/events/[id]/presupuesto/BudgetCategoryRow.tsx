@@ -54,14 +54,12 @@ export default function BudgetCategoryRow({
         <h3 className="flex-1 text-sm font-semibold text-[#1D1E20] flex items-center gap-1.5">
           {BUDGET_CATEGORY_LABELS[category]}
           {isOverBudget && (
-            <AlertTriangle
-              size={13}
-              className="shrink-0 text-amber-500"
-            />
+            <AlertTriangle size={13} className="shrink-0 text-amber-500" />
           )}
         </h3>
+        {/* Contador de conceptos */}
         <span className="hidden text-xs text-[#888] sm:inline">
-          {safeItems.length} {safeItems.length === 1 ? 'partida' : 'partidas'}
+          {safeItems.length} {safeItems.length === 1 ? 'concepto' : 'conceptos'}
         </span>
         <span className={`text-sm font-semibold tabular-nums ${isOverBudget ? 'text-amber-600' : 'text-[#1D1E20]'}`}>
           {formatCurrency(totalBudget, currency)}
@@ -78,7 +76,8 @@ export default function BudgetCategoryRow({
         <div className="border-t border-[#f0f0f0]">
           {safeItems.length > 0 && (
             <div className="hidden grid-cols-[1fr_140px_140px_140px_140px_40px] gap-3 border-b border-[#f5f5f5] bg-[#fafafa] px-4 py-2 text-[10px] font-semibold uppercase tracking-wider text-[#888] sm:grid">
-              <span>Partida / Proveedor</span>
+              {/* Header columnas — concepto reemplaza partida */}
+              <span>Concepto / Proveedor</span>
               <span className="text-right">Estimado</span>
               <span className="text-right">Contratado</span>
               <span className="text-right">Pagado</span>
@@ -107,7 +106,9 @@ export default function BudgetCategoryRow({
           })}
 
           {safeItems.length === 0 && (
-            <div className="px-4 py-4 text-center text-xs text-[#aaa]">Sin partidas todavía</div>
+            <div className="px-4 py-4 text-center text-xs text-[#aaa]">
+              Sin conceptos todavía
+            </div>
           )}
 
           <div className="border-t border-[#f5f5f5] bg-[#fafafa] px-4 py-2">
@@ -116,7 +117,7 @@ export default function BudgetCategoryRow({
               className="flex items-center gap-1.5 text-xs font-medium text-[#48C9B0] transition hover:text-[#3aa896]"
             >
               <Plus size={14} />
-              Agregar partida
+              Agregar concepto
             </button>
           </div>
         </div>

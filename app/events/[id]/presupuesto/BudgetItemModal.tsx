@@ -51,8 +51,9 @@ export default function BudgetItemModal({
 
   const suggestions = SUBCATEGORIES_BY_CATEGORY[category] || []
 
-  const matchingSuppliers = eventSuppliers.filter(es =>
-    es.supplier && es.contract_amount !== null
+  // Solo proveedores con status 'contratado' — son los unicos con contract_amount real y pagos
+  const contratados = eventSuppliers.filter(es =>
+    es.supplier && es.status === 'contratado'
   )
 
   const handleSubmit = async () => {
@@ -168,12 +169,12 @@ export default function BudgetItemModal({
                 )}
               </div>
 
-              {/* Proveedor opcional */}
+              {/* Proveedor — solo contratados */}
               <div>
                 <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-[#888]">
                   Proveedor (opcional)
                 </label>
-                {matchingSuppliers.length > 0 ? (
+                {contratados.length > 0 ? (
                   <>
                     <select
                       value={supplierId}
@@ -181,22 +182,22 @@ export default function BudgetItemModal({
                       className="w-full rounded-lg border border-[#e0e0e0] bg-white px-3 py-2 text-sm text-[#1D1E20] outline-none transition focus:border-[#48C9B0]"
                     >
                       <option value="">Sin proveedor (planeación)</option>
-                      {matchingSuppliers.map(es => (
+                      {contratados.map(es => (
                         <option key={es.id} value={es.id}>
-                          {es.supplier.name} — {SUPPLIER_STATUS_LABELS[es.status]}
+                          {es.supplier.name}
                           {es.contract_amount ? ` — ${formatCurrency(es.contract_amount, currency)}` : ''}
                         </option>
                       ))}
                     </select>
                     <p className="mt-1 text-[10px] text-[#aaa]">
-                      Si vinculas, los montos cotizados y pagados se actualizan automáticamente.
+                      Si vinculas, los montos y pagos se actualizan automáticamente.
                     </p>
                   </>
                 ) : (
                   <div className="rounded-lg border border-dashed border-[#e0e0e0] bg-[#fafafa] px-3 py-3 text-center">
                     <p className="text-xs text-[#888]">Aún no tienes proveedores contratados</p>
                     <p className="mt-0.5 text-[10px] text-[#aaa]">
-                      Vincúlalos desde la sección Proveedores
+                      Márcalos como contratados en la sección Proveedores
                     </p>
                   </div>
                 )}

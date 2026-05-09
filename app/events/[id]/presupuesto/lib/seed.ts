@@ -1,7 +1,5 @@
 import { BudgetCategory, EventBudgetInsert } from '@/lib/types'
 
-// Partidas pre-pobladas que se crean la primera vez que un evento accede a presupuesto.
-// Categorias mas universales en bodas mexicanas. El planner edita o borra lo que no aplica.
 type SeedItem = { category: BudgetCategory; subcategory: string }
 
 const SEED_ITEMS: SeedItem[] = [
@@ -17,13 +15,13 @@ const SEED_ITEMS: SeedItem[] = [
   { category: 'Papeleria',     subcategory: 'Invitaciones' },
 ]
 
-// Genera array de inserts para batch insert inicial
 export function buildSeedBudgets(eventId: string): EventBudgetInsert[] {
   return SEED_ITEMS.map(item => ({
-    event_id:      eventId,
-    category:      item.category,
-    subcategory:   item.subcategory,
-    budget_amount: 0,
-    notes:         null,
+    event_id:          eventId,
+    category:          item.category,
+    subcategory:       item.subcategory,
+    budget_amount:     0,
+    event_supplier_id: null,
+    notes:             null,
   }))
 }

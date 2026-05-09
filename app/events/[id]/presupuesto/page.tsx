@@ -16,7 +16,7 @@ import { buildSeedBudgets } from './lib/seed'
 import { exportToExcel, exportToPDF } from './lib/exports'
 
 type EventSupplierWithName = EventSupplier & {
-  supplier: Pick<Supplier, 'id' | 'name'>
+  supplier: Pick<Supplier, 'id' | 'name' | 'category'>
 }
 
 type SupplierPaymentRow = {
@@ -52,6 +52,7 @@ export default function PresupuestoPage() {
       const [eventRes, budgetsRes, suppliersRes] = await Promise.all([
         supabase.from('events').select('*').eq('id', eventId).single(),
         supabase.from('event_budgets').select('*').eq('event_id', eventId).order('created_at', { ascending: true }),
+        // Traemos category del supplier para agrupar por categoria en availableSuppliersByCategory
         supabase.from('event_suppliers').select('*, supplier:suppliers(id, name, category)').eq('event_id', eventId),
       ])
 
@@ -91,25 +92,30 @@ export default function PresupuestoPage() {
     }
   }
 
+  // Pagos acumulados por event_supplier
   const paidByEventSupplier: Record<string, number> = {}
   payments.forEach(p => {
     paidByEventSupplier[p.event_supplier_id] = (paidByEventSupplier[p.event_supplier_id] || 0) + Number(p.amount || 0)
   })
 
+  // Lookup rapido de event_suppliers por id
   const eventSuppliersById: Record<string, EventSupplierWithName> = {}
   eventSuppliers.forEach(es => { eventSuppliersById[es.id] = es })
 
+  // Solo contratados agrupados por categoria del supplier — para el picker inline en BudgetItemRow
   const availableSuppliersByCategory: Record<string, EventSupplierWithName[]> = {}
   BUDGET_CATEGORIES.forEach(cat => { availableSuppliersByCategory[cat] = [] })
   eventSuppliers.forEach(es => {
     if (!es.supplier) return
-    if (es.contract_amount === null || es.contract_amount === undefined) return
-    const cat = (es as any).supplier?.category || (es as any).category
+    // Solo contratados — son los unicos con contract_amount real y pagos registrados
+    if (es.status !== 'contratado') return
+    const cat = es.supplier.category
     if (cat && availableSuppliersByCategory[cat]) {
       availableSuppliersByCategory[cat].push(es)
     }
   })
 
+  // Montos contratados y pagados por item de presupuesto
   const contractedByItem: Record<string, number> = {}
   const paidByItem: Record<string, number>       = {}
   budgets.forEach(b => {
@@ -166,10 +172,10 @@ export default function PresupuestoPage() {
 
       if (error) {
         if (error.code === '23505') {
-          alert('Ya existe una partida con ese nombre en esta categoría')
+          alert('Ya existe un concepto con ese nombre en esta categoría')
         } else {
-          console.error('Error creando partida:', error?.message ?? error, error)
-          alert(`No se pudo crear la partida: ${error?.message ?? 'Intenta de nuevo'}`)
+          console.error('Error creando concepto:', error?.message ?? error, error)
+          alert(`No se pudo crear el concepto: ${error?.message ?? 'Intenta de nuevo'}`)
         }
         throw error
       }
@@ -187,19 +193,21 @@ export default function PresupuestoPage() {
     setBudgets(prev => prev.map(b => b.id === itemId ? { ...b, ...updates } : b))
     const { error } = await supabase.from('event_budgets').update(updates).eq('id', itemId)
     if (error) {
-      console.error('Error actualizando partida:', error?.message ?? error, error)
+      console.error('Error actualizando concepto:', error?.message ?? error, error)
       loadAll()
     }
   }
 
   const handleDeleteItem = async (itemId: string) => {
     const item = budgets.find(b => b.id === itemId)
-    const confirmText = item?.subcategory ? `¿Borrar la partida "${item.subcategory}"?` : '¿Borrar esta partida?'
+    const confirmText = item?.subcategory
+      ? `¿Borrar el concepto "${item.subcategory}"?`
+      : '¿Borrar este concepto?'
     if (!confirm(confirmText)) return
     setBudgets(prev => prev.filter(b => b.id !== itemId))
     const { error } = await supabase.from('event_budgets').delete().eq('id', itemId)
     if (error) {
-      console.error('Error borrando partida:', error?.message ?? error, error)
+      console.error('Error borrando concepto:', error?.message ?? error, error)
       loadAll()
     }
   }
@@ -232,7 +240,7 @@ export default function PresupuestoPage() {
       <div className="mb-4 flex items-start justify-between gap-4">
         <div>
           <h1 className="text-xl font-bold text-[#1D1E20]">Presupuesto</h1>
-          <p className="mt-0.5 text-xs text-[#888]">Sincroniza proveedores con tu presupuesto.</p>
+          <p className="mt-0.5 text-xs text-[#888]">Planea tus gastos y vincula a tus proveedores contratados.</p>
         </div>
         <div className="lg:hidden pt-1">
           <StatsToggleButton visible={statsToggle.visible} onClick={statsToggle.toggle} />
@@ -257,7 +265,7 @@ export default function PresupuestoPage() {
             type="text"
             value={search}
             onChange={e => setSearch(e.target.value)}
-            placeholder="Buscar partida..."
+            placeholder="Buscar concepto..."
             className="w-full rounded-lg border border-[#e0e0e0] bg-white py-1.5 pl-9 pr-3 text-xs outline-none transition focus:border-[#48C9B0]"
           />
         </div>
@@ -283,7 +291,7 @@ export default function PresupuestoPage() {
           className="flex items-center gap-1.5 rounded-lg bg-[#48C9B0] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#3aa896]"
         >
           <Plus size={14} />
-          <span>Nueva partida</span>
+          <span>Nuevo concepto</span>
         </button>
       </div>
 

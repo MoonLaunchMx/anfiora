@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X, Star, Smile, Meh, Frown } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
@@ -29,13 +30,15 @@ export default function SupplierReviewModal({
   initialRating, initialReview, initialMood, initialSpeed,
   onSaved, onSkip,
 }: Props) {
-  const [rating, setRating]       = useState<number | null>(initialRating)
+  const [rating, setRating]         = useState<number | null>(initialRating)
   const [reviewText, setReviewText] = useState<string>(initialReview ?? '')
-  const [mood, setMood]           = useState<SupplierMood | null>(initialMood)
-  const [speed, setSpeed]         = useState<ResponseSpeed | null>(initialSpeed)
-  const [saving, setSaving]       = useState(false)
+  const [mood, setMood]             = useState<SupplierMood | null>(initialMood)
+  const [speed, setSpeed]           = useState<ResponseSpeed | null>(initialSpeed)
+  const [saving, setSaving]         = useState(false)
+  const [mounted, setMounted]       = useState(false)
 
   useEffect(() => {
+    setMounted(true)
     document.body.style.overflow = 'hidden'
     return () => { document.body.style.overflow = '' }
   }, [])
@@ -45,7 +48,7 @@ export default function SupplierReviewModal({
     try {
       const updates = {
         rating,
-        review_text: reviewText.trim() || null,
+        review_text:    reviewText.trim() || null,
         mood,
         response_speed: speed,
       }
@@ -53,7 +56,6 @@ export default function SupplierReviewModal({
         .from('event_suppliers')
         .update(updates)
         .eq('id', eventSupplierId)
-
       if (error) throw error
       onSaved(updates)
     } catch (err) {
@@ -63,23 +65,30 @@ export default function SupplierReviewModal({
     }
   }
 
-  return (
+  // No renderizar hasta que estemos en el cliente
+  if (!mounted) return null
+
+  return createPortal(
     <AnimatePresence>
       <motion.div
-        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-        className="fixed inset-0 z-[60] flex items-end justify-center bg-black/50 md:items-center md:p-4"
+        key="review-overlay"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 p-4"
         onClick={onSkip}
       >
         <motion.div
-          initial={{ y: '100%', opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          exit={{ y: '100%', opacity: 0 }}
+          key="review-modal"
+          initial={{ scale: 0.95, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          exit={{ scale: 0.95, opacity: 0 }}
           transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-          className="flex max-h-[95vh] w-full flex-col rounded-t-2xl bg-white shadow-xl md:max-h-[90vh] md:max-w-md md:rounded-2xl"
+          className="flex max-h-[90vh] w-full max-w-md flex-col rounded-2xl bg-white shadow-xl"
           onClick={e => e.stopPropagation()}
         >
           {/* HEADER */}
-          <div className="flex flex-shrink-0 items-start justify-between gap-4 border-b border-[#e8e8e8] px-5 py-4 md:px-6">
+          <div className="flex shrink-0 items-start justify-between gap-4 border-b border-[#e8e8e8] px-5 py-4">
             <div className="min-w-0 flex-1">
               <h2 className="text-lg font-semibold text-[#1D1E20]">¿Cómo fue el proceso?</h2>
               <p className="mt-0.5 truncate text-xs text-[#888]">
@@ -95,7 +104,7 @@ export default function SupplierReviewModal({
           </div>
 
           {/* CONTENT */}
-          <div className="flex-1 space-y-5 overflow-y-auto px-5 py-5 md:px-6">
+          <div className="flex-1 space-y-5 overflow-y-auto px-5 py-5">
 
             {/* Calificación */}
             <div>
@@ -111,11 +120,7 @@ export default function SupplierReviewModal({
                   >
                     <Star
                       size={32}
-                      className={
-                        rating !== null && n <= rating
-                          ? 'fill-amber-400 text-amber-400'
-                          : 'text-[#d4d4d4]'
-                      }
+                      className={rating !== null && n <= rating ? 'fill-amber-400 text-amber-400' : 'text-[#d4d4d4]'}
                     />
                   </button>
                 ))}
@@ -128,27 +133,9 @@ export default function SupplierReviewModal({
                 ¿Qué tal el trato?
               </label>
               <div className="flex gap-2">
-                <MoodBtn
-                  active={mood === 'no'}
-                  onClick={() => setMood(mood === 'no' ? null : 'no')}
-                  icon={<Frown size={22} />}
-                  label="No"
-                  activeClass="bg-red-50 border-red-400 text-red-600"
-                />
-                <MoodBtn
-                  active={mood === 'normal'}
-                  onClick={() => setMood(mood === 'normal' ? null : 'normal')}
-                  icon={<Meh size={22} />}
-                  label="Normal"
-                  activeClass="bg-amber-50 border-amber-400 text-amber-600"
-                />
-                <MoodBtn
-                  active={mood === 'love'}
-                  onClick={() => setMood(mood === 'love' ? null : 'love')}
-                  icon={<Smile size={22} />}
-                  label="Love"
-                  activeClass="bg-emerald-50 border-emerald-400 text-emerald-600"
-                />
+                <MoodBtn active={mood === 'no'}     onClick={() => setMood(mood === 'no'     ? null : 'no')}     icon={<Frown size={22} />} label="No"     activeClass="bg-red-50 border-red-400 text-red-600" />
+                <MoodBtn active={mood === 'normal'} onClick={() => setMood(mood === 'normal' ? null : 'normal')} icon={<Meh size={22} />}   label="Normal" activeClass="bg-amber-50 border-amber-400 text-amber-600" />
+                <MoodBtn active={mood === 'love'}   onClick={() => setMood(mood === 'love'   ? null : 'love')}   icon={<Smile size={22} />} label="Love"   activeClass="bg-emerald-50 border-emerald-400 text-emerald-600" />
               </div>
             </div>
 
@@ -193,7 +180,7 @@ export default function SupplierReviewModal({
           </div>
 
           {/* FOOTER */}
-          <div className="flex flex-shrink-0 items-center justify-end gap-2 border-t border-[#e8e8e8] bg-white px-5 py-3 md:px-6">
+          <div className="flex shrink-0 items-center justify-end gap-2 border-t border-[#e8e8e8] bg-white px-5 py-3">
             <button
               onClick={onSkip}
               disabled={saving}
@@ -211,13 +198,12 @@ export default function SupplierReviewModal({
           </div>
         </motion.div>
       </motion.div>
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body
   )
 }
 
-function MoodBtn({
-  active, onClick, icon, label, activeClass,
-}: {
+function MoodBtn({ active, onClick, icon, label, activeClass }: {
   active: boolean
   onClick: () => void
   icon: React.ReactNode

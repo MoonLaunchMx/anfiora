@@ -44,8 +44,7 @@ export default function BudgetItemRow({
 
   const lastSavedName   = useRef(item.subcategory || '')
   const lastSavedAmount = useRef(item.budget_amount)
-
-  const pickerRef = useRef<HTMLDivElement>(null)
+  const pickerRef       = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (!pickerOpen) return
@@ -88,7 +87,7 @@ export default function BudgetItemRow({
     ? localAmount
     : formatCurrency(parseFloat(localAmount) || 0, currency)
 
-  // Color de "Por pagar": ambar si es negativo (sobrepago) o si esta sobre presupuesto
+  // Ambar si hay sobrepago o excede presupuesto
   const pendingColorClass = hasNoData
     ? 'text-[#bbb]'
     : (pendingAmount < 0 || isOverBudget)
@@ -118,7 +117,7 @@ export default function BudgetItemRow({
           Vincular proveedor
         </button>
       ) : (
-        <span className="text-[11px] italic text-[#bbb]">Sin proveedores en {item.category}</span>
+        <span className="text-[11px] italic text-[#bbb]">Sin proveedores contratados</span>
       )}
 
       <AnimatePresence>
@@ -133,7 +132,7 @@ export default function BudgetItemRow({
           >
             <div className="border-b border-[#f0f0f0] bg-[#1D1E20] px-3 py-2">
               <p className="text-[10px] font-semibold uppercase tracking-wider text-white/70">
-                Proveedores de {item.category}
+                Contratados en {item.category}
               </p>
             </div>
             <div className="max-h-[240px] overflow-y-auto py-1">
@@ -169,15 +168,14 @@ export default function BudgetItemRow({
               value={localName}
               onChange={e => setLocalName(e.target.value)}
               onBlur={saveName}
-              placeholder="Nombre de partida..."
+              placeholder="Nombre del concepto..."
               className="flex-1 rounded border border-transparent px-2 py-1 text-sm text-[#1D1E20] outline-none transition focus:border-[#48C9B0] focus:bg-white"
             />
+            {/* span wrapper porque Lucide no acepta prop title */}
             {isOverBudget && (
-              <AlertTriangle
-                size={14}
-                className="shrink-0 text-amber-500"
-                title="El monto contratado supera lo estimado"
-              />
+              <span title="El monto contratado supera lo estimado">
+                <AlertTriangle size={14} className="shrink-0 text-amber-500" />
+              </span>
             )}
           </div>
           <div className="px-2">
@@ -216,7 +214,7 @@ export default function BudgetItemRow({
         <button
           onClick={() => onDelete(item.id)}
           className="flex h-7 w-7 items-center justify-center rounded text-[#ccc] transition hover:bg-red-50 hover:text-red-500"
-          title="Borrar partida"
+          title="Borrar concepto"
         >
           <Trash2 size={14} />
         </button>
@@ -232,15 +230,14 @@ export default function BudgetItemRow({
                 value={localName}
                 onChange={e => setLocalName(e.target.value)}
                 onBlur={saveName}
-                placeholder="Nombre de partida..."
+                placeholder="Nombre del concepto..."
                 className="flex-1 rounded border border-transparent px-2 py-1 text-sm font-medium text-[#1D1E20] outline-none focus:border-[#48C9B0] focus:bg-white"
               />
+              {/* span wrapper porque Lucide no acepta prop title */}
               {isOverBudget && (
-                <AlertTriangle
-                  size={14}
-                  className="shrink-0 text-amber-500"
-                  title="El monto contratado supera lo estimado"
-                />
+                <span title="El monto contratado supera lo estimado">
+                  <AlertTriangle size={14} className="shrink-0 text-amber-500" />
+                </span>
               )}
             </div>
             <div className="mt-1.5 px-2">
@@ -250,6 +247,7 @@ export default function BudgetItemRow({
           <button
             onClick={() => onDelete(item.id)}
             className="flex h-7 w-7 shrink-0 items-center justify-center rounded text-[#ccc] hover:bg-red-50 hover:text-red-500"
+            title="Borrar concepto"
           >
             <Trash2 size={14} />
           </button>

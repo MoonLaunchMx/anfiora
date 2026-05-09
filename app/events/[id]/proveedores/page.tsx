@@ -7,12 +7,13 @@ import { supabase } from '@/lib/supabase'
 import {
   Event, EventBudget, EventSupplier, Supplier, BudgetCategory,
   BUDGET_CATEGORIES, BUDGET_CATEGORY_LABELS,
-  SUPPLIER_STATUSES, SUPPLIER_STATUS_LABELS, Currency, formatCurrency,
+  SUPPLIER_STATUSES, SUPPLIER_STATUS_LABELS, SupplierStatus, Currency, formatCurrency,
 } from '@/lib/types'
 import StatsCollapse, { useStatsToggle, StatsToggleButton } from '@/app/components/ui/StatsCollapse'
 import SupplierModal from './SupplierModal'
 import SupplierCard from './SupplierCard'
 import SupplierDetailModal from './SupplierDetailModal'
+import SupplierReviewModal from './SupplierReviewModal'
 import SupplierListView from './SupplierListView'
 import SupplierKanbanView from './SupplierKanbanView'
 
@@ -30,11 +31,11 @@ export default function ProveedoresPage() {
   const [loading, setLoading] = useState(true)
   const [search, setSearch]   = useState('')
   const [filterCategory, setFilterCategory] = useState<BudgetCategory | ''>('')
-  const [filterStatus, setFilterStatus]     = useState<string>('')
   const [viewMode, setViewMode] = useState<ViewMode>('cards')
-  const [groupBy, setGroupBy]   = useState<GroupBy>('ninguna')
+  const [groupBy, setGroupBy]   = useState<GroupBy>('categoria')
   const [modalOpen, setModalOpen]       = useState(false)
   const [selectedItem, setSelectedItem] = useState<SupplierWithDetails | null>(null)
+  const [reviewItem, setReviewItem]     = useState<SupplierWithDetails | null>(null)
 
   const statsToggle = useStatsToggle(eventId, 'proveedores')
 
@@ -108,13 +109,29 @@ export default function ProveedoresPage() {
     if (newEventSupplier) setItems(prev => [newEventSupplier as SupplierWithDetails, ...prev])
   }
 
-  const handleSavedItem  = (updated: SupplierWithDetails) => setItems(prev => prev.map(it => it.id === updated.id ? updated : it))
-  const handleDeletedItem = (deletedId: string) => setItems(prev => prev.filter(it => it.id !== deletedId))
+  const handleSavedItem   = (updated: SupplierWithDetails) =>
+    setItems(prev => prev.map(it => it.id === updated.id ? updated : it))
+  const handleDeletedItem = (deletedId: string) =>
+    setItems(prev => prev.filter(it => it.id !== deletedId))
 
-  const handleStatusChange = async (itemId: string, newStatus: string) => {
-    setItems(prev => prev.map(it => it.id === itemId ? { ...it, status: newStatus } : it))
+  // Review se maneja desde page para evitar stacking context de Framer Motion
+  const handleReviewNeeded = (item: SupplierWithDetails) => {
+    setSelectedItem(null)
+    setReviewItem(item)
+  }
+
+  const handleStatusChange = async (itemId: string, newStatus: SupplierStatus) => {
+    const prev = items.find(i => i.id === itemId)
+    setItems(p => p.map(it => it.id === itemId ? { ...it, status: newStatus } : it))
     const { error } = await supabase.from('event_suppliers').update({ status: newStatus }).eq('id', itemId)
     if (error) { console.error('Error actualizando status:', error?.message ?? error, error); loadAll() }
+
+    // Review al arrastrar en kanban a estado final
+    const wasAlreadyFinal = prev?.status === 'contratado' || prev?.status === 'descartado'
+    const isNowFinal      = newStatus === 'contratado' || newStatus === 'descartado'
+    if (!wasAlreadyFinal && isNowFinal && prev) {
+      setReviewItem({ ...prev, status: newStatus })
+    }
   }
 
   const filtered = items.filter(item => {
@@ -127,14 +144,15 @@ export default function ProveedoresPage() {
       if (!match) return false
     }
     if (filterCategory && s.category !== filterCategory) return false
-    if (filterStatus && viewMode !== 'kanban' && item.status !== filterStatus) return false
     return true
   })
 
   const totalNuevos      = items.filter(i => i.status === 'nuevo').length
-  const totalCotizando   = items.filter(i => i.status === 'cotizacion').length
+  const totalCotizando   = items.filter(i => i.status === 'cotizado').length
   const totalContratados = items.filter(i => i.status === 'contratado').length
-  const totalInvestment  = items.filter(i => i.status === 'contratado').reduce((sum, i) => sum + (i.contract_amount || 0), 0)
+  const totalInvestment  = items
+    .filter(i => i.status === 'contratado')
+    .reduce((sum, i) => sum + (i.contract_amount || 0), 0)
 
   if (loading || !event) {
     return (
@@ -150,131 +168,144 @@ export default function ProveedoresPage() {
 
   const currency: Currency = event.currency || 'MXN'
 
-  const statsContent = (
-    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-      <StatCard label="Nuevos"       value={totalNuevos.toString()} />
-      <StatCard label="Cotizando"    value={totalCotizando.toString()} />
-      <StatCard label="Contratados"  value={totalContratados.toString()} />
-      <StatCard label="Inversión"    value={formatCurrency(totalInvestment, currency)} />
-    </div>
-  )
-
   return (
-    <div className="overflow-y-auto p-4 sm:p-6">
-      {/* Título */}
-      <div className="mb-4 flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-bold text-[#1D1E20]">Proveedores</h1>
-          <p className="mt-0.5 text-xs text-[#888]">Cotizaciones, contratos y pagos en un solo lugar.</p>
-        </div>
-        <div className="lg:hidden pt-1">
-          <StatsToggleButton visible={statsToggle.visible} onClick={statsToggle.toggle} />
-        </div>
-      </div>
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#ffffff' }}>
 
-      {/* Stats */}
-      <div className="mb-4">
+      {/* ── HEADER FIJO ── */}
+      <div style={{ flexShrink: 0, borderBottom: '1px solid #e8e8e8' }} className="px-4 pt-4 pb-0 sm:px-6 sm:pt-5">
+
+        {/* Título + toggle stats mobile */}
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <div>
+            <h1 className="text-xl font-bold text-[#1D1E20]">Proveedores</h1>
+            <p className="mt-0.5 text-xs text-[#888]">Cotizaciones, contratos y pagos en un solo lugar.</p>
+          </div>
+          <div className="lg:hidden shrink-0 pt-1">
+            <StatsToggleButton visible={statsToggle.visible} onClick={statsToggle.toggle} />
+          </div>
+        </div>
+
+        {/* Stats */}
         <StatsCollapse visible={statsToggle.visible}>
-          {statsContent}
+          <div className="mb-4 grid grid-cols-2 gap-2 lg:grid-cols-4">
+            <StatCard label="Nuevos"      value={totalNuevos.toString()} />
+            <StatCard label="Cotizando"   value={totalCotizando.toString()} />
+            <StatCard label="Contratados" value={totalContratados.toString()} color="emerald" />
+            <StatCard label="Inversión"   value={formatCurrency(totalInvestment, currency)} small />
+          </div>
         </StatsCollapse>
-      </div>
 
-      {/* Toolbar */}
-      <div className="mb-4 flex flex-wrap items-center gap-2">
-        <div className="relative min-w-[160px] max-w-xs flex-1">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#aaa]" />
-          <input
-            type="text"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Buscar proveedor..."
-            className="w-full rounded-lg border border-[#e0e0e0] bg-white py-1.5 pl-9 pr-3 text-xs outline-none transition focus:border-[#48C9B0]"
-          />
-        </div>
+        {/* ── TOOLBAR ── */}
+        <div className="mb-3 flex items-center gap-2 pb-3">
 
-        {/* Filtro categoría — desktop */}
-        <select
-          value={filterCategory}
-          onChange={e => setFilterCategory(e.target.value as BudgetCategory | '')}
-          className="hidden rounded-lg border border-[#e0e0e0] bg-white px-3 py-1.5 text-xs outline-none transition focus:border-[#48C9B0] lg:block"
-        >
-          <option value="">Todas las categorías</option>
-          {BUDGET_CATEGORIES.map(c => <option key={c} value={c}>{BUDGET_CATEGORY_LABELS[c]}</option>)}
-        </select>
+          {/* Vistas con texto */}
+          <div className="flex shrink-0 overflow-hidden rounded-lg border border-[#e0e0e0]">
+            <ViewButton active={viewMode === 'cards'} onClick={() => setViewMode('cards')}>
+              <LayoutGrid size={13} />
+              <span>Tarjetas</span>
+            </ViewButton>
+            <ViewButton active={viewMode === 'lista'} onClick={() => setViewMode('lista')} className="hidden lg:flex">
+              <List size={13} />
+              <span>Lista</span>
+            </ViewButton>
+            <ViewButton active={viewMode === 'kanban'} onClick={() => setViewMode('kanban')} className="hidden lg:flex">
+              <Columns3 size={13} />
+              <span>Kanban</span>
+            </ViewButton>
+          </div>
 
-        {/* Filtro estatus — desktop, oculto en kanban */}
-        {viewMode !== 'kanban' && (
+          {/* Buscador */}
+          <div className="relative flex-1 sm:max-w-xs">
+            <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#aaa]" />
+            <input
+              type="text"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Buscar proveedor..."
+              className="w-full rounded-lg border border-[#e0e0e0] bg-white py-1.5 pl-8 pr-3 text-xs outline-none transition focus:border-[#48C9B0]"
+            />
+          </div>
+
+          {/* Filtro categoría — solo desktop */}
           <select
-            value={filterStatus}
-            onChange={e => setFilterStatus(e.target.value)}
-            className="hidden rounded-lg border border-[#e0e0e0] bg-white px-3 py-1.5 text-xs outline-none transition focus:border-[#48C9B0] lg:block"
+            value={filterCategory}
+            onChange={e => setFilterCategory(e.target.value as BudgetCategory | '')}
+            className="hidden shrink-0 rounded-lg border border-[#e0e0e0] bg-white px-3 py-1.5 text-xs outline-none transition focus:border-[#48C9B0] lg:block"
           >
-            <option value="">Todos los estatus</option>
-            {SUPPLIER_STATUSES.map(s => <option key={s} value={s}>{SUPPLIER_STATUS_LABELS[s]}</option>)}
+            <option value="">Todas las categorías</option>
+            {BUDGET_CATEGORIES.map(c => <option key={c} value={c}>{BUDGET_CATEGORY_LABELS[c]}</option>)}
           </select>
-        )}
 
-        {/* Agrupación — solo cards desktop */}
-        {viewMode === 'cards' && (
-          <select
-            value={groupBy}
-            onChange={e => setGroupBy(e.target.value as GroupBy)}
-            className="hidden rounded-lg border border-[#e0e0e0] bg-[#1D1E20] px-3 py-1.5 text-xs text-white outline-none lg:block"
-          >
-            <option value="ninguna">Sin agrupar</option>
-            <option value="categoria">Por categoría</option>
-            <option value="partida">Por concepto</option>
-            <option value="estatus">Por estatus</option>
-          </select>
-        )}
-
-        {/* Toggle vista */}
-        <div className="flex items-center overflow-hidden rounded-lg border border-[#e0e0e0] bg-white">
-          <ViewButton active={viewMode === 'cards'} onClick={() => setViewMode('cards')} title="Cards">
-            <LayoutGrid size={14} />
-          </ViewButton>
-          <ViewButton active={viewMode === 'lista'} onClick={() => setViewMode('lista')} title="Lista" className="hidden lg:flex">
-            <List size={14} />
-          </ViewButton>
-          <ViewButton active={viewMode === 'kanban'} onClick={() => setViewMode('kanban')} title="Kanban" className="hidden lg:flex">
-            <Columns3 size={14} />
-          </ViewButton>
-        </div>
-
-        <button
-          onClick={() => setModalOpen(true)}
-          className="flex items-center gap-1.5 rounded-lg bg-[#48C9B0] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#3aa896]"
-        >
-          <Plus size={14} />
-          <span>Proveedor</span>
-        </button>
-      </div>
-
-      {/* Contenido */}
-      {filtered.length === 0 && items.length === 0 ? (
-        <EmptyState onAdd={() => setModalOpen(true)} />
-      ) : filtered.length === 0 ? (
-        <div className="flex min-h-[30vh] items-center justify-center rounded-xl border border-dashed border-[#e0e0e0] bg-[#fafafa]">
-          <p className="text-sm text-[#888]">Sin resultados con los filtros actuales</p>
-        </div>
-      ) : (
-        <>
+          {/* Agrupación — solo en tarjetas, solo desktop */}
           {viewMode === 'cards' && (
-            <CardsView items={filtered} budgets={budgets} currency={currency} groupBy={groupBy} onSelect={setSelectedItem} />
+            <select
+              value={groupBy}
+              onChange={e => setGroupBy(e.target.value as GroupBy)}
+              className="hidden shrink-0 rounded-lg border border-[#e0e0e0] bg-[#1D1E20] px-3 py-1.5 text-xs text-white outline-none lg:block"
+            >
+              <option value="ninguna">Sin agrupar</option>
+              <option value="categoria">Por categoría</option>
+              <option value="partida">Por concepto</option>
+              <option value="estatus">Por estatus</option>
+            </select>
           )}
-          {viewMode === 'lista' && (
-            <div className="hidden lg:block">
-              <SupplierListView items={filtered} budgets={budgets} currency={currency} onSelect={setSelectedItem} />
-            </div>
-          )}
-          {viewMode === 'kanban' && (
-            <div className="hidden lg:block">
-              <SupplierKanbanView items={filtered} budgets={budgets} currency={currency} onSelect={setSelectedItem} onStatusChange={handleStatusChange} />
-            </div>
-          )}
-        </>
-      )}
 
+          {/* CTA */}
+          <button
+            onClick={() => setModalOpen(true)}
+            className="ml-auto flex shrink-0 items-center gap-1.5 rounded-lg bg-[#48C9B0] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#3aa896]"
+          >
+            <Plus size={14} />
+            <span>Proveedor</span>
+          </button>
+        </div>
+      </div>
+
+      {/* ── CONTENIDO SCROLLABLE ── */}
+      <div style={{ flex: 1, overflowY: 'auto' }} className="px-4 pb-6 pt-4 sm:px-6">
+        {filtered.length === 0 && items.length === 0 ? (
+          <EmptyState onAdd={() => setModalOpen(true)} />
+        ) : filtered.length === 0 ? (
+          <div className="flex min-h-[30vh] items-center justify-center rounded-xl border border-dashed border-[#e0e0e0] bg-[#fafafa]">
+            <p className="text-sm text-[#888]">Sin resultados con los filtros actuales</p>
+          </div>
+        ) : (
+          <>
+            {viewMode === 'cards' && (
+              <CardsView
+                items={filtered}
+                budgets={budgets}
+                currency={currency}
+                groupBy={groupBy}
+                onSelect={setSelectedItem}
+              />
+            )}
+            {viewMode === 'lista' && (
+              <div className="hidden lg:block">
+                <SupplierListView
+                  items={filtered}
+                  budgets={budgets}
+                  currency={currency}
+                  onSelect={setSelectedItem}
+                />
+              </div>
+            )}
+            {viewMode === 'kanban' && (
+              <div className="hidden lg:block">
+                <SupplierKanbanView
+                  items={filtered}
+                  budgets={budgets}
+                  currency={currency}
+                  onSelect={setSelectedItem}
+                  onStatusChange={handleStatusChange}
+                />
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
+      {/* ── MODALES ── */}
       <SupplierModal
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
@@ -292,11 +323,31 @@ export default function ProveedoresPage() {
           onClose={() => setSelectedItem(null)}
           onSaved={handleSavedItem}
           onDeleted={handleDeletedItem}
+          onReviewNeeded={handleReviewNeeded}
+        />
+      )}
+
+      {/* Review fuera del DetailModal — evita stacking context de Framer Motion */}
+      {reviewItem && (
+        <SupplierReviewModal
+          eventSupplierId={reviewItem.id}
+          supplierName={reviewItem.supplier.name}
+          initialRating={reviewItem.rating}
+          initialReview={reviewItem.review_text}
+          initialMood={reviewItem.mood}
+          initialSpeed={reviewItem.response_speed}
+          onSaved={updates => {
+            setItems(prev => prev.map(it => it.id === reviewItem.id ? { ...it, ...updates } : it))
+            setReviewItem(null)
+          }}
+          onSkip={() => setReviewItem(null)}
         />
       )}
     </div>
   )
 }
+
+// ── CARDS VIEW ─────────────────────────────────────────────────────────────
 
 function CardsView({ items, budgets, currency, groupBy, onSelect }: {
   items: SupplierWithDetails[]
@@ -342,7 +393,7 @@ function CardsView({ items, budgets, currency, groupBy, onSelect }: {
   seen.forEach((groupItems, label) => groups.push({ label, items: groupItems }))
 
   return (
-    <div className="space-y-4 pb-6">
+    <div className="space-y-5 pb-6">
       {groups.map(g => {
         const isCollapsed = collapsed.has(g.label)
         return (
@@ -351,7 +402,7 @@ function CardsView({ items, budgets, currency, groupBy, onSelect }: {
               onClick={() => toggleGroup(g.label)}
               className="mb-2 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-[#888] hover:text-[#1D1E20]"
             >
-              <span className={`transition-transform ${isCollapsed ? '-rotate-90' : ''}`}>▾</span>
+              <span className={`transition-transform duration-150 ${isCollapsed ? '-rotate-90' : ''}`}>▾</span>
               {g.label}
               <span className="font-normal text-[#bbb]">({g.items.length})</span>
             </button>
@@ -369,25 +420,40 @@ function CardsView({ items, budgets, currency, groupBy, onSelect }: {
   )
 }
 
-function ViewButton({ active, onClick, title, children, className = '' }: {
-  active: boolean; onClick: () => void; title: string; children: React.ReactNode; className?: string
+// ── COMPONENTES AUXILIARES ─────────────────────────────────────────────────
+
+function ViewButton({ active, onClick, children, className = '' }: {
+  active: boolean
+  onClick: () => void
+  children: React.ReactNode
+  className?: string
 }) {
   return (
     <button
       onClick={onClick}
-      title={title}
-      className={`flex items-center justify-center px-2.5 py-1.5 transition ${active ? 'bg-[#1D1E20] text-white' : 'text-[#888] hover:bg-[#f5f5f5] hover:text-[#1D1E20]'} ${className}`}
+      className={`flex items-center gap-1.5 border-l border-[#e0e0e0] px-3 py-1.5 text-xs font-medium transition first:border-l-0 ${
+        active ? 'bg-[#1D1E20] text-white' : 'bg-white text-[#888] hover:bg-[#f5f5f5] hover:text-[#1D1E20]'
+      } ${className}`}
     >
       {children}
     </button>
   )
 }
 
-function StatCard({ label, value }: { label: string; value: string }) {
+function StatCard({ label, value, color, small }: {
+  label: string
+  value: string
+  color?: 'emerald'
+  small?: boolean
+}) {
   return (
-    <div className="rounded-xl border border-[#e8e8e8] bg-white p-4">
+    <div className="rounded-xl border border-[#e8e8e8] bg-white p-3">
       <p className="text-[10px] font-semibold uppercase tracking-wider text-[#888]">{label}</p>
-      <p className="mt-2 text-2xl font-bold tabular-nums text-[#1D1E20]">{value}</p>
+      <p className={`mt-1.5 tabular-nums font-bold ${small ? 'text-lg' : 'text-2xl'} ${
+        color === 'emerald' ? 'text-[#1D9E75]' : 'text-[#1D1E20]'
+      }`}>
+        {value}
+      </p>
     </div>
   )
 }
@@ -396,8 +462,13 @@ function EmptyState({ onAdd }: { onAdd: () => void }) {
   return (
     <div className="flex min-h-[40vh] flex-col items-center justify-center rounded-xl border border-dashed border-[#e0e0e0] bg-[#fafafa] p-6 text-center">
       <p className="text-sm font-semibold text-[#1D1E20]">Sin proveedores aún</p>
-      <p className="mt-1 max-w-xs text-xs text-[#888]">Empieza agregando los proveedores con los que estás en contacto.</p>
-      <button onClick={onAdd} className="mt-4 flex items-center gap-1.5 rounded-lg bg-[#48C9B0] px-4 py-2 text-xs font-semibold text-white hover:bg-[#3aa896]">
+      <p className="mt-1 max-w-xs text-xs text-[#888]">
+        Empieza agregando los proveedores con los que estás en contacto.
+      </p>
+      <button
+        onClick={onAdd}
+        className="mt-4 flex items-center gap-1.5 rounded-lg bg-[#48C9B0] px-4 py-2 text-xs font-semibold text-white hover:bg-[#3aa896]"
+      >
         <Plus size={14} />
         Agregar proveedor
       </button>
