@@ -87,6 +87,30 @@ export type EventSettings = {
   updated_at: string
 }
 
+// ─── COLLABORATORS ───────────────────────────────────────────────────────────
+
+export type CollaboratorRole = 'admin' | 'editor' | 'viewer'
+export type CollaboratorStatus = 'pending' | 'accepted' | 'revoked'
+
+export type EventCollaborator = {
+  id: string
+  event_id: string
+  invited_by: string
+  user_id: string | null
+  email: string
+  role: CollaboratorRole
+  status: CollaboratorStatus
+  invite_token: string | null
+  invited_at: string | null
+  accepted_at: string | null
+  revoked_at: string | null
+  user?: {
+    id: string
+    full_name: string | null
+    email: string
+  }
+}
+
 // ─── GUESTS ──────────────────────────────────────────────────────────────────
 
 export type PartyMember = {
@@ -171,12 +195,18 @@ export type TableSeat = {
   guest?: Pick<Guest, 'id' | 'name' | 'rsvp_status'>
 }
 
+// ─── TIMELINE ────────────────────────────────────────────────────────────────
+
+export type TimelinePriority = 'bloqueante' | 'no_bloqueante'
+
+export type TimelineCategory = 'evento' | 'tarea' | 'recordatorio' | 'reunion' | 'entrega' | 'pago' | 'comunicacion' | 'otro'
+
 export type TimelineTask = {
   id: string
   event_id: string
   title: string
   emoji: string | null
-  category: 'evento' | 'tarea' | 'recordatorio' | 'reunion' | 'entrega' | 'pago' | 'comunicacion' | 'otro'
+  category: TimelineCategory
   task_date: string
   task_time: string | null
   notes: string | null
@@ -184,6 +214,24 @@ export type TimelineTask = {
   is_completed: boolean
   reminder_date: string | null
   created_at: string
+  // campos nuevos
+  assigned_to_user_id: string | null
+  assigned_to_name: string | null
+  event_supplier_id: string | null
+  priority: TimelinePriority | null
+  // joins opcionales para UI
+  assigned_user?: {
+    id: string
+    full_name: string | null
+    email: string
+  }
+  event_supplier?: {
+    id: string
+    supplier: {
+      id: string
+      name: string
+    }
+  }
 }
 
 // ─── FINANZAS — BUDGET CATEGORIES ────────────────────────────────────────────
@@ -294,8 +342,6 @@ export type SupplierInsert = Omit<Supplier, 'id' | 'created_at'>
 export type SupplierUpdate = Partial<Omit<Supplier, 'id' | 'user_id' | 'created_at'>>
 
 // ─── FINANZAS — EVENT SUPPLIERS ──────────────────────────────────────────────
-// 4 etapas: nuevo → cotizado → contratado → descartado
-// Descartado siempre oculto en Kanban (toggle para mostrar)
 
 export const SUPPLIER_STATUSES = [
   'nuevo',

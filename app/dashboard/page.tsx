@@ -4,10 +4,10 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { Event, EventStatus } from '@/lib/types'
 import { Bell } from 'lucide-react'
+import { WhatsNewModal } from '@/app/components/WhatsNewModal'
 
 export const dynamic = 'force-dynamic'
 
-// Tipo de evento con stats. Los compartidos llevan campos extra (rol, owner_name, is_shared)
 type EventWithStats = Event & {
   confirmed: number
   pending: number
@@ -32,7 +32,6 @@ type ReminderTask = {
 
 const FEEDBACK_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSfESosGtmv8JPds_zhTw280121oV1h09WNIbAhW-IyCAFq8cw/viewform?usp=publish-editor'
 
-// Etiquetas y estilos para badges de rol en eventos compartidos
 const ROLE_LABEL: Record<string, string> = {
   admin: 'Admin',
   editor: 'Editor',
@@ -64,7 +63,6 @@ function ReminderCategoryIcon({ category }: { category: string }) {
   return icons[category] || icons.otro
 }
 
-// Skeleton card que se muestra mientras se cargan los eventos
 function SkeletonCard() {
   return (
     <div className="rounded-xl border border-[#e8e8e8] bg-white px-4 py-4 sm:px-5 sm:py-4 animate-pulse">
@@ -90,7 +88,6 @@ function SkeletonCard() {
 }
 
 export default function Dashboard() {
-  // State separado: eventos propios y eventos compartidos
   const [myEvents, setMyEvents]         = useState<EventWithStats[]>([])
   const [sharedEvents, setSharedEvents] = useState<EventWithStats[]>([])
   const [loading, setLoading]           = useState(true)
@@ -128,14 +125,11 @@ export default function Dashboard() {
     if (!welcomed) { setShowWelcome(true); localStorage.setItem('gf_welcomed', '1') }
   }
 
-  // Carga de datos en 2 fases paralelas. Antes era N+1 (una query por evento).
   const loadData = async () => {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { setLoading(false); return }
     const userId = user.id
 
-    // FASE 1 (paralela): mis eventos propios + filas de event_collaborators
-    // El nested select trae el evento completo + el nombre del owner desde users
     const [myRes, collabRes] = await Promise.all([
       supabase
         .from('events')
@@ -159,7 +153,6 @@ export default function Dashboard() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const collabRows = (collabRes.data || []) as any[]
 
-    // Aplanar eventos compartidos. Si event viene null (evento eliminado) lo descartamos.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const sharedRaw: any[] = collabRows
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -174,14 +167,12 @@ export default function Dashboard() {
       })
       .filter(Boolean)
 
-    // IDs para queries dependientes
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const myIds = myEventsData.map((e: any) => e.id)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const sharedIds = sharedRaw.map((e: any) => e.id)
     const allEventIds = [...myIds, ...sharedIds]
 
-    // Si no hay nada, salimos limpios
     if (allEventIds.length === 0) {
       setMyEvents([])
       setSharedEvents([])
@@ -190,7 +181,6 @@ export default function Dashboard() {
       return
     }
 
-    // FASE 2 (paralela): guests + party_members de TODOS los eventos visibles, y reminders solo de propios
     const today = new Date()
     today.setHours(23, 59, 59, 999)
 
@@ -214,7 +204,6 @@ export default function Dashboard() {
         : Promise.resolve({ data: [] }),
     ])
 
-    // Agrupar guests y members por event_id en memoria. Esto evita el N+1.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const guestsByEvent: Record<string, any[]> = {}
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -233,7 +222,6 @@ export default function Dashboard() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const reminderData = (remindersRes.data || []) as any[]
 
-    // Calcular stats de un evento juntando guests + party_members
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const computeStats = (event: any): EventWithStats => {
       const guests = guestsByEvent[event.id] || []
@@ -258,7 +246,6 @@ export default function Dashboard() {
     const myEventsWithStats = myEventsData.map(computeStats)
     const sharedEventsWithStats = sharedRaw.map(computeStats)
 
-    // Enriquecer reminders con el nombre del evento (lookup en propios + compartidos)
     const allEventsForLookup = [...myEventsData, ...sharedRaw]
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const enrichedReminders: ReminderTask[] = reminderData.map((r: any) => ({
@@ -273,7 +260,6 @@ export default function Dashboard() {
     setLoading(false)
   }
 
-  // Solo cambia el status en eventos propios. El menú está oculto en compartidos.
   const handleStatusChange = async (event: EventWithStats, newStatus: EventStatus, e: React.MouseEvent) => {
     e.stopPropagation()
     setOpenMenuId(null)
@@ -320,8 +306,6 @@ export default function Dashboard() {
     const d = new Date(dateStr)
     const today = new Date()
     today.setHours(0, 0, 0, 0)
-    const yesterday = new Date(today)
-    yesterday.setDate(yesterday.getDate() - 1)
     const target = new Date(d)
     target.setHours(0, 0, 0, 0)
     if (target.getTime() === today.getTime()) return 'Hoy'
@@ -358,7 +342,6 @@ export default function Dashboard() {
     return d >= today
   }
 
-  // Filtra una lista de eventos por los 4 status (active próximo, active pasado, paused, cancelled)
   const filterByTab = (list: EventWithStats[]) => {
     const active = list
       .filter(e => e.event_status === 'active' && isUpcoming(e))
@@ -381,7 +364,6 @@ export default function Dashboard() {
   const myFiltered = filterByTab(myEvents)
   const sharedFiltered = filterByTab(sharedEvents)
 
-  // Eventos a renderizar según el tab activo
   const currentMy =
     activeTab === 'activos'    ? myFiltered.active :
     activeTab === 'pasados'    ? myFiltered.past :
@@ -394,7 +376,6 @@ export default function Dashboard() {
     activeTab === 'pausados'   ? sharedFiltered.paused :
     sharedFiltered.cancelled
 
-  // Próximo evento destacado: incluye compartidos solo si soy admin o editor (no viewer)
   const nextCandidates = [
     ...myFiltered.active,
     ...sharedFiltered.active.filter(e => e.shared_role !== 'viewer'),
@@ -409,7 +390,6 @@ export default function Dashboard() {
       )
     : []
 
-  // Conteos en los tabs: suma de propios + compartidos
   const tabs: { key: Tab; label: string; count: number }[] = [
     { key: 'activos',    label: 'Activos',    count: myFiltered.active.length    + sharedFiltered.active.length    },
     { key: 'pasados',    label: 'Pasados',    count: myFiltered.past.length      + sharedFiltered.past.length      },
@@ -428,7 +408,6 @@ export default function Dashboard() {
 
   const totalReminders = reminders.length
 
-  // Marcar un recordatorio como hecho. Solo afecta eventos propios (los reminders solo son de propios).
   const markDone = async (id: string) => {
     await supabase.from('event_timeline_tasks').update({ is_completed: true }).eq('id', id)
     const target = reminders.find(r => r.id === id)
@@ -450,7 +429,6 @@ export default function Dashboard() {
     setMyEvents(prev => prev.map(e => ({ ...e, pendingReminders: 0 })))
   }
 
-  // Card individual de evento. Reutilizada para propios y compartidos.
   const EventCard = ({ event }: { event: EventWithStats }) => {
     const pct = confirmPct(event)
     const isNext = event.id === nextEvent?.id
@@ -466,7 +444,6 @@ export default function Dashboard() {
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <p className="truncate text-sm font-semibold text-[#1D1E20]">{event.name}</p>
-              {/* Badge de rol para compartidos */}
               {event.is_shared && event.shared_role && (
                 <span className={'rounded px-1.5 py-0.5 text-[10px] font-semibold ' + (ROLE_STYLES[event.shared_role] || '')}>
                   {ROLE_LABEL[event.shared_role] || event.shared_role}
@@ -484,12 +461,10 @@ export default function Dashboard() {
               {event.event_time && ' · ' + formatTime(event.event_time)}
               {event.venue && ' · ' + event.venue}
             </p>
-            {/* Owner si es compartido */}
             {event.is_shared && event.owner_name && (
               <p className="mt-0.5 text-[11px] text-[#aaa]">por {event.owner_name}</p>
             )}
           </div>
-          {/* Menú de cambio de status: solo en eventos propios. El owner controla el status global. */}
           {!event.is_shared && (
             <div data-menu className="relative shrink-0" onClick={e => e.stopPropagation()}>
               <button
@@ -548,6 +523,9 @@ export default function Dashboard() {
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-[#f8f8f8] font-sans text-[#1D1E20]">
 
+      {/* ── What's New Modal — aparece una vez por release a usuarios existentes ── */}
+      <WhatsNewModal />
+
       {/* MODAL BIENVENIDA */}
       {showWelcome && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 px-4">
@@ -593,16 +571,11 @@ export default function Dashboard() {
       {/* Header */}
       <header className="shrink-0 border-b border-[#e8e8e8] bg-white">
         <div className="mx-auto flex h-14 max-w-4xl items-center justify-between px-4 sm:h-16 sm:px-6 lg:px-8">
-          <button
-            onClick={() => window.location.href = '/dashboard'}
-            className="shrink-0"
-          >
+          <button onClick={() => window.location.href = '/dashboard'} className="shrink-0">
             <img src="/images/isotipo.svg" alt="Anfiora" className="h-11 w-11 sm:hidden" />
             <img src="/images/logo.svg" alt="Anfiora" className="hidden h-11 sm:block lg:h-14" />
           </button>
-
           <div className="flex items-center gap-3 sm:gap-4">
-            {/* Bell con badge */}
             <div data-bell className="relative">
               <button
                 onClick={() => setShowBellMenu(p => !p)}
@@ -615,21 +588,16 @@ export default function Dashboard() {
                   </span>
                 )}
               </button>
-
               {showBellMenu && (
                 <div className="absolute right-0 top-full z-50 mt-2 w-72 overflow-hidden rounded-xl border border-[#e8e8e8] bg-white shadow-lg">
                   <div className="flex items-center justify-between border-b border-[#f0f0f0] px-4 py-2.5">
                     <p className="text-xs font-semibold text-[#1D1E20]">Recordatorios</p>
                     {reminders.length > 0 && (
-                      <button
-                        onClick={markAllDone}
-                        className="text-[11px] text-[#aaa] transition hover:text-[#48C9B0]"
-                      >
+                      <button onClick={markAllDone} className="text-[11px] text-[#aaa] transition hover:text-[#48C9B0]">
                         Marcar todos ✓
                       </button>
                     )}
                   </div>
-
                   {reminders.length === 0 ? (
                     <div className="px-4 py-6 text-center">
                       <p className="text-xs text-[#aaa]">Sin recordatorios pendientes</p>
@@ -641,7 +609,6 @@ export default function Dashboard() {
                           <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg border border-[#e8e8e8] bg-[#f8f8f8]">
                             <ReminderCategoryIcon category={r.category} />
                           </div>
-
                           <div className="min-w-0 flex-1">
                             <p className="truncate text-xs font-semibold text-[#1D1E20]">{r.title}</p>
                             <p className="truncate text-[11px] text-[#aaa]">
@@ -651,25 +618,16 @@ export default function Dashboard() {
                               </span>
                             </p>
                           </div>
-
                           <div className="flex flex-shrink-0 items-center gap-1.5">
-                            <button
-                              title="Marcar como hecha"
-                              onClick={() => markDone(r.id)}
-                              className="flex h-6 w-6 items-center justify-center rounded-md bg-[#E1F5EE] transition hover:bg-[#9FE1CB]"
-                            >
+                            <button title="Marcar como hecha" onClick={() => markDone(r.id)}
+                              className="flex h-6 w-6 items-center justify-center rounded-md bg-[#E1F5EE] transition hover:bg-[#9FE1CB]">
                               <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#0F6E56" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                                 <path d="M20 6L9 17l-5-5"/>
                               </svg>
                             </button>
-                            <button
-                              title="Abrir tarea"
-                              onClick={() => {
-                                setShowBellMenu(false)
-                                window.location.href = `/events/${r.event_id}/timeline?task=${r.id}`
-                              }}
-                              className="flex h-6 w-6 items-center justify-center rounded-md bg-[#f8f8f8] transition hover:bg-[#e8e8e8]"
-                            >
+                            <button title="Abrir tarea"
+                              onClick={() => { setShowBellMenu(false); window.location.href = '/events/' + r.event_id + '/timeline?task=' + r.id }}
+                              className="flex h-6 w-6 items-center justify-center rounded-md bg-[#f8f8f8] transition hover:bg-[#e8e8e8]">
                               <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#888" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                 <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/>
                                 <polyline points="15 3 21 3 21 9"/>
@@ -684,7 +642,6 @@ export default function Dashboard() {
                 </div>
               )}
             </div>
-
             <span className="hidden truncate text-xs text-[#888] sm:block sm:max-w-[200px] sm:text-sm">{userEmail}</span>
             <button onClick={handleLogout} className="rounded-md border border-[#e0e0e0] px-3 py-1.5 text-xs text-[#888] transition hover:bg-[#f5f5f5] sm:px-4 sm:text-sm">Salir</button>
           </div>
@@ -706,7 +663,6 @@ export default function Dashboard() {
             </button>
           </div>
 
-          {/* Card del próximo evento. Si es compartido, agregamos el badge de rol y el nombre del owner. */}
           {!loading && nextEvent && (
             <div onClick={() => window.location.href = '/events/' + nextEvent.id}
               className="mb-5 cursor-pointer rounded-2xl border border-[#48C9B0]/30 bg-white p-4 shadow-[0_2px_16px_rgba(72,201,176,0.1)] transition hover:shadow-[0_4px_24px_rgba(72,201,176,0.18)] sm:mb-6">
@@ -792,19 +748,16 @@ export default function Dashboard() {
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto max-w-4xl px-4 pb-8 sm:px-6 lg:px-8">
           {loading ? (
-            // Skeleton state mientras cargan los datos
             <div className="flex flex-col gap-3">
               {[1,2,3].map(i => <SkeletonCard key={i} />)}
             </div>
           ) : (myEvents.length === 0 && sharedEvents.length === 0) ? (
-            // Empty state global: usuario sin ningún evento
             <div className="rounded-xl border border-dashed border-[#e0e0e0] px-6 py-16 text-center sm:py-20">
               <div className="mb-4 text-4xl">💍</div>
               <p className="text-sm text-[#888] sm:text-base">Aún no tienes eventos</p>
               <p className="mt-1 text-xs text-[#bbb] sm:text-sm">Crea tu primer evento para empezar</p>
             </div>
           ) : (currentMy.length === 0 && currentShared.length === 0) ? (
-            // Empty state por tab: hay eventos pero ninguno cae en este tab
             <div className="rounded-xl border border-dashed border-[#e0e0e0] px-6 py-16 text-center sm:py-20">
               <p className="text-sm text-[#888]">
                 {activeTab === 'activos'    && 'No tienes eventos activos'}
@@ -815,7 +768,6 @@ export default function Dashboard() {
             </div>
           ) : (
             <div className="flex flex-col gap-6">
-              {/* Sección Mis eventos */}
               {currentMy.length > 0 && (
                 <section>
                   <div className="mb-3 flex items-center gap-2">
@@ -827,7 +779,6 @@ export default function Dashboard() {
                   </div>
                 </section>
               )}
-              {/* Sección Compartidos conmigo */}
               {currentShared.length > 0 && (
                 <section>
                   <div className="mb-3 flex items-center gap-2">
