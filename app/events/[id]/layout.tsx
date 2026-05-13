@@ -32,7 +32,6 @@ type NavSubItem = {
   iconFilled: React.ReactNode
 }
  
-// ── pro?: boolean agregado para soportar badge PRO en items simples ──
 type NavItem = {
   type: 'item'
   label: string
@@ -63,7 +62,6 @@ const NAV_ITEMS: NavEntry[] = [
     iconOutline: <Users         width={18} height={18} strokeWidth={1.5} />,
     iconFilled:  <Users         width={18} height={18} strokeWidth={2.5} />,
   },
-  // ── Mensajes con badge PRO decorativo (add-on WhatsApp Automatizado) ──
   {
     type: 'item',
     label: 'Mensajes', labelMobile: 'Mensajes', path: '/mensajes', adminOnly: false,
@@ -132,8 +130,7 @@ const NAV_ITEMS: NavEntry[] = [
 function ProBadge({ active = false }: { active?: boolean }) {
   return (
     <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider
-      ${active ? 'bg-white text-[#1D1E20]' : 'bg-[#1D1E20] text-white'}
-    `}>
+      ${active ? 'bg-white text-[#1D1E20]' : 'bg-[#1D1E20] text-white'}`}>
       PRO
     </span>
   )
@@ -161,7 +158,6 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
   const { id } = useParams()
   const pathname = usePathname()
   const router = useRouter()
- 
   const { canAdmin } = useEventAccess()
  
   const [event, setEvent]             = useState<Event | null>(null)
@@ -175,10 +171,9 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
   const navScrollRef = useRef<HTMLDivElement>(null)
   const avatarRef    = useRef<HTMLDivElement>(null)
  
-  const visibleEntries = NAV_ITEMS.filter(entry => {
-    if (entry.type === 'item') return !entry.adminOnly || canAdmin
-    return true
-  })
+  const visibleEntries = NAV_ITEMS.filter(entry =>
+    entry.type === 'item' ? (!entry.adminOnly || canAdmin) : true
+  )
  
   useEffect(() => {
     const stored = localStorage.getItem('gf_sidebar_collapsed')
@@ -266,8 +261,10 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
     await supabase.auth.signOut()
     window.location.href = '/'
   }
- 
-  const flatNavForCompact = visibleEntries.map(entry => {
+
+  // ── Items planos para bottom nav mobile y sidebar colapsado ──
+  // Grupos se muestran como un solo botón que va al defaultPath
+  const flatItems = visibleEntries.map(entry => {
     if (entry.type === 'item') {
       return {
         key: entry.path,
@@ -279,6 +276,7 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
         active: isActive(entry.path),
       }
     }
+    // Grupo → un botón que va al defaultPath, activo si cualquier hijo está activo
     return {
       key: entry.label,
       label: entry.label,
@@ -289,15 +287,16 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
       active: isGroupActive(entry),
     }
   })
- 
+
+  // Scroll al item activo en mobile
   useEffect(() => {
     const container = navScrollRef.current
     if (!container) return
-    const activeIndex = flatNavForCompact.findIndex(item => item.active)
+    const activeIndex = flatItems.findIndex(item => item.active)
     if (activeIndex === -1) return
-    const itemWidth = container.scrollWidth / (flatNavForCompact.length + 1)
+    const itemWidth = container.scrollWidth / (flatItems.length + 1)
     container.scrollTo({ left: Math.max(0, itemWidth * activeIndex - itemWidth * 2), behavior: 'smooth' })
-  }, [pathname, id, flatNavForCompact.length])
+  }, [pathname, id, flatItems.length])
  
   if (!authChecked) {
     return (
@@ -337,7 +336,7 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
     </div>
   )
  
-  // ── renderSidebarItem: flex-1 en label + ProBadge si entry.pro ──
+  // ── Sidebar expandido: items normales ──
   const renderSidebarItem = (entry: NavItem) => {
     const active = isActive(entry.path)
     return (
@@ -357,6 +356,7 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
     )
   }
  
+  // ── Sidebar expandido: grupos con header + sub-items indentados ──
   const renderSidebarGroup = (group: NavGroup) => (
     <div key={group.label} className="mt-1">
       <div className="px-4 pb-1 pt-3 text-[10px] font-semibold uppercase tracking-wider text-[#aaa]">
@@ -382,11 +382,12 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
       })}
     </div>
   )
- 
-  const renderCollapsedItem = (item: typeof flatNavForCompact[number]) => (
+
+  // ── Sidebar colapsado: solo iconos, grupos van al defaultPath ──
+  const renderCollapsedEntry = (item: typeof flatItems[number]) => (
     <button
       key={item.key}
-      onClick={() => router.push(`/events/${id}${item.path}`)}
+      onClick={() => navigate(item.path)}
       title={item.label}
       className={`flex w-full items-center justify-center border-l-[3px] py-2.5 transition
         ${item.active
@@ -500,7 +501,7 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
         >
           <nav className="flex-1 overflow-y-auto py-2">
             {collapsed
-              ? flatNavForCompact.map(item => renderCollapsedItem(item))
+              ? flatItems.map(item => renderCollapsedEntry(item))
               : visibleEntries.map(entry =>
                   entry.type === 'item' ? renderSidebarItem(entry) : renderSidebarGroup(entry)
                 )
@@ -567,13 +568,13 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
           </>
         )}
  
-        {/* MAIN CONTENT */}
+        {/* MAIN */}
         <main className="flex min-h-0 flex-1 flex-col overflow-hidden bg-white pb-16 sm:pb-0">
           {children}
         </main>
       </div>
  
-      {/* BOTTOM NAV mobile */}
+      {/* BOTTOM NAV mobile — iconos simples, grupos van al defaultPath */}
       <nav
         ref={navScrollRef}
         className="fixed bottom-0 left-0 right-0 z-40 flex overflow-x-auto border-t border-[#e8e8e8] bg-white sm:hidden"
@@ -584,6 +585,7 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
           msOverflowStyle: 'none',
         }}
       >
+        {/* Inicio */}
         <button
           onClick={() => router.push('/dashboard')}
           className="flex shrink-0 flex-col items-center justify-center gap-1 py-2.5 text-[10px] font-medium text-[#bbb] transition"
@@ -592,10 +594,12 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
           <House width={18} height={18} strokeWidth={1.5} />
           <span>Inicio</span>
         </button>
-        {flatNavForCompact.map(item => (
+
+        {/* Items + grupos — todos como botón simple */}
+        {flatItems.map(item => (
           <button
             key={item.key}
-            onClick={() => router.push(`/events/${id}${item.path}`)}
+            onClick={() => navigate(item.path)}
             className={`flex shrink-0 flex-col items-center justify-center gap-1 py-2.5 text-[10px] font-medium transition
               ${item.active ? 'text-[#48C9B0]' : 'text-[#bbb]'}`}
             style={{ width: '20vw', scrollSnapAlign: 'center' }}
@@ -605,14 +609,12 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
           </button>
         ))}
       </nav>
- 
     </div>
   )
 }
  
 export default function EventLayout({ children }: { children: React.ReactNode }) {
   const { id } = useParams()
- 
   return (
     <EventAccessProvider eventId={id as string}>
       <EventLayoutInner>{children}</EventLayoutInner>

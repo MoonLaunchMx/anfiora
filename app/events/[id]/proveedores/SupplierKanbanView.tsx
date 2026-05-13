@@ -1,5 +1,5 @@
 'use client'
-
+ 
 import { useState } from 'react'
 import {
   DndContext, DragEndEvent, PointerSensor, TouchSensor,
@@ -12,10 +12,9 @@ import {
   SUPPLIER_STATUSES, SUPPLIER_STATUS_LABELS, SUPPLIER_STATUS_COLORS,
   SUPPLIER_MOOD_COLORS,
 } from '@/lib/types'
-import SupplierReviewModal from './SupplierReviewModal'
-
+ 
 type SupplierWithDetails = EventSupplier & { supplier: Supplier }
-
+ 
 type Props = {
   items: SupplierWithDetails[]
   budgets: EventBudget[]
@@ -23,18 +22,17 @@ type Props = {
   onSelect: (item: SupplierWithDetails) => void
   onStatusChange: (itemId: string, newStatus: SupplierStatus) => void
 }
-
+ 
 const VISIBLE_STATUSES: SupplierStatus[] = ['nuevo', 'cotizado', 'contratado']
-
+ 
 export default function SupplierKanbanView({ items, budgets, currency, onSelect, onStatusChange }: Props) {
   const [showDescartados, setShowDescartados] = useState(false)
-  const [reviewItem, setReviewItem]           = useState<SupplierWithDetails | null>(null)
-
+ 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } }),
   )
-
+ 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event
     if (!over || active.id === over.id) return
@@ -42,117 +40,91 @@ export default function SupplierKanbanView({ items, budgets, currency, onSelect,
     if (!SUPPLIER_STATUSES.includes(newStatus as SupplierStatus)) return
     const draggedItem = items.find(i => i.id === active.id as string)
     if (!draggedItem || draggedItem.status === newStatus) return
-
-    const wasAlreadyFinal = draggedItem.status === 'contratado' || draggedItem.status === 'descartado'
-    const isNowFinal      = newStatus === 'contratado' || newStatus === 'descartado'
-
+ 
     onStatusChange(active.id as string, newStatus as SupplierStatus)
-
-    // Lanzar review al llegar a estado final por primera vez
-    if (!wasAlreadyFinal && isNowFinal) {
-      setReviewItem({ ...draggedItem, status: newStatus as SupplierStatus })
-    }
   }
-
+ 
   const itemsByStatus: Record<SupplierStatus, SupplierWithDetails[]> = {
     nuevo: [], cotizado: [], contratado: [], descartado: [],
   }
   items.forEach(item => {
     if (itemsByStatus[item.status]) itemsByStatus[item.status].push(item)
   })
-
+ 
   const descartadosCount = itemsByStatus['descartado'].length
-
+ 
   return (
-    <>
-      <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-        <div className="flex gap-3 overflow-x-auto pb-6" style={{ alignItems: 'flex-start' }}>
-
-          {/* Columnas principales */}
-          {VISIBLE_STATUSES.map(status => (
-            <KanbanColumn
-              key={status}
-              status={status}
-              items={itemsByStatus[status]}
-              budgets={budgets}
-              currency={currency}
-              onSelect={onSelect}
-            />
-          ))}
-
-          {/* Descartados — barra vertical colapsada, expande como columna */}
-          <div className="flex shrink-0 flex-col" style={{ alignSelf: 'flex-start' }}>
-            {!showDescartados ? (
-              // Estado colapsado — barra vertical con texto rotado
-              <button
-                onClick={() => setShowDescartados(true)}
-                className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-[#e0e0e0] bg-[#fafafa] px-3 py-4 text-[#bbb] transition hover:border-[#888] hover:text-[#888]"
-                style={{ width: 36, minHeight: 120 }}
+    <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+      <div className="flex gap-3 overflow-x-auto pb-6" style={{ alignItems: 'flex-start' }}>
+ 
+        {/* Columnas principales */}
+        {VISIBLE_STATUSES.map(status => (
+          <KanbanColumn
+            key={status}
+            status={status}
+            items={itemsByStatus[status]}
+            budgets={budgets}
+            currency={currency}
+            onSelect={onSelect}
+          />
+        ))}
+ 
+        {/* Descartados — barra vertical colapsada, expande como columna */}
+        <div className="flex shrink-0 flex-col" style={{ alignSelf: 'flex-start' }}>
+          {!showDescartados ? (
+            <button
+              onClick={() => setShowDescartados(true)}
+              className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-[#e0e0e0] bg-[#fafafa] px-3 py-4 text-[#bbb] transition hover:border-[#888] hover:text-[#888]"
+              style={{ width: 36, minHeight: 120 }}
+            >
+              <span
+                style={{
+                  writingMode: 'vertical-rl',
+                  textOrientation: 'mixed',
+                  transform: 'rotate(180deg)',
+                  fontSize: 10,
+                  fontWeight: 600,
+                  letterSpacing: '0.08em',
+                  textTransform: 'uppercase',
+                  whiteSpace: 'nowrap',
+                }}
               >
-                <span
-                  style={{
-                    writingMode: 'vertical-rl',
-                    textOrientation: 'mixed',
-                    transform: 'rotate(180deg)',
-                    fontSize: 10,
-                    fontWeight: 600,
-                    letterSpacing: '0.08em',
-                    textTransform: 'uppercase',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  Descartados
+                Descartados
+              </span>
+              {descartadosCount > 0 && (
+                <span className="rounded-full bg-[#e8e8e8] px-1.5 py-0.5 text-[9px] font-bold text-[#888]">
+                  {descartadosCount}
                 </span>
-                {descartadosCount > 0 && (
-                  <span className="rounded-full bg-[#e8e8e8] px-1.5 py-0.5 text-[9px] font-bold text-[#888]">
-                    {descartadosCount}
-                  </span>
-                )}
+              )}
+            </button>
+          ) : (
+            <div className="w-[220px]">
+              <button
+                onClick={() => setShowDescartados(false)}
+                className="mb-2 flex w-full items-center justify-between rounded-lg px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-[#888] transition hover:text-[#1D1E20]"
+              >
+                <span>Descartados</span>
+                <span className="font-normal text-[#bbb]">({descartadosCount}) ✕</span>
               </button>
-            ) : (
-              // Estado expandido — columna completa con botón para colapsar
-              <div className="w-[220px]">
-                <button
-                  onClick={() => setShowDescartados(false)}
-                  className="mb-2 flex w-full items-center justify-between rounded-lg px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-[#888] transition hover:text-[#1D1E20]"
-                >
-                  <span>Descartados</span>
-                  <span className="font-normal text-[#bbb]">({descartadosCount}) ✕</span>
-                </button>
-                <KanbanColumn
-                  status="descartado"
-                  items={itemsByStatus['descartado']}
-                  budgets={budgets}
-                  currency={currency}
-                  onSelect={onSelect}
-                  dimmed
-                />
-              </div>
-            )}
-          </div>
-
+              <KanbanColumn
+                status="descartado"
+                items={itemsByStatus['descartado']}
+                budgets={budgets}
+                currency={currency}
+                onSelect={onSelect}
+                dimmed
+              />
+            </div>
+          )}
         </div>
-      </DndContext>
-
-      {/* Review modal al arrastrar a estado final */}
-      {reviewItem && (
-        <SupplierReviewModal
-          eventSupplierId={reviewItem.id}
-          supplierName={reviewItem.supplier.name}
-          initialRating={reviewItem.rating}
-          initialReview={reviewItem.review_text}
-          initialMood={reviewItem.mood}
-          initialSpeed={reviewItem.response_speed}
-          onSaved={() => setReviewItem(null)}
-          onSkip={() => setReviewItem(null)}
-        />
-      )}
-    </>
+ 
+      </div>
+    </DndContext>
   )
 }
-
+ 
 // ── COLUMNA ───────────────────────────────────────────────────────────────
-
+ 
 function KanbanColumn({
   status, items, budgets, currency, onSelect, dimmed = false,
 }: {
@@ -164,7 +136,7 @@ function KanbanColumn({
   dimmed?: boolean
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: status })
-
+ 
   return (
     <div
       ref={setNodeRef}
@@ -183,7 +155,7 @@ function KanbanColumn({
         </span>
         <span className="text-[10px] font-bold text-[#888]">{items.length}</span>
       </div>
-
+ 
       {/* Cards */}
       <div className="flex flex-col gap-2">
         {items.map(item => (
@@ -204,9 +176,9 @@ function KanbanColumn({
     </div>
   )
 }
-
-// ── CARD KANBAN — compacta, solo lo esencial para el flujo ────────────────
-
+ 
+// ── CARD KANBAN ───────────────────────────────────────────────────────────
+ 
 function KanbanCard({
   item, budgets, currency, onSelect,
 }: {
@@ -216,16 +188,16 @@ function KanbanCard({
   onSelect: (item: SupplierWithDetails) => void
 }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: item.id })
-
+ 
   const linkedBudget = budgets.find(b => b.id === item.event_budget_id)
   const meta         = linkedBudget?.budget_amount ?? null
   const cotizado     = item.quoted_amount ?? item.contract_amount ?? null
   const exceeds      = meta !== null && cotizado !== null && cotizado > meta
-
+ 
   const style = transform
     ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` }
     : undefined
-
+ 
   const MoodIcon = item.mood === 'love'
     ? <Smile size={11} className={SUPPLIER_MOOD_COLORS['love']} />
     : item.mood === 'no'
@@ -233,7 +205,7 @@ function KanbanCard({
       : item.mood === 'normal'
         ? <Meh size={11} className={SUPPLIER_MOOD_COLORS['normal']} />
         : null
-
+ 
   return (
     <div
       ref={setNodeRef}
@@ -252,17 +224,17 @@ function KanbanCard({
         </p>
         {MoodIcon}
       </div>
-
+ 
       {/* Nombre */}
       <p className="text-xs font-bold text-[#1D1E20]">{item.supplier.name}</p>
-
+ 
       {/* Concepto */}
       {linkedBudget && (
         <p className="mt-0.5 text-[10px] text-[#aaa]">
           {linkedBudget.subcategory || BUDGET_CATEGORY_LABELS[linkedBudget.category]}
         </p>
       )}
-
+ 
       {/* Monto */}
       {cotizado !== null && (
         <p className={`mt-2 text-xs font-semibold tabular-nums ${exceeds ? 'text-amber-600' : 'text-[#48C9B0]'}`}>
@@ -272,7 +244,7 @@ function KanbanCard({
           )}
         </p>
       )}
-
+ 
       {/* Notas truncadas */}
       {item.event_notes && (
         <p className="mt-1.5 truncate text-[10px] text-[#aaa]">

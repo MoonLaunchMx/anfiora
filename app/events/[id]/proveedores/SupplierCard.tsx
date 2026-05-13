@@ -45,7 +45,7 @@ export default function SupplierCard({ item, budgets, currency, onClick }: Props
   const blockBg    = exceeds ? 'bg-red-50'      : saves ? 'bg-emerald-50' : 'bg-[#fafafa]'
   const amountColor = exceeds ? 'text-red-600'   : saves ? 'text-emerald-600' : 'text-[#1D1E20]'
   const labelColor  = exceeds ? 'text-red-500'   : saves ? 'text-emerald-500' : ''
-  const labelText   = exceeds ? 'Excede la partida' : saves ? `Ahorro de ${formatCurrency(saving, currency)}` : ''
+  const labelText   = exceeds ? 'Excede el presupuesto' : saves ? `Ahorro de ${formatCurrency(saving, currency)}` : ''
 
   return (
     <div

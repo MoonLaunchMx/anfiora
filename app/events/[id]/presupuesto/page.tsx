@@ -49,7 +49,6 @@ export default function PresupuestoPage() {
   const [modalOpen, setModalOpen]         = useState(false)
   const [modalCategory, setModalCategory] = useState<BudgetCategory | null>(null)
 
-  // Import state
   const [importModalOpen, setImportModalOpen] = useState(false)
   const [importRows, setImportRows]           = useState<ImportRow[]>([])
   const [importError, setImportError]         = useState('')
@@ -57,7 +56,6 @@ export default function PresupuestoPage() {
   const [importMode, setImportMode]           = useState<'todos' | 'nuevos'>('nuevos')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // Supplier detail desde presupuesto
   const [selectedSupplier, setSelectedSupplier] = useState<EventSupplierWithName | null>(null)
   const [reviewSupplier, setReviewSupplier]     = useState<EventSupplierWithName | null>(null)
 
@@ -167,8 +165,6 @@ export default function PresupuestoPage() {
     setModalCategory(null)
     setModalOpen(true)
   }
-
-  // ── IMPORT ────────────────────────────────────────────────────────────────
 
   const LABEL_TO_CATEGORY: Record<string, BudgetCategory> = {}
   BUDGET_CATEGORIES.forEach(cat => {
@@ -285,8 +281,6 @@ export default function PresupuestoPage() {
     }
   }
 
-  // ── HANDLERS ──────────────────────────────────────────────────────────────
-
   const handleModalSubmit = async (data: {
     category: BudgetCategory
     subcategory: string
@@ -361,119 +355,131 @@ export default function PresupuestoPage() {
   const newCount       = importRows.filter(r => !r.isDuplicate).length
 
   return (
-    <div className="overflow-y-auto p-4 sm:p-6">
-      <div className="mb-4 flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-bold text-[#1D1E20]">Presupuesto</h1>
-          <p className="mt-0.5 text-xs text-[#888]">Planea tus gastos y vincula a tus proveedores contratados.</p>
-        </div>
-        <div className="lg:hidden pt-1">
-          <StatsToggleButton visible={statsToggle.visible} onClick={statsToggle.toggle} />
-        </div>
-      </div>
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
-      <div className="mb-4">
+      {/* ══ TOOLBAR STICKY ══ */}
+      <div className="shrink-0 border-b border-[#e8e8e8] px-4 pt-4 pb-0 sm:px-6 sm:pt-5">
+
+        {/* Título + toggle stats mobile */}
+        <div className="mb-4 flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-xl font-bold text-[#1D1E20]">Presupuesto</h1>
+            <p className="mt-0.5 text-xs text-[#888]">Planea tus gastos y vincula a tus proveedores contratados.</p>
+          </div>
+          <div className="lg:hidden shrink-0 pt-1">
+            <StatsToggleButton visible={statsToggle.visible} onClick={statsToggle.toggle} />
+          </div>
+        </div>
+
+        {/* Stats colapsables mobile, siempre visibles desktop */}
         <StatsCollapse visible={statsToggle.visible}>
-          <BudgetMetricsCards
-            totalBudget={totalBudget}
-            totalContracted={totalContracted}
-            totalPaid={totalPaid}
-            currency={currency}
-          />
+          <div className="mb-4">
+            <BudgetMetricsCards
+              totalBudget={totalBudget}
+              totalContracted={totalContracted}
+              totalPaid={totalPaid}
+              currency={currency}
+            />
+          </div>
         </StatsCollapse>
-      </div>
 
-      <div className="mb-4 flex flex-wrap items-center gap-2">
-        <div className="relative flex-1 min-w-[160px]">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#aaa]" />
+        {/* Toolbar: buscador + botones + CTA */}
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          <div className="relative flex-1 min-w-[160px]">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#aaa]" />
+            <input
+              type="text"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Buscar concepto..."
+              className="w-full rounded-lg border border-[#e0e0e0] bg-white py-1.5 pl-9 pr-3 text-xs outline-none transition focus:border-[#48C9B0]"
+            />
+          </div>
+
+          <button
+            onClick={() => handleExport('excel')}
+            className="hidden items-center gap-1.5 rounded-lg border border-[#e0e0e0] bg-white px-3 py-1.5 text-xs font-medium text-[#555] transition hover:border-[#48C9B0] hover:text-[#48C9B0] sm:flex"
+          >
+            <FileSpreadsheet size={14} />
+            Excel
+          </button>
+
+          <button
+            onClick={() => handleExport('pdf')}
+            className="flex items-center gap-1.5 rounded-lg border border-[#e0e0e0] bg-white px-3 py-1.5 text-xs font-medium text-[#555] transition hover:border-[#48C9B0] hover:text-[#48C9B0]"
+          >
+            <FileText size={14} />
+            <span className="hidden sm:inline">PDF</span>
+          </button>
+
           <input
-            type="text"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Buscar concepto..."
-            className="w-full rounded-lg border border-[#e0e0e0] bg-white py-1.5 pl-9 pr-3 text-xs outline-none transition focus:border-[#48C9B0]"
+            ref={fileInputRef}
+            type="file"
+            accept=".xlsx,.xls"
+            className="hidden"
+            onChange={handleFileChange}
           />
-        </div>
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="hidden items-center gap-1.5 rounded-lg border border-[#e0e0e0] bg-white px-3 py-1.5 text-xs font-medium text-[#555] transition hover:border-[#48C9B0] hover:text-[#48C9B0] sm:flex"
+          >
+            <Upload size={14} />
+            Importar
+          </button>
 
-        <button
-          onClick={() => handleExport('excel')}
-          className="hidden items-center gap-1.5 rounded-lg border border-[#e0e0e0] bg-white px-3 py-1.5 text-xs font-medium text-[#555] transition hover:border-[#48C9B0] hover:text-[#48C9B0] sm:flex"
-        >
-          <FileSpreadsheet size={14} />
-          Excel
-        </button>
+          <button
+            onClick={downloadImportTemplate}
+            className="hidden items-center gap-1.5 rounded-lg border border-dashed border-[#e0e0e0] bg-white px-3 py-1.5 text-xs font-medium text-[#aaa] transition hover:border-[#48C9B0] hover:text-[#48C9B0] sm:flex"
+          >
+            <FileSpreadsheet size={14} />
+            Plantilla
+          </button>
 
-        <button
-          onClick={() => handleExport('pdf')}
-          className="flex items-center gap-1.5 rounded-lg border border-[#e0e0e0] bg-white px-3 py-1.5 text-xs font-medium text-[#555] transition hover:border-[#48C9B0] hover:text-[#48C9B0]"
-        >
-          <FileText size={14} />
-          <span className="hidden sm:inline">PDF</span>
-        </button>
-
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".xlsx,.xls"
-          className="hidden"
-          onChange={handleFileChange}
-        />
-        <button
-          onClick={() => fileInputRef.current?.click()}
-          className="hidden items-center gap-1.5 rounded-lg border border-[#e0e0e0] bg-white px-3 py-1.5 text-xs font-medium text-[#555] transition hover:border-[#48C9B0] hover:text-[#48C9B0] sm:flex"
-        >
-          <Upload size={14} />
-          Importar
-        </button>
-
-        <button
-          onClick={downloadImportTemplate}
-          className="hidden items-center gap-1.5 rounded-lg border border-dashed border-[#e0e0e0] bg-white px-3 py-1.5 text-xs font-medium text-[#aaa] transition hover:border-[#48C9B0] hover:text-[#48C9B0] sm:flex"
-        >
-          <FileSpreadsheet size={14} />
-          Plantilla
-        </button>
-
-        <button
-          onClick={openAddModalGeneric}
-          className="flex items-center gap-1.5 rounded-lg bg-[#48C9B0] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#3aa896]"
-        >
-          <Plus size={14} />
-          <span>Nuevo concepto</span>
-        </button>
-      </div>
-
-      {importError && (
-        <div className="mb-4 flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
-          <AlertTriangle size={14} className="shrink-0 text-amber-500" />
-          <p className="text-xs text-amber-700">{importError}</p>
-          <button onClick={() => setImportError('')} className="ml-auto text-amber-400 hover:text-amber-600">
-            <X size={14} />
+          <button
+            onClick={openAddModalGeneric}
+            className="flex items-center gap-1.5 rounded-lg bg-[#48C9B0] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#3aa896]"
+          >
+            <Plus size={14} />
+            <span>Nuevo concepto</span>
           </button>
         </div>
-      )}
+      </div>
 
-      <div className="space-y-3 pb-6">
-        {BUDGET_CATEGORIES.map(category => {
-          const items = itemsByCategory[category]
-          if (search.trim() && items.length === 0) return null
-          return (
-            <BudgetCategoryRow
-              key={category}
-              category={category}
-              items={items}
-              currency={currency}
-              contractedByItem={contractedByItem}
-              paidByItem={paidByItem}
-              eventSuppliersById={eventSuppliersById}
-              availableSuppliersForCategory={availableSuppliersByCategory[category] || []}
-              onOpenAddModal={openAddModalForCategory}
-              onUpdateItem={handleUpdateItem}
-              onDeleteItem={handleDeleteItem}
-              onOpenSupplier={setSelectedSupplier}
-            />
-          )
-        })}
+      {/* ══ CONTENIDO SCROLLEABLE ══ */}
+      <div className="flex-1 overflow-y-auto px-4 pb-6 pt-3 sm:px-6">
+
+        {importError && (
+          <div className="mb-4 flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+            <AlertTriangle size={14} className="shrink-0 text-amber-500" />
+            <p className="text-xs text-amber-700">{importError}</p>
+            <button onClick={() => setImportError('')} className="ml-auto text-amber-400 hover:text-amber-600">
+              <X size={14} />
+            </button>
+          </div>
+        )}
+
+        <div className="space-y-3">
+          {BUDGET_CATEGORIES.map(category => {
+            const items = itemsByCategory[category]
+            if (search.trim() && items.length === 0) return null
+            return (
+              <BudgetCategoryRow
+                key={category}
+                category={category}
+                items={items}
+                currency={currency}
+                contractedByItem={contractedByItem}
+                paidByItem={paidByItem}
+                eventSuppliersById={eventSuppliersById}
+                availableSuppliersForCategory={availableSuppliersByCategory[category] || []}
+                onOpenAddModal={openAddModalForCategory}
+                onUpdateItem={handleUpdateItem}
+                onDeleteItem={handleDeleteItem}
+                onOpenSupplier={setSelectedSupplier}
+              />
+            )
+          })}
+        </div>
       </div>
 
       {/* ── MODAL DE CONCEPTO ── */}
@@ -627,7 +633,6 @@ export default function PresupuestoPage() {
         />
       )}
 
-      {/* Review fuera del DetailModal — evita stacking context */}
       {reviewSupplier && (
         <SupplierReviewModal
           eventSupplierId={reviewSupplier.id}
