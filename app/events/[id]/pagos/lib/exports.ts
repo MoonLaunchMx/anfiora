@@ -24,10 +24,12 @@ export type PagosExportData = {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const METHOD_LABEL: Record<string, string> = {
-  transferencia: 'Transferencia',
-  efectivo:      'Efectivo',
-  tarjeta:       'Tarjeta',
-  cheque:        'Cheque',
+  transferencia:    'Transferencia',
+  efectivo:         'Efectivo',
+  tarjeta_credito:  'Tarjeta crédito',
+  tarjeta_debito:   'Tarjeta débito',
+  cheque:           'Cheque',
+  otro:             'Otro',
 }
 
 function fmtDate(d: string) {

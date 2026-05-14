@@ -11,8 +11,6 @@ import {
 import StatsCollapse, { useStatsToggle, StatsToggleButton } from '@/app/components/ui/StatsCollapse'
 import { exportPagosToExcel, exportPagosToPDF } from './lib/exports'
 
-// ─── Tipos ────────────────────────────────────────────────────────────────────
-
 type Pago = {
   id: string
   amount: number
@@ -33,21 +31,25 @@ type EventSupplierOption = {
 type SortField = 'payment_date' | 'amount' | 'supplier_name' | 'payment_method' | 'paid_by'
 type SortDir   = 'asc' | 'desc'
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
 const METHOD_LABEL: Record<string, string> = {
-  transferencia: 'Transferencia',
-  efectivo:      'Efectivo',
-  tarjeta:       'Tarjeta',
-  cheque:        'Cheque',
+  transferencia:   'Transferencia',
+  efectivo:        'Efectivo',
+  tarjeta_credito: 'Tarjeta crédito',
+  tarjeta_debito:  'Tarjeta débito',
+  cheque:          'Cheque',
+  otro:            'Otro',
 }
 
 const METHOD_STYLE: Record<string, { bg: string; border: string; color: string }> = {
-  transferencia: { bg: '#E6F1FB', border: '#B5D4F4', color: '#185FA5' },
-  efectivo:      { bg: '#EAF3DE', border: '#C0DD97', color: '#3B6D11' },
-  tarjeta:       { bg: '#EEEDFE', border: '#CECBF6', color: '#534AB7' },
-  cheque:        { bg: '#FAEEDA', border: '#FAC775', color: '#854F0B' },
+  transferencia:   { bg: '#E6F1FB', border: '#B5D4F4', color: '#185FA5' },
+  efectivo:        { bg: '#EAF3DE', border: '#C0DD97', color: '#3B6D11' },
+  tarjeta_credito: { bg: '#EEEDFE', border: '#CECBF6', color: '#534AB7' },
+  tarjeta_debito:  { bg: '#EEEDFE', border: '#CECBF6', color: '#534AB7' },
+  cheque:          { bg: '#FAEEDA', border: '#FAC775', color: '#854F0B' },
+  otro:            { bg: '#F1EFE8', border: '#D3D1C7', color: '#5F5E5A' },
 }
+
+const PAYMENT_METHODS = ['transferencia', 'efectivo', 'tarjeta_credito', 'tarjeta_debito', 'cheque', 'otro']
 
 function MethodIcon({ method }: { method: string | null }) {
   if (!method) {
@@ -58,7 +60,14 @@ function MethodIcon({ method }: { method: string | null }) {
     )
   }
   const s = METHOD_STYLE[method] || { bg: '#f5f5f5', border: '#e0e0e0', color: '#888' }
-  const abbr: Record<string, string> = { transferencia: 'TRF', efectivo: 'EFE', tarjeta: 'TRJ', cheque: 'CHQ' }
+  const abbr: Record<string, string> = {
+    transferencia:   'TRF',
+    efectivo:        'EFE',
+    tarjeta_credito: 'TC',
+    tarjeta_debito:  'TD',
+    cheque:          'CHQ',
+    otro:            'OTR',
+  }
   return (
     <div
       className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border text-[9px] font-bold"
@@ -69,33 +78,21 @@ function MethodIcon({ method }: { method: string | null }) {
   )
 }
 
-const PAYMENT_METHODS = ['transferencia', 'efectivo', 'tarjeta', 'cheque']
-
 function fmt(amount: number, currency = 'MXN') {
-  return new Intl.NumberFormat('es-MX', {
-    style: 'currency', currency, minimumFractionDigits: 2,
-  }).format(amount)
+  return new Intl.NumberFormat('es-MX', { style: 'currency', currency, minimumFractionDigits: 2 }).format(amount)
 }
 
 function fmtDate(d: string) {
   const [year, month, day] = d.split('-').map(Number)
-  return new Date(year, month - 1, day).toLocaleDateString('es-MX', {
-    day: '2-digit', month: 'short', year: 'numeric',
-  })
+  return new Date(year, month - 1, day).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
 function fmtDateShort(d: string) {
   const [year, month, day] = d.split('-').map(Number)
-  return new Date(year, month - 1, day).toLocaleDateString('es-MX', {
-    day: '2-digit', month: 'short',
-  })
+  return new Date(year, month - 1, day).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' })
 }
 
-function todayStr() {
-  return new Date().toISOString().split('T')[0]
-}
-
-// ─── Componente principal ─────────────────────────────────────────────────────
+function todayStr() { return new Date().toISOString().split('T')[0] }
 
 export default function PagosPage() {
   const { id: eventId } = useParams()
@@ -107,7 +104,6 @@ export default function PagosPage() {
   const [loading, setLoading]               = useState(true)
   const [currency, setCurrency]             = useState('MXN')
 
-  // Filtros
   const [search, setSearch]                 = useState('')
   const [filterSupplier, setFilterSupplier] = useState<string>('todos')
   const [filterMethod, setFilterMethod]     = useState<string>('todos')
@@ -115,19 +111,16 @@ export default function PagosPage() {
   const [filterDateTo, setFilterDateTo]     = useState('')
   const [dateRangeOpen, setDateRangeOpen]   = useState(false)
 
-  // Dropdowns filtro
   const [supplierOpen, setSupplierOpen]     = useState(false)
   const [methodOpen, setMethodOpen]         = useState(false)
   const supplierRef  = useRef<HTMLDivElement>(null)
   const methodRef    = useRef<HTMLDivElement>(null)
   const dateRangeRef = useRef<HTMLDivElement>(null)
 
-  // Sort y collapse
   const [collapsed, setCollapsed]           = useState<Set<string>>(new Set())
   const [sortField, setSortField]           = useState<SortField>('payment_date')
   const [sortDir, setSortDir]               = useState<SortDir>('desc')
 
-  // Modal nuevo pago
   const [modalOpen, setModalOpen]           = useState(false)
   const [saving, setSaving]                 = useState(false)
   const [newSupplier, setNewSupplier]       = useState('')
@@ -141,8 +134,6 @@ export default function PagosPage() {
 
   const statsToggle = useStatsToggle(eventId as string, 'pagos')
 
-  // ── Carga ─────────────────────────────────────────────────────────────────────
-
   const loadAll = async () => {
     setLoading(true)
     const [{ data: eventData }, { data: pagoData }, { data: suppliersData }] = await Promise.all([
@@ -151,10 +142,7 @@ export default function PagosPage() {
         .from('supplier_payments')
         .select(`
           id, amount, payment_date, payment_method, paid_by, reference,
-          event_suppliers!inner (
-            id, event_id,
-            suppliers!inner ( name, category )
-          )
+          event_suppliers!inner ( id, event_id, suppliers!inner ( name, category ) )
         `)
         .eq('event_suppliers.event_id', eventId)
         .order('payment_date', { ascending: false }),
@@ -170,34 +158,22 @@ export default function PagosPage() {
       setEventDate(eventData.event_date || null)
       if (eventData.currency) setCurrency(eventData.currency)
     }
-
     if (pagoData) {
       setPagos((pagoData as any[]).map(p => ({
-        id:                p.id,
-        amount:            p.amount,
-        payment_date:      p.payment_date,
-        payment_method:    p.payment_method,
-        paid_by:           p.paid_by,
-        reference:         p.reference,
+        id: p.id, amount: p.amount, payment_date: p.payment_date,
+        payment_method: p.payment_method, paid_by: p.paid_by, reference: p.reference,
         event_supplier_id: p.event_suppliers.id,
-        supplier_name:     p.event_suppliers.suppliers.name,
+        supplier_name: p.event_suppliers.suppliers.name,
         supplier_category: p.event_suppliers.suppliers.category,
       })))
     }
-
     if (suppliersData) {
-      setEventSuppliers((suppliersData as any[]).map(es => ({
-        id:            es.id,
-        supplier_name: es.suppliers.name,
-      })))
+      setEventSuppliers((suppliersData as any[]).map(es => ({ id: es.id, supplier_name: es.suppliers.name })))
     }
-
     setLoading(false)
   }
 
   useEffect(() => { loadAll() }, [eventId])
-
-  // ── Click fuera ───────────────────────────────────────────────────────────────
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -210,8 +186,6 @@ export default function PagosPage() {
     return () => document.removeEventListener('click', handler)
   }, [])
 
-  // ── Derivados ─────────────────────────────────────────────────────────────────
-
   const suppliers = useMemo(() => [...new Set(pagos.map(p => p.supplier_name))].sort(), [pagos])
   const methods   = useMemo(() => [...new Set(pagos.map(p => p.payment_method).filter(Boolean))] as string[], [pagos])
 
@@ -221,7 +195,7 @@ export default function PagosPage() {
       const q = search.toLowerCase()
       result = result.filter(p =>
         p.supplier_name.toLowerCase().includes(q) ||
-        (p.paid_by   || '').toLowerCase().includes(q) ||
+        (p.paid_by || '').toLowerCase().includes(q) ||
         (p.reference || '').toLowerCase().includes(q)
       )
     }
@@ -259,14 +233,10 @@ export default function PagosPage() {
 
   const dateRangeLabel = useMemo(() => {
     if (!filterDateFrom && !filterDateTo) return 'Fechas'
-    const desde = filterDateFrom ? fmtDate(filterDateFrom) : '...'
-    const hasta = filterDateTo   ? fmtDate(filterDateTo)   : '...'
-    return `${desde} — ${hasta}`
+    return `${filterDateFrom ? fmtDate(filterDateFrom) : '...'} — ${filterDateTo ? fmtDate(filterDateTo) : '...'}`
   }, [filterDateFrom, filterDateTo])
 
   const hasDateFilter = !!(filterDateFrom || filterDateTo)
-
-  // ── Sort ──────────────────────────────────────────────────────────────────────
 
   const toggleSort = (field: SortField) => {
     if (sortField === field) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
@@ -275,36 +245,20 @@ export default function PagosPage() {
 
   const SortIcon = ({ field }: { field: SortField }) => {
     if (sortField !== field) return <ArrowUpDown size={11} className="text-[#ccc]" />
-    return sortDir === 'asc'
-      ? <ArrowUp   size={11} className="text-[#48C9B0]" />
-      : <ArrowDown size={11} className="text-[#48C9B0]" />
+    return sortDir === 'asc' ? <ArrowUp size={11} className="text-[#48C9B0]" /> : <ArrowDown size={11} className="text-[#48C9B0]" />
   }
 
-  // ── Exports ───────────────────────────────────────────────────────────────────
-
   const getExportData = () => ({
-    eventName,
-    eventDate,
-    currency,
+    eventName, eventDate, currency,
     pagos: filtered.map(p => ({
-      supplier_name:     p.supplier_name,
-      supplier_category: p.supplier_category,
-      payment_date:      p.payment_date,
-      amount:            p.amount,
-      payment_method:    p.payment_method,
-      paid_by:           p.paid_by,
-      reference:         p.reference,
+      supplier_name: p.supplier_name, supplier_category: p.supplier_category,
+      payment_date: p.payment_date, amount: p.amount,
+      payment_method: p.payment_method, paid_by: p.paid_by, reference: p.reference,
     })),
   })
 
-  // ── Modal ─────────────────────────────────────────────────────────────────────
-
   const toggleGroup = (name: string) => {
-    setCollapsed(prev => {
-      const next = new Set(prev)
-      next.has(name) ? next.delete(name) : next.add(name)
-      return next
-    })
+    setCollapsed(prev => { const next = new Set(prev); next.has(name) ? next.delete(name) : next.add(name); return next })
   }
 
   const resetModal = () => {
@@ -319,28 +273,19 @@ export default function PagosPage() {
     setSaving(true)
     try {
       const { error } = await supabase.from('supplier_payments').insert({
-        event_supplier_id: newSupplier,
-        amount,
-        payment_date:   newDate,
-        payment_method: newMethod || null,
-        paid_by:        newPaidBy.trim()    || null,
-        reference:      newReference.trim() || null,
+        event_supplier_id: newSupplier, amount,
+        payment_date: newDate, payment_method: newMethod || null,
+        paid_by: newPaidBy.trim() || null, reference: newReference.trim() || null,
       })
       if (error) throw error
-      setModalOpen(false)
-      resetModal()
-      await loadAll()
+      setModalOpen(false); resetModal(); await loadAll()
     } catch (err: any) {
       console.error('Error guardando pago:', err?.message ?? err)
       alert('No se pudo guardar el pago. Intenta de nuevo.')
-    } finally {
-      setSaving(false)
-    }
+    } finally { setSaving(false) }
   }
 
   const selectedSupplierName = eventSuppliers.find(es => es.id === newSupplier)?.supplier_name || ''
-
-  // ── Loading ───────────────────────────────────────────────────────────────────
 
   if (loading) {
     return (
@@ -352,14 +297,10 @@ export default function PagosPage() {
     )
   }
 
-  // ── Render ────────────────────────────────────────────────────────────────────
-
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
-      {/* ══ TOOLBAR STICKY ══ */}
       <div className="shrink-0 border-b border-[#e8e8e8] px-4 pt-4 pb-0 sm:px-6 sm:pt-5">
-
         <div className="mb-4 flex items-start justify-between gap-4">
           <div>
             <h1 className="text-xl font-bold text-[#1D1E20]">Pagos</h1>
@@ -391,23 +332,17 @@ export default function PagosPage() {
           </div>
         </StatsCollapse>
 
-        {/* Toolbar */}
         <div className="mb-3 flex items-center gap-2">
           <div className="relative flex-1 min-w-0">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#aaa]" />
-            <input
-              type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar..."
-              className="w-full rounded-lg border border-[#e0e0e0] bg-white py-1.5 pl-9 pr-3 text-xs outline-none transition focus:border-[#48C9B0]"
-            />
+            <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar..."
+              className="w-full rounded-lg border border-[#e0e0e0] bg-white py-1.5 pl-9 pr-3 text-xs outline-none transition focus:border-[#48C9B0]" />
           </div>
 
-          {/* Filtro proveedor */}
           <div ref={supplierRef} className="relative shrink-0">
-            <button
-              onClick={() => { setSupplierOpen(p => !p); setMethodOpen(false); setDateRangeOpen(false) }}
+            <button onClick={() => { setSupplierOpen(p => !p); setMethodOpen(false); setDateRangeOpen(false) }}
               className={`flex items-center gap-1 rounded-lg border px-3 py-1.5 text-xs font-medium transition
-                ${filterSupplier !== 'todos' ? 'border-[#1D1E20] bg-[#1D1E20] text-white' : 'border-[#e0e0e0] bg-white text-[#555] hover:border-[#aaa]'}`}
-            >
+                ${filterSupplier !== 'todos' ? 'border-[#1D1E20] bg-[#1D1E20] text-white' : 'border-[#e0e0e0] bg-white text-[#555] hover:border-[#aaa]'}`}>
               Proveedor <ChevronDown size={12} />
             </button>
             {supplierOpen && (
@@ -422,17 +357,14 @@ export default function PagosPage() {
             )}
           </div>
 
-          {/* Filtro metodo */}
           <div ref={methodRef} className="relative shrink-0">
-            <button
-              onClick={() => { setMethodOpen(p => !p); setSupplierOpen(false); setDateRangeOpen(false) }}
+            <button onClick={() => { setMethodOpen(p => !p); setSupplierOpen(false); setDateRangeOpen(false) }}
               className={`flex items-center gap-1 rounded-lg border px-3 py-1.5 text-xs font-medium transition
-                ${filterMethod !== 'todos' ? 'border-[#1D1E20] bg-[#1D1E20] text-white' : 'border-[#e0e0e0] bg-white text-[#555] hover:border-[#aaa]'}`}
-            >
+                ${filterMethod !== 'todos' ? 'border-[#1D1E20] bg-[#1D1E20] text-white' : 'border-[#e0e0e0] bg-white text-[#555] hover:border-[#aaa]'}`}>
               Metodo <ChevronDown size={12} />
             </button>
             {methodOpen && (
-              <div className="absolute right-0 top-full z-20 mt-1 w-44 overflow-hidden rounded-lg border border-[#e8e8e8] bg-white shadow-lg">
+              <div className="absolute right-0 top-full z-20 mt-1 w-48 overflow-hidden rounded-lg border border-[#e8e8e8] bg-white shadow-lg">
                 {['todos', ...methods].map(m => (
                   <button key={m} onClick={() => { setFilterMethod(m); setMethodOpen(false) }}
                     className={`flex w-full items-center px-3 py-2 text-left text-xs transition hover:bg-[#f8f5f0] ${filterMethod === m ? 'font-semibold text-[#48C9B0]' : 'text-[#444]'}`}>
@@ -443,13 +375,10 @@ export default function PagosPage() {
             )}
           </div>
 
-          {/* Date range — solo desktop */}
           <div ref={dateRangeRef} className="relative hidden shrink-0 sm:block">
-            <button
-              onClick={() => { setDateRangeOpen(p => !p); setSupplierOpen(false); setMethodOpen(false) }}
+            <button onClick={() => { setDateRangeOpen(p => !p); setSupplierOpen(false); setMethodOpen(false) }}
               className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition
-                ${hasDateFilter ? 'border-[#1D1E20] bg-[#1D1E20] text-white' : 'border-[#e0e0e0] bg-white text-[#555] hover:border-[#aaa]'}`}
-            >
+                ${hasDateFilter ? 'border-[#1D1E20] bg-[#1D1E20] text-white' : 'border-[#e0e0e0] bg-white text-[#555] hover:border-[#aaa]'}`}>
               <Calendar size={12} />
               {dateRangeLabel}
               {hasDateFilter && (
@@ -473,9 +402,7 @@ export default function PagosPage() {
                       className="w-full rounded-lg border border-[#e0e0e0] px-3 py-1.5 text-xs outline-none focus:border-[#48C9B0]" />
                   </div>
                   <button onClick={() => setDateRangeOpen(false)}
-                    className="w-full rounded-lg bg-[#48C9B0] py-1.5 text-xs font-semibold text-white">
-                    Aplicar
-                  </button>
+                    className="w-full rounded-lg bg-[#48C9B0] py-1.5 text-xs font-semibold text-white">Aplicar</button>
                 </div>
               </div>
             )}
@@ -485,12 +412,10 @@ export default function PagosPage() {
             className="hidden items-center gap-1.5 rounded-lg border border-[#e0e0e0] bg-white px-3 py-1.5 text-xs font-medium text-[#555] transition hover:border-[#48C9B0] hover:text-[#48C9B0] sm:flex">
             <FileSpreadsheet size={13} /> Excel
           </button>
-
           <button onClick={() => exportPagosToPDF(getExportData())}
             className="hidden items-center gap-1.5 rounded-lg border border-[#e0e0e0] bg-white px-3 py-1.5 text-xs font-medium text-[#555] transition hover:border-[#48C9B0] hover:text-[#48C9B0] sm:flex">
             <FileText size={13} /> PDF
           </button>
-
           <button onClick={() => setModalOpen(true)}
             className="flex shrink-0 items-center gap-1.5 rounded-lg bg-[#48C9B0] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#3aa896]">
             <Plus size={13} />
@@ -500,9 +425,7 @@ export default function PagosPage() {
         </div>
       </div>
 
-      {/* ══ CONTENIDO ══ */}
       <div className="flex-1 overflow-y-auto px-4 pb-6 pt-3 sm:px-6">
-
         {filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-[#e8e8e8] py-20 text-center">
             <Receipt size={28} className="mb-3 text-[#ddd]" />
@@ -511,34 +434,24 @@ export default function PagosPage() {
           </div>
         ) : (
           <>
-            {/* ══ MOBILE ══ */}
+            {/* MOBILE */}
             <div className="flex flex-col gap-2 sm:hidden">
               {[...grouped.entries()].map(([supplierName, items]) => {
                 const isCollapsed = collapsed.has(supplierName)
-                const subtotal    = items.reduce((s, p) => s + p.amount, 0)
+                const subtotal = items.reduce((s, p) => s + p.amount, 0)
                 return (
                   <div key={'mg-' + supplierName} className="overflow-hidden rounded-xl border border-[#e8e8e8] bg-white">
-                    <div
-                      onClick={() => toggleGroup(supplierName)}
-                      className="flex items-center gap-2 bg-[#f8f5f0] px-3 py-2.5 active:bg-[#f0ede8]"
-                    >
-                      {isCollapsed
-                        ? <ChevronRight size={13} className="shrink-0 text-[#aaa]" />
-                        : <ChevronDown  size={13} className="shrink-0 text-[#aaa]" />
-                      }
+                    <div onClick={() => toggleGroup(supplierName)}
+                      className="flex items-center gap-2 bg-[#f8f5f0] px-3 py-2.5 active:bg-[#f0ede8]">
+                      {isCollapsed ? <ChevronRight size={13} className="shrink-0 text-[#aaa]" /> : <ChevronDown size={13} className="shrink-0 text-[#aaa]" />}
                       <span className="min-w-0 flex-1 truncate text-xs font-semibold text-[#1D1E20]">{supplierName}</span>
                       <span className="shrink-0 rounded-full bg-[#e8e8e8] px-2 py-0.5 text-[10px] font-medium text-[#888]">
                         {items.length} {items.length === 1 ? 'pago' : 'pagos'}
                       </span>
-                      <span className="shrink-0 ml-2 text-xs font-semibold text-[#1D1E20]">
-                        {fmt(subtotal, currency)}
-                      </span>
+                      <span className="shrink-0 ml-2 text-xs font-semibold text-[#1D1E20]">{fmt(subtotal, currency)}</span>
                     </div>
                     {!isCollapsed && items.map((pago, i) => (
-                      <div
-                        key={pago.id}
-                        className={`flex items-center gap-2 px-3 py-2.5 ${i < items.length - 1 ? 'border-b border-[#f0f0f0]' : ''}`}
-                      >
+                      <div key={pago.id} className={`flex items-center gap-2 px-3 py-2.5 ${i < items.length - 1 ? 'border-b border-[#f0f0f0]' : ''}`}>
                         <MethodIcon method={pago.payment_method} />
                         <span className="min-w-0 flex-1 truncate text-xs capitalize text-[#1D1E20]">
                           {pago.paid_by || <span className="text-[#ccc]">—</span>}
@@ -560,7 +473,7 @@ export default function PagosPage() {
               </div>
             </div>
 
-            {/* ══ DESKTOP ══ */}
+            {/* DESKTOP */}
             <div className="hidden sm:block overflow-hidden rounded-xl border border-[#e8e8e8]">
               <table className="w-full border-collapse text-xs">
                 <thead>
@@ -598,29 +511,21 @@ export default function PagosPage() {
                 <tbody>
                   {[...grouped.entries()].map(([supplierName, items]) => {
                     const isCollapsed = collapsed.has(supplierName)
-                    const subtotal    = items.reduce((s, p) => s + p.amount, 0)
+                    const subtotal = items.reduce((s, p) => s + p.amount, 0)
                     return (
                       <>
-                        <tr
-                          key={'dg-' + supplierName}
-                          onClick={() => toggleGroup(supplierName)}
-                          className="cursor-pointer border-b border-[#e8e8e8] bg-[#fafaf9] transition hover:bg-[#f5f2ed]"
-                        >
+                        <tr key={'dg-' + supplierName} onClick={() => toggleGroup(supplierName)}
+                          className="cursor-pointer border-b border-[#e8e8e8] bg-[#fafaf9] transition hover:bg-[#f5f2ed]">
                           <td className="px-4 py-2.5" colSpan={5}>
                             <div className="flex items-center gap-2">
-                              {isCollapsed
-                                ? <ChevronRight size={13} className="shrink-0 text-[#aaa]" />
-                                : <ChevronDown  size={13} className="shrink-0 text-[#aaa]" />
-                              }
+                              {isCollapsed ? <ChevronRight size={13} className="shrink-0 text-[#aaa]" /> : <ChevronDown size={13} className="shrink-0 text-[#aaa]" />}
                               <span className="font-semibold text-[#1D1E20]">{supplierName}</span>
                               <span className="rounded-full bg-[#e8e8e8] px-2 py-0.5 text-[10px] font-medium text-[#888]">
                                 {items.length} {items.length === 1 ? 'pago' : 'pagos'}
                               </span>
                             </div>
                           </td>
-                          <td className="px-4 py-2.5 text-right font-semibold text-[#1D1E20]">
-                            {fmt(subtotal, currency)}
-                          </td>
+                          <td className="px-4 py-2.5 text-right font-semibold text-[#1D1E20]">{fmt(subtotal, currency)}</td>
                         </tr>
                         {!isCollapsed && items.map(pago => (
                           <tr key={pago.id} className="border-b border-[#f0f0f0] transition hover:bg-[#fafaf9]">
@@ -643,9 +548,7 @@ export default function PagosPage() {
                             <td className="hidden px-4 py-2.5 text-[#aaa] xl:table-cell">
                               {pago.reference || <span className="text-[#ccc]">—</span>}
                             </td>
-                            <td className="px-4 py-2.5 text-right text-[#555]">
-                              {fmt(pago.amount, currency)}
-                            </td>
+                            <td className="px-4 py-2.5 text-right text-[#555]">{fmt(pago.amount, currency)}</td>
                           </tr>
                         ))}
                       </>
@@ -653,9 +556,7 @@ export default function PagosPage() {
                   })}
                   <tr className="border-t-2 border-[#e8e8e8] bg-white">
                     <td className="px-4 py-3 text-xs font-semibold text-[#1D1E20]" colSpan={5}>Total</td>
-                    <td className="px-4 py-3 text-right text-sm font-bold text-[#48C9B0]">
-                      {fmt(totalPagado, currency)}
-                    </td>
+                    <td className="px-4 py-3 text-right text-sm font-bold text-[#48C9B0]">{fmt(totalPagado, currency)}</td>
                   </tr>
                 </tbody>
               </table>
@@ -664,14 +565,12 @@ export default function PagosPage() {
         )}
       </div>
 
-      {/* ══ MODAL NUEVO PAGO ══ */}
+      {/* MODAL */}
       {modalOpen && (
         <>
-          <div onClick={() => { setModalOpen(false); resetModal() }}
-            className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm" />
+          <div onClick={() => { setModalOpen(false); resetModal() }} className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm" />
           <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4">
             <div className="flex w-full max-w-md flex-col overflow-hidden rounded-t-2xl bg-white shadow-xl sm:rounded-2xl">
-
               <div className="flex shrink-0 items-center justify-between border-b border-[#f0f0f0] px-5 py-4">
                 <h2 className="text-sm font-bold text-[#1D1E20]">Nuevo pago</h2>
                 <button onClick={() => { setModalOpen(false); resetModal() }}
@@ -681,15 +580,11 @@ export default function PagosPage() {
               </div>
 
               <div className="flex flex-col gap-4 px-5 py-4">
-
-                {/* Proveedor */}
                 <div>
                   <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-[#aaa]">Proveedor *</p>
                   <div ref={modalSupplierRef} className="relative">
-                    <button
-                      onClick={() => setModalSupplierOpen(p => !p)}
-                      className="flex w-full items-center justify-between rounded-lg border border-[#e0e0e0] bg-white px-3 py-2 text-xs transition focus:border-[#48C9B0]"
-                    >
+                    <button onClick={() => setModalSupplierOpen(p => !p)}
+                      className="flex w-full items-center justify-between rounded-lg border border-[#e0e0e0] bg-white px-3 py-2 text-xs transition focus:border-[#48C9B0]">
                       <span className={selectedSupplierName ? 'text-[#1D1E20]' : 'text-[#bbb]'}>
                         {selectedSupplierName || 'Selecciona un proveedor'}
                       </span>
@@ -711,7 +606,6 @@ export default function PagosPage() {
                   </div>
                 </div>
 
-                {/* Monto + Fecha */}
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-[#aaa]">Monto *</p>
@@ -726,7 +620,6 @@ export default function PagosPage() {
                   </div>
                 </div>
 
-                {/* Pagado por + Método — select nativo, sin overflow issues */}
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-[#aaa]">Pagado por</p>
@@ -736,12 +629,8 @@ export default function PagosPage() {
                   </div>
                   <div>
                     <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-[#aaa]">Metodo</p>
-                    {/* select nativo — sin bugs de overflow dentro del modal */}
-                    <select
-                      value={newMethod}
-                      onChange={e => setNewMethod(e.target.value)}
-                      className="w-full cursor-pointer rounded-lg border border-[#e0e0e0] bg-white px-3 py-2 text-xs text-[#1D1E20] outline-none transition focus:border-[#48C9B0]"
-                    >
+                    <select value={newMethod} onChange={e => setNewMethod(e.target.value)}
+                      className="w-full cursor-pointer rounded-lg border border-[#e0e0e0] bg-white px-3 py-2 text-xs text-[#1D1E20] outline-none transition focus:border-[#48C9B0]">
                       {PAYMENT_METHODS.map(m => (
                         <option key={m} value={m}>{METHOD_LABEL[m]}</option>
                       ))}
@@ -749,7 +638,6 @@ export default function PagosPage() {
                   </div>
                 </div>
 
-                {/* Referencia */}
                 <div>
                   <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-[#aaa]">Referencia / notas</p>
                   <input type="text" placeholder="Opcional" value={newReference}
