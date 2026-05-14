@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import {
   X, LayoutList, User, Building2, AlertTriangle,
   Bell, Clock, LucideIcon
@@ -14,22 +13,16 @@ const ICON_MAP: Record<string, LucideIcon> = {
   LayoutList, User, Building2, AlertTriangle, Bell, Clock,
 }
 
-// ─── MOCKUP DEL TIMELINE ──────────────────────────────────────────────────────
-
 function TimelineMockup() {
   return (
     <div className="h-full w-full overflow-hidden rounded-l-2xl bg-[#f8f5f0]">
-      {/* Browser chrome */}
       <div className="flex items-center gap-1.5 border-b border-[#e8e4de] bg-[#f0ede8] px-3 py-2">
         <span className="h-2 w-2 rounded-full bg-[#ff6b6b]" />
         <span className="h-2 w-2 rounded-full bg-[#ffd93d]" />
         <span className="h-2 w-2 rounded-full bg-[#6bcb77]" />
-        <span className="ml-2 text-[9px] text-[#aaa]">www.anfiora.com · Timeline</span>
+        <span className="ml-2 text-[9px] text-[#aaa]">anfiora.com · Timeline</span>
       </div>
-
-      {/* App shell */}
       <div className="flex h-full">
-        {/* Sidebar mini */}
         <div className="w-20 shrink-0 border-r border-[#e8e4de] bg-[#f8f5f0] p-2">
           {['Invitados','Mesas','Timeline','Presupuesto'].map((item, i) => (
             <div key={item} className={`mb-1 rounded px-1.5 py-1.5 text-[8px] truncate ${i === 2 ? 'bg-white font-semibold text-[#1D1E20]' : 'text-[#aaa]'}`}>
@@ -37,8 +30,6 @@ function TimelineMockup() {
             </div>
           ))}
         </div>
-
-        {/* Timeline content */}
         <div className="flex-1 overflow-hidden p-3">
           <p className="mb-2 text-[9px] font-semibold uppercase tracking-widest text-[#aaa]">Junio 2026</p>
 
@@ -131,10 +122,7 @@ function TimelineMockup() {
   )
 }
 
-// ─── MODAL ────────────────────────────────────────────────────────────────────
-
 export function WhatsNewModal() {
-  const router = useRouter()
   const [release, setRelease] = useState<Release | null>(null)
 
   useEffect(() => {
@@ -152,12 +140,6 @@ export function WhatsNewModal() {
   const dismiss = () => {
     localStorage.setItem(STORAGE_KEY, CURRENT_VERSION)
     setRelease(null)
-  }
-
-  const handleCta = () => {
-    localStorage.setItem(STORAGE_KEY, CURRENT_VERSION)
-    setRelease(null)
-    router.push(release!.cta.href)
   }
 
   if (!release) return null
@@ -199,14 +181,12 @@ export function WhatsNewModal() {
               })}
             </div>
 
-            <div className="mt-5 flex gap-2.5">
-              <button onClick={dismiss}
-                className="flex-1 rounded-xl border border-[#e0e0e0] py-2.5 text-sm text-[#888] transition hover:bg-[#f8f8f8]">
-                Cerrar
-              </button>
-              <button onClick={handleCta}
-                className="flex-[2] rounded-xl bg-[#48C9B0] py-2.5 text-sm font-semibold text-white transition hover:bg-[#3ab89f]">
-                {release.cta.label} →
+            <div className="mt-5">
+              <button
+                onClick={dismiss}
+                className="w-full rounded-xl bg-[#48C9B0] py-2.5 text-sm font-semibold text-white transition hover:bg-[#3ab89f]"
+              >
+                Entendido
               </button>
             </div>
           </div>
