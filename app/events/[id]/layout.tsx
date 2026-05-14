@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { useParams, usePathname, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { Users, Images, Music2, Settings, LayoutGrid, PanelLeftClose, PanelLeftOpen, CalendarDays, House, User, LogOut, Wallet, Briefcase, Heart, MessageCircle } from 'lucide-react'
+import { Users, Images, Music2, Settings, LayoutGrid, PanelLeftClose, PanelLeftOpen, CalendarDays, House, User, LogOut, Wallet, Briefcase, Heart, MessageCircle, Receipt } from 'lucide-react'
 import { Event } from '@/lib/types'
 import { EventAccessProvider, useEventAccess } from '@/lib/event-access-context'
 
@@ -97,6 +97,11 @@ const NAV_ITEMS: NavEntry[] = [
         label: 'Proveedores', path: '/proveedores', pro: true,
         iconOutline: <Briefcase width={18} height={18} strokeWidth={1.5} />,
         iconFilled:  <Briefcase width={18} height={18} strokeWidth={2.5} />,
+      },
+      {
+        label: 'Pagos', path: '/pagos', pro: true,
+        iconOutline: <Receipt width={18} height={18} strokeWidth={1.5} />,
+        iconFilled:  <Receipt width={18} height={18} strokeWidth={2.5} />,
       },
     ],
   },
