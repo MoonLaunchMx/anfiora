@@ -142,6 +142,8 @@ export default function PagosPage() {
 
   const statsToggle = useStatsToggle(eventId as string, 'pagos')
 
+  // ── Carga inicial con loading ─────────────────────────────────────────────────
+
   const loadAll = async () => {
     setLoading(true)
     const [{ data: eventData }, { data: pagoData }, { data: suppliersData }] = await Promise.all([
@@ -179,6 +181,39 @@ export default function PagosPage() {
       setEventSuppliers((suppliersData as any[]).map(es => ({ id: es.id, supplier_name: es.suppliers.name })))
     }
     setLoading(false)
+  }
+
+  // ── Reload silencioso — sin skeleton, solo actualiza datos ────────────────────
+
+  const reloadSilent = async () => {
+    const [{ data: pagoData }, { data: suppliersData }] = await Promise.all([
+      supabase
+        .from('supplier_payments')
+        .select(`
+          id, amount, payment_date, payment_method, paid_by, reference,
+          event_suppliers!inner ( id, event_id, suppliers!inner ( name, category ) )
+        `)
+        .eq('event_suppliers.event_id', eventId)
+        .order('payment_date', { ascending: false }),
+      supabase
+        .from('event_suppliers')
+        .select('id, suppliers!inner(name)')
+        .eq('event_id', eventId)
+        .in('status', ['cotizado', 'contratado']),
+    ])
+
+    if (pagoData) {
+      setPagos((pagoData as any[]).map(p => ({
+        id: p.id, amount: p.amount, payment_date: p.payment_date,
+        payment_method: p.payment_method, paid_by: p.paid_by, reference: p.reference,
+        event_supplier_id: p.event_suppliers.id,
+        supplier_name: p.event_suppliers.suppliers.name,
+        supplier_category: p.event_suppliers.suppliers.category,
+      })))
+    }
+    if (suppliersData) {
+      setEventSuppliers((suppliersData as any[]).map(es => ({ id: es.id, supplier_name: es.suppliers.name })))
+    }
   }
 
   useEffect(() => { loadAll() }, [eventId])
@@ -311,7 +346,8 @@ export default function PagosPage() {
         })
         if (error) throw error
       }
-      closeModal(); await loadAll()
+      closeModal()
+      await reloadSilent()
     } catch (err: any) {
       console.error('Error guardando pago:', err?.message ?? err)
       alert('No se pudo guardar el pago. Intenta de nuevo.')
@@ -325,7 +361,8 @@ export default function PagosPage() {
     try {
       const { error } = await supabase.from('supplier_payments').delete().eq('id', editingPago.id)
       if (error) throw error
-      closeModal(); await loadAll()
+      closeModal()
+      await reloadSilent()
     } catch (err: any) {
       console.error('Error eliminando pago:', err?.message ?? err)
       alert('No se pudo eliminar el pago. Intenta de nuevo.')
@@ -634,7 +671,6 @@ export default function PagosPage() {
               </div>
 
               <div className="flex flex-col gap-4 px-5 py-4">
-                {/* Proveedor */}
                 <div>
                   <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-[#aaa]">Proveedor *</p>
                   <div ref={modalSupplierRef} className="relative">
@@ -661,7 +697,6 @@ export default function PagosPage() {
                   </div>
                 </div>
 
-                {/* Monto + Fecha */}
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-[#aaa]">Monto *</p>
@@ -676,7 +711,6 @@ export default function PagosPage() {
                   </div>
                 </div>
 
-                {/* Pagado por + Método — ambos select nativos */}
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-[#aaa]">Pagado por</p>
@@ -699,7 +733,6 @@ export default function PagosPage() {
                   </div>
                 </div>
 
-                {/* Referencia */}
                 <div>
                   <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-[#aaa]">Referencia / notas</p>
                   <input type="text" placeholder="Opcional" value={newReference}
