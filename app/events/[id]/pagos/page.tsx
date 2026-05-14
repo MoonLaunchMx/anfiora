@@ -51,6 +51,18 @@ const METHOD_STYLE: Record<string, { bg: string; border: string; color: string }
 
 const PAYMENT_METHODS = ['transferencia', 'efectivo', 'tarjeta_credito', 'tarjeta_debito', 'cheque', 'otro']
 
+const PAID_BY_LABEL: Record<string, string> = {
+  novia:       'Novia',
+  novio:       'Novio',
+  pareja:      'Pareja',
+  papas_novia: 'Papás novia',
+  papas_novio: 'Papás novio',
+  familiar:    'Familiar',
+  otro:        'Otro',
+}
+
+const PAID_BY_VALUES = ['novia', 'novio', 'pareja', 'papas_novia', 'papas_novio', 'familiar', 'otro']
+
 function MethodIcon({ method }: { method: string | null }) {
   if (!method) {
     return (
@@ -288,14 +300,14 @@ export default function PagosPage() {
         const { error } = await supabase.from('supplier_payments').update({
           event_supplier_id: newSupplier, amount,
           payment_date: newDate, payment_method: newMethod || null,
-          paid_by: newPaidBy.trim() || null, reference: newReference.trim() || null,
+          paid_by: newPaidBy || null, reference: newReference.trim() || null,
         }).eq('id', editingPago.id)
         if (error) throw error
       } else {
         const { error } = await supabase.from('supplier_payments').insert({
           event_supplier_id: newSupplier, amount,
           payment_date: newDate, payment_method: newMethod || null,
-          paid_by: newPaidBy.trim() || null, reference: newReference.trim() || null,
+          paid_by: newPaidBy || null, reference: newReference.trim() || null,
         })
         if (error) throw error
       }
@@ -491,8 +503,8 @@ export default function PagosPage() {
                         onClick={() => openEditar(pago)}
                         className={`flex cursor-pointer items-center gap-2 px-3 py-2.5 transition active:bg-[#f8f5f0] ${i < items.length - 1 ? 'border-b border-[#f0f0f0]' : ''}`}>
                         <MethodIcon method={pago.payment_method} />
-                        <span className="min-w-0 flex-1 truncate text-xs capitalize text-[#1D1E20]">
-                          {pago.paid_by || <span className="text-[#ccc]">—</span>}
+                        <span className="min-w-0 flex-1 truncate text-xs text-[#1D1E20]">
+                          {pago.paid_by ? (PAID_BY_LABEL[pago.paid_by] || pago.paid_by) : <span className="text-[#ccc]">—</span>}
                         </span>
                         <span className="shrink-0 text-[11px] text-[#aaa]" style={{ minWidth: '56px', textAlign: 'right' }}>
                           {fmtDateShort(pago.payment_date)}
@@ -571,8 +583,8 @@ export default function PagosPage() {
                             className="cursor-pointer border-b border-[#f0f0f0] transition hover:bg-[#fafaf9]">
                             <td className="px-4 py-2.5 pl-10 text-[#666]">{supplierName}</td>
                             <td className="px-4 py-2.5 text-[#888]">{fmtDate(pago.payment_date)}</td>
-                            <td className="hidden px-4 py-2.5 capitalize text-[#888] md:table-cell">
-                              {pago.paid_by || <span className="text-[#ccc]">—</span>}
+                            <td className="hidden px-4 py-2.5 text-[#888] md:table-cell">
+                              {pago.paid_by ? (PAID_BY_LABEL[pago.paid_by] || pago.paid_by) : <span className="text-[#ccc]">—</span>}
                             </td>
                             <td className="hidden px-4 py-2.5 md:table-cell">
                               {pago.payment_method ? (() => {
@@ -622,6 +634,7 @@ export default function PagosPage() {
               </div>
 
               <div className="flex flex-col gap-4 px-5 py-4">
+                {/* Proveedor */}
                 <div>
                   <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-[#aaa]">Proveedor *</p>
                   <div ref={modalSupplierRef} className="relative">
@@ -648,6 +661,7 @@ export default function PagosPage() {
                   </div>
                 </div>
 
+                {/* Monto + Fecha */}
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-[#aaa]">Monto *</p>
@@ -662,12 +676,17 @@ export default function PagosPage() {
                   </div>
                 </div>
 
+                {/* Pagado por + Método — ambos select nativos */}
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-[#aaa]">Pagado por</p>
-                    <input type="text" placeholder="Ej. Pareja, Novio..." value={newPaidBy}
-                      onChange={e => setNewPaidBy(e.target.value)}
-                      className="w-full rounded-lg border border-[#e0e0e0] bg-white px-3 py-2 text-xs outline-none transition focus:border-[#48C9B0]" />
+                    <select value={newPaidBy} onChange={e => setNewPaidBy(e.target.value)}
+                      className="w-full cursor-pointer rounded-lg border border-[#e0e0e0] bg-white px-3 py-2 text-xs text-[#1D1E20] outline-none transition focus:border-[#48C9B0]">
+                      <option value="">Sin especificar</option>
+                      {PAID_BY_VALUES.map(v => (
+                        <option key={v} value={v}>{PAID_BY_LABEL[v]}</option>
+                      ))}
+                    </select>
                   </div>
                   <div>
                     <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-[#aaa]">Metodo</p>
@@ -680,6 +699,7 @@ export default function PagosPage() {
                   </div>
                 </div>
 
+                {/* Referencia */}
                 <div>
                   <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-[#aaa]">Referencia / notas</p>
                   <input type="text" placeholder="Opcional" value={newReference}
