@@ -1,12 +1,12 @@
 'use client'
 
-import { useEffect, useState, useMemo, useRef } from 'react'
+import { useEffect, useState, useMemo, useRef, Fragment } from 'react'
 import { useParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import {
   Receipt, Search, ChevronDown, ChevronRight,
   FileSpreadsheet, FileText, ArrowUpDown, ArrowUp, ArrowDown,
-  Plus, X, Calendar,
+  Plus, X, Calendar, Trash2,
 } from 'lucide-react'
 import StatsCollapse, { useStatsToggle, StatsToggleButton } from '@/app/components/ui/StatsCollapse'
 import { exportPagosToExcel, exportPagosToPDF } from './lib/exports'
@@ -61,18 +61,12 @@ function MethodIcon({ method }: { method: string | null }) {
   }
   const s = METHOD_STYLE[method] || { bg: '#f5f5f5', border: '#e0e0e0', color: '#888' }
   const abbr: Record<string, string> = {
-    transferencia:   'TRF',
-    efectivo:        'EFE',
-    tarjeta_credito: 'TC',
-    tarjeta_debito:  'TD',
-    cheque:          'CHQ',
-    otro:            'OTR',
+    transferencia: 'TRF', efectivo: 'EFE', tarjeta_credito: 'TC',
+    tarjeta_debito: 'TD', cheque: 'CHQ', otro: 'OTR',
   }
   return (
-    <div
-      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border text-[9px] font-bold"
-      style={{ background: s.bg, borderColor: s.border, color: s.color }}
-    >
+    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border text-[9px] font-bold"
+      style={{ background: s.bg, borderColor: s.border, color: s.color }}>
       {abbr[method] || method.slice(0, 3).toUpperCase()}
     </div>
   )
@@ -122,7 +116,9 @@ export default function PagosPage() {
   const [sortDir, setSortDir]               = useState<SortDir>('desc')
 
   const [modalOpen, setModalOpen]           = useState(false)
+  const [editingPago, setEditingPago]       = useState<Pago | null>(null)
   const [saving, setSaving]                 = useState(false)
+  const [deleting, setDeleting]             = useState(false)
   const [newSupplier, setNewSupplier]       = useState('')
   const [newAmount, setNewAmount]           = useState('')
   const [newDate, setNewDate]               = useState(todayStr())
@@ -262,9 +258,25 @@ export default function PagosPage() {
   }
 
   const resetModal = () => {
+    setEditingPago(null)
     setNewSupplier(''); setNewAmount(''); setNewDate(todayStr())
     setNewPaidBy(''); setNewMethod('transferencia'); setNewReference('')
   }
+
+  const openNuevo = () => { resetModal(); setModalOpen(true) }
+
+  const openEditar = (pago: Pago) => {
+    setEditingPago(pago)
+    setNewSupplier(pago.event_supplier_id)
+    setNewAmount(String(pago.amount))
+    setNewDate(pago.payment_date)
+    setNewPaidBy(pago.paid_by || '')
+    setNewMethod(pago.payment_method || 'transferencia')
+    setNewReference(pago.reference || '')
+    setModalOpen(true)
+  }
+
+  const closeModal = () => { setModalOpen(false); resetModal() }
 
   const handleSavePago = async () => {
     if (!newSupplier || !newAmount || !newDate) return
@@ -272,20 +284,44 @@ export default function PagosPage() {
     if (isNaN(amount) || amount <= 0) return
     setSaving(true)
     try {
-      const { error } = await supabase.from('supplier_payments').insert({
-        event_supplier_id: newSupplier, amount,
-        payment_date: newDate, payment_method: newMethod || null,
-        paid_by: newPaidBy.trim() || null, reference: newReference.trim() || null,
-      })
-      if (error) throw error
-      setModalOpen(false); resetModal(); await loadAll()
+      if (editingPago) {
+        const { error } = await supabase.from('supplier_payments').update({
+          event_supplier_id: newSupplier, amount,
+          payment_date: newDate, payment_method: newMethod || null,
+          paid_by: newPaidBy.trim() || null, reference: newReference.trim() || null,
+        }).eq('id', editingPago.id)
+        if (error) throw error
+      } else {
+        const { error } = await supabase.from('supplier_payments').insert({
+          event_supplier_id: newSupplier, amount,
+          payment_date: newDate, payment_method: newMethod || null,
+          paid_by: newPaidBy.trim() || null, reference: newReference.trim() || null,
+        })
+        if (error) throw error
+      }
+      closeModal(); await loadAll()
     } catch (err: any) {
       console.error('Error guardando pago:', err?.message ?? err)
       alert('No se pudo guardar el pago. Intenta de nuevo.')
     } finally { setSaving(false) }
   }
 
+  const handleDeletePago = async () => {
+    if (!editingPago) return
+    if (!confirm('¿Eliminar este pago? Esta accion no se puede deshacer.')) return
+    setDeleting(true)
+    try {
+      const { error } = await supabase.from('supplier_payments').delete().eq('id', editingPago.id)
+      if (error) throw error
+      closeModal(); await loadAll()
+    } catch (err: any) {
+      console.error('Error eliminando pago:', err?.message ?? err)
+      alert('No se pudo eliminar el pago. Intenta de nuevo.')
+    } finally { setDeleting(false) }
+  }
+
   const selectedSupplierName = eventSuppliers.find(es => es.id === newSupplier)?.supplier_name || ''
+  const isEditing = !!editingPago
 
   if (loading) {
     return (
@@ -416,7 +452,7 @@ export default function PagosPage() {
             className="hidden items-center gap-1.5 rounded-lg border border-[#e0e0e0] bg-white px-3 py-1.5 text-xs font-medium text-[#555] transition hover:border-[#48C9B0] hover:text-[#48C9B0] sm:flex">
             <FileText size={13} /> PDF
           </button>
-          <button onClick={() => setModalOpen(true)}
+          <button onClick={openNuevo}
             className="flex shrink-0 items-center gap-1.5 rounded-lg bg-[#48C9B0] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#3aa896]">
             <Plus size={13} />
             <span className="hidden sm:inline">Nuevo pago</span>
@@ -451,7 +487,9 @@ export default function PagosPage() {
                       <span className="shrink-0 ml-2 text-xs font-semibold text-[#1D1E20]">{fmt(subtotal, currency)}</span>
                     </div>
                     {!isCollapsed && items.map((pago, i) => (
-                      <div key={pago.id} className={`flex items-center gap-2 px-3 py-2.5 ${i < items.length - 1 ? 'border-b border-[#f0f0f0]' : ''}`}>
+                      <div key={pago.id}
+                        onClick={() => openEditar(pago)}
+                        className={`flex cursor-pointer items-center gap-2 px-3 py-2.5 transition active:bg-[#f8f5f0] ${i < items.length - 1 ? 'border-b border-[#f0f0f0]' : ''}`}>
                         <MethodIcon method={pago.payment_method} />
                         <span className="min-w-0 flex-1 truncate text-xs capitalize text-[#1D1E20]">
                           {pago.paid_by || <span className="text-[#ccc]">—</span>}
@@ -513,8 +551,8 @@ export default function PagosPage() {
                     const isCollapsed = collapsed.has(supplierName)
                     const subtotal = items.reduce((s, p) => s + p.amount, 0)
                     return (
-                      <>
-                        <tr key={'dg-' + supplierName} onClick={() => toggleGroup(supplierName)}
+                      <Fragment key={'dg-' + supplierName}>
+                        <tr onClick={() => toggleGroup(supplierName)}
                           className="cursor-pointer border-b border-[#e8e8e8] bg-[#fafaf9] transition hover:bg-[#f5f2ed]">
                           <td className="px-4 py-2.5" colSpan={5}>
                             <div className="flex items-center gap-2">
@@ -528,7 +566,9 @@ export default function PagosPage() {
                           <td className="px-4 py-2.5 text-right font-semibold text-[#1D1E20]">{fmt(subtotal, currency)}</td>
                         </tr>
                         {!isCollapsed && items.map(pago => (
-                          <tr key={pago.id} className="border-b border-[#f0f0f0] transition hover:bg-[#fafaf9]">
+                          <tr key={pago.id}
+                            onClick={() => openEditar(pago)}
+                            className="cursor-pointer border-b border-[#f0f0f0] transition hover:bg-[#fafaf9]">
                             <td className="px-4 py-2.5 pl-10 text-[#666]">{supplierName}</td>
                             <td className="px-4 py-2.5 text-[#888]">{fmtDate(pago.payment_date)}</td>
                             <td className="hidden px-4 py-2.5 capitalize text-[#888] md:table-cell">
@@ -551,7 +591,7 @@ export default function PagosPage() {
                             <td className="px-4 py-2.5 text-right text-[#555]">{fmt(pago.amount, currency)}</td>
                           </tr>
                         ))}
-                      </>
+                      </Fragment>
                     )
                   })}
                   <tr className="border-t-2 border-[#e8e8e8] bg-white">
@@ -568,12 +608,14 @@ export default function PagosPage() {
       {/* MODAL */}
       {modalOpen && (
         <>
-          <div onClick={() => { setModalOpen(false); resetModal() }} className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm" />
+          <div onClick={closeModal} className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm" />
           <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4">
             <div className="flex w-full max-w-md flex-col overflow-hidden rounded-t-2xl bg-white shadow-xl sm:rounded-2xl">
               <div className="flex shrink-0 items-center justify-between border-b border-[#f0f0f0] px-5 py-4">
-                <h2 className="text-sm font-bold text-[#1D1E20]">Nuevo pago</h2>
-                <button onClick={() => { setModalOpen(false); resetModal() }}
+                <h2 className="text-sm font-bold text-[#1D1E20]">
+                  {isEditing ? 'Editar pago' : 'Nuevo pago'}
+                </h2>
+                <button onClick={closeModal}
                   className="flex h-7 w-7 items-center justify-center rounded-full text-[#aaa] hover:bg-[#f5f5f5] hover:text-[#1D1E20]">
                   <X size={15} />
                 </button>
@@ -646,15 +688,24 @@ export default function PagosPage() {
                 </div>
               </div>
 
-              <div className="flex shrink-0 items-center justify-end gap-2 border-t border-[#f0f0f0] bg-[#fafafa] px-5 py-3">
-                <button onClick={() => { setModalOpen(false); resetModal() }} disabled={saving}
-                  className="rounded-lg px-4 py-2 text-xs font-medium text-[#666] hover:bg-[#f0f0f0] disabled:opacity-50">
-                  Cancelar
-                </button>
-                <button onClick={handleSavePago} disabled={saving || !newSupplier || !newAmount || !newDate}
-                  className="rounded-lg bg-[#48C9B0] px-4 py-2 text-xs font-semibold text-white hover:bg-[#3aa896] disabled:opacity-50">
-                  {saving ? 'Guardando...' : 'Guardar pago'}
-                </button>
+              <div className="flex shrink-0 items-center justify-between border-t border-[#f0f0f0] bg-[#fafafa] px-5 py-3">
+                {isEditing ? (
+                  <button onClick={handleDeletePago} disabled={deleting || saving}
+                    className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium text-[#cc3333] transition hover:bg-[#fff0f0] disabled:opacity-50">
+                    <Trash2 size={13} />
+                    {deleting ? 'Eliminando...' : 'Eliminar'}
+                  </button>
+                ) : <div />}
+                <div className="flex items-center gap-2">
+                  <button onClick={closeModal} disabled={saving || deleting}
+                    className="rounded-lg px-4 py-2 text-xs font-medium text-[#666] hover:bg-[#f0f0f0] disabled:opacity-50">
+                    Cancelar
+                  </button>
+                  <button onClick={handleSavePago} disabled={saving || deleting || !newSupplier || !newAmount || !newDate}
+                    className="rounded-lg bg-[#48C9B0] px-4 py-2 text-xs font-semibold text-white hover:bg-[#3aa896] disabled:opacity-50">
+                    {saving ? 'Guardando...' : isEditing ? 'Guardar cambios' : 'Guardar pago'}
+                  </button>
+                </div>
               </div>
             </div>
           </div>
