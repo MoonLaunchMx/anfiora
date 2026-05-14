@@ -171,7 +171,7 @@ export default function SupplierDetailModal({
 
       // Cerrar el detail modal primero, luego el padre lanza el review
       onClose()
-      if (reachedFinalState) {
+      if (reachedFinalState && !hasReview) {
         onReviewNeeded(buildUpdatedItem())
       }
     } catch (err: any) {

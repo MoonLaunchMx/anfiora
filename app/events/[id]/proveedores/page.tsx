@@ -129,7 +129,7 @@ export default function ProveedoresPage() {
     // Review al arrastrar en kanban a estado final
     const wasAlreadyFinal = prev?.status === 'contratado' || prev?.status === 'descartado'
     const isNowFinal      = newStatus === 'contratado' || newStatus === 'descartado'
-    if (!wasAlreadyFinal && isNowFinal && prev) {
+    if (!wasAlreadyFinal && isNowFinal && prev && !prev.rating && !prev.review_text) {
       setReviewItem({ ...prev, status: newStatus })
     }
   }
