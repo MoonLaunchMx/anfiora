@@ -1,5 +1,6 @@
 'use client'
 
+import GuestListSkeleton from './GuestListSkeleton'
 import { useEffect, useState, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { useParams } from 'next/navigation'
@@ -287,13 +288,46 @@ function SwipeableGuestCard({ guest, groupColor, isSelected, guestTags, availabl
   )
 }
 
+// ── BulkMenuContent definido FUERA de EventPage para evitar recreación en cada render ──
+type BulkMenuContentProps = {
+  onClose: () => void
+  onBulkUpdateStatus: (status: RsvpStatus) => void
+  onBulkDelete: () => void
+  onOpenCompanionModal: () => void
+}
+
+function BulkMenuContent({ onClose, onBulkUpdateStatus, onBulkDelete, onOpenCompanionModal }: BulkMenuContentProps) {
+  return (
+    <>
+      <p className="mb-1 px-3 pt-0.5 text-[10px] font-semibold uppercase tracking-wider text-[#aaa]">Marcar como</p>
+      {STATUS_ORDER.map(key => {
+        const s = STATUS_LABEL[key]
+        return (
+          <button key={key} onClick={() => onBulkUpdateStatus(key)} className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-xs transition hover:bg-[#f8f8f8] sm:py-2">
+            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border" style={{ background: s.bg, borderColor: s.border, color: s.color }}>{s.icon}</span>
+            <span className="font-medium" style={{ color: s.color }}>{s.label}</span>
+          </button>
+        )
+      })}
+      <div className="my-1 mx-3 h-px bg-[#f0f0f0]" />
+      <button onClick={() => { onClose(); onOpenCompanionModal() }} className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-xs transition hover:bg-[#f8f8f8] sm:py-2">
+        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[#e8e8e8] bg-[#f8f8f8] text-[#555]"><UserPlus size={11} /></span>
+        <span className="font-medium text-[#555]">Agregar acompañante</span>
+      </button>
+      <div className="my-1 mx-3 h-px bg-[#f0f0f0]" />
+      <button onClick={onBulkDelete} className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-xs transition hover:bg-[#fff0f0] sm:py-2">
+        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[#ffc0c0] bg-[#fff0f0] text-[#cc3333]"><Trash2 size={11} /></span>
+        <span className="font-medium text-[#cc3333]">Eliminar seleccionados</span>
+      </button>
+    </>
+  )
+}
+
 export default function EventPage() {
   const { id } = useParams()
 
-  // Toggle de estadísticas en mobile (persiste por evento en localStorage)
   const { visible: statsVisible, toggle: toggleStats } = useStatsToggle(id as string, 'guests')
 
-  // Estado de sesión — esperar a que Supabase hidrate antes de cargar datos
   const [event, setEvent] = useState<Event | null>(null)
   const [eventSettings, setEventSettings] = useState<EventSettings | null>(null)
   const [guests, setGuests] = useState<Guest[]>([])
@@ -356,13 +390,11 @@ export default function EventPage() {
   const [sortField, setSortField] = useState<'name' | 'phone' | 'notes' | 'status' | null>('name')
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
 
-// Inicializar: esperar sesión con getSession() antes de cargar datos
   useEffect(() => {
     const init = async () => {
       const { data: { session } } = await supabase.auth.getSession()
       if (session) {
-        loadEvent()
-        loadGuests()
+        await Promise.all([loadEvent(), loadGuests()])
       }
     }
     init()
@@ -414,18 +446,27 @@ export default function EventPage() {
   const handleWaTouchMove = () => { if (waLongPressTimer.current) { clearTimeout(waLongPressTimer.current); waLongPressTimer.current = null } }
 
   const loadEvent = async () => {
-    const { data } = await supabase.from('events').select('*').eq('id', id).single()
+    const [{ data }, { data: settings }] = await Promise.all([
+      supabase.from('events').select('*').eq('id', id).single(),
+      supabase.from('event_settings').select('*').eq('event_id', id).single(),
+    ])
     if (data) setEvent(data)
-    const { data: settings } = await supabase.from('event_settings').select('*').eq('event_id', id).single()
     if (settings) setEventSettings(settings)
   }
 
   const loadGuests = async () => {
-    const { data: guestsData } = await supabase.from('guests').select('*').eq('event_id', id).order('name')
+    const [
+      { data: guestsData },
+      { data: membersData },
+      { data: seatsData },
+      { data: tablesData },
+    ] = await Promise.all([
+      supabase.from('guests').select('*').eq('event_id', id).order('name'),
+      supabase.from('party_members').select('*').eq('event_id', id).order('created_at'),
+      supabase.from('table_seats').select('guest_id, table_id').eq('event_id', id),
+      supabase.from('tables').select('id, number, name').eq('event_id', id),
+    ])
     if (!guestsData) { setLoading(false); return }
-    const { data: membersData } = await supabase.from('party_members').select('*').eq('event_id', id).order('created_at')
-    const { data: seatsData } = await supabase.from('table_seats').select('guest_id, table_id').eq('event_id', id)
-    const { data: tablesData } = await supabase.from('tables').select('id, number, name').eq('event_id', id)
     const tableById = new Map((tablesData || []).map(t => [t.id, t]))
     const map = new Map<string, GuestTableInfo>()
     for (const seat of (seatsData || [])) {
@@ -576,13 +617,6 @@ export default function EventPage() {
       .replace('{hora}', event?.event_time || '').replace('{venue}', event?.venue || '')
       .replace('{direccion}', event?.address || '').replace('{playlist}', playlistUrl)
     return encodeURIComponent(text)
-  }
-
-  const bulkWhatsApp = () => {
-    const list = guests.filter(g => selected.has(g.id) && g.phone)
-    if (!list.length) { alert('Ningún invitado seleccionado tiene WhatsApp'); return }
-    list.forEach((g, i) => setTimeout(() => window.open('https://wa.me/' + g.phone!.replace(/\D/g, '') + '?text=' + buildWaText(g), '_blank'), i * 500))
-    setShowBulkMenu(false); setShowMobileBulkSheet(false)
   }
 
   const resetForm = () => { setName(''); setPhone(''); setEmail(''); setNotes(''); setNewTags([]); setNewMembers([]); setNewSide(''); setNewAllergies([]); setFormError('') }
@@ -738,56 +772,20 @@ export default function EventPage() {
 
   const gridCols = ['40px', '2fr', ...(visibleCols.has('tags') ? ['1.2fr'] : []), ...(visibleCols.has('mesa') ? ['90px'] : []), ...(visibleCols.has('lado') ? ['100px'] : []), ...(visibleCols.has('notas') ? ['1fr'] : []), ...(visibleCols.has('telefono') ? ['1.5fr'] : []), ...(visibleCols.has('estatus') ? ['140px'] : []), '40px'].join(' ')
 
-  const BulkMenuContent = ({ onClose }: { onClose: () => void }) => (
-    <>
-      <p className="mb-1 px-3 pt-0.5 text-[10px] font-semibold uppercase tracking-wider text-[#aaa]">Estatus</p>
-      <button onClick={bulkWhatsApp} className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-xs transition hover:bg-[#f8f8f8] sm:py-2">
-        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[#c0f0dc] bg-[#f0fff8]">
-          <svg width="11" height="11" viewBox="0 0 24 24" fill="#25D366">{WA_ICON}</svg>
-        </span>
-        <span className="font-medium text-[#25D366]">Enviar WhatsApp</span>
-      </button>
-      <div className="my-1 mx-3 h-px bg-[#f0f0f0]" />
-      <p className="mb-1 px-3 text-[10px] font-semibold uppercase tracking-wider text-[#aaa]">Marcar como</p>
-      {STATUS_ORDER.map(key => {
-        const s = STATUS_LABEL[key]
-        return (
-          <button key={key} onClick={() => bulkUpdateStatus(key)} className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-xs transition hover:bg-[#f8f8f8] sm:py-2">
-            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border" style={{ background: s.bg, borderColor: s.border, color: s.color }}>{s.icon}</span>
-            <span className="font-medium" style={{ color: s.color }}>{s.label}</span>
-          </button>
-        )
-      })}
-      <div className="my-1 mx-3 h-px bg-[#f0f0f0]" />
-      <button onClick={() => { onClose(); setBulkCompanionCount(1); setShowBulkCompanionModal(true) }} className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-xs transition hover:bg-[#f8f8f8] sm:py-2">
-        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[#e8e8e8] bg-[#f8f8f8] text-[#555]"><UserPlus size={11} /></span>
-        <span className="font-medium text-[#555]">Agregar acompañante</span>
-      </button>
-      <div className="my-1 mx-3 h-px bg-[#f0f0f0]" />
-      <button onClick={bulkDelete} className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-xs transition hover:bg-[#fff0f0] sm:py-2">
-        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[#ffc0c0] bg-[#fff0f0] text-[#cc3333]"><Trash2 size={11} /></span>
-        <span className="font-medium text-[#cc3333]">Eliminar seleccionados</span>
-      </button>
-    </>
-  )
-
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#ffffff', color: '#1D1E20', overflow: 'hidden' }}>
 
-      {/* ══ TOOLBAR ══ */}
       <div className="shrink-0 border-b border-[#e8e8e8] px-4 pt-4 pb-0 sm:px-6 sm:pt-5 lg:px-10 lg:pt-6">
         <div className="mb-4 flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
             <h1 className="text-lg font-bold text-[#1D1E20] sm:text-xl">Invitados</h1>
             <p className="mt-0.5 text-xs text-[#888] sm:text-sm">Gestiona a todos tus invitados.</p>
           </div>
-          {/* Toggle de stats: solo mobile, alineado arriba a la derecha */}
           <div className="lg:hidden shrink-0 pt-1">
             <StatsToggleButton visible={statsVisible} onClick={toggleStats} />
           </div>
         </div>
 
-        {/* Bloque de stats colapsable en mobile, siempre visible en desktop */}
         <StatsCollapse visible={statsVisible}>
           <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
             <div className="rounded-xl border border-[#e8e8e8] bg-white p-3">
@@ -862,7 +860,12 @@ export default function EventPage() {
               </button>
               {showBulkMenu && (
                 <div className="absolute right-0 top-full z-50 mt-1 min-w-[230px] rounded-xl border border-[#e8e8e8] bg-white py-1.5 shadow-xl">
-                  <BulkMenuContent onClose={() => setShowBulkMenu(false)} />
+                  <BulkMenuContent
+                    onClose={() => setShowBulkMenu(false)}
+                    onBulkUpdateStatus={bulkUpdateStatus}
+                    onBulkDelete={bulkDelete}
+                    onOpenCompanionModal={() => { setBulkCompanionCount(1); setShowBulkCompanionModal(true) }}
+                  />
                 </div>
               )}
             </div>
@@ -914,7 +917,7 @@ export default function EventPage() {
 
       <div className="flex-1 overflow-y-auto px-4 pb-6 pt-3 sm:px-6 lg:px-10">
         {loading ? (
-          <p className="pt-5 text-sm text-[#999]">Cargando...</p>
+          <GuestListSkeleton />
         ) : filtered.length === 0 ? (
           <div className="mt-5 rounded-xl border border-dashed border-[#e0e0e0] px-6 py-14 text-center">
             <div className="mb-3 text-3xl">👥</div>
@@ -923,7 +926,6 @@ export default function EventPage() {
           </div>
         ) : (
           <>
-            {/* Mobile */}
             <div className="flex flex-col gap-2 sm:hidden">
               {filtered.map((guest, gIdx) => {
                 const groupColor = guest.party_members.length > 0 ? GROUP_COLORS[gIdx % GROUP_COLORS.length] : null
@@ -957,7 +959,6 @@ export default function EventPage() {
               })}
             </div>
 
-            {/* Desktop */}
             <div className="hidden rounded-b-xl border border-[#e8e8e8] sm:block">
               {filtered.map((guest, gIdx) => {
                 const groupColor = guest.party_members.length > 0 ? GROUP_COLORS[gIdx % GROUP_COLORS.length] : null
@@ -1081,7 +1082,6 @@ export default function EventPage() {
         )}
       </div>
 
-      {/* MODAL: Editar */}
       {editGuest && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 p-4">
           <div className="w-full max-w-md overflow-y-auto rounded-2xl border border-[#e8e8e8] bg-white p-6 shadow-xl sm:p-8" style={{ maxHeight: '90vh' }}>
@@ -1121,7 +1121,6 @@ export default function EventPage() {
         </div>
       )}
 
-      {/* MODAL: Agregar */}
       {showModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 p-4">
           <div className="w-full max-w-md overflow-y-auto rounded-2xl border border-[#e8e8e8] bg-white p-6 shadow-xl sm:p-8" style={{ maxHeight: '90vh' }}>
@@ -1157,7 +1156,6 @@ export default function EventPage() {
         </div>
       )}
 
-      {/* MODAL: CSV */}
       {showCsvModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 p-4">
           <div className="w-full max-w-lg rounded-2xl border border-[#e8e8e8] bg-white p-6 shadow-xl sm:p-8" style={{ maxHeight: '90vh', overflowY: 'auto' }}>
@@ -1240,7 +1238,6 @@ export default function EventPage() {
         </div>
       )}
 
-      {/* MODAL: Bulk acompañantes */}
       {showBulkCompanionModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 p-4">
           <div className="w-full max-w-xs rounded-2xl border border-[#e8e8e8] bg-white p-6 shadow-xl">
@@ -1271,7 +1268,6 @@ export default function EventPage() {
         </div>
       )}
 
-      {/* BOTTOM SHEET: WhatsApp mobile */}
       {showWaSheet && (
         <div className="fixed inset-0 z-[200] flex items-end sm:hidden" onClick={() => setShowWaSheet(null)}>
           <div className="w-full rounded-t-2xl border-t border-[#e8e8e8] bg-white pb-8 pt-4 shadow-2xl" onClick={e => e.stopPropagation()}>
@@ -1299,7 +1295,6 @@ export default function EventPage() {
         </div>
       )}
 
-      {/* BOTTOM SHEET: Bulk acciones mobile */}
       {showMobileBulkSheet && (
         <div className="fixed inset-0 z-[200] flex items-end sm:hidden" onClick={() => setShowMobileBulkSheet(false)}>
           <div className="w-full rounded-t-2xl border-t border-[#e8e8e8] bg-white pb-8 pt-3 shadow-2xl" onClick={e => e.stopPropagation()}>
@@ -1308,7 +1303,12 @@ export default function EventPage() {
               <p className="text-xs font-semibold text-[#1D1E20]">{selected.size} invitados seleccionados</p>
             </div>
             <div className="max-h-[60vh] overflow-y-auto">
-              <BulkMenuContent onClose={() => setShowMobileBulkSheet(false)} />
+              <BulkMenuContent
+                onClose={() => setShowMobileBulkSheet(false)}
+                onBulkUpdateStatus={bulkUpdateStatus}
+                onBulkDelete={bulkDelete}
+                onOpenCompanionModal={() => { setBulkCompanionCount(1); setShowBulkCompanionModal(true) }}
+              />
             </div>
             <div className="px-3 pt-2">
               <button onClick={() => setShowMobileBulkSheet(false)} className="w-full rounded-xl border border-[#e0e0e0] py-3 text-sm font-medium text-[#666]">Cancelar</button>
