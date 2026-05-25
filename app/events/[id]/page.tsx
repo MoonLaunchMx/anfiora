@@ -1,6 +1,5 @@
 'use client'
 
-import GuestListSkeleton from './GuestListSkeleton'
 import { useEffect, useState, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { useParams } from 'next/navigation'
@@ -917,7 +916,7 @@ export default function EventPage() {
 
       <div className="flex-1 overflow-y-auto px-4 pb-6 pt-3 sm:px-6 lg:px-10">
         {loading ? (
-          <GuestListSkeleton />
+          <p className="pt-5 text-sm text-[#999]">Cargando...</p>
         ) : filtered.length === 0 ? (
           <div className="mt-5 rounded-xl border border-dashed border-[#e0e0e0] px-6 py-14 text-center">
             <div className="mb-3 text-3xl">👥</div>
