@@ -5,21 +5,26 @@ import { interpretRSVPMessage, generateAgentReply } from '@/lib/ai-rsvp'
 
 const TWIML_EMPTY = '<Response/>'
 
-async function isTwilioRequest(request: Request): Promise<boolean> {
+async function isTwilioRequest(request: Request): Promise<{ valid: boolean; params: Record<string, string> }> {
+  const formData = await request.formData()
+  const params: Record<string, string> = {}
+  formData.forEach((value, key) => { params[key] = value.toString() })
+
+  if (process.env.SKIP_TWILIO_VALIDATION === 'true') {
+    console.warn('[Webhook] Validacion Twilio deshabilitada — solo testing')
+    return { valid: true, params }
+  }
+
   const authToken  = process.env.TWILIO_AUTH_TOKEN!
   const webhookUrl = process.env.TWILIO_WEBHOOK_URL!
   const signature  = request.headers.get('x-twilio-signature') ?? ''
-  const formData   = await request.formData()
-  const params: Record<string, string> = {}
-  formData.forEach((value, key) => { params[key] = value.toString() })
   const valid = validateRequest(authToken, signature, webhookUrl, params)
-  if (!valid) console.warn('[Webhook] Firma Twilio inválida — request rechazado')
-  return valid
+  if (!valid) console.warn('[Webhook] Firma Twilio invalida — request rechazado')
+  return { valid, params }
 }
 
 export async function POST(request: NextRequest) {
-  const cloned = request.clone()
-  const valid  = await isTwilioRequest(cloned)
+  const { valid, params } = await isTwilioRequest(request)
   if (!valid) return new NextResponse('Unauthorized', { status: 403 })
 
   const supabase = createClient(
@@ -28,16 +33,14 @@ export async function POST(request: NextRequest) {
   )
 
   try {
-    const form  = await request.formData()
-    const text  = (form.get('Body') as string | null)?.trim() ?? ''
-    const from  = (form.get('From') as string | null) ?? ''
+    const text  = (params['Body'] ?? '').trim()
+    const from  = params['From'] ?? ''
     const phone = from.replace(/^whatsapp:/i, '')
 
     console.log('[Webhook] from:', phone, 'text:', text)
 
     if (!text || !phone) return twimlResponse()
 
-    // ── Buscar invitado ───────────────────────────────────────────────────
     const { data: guests, error: guestError } = await supabase
       .from('guests')
       .select('id, name, event_id, rsvp_status')
@@ -45,14 +48,13 @@ export async function POST(request: NextRequest) {
       .limit(1)
 
     if (guestError || !guests || guests.length === 0) {
-      console.log('[Webhook] Número no registrado:', phone)
+      console.log('[Webhook] Numero no registrado:', phone)
       return twimlResponse()
     }
 
     const guest     = guests[0]
     const guestName = guest.name?.trim() || 'Invitado'
 
-    // ── Cargar contexto completo del evento ───────────────────────────────
     const { data: event } = await supabase
       .from('events')
       .select('name, event_date, event_time, venue, address, event_type')
@@ -68,7 +70,6 @@ export async function POST(request: NextRequest) {
       event_type: event?.event_type ?? null,
     }
 
-    // ── Cargar historial reciente del invitado (últimos 10 mensajes) ──────
     const { data: historial } = await supabase
       .from('wa_messages')
       .select('direction, content')
@@ -78,7 +79,6 @@ export async function POST(request: NextRequest) {
 
     const history = (historial ?? []).reverse() as { direction: 'sent' | 'received'; content: string }[]
 
-    // ── Guardar mensaje entrante ──────────────────────────────────────────
     const { error: insertInboundError } = await supabase.from('wa_messages').insert({
       guest_id:   guest.id,
       event_id:   guest.event_id,
@@ -88,21 +88,18 @@ export async function POST(request: NextRequest) {
     })
     console.log('[DB] Insert inbound:', insertInboundError ? JSON.stringify(insertInboundError) : 'OK')
 
-    // ── Clasificar intent ─────────────────────────────────────────────────
     const interpretation = await interpretRSVPMessage(text, guestName, eventContext.name)
-    console.log(`[AI] ${guestName}: "${text}" → ${interpretation.intent} (${interpretation.confidence})`)
+    console.log(`[AI] ${guestName}: "${text}" -> ${interpretation.intent} (${interpretation.confidence})`)
 
     if (interpretation.intent !== 'ambiguous' && interpretation.confidence !== 'low') {
-      // ── Actualizar rsvp_status ──────────────────────────────────────────
       if (guest.rsvp_status !== interpretation.intent) {
         await supabase
           .from('guests')
           .update({ rsvp_status: interpretation.intent })
           .eq('id', guest.id)
-        console.log(`[RSVP] ${guestName}: ${guest.rsvp_status} → ${interpretation.intent}`)
+        console.log(`[RSVP] ${guestName}: ${guest.rsvp_status} -> ${interpretation.intent}`)
       }
 
-      // ── Generar respuesta con contexto real ─────────────────────────────
       const replyText = await generateAgentReply(
         interpretation.intent,
         guestName,
@@ -113,7 +110,6 @@ export async function POST(request: NextRequest) {
 
       console.log(`[AI Reply] ${guestName}: "${replyText}"`)
 
-      // ── Guardar mensaje saliente ────────────────────────────────────────
       const { error: insertOutboundError } = await supabase.from('wa_messages').insert({
         guest_id:   guest.id,
         event_id:   guest.event_id,
@@ -127,8 +123,8 @@ export async function POST(request: NextRequest) {
     }
 
     return twimlResponse()
-  } catch (error) {
-    console.error('[Webhook Error]', error)
+  } catch (err: any) {
+    console.error('[Webhook Error]', err?.message ?? err)
     return twimlResponse()
   }
 }
