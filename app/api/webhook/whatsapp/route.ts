@@ -10,11 +10,6 @@ async function isTwilioRequest(request: Request): Promise<{ valid: boolean; para
   const params: Record<string, string> = {}
   formData.forEach((value, key) => { params[key] = value.toString() })
 
-  if (process.env.SKIP_TWILIO_VALIDATION === 'true') {
-    console.warn('[Webhook] Validacion Twilio deshabilitada — solo testing')
-    return { valid: true, params }
-  }
-
   const authToken  = process.env.TWILIO_AUTH_TOKEN!
   const webhookUrl = process.env.TWILIO_WEBHOOK_URL!
   const signature  = request.headers.get('x-twilio-signature') ?? ''
