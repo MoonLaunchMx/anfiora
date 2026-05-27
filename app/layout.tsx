@@ -7,11 +7,14 @@ import FeedbackWidget from "@/app/components/FeedbackWidget";
 export const metadata: Metadata = {
   title: 'Anfiora — Gestión de invitados para eventos',
   description: 'La plataforma para wedding planners y organizadores de eventos en LATAM. Gestiona listas de invitados y automatiza confirmaciones por WhatsApp.',
-  metadataBase: new URL('https://www.anfiora.com'),
+  metadataBase: new URL('https://anfiora.com'),
+  alternates: {
+    canonical: 'https://anfiora.com',
+  },
   openGraph: {
     title: 'Anfiora — Gestión de invitados para eventos',
     description: 'La plataforma para wedding planners y organizadores de eventos en LATAM. Gestiona listas de invitados y automatiza confirmaciones por WhatsApp.',
-    url: 'https://www.anfiora.com',
+    url: 'https://anfiora.com',
     siteName: 'Anfiora',
     images: [
       {
