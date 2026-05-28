@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import AuthModal from '@/app/components/auth/AuthModal'
 
+const SATOSHI = { fontFamily: 'Satoshi, sans-serif' }
+
 const translations = {
   es: {
     nav: { features: 'Features', compare: 'Comparativa', login: 'Iniciar sesión', cta: 'Empieza gratis' },
@@ -33,13 +35,23 @@ const translations = {
       sub: 'Sin apps extra. Sin hojas de cálculo. Sin WhatsApp caótico.',
       stat: { number: '342', label: 'invitados confirmados', sub: 'en un solo evento' },
       cards: [
-        { title: 'Lista de invitados visual',    desc: 'Carga tu CSV, filtra por nombre o estado RSVP. Sin hojas de cálculo, sin caos. Gestiona cientos de invitados desde tu celular.' },
-        { title: 'WhatsApp con un clic',         desc: 'Plantillas personalizables. Envía confirmaciones en segundos, sin copiar y pegar números.' },
-        { title: 'Álbum colaborativo con QR',    desc: 'Genera un código QR y tus invitados suben fotos desde su celular. Compatible con Google Photos, iCloud y Dropbox.' },
-        { title: 'Playlist colaborativa',        desc: 'Cada invitado sugiere hasta 3 canciones. Llega con la playlist perfecta ya lista.' },
-        { title: 'Confirmaciones por correo',    desc: 'Envía confirmaciones automáticas por email a cada invitado. Tracking de aperturas incluido.', soon: true },
+        { title: 'Lista de invitados visual', desc: 'Carga tu CSV, filtra por nombre o estado RSVP. Sin hojas de cálculo, sin caos. Gestiona cientos de invitados desde tu celular.' },
+        { title: 'Confirma invitados en segundos', desc: 'Selecciona un invitado, elige tu plantilla y WhatsApp se abre con el mensaje listo. Sin buscar números, sin escribir de cero, sin errores.' },
+        { title: 'Álbum colaborativo con QR', desc: 'Genera un código QR y tus invitados suben fotos desde su celular. Compatible con Google Photos, iCloud y Dropbox.' },
+        { title: 'Playlist colaborativa', desc: 'Cada invitado sugiere hasta 3 canciones. Llega con la playlist perfecta ya lista.' },
+        { title: 'Mesa de regalos', desc: 'Tus invitados reservan regalos directamente desde la invitación. Sin duplicados, sin confusión.', soon: true },
       ],
       soon: 'Próximamente',
+    },
+    import: {
+      title: '¿Ya tienes todo en Excel? Tráelo a Anfiora en un clic.',
+      sub: 'No empieces de cero. Importa tu lista de invitados, tus mesas y tu presupuesto directamente desde tus archivos. En minutos estás adentro.',
+      items: [
+        { title: 'Invitados', sub: 'Sube tu CSV y listo' },
+        { title: 'Mesas', sub: 'Importa tu distribución' },
+        { title: 'Presupuesto', sub: 'Tus partidas al instante' },
+      ],
+      cta: 'Importar mi Excel ahora →',
     },
     demo: {
       title: 'Envía confirmaciones\nen segundos',
@@ -57,7 +69,7 @@ const translations = {
       ],
     },
     compare: {
-      title: '¿Por qué no seguir con Excel?',
+      title: '¿Por qué planear tu evento en Anfiora?',
       sub: 'Porque tu tiempo vale más que copiar y pegar teléfonos.',
       col1: 'Excel', col2: 'Anfiora', hard: 'difícil',
       rows: [
@@ -114,13 +126,23 @@ const translations = {
       sub: 'No extra apps. No spreadsheets. No chaotic group chats.',
       stat: { number: '342', label: 'confirmed guests', sub: 'in a single event' },
       cards: [
-        { title: 'Visual guest list',          desc: 'Upload your CSV, filter by name or RSVP status. No spreadsheets, no chaos. Manage hundreds of guests from your phone.' },
-        { title: 'WhatsApp in one click',       desc: 'Customizable templates per event. Send confirmations in seconds without copying and pasting numbers.' },
+        { title: 'Visual guest list', desc: 'Upload your CSV, filter by name or RSVP status. No spreadsheets, no chaos. Manage hundreds of guests from your phone.' },
+        { title: 'Confirm guests in seconds', desc: 'Select a guest, choose your template, and WhatsApp opens with the message ready. No searching for numbers, no writing from scratch, no mistakes.' },
         { title: 'Collaborative album with QR', desc: 'Generate a QR code and guests upload photos from their phones. Works with Google Photos, iCloud, and Dropbox.' },
-        { title: 'Collaborative playlist',      desc: 'Each guest suggests up to 3 songs. Arrive at your event with the perfect playlist already set.' },
-        { title: 'Email confirmations',         desc: 'Send automatic email confirmations to each guest. Open tracking included.', soon: true },
+        { title: 'Collaborative playlist', desc: 'Each guest suggests up to 3 songs. Arrive at your event with the perfect playlist already set.' },
+        { title: 'Gift registry', desc: 'Guests reserve gifts directly from the invitation. No duplicates, no confusion.', soon: true },
       ],
       soon: 'Coming soon',
+    },
+    import: {
+      title: 'Already have everything in Excel? Bring it to Anfiora in one click.',
+      sub: "Don't start from scratch. Import your guest list, seating chart, and budget directly from your files. You're up and running in minutes.",
+      items: [
+        { title: 'Guests', sub: 'Upload your CSV and done' },
+        { title: 'Seating', sub: 'Import your layout' },
+        { title: 'Budget', sub: 'Your line items instantly' },
+      ],
+      cta: 'Import my Excel now →',
     },
     demo: {
       title: 'Send confirmations\nin seconds',
@@ -138,7 +160,7 @@ const translations = {
       ],
     },
     compare: {
-      title: 'Why stop using Excel?',
+      title: 'Why plan your event in Anfiora?',
       sub: 'Because your time is worth more than copying and pasting phone numbers.',
       col1: 'Excel', col2: 'Anfiora', hard: 'hard',
       rows: [
@@ -216,7 +238,13 @@ const ICONS = [
   <svg key="1" width="20" height="20" viewBox="0 0 22 22" fill="none" stroke="#0F6E56" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M20 2L2 8l6 4 2 8 10-18z"/></svg>,
   <svg key="2" width="20" height="20" viewBox="0 0 22 22" fill="none" stroke="#0F6E56" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="12" y="3" width="7" height="7" rx="1"/><rect x="3" y="12" width="7" height="7" rx="1"/><path d="M12 15.5h7M15.5 12v7"/></svg>,
   <svg key="3" width="20" height="20" viewBox="0 0 22 22" fill="none" stroke="#0F6E56" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>,
-  <svg key="4" width="20" height="20" viewBox="0 0 22 22" fill="none" stroke="#0F6E56" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="18" height="14" rx="2"/><path d="M2 9l9 5 9-5"/></svg>,
+  <svg key="4" width="20" height="20" viewBox="0 0 22 22" fill="none" stroke="#0F6E56" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M20 12V22H4V12"/><path d="M22 7H2v5h20V7z"/><path d="M12 22V7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg>,
+]
+
+const IMPORT_ICONS = [
+  <svg key="0" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0F6E56" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>,
+  <svg key="1" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0F6E56" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>,
+  <svg key="2" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0F6E56" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="16" rx="2"/><path d="M2 8h20"/></svg>,
 ]
 
 export default function LandingPage() {
@@ -242,8 +270,8 @@ export default function LandingPage() {
     <>
       <nav className="sticky top-0 z-50 border-b border-[#f0ede8] bg-white">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-3.5">
-          <a href="/landing" className="shrink-0">
-            <img src="/images/logo.svg" alt="Anfiora" className="h-8 lg:h-10" />
+          <a href="/" className="shrink-0">
+            <img src="/images/isotipoylogo.svg" alt="Anfiora" className="h-8" />
           </a>
           <div className="hidden items-center gap-3 md:flex">
             <a href="#features" className="text-sm text-[#888] transition hover:text-[#1D1E20]">{t.nav.features}</a>
@@ -294,7 +322,7 @@ export default function LandingPage() {
 
       <div className="min-h-screen overflow-x-hidden bg-white text-[#1D1E20]">
 
-        {/* ── HERO ── */}
+        {/* HERO */}
         <section className="mx-auto max-w-6xl px-5 pb-16 pt-16 md:pt-24">
           <div className="grid items-center gap-8 md:grid-cols-[45%_55%]">
             <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, ease: 'easeOut' }}>
@@ -302,7 +330,7 @@ export default function LandingPage() {
                 <span className="h-1.5 w-1.5 rounded-full bg-[#48C9B0]" />
                 <span className="text-xs font-medium text-[#0F6E56]">{t.hero.badge}</span>
               </div>
-              <h1 className="mb-4 text-4xl font-bold leading-[1.2] tracking-tight text-[#1D1E20] md:text-5xl" style={{ fontFamily: 'Georgia, serif' }}>
+              <h1 className="mb-4 text-4xl font-bold leading-[1.2] tracking-tight text-[#1D1E20] md:text-5xl" style={SATOSHI}>
                 {t.hero.prefix}
                 <br />
                 <AnimatePresence mode="wait">
@@ -371,11 +399,11 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* ── FEATURES ── */}
+        {/* FEATURES */}
         <section id="features" className="bg-[#f8f5f0] py-20">
           <div className="mx-auto max-w-6xl px-5">
             <FadeSection className="mb-12 text-center">
-              <h2 className="text-3xl font-bold tracking-tight text-[#1D1E20] md:text-4xl" style={{ fontFamily: 'Georgia, serif' }}>{t.features.title}</h2>
+              <h2 className="text-3xl font-bold tracking-tight text-[#1D1E20] md:text-4xl" style={SATOSHI}>{t.features.title}</h2>
               <p className="mt-3 text-base text-[#888]">{t.features.sub}</p>
             </FadeSection>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
@@ -428,12 +456,51 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* ── DEMO WHATSAPP ── */}
+        {/* IMPORTAR DESDE EXCEL */}
         <section className="py-20">
+          <div className="mx-auto max-w-6xl px-5">
+            <FadeSection>
+              <div className="rounded-2xl border border-[#9FE1CB] bg-[#f0fdf9] p-8 md:p-12">
+                <div className="mb-2 flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#c8f0e8]">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0F6E56" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="2" y="3" width="20" height="16" rx="2"/>
+                      <path d="M2 8h20M7 3v5M17 3v5"/>
+                    </svg>
+                  </div>
+                  <h2 className="text-2xl font-bold tracking-tight text-[#04342C] md:text-3xl" style={SATOSHI}>
+                    {t.import.title}
+                  </h2>
+                </div>
+                <p className="mb-8 max-w-2xl text-base leading-relaxed text-[#0F6E56]">{t.import.sub}</p>
+                <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-3">
+                  {t.import.items.map((item, i) => (
+                    <div key={i} className="flex items-center gap-3 rounded-xl border border-[#9FE1CB] bg-white p-4">
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#e1f5ee]">
+                        {IMPORT_ICONS[i]}
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-[#04342C]">{item.title}</p>
+                        <p className="text-xs text-[#0F6E56]">{item.sub}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <button onClick={openRegister}
+                  className="rounded-xl bg-[#48C9B0] px-8 py-3.5 text-base font-semibold text-[#04342C] transition hover:bg-[#3ab89f]">
+                  {t.import.cta}
+                </button>
+              </div>
+            </FadeSection>
+          </div>
+        </section>
+
+        {/* DEMO WHATSAPP */}
+        <section className="bg-[#f8f5f0] py-20">
           <div className="mx-auto max-w-6xl px-5">
             <div className="grid items-center gap-8 md:grid-cols-[45%_55%]">
               <FadeSection>
-                <h2 className="mb-4 text-3xl font-bold tracking-tight text-[#1D1E20] md:text-4xl" style={{ fontFamily: 'Georgia, serif' }}>
+                <h2 className="mb-4 text-3xl font-bold tracking-tight text-[#1D1E20] md:text-4xl" style={SATOSHI}>
                   {t.demo.title.split('\n').map((line, i) => <span key={i}>{line}{i === 0 && <br />}</span>)}
                 </h2>
                 <p className="mb-8 text-base leading-relaxed text-[#888]">{t.demo.sub}</p>
@@ -471,11 +538,11 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* ── COMPARATIVA ── */}
-        <section id="compare" className="bg-[#f8f5f0] py-20">
+        {/* COMPARATIVA */}
+        <section id="compare" className="py-20">
           <div className="mx-auto max-w-4xl px-5">
             <FadeSection className="mb-12 text-center">
-              <h2 className="text-xl font-bold tracking-tight text-[#1D1E20] md:text-2xl" style={{ fontFamily: 'Georgia, serif' }}>
+              <h2 className="text-xl font-bold tracking-tight text-[#1D1E20] md:text-2xl" style={SATOSHI}>
                 {t.compare.title}
               </h2>
               <p className="mt-3 text-base text-[#888]">{t.compare.sub}</p>
@@ -505,12 +572,12 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* ── CTA FINAL ── */}
+        {/* CTA FINAL */}
         <section className="bg-[#1D1E20] py-24">
           <div className="mx-auto max-w-3xl px-5 text-center">
             <FadeSection>
               <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-[#48C9B0]">{t.cta.eyebrow}</p>
-              <h2 className="mb-4 text-4xl font-bold leading-tight tracking-tight text-white md:text-5xl" style={{ fontFamily: 'Georgia, serif' }}>
+              <h2 className="mb-4 text-4xl font-bold leading-tight tracking-tight text-white md:text-5xl" style={SATOSHI}>
                 {ctaWord.prefix}{' '}
                 <AnimatePresence mode="wait">
                   <motion.span key={ctaIdx}
@@ -531,12 +598,10 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* ── FOOTER ── */}
+        {/* FOOTER */}
         <footer className="border-t border-white/10 bg-[#1D1E20] px-5 py-4">
           <div className="mx-auto flex max-w-6xl items-center justify-between gap-4">
-            <p className="shrink-0 whitespace-nowrap text-xs font-bold text-white/80" style={{ fontFamily: 'Georgia, serif' }}>
-              Anfi<span className="text-[#48C9B0]">ora</span>
-            </p>
+            <img src="/images/isotipologo.svg" alt="Anfiora" className="h-6 shrink-0 brightness-0 invert" />
             <div className="flex shrink-0 gap-5">
               {t.footer.links.map(link => (
                 <a key={link} href="#" className="whitespace-nowrap text-[10px] text-white/30 no-underline">{link}</a>

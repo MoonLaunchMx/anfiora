@@ -1,6 +1,5 @@
 'use client'
 
-import { use } from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { notFound } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -11,92 +10,22 @@ type Lang = 'es' | 'en'
 
 const FEATURES = {
   es: [
-    {
-      title: 'Lista de invitados inteligente',
-      desc: 'Carga tu CSV, filtra por nombre o estado RSVP. Gestiona 400+ invitados con acompañantes, etiquetas, alergias y mesas asignadas — desde tu celular.',
-      wide: true,
-      soon: false,
-    },
-    {
-      title: 'Mesas y plano del salón',
-      desc: 'Arrastra y acomoda a tus invitados en las mesas. Check-in el día del evento.',
-      wide: false,
-      soon: false,
-    },
-    {
-      title: 'Presupuesto y proveedores',
-      desc: '14 categorías, vincula proveedores a partidas, exporta a Excel o PDF.',
-      wide: false,
-      soon: false,
-    },
-    {
-      title: 'Álbum colaborativo con QR',
-      desc: 'Genera un QR y tus invitados suben fotos desde su celular el día del evento.',
-      wide: false,
-      soon: false,
-    },
-    {
-      title: 'Playlist colaborativa',
-      desc: 'Manda un link a tus invitados, que recomienden canciones y exporta la playlist perfecta antes de la boda.',
-      wide: false,
-      soon: false,
-    },
-    {
-      title: 'Mesa de regalos',
-      desc: 'Tus invitados reservan regalos directamente desde la invitación. Sin duplicados, sin confusión.',
-      wide: false,
-      soon: true,
-    },
-    {
-      title: 'WhatsApp automatizado con agente IA',
-      desc: 'El agente lee las respuestas de tus invitados y actualiza el RSVP automáticamente. Sin que tengas que hacer nada.',
-      wide: false,
-      soon: true,
-    },
+    { title: 'Lista de invitados inteligente', desc: 'Carga tu CSV, filtra por nombre o estado RSVP. Gestiona 400+ invitados con acompañantes, etiquetas, alergias y mesas asignadas — desde tu celular.', wide: true, soon: false },
+    { title: 'Mesas y plano del salón', desc: 'Arrastra y acomoda a tus invitados en las mesas. Check-in el día del evento.', wide: false, soon: false },
+    { title: 'Presupuesto y proveedores', desc: '14 categorías, vincula proveedores a partidas, exporta a Excel o PDF.', wide: false, soon: false },
+    { title: 'Álbum colaborativo con QR', desc: 'Genera un QR y tus invitados suben fotos desde su celular el día del evento.', wide: false, soon: false },
+    { title: 'Playlist colaborativa', desc: 'Manda un link a tus invitados, que recomienden canciones y exporta la playlist perfecta antes de la boda.', wide: false, soon: false },
+    { title: 'Mesa de regalos', desc: 'Tus invitados reservan regalos directamente desde la invitación. Sin duplicados, sin confusión.', wide: false, soon: true },
+    { title: 'WhatsApp automatizado con agente IA', desc: 'El agente lee las respuestas de tus invitados y actualiza el RSVP automáticamente. Sin que tengas que hacer nada.', wide: false, soon: true },
   ],
   en: [
-    {
-      title: 'Smart guest list',
-      desc: 'Upload your CSV, filter by name or RSVP status. Manage 400+ guests with plus-ones, tags, allergies, and assigned seats — from your phone.',
-      wide: true,
-      soon: false,
-    },
-    {
-      title: 'Seating chart',
-      desc: 'Drag and drop guests into tables. Check them in on the day of the event.',
-      wide: false,
-      soon: false,
-    },
-    {
-      title: 'Budget and vendors',
-      desc: '14 categories, link vendors to line items, export to Excel or PDF.',
-      wide: false,
-      soon: false,
-    },
-    {
-      title: 'Collaborative album with QR',
-      desc: 'Generate a QR code and guests upload photos from their phones on the wedding day.',
-      wide: false,
-      soon: false,
-    },
-    {
-      title: 'Collaborative playlist',
-      desc: 'Send a link to your guests, let them suggest songs, and export the perfect playlist before the wedding.',
-      wide: false,
-      soon: false,
-    },
-    {
-      title: 'Gift registry',
-      desc: 'Guests reserve gifts directly from the invitation. No duplicates, no confusion.',
-      wide: false,
-      soon: true,
-    },
-    {
-      title: 'WhatsApp automation with AI agent',
-      desc: 'The agent reads your guests responses and updates RSVP automatically. No action needed on your end.',
-      wide: false,
-      soon: true,
-    },
+    { title: 'Smart guest list', desc: 'Upload your CSV, filter by name or RSVP status. Manage 400+ guests with plus-ones, tags, allergies, and assigned seats — from your phone.', wide: true, soon: false },
+    { title: 'Seating chart', desc: 'Drag and drop guests into tables. Check them in on the day of the event.', wide: false, soon: false },
+    { title: 'Budget and vendors', desc: '14 categories, link vendors to line items, export to Excel or PDF.', wide: false, soon: false },
+    { title: 'Collaborative album with QR', desc: 'Generate a QR code and guests upload photos from their phones on the wedding day.', wide: false, soon: false },
+    { title: 'Collaborative playlist', desc: 'Send a link to your guests, let them suggest songs, and export the perfect playlist before the wedding.', wide: false, soon: false },
+    { title: 'Gift registry', desc: 'Guests reserve gifts directly from the invitation. No duplicates, no confusion.', wide: false, soon: true },
+    { title: 'WhatsApp automation with AI agent', desc: 'The agent reads your guests responses and updates RSVP automatically. No action needed on your end.', wide: false, soon: true },
   ],
 }
 
@@ -125,10 +54,9 @@ const IMPORT = {
 
 const COMPARE = {
   es: {
-    title: '¿Por qué no seguir con Excel?',
+    title: '¿Por qué planear tu evento en Anfiora?',
     sub: 'Porque tu tiempo vale más que copiar y pegar teléfonos.',
-    col1: 'Excel',
-    col2: 'Anfiora',
+    col1: 'Excel', col2: 'Anfiora',
     rows: [
       { label: 'Confirmaciones por WhatsApp', excel: false },
       { label: 'Mesas con drag & drop', excel: false },
@@ -139,10 +67,9 @@ const COMPARE = {
     ],
   },
   en: {
-    title: 'Why stop using Excel?',
+    title: 'Why plan your event in Anfiora?',
     sub: 'Because your time is worth more than copying and pasting phone numbers.',
-    col1: 'Excel',
-    col2: 'Anfiora',
+    col1: 'Excel', col2: 'Anfiora',
     rows: [
       { label: 'WhatsApp confirmations', excel: false },
       { label: 'Drag & drop seating chart', excel: false },
@@ -156,11 +83,7 @@ const COMPARE = {
 
 const MOCKUP = {
   es: {
-    tab: 'Boda García & López',
-    listTitle: 'Lista de invitados',
-    add: '+ Añadir',
-    colName: 'Nombre',
-    colStatus: 'Estado',
+    tab: 'Boda García & López', listTitle: 'Lista de invitados', add: '+ Añadir', colName: 'Nombre', colStatus: 'Estado',
     guests: [
       { name: 'Ana Martínez', status: 'Confirmado', color: 'bg-[#e1f5ee] text-[#0F6E56]' },
       { name: 'Carlos Ruiz', status: 'Pendiente', color: 'bg-[#faeeda] text-[#854F0B]' },
@@ -169,11 +92,7 @@ const MOCKUP = {
     ],
   },
   en: {
-    tab: 'García & López Wedding',
-    listTitle: 'Guest list',
-    add: '+ Add',
-    colName: 'Name',
-    colStatus: 'Status',
+    tab: 'García & López Wedding', listTitle: 'Guest list', add: '+ Add', colName: 'Name', colStatus: 'Status',
     guests: [
       { name: 'Ana Martínez', status: 'Confirmed', color: 'bg-[#e1f5ee] text-[#0F6E56]' },
       { name: 'Carlos Ruiz', status: 'Pending', color: 'bg-[#faeeda] text-[#854F0B]' },
@@ -230,6 +149,8 @@ function FadeSection({ children, className = '', delay = 0 }: {
   )
 }
 
+const SATOSHI = { fontFamily: 'Satoshi, sans-serif' }
+
 export default function SegmentClient({ config }: { config: SegmentConfig }) {
   const [lang, setLang] = useState<Lang>('es')
   const [menuOpen, setMenuOpen] = useState(false)
@@ -253,15 +174,13 @@ export default function SegmentClient({ config }: { config: SegmentConfig }) {
       <nav className="sticky top-0 z-50 border-b border-[#f0ede8] bg-white">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-3.5">
           <a href="/" className="shrink-0">
-            <img src="/images/logo.svg" alt="Anfiora" className="h-8 lg:h-10" />
+            <img src="/images/isotipoylogo.svg" alt="Anfiora" className="h-8" />
           </a>
           <div className="hidden items-center gap-3 md:flex">
             <span className="text-sm text-[#888]">Para wedding planners y novios</span>
             <span className="text-sm text-[#888]">Precios</span>
-            <button
-              onClick={() => setLang(l => l === 'es' ? 'en' : 'es')}
-              className="rounded-lg border border-[#e0e0e0] px-3 py-2 text-lg transition hover:border-[#48C9B0]"
-            >
+            <button onClick={() => setLang(l => l === 'es' ? 'en' : 'es')}
+              className="rounded-lg border border-[#e0e0e0] px-3 py-2 text-lg transition hover:border-[#48C9B0]">
               {lang === 'es' ? '🇬🇧' : '🇲🇽'}
             </button>
             <button onClick={openLogin}
@@ -315,7 +234,7 @@ export default function SegmentClient({ config }: { config: SegmentConfig }) {
                 <span className="h-1.5 w-1.5 rounded-full bg-[#48C9B0]" />
                 <span className="text-xs font-medium text-[#0F6E56]">{config.badge}</span>
               </div>
-              <h1 className="mb-4 text-3xl font-bold leading-[1.2] tracking-tight text-[#1D1E20] md:text-4xl" style={{ fontFamily: 'Georgia, serif' }}>
+              <h1 className="mb-4 text-3xl font-bold leading-[1.2] tracking-tight text-[#1D1E20] md:text-4xl" style={SATOSHI}>
                 {config.title1}<br />
                 <span className="text-[#48C9B0]">{config.title2}</span>
               </h1>
@@ -371,7 +290,7 @@ export default function SegmentClient({ config }: { config: SegmentConfig }) {
         <section id="features" className="bg-[#f8f5f0] py-20">
           <div className="mx-auto max-w-6xl px-5">
             <FadeSection className="mb-12 text-center">
-              <h2 className="text-3xl font-bold tracking-tight text-[#1D1E20] md:text-4xl" style={{ fontFamily: 'Georgia, serif' }}>
+              <h2 className="text-3xl font-bold tracking-tight text-[#1D1E20] md:text-4xl" style={SATOSHI}>
                 {lang === 'es' ? 'Todo lo que necesita tu boda en un solo lugar' : 'Everything your wedding needs in one place'}
               </h2>
               <p className="mt-3 text-base text-[#888]">
@@ -419,7 +338,7 @@ export default function SegmentClient({ config }: { config: SegmentConfig }) {
                       <path d="M2 8h20M7 3v5M17 3v5"/>
                     </svg>
                   </div>
-                  <h2 className="text-2xl font-bold tracking-tight text-[#04342C] md:text-3xl" style={{ fontFamily: 'Georgia, serif' }}>
+                  <h2 className="text-2xl font-bold tracking-tight text-[#04342C] md:text-3xl" style={SATOSHI}>
                     {importT.title}
                   </h2>
                 </div>
@@ -450,7 +369,7 @@ export default function SegmentClient({ config }: { config: SegmentConfig }) {
         <section id="compare" className="bg-[#f8f5f0] py-20">
           <div className="mx-auto max-w-4xl px-5">
             <FadeSection className="mb-12 text-center">
-              <h2 className="text-2xl font-bold tracking-tight text-[#1D1E20] md:text-3xl" style={{ fontFamily: 'Georgia, serif' }}>
+              <h2 className="text-2xl font-bold tracking-tight text-[#1D1E20] md:text-3xl" style={SATOSHI}>
                 {compare.title}
               </h2>
               <p className="mt-3 text-base text-[#888]">{compare.sub}</p>
@@ -487,7 +406,7 @@ export default function SegmentClient({ config }: { config: SegmentConfig }) {
               <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-[#48C9B0]">
                 {lang === 'es' ? 'Empieza hoy' : 'Start today'}
               </p>
-              <h2 className="mb-4 text-4xl font-bold leading-tight tracking-tight text-white md:text-5xl" style={{ fontFamily: 'Georgia, serif' }}>
+              <h2 className="mb-4 text-4xl font-bold leading-tight tracking-tight text-white md:text-5xl" style={SATOSHI}>
                 {lang === 'es' ? 'Tu boda' : 'Your wedding'}<br />
                 <span className="text-[#48C9B0]">{lang === 'es' ? 'empieza aquí' : 'starts here'}</span>
               </h2>
@@ -505,9 +424,7 @@ export default function SegmentClient({ config }: { config: SegmentConfig }) {
         {/* FOOTER */}
         <footer className="border-t border-white/10 bg-[#1D1E20] px-5 py-4">
           <div className="mx-auto flex max-w-6xl items-center justify-between gap-4">
-            <p className="shrink-0 whitespace-nowrap text-xs font-bold text-white/80" style={{ fontFamily: 'Georgia, serif' }}>
-              Anfi<span className="text-[#48C9B0]">ora</span>
-            </p>
+            <img src="/images/isotipologo.svg" alt="Anfiora" className="h-6 shrink-0 brightness-0 invert" />
             <div className="flex shrink-0 gap-5">
               {['Privacidad', 'Términos', 'Contacto'].map(link => (
                 <a key={link} href="#" className="whitespace-nowrap text-[10px] text-white/30 no-underline">{link}</a>

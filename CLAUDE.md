@@ -28,15 +28,19 @@ No test suite is configured.
 - **Animaciones:** Framer Motion
 - **Drag and drop:** @dnd-kit/core + @dnd-kit/sortable + @dnd-kit/utilities
 - **Spotify:** Spotify Web API (Client Credentials) — búsqueda y preview de canciones
-- **Excel export:** `xlsx` (SheetJS) — usado en presupuesto
-- **PDF export:** `jspdf` + `jspdf-autotable` — usado en presupuesto
+- **Excel export/import:** `xlsx` (SheetJS) — usado en presupuesto y pagos
+- **PDF export:** `jspdf` + `jspdf-autotable` — usado en presupuesto y pagos
+- **Date picker:** `react-day-picker` v9 + locale `es` — usado en timeline y otros formularios
 - **Iconos extra:** `react-icons` (FaWhatsapp, FiInstagram, FiGlobe, FiMail) — complementa Lucide
 
 ## Routing Structure
 
 Uses **Next.js App Router** exclusively. Most page components are `'use client'`. Key routes:
 
-- `/landing` — public marketing page (bilingual es/en)
+- `/` — landing general pública bilingüe es/en (antes vivía en `/landing`, ya no existe)
+- `/bodas` — landing específica para bodas (via `[segment]`)
+- `/[segment]` — página dinámica de nicho (bodas, eventos-corporativos, etc.)
+- `/privacidad` — public privacy policy page
 - `/dashboard` — authenticated user dashboard
 - `/perfil` — user profile (edit name, phone, change password)
 - `/auth/reset` — password recovery flow
@@ -45,9 +49,10 @@ Uses **Next.js App Router** exclusively. Most page components are `'use client'`
 - `/events/[id]/mensajes` — WhatsApp hub per event (PRO, three-panel layout)
 - `/events/[id]/mesas` — seating chart
 - `/events/[id]/comida` — food/shopping planner
-- `/events/[id]/timeline` — tasks and reminders
-- `/events/[id]/presupuesto` — budget management (partidas por categoría, export Excel/PDF)
-- `/events/[id]/proveedores` — supplier management (status pipeline, pagos, reviews)
+- `/events/[id]/timeline` — tasks and reminders (rediseñado: asignación, bloqueante, vínculo a proveedor)
+- `/events/[id]/presupuesto` — budget management (partidas por categoría, import/export Excel/PDF)
+- `/events/[id]/proveedores` — supplier management (status pipeline, reviews)
+- `/events/[id]/pagos` — historial de pagos por evento (PRO, export Excel/PDF, alta de pagos)
 - `/events/[id]/album` — collaborative photo album (QR-based)
 - `/events/[id]/playlist` — collaborative playlist
 - `/events/[id]/configuracion` — event settings + collaborator management
@@ -70,7 +75,7 @@ El nav usa un sistema de **NavEntry** con dos tipos: `item` simple y `group` con
 | Mensajes | item (PRO badge) | — |
 | Mesas | item | — |
 | Timeline | item | — |
-| Finanzas | group | Presupuesto, Proveedores (PRO badge) |
+| Finanzas | group | Presupuesto, Proveedores (PRO badge), Pagos (PRO badge) |
 | Recuerdos | group | Album, Playlist |
 | Configuración | item (adminOnly) | — |
 
@@ -89,7 +94,7 @@ All TypeScript types are defined in `lib/types.ts`. Check there first before que
 
 Role-based access control via `lib/event-access-context.tsx` — exposes `useEventAccess()` hook.
 
-## Schema Supabase (16 tablas)
+## Schema Supabase (17 tablas)
 
 ```sql
 -- users: perfiles de planners
@@ -156,7 +161,12 @@ timeline_tasks (
   id, event_id, title, emoji, category,
   task_date, task_time, notes,
   is_highlighted, is_completed,
-  reminder_date, created_at
+  reminder_date, created_at,
+  -- campos nuevos (rediseño timeline)
+  assigned_to_user_id UUID,    -- colaborador asignado (FK users)
+  assigned_to_name TEXT,        -- nombre libre si no es colaborador
+  event_supplier_id UUID,       -- FK event_suppliers (vinculo a proveedor)
+  priority TEXT                 -- 'bloqueante' | 'no_bloqueante'
 )
 
 -- event_budgets: partidas del presupuesto del evento
@@ -234,6 +244,18 @@ event_collaborators (
 waitlist_whatsapp (
   id, email TEXT, created_at
 )
+
+-- event_audit_log: bitácora de acciones sobre el evento (lectura en /admin)
+event_audit_log (
+  id, event_id, user_id, user_email, user_name,
+  action TEXT,            -- AuditAction: '<entidad>.<accion>' (ver lib/audit.ts)
+  entity_type TEXT,       -- 'guest' | 'party_member' | 'table' | 'event' | 'settings' | 'collaborator'
+  entity_id UUID,
+  entity_label TEXT,      -- label legible: "Juan García", "Mesa 5", etc.
+  old_value JSONB,
+  new_value JSONB,
+  created_at
+)
 ```
 
 ### RsvpStatus (6 valores — todos deben estar en STATUS_LABEL/STATUS_COLORS)
@@ -285,6 +307,22 @@ FoodCategory { id, name, emoji, items: FoodItem[] }
 FoodItem { name, amountPerPerson, unit: 'g'|'kg'|'pz'|'L'|'ml' }
 ```
 
+### TimelineCategory (8 valores) + TimelinePriority (2 valores)
+
+```ts
+TimelineCategory: 'evento' | 'tarea' | 'recordatorio' | 'reunion' | 'entrega' | 'pago' | 'comunicacion' | 'otro'
+TimelinePriority: 'bloqueante' | 'no_bloqueante'
+```
+
+### PaymentMethod (6 valores) + PaidBy (7 valores)
+
+```ts
+PaymentMethod: 'transferencia' | 'efectivo' | 'tarjeta_credito' | 'tarjeta_debito' | 'cheque' | 'otro'
+PaidBy:        'novia' | 'novio' | 'pareja' | 'papas_novia' | 'papas_novio' | 'familiar' | 'otro'
+```
+
+Estos valores son **enums TEXT** en `supplier_payments`. Los selects en `/events/[id]/pagos` y en el modal de proveedor deben usar exactamente estas strings.
+
 ## Funciones RPC en Supabase
 
 ```sql
@@ -297,11 +335,17 @@ increment_guests_by(event_id_input UUID, amount INT)
 
 ```
 app/
-├── page.tsx
-├── layout.tsx
+├── page.tsx                            → landing general publica bilingue es/en
+├── layout.tsx                          → metadataBase + canonical
 ├── globals.css                         → design tokens + @font-face
 ├── manifest.ts
-├── landing/page.tsx
+├── sitemap.ts                          → genera /sitemap.xml con rutas publicas
+├── robots.ts                           → genera /robots.txt bloqueando rutas privadas
+├── [segment]/
+│   ├── page.tsx                        → server component, maneja generateMetadata por segmento
+│   ├── SegmentClient.tsx               → client component con toda la UI del segmento
+│   └── config.ts                       → configuracion de contenido por nicho (badge, title, meta)
+├── privacidad/page.tsx                 → aviso de privacidad publico
 ├── dashboard/page.tsx
 ├── mensajes/page.tsx                   → legacy WhatsApp hub global
 ├── perfil/page.tsx                     → perfil de usuario (nombre, telefono, password)
@@ -327,44 +371,59 @@ app/
 │       ├── album/page.tsx
 │       ├── comida/page.tsx             → planificador de comida/compras
 │       ├── mesas/page.tsx
-│       ├── timeline/page.tsx
+│       ├── timeline/
+│       │   ├── page.tsx                → timeline rediseñado, agrupado por mes
+│       │   ├── TaskCard.tsx            → tarjeta de tarea + urgencia + iconos categoria
+│       │   └── TaskModal.tsx           → modal: asignar, vincular proveedor, recordatorio, bloqueante
 │       ├── configuracion/page.tsx      → config evento + gestion de colaboradores
 │       ├── playlist/page.tsx
 │       ├── presupuesto/
-│       │   ├── page.tsx                → presupuesto por categorias, export Excel/PDF, seed automatico
+│       │   ├── page.tsx                → presupuesto por categorias, import/export Excel/PDF, seed automatico
 │       │   ├── BudgetCategoryRow.tsx   → fila colapsable por categoria con HealthBar
 │       │   ├── BudgetItemModal.tsx     → modal nueva partida
 │       │   ├── BudgetItemRow.tsx       → fila editable con picker de proveedor inline
 │       │   └── lib/
-│       │       ├── exports.ts          → exportToExcel + exportToPDF (xlsx + jspdf)
+│       │       ├── exports.ts          → exportToExcel + exportToPDF + plantilla descargable
 │       │       └── seed.ts             → partidas iniciales para bodas MX
-│       └── proveedores/
-│           ├── page.tsx                → lista/grid de proveedores con filtros
-│           ├── SupplierCard.tsx        → card con links WA/IG y status badge
-│           ├── SupplierDetailModal.tsx → modal completo: estado, contacto, comercial, pagos, review
-│           ├── SupplierModal.tsx       → modal nuevo proveedor (datos esenciales)
-│           ├── SupplierReviewModal.tsx → modal de review tras contratar/descartar
-│           ├── SupplierKanbanView.tsx  → vista kanban (WIP)
-│           └── SupplierListView.tsx    → vista lista (WIP)
+│       ├── proveedores/
+│       │   ├── page.tsx                → lista/grid de proveedores con filtros
+│       │   ├── SupplierCard.tsx        → card con links WA/IG y status badge + indicador verde/rojo vs presupuesto
+│       │   ├── SupplierDetailModal.tsx → modal completo: estado, contacto, comercial, pagos, review
+│       │   ├── SupplierModal.tsx       → modal nuevo proveedor (datos esenciales)
+│       │   ├── SupplierReviewModal.tsx → modal de review tras contratar/descartar
+│       │   ├── SupplierKanbanView.tsx  → vista kanban (WIP)
+│       │   └── SupplierListView.tsx    → vista lista (WIP)
+│       └── pagos/
+│           ├── page.tsx                → historial de pagos del evento (filtros, sort, alta inline)
+│           └── lib/
+│               └── exports.ts          → exportPagosToExcel + exportPagosToPDF
 └── components/
     ├── WhatsAppFAB.tsx
     ├── FeedbackWidget.tsx              → Tally.so floating feedback button (usuarios autenticados)
     ├── PostHogProvider.tsx             → analytics
+    ├── WhatsNewModal.tsx               → modal "What's New" (lee lib/changelog.ts, persiste version vista en localStorage)
     ├── auth/AuthModal.tsx
     └── ui/
         ├── BudgetMetricsCards.tsx      → 4 tarjetas: estimado/contratado/pagado/balance
-        └── HealthBar.tsx               → barra de progreso presupuesto (verde/amarillo/rojo)
+        ├── HealthBar.tsx               → barra de progreso presupuesto (verde/amarillo/rojo)
+        ├── StatsCollapse.tsx           → wrapper colapsable de stats por pagina (persiste en localStorage)
+        ├── DatePicker.tsx              → DayPicker (react-day-picker, locale es)
+        └── TimePicker.tsx              → selector de hora
 
 lib/
 ├── supabase.ts
 ├── ai-rsvp.ts
 ├── event-access-context.tsx           → useEventAccess() hook, CollaboratorRole RBAC
+├── audit.ts                            → logAction + AUDIT_ACTION_LABEL (escribe a event_audit_log, silent fail)
+├── changelog.ts                        → CURRENT_VERSION + releases para WhatsNewModal
 └── types.ts
 
+proxy.ts                                → middleware Next.js 16 (antes middleware.ts) — passthrough
+
 public/
-├── fonts/                             → Josefin Sans, Satoshi Variable, General Sans Variable
-├── images/                            → logo.png, logo.svg, isotipo.png, isotipo.svg, logo-banner.png
-└── icons/                             → icon-192.png, icon-512.png (PWA)
+├── fonts/                              → Josefin Sans, Satoshi Variable, General Sans Variable
+├── images/                             → logo, isotipo, wa-demo-1/2/3.png (carrusel mensajes hub)
+└── icons/                              → icon-192/512, apple-touch-icon, *-maskable (PWA)
 ```
 
 ## Styling
@@ -408,9 +467,17 @@ public/
 
 ## Auth Pattern
 
-Supabase email/password auth via `AuthModal` component. Session stored client-side (localStorage, NOT cookies). Middleware (`middleware.ts`) passes all requests through — auth checks happen inside page components via `supabase.auth.getUser()`.
+Supabase email/password auth via `AuthModal` component. Session stored client-side (localStorage, NOT cookies). Middleware (`proxy.ts` — renombrado en Next.js 16, antes `middleware.ts`) passes all requests through — auth checks happen inside page components via `supabase.auth.getUser()`.
 
 Password recovery handled at `/auth/reset` using Supabase `PASSWORD_RECOVERY` auth state.
+
+## SEO
+
+- `metadataBase` apunta a `https://anfiora.com` (sin www) en `app/layout.tsx`
+- URL canónica declarada en `app/layout.tsx`
+- Sitemap registrado en Google Search Console
+- Cada segmento tiene su propio `generateMetadata` con `title`, `description`, `canonical` y OpenGraph
+- `app/landing/` fue eliminada — ya no existe
 
 ## Key Third-Party Services
 
@@ -440,6 +507,15 @@ Password recovery handled at `/auth/reset` using Supabase `PASSWORD_RECOVERY` au
 - **`import { QRCodeCanvas } from 'qrcode.react'`** — named import, no default.
 - **Mensajes hub (/events/[id]/mensajes):** feature PRO. Muestra `ModalProximamente` para broadcast campaigns con signup a `waitlist_whatsapp`. Mensajes manuales sí están activos via `/api/whatsapp/send`.
 - **Colaboradores:** invitación por token. El owner crea el invite en `configuracion`, el invitado accede via `/invite/[token]` (login o registro en la misma página). RBAC en `lib/event-access-context.tsx`.
+- **Pagos (/events/[id]/pagos):** la página consulta `supplier_payments` con join a `event_suppliers → suppliers` para mostrar nombre/categoría. Permite filtros por método/responsable/proveedor, sort por columna, alta inline (modal nuevo pago) y export Excel/PDF. Los valores de `payment_method` y `paid_by` son enums TEXT en la DB — usar exactamente los valores de `PAYMENT_METHODS` y `PAID_BY_OPTIONS` de `lib/types.ts`.
+- **Timeline rediseñado:** las tareas se agrupan por mes. `TaskCard.tsx` calcula urgencia y muestra avatar de asignado + chip de proveedor. `TaskModal.tsx` permite asignar a colaborador (`assigned_to_user_id`) o nombre libre (`assigned_to_name`), vincular a `event_supplier_id`, marcar `priority='bloqueante'` y configurar `reminder_date` con presets estilo Google Calendar (15min, 30min, 1h, 2h, 1d, 2d).
+- **Audit log:** `lib/audit.ts` expone `logAction({ eventId, action, entityType, entityId, entityLabel, oldValue, newValue })`. Falla en silencio si no hay sesión o si la inserción peta — nunca debe romper el flujo principal. Las acciones siguen el formato `<entidad>.<accion>` (ver tipo `AuditAction`). El log se lee en `/admin`.
+- **Changelog / WhatsNewModal:** `lib/changelog.ts` exporta `CURRENT_VERSION` y un array `changelog`. `WhatsNewModal` se muestra cuando `localStorage.anfiora_seen_version` difiere de `CURRENT_VERSION`. Al agregar un release, actualizar ambos. Iconos vienen de Lucide (`ICON_MAP` en el modal).
+- **StatsCollapse:** hook `useStatsToggle(eventId, storageKey)` + componente `<StatsCollapse>` y botón `<StatsToggleButton>`. Persiste preferencia en `localStorage` como `anfiora_stats_<eventId>_<storageKey>`.
+- **react-day-picker:** se importa el CSS con `import 'react-day-picker/style.css'` y el locale con `import { es } from 'react-day-picker/locale'`. Componente envuelto en `app/components/ui/DatePicker.tsx`.
+- **Middleware → proxy:** Next.js 16 renombró la convención. El archivo en raíz es `proxy.ts` con `export async function proxy(req)` — no `middleware`. Pasa todo through, los checks de auth siguen siendo client-side.
+- **generateMetadata + client components:** las pages con `generateMetadata` deben ser server components — el client component se extrae a `SegmentClient.tsx` (patrón usado en `app/[segment]/`).
+- **Agregar un nuevo nicho:** solo agregar un objeto a `SEGMENTS` en `app/[segment]/config.ts` y una entrada en `app/sitemap.ts`.
 - **Terminal:** Diego usa VS Code con PowerShell en Windows. Evitar caracteres especiales en git commits.
 - **Commits:** convencionales — `feat:`, `fix:`, `refactor:` — sin acentos ni ñ.
 
@@ -465,7 +541,7 @@ Spanish (`es`) and English (`en`) supported on landing page and auth modal via l
 1. **Código completo** — nunca fragmentos, siempre el archivo entero listo para pegar
 2. **Un paso a la vez** — terminar y confirmar antes de proponer el siguiente
 3. **Full file replacement** — nunca edits parciales
-4. **Sin tablas nuevas** en Supabase durante MVP (ya hay 16; evitar crecer más)
+4. **Sin tablas nuevas** en Supabase durante MVP (ya hay 17; evitar crecer más)
 5. **Sin OAuth, sin Stripe, sin tests** durante MVP
 6. **Sin comentarios** salvo cuando el WHY es no-obvio
 
@@ -504,7 +580,7 @@ Checklist antes de cualquier cambio en Supabase:
 - **Party members:** filas satélite con línea conectora y color de grupo. RSVP individual. Hasta 15 por invitado.
 - **Mesas:** crear/editar/eliminar. Bulk create. Asignar/mover invitados. Check-in. Vista cards y lista. Imprimir lista en PDF.
 - **Comida:** planificador de compras por categoría. Soporte multi-día. 4 niveles de intensidad. Tabs desayuno/comida/cena. Compartir por WhatsApp. Split view desktop.
-- **Timeline:** tareas y recordatorios por etapa. Categorías con emoji.
+- **Timeline (rediseñado):** tareas agrupadas por mes. 8 categorías con icono. Asignación a colaborador o nombre libre. Vínculo opcional a proveedor. Marcado bloqueante. Recordatorios con presets (15min, 30min, 1h, 2h, 1d, 2d antes). Vista de urgencia (vencidas, hoy, próximas).
 - **Album:** instrucciones + QR con `qrcode.react`.
 - **Playlist (planner):** lista global con drag and drop. Etapas como badges. Filtro por etapa. Preview audio 30 seg. Notas inline. Botón Spotify. Copiar link.
 - **Playlist (pública):** hero negro sticky con Josefin Sans. Búsqueda Spotify. Preview 30 seg. Límite 3 canciones (localStorage + DB). Lista con thumbnails.
@@ -518,8 +594,12 @@ Checklist antes de cualquier cambio en Supabase:
 - **CSV export:** incluye acompañantes separados por `|`.
 - **Analytics:** PostHog integrado via `PostHogProvider`.
 - **Feedback:** widget flotante Tally.so para usuarios autenticados.
-- **Presupuesto:** partidas por 14 categorías. Seed automático en primer acceso. Vinculación a proveedor inline (picker). Montos derivados de proveedores (contratado/pagado). HealthBar por categoría y global. Indicador ámbar cuando se supera lo estimado. Export a Excel (xlsx) y PDF (jspdf). Multi-moneda.
-- **Proveedores:** pipeline de 4 estados (nuevo/cotizado/contratado/descartado). Cards con links WA/IG. Modal de detalle completo: identidad, contacto, comercial, pagos, notas, archivos (PRO futuro), review. Registro de pagos con método/responsable/referencia. Review post-contratación (estrellas, mood, velocidad). Vinculación bidireccional con presupuesto. Indicadores ámbar cuando se supera el estimado.
+- **Presupuesto:** partidas por 14 categorías. Seed automático en primer acceso. Vinculación a proveedor inline (picker). Montos derivados de proveedores (contratado/pagado). HealthBar por categoría y global. Indicador ámbar cuando se supera lo estimado. Import desde Excel con detección de duplicados + plantilla descargable. Export a Excel (xlsx) y PDF (jspdf). Multi-moneda. Toolbar y stats sticky.
+- **Proveedores:** pipeline de 4 estados (nuevo/cotizado/contratado/descartado). Cards con links WA/IG e indicador verde/rojo según meta presupuesto. Modal de detalle completo: identidad, contacto, comercial, pagos, notas, archivos (PRO futuro), review. Registro de pagos con método/responsable/referencia. Review post-contratación (estrellas, mood, velocidad) — se omite el modal si el proveedor ya tiene review. Vinculación bidireccional con presupuesto.
+- **Pagos:** historial global de pagos del evento. Filtros (método/responsable/proveedor), sort por columna, búsqueda, alta inline via modal nuevo pago, eliminación. Stats colapsables (StatsCollapse). Export Excel y PDF. Vista tabla desktop / cards mobile.
+- **Audit log:** cada mutación importante (guests, party_members, tables, event, settings, collaborators) llama a `logAction()` que inserta en `event_audit_log`. Lectura desde `/admin` para auditar quién hizo qué en cada evento.
+- **WhatsNewModal:** se muestra una vez por versión nueva. Hoy: rediseño de timeline. Configurado en `lib/changelog.ts`.
+- **Privacidad:** página pública `/privacidad` con aviso de privacidad (requisito legal LFPDPPP MX).
 
 ## Planes (MXN)
 
