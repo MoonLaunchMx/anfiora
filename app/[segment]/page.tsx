@@ -332,7 +332,7 @@ export default function SegmentPage({ params }: { params: Promise<{ segment: str
               <div className="flex flex-col gap-3 sm:flex-row">
                 <button onClick={openRegister}
                   className="rounded-xl bg-[#48C9B0] px-7 py-3.5 text-base font-semibold text-white shadow-[0_4px_16px_rgba(72,201,176,0.35)] transition hover:bg-[#3ab89f]">
-                  {lang === 'es' ? 'Empieza gratis 14 días' : 'Start free for 14 days'}
+                  {lang === 'es' ? 'Empieza gratis' : 'Start free for 14 days'}
                 </button>
                 <button className="rounded-xl border border-[#e0e0e0] px-7 py-3.5 text-base text-[#555] transition hover:border-[#48C9B0] hover:text-[#48C9B0]">
                   {lang === 'es' ? 'Ver demo →' : 'See demo →'}
