@@ -453,6 +453,7 @@ export default function EventPage() {
     if (settings) setEventSettings(settings)
   }
 
+  // ── FIX PERFORMANCE: O(n) con Map en lugar de O(n²) con filter por cada guest ──
   const loadGuests = async () => {
     const [
       { data: guestsData },
@@ -466,6 +467,7 @@ export default function EventPage() {
       supabase.from('tables').select('id, number, name').eq('event_id', id),
     ])
     if (!guestsData) { setLoading(false); return }
+
     const tableById = new Map((tablesData || []).map(t => [t.id, t]))
     const map = new Map<string, GuestTableInfo>()
     for (const seat of (seatsData || [])) {
@@ -474,7 +476,19 @@ export default function EventPage() {
       if (table) map.set(seat.guest_id, { tableNumber: table.number, tableName: table.name })
     }
     setGuestTableMap(map)
-    setGuests(guestsData.map(g => ({ ...g, tags: g.tags || [], party_members: (membersData || []).filter(m => m.guest_id === g.id) })))
+
+    // Agrupar party_members por guest_id con Map — O(n) en lugar de O(n²)
+    const membersByGuestId = new Map<string, PartyMember[]>()
+    for (const m of (membersData || [])) {
+      if (!membersByGuestId.has(m.guest_id)) membersByGuestId.set(m.guest_id, [])
+      membersByGuestId.get(m.guest_id)!.push(m)
+    }
+
+    setGuests(guestsData.map(g => ({
+      ...g,
+      tags: g.tags || [],
+      party_members: membersByGuestId.get(g.id) || [],
+    })))
     setLoading(false)
   }
 
@@ -583,28 +597,55 @@ export default function EventPage() {
     setSelected(new Set()); setShowBulkMenu(false); setShowMobileBulkSheet(false)
   }
 
+  // ── FIX PERFORMANCE: optimistic update — sin await loadGuests() al final ──
   const bulkAddCompanions = async () => {
     if (bulkCompanionCount < 1) return
     setBulkCompanionSaving(true)
     const ids = Array.from(selected)
+
     const rows: { guest_id: string; event_id: string; name: string; phone: null; rsvp_status: string }[] = []
+    const addCountByGuest = new Map<string, number>()
+
     for (const guestId of ids) {
       const guest = guests.find(g => g.id === guestId); if (!guest) continue
       const canAdd = Math.max(0, 15 - guest.party_members.length)
       const toAdd = Math.min(bulkCompanionCount, canAdd)
+      if (toAdd === 0) continue
+      addCountByGuest.set(guestId, toAdd)
       for (let i = 0; i < toAdd; i++) rows.push({ guest_id: guestId, event_id: id as string, name: '', phone: null, rsvp_status: 'pending' })
     }
+
     if (rows.length === 0) { setBulkCompanionSaving(false); setShowBulkCompanionModal(false); return }
-    await supabase.from('party_members').insert(rows)
-    for (const guestId of ids) {
-      const guest = guests.find(g => g.id === guestId); if (!guest) continue
-      const canAdd = Math.max(0, 15 - guest.party_members.length)
-      const toAdd = Math.min(bulkCompanionCount, canAdd)
-      if (toAdd > 0) await supabase.from('guests').update({ party_size: guest.party_size + toAdd }).eq('id', guestId)
+
+    const [{ data: insertedMembers }, ] = await Promise.all([
+      supabase.from('party_members').insert(rows).select(),
+      supabase.rpc('increment_party_size', { guest_ids: Array.from(addCountByGuest.keys()), amount: bulkCompanionCount }),
+    ])
+
+    // Optimistic update: actualizar estado local sin recargar todo
+    if (insertedMembers) {
+      const newMembersByGuestId = new Map<string, PartyMember[]>()
+      for (const m of insertedMembers) {
+        if (!newMembersByGuestId.has(m.guest_id)) newMembersByGuestId.set(m.guest_id, [])
+        newMembersByGuestId.get(m.guest_id)!.push(m)
+      }
+      setGuests(prev => prev.map(g => {
+        const newMembers = newMembersByGuestId.get(g.id)
+        if (!newMembers) return g
+        return {
+          ...g,
+          party_size: g.party_size + newMembers.length,
+          party_members: [...g.party_members, ...newMembers],
+        }
+      }))
     }
-    await loadGuests()
-    setBulkCompanionSaving(false); setShowBulkCompanionModal(false)
-    setBulkCompanionCount(1); setSelected(new Set()); setShowBulkMenu(false); setShowMobileBulkSheet(false)
+
+    setBulkCompanionSaving(false)
+    setShowBulkCompanionModal(false)
+    setBulkCompanionCount(1)
+    setSelected(new Set())
+    setShowBulkMenu(false)
+    setShowMobileBulkSheet(false)
   }
 
   const buildWaText = (guest: Guest, templateIndex = 0) => {
