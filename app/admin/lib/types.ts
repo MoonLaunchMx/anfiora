@@ -20,6 +20,9 @@ export interface AdminUser {
   last_sign_in: string | null
   events: AdminEvent[]
   banned: boolean
+  terms_version: string | null
+  terms_accepted_at: string | null
+  terms_history: { version: string; accepted_at: string; ip_address: string | null }[]
 }
 
 export interface GlobalStats {

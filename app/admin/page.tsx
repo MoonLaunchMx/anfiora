@@ -21,6 +21,9 @@ interface ApiUser {
   created_at: string
   last_sign_in: string | null
   banned: boolean
+  terms_version: string | null
+  terms_accepted_at: string | null
+  terms_history: { version: string; accepted_at: string; ip_address: string | null }[]
 }
 
 export default function AdminPage() {
@@ -97,6 +100,9 @@ export default function AdminPage() {
           last_sign_in: u.last_sign_in ?? null,
           events:       eventsWithCounts,
           banned:       u.banned ?? false,
+          terms_version:     u.terms_version ?? null,
+          terms_accepted_at: u.terms_accepted_at ?? null,
+          terms_history:     u.terms_history ?? [],
         }
       })
 

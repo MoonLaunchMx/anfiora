@@ -135,6 +135,7 @@ export default function AuthModal({ isOpen, onClose, defaultTab = 'login', lang 
   const [error, setError]               = useState('')
   const [success, setSuccess]           = useState('')
   const [showPassword, setShowPassword] = useState(false)
+  const [accepted, setAccepted]         = useState(false)
 
   const t = i18n[lang]
 
@@ -142,7 +143,7 @@ export default function AuthModal({ isOpen, onClose, defaultTab = 'login', lang 
 
   const reset = () => {
     setEmail(''); setPassword(''); setName(''); setPhone('')
-    setError(''); setSuccess(''); setShowPassword(false)
+    setError(''); setSuccess(''); setShowPassword(false); setAccepted(false)
   }
 
   const handleClose = () => { reset(); onClose() }
@@ -171,8 +172,15 @@ export default function AuthModal({ isOpen, onClose, defaultTab = 'login', lang 
       if (phone && data.user) {
         await supabase.from('users').update({ phone, full_name: name }).eq('id', data.user.id)
       }
-      if (data.session) window.location.href = '/dashboard'
-      else setSuccess(t.success_register)
+      if (data.session) {
+        await fetch('/api/legal/accept', {
+          method: 'POST',
+          headers: { Authorization: 'Bearer ' + data.session.access_token },
+        }).catch(() => {})
+        window.location.href = '/dashboard'
+      } else {
+        setSuccess(t.success_register)
+      }
     }
     setLoading(false)
   }
@@ -347,6 +355,23 @@ export default function AuthModal({ isOpen, onClose, defaultTab = 'login', lang 
           )}
         </div>
 
+        {view === 'register' && (
+          <label className="flex items-start gap-2 text-[12px] leading-snug text-[#777]">
+            <input
+              type="checkbox"
+              checked={accepted}
+              onChange={e => setAccepted(e.target.checked)}
+              className="mt-0.5 h-4 w-4 shrink-0 accent-[#48C9B0]"
+            />
+            <span>
+              Acepto los{' '}
+              <a href="/terminos" target="_blank" rel="noopener noreferrer" className="font-medium text-[#48C9B0]">Términos y Condiciones</a>{' '}
+              y el{' '}
+              <a href="/privacidad" target="_blank" rel="noopener noreferrer" className="font-medium text-[#48C9B0]">Aviso de Privacidad</a>.
+            </span>
+          </label>
+        )}
+
         {view === 'login' && (
           <button
             onClick={() => switchView('forgot')}
@@ -361,9 +386,9 @@ export default function AuthModal({ isOpen, onClose, defaultTab = 'login', lang 
 
         <button
           onClick={view === 'login' ? handleLogin : handleRegister}
-          disabled={loading}
+          disabled={loading || (view === 'register' && !accepted)}
           className={`w-full rounded-[10px] border-none py-3 text-sm font-semibold text-white transition-colors ${
-            loading
+            loading || (view === 'register' && !accepted)
               ? 'cursor-not-allowed bg-[#9ee0d4]'
               : 'cursor-pointer bg-[#48C9B0] hover:bg-[#3ab89f]'
           }`}
