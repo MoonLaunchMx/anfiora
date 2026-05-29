@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   }
 
-  // Agregamos party_members al query paralelo
+  // Datos de las tablas (solo lectura)
   const [usersRes, eventsRes, guestsRes, partyRes] = await Promise.all([
     supabaseAdmin.from('users').select('id, email, full_name, plan, created_at').order('created_at', { ascending: false }),
     supabaseAdmin.from('events').select('id, user_id, name, created_at'),
@@ -26,10 +26,34 @@ export async function GET(req: NextRequest) {
     supabaseAdmin.from('party_members').select('id, event_id'),
   ])
 
+  // Datos de auth (last_sign_in_at, banned_until) paginando
+  const authByUserId: Record<string, { last_sign_in_at: string | null; banned: boolean }> = {}
+  let page = 1
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    const { data, error } = await supabaseAdmin.auth.admin.listUsers({ page, perPage: 1000 })
+    if (error || !data?.users?.length) break
+    for (const au of data.users) {
+      const bannedUntil = (au as { banned_until?: string | null }).banned_until ?? null
+      authByUserId[au.id] = {
+        last_sign_in_at: au.last_sign_in_at ?? null,
+        banned: !!bannedUntil && new Date(bannedUntil).getTime() > Date.now(),
+      }
+    }
+    if (data.users.length < 1000) break
+    page++
+  }
+
+  const users = (usersRes.data || []).map(u => ({
+    ...u,
+    last_sign_in: authByUserId[u.id]?.last_sign_in_at ?? null,
+    banned:       authByUserId[u.id]?.banned ?? false,
+  }))
+
   return NextResponse.json({
-    users:         usersRes.data  || [],
-    events:        eventsRes.data || [],
-    guests:        guestsRes.data || [],
-    partyMembers:  partyRes.data  || [],
+    users,
+    events:       eventsRes.data || [],
+    guests:       guestsRes.data || [],
+    partyMembers: partyRes.data  || [],
   })
 }
