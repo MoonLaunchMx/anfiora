@@ -19,12 +19,20 @@ export async function GET(req: NextRequest) {
   }
 
   // Datos de las tablas (solo lectura)
-  const [usersRes, eventsRes, guestsRes, partyRes] = await Promise.all([
+  const [usersRes, eventsRes, guestsRes, partyRes, termsRes] = await Promise.all([
     supabaseAdmin.from('users').select('id, email, full_name, plan, created_at').order('created_at', { ascending: false }),
     supabaseAdmin.from('events').select('id, user_id, name, created_at'),
     supabaseAdmin.from('guests').select('id, event_id, rsvp_status'),
     supabaseAdmin.from('party_members').select('id, event_id'),
+    supabaseAdmin.from('terms_acceptances').select('user_id, version, accepted_at, ip_address').order('accepted_at', { ascending: false }),
   ])
+
+  // Consentimientos por usuario (ya vienen ordenados por fecha desc)
+  const termsByUser: Record<string, { version: string; accepted_at: string; ip_address: string | null }[]> = {}
+  for (const t of termsRes.data || []) {
+    if (!termsByUser[t.user_id]) termsByUser[t.user_id] = []
+    termsByUser[t.user_id].push({ version: t.version, accepted_at: t.accepted_at, ip_address: t.ip_address })
+  }
 
   // Datos de auth (last_sign_in_at, banned_until) paginando
   const authByUserId: Record<string, { last_sign_in_at: string | null; banned: boolean }> = {}
@@ -44,11 +52,17 @@ export async function GET(req: NextRequest) {
     page++
   }
 
-  const users = (usersRes.data || []).map(u => ({
-    ...u,
-    last_sign_in: authByUserId[u.id]?.last_sign_in_at ?? null,
-    banned:       authByUserId[u.id]?.banned ?? false,
-  }))
+  const users = (usersRes.data || []).map(u => {
+    const history = termsByUser[u.id] || []
+    return {
+      ...u,
+      last_sign_in:      authByUserId[u.id]?.last_sign_in_at ?? null,
+      banned:            authByUserId[u.id]?.banned ?? false,
+      terms_version:     history[0]?.version ?? null,
+      terms_accepted_at: history[0]?.accepted_at ?? null,
+      terms_history:     history,
+    }
+  })
 
   return NextResponse.json({
     users,

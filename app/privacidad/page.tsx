@@ -2,9 +2,10 @@
 
 import Image from 'next/image'
 import Link from 'next/link'
+import { CURRENT_LEGAL_VERSION, LEGAL_EFFECTIVE_DATE } from '@/lib/legal'
 
 export default function PrivacidadPage() {
-  const fechaActualizacion = '12 de mayo de 2026'
+  const fechaActualizacion = LEGAL_EFFECTIVE_DATE
 
   return (
     <div className="min-h-screen" style={{ background: 'var(--bg)', color: 'var(--text)' }}>
@@ -39,7 +40,7 @@ export default function PrivacidadPage() {
           Aviso de Privacidad
         </h1>
         <p className="text-sm mb-10" style={{ color: 'var(--text-muted)' }}>
-          Última actualización: {fechaActualizacion}
+          Version {CURRENT_LEGAL_VERSION} · última actualización: {fechaActualizacion}
         </p>
 
         <div className="space-y-10 text-sm leading-relaxed" style={{ color: 'var(--text-sec)' }}>

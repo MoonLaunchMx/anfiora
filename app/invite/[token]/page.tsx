@@ -43,6 +43,7 @@ export default function InvitePage() {
   const [fullName, setFullName]     = useState('')
   const [authError, setAuthError]   = useState('')
   const [authLoading, setAuthLoading] = useState(false)
+  const [accepted, setAccepted]     = useState(false)
 
   // Al montar: verificar token y sesión activa
   useEffect(() => {
@@ -149,6 +150,13 @@ export default function InvitePage() {
     full_name: fullName.trim(),
     plan:      'free',
     }, { onConflict: 'id', ignoreDuplicates: true })
+
+    if (data.session) {
+      await fetch('/api/legal/accept', {
+        method: 'POST',
+        headers: { Authorization: 'Bearer ' + data.session.access_token },
+      }).catch(() => {})
+    }
 
     await acceptInvite(invite.id, invite.event_id, data.user.id, invite.role)
     }
@@ -325,13 +333,30 @@ export default function InvitePage() {
               />
             </div>
 
+            {authMode === 'register' && (
+              <label className="flex items-start gap-2 text-[12px] leading-snug text-[#777]">
+                <input
+                  type="checkbox"
+                  checked={accepted}
+                  onChange={e => setAccepted(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 shrink-0 accent-[#48C9B0]"
+                />
+                <span>
+                  Acepto los{' '}
+                  <a href="/terminos" target="_blank" rel="noopener noreferrer" className="font-medium text-[#48C9B0]">Términos y Condiciones</a>{' '}
+                  y el{' '}
+                  <a href="/privacidad" target="_blank" rel="noopener noreferrer" className="font-medium text-[#48C9B0]">Aviso de Privacidad</a>.
+                </span>
+              </label>
+            )}
+
             {authError && (
               <p className="text-xs text-[#cc3333]">{authError}</p>
             )}
 
             <button
               onClick={handleAuth}
-              disabled={authLoading || !email.trim() || !password.trim()}
+              disabled={authLoading || !email.trim() || !password.trim() || (authMode === 'register' && !accepted)}
               className="w-full rounded-lg bg-[#48C9B0] py-2.5 text-sm font-semibold text-white transition hover:bg-[#3ab89f] disabled:opacity-40"
             >
               {authLoading

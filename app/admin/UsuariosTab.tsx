@@ -3,7 +3,8 @@
 import { useState } from 'react'
 import { ChevronDown, ChevronUp, Mail, Ban, Trash2, CheckCircle } from 'lucide-react'
 import { AdminUser, GlobalStats } from './lib/types'
-import { formatDate, timeAgo, PLAN_STYLES } from './lib/format'
+import { formatDate, formatDateTime, timeAgo, PLAN_STYLES } from './lib/format'
+import { CURRENT_LEGAL_VERSION } from '@/lib/legal'
 
 interface Props {
   users: AdminUser[]
@@ -134,13 +135,14 @@ export default function UsuariosTab({ users, stats, actionLoading, onChangePlan,
                 <th className="px-4 py-3 text-xs font-medium text-[#888]">Inv / Acomp / Total</th>
                 <th className="px-4 py-3 text-xs font-medium text-[#888]">Registro</th>
                 <th className="px-4 py-3 text-xs font-medium text-[#888]">Ultimo login</th>
+                <th className="px-4 py-3 text-xs font-medium text-[#888]">Terminos</th>
                 <th className="px-4 py-3 text-xs font-medium text-[#888]">Cambiar plan</th>
                 <th className="px-4 py-3 text-xs font-medium text-[#888]">Acciones</th>
               </tr>
             </thead>
             <tbody>
               {filtered.length === 0 ? (
-                <tr><td colSpan={8} className="px-4 py-8 text-center text-sm text-[#888]">Sin resultados</td></tr>
+                <tr><td colSpan={9} className="px-4 py-8 text-center text-sm text-[#888]">Sin resultados</td></tr>
               ) : filtered.map(u => (
                 <>
                   <tr key={u.id}
@@ -172,6 +174,15 @@ export default function UsuariosTab({ users, stats, actionLoading, onChangePlan,
                     </td>
                     <td className="px-4 py-3 text-xs text-[#888]">{formatDate(u.created_at)}</td>
                     <td className="px-4 py-3 text-xs text-[#888]">{u.last_sign_in ? timeAgo(u.last_sign_in) : '—'}</td>
+                    <td className="px-4 py-3">
+                      {u.terms_version === CURRENT_LEGAL_VERSION ? (
+                        <span className="rounded-full bg-[#e8faf6] px-2 py-0.5 text-xs font-medium text-[#1a7a60]">
+                          {'v' + u.terms_version + (u.terms_accepted_at ? ' · ' + formatDate(u.terms_accepted_at) : '')}
+                        </span>
+                      ) : (
+                        <span className="rounded-full bg-[#fee2e2] px-2 py-0.5 text-xs font-medium text-[#cc3333]">Pendiente</span>
+                      )}
+                    </td>
                     <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                       <select value={u.plan} onChange={e => onChangePlan(u.id, e.target.value)}
                         className="rounded-lg border border-[#e0e0e0] px-2 py-1 text-xs text-[#555] outline-none hover:border-[#48C9B0]">
@@ -206,7 +217,7 @@ export default function UsuariosTab({ users, stats, actionLoading, onChangePlan,
                   </tr>
                   {expandedId === u.id && (
                     <tr key={u.id + '-exp'}>
-                      <td colSpan={8} className="bg-[#fafafa] px-8 py-4">
+                      <td colSpan={9} className="bg-[#fafafa] px-8 py-4">
                         {u.events.length === 0 ? (
                           <p className="text-xs text-[#aaa]">Sin eventos creados</p>
                         ) : (
@@ -228,6 +239,21 @@ export default function UsuariosTab({ users, stats, actionLoading, onChangePlan,
                             </div>
                           </div>
                         )}
+                        <div className="mt-4">
+                          <p className="mb-2 text-xs font-medium text-[#888]">Historial de consentimiento</p>
+                          {u.terms_history.length === 0 ? (
+                            <p className="text-xs text-[#aaa]">Sin aceptaciones registradas</p>
+                          ) : (
+                            <div className="space-y-1">
+                              {u.terms_history.map((h, i) => (
+                                <div key={i} className="text-xs text-[#666]">
+                                  <span className="font-medium text-[#1D1E20]">{'v' + h.version}</span>
+                                  {' · ' + formatDateTime(h.accepted_at) + (h.ip_address ? ' · IP ' + h.ip_address : '')}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   )}
@@ -261,6 +287,7 @@ export default function UsuariosTab({ users, stats, actionLoading, onChangePlan,
                   <span className="font-semibold text-[#48C9B0]">{u.total_count + ' total'}</span>
                   <span>{'Registro: ' + formatDate(u.created_at)}</span>
                   <span>{'Ultimo login: ' + (u.last_sign_in ? timeAgo(u.last_sign_in) : '—')}</span>
+                  <span>{'Terminos: ' + (u.terms_version === CURRENT_LEGAL_VERSION ? 'v' + u.terms_version : 'Pendiente')}</span>
                 </div>
               </div>
               {expandedId === u.id && (
@@ -282,6 +309,21 @@ export default function UsuariosTab({ users, stats, actionLoading, onChangePlan,
                       </div>
                     </div>
                   )}
+                  <div className="mb-3">
+                    <p className="mb-1.5 text-xs font-medium text-[#888]">Historial de consentimiento</p>
+                    {u.terms_history.length === 0 ? (
+                      <p className="text-xs text-[#aaa]">Sin aceptaciones registradas</p>
+                    ) : (
+                      <div className="space-y-1">
+                        {u.terms_history.map((h, i) => (
+                          <div key={i} className="text-xs text-[#666]">
+                            <span className="font-medium text-[#1D1E20]">{'v' + h.version}</span>
+                            {' · ' + formatDateTime(h.accepted_at) + (h.ip_address ? ' · IP ' + h.ip_address : '')}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                   <div className="flex items-center gap-2">
                     <select value={u.plan} onChange={e => onChangePlan(u.id, e.target.value)} onClick={e => e.stopPropagation()}
                       className="rounded-lg border border-[#e0e0e0] px-2 py-1 text-xs text-[#555] outline-none">
