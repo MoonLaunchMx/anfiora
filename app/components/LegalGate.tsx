@@ -1,11 +1,15 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { CURRENT_LEGAL_VERSION } from '@/lib/legal'
 
+const EXCLUDED_PATHS = ['/terminos', '/privacidad']
+
 export default function LegalGate() {
+  const pathname = usePathname()
   const [show, setShow] = useState(false)
   const [token, setToken] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
@@ -56,7 +60,7 @@ export default function LegalGate() {
     window.location.href = '/'
   }
 
-  if (!show) return null
+  if (!show || EXCLUDED_PATHS.includes(pathname)) return null
 
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/[0.45] px-4">
