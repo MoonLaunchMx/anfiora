@@ -2,10 +2,12 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { Check, Minus, ChevronDown } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import AuthModal from '@/app/components/auth/AuthModal'
 import ContactSalesModal from '@/app/components/ContactSalesModal'
+import { supabase } from '@/lib/supabase'
 import {
   ANFITRION_PLANS,
   ORGANIZADOR_PLANS,
@@ -193,15 +195,33 @@ function CellValue({ value }: { value: Cell }) {
 }
 
 export default function PreciosClient({ initialVista }: { initialVista: Vista }) {
+  const router = useRouter()
   const [vista, setVista] = useState<Vista>(initialVista)
   const [billing, setBilling] = useState<Billing>('mensual')
   const [authOpen, setAuthOpen] = useState(false)
   const [authTab, setAuthTab] = useState<'login' | 'register'>('login')
+  const [authRedirect, setAuthRedirect] = useState('/dashboard')
   const [salesOpen, setSalesOpen] = useState(false)
 
-  const openLogin = () => { setAuthTab('login'); setAuthOpen(true) }
-  const openRegister = () => { setAuthTab('register'); setAuthOpen(true) }
+  const openLogin = () => { setAuthRedirect('/dashboard'); setAuthTab('login'); setAuthOpen(true) }
+  const openRegister = () => { setAuthRedirect('/dashboard'); setAuthTab('register'); setAuthOpen(true) }
   const openSales = () => setSalesOpen(true)
+
+  // Unico punto que cambia cuando llegue Stripe real: en vez de navegar al mock,
+  // hara fetch('/api/checkout') + redirect a la sesion hospedada de Stripe.
+  const goToCheckout = async (tipo: Vista, plan: string, billingParam?: Billing) => {
+    const params = new URLSearchParams({ tipo, plan })
+    if (billingParam) params.set('billing', billingParam)
+    const url = `/checkout?${params.toString()}`
+    const { data } = await supabase.auth.getUser()
+    if (data.user) {
+      router.push(url)
+    } else {
+      setAuthRedirect(url)
+      setAuthTab('register')
+      setAuthOpen(true)
+    }
+  }
 
   const setVistaUrl = (v: Vista) => {
     setVista(v)
@@ -280,13 +300,13 @@ export default function PreciosClient({ initialVista }: { initialVista: Vista })
         </div>
 
         {vista === 'anfitrion' ? (
-          <AnfitrionView openRegister={openRegister} openSales={openSales} cols={anfitrionCols} />
+          <AnfitrionView openRegister={openRegister} openSales={openSales} goToCheckout={goToCheckout} cols={anfitrionCols} />
         ) : (
-          <OrganizadorView openRegister={openRegister} openSales={openSales} billing={billing} cols={organizadorCols} />
+          <OrganizadorView openSales={openSales} goToCheckout={goToCheckout} billing={billing} cols={organizadorCols} />
         )}
       </main>
 
-      <AuthModal isOpen={authOpen} onClose={() => setAuthOpen(false)} defaultTab={authTab} />
+      <AuthModal isOpen={authOpen} onClose={() => setAuthOpen(false)} defaultTab={authTab} redirectTo={authRedirect} />
       <ContactSalesModal isOpen={salesOpen} onClose={() => setSalesOpen(false)} plan={vista} />
     </>
   )
@@ -386,7 +406,7 @@ function FragmentGroup({ group, colCount }: { group: typeof ANFITRION_COMPARE[nu
   )
 }
 
-function AnfitrionView({ openRegister, openSales, cols }: { openRegister: () => void; openSales: () => void; cols: string[] }) {
+function AnfitrionView({ openRegister, openSales, goToCheckout, cols }: { openRegister: () => void; openSales: () => void; goToCheckout: (tipo: Vista, plan: string, billing?: Billing) => void; cols: string[] }) {
   return (
     <>
       <div className="mt-8 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -401,7 +421,7 @@ function AnfitrionView({ openRegister, openSales, cols }: { openRegister: () => 
                 hasta {p.guestLimit} invitados{p.price > 0 ? ' · pago único' : ''}
               </div>
               <button
-                onClick={openRegister}
+                onClick={p.id === 'free' ? openRegister : () => goToCheckout('anfitrion', p.id)}
                 className={`mb-4 rounded-[10px] py-2.5 text-[13px] font-semibold transition ${t.cta}`}>
                 {p.cta}
               </button>
@@ -469,7 +489,7 @@ function AnfitrionView({ openRegister, openSales, cols }: { openRegister: () => 
   )
 }
 
-function OrganizadorView({ openRegister, openSales, billing, cols }: { openRegister: () => void; openSales: () => void; billing: Billing; cols: string[] }) {
+function OrganizadorView({ openSales, goToCheckout, billing, cols }: { openSales: () => void; goToCheckout: (tipo: Vista, plan: string, billing?: Billing) => void; billing: Billing; cols: string[] }) {
   return (
     <>
       <div className="mt-8 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -489,7 +509,7 @@ function OrganizadorView({ openRegister, openSales, billing, cols }: { openRegis
               <div className={`my-2 self-start rounded-md border px-2 py-[3px] text-[10.5px] font-bold ${t.pill}`}>
                 −40% tu primer año
               </div>
-              <button onClick={openRegister}
+              <button onClick={() => goToCheckout('organizador', p.id, billing)}
                 className={`mb-3.5 mt-1 rounded-[10px] py-2.5 text-[13px] font-semibold transition ${t.cta}`}>
                 Iniciar prueba de 14 días
               </button>

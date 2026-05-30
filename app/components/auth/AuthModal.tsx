@@ -11,6 +11,7 @@ interface AuthModalProps {
   onClose: () => void
   defaultTab?: 'login' | 'register'
   lang?: 'es' | 'en'
+  redirectTo?: string
 }
 
 type View = 'login' | 'register' | 'forgot' | 'forgot_sent'
@@ -125,7 +126,7 @@ function SuccessBanner({ children }: { children: React.ReactNode }) {
   )
 }
 
-export default function AuthModal({ isOpen, onClose, defaultTab = 'login', lang = 'es' }: AuthModalProps) {
+export default function AuthModal({ isOpen, onClose, defaultTab = 'login', lang = 'es', redirectTo = '/dashboard' }: AuthModalProps) {
   const [view, setView]                 = useState<View>(defaultTab)
   const [email, setEmail]               = useState('')
   const [password, setPassword]         = useState('')
@@ -155,7 +156,7 @@ export default function AuthModal({ isOpen, onClose, defaultTab = 'login', lang 
     setLoading(true); setError('')
     const { error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) setError(t.error_login)
-    else window.location.href = '/dashboard'
+    else window.location.href = redirectTo
     setLoading(false)
   }
 
@@ -177,7 +178,7 @@ export default function AuthModal({ isOpen, onClose, defaultTab = 'login', lang 
           method: 'POST',
           headers: { Authorization: 'Bearer ' + data.session.access_token },
         }).catch(() => {})
-        window.location.href = '/dashboard'
+        window.location.href = redirectTo
       } else {
         setSuccess(t.success_register)
       }

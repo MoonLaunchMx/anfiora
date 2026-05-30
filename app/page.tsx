@@ -8,7 +8,7 @@ const SATOSHI = { fontFamily: 'Satoshi, sans-serif' }
 
 const translations = {
   es: {
-    nav: { features: 'Features', compare: 'Comparativa', login: 'Iniciar sesión', cta: 'Empieza gratis' },
+    nav: { features: 'Features', compare: 'Comparativa', precios: 'Precios', login: 'Iniciar sesión', cta: 'Empieza gratis' },
     hero: {
       badge: 'Para todo tipo de organizadores de eventos',
       prefix: 'Gestiona tu', suffix: 'sin el caos',
@@ -99,7 +99,7 @@ const translations = {
     },
   },
   en: {
-    nav: { features: 'Features', compare: 'Compare', login: 'Log in', cta: 'Get started free' },
+    nav: { features: 'Features', compare: 'Compare', precios: 'Pricing', login: 'Log in', cta: 'Get started free' },
     hero: {
       badge: 'For all types of event organizers',
       prefix: 'Manage your', suffix: 'without the chaos',
@@ -276,6 +276,7 @@ export default function LandingPage() {
           <div className="hidden items-center gap-3 md:flex">
             <a href="#features" className="text-sm text-[#888] transition hover:text-[#1D1E20]">{t.nav.features}</a>
             <a href="#compare"  className="text-sm text-[#888] transition hover:text-[#1D1E20]">{t.nav.compare}</a>
+            <a href="/precios"  className="text-sm text-[#888] transition hover:text-[#1D1E20]">{t.nav.precios}</a>
             <button onClick={() => setLang(l => l === 'es' ? 'en' : 'es')}
               className="rounded-lg border border-[#e0e0e0] px-3 py-2 text-lg transition hover:border-[#48C9B0]"
               title={lang === 'es' ? 'Switch to English' : 'Cambiar a Español'}>
@@ -306,6 +307,7 @@ export default function LandingPage() {
               <div className="flex flex-col gap-3 py-4">
                 <a href="#features" className="text-sm text-[#555]" onClick={() => setMenuOpen(false)}>{t.nav.features}</a>
                 <a href="#compare"  className="text-sm text-[#555]" onClick={() => setMenuOpen(false)}>{t.nav.compare}</a>
+                <a href="/precios"  className="text-sm text-[#555]" onClick={() => setMenuOpen(false)}>{t.nav.precios}</a>
                 <button onClick={() => setLang(l => l === 'es' ? 'en' : 'es')}
                   className="rounded-lg border border-[#e0e0e0] py-2.5 text-base">
                   {lang === 'es' ? '🇬🇧 Switch to English' : '🇲🇽 Cambiar a Español'}
