@@ -2,13 +2,15 @@
 
 import { useEffect, useState, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { useParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import { motion, useMotionValue, useTransform, animate } from 'framer-motion'
 import type { PanInfo } from 'framer-motion'
 import { Trash2, Send, Clock, MessageSquare, AlertCircle, CheckCircle, XCircle, Download, Upload, Columns3, Search, UserPlus } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { PartyMember, Guest, Event, EventSettings, EventStatus, RsvpStatus } from '@/lib/types'
 import StatsCollapse, { StatsToggleButton, useStatsToggle } from '@/app/components/ui/StatsCollapse'
+import LimitReachedModal from '@/app/components/LimitReachedModal'
+import { ANFITRION_PLANS } from '@/lib/pricing'
 
 const STATUS_LABEL: Record<string, { label: string; color: string; bg: string; border: string; icon: React.ReactNode }> = {
   mensaje_enviado:  { label: 'Mensaje enviado',  color: '#1a56a0', bg: '#f0f5ff', border: '#b3c8ee', icon: <Send       size={13} /> },
@@ -324,10 +326,13 @@ function BulkMenuContent({ onClose, onBulkUpdateStatus, onBulkDelete, onOpenComp
 
 export default function EventPage() {
   const { id } = useParams()
+  const router = useRouter()
 
   const { visible: statsVisible, toggle: toggleStats } = useStatsToggle(id as string, 'guests')
 
   const [event, setEvent] = useState<Event | null>(null)
+  const [ownerPlan, setOwnerPlan] = useState<string | null>(null)
+  const [showLimitModal, setShowLimitModal] = useState(false)
   const [eventSettings, setEventSettings] = useState<EventSettings | null>(null)
   const [guests, setGuests] = useState<Guest[]>([])
   const [filtered, setFiltered] = useState<Guest[]>([])
@@ -449,7 +454,11 @@ export default function EventPage() {
       supabase.from('events').select('*').eq('id', id).single(),
       supabase.from('event_settings').select('*').eq('event_id', id).single(),
     ])
-    if (data) setEvent(data)
+    if (data) {
+      setEvent(data)
+      const { data: owner } = await supabase.from('users').select('plan').eq('id', data.user_id).single()
+      setOwnerPlan(owner?.plan ?? 'free')
+    }
     if (settings) setEventSettings(settings)
   }
 
@@ -476,6 +485,14 @@ export default function EventPage() {
     setGuestTableMap(map)
     setGuests(guestsData.map(g => ({ ...g, tags: g.tags || [], party_members: (membersData || []).filter(m => m.guest_id === g.id) })))
     setLoading(false)
+  }
+
+  const totalPersonas = guests.reduce((acc, g) => acc + 1 + g.party_members.length, 0)
+  const FREE_GUEST_LIMIT = ANFITRION_PLANS.find(p => p.id === 'free')!.guestLimit
+  const guestLimit = ownerPlan === 'pro' || ownerPlan === 'agency' ? Infinity : FREE_GUEST_LIMIT
+  const attemptAdd = (n: number) => {
+    if (totalPersonas + n > guestLimit) { setShowLimitModal(true); return false }
+    return true
   }
 
   const updateStatus = async (guestId: string, status: RsvpStatus) => {
@@ -531,6 +548,8 @@ export default function EventPage() {
         if (duplicate) { setEditError(`Este WhatsApp ya está registrado para "${duplicate.name}"`); return }
       }
     }
+    const editDelta = editMembers.length - editGuest.party_members.length
+    if (editDelta > 0 && !attemptAdd(editDelta)) { setEditGuest(null); return }
     setEditSaving(true); setEditError('')
     const { error } = await supabase.from('guests').update({ name: editName, phone: editPhone || null, email: editEmail || null, party_size: 1 + editMembers.length, notes: editNotes || null, tags: editTags, side: editSide || null, allergies: editAllergies.length > 0 ? editAllergies : null }).eq('id', editGuest.id)
     if (error) { setEditError('Error: ' + error.message); setEditSaving(false); return }
@@ -595,6 +614,7 @@ export default function EventPage() {
       for (let i = 0; i < toAdd; i++) rows.push({ guest_id: guestId, event_id: id as string, name: '', phone: null, rsvp_status: 'pending' })
     }
     if (rows.length === 0) { setBulkCompanionSaving(false); setShowBulkCompanionModal(false); return }
+    if (!attemptAdd(rows.length)) { setBulkCompanionSaving(false); setShowBulkCompanionModal(false); return }
     await supabase.from('party_members').insert(rows)
     for (const guestId of ids) {
       const guest = guests.find(g => g.id === guestId); if (!guest) continue
@@ -622,6 +642,7 @@ export default function EventPage() {
 
   const handleAddGuest = async () => {
     if (!name) { setFormError('El nombre es obligatorio'); return }
+    if (!attemptAdd(1 + newMembers.length)) { setShowModal(false); return }
     if (phone) {
       const normalizedNew = normalizePhone(phone)
       if (normalizedNew.length > 0) {
@@ -700,6 +721,8 @@ export default function EventPage() {
       rowsToImport = csvPreview.rows.filter(r => !duplicateKeys.has(r.name + '|' + r.phone))
     }
     if (!rowsToImport.length) { setCsvError('No quedan invitados para importar'); setCsvImporting(false); setCsvPreview(null); return }
+    const peopleToImport = rowsToImport.reduce((a, r) => a + r.party_size, 0)
+    if (!attemptAdd(peopleToImport)) { setCsvImporting(false); setCsvPreview(null); setShowCsvModal(false); return }
     const { error } = await supabase.from('guests').insert(rowsToImport)
     if (error) { setCsvError('Error al importar: ' + error.message); setCsvImporting(false); return }
     await supabase.rpc('increment_guests_by', { event_id_input: id, amount: rowsToImport.length })
@@ -743,8 +766,6 @@ export default function EventPage() {
 
   const getTableLabel = (guestId: string): string => { const t = guestTableMap.get(guestId); if (!t) return ''; return `Mesa ${t.tableNumber}` }
 
-  const totalPersonas = guests.reduce((acc, g) => acc + 1 + g.party_members.length, 0)
-
   const countByStatus = (s: RsvpStatus) => guests.reduce((acc, g) => {
     if (g.rsvp_status === 'declined') return acc + (s === 'declined' ? 1 + g.party_members.length : 0)
     let n = g.rsvp_status === s ? 1 : 0
@@ -779,6 +800,11 @@ export default function EventPage() {
           <div className="min-w-0 flex-1">
             <h1 className="text-lg font-bold text-[#1D1E20] sm:text-xl">Invitados</h1>
             <p className="mt-0.5 text-xs text-[#888] sm:text-sm">Gestiona a todos tus invitados.</p>
+            {guestLimit !== Infinity && (
+              <span className={`mt-1.5 inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-semibold ${totalPersonas >= guestLimit ? 'border-[#ffc0c0] bg-[#fff0f0] text-[#cc3333]' : totalPersonas >= guestLimit * 0.8 ? 'border-[#f0d080] bg-[#fffbf0] text-[#b8860b]' : 'border-[#e8e8e8] bg-[#f8f8f8] text-[#888]'}`}>
+                {totalPersonas} / {guestLimit} invitados · plan Free
+              </span>
+            )}
           </div>
           <div className="lg:hidden shrink-0 pt-1">
             <StatsToggleButton visible={statsVisible} onClick={toggleStats} />
@@ -1315,6 +1341,14 @@ export default function EventPage() {
           </div>
         </div>
       )}
+
+      <LimitReachedModal
+        isOpen={showLimitModal}
+        onClose={() => setShowLimitModal(false)}
+        onUpgrade={() => router.push('/precios?vista=anfitrion')}
+        limit={FREE_GUEST_LIMIT}
+        current={totalPersonas}
+      />
 
     </div>
   )
