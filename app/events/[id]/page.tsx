@@ -488,10 +488,11 @@ export default function EventPage() {
   }
 
   const totalPersonas = guests.reduce((acc, g) => acc + 1 + g.party_members.length, 0)
+  const totalGuestCount = guests.reduce((acc, g) => acc + g.party_size, 0)
   const FREE_GUEST_LIMIT = ANFITRION_PLANS.find(p => p.id === 'free')!.guestLimit
   const guestLimit = ownerPlan === 'pro' || ownerPlan === 'agency' ? Infinity : FREE_GUEST_LIMIT
   const attemptAdd = (n: number) => {
-    if (totalPersonas + n > guestLimit) { setShowLimitModal(true); return false }
+    if (totalGuestCount + n > guestLimit) { setShowLimitModal(true); return false }
     return true
   }
 
@@ -548,7 +549,7 @@ export default function EventPage() {
         if (duplicate) { setEditError(`Este WhatsApp ya está registrado para "${duplicate.name}"`); return }
       }
     }
-    const editDelta = editMembers.length - editGuest.party_members.length
+    const editDelta = (1 + editMembers.length) - editGuest.party_size
     if (editDelta > 0 && !attemptAdd(editDelta)) { setEditGuest(null); return }
     setEditSaving(true); setEditError('')
     const { error } = await supabase.from('guests').update({ name: editName, phone: editPhone || null, email: editEmail || null, party_size: 1 + editMembers.length, notes: editNotes || null, tags: editTags, side: editSide || null, allergies: editAllergies.length > 0 ? editAllergies : null }).eq('id', editGuest.id)
@@ -801,8 +802,8 @@ export default function EventPage() {
             <h1 className="text-lg font-bold text-[#1D1E20] sm:text-xl">Invitados</h1>
             <p className="mt-0.5 text-xs text-[#888] sm:text-sm">Gestiona a todos tus invitados.</p>
             {guestLimit !== Infinity && (
-              <span className={`mt-1.5 inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-semibold ${totalPersonas >= guestLimit ? 'border-[#ffc0c0] bg-[#fff0f0] text-[#cc3333]' : totalPersonas >= guestLimit * 0.8 ? 'border-[#f0d080] bg-[#fffbf0] text-[#b8860b]' : 'border-[#e8e8e8] bg-[#f8f8f8] text-[#888]'}`}>
-                {totalPersonas} / {guestLimit} invitados · plan Free
+              <span className={`mt-1.5 inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-semibold ${totalGuestCount >= guestLimit ? 'border-[#ffc0c0] bg-[#fff0f0] text-[#cc3333]' : totalGuestCount >= guestLimit * 0.8 ? 'border-[#f0d080] bg-[#fffbf0] text-[#b8860b]' : 'border-[#e8e8e8] bg-[#f8f8f8] text-[#888]'}`}>
+                {totalGuestCount} / {guestLimit} invitados · plan Free
               </span>
             )}
           </div>
@@ -1347,7 +1348,7 @@ export default function EventPage() {
         onClose={() => setShowLimitModal(false)}
         onUpgrade={() => router.push('/precios?vista=anfitrion')}
         limit={FREE_GUEST_LIMIT}
-        current={totalPersonas}
+        current={totalGuestCount}
       />
 
     </div>
