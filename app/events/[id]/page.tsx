@@ -495,6 +495,7 @@ export default function EventPage() {
     if (totalGuestCount + n > guestLimit) { setShowLimitModal(true); return false }
     return true
   }
+  const atLimit = guestLimit !== Infinity && totalGuestCount >= guestLimit
 
   const updateStatus = async (guestId: string, status: RsvpStatus) => {
     setGuests(prev => prev.map(g => g.id === guestId ? { ...g, rsvp_status: status } : g))
@@ -890,7 +891,7 @@ export default function EventPage() {
                     onClose={() => setShowBulkMenu(false)}
                     onBulkUpdateStatus={bulkUpdateStatus}
                     onBulkDelete={bulkDelete}
-                    onOpenCompanionModal={() => { setBulkCompanionCount(1); setShowBulkCompanionModal(true) }}
+                    onOpenCompanionModal={() => { if (atLimit) { setShowLimitModal(true); return } setBulkCompanionCount(1); setShowBulkCompanionModal(true) }}
                   />
                 </div>
               )}
@@ -917,10 +918,10 @@ export default function EventPage() {
           <button onClick={exportCSV} className="hidden items-center gap-1.5 whitespace-nowrap rounded-lg border border-[#e0e0e0] px-3 py-2 text-xs text-[#666] transition hover:border-[#48C9B0] hover:text-[#48C9B0] sm:flex">
             <Download size={13} />Exportar
           </button>
-          <button onClick={() => { setCsvError(''); setCsvSuccess(''); setCsvPreview(null); setShowCsvModal(true) }} className="hidden items-center gap-1.5 whitespace-nowrap rounded-lg border border-[#e0e0e0] px-3 py-2 text-xs text-[#666] transition hover:border-[#48C9B0] hover:text-[#48C9B0] sm:flex">
+          <button onClick={() => { if (atLimit) { setShowLimitModal(true); return } setCsvError(''); setCsvSuccess(''); setCsvPreview(null); setShowCsvModal(true) }} className="hidden items-center gap-1.5 whitespace-nowrap rounded-lg border border-[#e0e0e0] px-3 py-2 text-xs text-[#666] transition hover:border-[#48C9B0] hover:text-[#48C9B0] sm:flex">
             <Upload size={13} />Importar
           </button>
-          <button onClick={() => { resetForm(); setShowModal(true) }}
+          <button onClick={() => { if (atLimit) { setShowLimitModal(true); return } resetForm(); setShowModal(true) }}
             className="shrink-0 whitespace-nowrap rounded-lg bg-[#48C9B0] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#3ab89f] sm:px-4 sm:text-sm">
             + Agregar
           </button>
@@ -1333,7 +1334,7 @@ export default function EventPage() {
                 onClose={() => setShowMobileBulkSheet(false)}
                 onBulkUpdateStatus={bulkUpdateStatus}
                 onBulkDelete={bulkDelete}
-                onOpenCompanionModal={() => { setBulkCompanionCount(1); setShowBulkCompanionModal(true) }}
+                onOpenCompanionModal={() => { if (atLimit) { setShowLimitModal(true); return } setBulkCompanionCount(1); setShowBulkCompanionModal(true) }}
               />
             </div>
             <div className="px-3 pt-2">
