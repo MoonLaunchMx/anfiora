@@ -10,6 +10,7 @@ import { supabase } from '@/lib/supabase'
 import { PartyMember, Guest, Event, EventSettings, EventStatus, RsvpStatus } from '@/lib/types'
 import StatsCollapse, { StatsToggleButton, useStatsToggle } from '@/app/components/ui/StatsCollapse'
 import LimitReachedModal from '@/app/components/LimitReachedModal'
+import PlanPickerModal from '@/app/components/PlanPickerModal'
 import { ANFITRION_PLANS } from '@/lib/pricing'
 
 const STATUS_LABEL: Record<string, { label: string; color: string; bg: string; border: string; icon: React.ReactNode }> = {
@@ -333,6 +334,7 @@ export default function EventPage() {
   const [event, setEvent] = useState<Event | null>(null)
   const [ownerPlan, setOwnerPlan] = useState<string | null>(null)
   const [showLimitModal, setShowLimitModal] = useState(false)
+  const [showPlansModal, setShowPlansModal] = useState(false)
   const [eventSettings, setEventSettings] = useState<EventSettings | null>(null)
   const [guests, setGuests] = useState<Guest[]>([])
   const [filtered, setFiltered] = useState<Guest[]>([])
@@ -1347,9 +1349,15 @@ export default function EventPage() {
       <LimitReachedModal
         isOpen={showLimitModal}
         onClose={() => setShowLimitModal(false)}
-        onUpgrade={() => router.push('/precios?vista=anfitrion')}
+        onUpgrade={() => { setShowLimitModal(false); setShowPlansModal(true) }}
         limit={FREE_GUEST_LIMIT}
         current={totalGuestCount}
+      />
+
+      <PlanPickerModal
+        isOpen={showPlansModal}
+        onClose={() => setShowPlansModal(false)}
+        onChoose={(planId) => router.push(`/checkout?tipo=anfitrion&plan=${planId}`)}
       />
 
     </div>
