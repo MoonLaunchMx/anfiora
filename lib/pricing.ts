@@ -75,7 +75,7 @@ export const ANFITRION_PLANS: AnfitrionPlan[] = [
     id: 'pro',
     name: 'Pro',
     tagline: 'La opción más completa',
-    price: 2490,
+    price: 2990,
     guestLimit: 300,
     collaborators: 4,
     cta: 'Elegir Pro',

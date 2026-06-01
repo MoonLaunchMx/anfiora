@@ -15,7 +15,7 @@ export default function PrivacidadPage() {
         className="border-b px-6 py-4 flex items-center justify-between"
         style={{ borderColor: 'var(--border)', background: 'var(--bg)' }}
       >
-        <Link href="/landing">
+        <Link href="/">
           <Image
             src="/images/Logo SVG.svg"
             alt="Anfiora"
@@ -25,7 +25,7 @@ export default function PrivacidadPage() {
           />
         </Link>
         <Link
-          href="/landing"
+          href="/"
           className="text-sm"
           style={{ color: 'var(--text-sec)' }}
         >
@@ -50,9 +50,10 @@ export default function PrivacidadPage() {
               1. Responsable del tratamiento de datos
             </h2>
             <p>
-              Diego Garza Rodríguez, con domicilio en Monterrey, Nuevo León, México, es el responsable
-              del tratamiento de sus datos personales recabados a través de la plataforma Anfiora,
-              disponible en <strong>www.anfiora.com</strong>.
+              Diego Garza Rodríguez, con domicilio en Ciudad de México, es el responsable del tratamiento
+              de sus datos personales recabados a través de la plataforma Anfiora, disponible en{' '}
+              <strong>anfiora.com</strong>, en cumplimiento de la Ley Federal de Protección de Datos
+              Personales en Posesión de los Particulares (LFPDPPP) vigente y demás normativa aplicable.
             </p>
             <p className="mt-2">
               Para cualquier asunto relacionado con el tratamiento de sus datos personales, puede
@@ -90,6 +91,18 @@ export default function PrivacidadPage() {
               <li>Ciudad, estado y país</li>
               <li>Información comercial (cotizaciones, contratos, pagos)</li>
             </ul>
+            <p className="mt-3">
+              <strong style={{ color: 'var(--text)' }}>Datos sensibles:</strong> la Plataforma permite al
+              planner registrar alergias y restricciones alimentarias de sus invitados, consideradas datos
+              sensibles. El responsable aplica medidas de seguridad administrativas, técnicas y físicas
+              reforzadas. El planner garantiza contar con el consentimiento expreso de sus invitados para
+              ingresar dicha información.
+            </p>
+            <p className="mt-2">
+              <strong style={{ color: 'var(--text)' }}>Datos de menores:</strong> si el planner captura datos
+              de menores de edad (por ejemplo, en bautizos o primeras comuniones), es su responsabilidad
+              contar con el consentimiento de quien ejerza la patria potestad o tutela.
+            </p>
           </section>
 
           <section>
@@ -160,10 +173,10 @@ export default function PrivacidadPage() {
               </table>
             </div>
             <p className="mt-3">
-              Todos los proveedores anteriores están ubicados en los Estados Unidos de América.
-              Esta transferencia internacional se realiza bajo las excepciones previstas en el
-              artículo 37 de la LFPDPPP, dado que dichos proveedores cuentan con niveles de
-              protección adecuados o equivalentes.
+              Todos los proveedores anteriores están ubicados en los Estados Unidos de América y actúan como
+              encargados, bajo cláusulas de confidencialidad. Esta transferencia internacional se realiza con
+              fundamento en la LFPDPPP vigente, al ser indispensable para el cumplimiento del contrato de
+              servicios de software celebrado entre el responsable y el planner.
             </p>
           </section>
 
@@ -224,9 +237,16 @@ export default function PrivacidadPage() {
               8. Conservación de datos
             </h2>
             <p>
-              Sus datos se conservan mientras su cuenta esté activa. Al cancelar su cuenta,
-              sus datos serán eliminados en un plazo de 30 días naturales, salvo que la ley
-              nos obligue a conservarlos por un período mayor.
+              Sus datos personales identificables se conservan mientras su cuenta esté activa. Al cancelar su
+              cuenta, serán bloqueados y eliminados definitivamente en un plazo máximo de 30 días naturales,
+              salvo que la ley nos obligue a conservarlos por un período mayor.
+            </p>
+            <p className="mt-2">
+              Las interacciones de WhatsApp, respuestas de confirmación y logs de uso técnico se conservan de
+              forma permanente únicamente en formato anonimizado, para fines estadísticos, analítica y mejora
+              del software. Dichos datos se someten a un proceso irreversible de disociación —eliminando
+              nombres, teléfonos y correos— por lo que dejan de ser datos personales al no poder asociarse a
+              una persona identificable.
             </p>
           </section>
 
@@ -246,17 +266,10 @@ export default function PrivacidadPage() {
               10. Autoridad competente
             </h2>
             <p>
-              Si considera que su derecho a la protección de datos ha sido vulnerado, puede
-              presentar una queja ante el Instituto Nacional de Transparencia, Acceso a la
-              Información y Protección de Datos Personales (INAI) en{' '}
-              <button
-                onClick={() => window.open('https://www.inai.org.mx', '_blank', 'noopener,noreferrer')}
-                className="underline"
-                style={{ color: '#48C9B0' }}
-              >
-                www.inai.org.mx
-              </button>
-              .
+              Si considera que su derecho a la protección de datos personales ha sido vulnerado, puede
+              presentar una queja ante la Secretaría Anticorrupción y de Buen Gobierno (SABG), dependencia del
+              Gobierno Federal que asumió las funciones de protección de datos personales tras la extinción del
+              INAI en 2025.
             </p>
           </section>
 
