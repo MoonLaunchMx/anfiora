@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Check, Minus, ChevronDown } from 'lucide-react'
+import { Check, Minus, ChevronDown, MessageCircle } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import AuthModal from '@/app/components/auth/AuthModal'
 import ContactSalesModal from '@/app/components/ContactSalesModal'
@@ -11,7 +11,6 @@ import { supabase } from '@/lib/supabase'
 import {
   ANFITRION_PLANS,
   ORGANIZADOR_PLANS,
-  WHATSAPP_ADDON,
   FOUNDER_MAX,
   SEAT_ADDON_MONTHLY,
   founderMonthly,
@@ -42,7 +41,7 @@ const ANFITRION_THEME: Record<AnfitrionTier, CardTheme> = {
     cta: 'border border-[#1D1E20] text-[#1D1E20] hover:bg-[#1D1E20] hover:text-white',
   },
   esencial: {
-    card: 'bg-[#fdf8ee] border-[#f0e3c4]',
+    card: 'bg-[#fffbf0] border-[#f0e6cc]',
     name: 'text-[#0a0a0a]', tagline: 'text-[#a08a5a]', price: 'text-[#0a0a0a]', sub: 'text-[#a08a5a]',
     divider: 'text-[#a08a5a]', bulletText: 'text-[#5a4d33]', check: 'text-[#c49a3a]', support: 'text-[#a08a5a]',
     cta: 'bg-[#48C9B0] text-white hover:bg-[#3ab89f]',
@@ -148,13 +147,13 @@ const ANFITRION_COMPARE: { group: string; rows: { label: string; sub?: string; v
     rows: [
       { label: 'Álbum (QR) y playlist colaborativos', values: [true, true, true, true] },
       { label: 'Equipo colaborador con roles', sub: 'admin, editor o viewer', values: ANFITRION_PLANS.map(p => `${p.collaborators} ${p.collaborators === 1 ? 'persona' : 'personas'}`) },
-      { label: 'Agente IA por WhatsApp (add-on)', values: [false, 'Disponible', 'Disponible', 'Disponible'] },
+      { label: 'Agente de WhatsApp', sub: 'dentro de la app, en planes de pago', values: [false, 'Disponible', 'Disponible', 'Disponible'] },
     ],
   },
   {
     group: 'Soporte',
     rows: [
-      { label: 'Atención', values: ['Centro de ayuda', 'Correo', 'Correo + WhatsApp + demo', 'WhatsApp prioritario'] },
+      { label: 'Soporte', values: ['Centro de ayuda', 'Correo', 'Correo + WhatsApp + demo', 'WhatsApp prioritario'] },
     ],
   },
 ]
@@ -175,7 +174,7 @@ const ORGANIZADOR_COMPARE: { group: string; rows: { label: string; sub?: string;
       { label: 'Invitados, mesas con canvas, timeline ligado', values: [true, true, true, true] },
       { label: 'Presupuesto, proveedores y pagos', values: [true, true, true, true] },
       { label: 'Exportar todo (Excel/PDF)', values: [true, true, true, true] },
-      { label: 'Agente IA por WhatsApp', values: ['Disponible', 'Disponible', 'Disponible', 'Incluido'] },
+      { label: 'Agente de WhatsApp', values: ['Disponible', 'Disponible', 'Disponible', 'Incluido'] },
     ],
   },
   {
@@ -198,6 +197,7 @@ export default function PreciosClient({ initialVista }: { initialVista: Vista })
   const router = useRouter()
   const [vista, setVista] = useState<Vista>(initialVista)
   const [billing, setBilling] = useState<Billing>('mensual')
+  const [founder, setFounder] = useState(false)
   const [authOpen, setAuthOpen] = useState(false)
   const [authTab, setAuthTab] = useState<'login' | 'register'>('login')
   const [authRedirect, setAuthRedirect] = useState('/dashboard')
@@ -253,18 +253,10 @@ export default function PreciosClient({ initialVista }: { initialVista: Vista })
         </div>
       </nav>
 
-      {vista === 'organizador' && (
-        <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 bg-[#1D1E20] px-5 py-2.5 text-center text-[13px] text-white">
-          <span className="rounded-full bg-[#48C9B0] px-2.5 py-[3px] text-[11px] font-bold tracking-wide text-white">PROGRAMA FUNDADOR</span>
-          <span><strong>−40% tu primer año.</strong> Para los primeros {FOUNDER_MAX} planners.</span>
-          <span className="font-bold text-[#48C9B0]">Quedan {FOUNDER_REMAINING} de {FOUNDER_MAX} cupos</span>
-        </div>
-      )}
-
       <main className="mx-auto max-w-6xl px-5 pb-24">
         {/* hero */}
         <div className="pt-10 text-center sm:pt-14">
-          <h1 className="mx-auto max-w-2xl text-3xl font-extrabold tracking-tight text-[#0a0a0a] sm:text-4xl">
+          <h1 className="mx-auto max-w-5xl text-3xl font-extrabold tracking-tight text-[#0a0a0a] sm:text-4xl lg:whitespace-nowrap">
             {vista === 'anfitrion' ? 'Todo tu evento, en un solo lugar' : 'El sistema operativo de tu negocio de eventos'}
           </h1>
           <p className="mx-auto mt-3 max-w-xl text-[15px] text-[#666]">
@@ -299,11 +291,21 @@ export default function PreciosClient({ initialVista }: { initialVista: Vista })
           )}
         </div>
 
-        {vista === 'anfitrion' ? (
-          <AnfitrionView openRegister={openRegister} openSales={openSales} goToCheckout={goToCheckout} cols={anfitrionCols} />
-        ) : (
-          <OrganizadorView openSales={openSales} goToCheckout={goToCheckout} billing={billing} cols={organizadorCols} />
-        )}
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={vista}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.18, ease: 'easeOut' }}
+          >
+            {vista === 'anfitrion' ? (
+              <AnfitrionView openRegister={openRegister} openSales={openSales} goToCheckout={goToCheckout} cols={anfitrionCols} />
+            ) : (
+              <OrganizadorView openSales={openSales} goToCheckout={goToCheckout} billing={billing} founder={founder} onToggleFounder={() => setFounder(f => !f)} cols={organizadorCols} />
+            )}
+          </motion.div>
+        </AnimatePresence>
       </main>
 
       <AuthModal isOpen={authOpen} onClose={() => setAuthOpen(false)} defaultTab={authTab} redirectTo={authRedirect} />
@@ -333,6 +335,7 @@ function CollapsibleCompare({ title, subtitle, groups, cols }: {
   title: string; subtitle: string; groups: typeof ANFITRION_COMPARE; cols: string[]
 }) {
   const [open, setOpen] = useState(false)
+  const [clip, setClip] = useState(true)
   return (
     <div className="mt-12 text-center">
       <h2 className="text-xl font-bold">{title}</h2>
@@ -349,7 +352,9 @@ function CollapsibleCompare({ title, subtitle, groups, cols }: {
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
             transition={{ duration: 0.35, ease: 'easeInOut' }}
-            className="overflow-hidden text-left"
+            onAnimationStart={() => setClip(true)}
+            onAnimationComplete={() => setClip(false)}
+            className={`text-left ${clip ? 'overflow-hidden' : ''}`}
           >
             <ComparisonTable groups={groups} cols={cols} />
           </motion.div>
@@ -361,13 +366,13 @@ function CollapsibleCompare({ title, subtitle, groups, cols }: {
 
 function ComparisonTable({ groups, cols }: { groups: typeof ANFITRION_COMPARE; cols: string[] }) {
   return (
-    <div className="mt-7 overflow-x-auto">
-      <table className="w-full min-w-[640px] border-collapse text-[12.5px]">
+    <div className="mt-7 overflow-x-auto md:overflow-x-visible">
+      <table className="w-full min-w-[640px] table-fixed border-collapse text-[12.5px]">
         <thead>
-          <tr className="border-b-2 border-[#e0e0e0]">
-            <th className="w-[42%] py-2.5 text-left" />
+          <tr>
+            <th className="sticky top-16 z-20 w-[40%] border-b-2 border-[#e0e0e0] bg-white py-2.5 text-left" />
             {cols.map(c => (
-              <th key={c} className="px-1.5 py-2.5 text-center font-bold text-[#0a0a0a]">{c}</th>
+              <th key={c} className="sticky top-16 z-20 border-b-2 border-[#e0e0e0] bg-white px-1.5 py-2.5 text-center font-bold text-[#0a0a0a]">{c}</th>
             ))}
           </tr>
         </thead>
@@ -384,7 +389,7 @@ function ComparisonTable({ groups, cols }: { groups: typeof ANFITRION_COMPARE; c
 function FragmentGroup({ group, colCount }: { group: typeof ANFITRION_COMPARE[number]; colCount: number }) {
   return (
     <>
-      <tr className="bg-[#f8f8f8]">
+      <tr className="bg-[#f2f2f2]">
         <td colSpan={colCount + 1} className="px-2 py-2 text-[11.5px] font-bold uppercase tracking-wide text-[#0a0a0a]">
           {group.group}
         </td>
@@ -435,39 +440,41 @@ function AnfitrionView({ openRegister, openSales, goToCheckout, cols }: { openRe
         })}
       </div>
 
-      {/* sin limites + addon */}
-      <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
-        <div className="flex items-center justify-between rounded-xl border border-[#e4e4e4] bg-[#f2f2f2] px-4 py-3.5">
-          <div>
-            <div className="text-sm font-bold text-[#0a0a0a]">Sin Límites</div>
-            <div className="text-xs text-[#888]">Más de 500 invitados</div>
-          </div>
-          <button onClick={openSales}
-            className="rounded-lg border border-[#1D1E20] px-3.5 py-1.5 text-[13px] font-semibold text-[#1D1E20] transition hover:bg-[#1D1E20] hover:text-white">
-            Contáctanos
-          </button>
+      {/* sin limites */}
+      <motion.div whileHover={{ y: -2 }} transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+        className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-[#2a2b2e] bg-[#1D1E20] px-5 py-4 shadow-sm transition-shadow hover:shadow-lg">
+        <div>
+          <div className="text-sm font-bold text-white">Sin Límites</div>
+          <div className="text-xs text-white/60">Más de 500 invitados · operaciones grandes</div>
         </div>
-        <div className="flex items-center justify-between gap-3 rounded-xl border border-[#a0e0c0] bg-[#f0fff6] px-4 py-3.5">
-          <div>
-            <div className="text-sm font-bold text-[#2a7a50]">Agente IA por WhatsApp</div>
-            <div className="text-xs text-[#666]">Confirma a tus invitados solo. {formatMXN(WHATSAPP_ADDON.price)} / {WHATSAPP_ADDON.messages.toLocaleString('es-MX')} mensajes.</div>
-          </div>
-          <button onClick={openRegister} className="shrink-0 rounded-lg bg-[#48C9B0] px-3.5 py-1.5 text-[13px] font-semibold text-white transition hover:bg-[#3ab89f]">
-            Agregar
-          </button>
+        <button onClick={openSales}
+          className="shrink-0 rounded-lg bg-[#48C9B0] px-4 py-2 text-[13px] font-semibold text-white transition hover:bg-[#3ab89f]">
+          Contáctanos
+        </button>
+      </motion.div>
+
+      {/* banner agente whatsapp (informativo, dentro de la app) */}
+      <motion.div whileHover={{ y: -2 }} transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+        className="mt-3 flex items-center gap-3.5 rounded-xl border border-[#a0e0c0] bg-[#f0fff6] px-5 py-4 shadow-sm transition-shadow hover:shadow-lg">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#48C9B0]">
+          <MessageCircle className="h-[18px] w-[18px] text-white" />
+        </span>
+        <div>
+          <div className="text-sm font-bold text-[#1f8f74]">Agente de WhatsApp</div>
+          <div className="text-xs text-[#666]">Disponible únicamente dentro de la app, en los planes de pago. Tus invitados confirman solos por chat.</div>
         </div>
-      </div>
+      </motion.div>
 
       {/* salto free -> pago */}
-      <div className="mt-7 overflow-hidden rounded-2xl border border-[#d4a853]">
-        <div className="border-b border-[#f0e6cc] bg-[#fffbf0] px-5 py-3 text-sm font-bold text-[#0a0a0a]">
+      <div className="mt-7 overflow-hidden rounded-2xl border border-[#a0e0c0]">
+        <div className="border-b border-[#d6f0e6] bg-[#f0fff6] px-5 py-3 text-sm font-bold text-[#0a0a0a]">
           Al pasar de Free a un plan de pago, desbloqueas
         </div>
-        <div className="grid grid-cols-1 gap-px bg-[#f0e6cc] sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-1 gap-px bg-[#d6f0e6] sm:grid-cols-2 lg:grid-cols-4">
           {[
             { t: 'Más invitados', d: 'De 50 hasta 150, 300 o 500 invitados con sus acompañantes.' },
             { t: 'Exportar a Excel y PDF', d: 'Lista, acomodo de mesas, presupuesto y pagos listos para descargar.' },
-            { t: 'Agente IA por WhatsApp', d: 'Disponible como add-on: tus invitados confirman solos por chat.' },
+            { t: 'Agente de WhatsApp', d: 'Disponible dentro de la app en los planes de pago: tus invitados confirman solos por chat.' },
             { t: 'Soporte humano', d: 'Correo en Esencial; WhatsApp y mini demo guiada desde Pro.' },
           ].map(x => (
             <div key={x.t} className="bg-white px-4 py-4">
@@ -489,28 +496,30 @@ function AnfitrionView({ openRegister, openSales, goToCheckout, cols }: { openRe
   )
 }
 
-function OrganizadorView({ openSales, goToCheckout, billing, cols }: { openSales: () => void; goToCheckout: (tipo: Vista, plan: string, billing?: Billing) => void; billing: Billing; cols: string[] }) {
+function OrganizadorView({ openSales, goToCheckout, billing, founder, onToggleFounder, cols }: { openSales: () => void; goToCheckout: (tipo: Vista, plan: string, billing?: Billing) => void; billing: Billing; founder: boolean; onToggleFounder: () => void; cols: string[] }) {
   return (
     <>
       <div className="mt-8 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {ORGANIZADOR_PLANS.map(p => {
           const base = billing === 'anual' ? annualMonthly(p.listMonthly) : p.listMonthly
-          const founder = founderMonthly(base)
+          const founderPrice = founderMonthly(base)
           const t = ORGANIZADOR_THEME[p.id]
           return (
             <PlanCardShell key={p.id} className={t.card}>
               <div className={`text-base font-bold ${t.name}`}>{p.name}</div>
               <div className={`mb-3 mt-0.5 text-xs ${t.tagline}`}>{p.tagline}</div>
               <div className="flex items-baseline gap-2">
-                <div className={`text-[28px] font-extrabold ${t.priceMain}`}>{formatMXN(founder)}</div>
-                <div className={`text-sm line-through ${t.priceStrike}`}>{formatMXN(base)}</div>
+                <div className={`text-[28px] font-extrabold ${t.priceMain}`}>{formatMXN(founder ? founderPrice : base)}</div>
+                {founder && <div className={`text-sm line-through ${t.priceStrike}`}>{formatMXN(base)}</div>}
               </div>
               <div className={`text-[11.5px] ${t.perMes}`}>/mes{billing === 'anual' ? ' · facturado anual' : ''}</div>
-              <div className={`my-2 self-start rounded-md border px-2 py-[3px] text-[10.5px] font-bold ${t.pill}`}>
-                −40% tu primer año
-              </div>
+              {founder && (
+                <div className={`my-2 self-start rounded-md border px-2 py-[3px] text-[10.5px] font-bold ${t.pill}`}>
+                  −40% tu primer año
+                </div>
+              )}
               <button onClick={() => goToCheckout('organizador', p.id, billing)}
-                className={`mb-3.5 mt-1 rounded-[10px] py-2.5 text-[13px] font-semibold transition ${t.cta}`}>
+                className={`mb-3.5 ${founder ? 'mt-1' : 'mt-4'} rounded-[10px] py-2.5 text-[13px] font-semibold transition ${t.cta}`}>
                 Iniciar prueba de 14 días
               </button>
               <Bullets items={p.bullets} check={t.check} text={t.bulletText} />
@@ -532,7 +541,28 @@ function OrganizadorView({ openSales, goToCheckout, billing, cols }: { openSales
         </div>
       </div>
 
-      <p className="mx-auto mt-2 max-w-3xl text-center text-[11.5px] text-[#bbb]">
+      {/* promo programa fundador (debajo de los precios) */}
+      <motion.div
+        whileHover={{ y: -2 }}
+        transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+        className="mt-5 flex flex-col items-start justify-between gap-4 rounded-2xl bg-[#48C9B0] px-6 py-5 shadow-sm sm:flex-row sm:items-center"
+      >
+        <div className="flex flex-col gap-1.5">
+          <span className="w-fit rounded-full bg-white px-2.5 py-[3px] text-[11px] font-bold tracking-wide text-[#1f8f74]">PROGRAMA FUNDADOR</span>
+          <div className="text-[15px] font-bold text-white">Sé de los primeros {FOUNDER_MAX} planners y baja −40% tu primer año.</div>
+          <div className="text-xs text-white/80">Quedan {FOUNDER_REMAINING} de {FOUNDER_MAX} cupos · se aplica sobre el precio que elijas.</div>
+        </div>
+        <button
+          onClick={onToggleFounder}
+          className={`shrink-0 rounded-[10px] px-5 py-2.5 text-[13px] font-semibold transition ${founder ? 'bg-[#1D1E20] text-white' : 'bg-white text-[#1f8f74] hover:bg-white/90'}`}
+        >
+          {founder ? (
+            <span className="flex items-center gap-1.5"><Check className="h-4 w-4" strokeWidth={3} /> Precio fundador aplicado</span>
+          ) : 'Aplicar −40% fundador'}
+        </button>
+      </motion.div>
+
+      <p className="mx-auto mt-4 max-w-2xl text-center text-[12.5px] leading-relaxed text-[#666]">
         En anual se muestra el precio por mes facturado una vez al año. El descuento fundador (−40%) aplica el primer año; después renueva a precio de lista.
       </p>
 
