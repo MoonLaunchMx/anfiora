@@ -5,6 +5,7 @@ import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { getActiveEventLimit, isPlanner } from '@/lib/entitlements'
 import EventLimitModal from '@/app/components/EventLimitModal'
+import PlannerPickerModal from '@/app/components/PlannerPickerModal'
 
 const EVENT_TYPES = [
   { value: 'boda',        label: 'Boda' },
@@ -28,6 +29,7 @@ export default function NewEvent() {
   const [loading, setLoading]     = useState(false)
   const [error, setError]         = useState('')
   const [showEventLimit, setShowEventLimit] = useState(false)
+  const [showPlanner, setShowPlanner] = useState(false)
   const [limitInfo, setLimitInfo] = useState<{ planner: boolean; limit: number }>({ planner: false, limit: 1 })
 
   const handleCreate = async () => {
@@ -208,8 +210,16 @@ export default function NewEvent() {
       <EventLimitModal
         isOpen={showEventLimit}
         onClose={() => setShowEventLimit(false)}
+        onSeePlans={() => { setShowEventLimit(false); setShowPlanner(true) }}
         isPlanner={limitInfo.planner}
         limit={limitInfo.limit}
+      />
+
+      <PlannerPickerModal
+        isOpen={showPlanner}
+        onClose={() => setShowPlanner(false)}
+        onChoose={(planId) => { window.location.href = `/checkout?tipo=organizador&plan=${planId}&billing=mensual` }}
+        onContact={() => { window.location.href = '/precios?vista=organizador' }}
       />
     </div>
   )

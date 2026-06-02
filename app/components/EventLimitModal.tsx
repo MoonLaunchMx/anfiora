@@ -1,16 +1,16 @@
 'use client'
 
-import Link from 'next/link'
 import { CalendarClock } from 'lucide-react'
 
 interface EventLimitModalProps {
   isOpen: boolean
   onClose: () => void
+  onSeePlans: () => void
   isPlanner: boolean
   limit: number
 }
 
-export default function EventLimitModal({ isOpen, onClose, isPlanner, limit }: EventLimitModalProps) {
+export default function EventLimitModal({ isOpen, onClose, onSeePlans, isPlanner, limit }: EventLimitModalProps) {
   if (!isOpen) return null
   return (
     <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
@@ -30,12 +30,12 @@ export default function EventLimitModal({ isOpen, onClose, isPlanner, limit }: E
             plan Planner para gestionar varios eventos simultáneamente con tu equipo.</>
           )}
         </p>
-        <Link
-          href="/precios?vista=organizador"
+        <button
+          onClick={onSeePlans}
           className="mt-5 block w-full rounded-lg bg-[#48C9B0] py-3 text-sm font-semibold text-white transition hover:bg-[#3ab89f]"
         >
           Ver planes Planner
-        </Link>
+        </button>
         <button
           onClick={onClose}
           className="mt-2.5 w-full rounded-lg border border-[#e0e0e0] py-2.5 text-sm text-[#666] transition hover:bg-[#f8f8f8]"
