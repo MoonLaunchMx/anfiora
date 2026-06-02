@@ -5,10 +5,13 @@ import { createPortal } from 'react-dom'
 import { useParams } from 'next/navigation'
 import { motion, useMotionValue, useTransform, animate } from 'framer-motion'
 import type { PanInfo } from 'framer-motion'
-import { Trash2, Send, Clock, MessageSquare, AlertCircle, CheckCircle, XCircle, Download, Upload, Columns3, Search, UserPlus, Plus, Check, X, Filter, Loader2 } from 'lucide-react'
+import { Trash2, Send, Clock, MessageSquare, AlertCircle, CheckCircle, XCircle, Download, Upload, Columns3, Search, UserPlus, Plus, Check, X, Filter, Loader2, FileSpreadsheet, FileText } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { PartyMember, Guest, Event, EventSettings, EventStatus, RsvpStatus } from '@/lib/types'
 import StatsCollapse, { StatsToggleButton, useStatsToggle } from '@/app/components/ui/StatsCollapse'
+import * as XLSX from 'xlsx'
+import jsPDF from 'jspdf'
+import autoTable from 'jspdf-autotable'
 
 const STATUS_LABEL: Record<string, { label: string; color: string; bg: string; border: string; icon: React.ReactNode }> = {
   mensaje_enviado:  { label: 'Mensaje enviado',  color: '#1a56a0', bg: '#f0f5ff', border: '#b3c8ee', icon: <Send       size={13} /> },
@@ -97,6 +100,22 @@ const TAG_COLORS = [
 ]
 
 function getTagColor(tagIndex: number) { return TAG_COLORS[tagIndex % TAG_COLORS.length] }
+
+function loadImageData(src: string): Promise<{ dataUrl: string; w: number; h: number }> {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    img.onload = () => {
+      const canvas = document.createElement('canvas')
+      canvas.width = img.naturalWidth; canvas.height = img.naturalHeight
+      const ctx = canvas.getContext('2d')
+      if (!ctx) { reject(new Error('no ctx')); return }
+      ctx.drawImage(img, 0, 0)
+      resolve({ dataUrl: canvas.toDataURL('image/png'), w: img.naturalWidth, h: img.naturalHeight })
+    }
+    img.onerror = reject
+    img.src = src
+  })
+}
 
 function GroupInput({ availableGroups, selectedGroup, onChange, onCreateGroup, onDeleteGroup }: {
   availableGroups: string[]
@@ -454,6 +473,8 @@ export default function EventPage() {
   const [visibleCols, setVisibleCols] = useState<Set<ColumnKey>>(() => loadSavedColumns())
   const [showColMenu, setShowColMenu] = useState(false)
   const colMenuRef = useRef<HTMLDivElement>(null)
+  const [showExportMenu, setShowExportMenu] = useState(false)
+  const exportMenuRef = useRef<HTMLDivElement>(null)
 
   const [showModal, setShowModal] = useState(false)
   const [showCsvModal, setShowCsvModal] = useState(false)
@@ -563,6 +584,7 @@ export default function EventPage() {
       if (waMenuRef.current && !waMenuRef.current.contains(e.target as Node)) setShowWaMenu(null)
       if (colMenuRef.current && !colMenuRef.current.contains(e.target as Node)) setShowColMenu(false)
       if (filterMenuRef.current && !filterMenuRef.current.contains(e.target as Node)) setShowFilterMenu(false)
+      if (exportMenuRef.current && !exportMenuRef.current.contains(e.target as Node)) setShowExportMenu(false)
     }
     document.addEventListener('mousedown', handleClick)
     return () => document.removeEventListener('mousedown', handleClick)
@@ -902,6 +924,88 @@ export default function EventPage() {
     setCsvPreview(null); setCsvImporting(false)
   }
 
+  const exportExcel = () => {
+    const data = filtered.map(g => {
+      const t = guestTableMap.get(g.id)
+      return {
+        Nombre: g.name,
+        'Teléfono': g.phone || '',
+        Email: g.email || '',
+        Estatus: STATUS_LABEL[g.rsvp_status].label,
+        Mesa: t ? `Mesa ${t.tableNumber}${t.tableName ? ' - ' + t.tableName : ''}` : '',
+        Grupo: g.side || '',
+        Tags: (g.tags || []).join(', '),
+        Alergias: (g.allergies || []).join(', '),
+        Notas: g.notes || '',
+        'Acompañantes': g.party_members.map(m => m.name || 'Acompañante').join(', '),
+      }
+    })
+    const ws = XLSX.utils.json_to_sheet(data)
+    ws['!cols'] = [{ wch: 24 }, { wch: 16 }, { wch: 24 }, { wch: 16 }, { wch: 18 }, { wch: 14 }, { wch: 22 }, { wch: 22 }, { wch: 28 }, { wch: 40 }]
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Invitados')
+    XLSX.writeFile(wb, 'invitados_' + (event?.name?.replace(/\s+/g, '_') || 'evento') + '.xlsx')
+  }
+
+  const exportPDF = async () => {
+    const doc = new jsPDF()
+    const pageW = doc.internal.pageSize.getWidth()
+    const pageH = doc.internal.pageSize.getHeight()
+    const printDate = new Date().toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' })
+    const brandLogoUrl = '/images/logo.png' // white-label hook: si plan agency con logo propio, sustituir esta URL
+    let logoBottom = 14
+    try {
+      const logo = await loadImageData(brandLogoUrl)
+      const lw = 40, lh = (logo.h / logo.w) * lw
+      doc.addImage(logo.dataUrl, 'PNG', pageW - 14 - lw, 14, lw, lh)
+      logoBottom = 14 + lh
+    } catch { /* sin logo */ }
+    let y = 21
+    doc.setFontSize(17); doc.setTextColor(29, 30, 32)
+    doc.text(event?.name || 'Evento', 14, y); y += 6
+    doc.setFontSize(10.5); doc.setTextColor(120)
+    doc.text('Lista de invitados', 14, y); y += 7
+    doc.setFontSize(9.5); doc.setTextColor(90)
+    if (event?.event_date) {
+      const f = new Date(event.event_date).toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+      doc.text(event.event_time ? `${f} · ${event.event_time}` : f, 14, y); y += 5
+    }
+    if (event?.venue) { doc.text(event.venue, 14, y); y += 5 }
+    if (event?.address) { doc.text(event.address, 14, y); y += 5 }
+    doc.setFontSize(9); doc.setTextColor(140)
+    doc.text(`${filtered.length} invitados · ${filtered.reduce((a, g) => a + 1 + g.party_members.length, 0)} personas`, 14, y)
+    const startY = Math.max(y, logoBottom) + 6
+
+    const colDefs: { label: string; guest: (g: Guest) => string; member: (m: PartyMember) => string }[] = [
+      { label: 'Nombre', guest: g => g.name, member: m => '     + ' + (m.name || 'Acompañante') },
+    ]
+    if (visibleCols.has('estatus')) colDefs.push({ label: 'Estatus', guest: g => STATUS_LABEL[g.rsvp_status].label, member: m => STATUS_LABEL[m.rsvp_status].label })
+    if (visibleCols.has('lado'))     colDefs.push({ label: 'Grupo', guest: g => g.side || '', member: () => '' })
+    if (visibleCols.has('mesa'))     colDefs.push({ label: 'Mesa', guest: g => { const t = guestTableMap.get(g.id); return t ? `Mesa ${t.tableNumber}` : '' }, member: () => '' })
+    if (visibleCols.has('tags'))     colDefs.push({ label: 'Tags', guest: g => (g.tags || []).join(', '), member: () => '' })
+    if (visibleCols.has('notas'))    colDefs.push({ label: 'Notas', guest: g => g.notes || '', member: () => '' })
+    if (visibleCols.has('telefono')) colDefs.push({ label: 'Teléfono', guest: g => g.phone || '', member: m => m.phone || '' })
+
+    const body: string[][] = []
+    filtered.forEach(g => {
+      body.push(colDefs.map(c => c.guest(g)))
+      g.party_members.forEach(m => body.push(colDefs.map(c => c.member(m))))
+    })
+    autoTable(doc, {
+      head: [colDefs.map(c => c.label)],
+      body,
+      startY,
+      styles: { fontSize: 8.5, cellPadding: 1.8, overflow: 'linebreak' },
+      headStyles: { fillColor: [29, 30, 32], textColor: 255 },
+      columnStyles: { 0: { cellWidth: 50 } },
+      didDrawPage: () => {
+        doc.setFontSize(8); doc.setTextColor(160)
+        doc.text(`Descargado desde Anfiora.com · ${printDate}`, pageW / 2, pageH - 8, { align: 'center' })
+      },
+    })
+    doc.save(`ANFIORA - ${event?.name || 'Evento'} - Lista de invitados.pdf`)
+  }
+
   const exportCSV = () => {
     const headers = 'nombre,telefono,email,status,mesa,notas,tags,acompañantes'
     const rows = guests.map(g => {
@@ -1159,9 +1263,24 @@ export default function EventPage() {
               </div>
             )}
           </div>
-          <button onClick={exportCSV} className="hidden items-center gap-1.5 whitespace-nowrap rounded-lg border border-[#e0e0e0] px-3 py-2 text-xs text-[#666] transition hover:border-[#48C9B0] hover:text-[#48C9B0] sm:flex">
-            <Download size={13} />Exportar
-          </button>
+          <div className="relative hidden sm:block" ref={exportMenuRef}>
+            <button onClick={() => setShowExportMenu(v => !v)} className="flex items-center gap-1.5 whitespace-nowrap rounded-lg border border-[#e0e0e0] px-3 py-2 text-xs text-[#666] transition hover:border-[#48C9B0] hover:text-[#48C9B0]">
+              <Download size={13} />Exportar
+            </button>
+            {showExportMenu && (
+              <div className="absolute right-0 top-full z-50 mt-1 min-w-[170px] rounded-xl border border-[#e8e8e8] bg-white p-1.5 shadow-lg">
+                <button onClick={() => { setShowExportMenu(false); exportExcel() }} className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs text-[#1D1E20] transition hover:bg-[#f8f8f8]">
+                  <FileSpreadsheet size={15} className="text-[#1a9e5a]" />Excel (.xlsx)
+                </button>
+                <button onClick={() => { setShowExportMenu(false); exportPDF() }} className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs text-[#1D1E20] transition hover:bg-[#f8f8f8]">
+                  <FileText size={15} className="text-[#cc3333]" />PDF
+                </button>
+                <button onClick={() => { setShowExportMenu(false); exportCSV() }} className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs text-[#1D1E20] transition hover:bg-[#f8f8f8]">
+                  <Download size={15} className="text-[#888]" />CSV
+                </button>
+              </div>
+            )}
+          </div>
           <button onClick={() => { setCsvError(''); setCsvSuccess(''); setCsvPreview(null); setShowCsvModal(true) }} className="hidden items-center gap-1.5 whitespace-nowrap rounded-lg border border-[#e0e0e0] px-3 py-2 text-xs text-[#666] transition hover:border-[#48C9B0] hover:text-[#48C9B0] sm:flex">
             <Upload size={13} />Importar
           </button>
