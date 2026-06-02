@@ -4,6 +4,7 @@
 
 export type AnfitrionTier = 'free' | 'esencial' | 'pro' | 'gran'
 export type OrganizadorTier = 'solo' | 'studio' | 'agency'
+export type Feature = 'export' | 'whatsapp_agent'
 
 export const FOUNDER_MAX = 25 // cupos del programa fundador
 
@@ -20,6 +21,7 @@ export interface AnfitrionPlan {
   ctaStyle: 'solid' | 'outline'
   support: string
   bullets: string[]
+  features: Feature[]
 }
 
 export interface OrganizadorPlan {
@@ -34,6 +36,7 @@ export interface OrganizadorPlan {
   whiteLabel: boolean
   support: string
   bullets: string[]
+  features: Feature[]
 }
 
 export const ANFITRION_PLANS: AnfitrionPlan[] = [
@@ -53,6 +56,7 @@ export const ANFITRION_PLANS: AnfitrionPlan[] = [
       'Proveedores y pagos',
       'Álbum (tu link) y playlist',
     ],
+    features: [],
   },
   {
     id: 'esencial',
@@ -70,6 +74,7 @@ export const ANFITRION_PLANS: AnfitrionPlan[] = [
       'Exportar a Excel y PDF',
       'Agente IA WhatsApp disponible',
     ],
+    features: ['export'],
   },
   {
     id: 'pro',
@@ -86,6 +91,7 @@ export const ANFITRION_PLANS: AnfitrionPlan[] = [
       'Equipo de hasta 4 personas',
       'Soporte por WhatsApp + mini demo',
     ],
+    features: ['export', 'whatsapp_agent'],
   },
   {
     id: 'gran',
@@ -102,6 +108,7 @@ export const ANFITRION_PLANS: AnfitrionPlan[] = [
       'Equipo de hasta 5 personas',
       'Onboarding asistido + WhatsApp prioritario',
     ],
+    features: ['export', 'whatsapp_agent'],
   },
 ]
 
@@ -127,6 +134,7 @@ export const ORGANIZADOR_PLANS: OrganizadorPlan[] = [
       'Invitados ilimitados por evento',
       'Todas las herramientas + export',
     ],
+    features: ['export', 'whatsapp_agent'],
   },
   {
     id: 'studio',
@@ -145,6 +153,7 @@ export const ORGANIZADOR_PLANS: OrganizadorPlan[] = [
       'Asientos extra a $200/mes c/u',
       'Soporte prioritario',
     ],
+    features: ['export', 'whatsapp_agent'],
   },
   {
     id: 'agency',
@@ -163,6 +172,7 @@ export const ORGANIZADOR_PLANS: OrganizadorPlan[] = [
       'White-label 100% (tu marca)',
       'Gerente de cuenta',
     ],
+    features: ['export', 'whatsapp_agent'],
   },
 ]
 

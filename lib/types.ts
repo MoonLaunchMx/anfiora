@@ -1,3 +1,5 @@
+import type { EventTier } from './entitlements'
+
 // ─── RSVP ────────────────────────────────────────────────────────────────────
 
 export type RsvpStatus = 'pending' | 'confirmed' | 'declined' | 'mensaje_enviado' | 'respondio' | 'accion_necesaria'
@@ -72,6 +74,7 @@ export type Event = {
   total_guests: number
   guest_tags: string[]
   currency: Currency
+  plan_tier?: EventTier
   created_at: string
 }
 
