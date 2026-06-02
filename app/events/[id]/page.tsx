@@ -947,9 +947,9 @@ export default function EventPage() {
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#ffffff', color: '#1D1E20', overflow: 'hidden' }}>
 
       <div className="shrink-0 border-b border-[#e8e8e8] px-4 pt-4 pb-0 sm:px-6 sm:pt-5 lg:px-10 lg:pt-6">
-        <div className="mb-4 flex items-start justify-between gap-3">
+        <div className="mb-4 flex items-start justify-between gap-4">
           <div className="min-w-0 flex-1">
-            <h1 className="text-lg font-bold text-[#1D1E20] sm:text-xl">Invitados</h1>
+            <h1 className="text-xl font-bold text-[#1D1E20]">Invitados</h1>
             <p className="mt-0.5 text-xs text-[#888] sm:text-sm">Gestiona a todos tus invitados.</p>
           </div>
           <div className="lg:hidden shrink-0 pt-1">
@@ -958,41 +958,41 @@ export default function EventPage() {
         </div>
 
         <StatsCollapse visible={statsVisible}>
-          <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
-            <div className="rounded-xl border border-[#e8e8e8] bg-white p-3">
-              <div className="mb-1.5 flex items-center justify-between">
-                <span className="text-[10px] font-semibold uppercase tracking-wide text-[#aaa]">Confirmados</span>
-                <CheckCircle size={14} className="text-[#48C9B0]" />
+          <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div className="rounded-xl border border-[#e8e8e8] bg-white p-4">
+              <div className="flex items-center gap-2">
+                <CheckCircle size={16} className="text-[#48C9B0]" />
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-[#888]">Confirmados</span>
               </div>
-              <div className="text-xl font-bold text-[#1D1E20]">{confirmed}<span className="ml-1.5 text-sm font-normal text-[#aaa]">/ {totalPersonas}</span></div>
+              <p className="mt-2 text-2xl font-bold tabular-nums text-[#1D1E20]">{confirmed}<span className="ml-1.5 text-sm font-normal text-[#aaa]">/ {totalPersonas}</span></p>
               <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-[#e8e8e8]">
                 <div className="h-full rounded-full bg-[#48C9B0] transition-all" style={{ width: totalPersonas > 0 ? `${(confirmed / totalPersonas) * 100}%` : '0%' }} />
               </div>
             </div>
-            <div className="rounded-xl border border-[#e8e8e8] bg-white p-3">
-              <div className="mb-1.5 flex items-center justify-between">
-                <span className="text-[10px] font-semibold uppercase tracking-wide text-[#aaa]">Pendientes</span>
-                <Clock size={14} className={pending > 0 ? 'text-[#b8860b]' : 'text-[#bbb]'} />
+            <div className="rounded-xl border border-[#e8e8e8] bg-white p-4">
+              <div className="flex items-center gap-2">
+                <Clock size={16} className={pending > 0 ? 'text-[#b8860b]' : 'text-[#bbb]'} />
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-[#888]">Pendientes</span>
               </div>
-              <div className="text-xl font-bold" style={{ color: pending > 0 ? '#b8860b' : '#1D1E20' }}>{pending + mensajeEnviado}</div>
+              <p className="mt-2 text-2xl font-bold tabular-nums" style={{ color: pending > 0 ? '#b8860b' : '#1D1E20' }}>{pending + mensajeEnviado}</p>
               <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-[#e8e8e8]">
                 <div className="h-full rounded-full bg-[#f0d080] transition-all" style={{ width: totalPersonas > 0 ? `${((pending + mensajeEnviado) / totalPersonas) * 100}%` : '0%' }} />
               </div>
             </div>
-            <div className="rounded-xl border border-[#e8e8e8] bg-white p-3">
-              <div className="mb-1.5 flex items-center justify-between">
-                <span className="text-[10px] font-semibold uppercase tracking-wide text-[#aaa]">Atención</span>
-                <AlertCircle size={14} className={conAtencion > 0 ? 'text-[#cc3333]' : 'text-[#bbb]'} />
+            <div className="rounded-xl border border-[#e8e8e8] bg-white p-4">
+              <div className="flex items-center gap-2">
+                <AlertCircle size={16} className={conAtencion > 0 ? 'text-[#cc3333]' : 'text-[#bbb]'} />
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-[#888]">Atención</span>
               </div>
-              <div className="text-xl font-bold" style={{ color: conAtencion > 0 ? '#cc3333' : '#1D1E20' }}>{conAtencion}</div>
-              {conAtencion > 0 ? <div className="mt-1 text-[10px] font-medium text-[#cc3333]">Respondieron o acción requerida</div> : <div className="mt-1 text-[10px] text-[#48C9B0]">Sin pendientes urgentes ✓</div>}
+              <p className="mt-2 text-2xl font-bold tabular-nums" style={{ color: conAtencion > 0 ? '#cc3333' : '#1D1E20' }}>{conAtencion}</p>
+              {conAtencion > 0 ? <p className="mt-1 text-[10px] font-medium text-[#cc3333]">Respondieron o acción requerida</p> : <p className="mt-1 text-[10px] text-[#48C9B0]">Sin pendientes urgentes ✓</p>}
             </div>
-            <div className="rounded-xl border border-[#e8e8e8] bg-white p-3">
-              <div className="mb-1.5 flex items-center justify-between">
-                <span className="text-[10px] font-semibold uppercase tracking-wide text-[#aaa]">Declinados</span>
-                <XCircle size={14} className={declined > 0 ? 'text-[#cc3333]' : 'text-[#bbb]'} />
+            <div className="rounded-xl border border-[#e8e8e8] bg-white p-4">
+              <div className="flex items-center gap-2">
+                <XCircle size={16} className={declined > 0 ? 'text-[#cc3333]' : 'text-[#bbb]'} />
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-[#888]">Declinados</span>
               </div>
-              <div className="text-xl font-bold" style={{ color: declined > 0 ? '#cc3333' : '#1D1E20' }}>{declined}</div>
+              <p className="mt-2 text-2xl font-bold tabular-nums" style={{ color: declined > 0 ? '#cc3333' : '#1D1E20' }}>{declined}</p>
               <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-[#e8e8e8]">
                 <div className="h-full rounded-full bg-[#ffc0c0] transition-all" style={{ width: totalPersonas > 0 ? `${(declined / totalPersonas) * 100}%` : '0%' }} />
               </div>
@@ -1072,21 +1072,7 @@ export default function EventPage() {
         </div>
       </div>
 
-      <div className="hidden shrink-0 border-b border-[#e8e8e8] bg-[#f8f8f8] px-6 py-2 sm:px-6 lg:px-10 sm:block">
-        <div className="items-center" style={{ display: 'grid', gridTemplateColumns: gridCols }}>
-          <input type="checkbox" checked={allSelected} onChange={toggleSelectAll} className="cursor-pointer accent-[#48C9B0]" />
-          <button onClick={() => handleHeaderClick('name')} className="cursor-pointer text-left text-[11px] font-semibold uppercase tracking-wide text-[#aaa] transition hover:text-[#1D1E20]">Nombre{getSortIndicator('name')}</button>
-          {visibleCols.has('tags')     && <div className="text-[11px] font-semibold uppercase tracking-wide text-[#aaa]">Tags</div>}
-          {visibleCols.has('mesa')     && <div className="text-[11px] font-semibold uppercase tracking-wide text-[#aaa]">Mesa</div>}
-          {visibleCols.has('lado')     && <div className="text-[11px] font-semibold uppercase tracking-wide text-[#aaa]">Grupo</div>}
-          {visibleCols.has('notas')    && <button onClick={() => handleHeaderClick('notes')} className="cursor-pointer text-left text-[11px] font-semibold uppercase tracking-wide text-[#aaa] transition hover:text-[#1D1E20]">Notas{getSortIndicator('notes')}</button>}
-          {visibleCols.has('telefono') && <button onClick={() => handleHeaderClick('phone')} className="cursor-pointer text-left text-[11px] font-semibold uppercase tracking-wide text-[#aaa] transition hover:text-[#1D1E20]">Teléfono{getSortIndicator('phone')}</button>}
-          {visibleCols.has('estatus')  && <button onClick={() => handleHeaderClick('status')} className="cursor-pointer text-left text-[11px] font-semibold uppercase tracking-wide text-[#aaa] transition hover:text-[#1D1E20]">Estatus{getSortIndicator('status')}</button>}
-          <div />
-        </div>
-      </div>
-
-      <div className="flex-1 overflow-y-auto px-4 pb-6 pt-3 sm:px-6 lg:px-10">
+      <div className="flex-1 overflow-y-auto px-4 pb-6 pt-0 sm:px-6 lg:px-10">
         {loading ? (
           <p className="pt-5 text-sm text-[#999]">Cargando...</p>
         ) : filtered.length === 0 ? (
@@ -1097,7 +1083,7 @@ export default function EventPage() {
           </div>
         ) : (
           <>
-            <div className="flex flex-col gap-2 sm:hidden">
+            <div className="mt-3 flex flex-col gap-2 sm:hidden">
               {filtered.map((guest, gIdx) => {
                 const groupColor = guest.party_members.length > 0 ? GROUP_COLORS[gIdx % GROUP_COLORS.length] : null
                 const guestTags = guest.tags || []
@@ -1130,7 +1116,18 @@ export default function EventPage() {
               })}
             </div>
 
-            <div className="hidden rounded-b-xl border border-[#e8e8e8] sm:block">
+            <div className="mt-3 hidden rounded-xl border border-[#e8e8e8] sm:block">
+              <div className="sticky top-0 z-10 items-center rounded-t-xl border-b border-[#e8e8e8] bg-[#f8f8f8] px-4 py-2" style={{ display: 'grid', gridTemplateColumns: gridCols }}>
+                <input type="checkbox" checked={allSelected} onChange={toggleSelectAll} className="cursor-pointer accent-[#48C9B0]" />
+                <button onClick={() => handleHeaderClick('name')} className="cursor-pointer text-left text-[11px] font-semibold uppercase tracking-wide text-[#aaa] transition hover:text-[#1D1E20]">Nombre{getSortIndicator('name')}</button>
+                {visibleCols.has('tags')     && <div className="text-[11px] font-semibold uppercase tracking-wide text-[#aaa]">Tags</div>}
+                {visibleCols.has('mesa')     && <div className="text-[11px] font-semibold uppercase tracking-wide text-[#aaa]">Mesa</div>}
+                {visibleCols.has('lado')     && <div className="text-[11px] font-semibold uppercase tracking-wide text-[#aaa]">Grupo</div>}
+                {visibleCols.has('notas')    && <button onClick={() => handleHeaderClick('notes')} className="cursor-pointer text-left text-[11px] font-semibold uppercase tracking-wide text-[#aaa] transition hover:text-[#1D1E20]">Notas{getSortIndicator('notes')}</button>}
+                {visibleCols.has('telefono') && <button onClick={() => handleHeaderClick('phone')} className="cursor-pointer text-left text-[11px] font-semibold uppercase tracking-wide text-[#aaa] transition hover:text-[#1D1E20]">Teléfono{getSortIndicator('phone')}</button>}
+                {visibleCols.has('estatus')  && <button onClick={() => handleHeaderClick('status')} className="cursor-pointer text-left text-[11px] font-semibold uppercase tracking-wide text-[#aaa] transition hover:text-[#1D1E20]">Estatus{getSortIndicator('status')}</button>}
+                <div />
+              </div>
               {filtered.map((guest, gIdx) => {
                 const groupColor = guest.party_members.length > 0 ? GROUP_COLORS[gIdx % GROUP_COLORS.length] : null
                 const isLastGuest = gIdx === filtered.length - 1
@@ -1153,7 +1150,7 @@ export default function EventPage() {
                       </div>
                       {visibleCols.has('tags') && (
                         <div onClick={() => openEdit(guest)} className="flex flex-wrap gap-1 cursor-pointer">
-                          {guestTags.length > 0 ? guestTags.map(tag => { const tagIdx = availableTags.indexOf(tag); const col = getTagColor(tagIdx >= 0 ? tagIdx : 0); return <span key={tag} className="rounded-full border px-2 py-0.5 text-[10px] font-medium" style={{ background: col.bg, borderColor: col.border, color: col.text }}>{tag}</span> }) : <span className="text-[#ddd] text-xs">—</span>}
+                          {guestTags.length > 0 ? (<>{guestTags.slice(0, 4).map(tag => { const tagIdx = availableTags.indexOf(tag); const col = getTagColor(tagIdx >= 0 ? tagIdx : 0); return <span key={tag} className="rounded-full border px-2 py-0.5 text-[10px] font-medium" style={{ background: col.bg, borderColor: col.border, color: col.text }}>{tag}</span> })}{guestTags.length > 4 && <span className="rounded-full border border-[#e0e0e0] bg-[#f2f2f2] px-2 py-0.5 text-[10px] font-medium text-[#888]">+{guestTags.length - 4}</span>}</>) : <span className="text-[#ddd] text-xs">—</span>}
                         </div>
                       )}
                       {visibleCols.has('mesa') && (
