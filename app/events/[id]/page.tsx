@@ -1,11 +1,11 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { useParams } from 'next/navigation'
 import { motion, useMotionValue, useTransform, animate } from 'framer-motion'
 import type { PanInfo } from 'framer-motion'
-import { Trash2, Send, Clock, MessageSquare, AlertCircle, CheckCircle, XCircle, Download, Upload, Columns3, Search, UserPlus, Plus, Check, X } from 'lucide-react'
+import { Trash2, Send, Clock, MessageSquare, AlertCircle, CheckCircle, XCircle, Download, Upload, Columns3, Search, UserPlus, Plus, Check, X, Filter } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { PartyMember, Guest, Event, EventSettings, EventStatus, RsvpStatus } from '@/lib/types'
 import StatsCollapse, { StatsToggleButton, useStatsToggle } from '@/app/components/ui/StatsCollapse'
@@ -425,6 +425,10 @@ function BulkMenuContent({ onClose, onBulkUpdateStatus, onBulkDelete, onOpenComp
   )
 }
 
+type FilterField = 'tag' | 'allergy' | 'side' | 'rsvp_status' | 'table'
+type FilterCondition = { field: FilterField; value: string }
+const FILTER_LABEL: Record<FilterField, string> = { tag: 'Tag', allergy: 'Alergia', side: 'Grupo', rsvp_status: 'Estatus', table: 'Mesa' }
+
 export default function EventPage() {
   const { id } = useParams()
 
@@ -435,10 +439,13 @@ export default function EventPage() {
   const [guests, setGuests] = useState<Guest[]>([])
   const [groupPool, setGroupPool] = useState<string[]>([])
   const [allergyPool, setAllergyPool] = useState<string[]>([])
-  const [filtered, setFiltered] = useState<Guest[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
   const [filter, setFilter] = useState<'all' | RsvpStatus>('all')
+  const [filters, setFilters] = useState<FilterCondition[]>([])
+  const [showFilterMenu, setShowFilterMenu] = useState(false)
+  const filterMenuRef = useRef<HTMLDivElement>(null)
   const [guestTableMap, setGuestTableMap] = useState<Map<string, GuestTableInfo>>(new Map())
 
   const [visibleCols, setVisibleCols] = useState<Set<ColumnKey>>(() => loadSavedColumns())
@@ -505,9 +512,30 @@ export default function EventPage() {
   }, [])
 
   useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 180)
+    return () => clearTimeout(t)
+  }, [search])
+
+  const addFilter = (field: FilterField, value: string) => setFilters(prev => prev.some(f => f.field === field && f.value === value) ? prev : [...prev, { field, value }])
+  const removeFilter = (field: FilterField, value: string) => setFilters(prev => prev.filter(f => !(f.field === field && f.value === value)))
+  const clearFilters = () => setFilters([])
+
+  const filtered = useMemo(() => {
     let result = guests
+    for (const f of filters) {
+      result = result.filter(g => {
+        switch (f.field) {
+          case 'tag':         return (g.tags || []).includes(f.value)
+          case 'allergy':     return (g.allergies || []).includes(f.value)
+          case 'side':        return g.side === f.value
+          case 'rsvp_status': return g.rsvp_status === f.value || g.party_members.some(m => m.rsvp_status === f.value)
+          case 'table':       { const tb = guestTableMap.get(g.id); return !!tb && `Mesa ${tb.tableNumber}` === f.value }
+          default:            return true
+        }
+      })
+    }
     if (filter !== 'all') result = result.filter(g => g.rsvp_status === filter || g.party_members.some(m => m.rsvp_status === filter))
-    if (search) result = result.filter(g => g.name.toLowerCase().includes(search.toLowerCase()))
+    if (debouncedSearch) result = result.filter(g => g.name.toLowerCase().includes(debouncedSearch.toLowerCase()))
     if (sortField) {
       result = [...result].sort((a, b) => {
         let aVal: any = '', bVal: any = ''
@@ -522,14 +550,15 @@ export default function EventPage() {
         return 0
       })
     }
-    setFiltered(result)
-  }, [guests, filter, search, sortField, sortDirection])
+    return result
+  }, [guests, filters, filter, debouncedSearch, sortField, sortDirection, guestTableMap])
 
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
       if (bulkMenuRef.current && !bulkMenuRef.current.contains(e.target as Node)) setShowBulkMenu(false)
       if (waMenuRef.current && !waMenuRef.current.contains(e.target as Node)) setShowWaMenu(null)
       if (colMenuRef.current && !colMenuRef.current.contains(e.target as Node)) setShowColMenu(false)
+      if (filterMenuRef.current && !filterMenuRef.current.contains(e.target as Node)) setShowFilterMenu(false)
     }
     document.addEventListener('mousedown', handleClick)
     return () => document.removeEventListener('mousedown', handleClick)
@@ -894,6 +923,7 @@ export default function EventPage() {
   const activeTemplates = (eventSettings?.message_templates as string[] | null)?.filter((t: string) => t.trim()) || []
   const templateNames = eventSettings?.template_names as string[] | null
   const availableTags = event?.guest_tags || []
+  const tableFilterValues = useMemo(() => Array.from(new Set(guests.map(g => { const t = guestTableMap.get(g.id); return t ? `Mesa ${t.tableNumber}` : '' }).filter(Boolean))) as string[], [guests, guestTableMap])
   const createEventTag = async (tag: string) => {
     const t = tag.trim()
     if (!t || availableTags.some(x => x.toLowerCase() === t.toLowerCase())) return
@@ -1041,6 +1071,39 @@ export default function EventPage() {
               )}
             </div>
           )}
+          <div className="relative hidden sm:block" ref={filterMenuRef}>
+            <button onClick={() => setShowFilterMenu(v => !v)}
+              className="flex items-center gap-1.5 whitespace-nowrap rounded-lg border border-[#e0e0e0] px-3 py-2 text-xs text-[#666] transition hover:border-[#48C9B0] hover:text-[#48C9B0]">
+              <Filter size={13} />Filtros{filters.length > 0 ? ` (${filters.length})` : ''}
+            </button>
+            {showFilterMenu && (
+              <div className="absolute right-0 top-full z-50 mt-1 max-h-[60vh] w-64 overflow-y-auto rounded-xl border border-[#e8e8e8] bg-white p-2 shadow-lg">
+                {([
+                  { title: 'Tags', field: 'tag' as FilterField, values: availableTags },
+                  { title: 'Alergias', field: 'allergy' as FilterField, values: allergyPool },
+                  { title: 'Grupos', field: 'side' as FilterField, values: groupPool },
+                  { title: 'Mesas', field: 'table' as FilterField, values: tableFilterValues },
+                ]).map(sec => sec.values.length > 0 && (
+                  <div key={sec.field} className="mb-1.5">
+                    <p className="mb-1 px-2 text-[10px] font-semibold uppercase tracking-wide text-[#aaa]">{sec.title}</p>
+                    {sec.values.map(v => {
+                      const active = filters.some(f => f.field === sec.field && f.value === v)
+                      return (
+                        <button key={v} onClick={() => active ? removeFilter(sec.field, v) : addFilter(sec.field, v)}
+                          className="flex w-full items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-left text-xs text-[#1D1E20] transition hover:bg-[#f8f8f8]">
+                          <span className="truncate">{v}</span>
+                          {active && <Check size={13} className="shrink-0 text-[#48C9B0]" />}
+                        </button>
+                      )
+                    })}
+                  </div>
+                ))}
+                {availableTags.length === 0 && allergyPool.length === 0 && groupPool.length === 0 && tableFilterValues.length === 0 && (
+                  <p className="px-2 py-2 text-xs text-[#aaa]">No hay valores para filtrar todavia</p>
+                )}
+              </div>
+            )}
+          </div>
           <div className="relative hidden sm:block" ref={colMenuRef}>
             <button onClick={() => setShowColMenu(v => !v)}
               className="flex items-center gap-1.5 whitespace-nowrap rounded-lg border border-[#e0e0e0] px-3 py-2 text-xs text-[#666] transition hover:border-[#48C9B0] hover:text-[#48C9B0]">
@@ -1070,6 +1133,20 @@ export default function EventPage() {
             + Agregar
           </button>
         </div>
+
+        {filters.length > 0 && (
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            {filters.map(f => (
+              <span key={f.field + ':' + f.value} className="inline-flex items-center gap-1.5 rounded-lg bg-[#1D1E20] px-2.5 py-1 text-xs font-medium text-white">
+                {FILTER_LABEL[f.field]}: {f.value}
+                <button onClick={() => removeFilter(f.field, f.value)} className="text-white/60 transition hover:text-white"><X size={12} /></button>
+              </span>
+            ))}
+            {filters.length >= 2 && (
+              <button onClick={clearFilters} className="text-xs font-medium text-[#888] underline transition hover:text-[#1D1E20]">Limpiar</button>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 pb-6 pt-0 sm:px-6 lg:px-10">
@@ -1150,14 +1227,14 @@ export default function EventPage() {
                       </div>
                       {visibleCols.has('tags') && (
                         <div onClick={() => openEdit(guest)} className="flex flex-wrap gap-1 cursor-pointer">
-                          {guestTags.length > 0 ? (<>{guestTags.slice(0, 4).map(tag => { const tagIdx = availableTags.indexOf(tag); const col = getTagColor(tagIdx >= 0 ? tagIdx : 0); return <span key={tag} className="rounded-full border px-2 py-0.5 text-[10px] font-medium" style={{ background: col.bg, borderColor: col.border, color: col.text }}>{tag}</span> })}{guestTags.length > 4 && <span className="rounded-full border border-[#e0e0e0] bg-[#f2f2f2] px-2 py-0.5 text-[10px] font-medium text-[#888]">+{guestTags.length - 4}</span>}</>) : <span className="text-[#ddd] text-xs">—</span>}
+                          {guestTags.length > 0 ? (<>{guestTags.slice(0, 4).map(tag => { const tagIdx = availableTags.indexOf(tag); const col = getTagColor(tagIdx >= 0 ? tagIdx : 0); return <span key={tag} onClick={(e) => { e.stopPropagation(); addFilter('tag', tag) }} className="cursor-pointer rounded-full border px-2 py-0.5 text-[10px] font-medium transition hover:opacity-75" style={{ background: col.bg, borderColor: col.border, color: col.text }}>{tag}</span> })}{guestTags.length > 4 && <span className="rounded-full border border-[#e0e0e0] bg-[#f2f2f2] px-2 py-0.5 text-[10px] font-medium text-[#888]">+{guestTags.length - 4}</span>}</>) : <span className="text-[#ddd] text-xs">—</span>}
                         </div>
                       )}
                       {visibleCols.has('mesa') && (
-                        <div>{tableLabel ? <span className="rounded-full border border-[#c8ede7] bg-[#f0fdfb] px-2 py-0.5 text-[10px] font-semibold text-[#1a9e88]">{tableLabel}</span> : <span className="text-[#ddd] text-xs">—</span>}</div>
+                        <div>{tableLabel ? <span onClick={(e) => { e.stopPropagation(); addFilter('table', tableLabel) }} className="cursor-pointer rounded-full border border-[#c8ede7] bg-[#f0fdfb] px-2 py-0.5 text-[10px] font-semibold text-[#1a9e88] transition hover:opacity-75">{tableLabel}</span> : <span className="text-[#ddd] text-xs">—</span>}</div>
                       )}
                       {visibleCols.has('lado') && (
-                        <div>{guest.side ? <span className="rounded-full border border-[#e0e0e0] bg-[#f8f8f8] px-2 py-0.5 text-[10px] font-medium text-[#555]">{guest.side}</span> : <span className="text-[#ddd] text-xs">—</span>}</div>
+                        <div>{guest.side ? <span onClick={(e) => { e.stopPropagation(); addFilter('side', guest.side!) }} className="cursor-pointer rounded-full border border-[#e0e0e0] bg-[#f8f8f8] px-2 py-0.5 text-[10px] font-medium text-[#555] transition hover:opacity-75">{guest.side}</span> : <span className="text-[#ddd] text-xs">—</span>}</div>
                       )}
                       {visibleCols.has('notas') && (
                         <div onClick={() => openEdit(guest)} className="cursor-pointer overflow-hidden text-ellipsis whitespace-nowrap text-xs text-[#aaa] hover:text-[#1D1E20]" title={guest.notes || ''}>
