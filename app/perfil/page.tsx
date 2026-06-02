@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { supabase } from '@/lib/supabase'
 import { User, Phone, Lock, Eye, EyeOff, CheckCircle, AlertCircle, ArrowLeft } from 'lucide-react'
+import { ORGANIZADOR_PLANS } from '@/lib/pricing'
+import { normalizePlan } from '@/lib/entitlements'
 
 type PlanInfo = {
   label: string
@@ -15,8 +17,10 @@ type PlanInfo = {
 
 const PLAN_STYLES: Record<string, PlanInfo> = {
   free:   { label: 'Free',   color: '#888',    bg: '#f8f8f8',  border: '#e0e0e0' },
-  pro:    { label: 'Pro',    color: '#1a9e88', bg: '#f0fdfb',  border: '#a0e0d0' },
+  solo:   { label: 'Solo',   color: '#1a9e88', bg: '#f0fdfb',  border: '#a0e0d0' },
+  studio: { label: 'Studio', color: '#1a9e88', bg: '#f0fdfb',  border: '#a0e0d0' },
   agency: { label: 'Agency', color: '#7c3aed', bg: '#f5f3ff',  border: '#c4b5fd' },
+  pro:    { label: 'Pro',    color: '#1a9e88', bg: '#f0fdfb',  border: '#a0e0d0' },
 }
 
 function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
@@ -190,7 +194,10 @@ export default function PerfilPage() {
     setSavingPass(false)
   }
 
-  const planStyle = PLAN_STYLES[plan] || PLAN_STYLES.free
+  const normPlan = normalizePlan(plan)
+  const planStyle = PLAN_STYLES[normPlan] || PLAN_STYLES.free
+  const orgPlan = ORGANIZADOR_PLANS.find(p => p.id === normPlan)
+  const planDesc = orgPlan ? `${orgPlan.activeEvents} eventos activos · invitados ilimitados` : 'Tu evento, hasta 50 invitados'
 
   if (loading) {
     return (
@@ -241,11 +248,7 @@ export default function PerfilPage() {
                 </div>
                 <div>
                   <p className="text-sm font-semibold text-[#1D1E20]">Plan {planStyle.label}</p>
-                  <p className="text-[11px] text-[#aaa]">
-                    {plan === 'free'   && '1 evento · 30 invitados'}
-                    {plan === 'pro'    && 'Eventos ilimitados · WhatsApp · IA'}
-                    {plan === 'agency' && 'Todo Pro + número dedicado'}
-                  </p>
+                  <p className="text-[11px] text-[#aaa]">{planDesc}</p>
                 </div>
               </div>
               {plan === 'free' && (
