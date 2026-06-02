@@ -135,6 +135,7 @@ export default function Dashboard() {
   }
 
   const handleNewEvent = () => {
+    if (userPlan === null) { window.location.href = '/events/new'; return }
     const activeCount = myEvents.filter(e => e.event_status !== 'completed' && e.event_status !== 'cancelled').length
     const limit = getActiveEventLimit(userPlan, userEmail)
     if (activeCount >= limit) {

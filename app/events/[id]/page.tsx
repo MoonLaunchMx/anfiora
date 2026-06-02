@@ -807,7 +807,7 @@ export default function EventPage() {
           <div className="min-w-0 flex-1">
             <h1 className="text-lg font-bold text-[#1D1E20] sm:text-xl">Invitados</h1>
             <p className="mt-0.5 text-xs text-[#888] sm:text-sm">Gestiona a todos tus invitados.</p>
-            {guestLimit !== Infinity && (
+            {ownerPlan !== null && guestLimit !== Infinity && (
               <span className={`mt-1.5 inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-semibold ${totalGuestCount >= guestLimit ? 'border-[#ffc0c0] bg-[#fff0f0] text-[#cc3333]' : totalGuestCount >= guestLimit * 0.8 ? 'border-[#f0d080] bg-[#fffbf0] text-[#b8860b]' : 'border-[#e8e8e8] bg-[#f8f8f8] text-[#888]'}`}>
                 {totalGuestCount} / {guestLimit} invitados · plan {planLabel}
               </span>
