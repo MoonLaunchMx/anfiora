@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom'
 import { useParams } from 'next/navigation'
 import { motion, useMotionValue, useTransform, animate } from 'framer-motion'
 import type { PanInfo } from 'framer-motion'
-import { Trash2, Send, Clock, MessageSquare, AlertCircle, CheckCircle, XCircle, Download, Upload, Columns3, Search, UserPlus } from 'lucide-react'
+import { Trash2, Send, Clock, MessageSquare, AlertCircle, CheckCircle, XCircle, Download, Upload, Columns3, Search, UserPlus, Plus, Check, X } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { PartyMember, Guest, Event, EventSettings, EventStatus, RsvpStatus } from '@/lib/types'
 import StatsCollapse, { StatsToggleButton, useStatsToggle } from '@/app/components/ui/StatsCollapse'
@@ -133,22 +133,90 @@ type GuestTableInfo = { tableNumber: number; tableName: string | null }
 
 function normalizePhone(phone: string): string { return phone.replace(/\D/g, '') }
 
-function TagSelector({ availableTags, selectedTags, onChange }: { availableTags: string[]; selectedTags: string[]; onChange: (tags: string[]) => void }) {
-  if (availableTags.length === 0) return <p className="text-xs text-[#bbb]">Sin tags — agrégalos desde Configuración.</p>
-  const toggle = (tag: string) => onChange(selectedTags.includes(tag) ? selectedTags.filter(t => t !== tag) : [...selectedTags, tag])
+function TagInput({ availableTags, selectedTags, onChangeSelected, onCreateTag, onDeleteTag }: {
+  availableTags: string[]
+  selectedTags: string[]
+  onChangeSelected: (tags: string[]) => void
+  onCreateTag: (tag: string) => void
+  onDeleteTag: (tag: string) => void
+}) {
+  const [editing, setEditing] = useState(false)
+  const [query, setQuery] = useState('')
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const q = query.trim()
+  const ql = q.toLowerCase()
+  const exactExists = availableTags.some(t => t.toLowerCase() === ql)
+  const suggestions = availableTags.filter(t => !selectedTags.includes(t) && (!q || t.toLowerCase().includes(ql)))
+  const openEditor = () => { setEditing(true); setTimeout(() => inputRef.current?.focus(), 0) }
+  const closeEditor = () => { setEditing(false); setQuery('') }
+  const remove = (tag: string) => onChangeSelected(selectedTags.filter(t => t !== tag))
+  const assign = (tag: string) => { if (!selectedTags.includes(tag)) onChangeSelected([...selectedTags, tag]); setQuery('') }
+  const confirmAdd = () => {
+    if (!q) return
+    const exact = availableTags.find(t => t.toLowerCase() === ql)
+    if (exact) assign(exact)
+    else { onCreateTag(q); onChangeSelected([...selectedTags, q]); setQuery('') }
+  }
   return (
-    <div className="flex flex-wrap gap-1.5">
-      {availableTags.map((tag, i) => {
-        const col = getTagColor(i)
-        const isSelected = selectedTags.includes(tag)
-        return (
-          <button key={tag} type="button" onClick={() => toggle(tag)}
-            className="rounded-full border px-2.5 py-1 text-xs font-medium transition"
-            style={isSelected ? { background: col.bg, borderColor: col.border, color: col.text } : { background: '#f8f8f8', borderColor: '#e0e0e0', color: '#aaa' }}>
-            {tag}
+    <div>
+      <div className="flex flex-wrap items-center gap-1.5">
+        {selectedTags.map(tag => {
+          const col = getTagColor(availableTags.indexOf(tag))
+          return (
+            <span key={tag} className="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium"
+              style={{ background: col.bg, borderColor: col.border, color: col.text }}>
+              {tag}
+              <button type="button" onClick={() => remove(tag)} className="opacity-50 transition hover:opacity-100">✕</button>
+            </span>
+          )
+        })}
+        {!editing ? (
+          <button type="button" onClick={openEditor}
+            className="inline-flex items-center gap-1 rounded-full border border-dashed border-[#c8c8c8] px-2.5 py-1 text-xs font-medium text-[#888] transition hover:border-[#48C9B0] hover:text-[#48C9B0]">
+            <Plus className="h-3 w-3" /> Tag
           </button>
-        )
-      })}
+        ) : (
+          <span className="inline-flex items-center gap-1 rounded-full border border-[#48C9B0] bg-white py-0.5 pl-2.5 pr-1.5">
+            <input ref={inputRef} value={query} onChange={e => setQuery(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); confirmAdd() } if (e.key === 'Escape') closeEditor() }}
+              placeholder="Nuevo tag" className="w-24 bg-transparent text-xs text-[#1D1E20] outline-none placeholder:text-[#bbb]" />
+            <button type="button" onClick={confirmAdd} disabled={!q} title="Agregar" className="text-[#48C9B0] transition disabled:opacity-30"><Check className="h-4 w-4" strokeWidth={3} /></button>
+            <button type="button" onClick={closeEditor} title="Cancelar" className="text-[#bbb] transition hover:text-[#888]"><X className="h-4 w-4" /></button>
+          </span>
+        )}
+      </div>
+
+      {editing && suggestions.length > 0 && (
+        <div className="mt-2.5">
+          <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-[#bbb]">Tags del evento</p>
+          <div className="flex flex-wrap gap-1.5">
+            {suggestions.map(tag => {
+              const col = getTagColor(availableTags.indexOf(tag))
+              return (
+                <span key={tag} className="inline-flex items-center gap-1 rounded-full border bg-white px-2 py-0.5 text-xs"
+                  style={{ borderColor: col.border, color: col.text }}>
+                  <button type="button" onClick={() => assign(tag)} className="font-medium">{tag}</button>
+                  <button type="button" onClick={() => setConfirmDelete(tag)} title="Eliminar del evento" className="text-[#ccc] transition hover:text-[#cc3333]"><Trash2 className="h-3 w-3" /></button>
+                </span>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {confirmDelete && (
+        <div className="fixed inset-0 z-[400] flex items-center justify-center bg-black/40 p-4" onClick={() => setConfirmDelete(null)}>
+          <div className="w-full max-w-xs rounded-2xl border border-[#e8e8e8] bg-white p-6 text-center shadow-xl" onClick={e => e.stopPropagation()}>
+            <h3 className="text-base font-bold text-[#1D1E20]">¿Eliminar el tag &quot;{confirmDelete}&quot;?</h3>
+            <p className="mt-1.5 text-xs text-[#666]">Se quitará de todos los invitados del evento. Esta acción no se puede deshacer.</p>
+            <div className="mt-5 flex gap-2.5">
+              <button type="button" onClick={() => setConfirmDelete(null)} className="flex-1 rounded-lg border border-[#e0e0e0] py-2.5 text-sm text-[#888] transition hover:bg-[#f8f8f8]">Cancelar</button>
+              <button type="button" onClick={() => { onDeleteTag(confirmDelete); setConfirmDelete(null) }} className="flex-1 rounded-lg bg-[#cc3333] py-2.5 text-sm font-semibold text-white transition hover:bg-[#b82e2e]">Eliminar</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -766,6 +834,25 @@ export default function EventPage() {
   const activeTemplates = (eventSettings?.message_templates as string[] | null)?.filter((t: string) => t.trim()) || []
   const templateNames = eventSettings?.template_names as string[] | null
   const availableTags = event?.guest_tags || []
+  const createEventTag = async (tag: string) => {
+    const t = tag.trim()
+    if (!t || availableTags.some(x => x.toLowerCase() === t.toLowerCase())) return
+    const next = [...availableTags, t]
+    setEvent(prev => prev ? { ...prev, guest_tags: next } : prev)
+    await supabase.from('events').update({ guest_tags: next }).eq('id', id)
+  }
+  const deleteEventTag = async (tag: string) => {
+    const next = availableTags.filter(t => t !== tag)
+    setEvent(prev => prev ? { ...prev, guest_tags: next } : prev)
+    setNewTags(prev => prev.filter(t => t !== tag))
+    setEditTags(prev => prev.filter(t => t !== tag))
+    await supabase.from('events').update({ guest_tags: next }).eq('id', id)
+    const affected = guests.filter(g => (g.tags || []).includes(tag))
+    if (affected.length > 0) {
+      await Promise.all(affected.map(g => supabase.from('guests').update({ tags: (g.tags || []).filter(t => t !== tag) }).eq('id', g.id)))
+      setGuests(prev => prev.map(g => ({ ...g, tags: (g.tags || []).filter(t => t !== tag) })))
+    }
+  }
 
   const maxCanAdd = selected.size === 0 ? 15 : Math.max(0, 15 - Math.max(...Array.from(selected).map(gid => guests.find(g => g.id === gid)?.party_members.length ?? 0)))
 
@@ -1083,17 +1170,15 @@ export default function EventPage() {
 
       {editGuest && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-md overflow-y-auto rounded-2xl border border-[#e8e8e8] bg-white p-6 shadow-xl sm:p-8" style={{ maxHeight: '90vh' }}>
+          <div className="w-full max-w-2xl overflow-y-auto rounded-2xl border border-[#e8e8e8] bg-white p-6 shadow-xl sm:p-8" style={{ maxHeight: '90vh' }}>
             <div className="mb-6 flex items-center justify-between">
               <h2 className="text-lg font-bold text-[#1D1E20] sm:text-xl">Editar invitado</h2>
               <button onClick={() => setEditGuest(null)} className="text-xl text-[#aaa]">✕</button>
             </div>
-            <div className="flex flex-col gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div><label className="mb-1.5 block text-xs font-medium text-[#555]">Nombre *</label><input type="text" value={editName} onChange={e => setEditName(e.target.value)} style={inp} /></div>
               <div><label className="mb-1.5 block text-xs font-medium text-[#555]">WhatsApp</label><input type="tel" value={editPhone} onChange={e => setEditPhone(e.target.value)} placeholder="+52 81 1234 5678" style={inp} /></div>
               <div><label className="mb-1.5 block text-xs font-medium text-[#555]">Email</label><input type="email" value={editEmail} onChange={e => setEditEmail(e.target.value)} placeholder="ana@ejemplo.com" style={inp} /></div>
-              <div><label className="mb-1.5 block text-xs font-medium text-[#555]">Notas</label><textarea value={editNotes} onChange={e => setEditNotes(e.target.value)} placeholder="Mesa preferida, restricciones..." rows={2} style={{ ...inp, resize: 'vertical' }} /></div>
-              {availableTags.length > 0 && <div><label className="mb-1.5 block text-xs font-medium text-[#555]">Tags</label><TagSelector availableTags={availableTags} selectedTags={editTags} onChange={setEditTags} /></div>}
               <div>
                 <label className="mb-1.5 block text-xs font-medium text-[#555]">Lado <span className="font-normal text-[#ccc]">(opcional)</span></label>
                 <select value={editSide} onChange={e => setEditSide(e.target.value)} className="w-full rounded-lg border border-[#e0e0e0] bg-[#f8f8f8] px-3.5 py-2.5 text-sm text-[#1D1E20] outline-none transition focus:border-[#48C9B0]">
@@ -1101,11 +1186,13 @@ export default function EventPage() {
                   {SIDE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                 </select>
               </div>
-              <div>
+              <div className="sm:col-span-2"><label className="mb-1.5 block text-xs font-medium text-[#555]">Tags</label><TagInput availableTags={availableTags} selectedTags={editTags} onChangeSelected={setEditTags} onCreateTag={createEventTag} onDeleteTag={deleteEventTag} /></div>
+              <div className="sm:col-span-2">
                 <label className="mb-1.5 block text-xs font-medium text-[#555]">Alergias <span className="font-normal text-[#ccc]">(opcional)</span></label>
                 <AllergySelector value={editAllergies} onChange={setEditAllergies} />
               </div>
-              <div className="border-t border-[#f0f0f0] pt-4"><MembersEditor value={editMembers} onChange={setEditMembers} /></div>
+              <div className="sm:col-span-2"><label className="mb-1.5 block text-xs font-medium text-[#555]">Notas</label><textarea value={editNotes} onChange={e => setEditNotes(e.target.value)} placeholder="Mesa preferida, restricciones..." rows={2} style={{ ...inp, resize: 'vertical' }} /></div>
+              <div className="sm:col-span-2 border-t border-[#f0f0f0] pt-4"><MembersEditor value={editMembers} onChange={setEditMembers} /></div>
             </div>
             {editError && <div className="mt-3 rounded-lg border border-[#ffc0c0] bg-[#fff0f0] p-2.5 text-xs text-[#cc3333]">{editError}</div>}
             <div className="mt-6 flex gap-2.5">
@@ -1122,17 +1209,15 @@ export default function EventPage() {
 
       {showModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-md overflow-y-auto rounded-2xl border border-[#e8e8e8] bg-white p-6 shadow-xl sm:p-8" style={{ maxHeight: '90vh' }}>
+          <div className="w-full max-w-2xl overflow-y-auto rounded-2xl border border-[#e8e8e8] bg-white p-6 shadow-xl sm:p-8" style={{ maxHeight: '90vh' }}>
             <div className="mb-6 flex items-center justify-between">
               <h2 className="text-lg font-bold text-[#1D1E20] sm:text-xl">Agregar invitado</h2>
               <button onClick={() => setShowModal(false)} className="text-xl text-[#aaa]">✕</button>
             </div>
-            <div className="flex flex-col gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div><label className="mb-1.5 block text-xs font-medium text-[#555]">Nombre *</label><input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Ana García" style={inp} /></div>
               <div><label className="mb-1.5 block text-xs font-medium text-[#555]">WhatsApp <span className="font-normal text-[#ccc]">(opcional)</span></label><input type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="+52 81 1234 5678" style={inp} /></div>
               <div><label className="mb-1.5 block text-xs font-medium text-[#555]">Email <span className="font-normal text-[#ccc]">(opcional)</span></label><input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="ana@ejemplo.com" style={inp} /></div>
-              <div><label className="mb-1.5 block text-xs font-medium text-[#555]">Notas <span className="font-normal text-[#ccc]">(opcional)</span></label><textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Mesa preferida, restricciones..." rows={2} style={{ ...inp, resize: 'vertical' }} /></div>
-              {availableTags.length > 0 && <div><label className="mb-1.5 block text-xs font-medium text-[#555]">Tags <span className="font-normal text-[#ccc]">(opcional)</span></label><TagSelector availableTags={availableTags} selectedTags={newTags} onChange={setNewTags} /></div>}
               <div>
                 <label className="mb-1.5 block text-xs font-medium text-[#555]">Lado <span className="font-normal text-[#ccc]">(opcional)</span></label>
                 <select value={newSide} onChange={e => setNewSide(e.target.value)} className="w-full rounded-lg border border-[#e0e0e0] bg-[#f8f8f8] px-3.5 py-2.5 text-sm text-[#1D1E20] outline-none transition focus:border-[#48C9B0]">
@@ -1140,11 +1225,13 @@ export default function EventPage() {
                   {SIDE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                 </select>
               </div>
-              <div>
+              <div className="sm:col-span-2"><label className="mb-1.5 block text-xs font-medium text-[#555]">Tags <span className="font-normal text-[#ccc]">(opcional)</span></label><TagInput availableTags={availableTags} selectedTags={newTags} onChangeSelected={setNewTags} onCreateTag={createEventTag} onDeleteTag={deleteEventTag} /></div>
+              <div className="sm:col-span-2">
                 <label className="mb-1.5 block text-xs font-medium text-[#555]">Alergias <span className="font-normal text-[#ccc]">(opcional)</span></label>
                 <AllergySelector value={newAllergies} onChange={setNewAllergies} />
               </div>
-              <div className="border-t border-[#f0f0f0] pt-4"><MembersEditor value={newMembers} onChange={setNewMembers} /></div>
+              <div className="sm:col-span-2"><label className="mb-1.5 block text-xs font-medium text-[#555]">Notas <span className="font-normal text-[#ccc]">(opcional)</span></label><textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Mesa preferida, restricciones..." rows={2} style={{ ...inp, resize: 'vertical' }} /></div>
+              <div className="sm:col-span-2 border-t border-[#f0f0f0] pt-4"><MembersEditor value={newMembers} onChange={setNewMembers} /></div>
             </div>
             {formError && <div className="mt-3 rounded-lg border border-[#ffc0c0] bg-[#fff0f0] p-2.5 text-xs text-[#cc3333]">{formError}</div>}
             <div className="mt-6 flex gap-2.5">
