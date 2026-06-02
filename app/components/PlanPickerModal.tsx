@@ -9,39 +9,38 @@ interface PlanPickerModalProps {
   onChoose: (planId: string) => void
 }
 
-interface Row {
-  id: string
+interface Theme {
+  card: string
   name: string
-  limit: string
-  price: number
-  bullets: string[]
-  highlight: boolean
+  sub: string
+  price: string
+  bullet: string
+  check: string
+  cta: string
 }
 
-const ROWS: Row[] = [
-  ...ANFITRION_PLANS.filter(p => p.price > 0).map(p => ({
-    id: p.id,
-    name: p.name,
-    limit: `Hasta ${p.guestLimit} invitados`,
-    price: p.price,
-    bullets: p.bullets.slice(0, 3),
-    highlight: p.id === 'pro',
-  })),
-  {
-    id: 'ilimitado',
-    name: 'Sin Límites',
-    limit: 'Invitados ilimitados',
-    price: ANFITRION_ILIMITADO.price,
-    bullets: ['Exportar a Excel y PDF', 'Equipo de tu evento', 'Soporte prioritario'],
-    highlight: false,
+const THEME: Record<'esencial' | 'pro' | 'gran', Theme> = {
+  esencial: {
+    card: 'bg-[#fffbf0] border-[#f0e6cc]', name: 'text-[#0a0a0a]', sub: 'text-[#a08a5a]', price: 'text-[#0a0a0a]',
+    bullet: 'text-[#5a4d33]', check: 'text-[#c49a3a]', cta: 'bg-[#48C9B0] text-white hover:bg-[#3ab89f]',
   },
-]
+  pro: {
+    card: 'bg-[#48C9B0] border-[#48C9B0]', name: 'text-white', sub: 'text-white/80', price: 'text-white',
+    bullet: 'text-white', check: 'text-white', cta: 'bg-white text-[#1f8f74] hover:bg-white/90',
+  },
+  gran: {
+    card: 'bg-[#1D1E20] border-[#1D1E20]', name: 'text-white', sub: 'text-white/60', price: 'text-white',
+    bullet: 'text-white/90', check: 'text-[#48C9B0]', cta: 'bg-[#48C9B0] text-white hover:bg-[#3ab89f]',
+  },
+}
+
+const PAID = ANFITRION_PLANS.filter(p => p.price > 0)
 
 export default function PlanPickerModal({ isOpen, onClose, onChoose }: PlanPickerModalProps) {
   if (!isOpen) return null
   return (
     <div className="fixed inset-0 z-[300] flex items-start justify-center overflow-y-auto bg-black/50 p-4" onClick={onClose}>
-      <div className="my-8 w-full max-w-2xl rounded-2xl border border-[#e8e8e8] bg-white shadow-2xl" onClick={e => e.stopPropagation()}>
+      <div className="my-8 w-full max-w-5xl rounded-2xl border border-[#e8e8e8] bg-white shadow-2xl" onClick={e => e.stopPropagation()}>
         <div className="flex items-start justify-between gap-3 border-b border-[#eee] px-6 py-5">
           <div>
             <h2 className="text-xl font-bold text-[#0a0a0a]">Elige tu plan</h2>
@@ -52,46 +51,58 @@ export default function PlanPickerModal({ isOpen, onClose, onChoose }: PlanPicke
           </button>
         </div>
 
-        <div className="flex flex-col gap-3 p-6">
-          {ROWS.map(r => (
-            <div
-              key={r.id}
-              className={`flex flex-col gap-3 rounded-xl border p-4 transition sm:flex-row sm:items-center sm:justify-between ${
-                r.highlight ? 'border-[#48C9B0] bg-[#f0fdfb]' : 'border-[#e8e8e8] hover:border-[#48C9B0]'
-              }`}
-            >
-              <div className="min-w-0">
+        <div className="grid grid-cols-1 gap-3 p-6 sm:grid-cols-2 lg:grid-cols-4">
+          {PAID.map(p => {
+            const t = THEME[p.id as 'esencial' | 'pro' | 'gran']
+            return (
+              <div key={p.id} className={`flex flex-col rounded-2xl border p-5 ${t.card}`}>
                 <div className="flex items-center gap-2">
-                  <span className="text-base font-bold text-[#0a0a0a]">{r.name}</span>
-                  {r.highlight && (
-                    <span className="rounded-full bg-[#48C9B0] px-2 py-[2px] text-[10px] font-bold tracking-wide text-white">POPULAR</span>
+                  <span className={`text-base font-bold ${t.name}`}>{p.name}</span>
+                  {p.id === 'pro' && (
+                    <span className="rounded-full bg-white px-2 py-[2px] text-[10px] font-bold tracking-wide text-[#1f8f74]">POPULAR</span>
                   )}
                 </div>
-                <div className="text-sm font-semibold text-[#1f8f74]">{r.limit}</div>
-                <ul className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1">
-                  {r.bullets.map((b, i) => (
-                    <li key={i} className="flex items-center gap-1 text-xs text-[#666]">
-                      <Check className="h-3 w-3 shrink-0 text-[#48C9B0]" strokeWidth={3} />
-                      {b}
+                <div className={`mb-2 mt-0.5 text-xs font-semibold ${t.sub}`}>Hasta {p.guestLimit} invitados</div>
+                <div className={`text-[26px] font-extrabold ${t.price}`}>{formatMXN(p.price)}</div>
+                <div className={`text-[11.5px] ${t.sub}`}>pago único</div>
+                <button
+                  onClick={() => onChoose(p.id)}
+                  className={`mb-4 mt-3 rounded-[10px] py-2.5 text-[13px] font-semibold transition ${t.cta}`}
+                >
+                  Elegir
+                </button>
+                <ul className="flex flex-col gap-2">
+                  {p.bullets.map((b, i) => (
+                    <li key={i} className={`flex gap-2 text-[12.5px] leading-snug ${t.bullet}`}>
+                      <Check className={`mt-[1px] h-[15px] w-[15px] shrink-0 ${t.check}`} strokeWidth={3} />
+                      <span>{b}</span>
                     </li>
                   ))}
                 </ul>
               </div>
-              <div className="flex shrink-0 items-center justify-between gap-4 sm:flex-col sm:items-end sm:gap-1.5">
-                <div className="text-lg font-extrabold text-[#0a0a0a]">{formatMXN(r.price)}</div>
-                <button
-                  onClick={() => onChoose(r.id)}
-                  className="rounded-lg bg-[#48C9B0] px-5 py-2 text-[13px] font-semibold text-white transition hover:bg-[#3ab89f]"
-                >
-                  Elegir
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
+            )
+          })}
 
-        <div className="border-t border-[#eee] px-6 py-3 text-center">
-          <button onClick={onClose} className="text-sm text-[#888] transition hover:text-[#0a0a0a]">Ahora no</button>
+          <div className="flex flex-col rounded-2xl border border-[#e4e4e4] bg-[#f2f2f2] p-5">
+            <div className="text-base font-bold text-[#0a0a0a]">Sin Límites</div>
+            <div className="mb-2 mt-0.5 text-xs font-semibold text-[#888]">Invitados ilimitados</div>
+            <div className="text-[26px] font-extrabold text-[#0a0a0a]">{formatMXN(ANFITRION_ILIMITADO.price)}</div>
+            <div className="text-[11.5px] text-[#888]">pago único</div>
+            <button
+              onClick={() => onChoose('ilimitado')}
+              className="mb-4 mt-3 rounded-[10px] bg-[#1D1E20] py-2.5 text-[13px] font-semibold text-white transition hover:bg-[#2a2b2e]"
+            >
+              Elegir
+            </button>
+            <ul className="flex flex-col gap-2">
+              {['Exportar a Excel y PDF', 'Equipo de tu evento', 'Soporte prioritario'].map((b, i) => (
+                <li key={i} className="flex gap-2 text-[12.5px] leading-snug text-[#444]">
+                  <Check className="mt-[1px] h-[15px] w-[15px] shrink-0 text-[#48C9B0]" strokeWidth={3} />
+                  <span>{b}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
         </div>
       </div>
     </div>

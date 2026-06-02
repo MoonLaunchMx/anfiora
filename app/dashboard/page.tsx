@@ -5,6 +5,9 @@ import { supabase } from '@/lib/supabase'
 import { Event, EventStatus } from '@/lib/types'
 import { Bell } from 'lucide-react'
 import { WhatsNewModal } from '@/app/components/WhatsNewModal'
+import { getActiveEventLimit, isPlanner } from '@/lib/entitlements'
+import EventLimitModal from '@/app/components/EventLimitModal'
+import PlannerPickerModal from '@/app/components/PlannerPickerModal'
 
 export const dynamic = 'force-dynamic'
 
@@ -92,6 +95,10 @@ export default function Dashboard() {
   const [sharedEvents, setSharedEvents] = useState<EventWithStats[]>([])
   const [loading, setLoading]           = useState(true)
   const [userEmail, setUserEmail]       = useState('')
+  const [userPlan, setUserPlan]         = useState<string | null>(null)
+  const [showEventLimit, setShowEventLimit] = useState(false)
+  const [showPlanner, setShowPlanner]   = useState(false)
+  const [limitInfo, setLimitInfo]       = useState<{ planner: boolean; limit: number }>({ planner: false, limit: 1 })
   const [sortAsc, setSortAsc]           = useState(true)
   const [now, setNow]                   = useState(new Date())
   const [activeTab, setActiveTab]       = useState<Tab>('activos')
@@ -121,8 +128,21 @@ export default function Dashboard() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { window.location.href = '/'; return }
     setUserEmail(user.email || '')
+    const { data: u } = await supabase.from('users').select('plan').eq('id', user.id).single()
+    setUserPlan(u?.plan ?? 'free')
     const welcomed = localStorage.getItem('gf_welcomed')
     if (!welcomed) { setShowWelcome(true); localStorage.setItem('gf_welcomed', '1') }
+  }
+
+  const handleNewEvent = () => {
+    const activeCount = myEvents.filter(e => e.event_status !== 'completed' && e.event_status !== 'cancelled').length
+    const limit = getActiveEventLimit(userPlan, userEmail)
+    if (activeCount >= limit) {
+      setLimitInfo({ planner: isPlanner(userPlan), limit })
+      setShowEventLimit(true)
+      return
+    }
+    window.location.href = '/events/new'
   }
 
   const loadData = async () => {
@@ -526,6 +546,21 @@ export default function Dashboard() {
       {/* ── What's New Modal — aparece una vez por release a usuarios existentes ── */}
       <WhatsNewModal />
 
+      <EventLimitModal
+        isOpen={showEventLimit}
+        onClose={() => setShowEventLimit(false)}
+        onSeePlans={() => { setShowEventLimit(false); setShowPlanner(true) }}
+        isPlanner={limitInfo.planner}
+        limit={limitInfo.limit}
+      />
+
+      <PlannerPickerModal
+        isOpen={showPlanner}
+        onClose={() => setShowPlanner(false)}
+        onChoose={(planId) => { window.location.href = `/checkout?tipo=organizador&plan=${planId}&billing=mensual` }}
+        onContact={() => { window.location.href = '/precios?vista=organizador' }}
+      />
+
       {/* MODAL BIENVENIDA */}
       {showWelcome && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 px-4">
@@ -656,7 +691,7 @@ export default function Dashboard() {
               <h1 className="text-xl font-bold text-[#1D1E20] sm:text-2xl">Dashboard</h1>
               <p className="mt-0.5 text-xs text-[#888] sm:text-sm">Resumen de tus eventos</p>
             </div>
-            <button onClick={() => window.location.href = '/events/new'}
+            <button onClick={handleNewEvent}
               className="rounded-lg bg-[#48C9B0] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#3ab89f] active:scale-95 sm:px-5 sm:py-2.5">
               <span className="sm:hidden">+ Nuevo</span>
               <span className="hidden sm:inline">+ Nuevo evento</span>
