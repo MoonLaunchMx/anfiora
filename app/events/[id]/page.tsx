@@ -204,12 +204,13 @@ type GuestTableInfo = { tableNumber: number; tableName: string | null }
 
 function normalizePhone(phone: string): string { return phone.replace(/\D/g, '') }
 
-function TagInput({ availableTags, selectedTags, onChangeSelected, onCreateTag, onDeleteTag }: {
+function TagInput({ availableTags, selectedTags, onChangeSelected, onCreateTag, onDeleteTag, label = 'Tag' }: {
   availableTags: string[]
   selectedTags: string[]
   onChangeSelected: (tags: string[]) => void
   onCreateTag: (tag: string) => void
   onDeleteTag: (tag: string) => void
+  label?: string
 }) {
   const [editing, setEditing] = useState(false)
   const [query, setQuery] = useState('')
@@ -245,13 +246,13 @@ function TagInput({ availableTags, selectedTags, onChangeSelected, onCreateTag, 
         {!editing ? (
           <button type="button" onClick={openEditor}
             className="inline-flex items-center gap-1 rounded-full border border-dashed border-[#c8c8c8] px-2.5 py-1 text-xs font-medium text-[#888] transition hover:border-[#48C9B0] hover:text-[#48C9B0]">
-            <Plus className="h-3 w-3" /> Tag
+            <Plus className="h-3 w-3" /> {label}
           </button>
         ) : (
           <span className="inline-flex items-center gap-1 rounded-full border border-[#48C9B0] bg-white py-0.5 pl-2.5 pr-1.5">
             <input ref={inputRef} value={query} onChange={e => setQuery(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); confirmAdd() } if (e.key === 'Escape') closeEditor() }}
-              placeholder="Nuevo tag" className="w-24 bg-transparent text-xs text-[#1D1E20] outline-none placeholder:text-[#bbb]" />
+              placeholder={label} className="w-24 bg-transparent text-xs text-[#1D1E20] outline-none placeholder:text-[#bbb]" />
             <button type="button" onClick={confirmAdd} disabled={!q} title="Agregar" className="text-[#48C9B0] transition disabled:opacity-30"><Check className="h-4 w-4" strokeWidth={3} /></button>
             <button type="button" onClick={closeEditor} title="Cancelar" className="text-[#bbb] transition hover:text-[#888]"><X className="h-4 w-4" /></button>
           </span>
@@ -279,7 +280,7 @@ function TagInput({ availableTags, selectedTags, onChangeSelected, onCreateTag, 
       {confirmDelete && (
         <div className="fixed inset-0 z-[400] flex items-center justify-center bg-black/40 p-4" onClick={() => setConfirmDelete(null)}>
           <div className="w-full max-w-xs rounded-2xl border border-[#e8e8e8] bg-white p-6 text-center shadow-xl" onClick={e => e.stopPropagation()}>
-            <h3 className="text-base font-bold text-[#1D1E20]">¿Eliminar el tag &quot;{confirmDelete}&quot;?</h3>
+            <h3 className="text-base font-bold text-[#1D1E20]">¿Eliminar &quot;{confirmDelete}&quot;?</h3>
             <p className="mt-1.5 text-xs text-[#666]">Se quitará de todos los invitados del evento. Esta acción no se puede deshacer.</p>
             <div className="mt-5 flex gap-2.5">
               <button type="button" onClick={() => setConfirmDelete(null)} className="flex-1 rounded-lg border border-[#e0e0e0] py-2.5 text-sm text-[#888] transition hover:bg-[#f8f8f8]">Cancelar</button>
@@ -293,43 +294,6 @@ function TagInput({ availableTags, selectedTags, onChangeSelected, onCreateTag, 
 }
 
 const ALLERGY_OPTIONS = ['Gluten', 'Lácteos', 'Mariscos', 'Nueces', 'Huevo', 'Soya', 'Cerdo']
-
-function AllergySelector({ value, onChange }: { value: string[]; onChange: (v: string[]) => void }) {
-  const [otherText, setOtherText] = useState('')
-  const otherAllergies = value.filter(a => !ALLERGY_OPTIONS.includes(a))
-  const toggle = (a: string) => onChange(value.includes(a) ? value.filter(x => x !== a) : [...value, a])
-  const addOther = () => { const t = otherText.trim(); if (t && !value.includes(t)) onChange([...value, t]); setOtherText('') }
-  return (
-    <div className="flex flex-col gap-2">
-      <div className="flex flex-wrap gap-1.5">
-        {ALLERGY_OPTIONS.map(a => (
-          <button key={a} type="button" onClick={() => toggle(a)}
-            className={'rounded-full border px-2.5 py-1 text-xs font-medium transition ' +
-              (value.includes(a) ? 'border-[#cc3333] bg-[#fff0f0] text-[#cc3333]' : 'border-[#e0e0e0] bg-[#f8f8f8] text-[#aaa] hover:border-[#cc3333] hover:text-[#cc3333]')}>
-            {a}
-          </button>
-        ))}
-      </div>
-      {otherAllergies.length > 0 && (
-        <div className="flex flex-wrap gap-1.5">
-          {otherAllergies.map(a => (
-            <span key={a} className="flex items-center gap-1 rounded-full border border-[#e0e0e0] bg-[#f8f8f8] px-2.5 py-1 text-xs text-[#555]">
-              {a}
-              <button type="button" onClick={() => onChange(value.filter(x => x !== a))} className="opacity-60 transition hover:opacity-100">×</button>
-            </span>
-          ))}
-        </div>
-      )}
-      <div className="flex gap-2">
-        <input type="text" value={otherText} onChange={e => setOtherText(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && addOther()} placeholder="Otra alergia..."
-          className="flex-1 rounded-lg border border-[#e0e0e0] bg-[#f8f8f8] px-3 py-1.5 text-xs text-[#1D1E20] outline-none transition focus:border-[#48C9B0]" />
-        <button type="button" onClick={addOther} disabled={!otherText.trim()}
-          className="rounded-lg bg-[#48C9B0] px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-40">+</button>
-      </div>
-    </div>
-  )
-}
 
 function MembersEditor({ value, onChange }: { value: EditMember[]; onChange: (v: EditMember[]) => void }) {
   const MAX = 15
@@ -470,6 +434,7 @@ export default function EventPage() {
   const [eventSettings, setEventSettings] = useState<EventSettings | null>(null)
   const [guests, setGuests] = useState<Guest[]>([])
   const [groupPool, setGroupPool] = useState<string[]>([])
+  const [allergyPool, setAllergyPool] = useState<string[]>([])
   const [filtered, setFiltered] = useState<Guest[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -616,6 +581,7 @@ export default function EventPage() {
     setGuestTableMap(map)
     setGuests(guestsData.map(g => ({ ...g, tags: g.tags || [], party_members: (membersData || []).filter(m => m.guest_id === g.id) })))
     setGroupPool(Array.from(new Set(guestsData.map(g => g.side).filter((s): s is string => !!s))))
+    setAllergyPool(Array.from(new Set([...ALLERGY_OPTIONS, ...guestsData.flatMap(g => g.allergies || [])])))
     setLoading(false)
   }
 
@@ -935,6 +901,20 @@ export default function EventPage() {
     if (affected.length > 0) {
       await Promise.all(affected.map(g => supabase.from('guests').update({ side: null }).eq('id', g.id)))
       setGuests(prev => prev.map(g => g.side === group ? { ...g, side: undefined } : g))
+    }
+  }
+  const createAllergy = (a: string) => setAllergyPool(prev => prev.includes(a) ? prev : [...prev, a])
+  const deleteAllergy = async (a: string) => {
+    setAllergyPool(prev => prev.filter(x => x !== a))
+    setNewAllergies(prev => prev.filter(x => x !== a))
+    setEditAllergies(prev => prev.filter(x => x !== a))
+    const affected = guests.filter(g => (g.allergies || []).includes(a))
+    if (affected.length > 0) {
+      await Promise.all(affected.map(g => {
+        const left = (g.allergies || []).filter(x => x !== a)
+        return supabase.from('guests').update({ allergies: left.length > 0 ? left : null }).eq('id', g.id)
+      }))
+      setGuests(prev => prev.map(g => ({ ...g, allergies: (g.allergies || []).filter(x => x !== a) })))
     }
   }
 
@@ -1270,7 +1250,7 @@ export default function EventPage() {
               <div className="sm:col-span-2"><label className="mb-1.5 block text-xs font-medium text-[#555]">Tags</label><TagInput availableTags={availableTags} selectedTags={editTags} onChangeSelected={setEditTags} onCreateTag={createEventTag} onDeleteTag={deleteEventTag} /></div>
               <div className="sm:col-span-2">
                 <label className="mb-1.5 block text-xs font-medium text-[#555]">Alergias <span className="font-normal text-[#ccc]">(opcional)</span></label>
-                <AllergySelector value={editAllergies} onChange={setEditAllergies} />
+                <TagInput availableTags={allergyPool} selectedTags={editAllergies} onChangeSelected={setEditAllergies} onCreateTag={createAllergy} onDeleteTag={deleteAllergy} label="Alergia" />
               </div>
               <div className="sm:col-span-2"><label className="mb-1.5 block text-xs font-medium text-[#555]">Notas</label><textarea value={editNotes} onChange={e => setEditNotes(e.target.value)} placeholder="Mesa preferida, restricciones..." rows={2} style={{ ...inp, resize: 'vertical' }} /></div>
               <div className="sm:col-span-2 border-t border-[#f0f0f0] pt-4"><MembersEditor value={editMembers} onChange={setEditMembers} /></div>
@@ -1306,7 +1286,7 @@ export default function EventPage() {
               <div className="sm:col-span-2"><label className="mb-1.5 block text-xs font-medium text-[#555]">Tags <span className="font-normal text-[#ccc]">(opcional)</span></label><TagInput availableTags={availableTags} selectedTags={newTags} onChangeSelected={setNewTags} onCreateTag={createEventTag} onDeleteTag={deleteEventTag} /></div>
               <div className="sm:col-span-2">
                 <label className="mb-1.5 block text-xs font-medium text-[#555]">Alergias <span className="font-normal text-[#ccc]">(opcional)</span></label>
-                <AllergySelector value={newAllergies} onChange={setNewAllergies} />
+                <TagInput availableTags={allergyPool} selectedTags={newAllergies} onChangeSelected={setNewAllergies} onCreateTag={createAllergy} onDeleteTag={deleteAllergy} label="Alergia" />
               </div>
               <div className="sm:col-span-2"><label className="mb-1.5 block text-xs font-medium text-[#555]">Notas <span className="font-normal text-[#ccc]">(opcional)</span></label><textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Mesa preferida, restricciones..." rows={2} style={{ ...inp, resize: 'vertical' }} /></div>
               <div className="sm:col-span-2 border-t border-[#f0f0f0] pt-4"><MembersEditor value={newMembers} onChange={setNewMembers} /></div>
