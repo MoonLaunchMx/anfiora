@@ -26,7 +26,7 @@ type ColumnKey = 'tags' | 'mesa' | 'lado' | 'notas' | 'telefono' | 'estatus'
 const ALL_COLUMNS: { key: ColumnKey; label: string }[] = [
   { key: 'tags',     label: 'Tags' },
   { key: 'mesa',     label: 'Mesa' },
-  { key: 'lado',     label: 'Lado' },
+  { key: 'lado',     label: 'Grupo' },
   { key: 'notas',    label: 'Notas' },
   { key: 'telefono', label: 'Teléfono' },
   { key: 'estatus',  label: 'Estatus' },
@@ -84,16 +84,6 @@ function StatusDot({ value, onChange }: { value: RsvpStatus; onChange: (s: RsvpS
 
 const GROUP_COLORS = ['#48C9B0', '#7F77DD', '#F0997B', '#378ADD', '#EF9F27', '#D4537E', '#639922', '#D85A30']
 
-const SIDE_OPTIONS = [
-  { value: 'familia_novia',  label: 'Familia novia' },
-  { value: 'familia_novio',  label: 'Familia novio' },
-  { value: 'amigos_novia',   label: 'Amigos novia' },
-  { value: 'amigos_novio',   label: 'Amigos novio' },
-  { value: 'papas_novia',    label: 'Papás novia' },
-  { value: 'papas_novio',    label: 'Papás novio' },
-  { value: 'ambos_lados',    label: 'Ambos lados' },
-  { value: 'sin_clasificar', label: 'Sin clasificar' },
-]
 
 const TAG_COLORS = [
   { bg: '#f0fdfb', border: '#9FE1CB', text: '#0F6E56' },
@@ -107,6 +97,87 @@ const TAG_COLORS = [
 ]
 
 function getTagColor(tagIndex: number) { return TAG_COLORS[tagIndex % TAG_COLORS.length] }
+
+function GroupInput({ availableGroups, selectedGroup, onChange, onCreateGroup, onDeleteGroup }: {
+  availableGroups: string[]
+  selectedGroup: string
+  onChange: (group: string) => void
+  onCreateGroup: (group: string) => void
+  onDeleteGroup: (group: string) => void
+}) {
+  const [editing, setEditing] = useState(false)
+  const [query, setQuery] = useState('')
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const q = query.trim()
+  const ql = q.toLowerCase()
+  const suggestions = availableGroups.filter(g => g !== selectedGroup && (!q || g.toLowerCase().includes(ql)))
+  const openEditor = () => { setEditing(true); setTimeout(() => inputRef.current?.focus(), 0) }
+  const closeEditor = () => { setEditing(false); setQuery('') }
+  const choose = (g: string) => { onChange(g); closeEditor() }
+  const confirmAdd = () => {
+    if (!q) return
+    const exact = availableGroups.find(g => g.toLowerCase() === ql)
+    if (exact) choose(exact)
+    else { onCreateGroup(q); onChange(q); closeEditor() }
+  }
+  const col = selectedGroup ? getTagColor(availableGroups.indexOf(selectedGroup)) : null
+  return (
+    <div>
+      <div className="flex flex-wrap items-center gap-1.5">
+        {selectedGroup && col && (
+          <span className="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium" style={{ background: col.bg, borderColor: col.border, color: col.text }}>
+            {selectedGroup}
+            <button type="button" onClick={() => onChange('')} className="opacity-50 transition hover:opacity-100">✕</button>
+          </span>
+        )}
+        {!selectedGroup && !editing && (
+          <button type="button" onClick={openEditor}
+            className="inline-flex items-center gap-1 rounded-full border border-dashed border-[#c8c8c8] px-2.5 py-1 text-xs font-medium text-[#888] transition hover:border-[#48C9B0] hover:text-[#48C9B0]">
+            <Plus className="h-3 w-3" /> Grupo
+          </button>
+        )}
+        {editing && (
+          <span className="inline-flex items-center gap-1 rounded-full border border-[#48C9B0] bg-white py-0.5 pl-2.5 pr-1.5">
+            <input ref={inputRef} value={query} onChange={e => setQuery(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); confirmAdd() } if (e.key === 'Escape') closeEditor() }}
+              placeholder="Nuevo grupo" className="w-24 bg-transparent text-xs text-[#1D1E20] outline-none placeholder:text-[#bbb]" />
+            <button type="button" onClick={confirmAdd} disabled={!q} title="Agregar" className="text-[#48C9B0] transition disabled:opacity-30"><Check className="h-4 w-4" strokeWidth={3} /></button>
+            <button type="button" onClick={closeEditor} title="Cancelar" className="text-[#bbb] transition hover:text-[#888]"><X className="h-4 w-4" /></button>
+          </span>
+        )}
+      </div>
+      {editing && suggestions.length > 0 && (
+        <div className="mt-2.5">
+          <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-[#bbb]">Existentes</p>
+          <div className="flex flex-wrap gap-1.5">
+            {suggestions.map(g => {
+              const c = getTagColor(availableGroups.indexOf(g))
+              return (
+                <span key={g} className="inline-flex items-center gap-1 rounded-full border bg-white px-2 py-0.5 text-xs" style={{ borderColor: c.border, color: c.text }}>
+                  <button type="button" onClick={() => choose(g)} className="font-medium">{g}</button>
+                  <button type="button" onClick={() => setConfirmDelete(g)} title="Eliminar del evento" className="text-[#ccc] transition hover:text-[#cc3333]"><Trash2 className="h-3 w-3" /></button>
+                </span>
+              )
+            })}
+          </div>
+        </div>
+      )}
+      {confirmDelete && (
+        <div className="fixed inset-0 z-[400] flex items-center justify-center bg-black/40 p-4" onClick={() => setConfirmDelete(null)}>
+          <div className="w-full max-w-xs rounded-2xl border border-[#e8e8e8] bg-white p-6 text-center shadow-xl" onClick={e => e.stopPropagation()}>
+            <h3 className="text-base font-bold text-[#1D1E20]">¿Eliminar el grupo &quot;{confirmDelete}&quot;?</h3>
+            <p className="mt-1.5 text-xs text-[#666]">Se quitará de todos los invitados del evento. Esta acción no se puede deshacer.</p>
+            <div className="mt-5 flex gap-2.5">
+              <button type="button" onClick={() => setConfirmDelete(null)} className="flex-1 rounded-lg border border-[#e0e0e0] py-2.5 text-sm text-[#888] transition hover:bg-[#f8f8f8]">Cancelar</button>
+              <button type="button" onClick={() => { onDeleteGroup(confirmDelete); setConfirmDelete(null) }} className="flex-1 rounded-lg bg-[#cc3333] py-2.5 text-sm font-semibold text-white transition hover:bg-[#b82e2e]">Eliminar</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
 
 const inp: React.CSSProperties = {
   width: '100%', padding: '10px 14px',
@@ -189,7 +260,7 @@ function TagInput({ availableTags, selectedTags, onChangeSelected, onCreateTag, 
 
       {editing && suggestions.length > 0 && (
         <div className="mt-2.5">
-          <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-[#bbb]">Tags del evento</p>
+          <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-[#bbb]">Existentes</p>
           <div className="flex flex-wrap gap-1.5">
             {suggestions.map(tag => {
               const col = getTagColor(availableTags.indexOf(tag))
@@ -398,6 +469,7 @@ export default function EventPage() {
   const [event, setEvent] = useState<Event | null>(null)
   const [eventSettings, setEventSettings] = useState<EventSettings | null>(null)
   const [guests, setGuests] = useState<Guest[]>([])
+  const [groupPool, setGroupPool] = useState<string[]>([])
   const [filtered, setFiltered] = useState<Guest[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -543,6 +615,7 @@ export default function EventPage() {
     }
     setGuestTableMap(map)
     setGuests(guestsData.map(g => ({ ...g, tags: g.tags || [], party_members: (membersData || []).filter(m => m.guest_id === g.id) })))
+    setGroupPool(Array.from(new Set(guestsData.map(g => g.side).filter((s): s is string => !!s))))
     setLoading(false)
   }
 
@@ -853,6 +926,17 @@ export default function EventPage() {
       setGuests(prev => prev.map(g => ({ ...g, tags: (g.tags || []).filter(t => t !== tag) })))
     }
   }
+  const createGroup = (group: string) => setGroupPool(prev => prev.includes(group) ? prev : [...prev, group])
+  const deleteGroup = async (group: string) => {
+    setGroupPool(prev => prev.filter(g => g !== group))
+    setNewSide(prev => prev === group ? '' : prev)
+    setEditSide(prev => prev === group ? '' : prev)
+    const affected = guests.filter(g => g.side === group)
+    if (affected.length > 0) {
+      await Promise.all(affected.map(g => supabase.from('guests').update({ side: null }).eq('id', g.id)))
+      setGuests(prev => prev.map(g => g.side === group ? { ...g, side: undefined } : g))
+    }
+  }
 
   const maxCanAdd = selected.size === 0 ? 15 : Math.max(0, 15 - Math.max(...Array.from(selected).map(gid => guests.find(g => g.id === gid)?.party_members.length ?? 0)))
 
@@ -993,7 +1077,7 @@ export default function EventPage() {
           <button onClick={() => handleHeaderClick('name')} className="cursor-pointer text-left text-[11px] font-semibold uppercase tracking-wide text-[#aaa] transition hover:text-[#1D1E20]">Nombre{getSortIndicator('name')}</button>
           {visibleCols.has('tags')     && <div className="text-[11px] font-semibold uppercase tracking-wide text-[#aaa]">Tags</div>}
           {visibleCols.has('mesa')     && <div className="text-[11px] font-semibold uppercase tracking-wide text-[#aaa]">Mesa</div>}
-          {visibleCols.has('lado')     && <div className="text-[11px] font-semibold uppercase tracking-wide text-[#aaa]">Lado</div>}
+          {visibleCols.has('lado')     && <div className="text-[11px] font-semibold uppercase tracking-wide text-[#aaa]">Grupo</div>}
           {visibleCols.has('notas')    && <button onClick={() => handleHeaderClick('notes')} className="cursor-pointer text-left text-[11px] font-semibold uppercase tracking-wide text-[#aaa] transition hover:text-[#1D1E20]">Notas{getSortIndicator('notes')}</button>}
           {visibleCols.has('telefono') && <button onClick={() => handleHeaderClick('phone')} className="cursor-pointer text-left text-[11px] font-semibold uppercase tracking-wide text-[#aaa] transition hover:text-[#1D1E20]">Teléfono{getSortIndicator('phone')}</button>}
           {visibleCols.has('estatus')  && <button onClick={() => handleHeaderClick('status')} className="cursor-pointer text-left text-[11px] font-semibold uppercase tracking-wide text-[#aaa] transition hover:text-[#1D1E20]">Estatus{getSortIndicator('status')}</button>}
@@ -1075,7 +1159,7 @@ export default function EventPage() {
                         <div>{tableLabel ? <span className="rounded-full border border-[#c8ede7] bg-[#f0fdfb] px-2 py-0.5 text-[10px] font-semibold text-[#1a9e88]">{tableLabel}</span> : <span className="text-[#ddd] text-xs">—</span>}</div>
                       )}
                       {visibleCols.has('lado') && (
-                        <div>{guest.side ? <span className="rounded-full border border-[#e0e0e0] bg-[#f8f8f8] px-2 py-0.5 text-[10px] font-medium text-[#555]">{SIDE_OPTIONS.find(o => o.value === guest.side)?.label ?? guest.side}</span> : <span className="text-[#ddd] text-xs">—</span>}</div>
+                        <div>{guest.side ? <span className="rounded-full border border-[#e0e0e0] bg-[#f8f8f8] px-2 py-0.5 text-[10px] font-medium text-[#555]">{guest.side}</span> : <span className="text-[#ddd] text-xs">—</span>}</div>
                       )}
                       {visibleCols.has('notas') && (
                         <div onClick={() => openEdit(guest)} className="cursor-pointer overflow-hidden text-ellipsis whitespace-nowrap text-xs text-[#aaa] hover:text-[#1D1E20]" title={guest.notes || ''}>
@@ -1180,11 +1264,8 @@ export default function EventPage() {
               <div><label className="mb-1.5 block text-xs font-medium text-[#555]">WhatsApp</label><input type="tel" value={editPhone} onChange={e => setEditPhone(e.target.value)} placeholder="+52 81 1234 5678" style={inp} /></div>
               <div><label className="mb-1.5 block text-xs font-medium text-[#555]">Email</label><input type="email" value={editEmail} onChange={e => setEditEmail(e.target.value)} placeholder="ana@ejemplo.com" style={inp} /></div>
               <div>
-                <label className="mb-1.5 block text-xs font-medium text-[#555]">Lado <span className="font-normal text-[#ccc]">(opcional)</span></label>
-                <select value={editSide} onChange={e => setEditSide(e.target.value)} className="w-full rounded-lg border border-[#e0e0e0] bg-[#f8f8f8] px-3.5 py-2.5 text-sm text-[#1D1E20] outline-none transition focus:border-[#48C9B0]">
-                  <option value="">— Sin asignar —</option>
-                  {SIDE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                </select>
+                <label className="mb-1.5 block text-xs font-medium text-[#555]">Grupo <span className="font-normal text-[#ccc]">(opcional)</span></label>
+                <GroupInput availableGroups={groupPool} selectedGroup={editSide} onChange={setEditSide} onCreateGroup={createGroup} onDeleteGroup={deleteGroup} />
               </div>
               <div className="sm:col-span-2"><label className="mb-1.5 block text-xs font-medium text-[#555]">Tags</label><TagInput availableTags={availableTags} selectedTags={editTags} onChangeSelected={setEditTags} onCreateTag={createEventTag} onDeleteTag={deleteEventTag} /></div>
               <div className="sm:col-span-2">
@@ -1219,11 +1300,8 @@ export default function EventPage() {
               <div><label className="mb-1.5 block text-xs font-medium text-[#555]">WhatsApp <span className="font-normal text-[#ccc]">(opcional)</span></label><input type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="+52 81 1234 5678" style={inp} /></div>
               <div><label className="mb-1.5 block text-xs font-medium text-[#555]">Email <span className="font-normal text-[#ccc]">(opcional)</span></label><input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="ana@ejemplo.com" style={inp} /></div>
               <div>
-                <label className="mb-1.5 block text-xs font-medium text-[#555]">Lado <span className="font-normal text-[#ccc]">(opcional)</span></label>
-                <select value={newSide} onChange={e => setNewSide(e.target.value)} className="w-full rounded-lg border border-[#e0e0e0] bg-[#f8f8f8] px-3.5 py-2.5 text-sm text-[#1D1E20] outline-none transition focus:border-[#48C9B0]">
-                  <option value="">— Sin asignar —</option>
-                  {SIDE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                </select>
+                <label className="mb-1.5 block text-xs font-medium text-[#555]">Grupo <span className="font-normal text-[#ccc]">(opcional)</span></label>
+                <GroupInput availableGroups={groupPool} selectedGroup={newSide} onChange={setNewSide} onCreateGroup={createGroup} onDeleteGroup={deleteGroup} />
               </div>
               <div className="sm:col-span-2"><label className="mb-1.5 block text-xs font-medium text-[#555]">Tags <span className="font-normal text-[#ccc]">(opcional)</span></label><TagInput availableTags={availableTags} selectedTags={newTags} onChangeSelected={setNewTags} onCreateTag={createEventTag} onDeleteTag={deleteEventTag} /></div>
               <div className="sm:col-span-2">
