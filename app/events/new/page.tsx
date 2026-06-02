@@ -3,6 +3,8 @@
 import DatePicker from '@/app/components/ui/DatePicker'
 import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { getActiveEventLimit, isPlanner } from '@/lib/entitlements'
+import EventLimitModal from '@/app/components/EventLimitModal'
 
 const EVENT_TYPES = [
   { value: 'boda',        label: 'Boda' },
@@ -25,6 +27,8 @@ export default function NewEvent() {
   const [eventType, setEventType] = useState('')
   const [loading, setLoading]     = useState(false)
   const [error, setError]         = useState('')
+  const [showEventLimit, setShowEventLimit] = useState(false)
+  const [limitInfo, setLimitInfo] = useState<{ planner: boolean; limit: number }>({ planner: false, limit: 1 })
 
   const handleCreate = async () => {
     if (!name || !date || !eventType) {
@@ -35,6 +39,21 @@ export default function NewEvent() {
 
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { window.location.href = '/'; return }
+
+    // Candado de eventos (regla B): no-planner = 1 activo; planner = segun su plan.
+    const { data: userRow } = await supabase.from('users').select('plan').eq('id', user.id).single()
+    const { count } = await supabase
+      .from('events')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', user.id)
+      .or('event_status.is.null,event_status.not.in.(completed,cancelled)')
+    const activeLimit = getActiveEventLimit(userRow?.plan)
+    if ((count ?? 0) >= activeLimit) {
+      setLimitInfo({ planner: isPlanner(userRow?.plan), limit: activeLimit })
+      setShowEventLimit(true)
+      setLoading(false)
+      return
+    }
 
     // 1. Crear el evento y obtener su id
     const { data: eventData, error: eventError } = await supabase
@@ -185,6 +204,13 @@ export default function NewEvent() {
           </button>
         </div>
       </main>
+
+      <EventLimitModal
+        isOpen={showEventLimit}
+        onClose={() => setShowEventLimit(false)}
+        isPlanner={limitInfo.planner}
+        limit={limitInfo.limit}
+      />
     </div>
   )
 }

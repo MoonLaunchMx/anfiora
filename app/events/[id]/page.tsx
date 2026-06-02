@@ -11,7 +11,7 @@ import { PartyMember, Guest, Event, EventSettings, EventStatus, RsvpStatus } fro
 import StatsCollapse, { StatsToggleButton, useStatsToggle } from '@/app/components/ui/StatsCollapse'
 import LimitReachedModal from '@/app/components/LimitReachedModal'
 import PlanPickerModal from '@/app/components/PlanPickerModal'
-import { ANFITRION_PLANS } from '@/lib/pricing'
+import { getGuestLimit } from '@/lib/entitlements'
 
 const STATUS_LABEL: Record<string, { label: string; color: string; bg: string; border: string; icon: React.ReactNode }> = {
   mensaje_enviado:  { label: 'Mensaje enviado',  color: '#1a56a0', bg: '#f0f5ff', border: '#b3c8ee', icon: <Send       size={13} /> },
@@ -491,8 +491,7 @@ export default function EventPage() {
 
   const totalPersonas = guests.reduce((acc, g) => acc + 1 + g.party_members.length, 0)
   const totalGuestCount = guests.reduce((acc, g) => acc + g.party_size, 0)
-  const FREE_GUEST_LIMIT = ANFITRION_PLANS.find(p => p.id === 'free')!.guestLimit
-  const guestLimit = ownerPlan === 'pro' || ownerPlan === 'agency' ? Infinity : FREE_GUEST_LIMIT
+  const guestLimit = getGuestLimit(ownerPlan, event?.plan_tier)
   const attemptAdd = (n: number) => {
     if (totalGuestCount + n > guestLimit) { setShowLimitModal(true); return false }
     return true
@@ -1350,7 +1349,7 @@ export default function EventPage() {
         isOpen={showLimitModal}
         onClose={() => setShowLimitModal(false)}
         onUpgrade={() => { setShowLimitModal(false); setShowPlansModal(true) }}
-        limit={FREE_GUEST_LIMIT}
+        limit={guestLimit}
         current={totalGuestCount}
       />
 
