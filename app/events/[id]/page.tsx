@@ -454,27 +454,48 @@ export default function EventPage() {
   }
 
   const loadGuests = async () => {
-    const [
-      { data: guestsData },
-      { data: membersData },
-      { data: seatsData },
-      { data: tablesData },
-    ] = await Promise.all([
-      supabase.from('guests').select('*').eq('event_id', id).order('name'),
-      supabase.from('party_members').select('*').eq('event_id', id).order('created_at'),
-      supabase.from('table_seats').select('guest_id, table_id').eq('event_id', id),
-      supabase.from('tables').select('id, number, name').eq('event_id', id),
+    const PAGE = 1000
+    const fetchAll = async <T,>(
+      build: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: unknown }>
+    ): Promise<T[]> => {
+      const out: T[] = []
+      for (let from = 0; ; from += PAGE) {
+        const { data, error } = await build(from, from + PAGE - 1)
+        if (error) { console.error('loadGuests:', error); break }
+        if (!data || data.length === 0) break
+        out.push(...data)
+        if (data.length < PAGE) break
+      }
+      return out
+    }
+
+    const [guestsData, membersData, seatsData, tablesData] = await Promise.all([
+      fetchAll<Guest>((f, t) =>
+        supabase.from('guests').select('*').eq('event_id', id).order('name').order('id').range(f, t)),
+      fetchAll<PartyMember>((f, t) =>
+        supabase.from('party_members').select('*').eq('event_id', id).order('created_at').order('id').range(f, t)),
+      fetchAll<{ guest_id: string; table_id: string }>((f, t) =>
+        supabase.from('table_seats').select('guest_id, table_id').eq('event_id', id).order('id').range(f, t)),
+      supabase.from('tables').select('id, number, name').eq('event_id', id).then(r => r.data || []),
     ])
-    if (!guestsData) { setLoading(false); return }
+
+    const membersByGuest = new Map<string, PartyMember[]>()
+    for (const m of membersData) {
+      const arr = membersByGuest.get(m.guest_id)
+      if (arr) arr.push(m)
+      else membersByGuest.set(m.guest_id, [m])
+    }
+
     const tableById = new Map((tablesData || []).map(t => [t.id, t]))
-    const map = new Map<string, GuestTableInfo>()
-    for (const seat of (seatsData || [])) {
+    const seatMap = new Map<string, GuestTableInfo>()
+    for (const seat of seatsData) {
       if (!seat.guest_id) continue
       const table = tableById.get(seat.table_id)
-      if (table) map.set(seat.guest_id, { tableNumber: table.number, tableName: table.name })
+      if (table) seatMap.set(seat.guest_id, { tableNumber: table.number, tableName: table.name })
     }
-    setGuestTableMap(map)
-    setGuests(guestsData.map(g => ({ ...g, tags: g.tags || [], party_members: (membersData || []).filter(m => m.guest_id === g.id) })))
+
+    setGuestTableMap(seatMap)
+    setGuests(guestsData.map(g => ({ ...g, tags: g.tags || [], party_members: membersByGuest.get(g.id) || [] })))
     setLoading(false)
   }
 
