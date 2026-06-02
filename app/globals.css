@@ -116,3 +116,13 @@ body {
   color: var(--text);
   font-family: 'General Sans', system-ui, sans-serif;
 }
+
+/* Cursor consistente: todo boton clickeable muestra la manita; deshabilitados, not-allowed. */
+button:not(:disabled),
+[role="button"]:not([aria-disabled="true"]) {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+}

@@ -535,6 +535,7 @@ Spanish (`es`) and English (`en`) supported on landing page and auth modal via l
 - **Negro `#1D1E20`** exclusivamente para dropdowns de filtro
 - **Lucide React** para íconos — no SVGs manuales (excepción: play/pause en playlist, iconos WA/IG en proveedores usan `react-icons`)
 - **Idioma UI:** español
+- **Cursor en botones:** todo elemento clickeable debe mostrar `cursor: pointer` (manita) al hover. Está resuelto **globalmente** en `app/globals.css` (`button:not(:disabled){cursor:pointer}` + `button:disabled{cursor:not-allowed}`). No agregar `cursor-pointer` por botón ni dejar botones con cursor de flecha — debe ser consistente en toda la app.
 
 ## Reglas de código
 
