@@ -273,10 +273,12 @@ export default function LandingPage() {
           <a href="/" className="shrink-0">
             <img src="/images/isotipoylogo.svg" alt="Anfiora" className="h-8" />
           </a>
-          <div className="hidden items-center gap-3 md:flex">
+          <div className="hidden items-center gap-6 md:flex">
             <a href="#features" className="text-sm text-[#888] transition hover:text-[#1D1E20]">{t.nav.features}</a>
             <a href="#compare"  className="text-sm text-[#888] transition hover:text-[#1D1E20]">{t.nav.compare}</a>
             <a href="/precios"  className="text-sm text-[#888] transition hover:text-[#1D1E20]">{t.nav.precios}</a>
+          </div>
+          <div className="hidden items-center gap-3 md:flex">
             <button onClick={() => setLang(l => l === 'es' ? 'en' : 'es')}
               className="rounded-lg border border-[#e0e0e0] px-3 py-2 text-lg transition hover:border-[#48C9B0]"
               title={lang === 'es' ? 'Switch to English' : 'Cambiar a Español'}>

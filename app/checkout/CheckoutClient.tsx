@@ -27,7 +27,7 @@ interface Summary {
   payText: string
 }
 
-function resolve(tipo: Tipo, plan: string): Summary | null {
+function resolve(tipo: Tipo, plan: string, billing: Billing): Summary | null {
   if (tipo === 'anfitrion') {
     if (plan === 'ilimitado') {
       return {
@@ -58,15 +58,16 @@ function resolve(tipo: Tipo, plan: string): Summary | null {
   }
   const p = ORGANIZADOR_PLANS.find(x => x.id === plan)
   if (!p) return null
-  const founder = p.founderPrice
+  const isAnnual = billing === 'anual'
+  const total = isAnnual ? p.annualPrice * 12 : p.listMonthly
   return {
     name: `Anfiora ${p.name}`,
     tagline: `${p.activeEvents} eventos activos · ${p.seats} ${p.seats === 1 ? 'usuario' : 'usuarios'}`,
     bullets: p.bullets,
     isTrial: true,
-    recurringLabel: formatMXN(founder),
-    cadence: '/mes · facturado anual',
-    strike: formatMXN(p.listMonthly),
+    recurringLabel: formatMXN(total),
+    cadence: isAnnual ? `/año · ${formatMXN(p.annualPrice)}/mes` : '/mes',
+    strike: null,
     dueTodayLabel: '$0',
     payText: 'Iniciar prueba',
   }
@@ -88,7 +89,7 @@ function Field({ label, placeholder, type = 'text' }: { label: string; placehold
 export default function CheckoutClient({ tipo, plan, billing }: { tipo: Tipo; plan: string; billing: Billing }) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
-  const summary = resolve(tipo, plan)
+  const summary = resolve(tipo, plan, billing)
 
   if (!summary) {
     return (
@@ -130,9 +131,9 @@ export default function CheckoutClient({ tipo, plan, billing }: { tipo: Tipo; pl
       <div className="mx-auto grid max-w-5xl grid-cols-1 lg:min-h-[calc(100vh-37px)] lg:grid-cols-2">
         {/* Resumen del pedido */}
         <div className="border-b border-[#eee] bg-[#fafafa] px-6 py-8 sm:px-10 lg:border-b-0 lg:border-r">
-          <Link href="/precios" className="mb-8 inline-flex items-center gap-1 text-[13px] text-[#666] transition hover:text-[#0a0a0a]">
+          <button onClick={() => router.back()} className="mb-8 inline-flex items-center gap-1 text-[13px] text-[#666] transition hover:text-[#0a0a0a]">
             <ChevronLeft className="h-4 w-4" /> Volver
-          </Link>
+          </button>
 
           <div className="text-[13px] text-[#888]">{summary.isTrial ? 'Suscríbete a' : 'Paga'}</div>
           <div className="mt-0.5 text-xl font-bold text-[#0a0a0a]">{summary.name}</div>
