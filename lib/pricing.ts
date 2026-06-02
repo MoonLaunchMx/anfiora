@@ -5,8 +5,6 @@
 export type AnfitrionTier = 'free' | 'esencial' | 'pro' | 'gran'
 export type OrganizadorTier = 'solo' | 'studio' | 'agency'
 
-export const ANNUAL_DISCOUNT = 0.2 // -20% en pago anual
-export const FOUNDER_DISCOUNT = 0.4 // -40% primer ano (programa fundador)
 export const FOUNDER_MAX = 25 // cupos del programa fundador
 
 export const WHATSAPP_ADDON = { price: 1490, messages: 5000 }
@@ -29,6 +27,8 @@ export interface OrganizadorPlan {
   name: string
   tagline: string
   listMonthly: number // precio de lista mensual MXN
+  annualPrice: number // precio /mes con pago anual (numero fijo, no calculado)
+  founderPrice: number // precio /mes del programa fundador, primer ano (numero fijo)
   activeEvents: number
   seats: number
   whiteLabel: boolean
@@ -105,12 +105,18 @@ export const ANFITRION_PLANS: AnfitrionPlan[] = [
   },
 ]
 
+// Tier "Sin Limites" de anfitrion: invitados ilimitados, pago unico.
+// Se vende como tira aparte (no como card del grid ni columna de la comparativa por ahora).
+export const ANFITRION_ILIMITADO = { price: 5990 }
+
 export const ORGANIZADOR_PLANS: OrganizadorPlan[] = [
   {
     id: 'solo',
     name: 'Solo',
     tagline: 'Planner independiente',
     listMonthly: 1190,
+    annualPrice: 990,
+    founderPrice: 690,
     activeEvents: 10,
     seats: 1,
     whiteLabel: false,
@@ -127,6 +133,8 @@ export const ORGANIZADOR_PLANS: OrganizadorPlan[] = [
     name: 'Studio',
     tagline: 'Equipos pequeños',
     listMonthly: 1990,
+    annualPrice: 1590,
+    founderPrice: 1190,
     activeEvents: 25,
     seats: 3,
     whiteLabel: false,
@@ -143,6 +151,8 @@ export const ORGANIZADOR_PLANS: OrganizadorPlan[] = [
     name: 'Agency',
     tagline: 'Agencias con marca propia',
     listMonthly: 4990,
+    annualPrice: 3990,
+    founderPrice: 2990,
     activeEvents: 60,
     seats: 10,
     whiteLabel: true,
@@ -157,14 +167,6 @@ export const ORGANIZADOR_PLANS: OrganizadorPlan[] = [
 ]
 
 export const SEAT_ADDON_MONTHLY = 200
-
-export function founderMonthly(listMonthly: number): number {
-  return Math.round(listMonthly * (1 - FOUNDER_DISCOUNT))
-}
-
-export function annualMonthly(listMonthly: number): number {
-  return Math.round(listMonthly * (1 - ANNUAL_DISCOUNT))
-}
 
 export function formatMXN(n: number): string {
   return '$' + n.toLocaleString('es-MX')

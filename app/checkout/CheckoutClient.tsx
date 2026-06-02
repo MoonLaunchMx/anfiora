@@ -6,9 +6,8 @@ import { useRouter } from 'next/navigation'
 import { ChevronLeft, Lock, CreditCard, ShieldCheck, Loader2 } from 'lucide-react'
 import {
   ANFITRION_PLANS,
+  ANFITRION_ILIMITADO,
   ORGANIZADOR_PLANS,
-  founderMonthly,
-  annualMonthly,
   formatMXN,
 } from '@/lib/pricing'
 
@@ -27,8 +26,21 @@ interface Summary {
   payText: string
 }
 
-function resolve(tipo: Tipo, plan: string, billing: Billing): Summary | null {
+function resolve(tipo: Tipo, plan: string): Summary | null {
   if (tipo === 'anfitrion') {
+    if (plan === 'ilimitado') {
+      return {
+        name: 'Anfiora Sin Límites',
+        tagline: 'Invitados ilimitados en tu evento',
+        bullets: ['Invitados ilimitados', 'Exportar a Excel y PDF', 'Equipo de tu evento', 'Agente IA WhatsApp disponible'],
+        isTrial: false,
+        recurringLabel: formatMXN(ANFITRION_ILIMITADO.price),
+        cadence: 'Pago único por tu evento',
+        strike: null,
+        dueTodayLabel: formatMXN(ANFITRION_ILIMITADO.price),
+        payText: `Pagar ${formatMXN(ANFITRION_ILIMITADO.price)}`,
+      }
+    }
     const p = ANFITRION_PLANS.find(x => x.id === plan)
     if (!p || p.price === 0) return null
     return {
@@ -45,16 +57,15 @@ function resolve(tipo: Tipo, plan: string, billing: Billing): Summary | null {
   }
   const p = ORGANIZADOR_PLANS.find(x => x.id === plan)
   if (!p) return null
-  const base = billing === 'anual' ? annualMonthly(p.listMonthly) : p.listMonthly
-  const founder = founderMonthly(base)
+  const founder = p.founderPrice
   return {
     name: `Anfiora ${p.name}`,
     tagline: `${p.activeEvents} eventos activos · ${p.seats} ${p.seats === 1 ? 'usuario' : 'usuarios'}`,
     bullets: p.bullets,
     isTrial: true,
     recurringLabel: formatMXN(founder),
-    cadence: billing === 'anual' ? '/mes · facturado anual' : '/mes',
-    strike: formatMXN(base),
+    cadence: '/mes · facturado anual',
+    strike: formatMXN(p.listMonthly),
     dueTodayLabel: '$0',
     payText: 'Iniciar prueba',
   }
@@ -76,7 +87,7 @@ function Field({ label, placeholder, type = 'text' }: { label: string; placehold
 export default function CheckoutClient({ tipo, plan, billing }: { tipo: Tipo; plan: string; billing: Billing }) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
-  const summary = resolve(tipo, plan, billing)
+  const summary = resolve(tipo, plan)
 
   if (!summary) {
     return (

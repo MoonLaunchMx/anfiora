@@ -3,18 +3,17 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Check, Minus, ChevronDown, MessageCircle } from 'lucide-react'
+import { Check, Minus, ChevronDown, MessageCircle, ArrowRight } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import AuthModal from '@/app/components/auth/AuthModal'
 import ContactSalesModal from '@/app/components/ContactSalesModal'
 import { supabase } from '@/lib/supabase'
 import {
   ANFITRION_PLANS,
+  ANFITRION_ILIMITADO,
   ORGANIZADOR_PLANS,
   FOUNDER_MAX,
   SEAT_ADDON_MONTHLY,
-  founderMonthly,
-  annualMonthly,
   formatMXN,
   type AnfitrionTier,
   type OrganizadorTier,
@@ -99,6 +98,7 @@ const ORGANIZADOR_THEME: Record<OrganizadorTier, OrgCardTheme> = {
 
 type Vista = 'anfitrion' | 'organizador'
 type Billing = 'mensual' | 'anual'
+type CompareCol = { label: string; cta?: { text: string; onClick: () => void; variant: 'solid' | 'outline' } }
 
 // TODO (Fase 2): leer cupos en vivo desde la Promotion Code de Stripe via /api/founder-status.
 const FOUNDER_REMAINING = 18
@@ -230,9 +230,6 @@ export default function PreciosClient({ initialVista }: { initialVista: Vista })
     }
   }
 
-  const anfitrionCols = ANFITRION_PLANS.map(p => p.name)
-  const organizadorCols = [...ORGANIZADOR_PLANS.map(p => p.name), 'Sin Límites']
-
   return (
     <>
       <nav className="sticky top-0 z-50 border-b border-[#f0ede8] bg-white">
@@ -300,9 +297,9 @@ export default function PreciosClient({ initialVista }: { initialVista: Vista })
             transition={{ duration: 0.18, ease: 'easeOut' }}
           >
             {vista === 'anfitrion' ? (
-              <AnfitrionView openRegister={openRegister} openSales={openSales} goToCheckout={goToCheckout} cols={anfitrionCols} />
+              <AnfitrionView openRegister={openRegister} goToCheckout={goToCheckout} />
             ) : (
-              <OrganizadorView openSales={openSales} goToCheckout={goToCheckout} billing={billing} founder={founder} onToggleFounder={() => setFounder(f => !f)} cols={organizadorCols} />
+              <OrganizadorView openSales={openSales} goToCheckout={goToCheckout} billing={billing} founder={founder} onToggleFounder={() => setFounder(f => !f)} />
             )}
           </motion.div>
         </AnimatePresence>
@@ -332,7 +329,7 @@ function Bullets({ items, check = 'text-[#48C9B0]', text = 'text-[#444]' }: { it
 }
 
 function CollapsibleCompare({ title, subtitle, groups, cols }: {
-  title: string; subtitle: string; groups: typeof ANFITRION_COMPARE; cols: string[]
+  title: string; subtitle: string; groups: typeof ANFITRION_COMPARE; cols: CompareCol[]
 }) {
   const [open, setOpen] = useState(false)
   const [clip, setClip] = useState(true)
@@ -364,7 +361,7 @@ function CollapsibleCompare({ title, subtitle, groups, cols }: {
   )
 }
 
-function ComparisonTable({ groups, cols }: { groups: typeof ANFITRION_COMPARE; cols: string[] }) {
+function ComparisonTable({ groups, cols }: { groups: typeof ANFITRION_COMPARE; cols: CompareCol[] }) {
   return (
     <div className="mt-7 overflow-x-auto md:overflow-x-visible">
       <table className="w-full min-w-[640px] table-fixed border-collapse text-[12.5px]">
@@ -372,7 +369,19 @@ function ComparisonTable({ groups, cols }: { groups: typeof ANFITRION_COMPARE; c
           <tr>
             <th className="sticky top-16 z-20 w-[40%] border-b-2 border-[#e0e0e0] bg-white py-2.5 text-left" />
             {cols.map(c => (
-              <th key={c} className="sticky top-16 z-20 border-b-2 border-[#e0e0e0] bg-white px-1.5 py-2.5 text-center font-bold text-[#0a0a0a]">{c}</th>
+              <th key={c.label} className="sticky top-16 z-20 border-b-2 border-[#e0e0e0] bg-white px-1.5 py-2.5 align-top text-center">
+                <div className="font-bold text-[#0a0a0a]">{c.label}</div>
+                {c.cta && (
+                  <button onClick={c.cta.onClick}
+                    className={`mx-auto mt-1.5 block w-full max-w-[110px] rounded-md px-2 py-1 text-[11px] font-semibold transition ${
+                      c.cta.variant === 'solid'
+                        ? 'bg-[#48C9B0] text-white hover:bg-[#3ab89f]'
+                        : 'border border-[#1D1E20] text-[#1D1E20] hover:bg-[#1D1E20] hover:text-white'
+                    }`}>
+                    {c.cta.text}
+                  </button>
+                )}
+              </th>
             ))}
           </tr>
         </thead>
@@ -411,7 +420,15 @@ function FragmentGroup({ group, colCount }: { group: typeof ANFITRION_COMPARE[nu
   )
 }
 
-function AnfitrionView({ openRegister, openSales, goToCheckout, cols }: { openRegister: () => void; openSales: () => void; goToCheckout: (tipo: Vista, plan: string, billing?: Billing) => void; cols: string[] }) {
+function AnfitrionView({ openRegister, goToCheckout }: { openRegister: () => void; goToCheckout: (tipo: Vista, plan: string, billing?: Billing) => void }) {
+  const compareCols: CompareCol[] = ANFITRION_PLANS.map((p): CompareCol => ({
+    label: p.name,
+    cta: {
+      text: p.id === 'free' ? 'Gratis' : 'Elegir',
+      onClick: p.id === 'free' ? openRegister : () => goToCheckout('anfitrion', p.id),
+      variant: p.id === 'free' ? 'outline' : 'solid',
+    },
+  }))
   return (
     <>
       <div className="mt-8 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -440,18 +457,28 @@ function AnfitrionView({ openRegister, openSales, goToCheckout, cols }: { openRe
         })}
       </div>
 
-      {/* sin limites */}
-      <motion.div whileHover={{ y: -2 }} transition={{ type: 'spring', stiffness: 300, damping: 20 }}
-        className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-[#2a2b2e] bg-[#1D1E20] px-5 py-4 shadow-sm transition-shadow hover:shadow-lg">
-        <div>
-          <div className="text-sm font-bold text-white">Sin Límites</div>
-          <div className="text-xs text-white/60">Más de 500 invitados · operaciones grandes</div>
+      {/* sin limites - anfitrion (pago unico, invitados ilimitados) */}
+      <motion.button
+        onClick={() => goToCheckout('anfitrion', 'ilimitado')}
+        whileHover={{ y: -3 }}
+        whileTap={{ scale: 0.995 }}
+        transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+        className="group mt-3 flex w-full items-center justify-between gap-4 rounded-xl border border-[#2a2b2e] bg-[#1D1E20] px-5 py-4 text-left shadow-sm transition-shadow hover:shadow-xl"
+      >
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-sm font-bold text-white">Sin Límites</span>
+            <span className="rounded-full bg-[#48C9B0] px-2 py-[2px] text-[10px] font-bold tracking-wide text-white">INVITADOS ILIMITADOS</span>
+          </div>
+          <div className="mt-0.5 text-xs text-white/60">Para bodas y eventos de más de 500 invitados. Pago único.</div>
         </div>
-        <button onClick={openSales}
-          className="shrink-0 rounded-lg bg-[#48C9B0] px-4 py-2 text-[13px] font-semibold text-white transition hover:bg-[#3ab89f]">
-          Contáctanos
-        </button>
-      </motion.div>
+        <div className="flex shrink-0 items-center gap-3">
+          <span className="text-lg font-extrabold text-white">{formatMXN(ANFITRION_ILIMITADO.price)}</span>
+          <span className="flex items-center gap-1.5 rounded-lg bg-[#48C9B0] px-4 py-2 text-[13px] font-semibold text-white transition group-hover:bg-[#3ab89f]">
+            Elegir <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+          </span>
+        </div>
+      </motion.button>
 
       {/* banner agente whatsapp (informativo, dentro de la app) */}
       <motion.div whileHover={{ y: -2 }} transition={{ type: 'spring', stiffness: 300, damping: 20 }}
@@ -490,29 +517,37 @@ function AnfitrionView({ openRegister, openSales, goToCheckout, cols }: { openRe
         title="Todo lo que puedes hacer con Anfiora"
         subtitle="No es una lista de invitados. Es el control completo de tu evento."
         groups={ANFITRION_COMPARE}
-        cols={cols}
+        cols={compareCols}
       />
     </>
   )
 }
 
-function OrganizadorView({ openSales, goToCheckout, billing, founder, onToggleFounder, cols }: { openSales: () => void; goToCheckout: (tipo: Vista, plan: string, billing?: Billing) => void; billing: Billing; founder: boolean; onToggleFounder: () => void; cols: string[] }) {
+function OrganizadorView({ openSales, goToCheckout, billing, founder, onToggleFounder }: { openSales: () => void; goToCheckout: (tipo: Vista, plan: string, billing?: Billing) => void; billing: Billing; founder: boolean; onToggleFounder: () => void }) {
+  const compareCols: CompareCol[] = [
+    ...ORGANIZADOR_PLANS.map((p): CompareCol => ({
+      label: p.name,
+      cta: { text: 'Probar', onClick: () => goToCheckout('organizador', p.id, billing), variant: 'solid' },
+    })),
+    { label: 'Sin Límites', cta: { text: 'Contacto', onClick: openSales, variant: 'outline' } },
+  ]
   return (
     <>
       <div className="mt-8 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {ORGANIZADOR_PLANS.map(p => {
-          const base = billing === 'anual' ? annualMonthly(p.listMonthly) : p.listMonthly
-          const founderPrice = founderMonthly(base)
+          const base = billing === 'anual' ? p.annualPrice : p.listMonthly
+          const main = founder ? p.founderPrice : base
+          const strike = founder || billing === 'anual' ? p.listMonthly : null
           const t = ORGANIZADOR_THEME[p.id]
           return (
             <PlanCardShell key={p.id} className={t.card}>
               <div className={`text-base font-bold ${t.name}`}>{p.name}</div>
               <div className={`mb-3 mt-0.5 text-xs ${t.tagline}`}>{p.tagline}</div>
               <div className="flex items-baseline gap-2">
-                <div className={`text-[28px] font-extrabold ${t.priceMain}`}>{formatMXN(founder ? founderPrice : base)}</div>
-                {founder && <div className={`text-sm line-through ${t.priceStrike}`}>{formatMXN(base)}</div>}
+                <div className={`text-[28px] font-extrabold ${t.priceMain}`}>{formatMXN(main)}</div>
+                {strike && <div className={`text-sm line-through ${t.priceStrike}`}>{formatMXN(strike)}</div>}
               </div>
-              <div className={`text-[11.5px] ${t.perMes}`}>/mes{billing === 'anual' ? ' · facturado anual' : ''}</div>
+              <div className={`text-[11.5px] ${t.perMes}`}>/mes{(founder || billing === 'anual') ? ' · facturado anual' : ''}</div>
               {founder && (
                 <div className={`my-2 self-start rounded-md border px-2 py-[3px] text-[10.5px] font-bold ${t.pill}`}>
                   −40% tu primer año
@@ -570,7 +605,7 @@ function OrganizadorView({ openSales, goToCheckout, billing, founder, onToggleFo
         title="Compara los planes para planners"
         subtitle="Cada evento incluye toda la profundidad de Anfiora, sin topes de invitados."
         groups={ORGANIZADOR_COMPARE}
-        cols={cols}
+        cols={compareCols}
       />
     </>
   )
