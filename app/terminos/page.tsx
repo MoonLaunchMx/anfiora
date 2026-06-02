@@ -68,7 +68,7 @@ export default function TerminosPage() {
               <li>
                 <strong style={{ color: 'var(--text)' }}>Pago único (Anfitrión):</strong> un pago único por
                 evento que habilita el evento contratado y eleva su límite de invitados según el plan elegido.
-                Este pago otorga acceso a ese evento por un periodo de hasta 18 meses contados desde la fecha
+                Este pago otorga acceso a ese evento por un periodo de hasta 12 meses (un año) contados desde la fecha
                 del pago; transcurrido el plazo, el Cliente deberá renovar bajo los planes vigentes. El pago
                 único corresponde a un solo evento y no otorga derecho a eventos adicionales.
               </li>

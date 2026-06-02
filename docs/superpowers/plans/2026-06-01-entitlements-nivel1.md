@@ -643,4 +643,4 @@ git commit -m "chore(entitlements): compat de lectura de users.plan en perfil/ad
 - Catalogo en tabla `plan_catalog` / config editable sin deploy.
 - Overrides por cliente + grandfathering (snapshot de limite al comprar).
 - Gating de features (`can(...,'export')`, `'whatsapp_agent'`) en los call-sites (botones export, etc.).
-- Ventana 18 meses (`events.tier_purchased_at`), trial 14 dias (`users.trial_ends_at`), IDs de Stripe, y el webhook real reemplazando al grant mock.
+- Ventana 12 meses (`events.tier_purchased_at`), trial 14 dias (`users.trial_ends_at`), IDs de Stripe, y el webhook real reemplazando al grant mock.

@@ -275,7 +275,7 @@ export default function PreciosClient({ initialVista }: { initialVista: Vista })
           </div>
 
           {vista === 'anfitrion' ? (
-            <p className="mt-2.5 text-xs text-[#999]">Organizas <strong>un</strong> evento propio. Pago único, acceso hasta 60 días después del evento.</p>
+            <p className="mt-2.5 text-xs text-[#999]">Organizas <strong>un</strong> evento propio. Pago único, acceso por 12 meses.</p>
           ) : (
             <div className="mt-4 flex items-center justify-center gap-2.5 text-[13px] text-[#666]">
               <span className={billing === 'mensual' ? 'font-semibold text-[#0a0a0a]' : ''}>Mensual</span>

@@ -19,15 +19,15 @@ export default function LimitReachedModal({ isOpen, onClose, onUpgrade, limit, c
         <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-[#fffbf0]">
           <Lock className="h-6 w-6 text-[#c49a3a]" />
         </div>
-        <h2 className="text-lg font-bold text-[#1D1E20]">{over ? 'Te pasaste del límite de tu plan' : 'Llegaste al límite de tu plan'}</h2>
+        <h2 className="text-lg font-bold text-[#1D1E20]">{over ? 'Superaste el límite de invitados' : 'Alcanzaste el límite de invitados'}</h2>
         <p className="mt-2 text-sm text-[#666]">
           {over ? (
-            <>Tienes <strong className="text-[#1D1E20]">{current} invitados</strong> y tu plan Free permite{' '}
-            <strong className="text-[#1D1E20]">{limit}</strong> (acompañantes incluidos). Elimina algunos o mejora tu
-            plan para poder agregar más.</>
+            <>Tienes <strong className="text-[#1D1E20]">{current} invitados</strong> y tu plan permite{' '}
+            <strong className="text-[#1D1E20]">{limit}</strong> (acompañantes incluidos). Elimina algunos o mejora
+            tu plan para continuar.</>
           ) : (
-            <>Tu plan Free incluye hasta <strong className="text-[#1D1E20]">{limit} invitados</strong> (acompañantes
-            incluidos). Mejora tu plan para seguir agregando.</>
+            <>Tu plan incluye hasta <strong className="text-[#1D1E20]">{limit} invitados</strong> (acompañantes
+            incluidos). Mejora tu plan para agregar más.</>
           )}
         </p>
         <button

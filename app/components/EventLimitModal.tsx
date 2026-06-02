@@ -19,15 +19,15 @@ export default function EventLimitModal({ isOpen, onClose, isPlanner, limit }: E
           <CalendarClock className="h-6 w-6 text-[#1f8f74]" />
         </div>
         <h2 className="text-lg font-bold text-[#1D1E20]">
-          {isPlanner ? 'Llegaste al límite de eventos de tu plan' : 'Ya tienes un evento activo'}
+          {isPlanner ? 'Llegaste al límite de tu plan' : 'Mejora tu plan para crear más eventos'}
         </h2>
         <p className="mt-2 text-sm text-[#666]">
           {isPlanner ? (
-            <>Tu plan permite <strong className="text-[#1D1E20]">{limit}</strong> eventos activos. Termina o
-            archiva uno, o sube de plan para manejar más.</>
+            <>Tu plan incluye <strong className="text-[#1D1E20]">{limit}</strong> eventos activos. Sube de plan
+            para gestionar más al mismo tiempo.</>
           ) : (
-            <>Con tu plan puedes tener <strong className="text-[#1D1E20]">un evento activo</strong> a la vez.
-            Termínalo o archívalo para crear otro, o hazte Planner para varios a la vez.</>
+            <>Tu plan incluye <strong className="text-[#1D1E20]">un evento activo</strong> a la vez. Cambia a un
+            plan Planner para gestionar varios eventos simultáneamente con tu equipo.</>
           )}
         </p>
         <Link
