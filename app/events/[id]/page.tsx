@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom'
 import { useParams } from 'next/navigation'
 import { motion, useMotionValue, useTransform, animate } from 'framer-motion'
 import type { PanInfo } from 'framer-motion'
-import { Trash2, Send, Clock, MessageSquare, AlertCircle, CheckCircle, XCircle, Download, Upload, Columns3, Search, UserPlus, Plus, Check, X, Filter } from 'lucide-react'
+import { Trash2, Send, Clock, MessageSquare, AlertCircle, CheckCircle, XCircle, Download, Upload, Columns3, Search, UserPlus, Plus, Check, X, Filter, Loader2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { PartyMember, Guest, Event, EventSettings, EventStatus, RsvpStatus } from '@/lib/types'
 import StatsCollapse, { StatsToggleButton, useStatsToggle } from '@/app/components/ui/StatsCollapse'
@@ -396,9 +396,10 @@ type BulkMenuContentProps = {
   onBulkUpdateStatus: (status: RsvpStatus) => void
   onBulkDelete: () => void
   onOpenCompanionModal: () => void
+  hasGuests: boolean
 }
 
-function BulkMenuContent({ onClose, onBulkUpdateStatus, onBulkDelete, onOpenCompanionModal }: BulkMenuContentProps) {
+function BulkMenuContent({ onClose, onBulkUpdateStatus, onBulkDelete, onOpenCompanionModal, hasGuests }: BulkMenuContentProps) {
   return (
     <>
       <p className="mb-1 px-3 pt-0.5 text-[10px] font-semibold uppercase tracking-wider text-[#aaa]">Marcar como</p>
@@ -411,11 +412,13 @@ function BulkMenuContent({ onClose, onBulkUpdateStatus, onBulkDelete, onOpenComp
           </button>
         )
       })}
-      <div className="my-1 mx-3 h-px bg-[#f0f0f0]" />
-      <button onClick={() => { onClose(); onOpenCompanionModal() }} className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-xs transition hover:bg-[#f8f8f8] sm:py-2">
-        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[#e8e8e8] bg-[#f8f8f8] text-[#555]"><UserPlus size={11} /></span>
-        <span className="font-medium text-[#555]">Agregar acompañante</span>
-      </button>
+      {hasGuests && (<>
+        <div className="my-1 mx-3 h-px bg-[#f0f0f0]" />
+        <button onClick={() => { onClose(); onOpenCompanionModal() }} className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-xs transition hover:bg-[#f8f8f8] sm:py-2">
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[#e8e8e8] bg-[#f8f8f8] text-[#555]"><UserPlus size={11} /></span>
+          <span className="font-medium text-[#555]">Agregar acompañante</span>
+        </button>
+      </>)}
       <div className="my-1 mx-3 h-px bg-[#f0f0f0]" />
       <button onClick={onBulkDelete} className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-xs transition hover:bg-[#fff0f0] sm:py-2">
         <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[#ffc0c0] bg-[#fff0f0] text-[#cc3333]"><Trash2 size={11} /></span>
@@ -473,6 +476,7 @@ export default function EventPage() {
   const [editAllergies, setEditAllergies] = useState<string[]>([])
 
   const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [selectedMembers, setSelectedMembers] = useState<Set<string>>(new Set())
   const [showBulkMenu, setShowBulkMenu] = useState(false)
   const [showMobileBulkSheet, setShowMobileBulkSheet] = useState(false)
   const bulkMenuRef = useRef<HTMLDivElement>(null)
@@ -648,6 +652,7 @@ export default function EventPage() {
   const deleteGuest = async (guestId: string) => {
     if (!confirm('¿Eliminar este invitado?')) return
     await supabase.from('guests').delete().eq('id', guestId)
+    await supabase.from('party_members').delete().eq('guest_id', guestId)
     await supabase.rpc('decrement_guests', { event_id_input: id })
     setGuests(prev => prev.filter(g => g.id !== guestId))
     setEvent(prev => prev ? { ...prev, total_guests: Math.max(0, prev.total_guests - 1) } : prev)
@@ -702,42 +707,71 @@ export default function EventPage() {
   }
 
   const toggleSelect = (guestId: string, idx: number, shiftKey: boolean) => {
-    if (shiftKey && lastCheckedIdx.current !== null) {
-      const start = Math.min(lastCheckedIdx.current, idx)
-      const end   = Math.max(lastCheckedIdx.current, idx)
-      const rangeIds = filtered.slice(start, end + 1).map(g => g.id)
-      setSelected(prev => {
-        const next = new Set(prev)
-        const adding = !prev.has(guestId)
-        rangeIds.forEach(rid => adding ? next.add(rid) : next.delete(rid))
-        return next
-      })
-    } else {
-      setSelected(prev => { const next = new Set(prev); next.has(guestId) ? next.delete(guestId) : next.add(guestId); return next })
-    }
+    const adding = !selected.has(guestId)
+    const affected = (shiftKey && lastCheckedIdx.current !== null)
+      ? filtered.slice(Math.min(lastCheckedIdx.current, idx), Math.max(lastCheckedIdx.current, idx) + 1)
+      : filtered.filter(g => g.id === guestId)
+    setSelected(prev => {
+      const next = new Set(prev)
+      affected.forEach(g => adding ? next.add(g.id) : next.delete(g.id))
+      return next
+    })
+    setSelectedMembers(prev => {
+      const next = new Set(prev)
+      affected.forEach(g => g.party_members.forEach(m => adding ? next.add(m.id) : next.delete(m.id)))
+      return next
+    })
     lastCheckedIdx.current = idx
   }
 
+  const toggleSelectMember = (memberId: string) => {
+    setSelectedMembers(prev => { const next = new Set(prev); next.has(memberId) ? next.delete(memberId) : next.add(memberId); return next })
+  }
+
   const toggleSelectAll = () => {
-    setSelected(selected.size === filtered.length ? new Set() : new Set(filtered.map(g => g.id)))
+    if (selected.size === filtered.length) {
+      setSelected(new Set()); setSelectedMembers(new Set())
+    } else {
+      setSelected(new Set(filtered.map(g => g.id)))
+      setSelectedMembers(new Set(filtered.flatMap(g => g.party_members.map(m => m.id))))
+    }
     lastCheckedIdx.current = null
   }
 
   const bulkUpdateStatus = async (status: RsvpStatus) => {
     const ids = Array.from(selected)
-    await supabase.from('guests').update({ rsvp_status: status }).in('id', ids)
-    setGuests(prev => prev.map(g => selected.has(g.id) ? { ...g, rsvp_status: status } : g))
-    setSelected(new Set()); setShowBulkMenu(false); setShowMobileBulkSheet(false)
+    const memberIds = Array.from(selectedMembers)
+    if (ids.length > 0) await supabase.from('guests').update({ rsvp_status: status }).in('id', ids)
+    for (let i = 0; i < memberIds.length; i += 200) await supabase.from('party_members').update({ rsvp_status: status }).in('id', memberIds.slice(i, i + 200))
+    setGuests(prev => prev.map(g => {
+      const ng = selected.has(g.id) ? { ...g, rsvp_status: status } : g
+      return g.party_members.some(m => selectedMembers.has(m.id))
+        ? { ...ng, party_members: ng.party_members.map(m => selectedMembers.has(m.id) ? { ...m, rsvp_status: status } : m) }
+        : ng
+    }))
+    setSelected(new Set()); setSelectedMembers(new Set()); setShowBulkMenu(false); setShowMobileBulkSheet(false)
   }
 
   const bulkDelete = async () => {
-    if (!confirm('¿Eliminar ' + selected.size + ' invitados?')) return
-    const ids = Array.from(selected)
-    await supabase.from('guests').delete().in('id', ids)
-    await supabase.rpc('increment_guests_by', { event_id_input: id, amount: -ids.length })
-    setGuests(prev => prev.filter(g => !selected.has(g.id)))
-    setEvent(prev => prev ? { ...prev, total_guests: Math.max(0, prev.total_guests - ids.length) } : prev)
-    setSelected(new Set()); setShowBulkMenu(false); setShowMobileBulkSheet(false)
+    const guestIds = Array.from(selected)
+    const deletedGuestSet = new Set(guestIds)
+    const looseMemberIds = Array.from(selectedMembers).filter(mid => { const g = guests.find(gg => gg.party_members.some(m => m.id === mid)); return g && !deletedGuestSet.has(g.id) })
+    if (guestIds.length + looseMemberIds.length === 0) return
+    if (!confirm('¿Eliminar ' + guestIds.length + ' invitado(s)' + (guestIds.length ? ' con sus acompañantes' : '') + (looseMemberIds.length ? ' y ' + looseMemberIds.length + ' acompañante(s) más' : '') + '?')) return
+    const memberIdsToDelete = new Set<string>(looseMemberIds)
+    for (const g of guests) if (deletedGuestSet.has(g.id)) g.party_members.forEach(m => memberIdsToDelete.add(m.id))
+    if (guestIds.length > 0) {
+      await supabase.from('guests').delete().in('id', guestIds)
+      await supabase.rpc('increment_guests_by', { event_id_input: id, amount: -guestIds.length })
+    }
+    const memberArr = Array.from(memberIdsToDelete)
+    for (let i = 0; i < memberArr.length; i += 200) await supabase.from('party_members').delete().in('id', memberArr.slice(i, i + 200))
+    setGuests(prev => prev.filter(g => !deletedGuestSet.has(g.id)).map(g => {
+      const removing = g.party_members.filter(m => memberIdsToDelete.has(m.id))
+      return removing.length === 0 ? g : { ...g, party_size: Math.max(1, g.party_size - removing.length), party_members: g.party_members.filter(m => !memberIdsToDelete.has(m.id)) }
+    }))
+    setEvent(prev => prev ? { ...prev, total_guests: Math.max(0, prev.total_guests - guestIds.length) } : prev)
+    setSelected(new Set()); setSelectedMembers(new Set()); setShowBulkMenu(false); setShowMobileBulkSheet(false)
   }
 
   const bulkAddCompanions = async () => {
@@ -745,23 +779,25 @@ export default function EventPage() {
     setBulkCompanionSaving(true)
     const ids = Array.from(selected)
     const rows: { guest_id: string; event_id: string; name: string; phone: null; rsvp_status: string }[] = []
+    const sizeUpdates: { id: string; party_size: number }[] = []
     for (const guestId of ids) {
       const guest = guests.find(g => g.id === guestId); if (!guest) continue
       const canAdd = Math.max(0, 15 - guest.party_members.length)
       const toAdd = Math.min(bulkCompanionCount, canAdd)
+      if (toAdd <= 0) continue
       for (let i = 0; i < toAdd; i++) rows.push({ guest_id: guestId, event_id: id as string, name: '', phone: null, rsvp_status: 'pending' })
+      sizeUpdates.push({ id: guestId, party_size: guest.party_size + toAdd })
     }
     if (rows.length === 0) { setBulkCompanionSaving(false); setShowBulkCompanionModal(false); return }
-    await supabase.from('party_members').insert(rows)
-    for (const guestId of ids) {
-      const guest = guests.find(g => g.id === guestId); if (!guest) continue
-      const canAdd = Math.max(0, 15 - guest.party_members.length)
-      const toAdd = Math.min(bulkCompanionCount, canAdd)
-      if (toAdd > 0) await supabase.from('guests').update({ party_size: guest.party_size + toAdd }).eq('id', guestId)
+    const CHUNK = 500
+    for (let i = 0; i < rows.length; i += CHUNK) await supabase.from('party_members').insert(rows.slice(i, i + CHUNK))
+    const UCHUNK = 50
+    for (let i = 0; i < sizeUpdates.length; i += UCHUNK) {
+      await Promise.all(sizeUpdates.slice(i, i + UCHUNK).map(u => supabase.from('guests').update({ party_size: u.party_size }).eq('id', u.id)))
     }
     await loadGuests()
     setBulkCompanionSaving(false); setShowBulkCompanionModal(false)
-    setBulkCompanionCount(1); setSelected(new Set()); setShowBulkMenu(false); setShowMobileBulkSheet(false)
+    setBulkCompanionCount(1); setSelected(new Set()); setSelectedMembers(new Set()); setShowBulkMenu(false); setShowMobileBulkSheet(false)
   }
 
   const buildWaText = (guest: Guest, templateIndex = 0) => {
@@ -918,7 +954,7 @@ export default function EventPage() {
   const conAtencion     = accionNecesaria + respondio
 
   const allSelected = filtered.length > 0 && selected.size === filtered.length
-  const someSelected = selected.size > 0
+  const someSelected = selected.size > 0 || selectedMembers.size > 0
 
   const activeTemplates = (eventSettings?.message_templates as string[] | null)?.filter((t: string) => t.trim()) || []
   const templateNames = eventSettings?.template_names as string[] | null
@@ -1037,7 +1073,7 @@ export default function EventPage() {
               className="w-full rounded-lg border border-[#e0e0e0] bg-[#f8f8f8] pl-8 pr-3 py-2 text-sm text-[#1D1E20] outline-none" />
           </div>
           <select value={filter} onChange={e => setFilter(e.target.value as typeof filter)}
-            className="min-w-0 flex-1 cursor-pointer rounded-lg border-none bg-[#1D1E20] px-3 py-2 text-sm font-semibold text-white outline-none sm:flex-none sm:w-48">
+            className="min-w-0 flex-1 cursor-pointer rounded-lg border-none bg-[#1D1E20] px-3 py-2 text-xs font-semibold text-white outline-none sm:flex-none sm:w-48">
             <option value="all">Todos ({totalPersonas})</option>
             <option value="confirmed">Confirmados ({confirmed})</option>
             <option value="pending">Pendientes ({pending})</option>
@@ -1050,14 +1086,14 @@ export default function EventPage() {
           {someSelected && (
             <button onClick={() => setShowMobileBulkSheet(true)}
               className="whitespace-nowrap rounded-lg bg-[#1D1E20] px-3 py-2 text-xs font-semibold text-white sm:hidden">
-              {selected.size} sel. ▾
+              {selected.size + selectedMembers.size} sel. ▾
             </button>
           )}
           {someSelected && (
             <div className="relative hidden sm:block" ref={bulkMenuRef}>
               <button onClick={() => setShowBulkMenu(!showBulkMenu)}
                 className="whitespace-nowrap rounded-lg bg-[#1D1E20] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#2d2e30]">
-                {selected.size} seleccionados ▾
+                {selected.size + selectedMembers.size} seleccionados ▾
               </button>
               {showBulkMenu && (
                 <div className="absolute right-0 top-full z-50 mt-1 min-w-[230px] rounded-xl border border-[#e8e8e8] bg-white py-1.5 shadow-xl">
@@ -1066,6 +1102,7 @@ export default function EventPage() {
                     onBulkUpdateStatus={bulkUpdateStatus}
                     onBulkDelete={bulkDelete}
                     onOpenCompanionModal={() => { setBulkCompanionCount(1); setShowBulkCompanionModal(true) }}
+                    hasGuests={selected.size > 0}
                   />
                 </div>
               )}
@@ -1179,7 +1216,8 @@ export default function EventPage() {
                       const isLast = mi === guest.party_members.length - 1
                       return (
                         <div key={m.id} className={'border border-t-0 bg-[#fafafa] px-3 py-2 ' + (isLast ? 'rounded-b-xl' : '')} style={{ borderColor: '#e8e8e8' }}>
-                          <div className="flex items-center gap-2 pl-6">
+                          <div className="flex items-center gap-2 pl-2">
+                            <input type="checkbox" checked={selectedMembers.has(m.id)} onChange={() => toggleSelectMember(m.id)} className="shrink-0" style={{ cursor: 'pointer', accentColor: '#48C9B0' }} />
                             <div className="h-6 w-[3px] shrink-0 rounded-full opacity-40" style={{ background: groupColor }} />
                             <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold" style={{ background: groupColor + '22', color: groupColor }}>+{mi + 1}</div>
                             <span className="flex-1 truncate text-xs text-[#888]">{m.name || 'Acompañante'}</span>
@@ -1227,7 +1265,7 @@ export default function EventPage() {
                       </div>
                       {visibleCols.has('tags') && (
                         <div onClick={() => openEdit(guest)} className="flex flex-wrap gap-1 cursor-pointer">
-                          {guestTags.length > 0 ? (<>{guestTags.slice(0, 4).map(tag => { const tagIdx = availableTags.indexOf(tag); const col = getTagColor(tagIdx >= 0 ? tagIdx : 0); return <span key={tag} onClick={(e) => { e.stopPropagation(); addFilter('tag', tag) }} className="cursor-pointer rounded-full border px-2 py-0.5 text-[10px] font-medium transition hover:opacity-75" style={{ background: col.bg, borderColor: col.border, color: col.text }}>{tag}</span> })}{guestTags.length > 4 && <span className="rounded-full border border-[#e0e0e0] bg-[#f2f2f2] px-2 py-0.5 text-[10px] font-medium text-[#888]">+{guestTags.length - 4}</span>}</>) : <span className="text-[#ddd] text-xs">—</span>}
+                          {guestTags.length > 0 ? (<>{guestTags.slice(0, 2).map(tag => { const tagIdx = availableTags.indexOf(tag); const col = getTagColor(tagIdx >= 0 ? tagIdx : 0); return <span key={tag} onClick={(e) => { e.stopPropagation(); addFilter('tag', tag) }} className="cursor-pointer truncate rounded-full border px-2 py-0.5 text-[10px] font-medium transition hover:opacity-75" style={{ background: col.bg, borderColor: col.border, color: col.text, maxWidth: '120px' }}>{tag}</span> })}{guestTags.length > 2 && <span className="rounded-full border border-[#e0e0e0] bg-[#f2f2f2] px-2 py-0.5 text-[10px] font-medium text-[#888]">+{guestTags.length - 2}</span>}</>) : <span className="text-[#ddd] text-xs">—</span>}
                         </div>
                       )}
                       {visibleCols.has('mesa') && (
@@ -1290,7 +1328,9 @@ export default function EventPage() {
                         <div key={m.id}
                           className={'items-center px-4 py-2.5 bg-[#fafafa] ' + (isLastMember && !isLastGuest ? 'border-b-2 border-[#f0f0f0]' : 'border-b border-[#f8f8f8]')}
                           style={{ display: 'grid', gridTemplateColumns: gridCols }}>
-                          <div />
+                          <div className="flex items-center justify-center">
+                            <input type="checkbox" checked={selectedMembers.has(m.id)} onChange={() => toggleSelectMember(m.id)} style={{ cursor: 'pointer', accentColor: '#48C9B0' }} />
+                          </div>
                           <div className="flex items-center gap-2 pl-4">
                             <div className="h-4 w-[2px] shrink-0 rounded-full opacity-40" style={{ background: groupColor }} />
                             <div className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[9px] font-bold" style={{ background: groupColor + '22', color: groupColor }}>+{mi + 1}</div>
@@ -1482,7 +1522,7 @@ export default function EventPage() {
           <div className="w-full max-w-xs rounded-2xl border border-[#e8e8e8] bg-white p-6 shadow-xl">
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-base font-bold text-[#1D1E20]">Agregar acompañantes</h2>
-              <button onClick={() => setShowBulkCompanionModal(false)} className="text-xl text-[#aaa]">✕</button>
+              <button onClick={() => setShowBulkCompanionModal(false)} disabled={bulkCompanionSaving} className="text-xl text-[#aaa] disabled:opacity-40">✕</button>
             </div>
             <p className="mb-4 text-xs text-[#888]">
               Se agregará <span className="font-semibold text-[#1D1E20]">{bulkCompanionCount} acompañante{bulkCompanionCount > 1 ? 's' : ''}</span> a cada uno de los <span className="font-semibold text-[#1D1E20]">{selected.size} invitados</span> seleccionados.
@@ -1500,8 +1540,8 @@ export default function EventPage() {
               </>
             )}
             <div className="flex gap-2.5">
-              <button onClick={() => setShowBulkCompanionModal(false)} className="flex-1 rounded-lg border border-[#e0e0e0] py-2.5 text-sm text-[#888]">Cancelar</button>
-              <button onClick={bulkAddCompanions} disabled={bulkCompanionSaving || maxCanAdd === 0} className="flex-[2] rounded-lg bg-[#48C9B0] py-2.5 text-sm font-semibold text-white disabled:opacity-60">{bulkCompanionSaving ? 'Guardando...' : 'Confirmar'}</button>
+              <button onClick={() => setShowBulkCompanionModal(false)} disabled={bulkCompanionSaving} className="flex-1 rounded-lg border border-[#e0e0e0] py-2.5 text-sm text-[#888] disabled:opacity-50">Cancelar</button>
+              <button onClick={bulkAddCompanions} disabled={bulkCompanionSaving || maxCanAdd === 0} className="flex flex-[2] items-center justify-center gap-2 rounded-lg bg-[#48C9B0] py-2.5 text-sm font-semibold text-white disabled:opacity-60">{bulkCompanionSaving ? <><Loader2 size={15} className="animate-spin" />Guardando...</> : 'Confirmar'}</button>
             </div>
           </div>
         </div>
@@ -1539,7 +1579,7 @@ export default function EventPage() {
           <div className="w-full rounded-t-2xl border-t border-[#e8e8e8] bg-white pb-8 pt-3 shadow-2xl" onClick={e => e.stopPropagation()}>
             <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-[#e0e0e0]" />
             <div className="mb-2 px-3">
-              <p className="text-xs font-semibold text-[#1D1E20]">{selected.size} invitados seleccionados</p>
+              <p className="text-xs font-semibold text-[#1D1E20]">{selected.size} invitados{selectedMembers.size > 0 ? ' · ' + selectedMembers.size + ' acompañantes' : ''} seleccionados</p>
             </div>
             <div className="max-h-[60vh] overflow-y-auto">
               <BulkMenuContent
@@ -1547,6 +1587,7 @@ export default function EventPage() {
                 onBulkUpdateStatus={bulkUpdateStatus}
                 onBulkDelete={bulkDelete}
                 onOpenCompanionModal={() => { setBulkCompanionCount(1); setShowBulkCompanionModal(true) }}
+                hasGuests={selected.size > 0}
               />
             </div>
             <div className="px-3 pt-2">
