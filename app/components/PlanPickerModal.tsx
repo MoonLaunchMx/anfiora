@@ -39,8 +39,9 @@ const PAID = ANFITRION_PLANS.filter(p => p.price > 0)
 export default function PlanPickerModal({ isOpen, onClose, onChoose }: PlanPickerModalProps) {
   if (!isOpen) return null
   return (
-    <div className="fixed inset-0 z-[300] flex items-start justify-center overflow-y-auto bg-black/50 p-4" onClick={onClose}>
-      <div className="my-8 w-full max-w-5xl rounded-2xl border border-[#e8e8e8] bg-white shadow-2xl" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 z-[300] overflow-y-auto bg-black/50" onClick={onClose}>
+      <div className="flex min-h-full items-center justify-center p-4">
+        <div className="w-full max-w-5xl rounded-2xl border border-[#e8e8e8] bg-white shadow-2xl" onClick={e => e.stopPropagation()}>
         <div className="flex items-start justify-between gap-3 border-b border-[#eee] px-6 py-5">
           <div>
             <h2 className="text-xl font-bold text-[#0a0a0a]">Elige tu plan</h2>
@@ -104,6 +105,7 @@ export default function PlanPickerModal({ isOpen, onClose, onChoose }: PlanPicke
             </ul>
           </div>
         </div>
+      </div>
       </div>
     </div>
   )

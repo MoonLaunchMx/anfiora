@@ -557,7 +557,7 @@ export default function Dashboard() {
       <PlannerPickerModal
         isOpen={showPlanner}
         onClose={() => setShowPlanner(false)}
-        onChoose={(planId) => { window.location.href = `/checkout?tipo=organizador&plan=${planId}&billing=mensual` }}
+        onChoose={(planId, billing) => { window.location.href = `/checkout?tipo=organizador&plan=${planId}&billing=${billing}` }}
         onContact={() => { window.location.href = '/precios?vista=organizador' }}
       />
 
