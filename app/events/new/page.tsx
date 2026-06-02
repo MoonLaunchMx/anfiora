@@ -47,7 +47,7 @@ export default function NewEvent() {
       .select('id', { count: 'exact', head: true })
       .eq('user_id', user.id)
       .or('event_status.is.null,event_status.not.in.(completed,cancelled)')
-    const activeLimit = getActiveEventLimit(userRow?.plan)
+    const activeLimit = getActiveEventLimit(userRow?.plan, user.email)
     if ((count ?? 0) >= activeLimit) {
       setLimitInfo({ planner: isPlanner(userRow?.plan), limit: activeLimit })
       setShowEventLimit(true)

@@ -333,6 +333,7 @@ export default function EventPage() {
 
   const [event, setEvent] = useState<Event | null>(null)
   const [ownerPlan, setOwnerPlan] = useState<string | null>(null)
+  const [ownerEmail, setOwnerEmail] = useState<string | null>(null)
   const [showLimitModal, setShowLimitModal] = useState(false)
   const [showPlansModal, setShowPlansModal] = useState(false)
   const [eventSettings, setEventSettings] = useState<EventSettings | null>(null)
@@ -458,8 +459,9 @@ export default function EventPage() {
     ])
     if (data) {
       setEvent(data)
-      const { data: owner } = await supabase.from('users').select('plan').eq('id', data.user_id).single()
+      const { data: owner } = await supabase.from('users').select('plan, email').eq('id', data.user_id).single()
       setOwnerPlan(owner?.plan ?? 'free')
+      setOwnerEmail(owner?.email ?? null)
     }
     if (settings) setEventSettings(settings)
   }
@@ -491,7 +493,7 @@ export default function EventPage() {
 
   const totalPersonas = guests.reduce((acc, g) => acc + 1 + g.party_members.length, 0)
   const totalGuestCount = guests.reduce((acc, g) => acc + g.party_size, 0)
-  const guestLimit = getGuestLimit(ownerPlan, event?.plan_tier)
+  const guestLimit = getGuestLimit(ownerPlan, event?.plan_tier, ownerEmail)
   const attemptAdd = (n: number) => {
     if (totalGuestCount + n > guestLimit) { setShowLimitModal(true); return false }
     return true
