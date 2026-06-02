@@ -352,8 +352,11 @@ function MembersEditor({ value, onChange }: { value: EditMember[]; onChange: (v:
 
 type CsvDuplicateResult = {
   hasDuplicates: boolean
-  rows: Array<{ event_id: string; name: string; phone: string | null; email: string | null; party_size: number; rsvp_status: string; tags: string[]; notes: string | null }>
+  rows: Array<{ event_id: string; name: string; phone: string | null; email: string | null; party_size: number; rsvp_status: string; tags: string[]; notes: string | null; side: string | null; allergies: string[] | null; _companions: string[] }>
   duplicates: Array<{ row: number; name: string; phone: string; conflictWith: string }>
+  newTags: string[]
+  newGroups: string[]
+  newAllergies: string[]
 }
 
 function SwipeableGuestCard({ guest, groupColor, isSelected, guestTags, availableTags, onSelect, onEdit, onDelete, onWaLongPressStart, onWaLongPressEnd, onWaTouchMove, onStatusChange }: {
@@ -867,7 +870,10 @@ export default function EventPage() {
       const notesIdx  = headers.findIndex(h => h.includes('nota') || h.includes('note'))
       const tagsIdx   = headers.findIndex(h => h.includes('tag') || h.includes('etiqueta'))
       const statusIdx = headers.findIndex(h => h.includes('status') || h.includes('estado') || h.includes('rsvp'))
-      const plusIdx   = headers.findIndex(h => h.includes('plus') || h.includes('acomp'))
+      const plusIdx   = headers.findIndex(h => h.includes('plus'))
+      const compIdx   = headers.findIndex(h => h.includes('acomp') || h.includes('companion'))
+      const grupoIdx  = headers.findIndex(h => h.includes('grupo') || h.includes('lado') || h === 'side')
+      const alergIdx  = headers.findIndex(h => h.includes('alerg') || h.includes('allerg'))
       if (nameIdx === -1) { setCsvError('No se encontró columna "nombre"'); return }
       const eventTags = event?.guest_tags || []
       const rows = lines.slice(1).map(line => {
@@ -875,9 +881,15 @@ export default function EventPage() {
         const rawStatus = statusIdx >= 0 ? cols[statusIdx]?.toLowerCase() || '' : ''
         const rsvpStatus = rawStatus.includes('conf') ? 'confirmed' : rawStatus.includes('decl') || rawStatus.includes('no') ? 'declined' : 'pending'
         const rawTags = tagsIdx >= 0 ? cols[tagsIdx] || '' : ''
-        const parsedTags = rawTags ? rawTags.split(/[,|]/).map((t: string) => t.trim()).filter((t: string) => eventTags.includes(t)) : []
+        const parsedTags = rawTags ? rawTags.split(/[,|]/).map((t: string) => t.trim()).filter(Boolean) : []
         const plusOnes = plusIdx >= 0 ? parseInt(cols[plusIdx] || '0', 10) || 0 : 0
-        return { event_id: id as string, name: cols[nameIdx] || '', phone: phoneIdx >= 0 ? cols[phoneIdx] || null : null, email: emailIdx >= 0 ? cols[emailIdx] || null : null, party_size: 1 + plusOnes, rsvp_status: rsvpStatus, tags: parsedTags, notes: notesIdx >= 0 ? cols[notesIdx] || null : null }
+        const compRaw = compIdx >= 0 ? cols[compIdx] || '' : ''
+        const compNames = compRaw ? compRaw.split(/[,|]/).map((s: string) => s.trim()).filter(Boolean) : []
+        const _companions = compNames.length > 0 ? compNames : Array(plusOnes).fill('')
+        const sideVal = grupoIdx >= 0 ? (cols[grupoIdx] || '').trim() || null : null
+        const alergRaw = alergIdx >= 0 ? cols[alergIdx] || '' : ''
+        const alergArr = alergRaw ? alergRaw.split(/[|]/).map((s: string) => s.trim()).filter(Boolean) : []
+        return { event_id: id as string, name: cols[nameIdx] || '', phone: phoneIdx >= 0 ? cols[phoneIdx] || null : null, email: emailIdx >= 0 ? cols[emailIdx] || null : null, party_size: 1 + _companions.length, rsvp_status: rsvpStatus, tags: parsedTags, notes: notesIdx >= 0 ? cols[notesIdx] || null : null, side: sideVal, allergies: alergArr.length > 0 ? alergArr : null, _companions }
       }).filter(r => r.name)
       if (!rows.length) { setCsvError('No se encontraron invitados válidos'); return }
       const duplicates: CsvDuplicateResult['duplicates'] = []
@@ -890,7 +902,10 @@ export default function EventPage() {
         if (seenInFile.has(norm)) { duplicates.push({ row: idx + 2, name: row.name, phone: row.phone, conflictWith: seenInFile.get(norm)! + ' (misma importación)' }); return }
         seenInFile.set(norm, row.name)
       })
-      setCsvPreview({ hasDuplicates: duplicates.length > 0, rows, duplicates })
+      const newTags = Array.from(new Set(rows.flatMap(r => r.tags))).filter(t => !eventTags.includes(t))
+      const newGroups = Array.from(new Set(rows.map(r => r.side).filter((s): s is string => !!s))).filter(s => !groupPool.includes(s))
+      const newAllergies = Array.from(new Set(rows.flatMap(r => r.allergies || []))).filter(a => !allergyPool.includes(a))
+      setCsvPreview({ hasDuplicates: duplicates.length > 0, rows, duplicates, newTags, newGroups, newAllergies })
       if (fileRef.current) fileRef.current.value = ''
     }
     const readerUtf8 = new FileReader()
@@ -915,12 +930,23 @@ export default function EventPage() {
       rowsToImport = csvPreview.rows.filter(r => !duplicateKeys.has(r.name + '|' + r.phone))
     }
     if (!rowsToImport.length) { setCsvError('No quedan invitados para importar'); setCsvImporting(false); setCsvPreview(null); return }
-    const { error } = await supabase.from('guests').insert(rowsToImport)
+    const guestPayload = rowsToImport.map(r => ({ event_id: r.event_id, name: r.name, phone: r.phone, email: r.email, party_size: r.party_size, rsvp_status: r.rsvp_status, tags: r.tags, notes: r.notes, side: r.side, allergies: r.allergies }))
+    const { data: insertedGuests, error } = await supabase.from('guests').insert(guestPayload).select('id')
     if (error) { setCsvError('Error al importar: ' + error.message); setCsvImporting(false); return }
+    const memberRows = (insertedGuests || []).flatMap((g, i) => rowsToImport[i]._companions.map(name => ({ guest_id: g.id, event_id: id as string, name: name || '', phone: null, rsvp_status: 'pending' })))
+    for (let i = 0; i < memberRows.length; i += 500) await supabase.from('party_members').insert(memberRows.slice(i, i + 500))
     await supabase.rpc('increment_guests_by', { event_id_input: id, amount: rowsToImport.length })
-    setEvent(prev => prev ? { ...prev, total_guests: prev.total_guests + rowsToImport.length } : prev)
+    const curEventTags = event?.guest_tags || []
+    const newTagsToAdd = Array.from(new Set(rowsToImport.flatMap(r => r.tags))).filter(t => !curEventTags.includes(t))
+    if (newTagsToAdd.length) {
+      const merged = [...curEventTags, ...newTagsToAdd]
+      await supabase.from('events').update({ guest_tags: merged }).eq('id', id)
+      setEvent(prev => prev ? { ...prev, total_guests: prev.total_guests + rowsToImport.length, guest_tags: merged } : prev)
+    } else {
+      setEvent(prev => prev ? { ...prev, total_guests: prev.total_guests + rowsToImport.length } : prev)
+    }
     await loadGuests()
-    setCsvSuccess('✓ ' + rowsToImport.length + ' invitados importados' + (skipDuplicates && csvPreview.duplicates.length > 0 ? ' (' + csvPreview.duplicates.length + ' duplicados omitidos)' : ''))
+    setCsvSuccess('✓ ' + rowsToImport.length + ' invitados' + (memberRows.length ? ' y ' + memberRows.length + ' acompañantes' : '') + ' importados' + (newTagsToAdd.length ? ' · ' + newTagsToAdd.length + ' tags nuevos' : '') + (skipDuplicates && csvPreview.duplicates.length > 0 ? ' (' + csvPreview.duplicates.length + ' duplicados omitidos)' : ''))
     setCsvPreview(null); setCsvImporting(false)
   }
 
@@ -1023,18 +1049,18 @@ export default function EventPage() {
 
   const downloadTemplate = () => {
     const eventTags = event?.guest_tags || []
-    const tagExample = eventTags.length >= 2 ? eventTags[0] + ',' + eventTags[1] : eventTags.length === 1 ? eventTags[0] : 'familia'
-    const headers = 'nombre,telefono,email,notas,tags,rsvp_status'
+    const tagExample = eventTags.length >= 2 ? `${eventTags[0]} | ${eventTags[1]}` : eventTags.length === 1 ? eventTags[0] : 'Familia'
+    const headers = 'nombre,telefono,email,notas,tags,rsvp_status,acompanantes,grupo,alergias'
     const examples = [
-      `"Maria Jose Garcia","+52 81 1234 5678","mj@ejemplo.com","Mesa 3","${tagExample}","confirmed"`,
-      `"Patricio Juarez","+52 55 9876 5432","","Sin restricciones alimentarias","","pending"`,
-      `"Andres Garza","","andres@ejemplo.com","Llegara tarde","","pending"`,
+      `"Maria Jose Garcia","+52 81 1234 5678","mj@ejemplo.com","Mesa 3","${tagExample}","confirmed","Juan Garcia | Sofia Garcia","Novia","Gluten | Mariscos"`,
+      `"Patricio Juarez","+52 55 9876 5432","","Sin restricciones alimentarias","","pending","","Novio",""`,
+      `"Andres Garza","","andres@ejemplo.com","Llegara tarde","","pending","Acompanante de Andres","","Nueces"`,
     ]
-    const instructions = ['', '# INSTRUCCIONES:', '# nombre -> obligatorio', '# telefono -> formato +52 XX XXXX XXXX (opcional)', '# email -> correo electronico (opcional)', '# notas -> texto libre (opcional)', `# tags -> separados por coma: ${eventTags.length ? eventTags.join(', ') : '(configura tags en Configuracion)'}`, '# rsvp_status -> confirmed | pending | declined  (vacio = pending)']
+    const instructions = ['', '# INSTRUCCIONES:', '# nombre -> obligatorio', '# telefono -> formato +52 XX XXXX XXXX (opcional)', '# email -> correo electronico (opcional)', '# notas -> texto libre (opcional)', `# tags -> separados por | (pipe): ${eventTags.length ? eventTags.join(' | ') : 'VIP | Familia'} (se crean los nuevos)`, '# rsvp_status -> confirmed | pending | declined  (vacio = pending)', '# acompanantes -> nombres separados por | (pipe): Juan Perez | Maria Lopez (opcional)', '# grupo -> un valor (ej. Novia, Novio, Trabajo) - se crean los nuevos (opcional)', '# alergias -> separadas por | (pipe): Gluten | Nueces - se crean las nuevas (opcional)']
     const csv = [headers, ...examples, ...instructions].join('\n')
     const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
-    const a = document.createElement('a'); a.href = url; a.download = 'plantilla_guestflow.csv'; a.click()
+    const a = document.createElement('a'); a.href = url; a.download = 'Importar a ANFIORA - ' + (event?.name || 'Evento') + '.csv'; a.click()
     URL.revokeObjectURL(url)
   }
 
@@ -1613,6 +1639,16 @@ export default function EventPage() {
                           <span className="font-semibold">{d.name}</span> ({d.phone}) — duplica a <span className="font-semibold">{d.conflictWith}</span>
                         </div>
                       ))}
+                    </div>
+                  </div>
+                )}
+                {(csvPreview.newTags.length > 0 || csvPreview.newGroups.length > 0 || csvPreview.newAllergies.length > 0) && (
+                  <div className="mb-4">
+                    <p className="mb-2 text-xs font-semibold text-[#1a9e88]">Se agregarán estos nuevos:</p>
+                    <div className="flex flex-col gap-1.5 rounded-lg border border-[#c8ede7] bg-[#f0fdfb] p-3 text-xs text-[#1a9e88]">
+                      {csvPreview.newTags.length > 0 && <div><span className="font-semibold">Tags:</span> {csvPreview.newTags.join(', ')}</div>}
+                      {csvPreview.newGroups.length > 0 && <div><span className="font-semibold">Grupos:</span> {csvPreview.newGroups.join(', ')}</div>}
+                      {csvPreview.newAllergies.length > 0 && <div><span className="font-semibold">Alergias:</span> {csvPreview.newAllergies.join(', ')}</div>}
                     </div>
                   </div>
                 )}
