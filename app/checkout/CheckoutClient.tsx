@@ -10,6 +10,7 @@ import {
   ORGANIZADOR_PLANS,
   formatMXN,
 } from '@/lib/pricing'
+import { supabase } from '@/lib/supabase'
 
 type Tipo = 'anfitrion' | 'organizador'
 type Billing = 'mensual' | 'anual'
@@ -101,11 +102,23 @@ export default function CheckoutClient({ tipo, plan, billing }: { tipo: Tipo; pl
     )
   }
 
-  const pay = () => {
+  const pay = async () => {
     setLoading(true)
+    const { data: { session } } = await supabase.auth.getSession()
+    if (session) {
+      try {
+        await fetch('/api/checkout/grant', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + session.access_token },
+          body: JSON.stringify({ tipo, plan }),
+        })
+      } catch {
+        // mock: si falla el grant no bloqueamos la pantalla de exito
+      }
+    }
     const params = new URLSearchParams({ tipo, plan })
     if (tipo === 'organizador') params.set('billing', billing)
-    setTimeout(() => router.push(`/checkout/exito?${params.toString()}`), 1100)
+    router.push(`/checkout/exito?${params.toString()}`)
   }
 
   return (
