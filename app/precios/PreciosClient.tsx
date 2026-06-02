@@ -237,6 +237,11 @@ export default function PreciosClient({ initialVista }: { initialVista: Vista })
           <Link href="/" className="shrink-0">
             <img src="/images/isotipoylogo.svg" alt="Anfiora" className="h-8" />
           </Link>
+          <div className="hidden items-center gap-6 md:flex">
+            <Link href="/#features" className="text-sm text-[#888] transition hover:text-[#1D1E20]">Features</Link>
+            <Link href="/#compare" className="text-sm text-[#888] transition hover:text-[#1D1E20]">Comparativa</Link>
+            <Link href="/precios" className="text-sm font-semibold text-[#1D1E20]">Precios</Link>
+          </div>
           <div className="flex items-center gap-3">
             <button onClick={openLogin}
               className="rounded-lg border border-[#e0e0e0] px-4 py-2 text-sm text-[#555] transition hover:border-[#48C9B0] hover:text-[#48C9B0]">

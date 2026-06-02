@@ -12,6 +12,7 @@ import StatsCollapse, { StatsToggleButton, useStatsToggle } from '@/app/componen
 import LimitReachedModal from '@/app/components/LimitReachedModal'
 import PlanPickerModal from '@/app/components/PlanPickerModal'
 import { getGuestLimit } from '@/lib/entitlements'
+import { ANFITRION_PLANS } from '@/lib/pricing'
 
 const STATUS_LABEL: Record<string, { label: string; color: string; bg: string; border: string; icon: React.ReactNode }> = {
   mensaje_enviado:  { label: 'Mensaje enviado',  color: '#1a56a0', bg: '#f0f5ff', border: '#b3c8ee', icon: <Send       size={13} /> },
@@ -494,6 +495,7 @@ export default function EventPage() {
   const totalPersonas = guests.reduce((acc, g) => acc + 1 + g.party_members.length, 0)
   const totalGuestCount = guests.reduce((acc, g) => acc + g.party_size, 0)
   const guestLimit = getGuestLimit(ownerPlan, event?.plan_tier, ownerEmail)
+  const planLabel = ANFITRION_PLANS.find(p => p.id === (event?.plan_tier ?? 'free'))?.name ?? 'Free'
   const attemptAdd = (n: number) => {
     if (totalGuestCount + n > guestLimit) { setShowLimitModal(true); return false }
     return true
@@ -807,7 +809,7 @@ export default function EventPage() {
             <p className="mt-0.5 text-xs text-[#888] sm:text-sm">Gestiona a todos tus invitados.</p>
             {guestLimit !== Infinity && (
               <span className={`mt-1.5 inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-semibold ${totalGuestCount >= guestLimit ? 'border-[#ffc0c0] bg-[#fff0f0] text-[#cc3333]' : totalGuestCount >= guestLimit * 0.8 ? 'border-[#f0d080] bg-[#fffbf0] text-[#b8860b]' : 'border-[#e8e8e8] bg-[#f8f8f8] text-[#888]'}`}>
-                {totalGuestCount} / {guestLimit} invitados · plan Free
+                {totalGuestCount} / {guestLimit} invitados · plan {planLabel}
               </span>
             )}
           </div>
