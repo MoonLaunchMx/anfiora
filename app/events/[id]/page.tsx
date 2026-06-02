@@ -1,14 +1,17 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { useParams } from 'next/navigation'
 import { motion, useMotionValue, useTransform, animate } from 'framer-motion'
 import type { PanInfo } from 'framer-motion'
-import { Trash2, Send, Clock, MessageSquare, AlertCircle, CheckCircle, XCircle, Download, Upload, Columns3, Search, UserPlus } from 'lucide-react'
+import { Trash2, Send, Clock, MessageSquare, AlertCircle, CheckCircle, XCircle, Download, Upload, Columns3, Search, UserPlus, Plus, Check, X, Filter, Loader2, FileSpreadsheet, FileText } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { PartyMember, Guest, Event, EventSettings, EventStatus, RsvpStatus } from '@/lib/types'
 import StatsCollapse, { StatsToggleButton, useStatsToggle } from '@/app/components/ui/StatsCollapse'
+import * as XLSX from 'xlsx'
+import jsPDF from 'jspdf'
+import autoTable from 'jspdf-autotable'
 
 const STATUS_LABEL: Record<string, { label: string; color: string; bg: string; border: string; icon: React.ReactNode }> = {
   mensaje_enviado:  { label: 'Mensaje enviado',  color: '#1a56a0', bg: '#f0f5ff', border: '#b3c8ee', icon: <Send       size={13} /> },
@@ -26,7 +29,7 @@ type ColumnKey = 'tags' | 'mesa' | 'lado' | 'notas' | 'telefono' | 'estatus'
 const ALL_COLUMNS: { key: ColumnKey; label: string }[] = [
   { key: 'tags',     label: 'Tags' },
   { key: 'mesa',     label: 'Mesa' },
-  { key: 'lado',     label: 'Lado' },
+  { key: 'lado',     label: 'Grupo' },
   { key: 'notas',    label: 'Notas' },
   { key: 'telefono', label: 'Teléfono' },
   { key: 'estatus',  label: 'Estatus' },
@@ -84,16 +87,6 @@ function StatusDot({ value, onChange }: { value: RsvpStatus; onChange: (s: RsvpS
 
 const GROUP_COLORS = ['#48C9B0', '#7F77DD', '#F0997B', '#378ADD', '#EF9F27', '#D4537E', '#639922', '#D85A30']
 
-const SIDE_OPTIONS = [
-  { value: 'familia_novia',  label: 'Familia novia' },
-  { value: 'familia_novio',  label: 'Familia novio' },
-  { value: 'amigos_novia',   label: 'Amigos novia' },
-  { value: 'amigos_novio',   label: 'Amigos novio' },
-  { value: 'papas_novia',    label: 'Papás novia' },
-  { value: 'papas_novio',    label: 'Papás novio' },
-  { value: 'ambos_lados',    label: 'Ambos lados' },
-  { value: 'sin_clasificar', label: 'Sin clasificar' },
-]
 
 const TAG_COLORS = [
   { bg: '#f0fdfb', border: '#9FE1CB', text: '#0F6E56' },
@@ -107,6 +100,103 @@ const TAG_COLORS = [
 ]
 
 function getTagColor(tagIndex: number) { return TAG_COLORS[tagIndex % TAG_COLORS.length] }
+
+function loadImageData(src: string): Promise<{ dataUrl: string; w: number; h: number }> {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    img.onload = () => {
+      const canvas = document.createElement('canvas')
+      canvas.width = img.naturalWidth; canvas.height = img.naturalHeight
+      const ctx = canvas.getContext('2d')
+      if (!ctx) { reject(new Error('no ctx')); return }
+      ctx.drawImage(img, 0, 0)
+      resolve({ dataUrl: canvas.toDataURL('image/png'), w: img.naturalWidth, h: img.naturalHeight })
+    }
+    img.onerror = reject
+    img.src = src
+  })
+}
+
+function GroupInput({ availableGroups, selectedGroup, onChange, onCreateGroup, onDeleteGroup }: {
+  availableGroups: string[]
+  selectedGroup: string
+  onChange: (group: string) => void
+  onCreateGroup: (group: string) => void
+  onDeleteGroup: (group: string) => void
+}) {
+  const [editing, setEditing] = useState(false)
+  const [query, setQuery] = useState('')
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const q = query.trim()
+  const ql = q.toLowerCase()
+  const suggestions = availableGroups.filter(g => g !== selectedGroup && (!q || g.toLowerCase().includes(ql)))
+  const openEditor = () => { setEditing(true); setTimeout(() => inputRef.current?.focus(), 0) }
+  const closeEditor = () => { setEditing(false); setQuery('') }
+  const choose = (g: string) => { onChange(g); closeEditor() }
+  const confirmAdd = () => {
+    if (!q) return
+    const exact = availableGroups.find(g => g.toLowerCase() === ql)
+    if (exact) choose(exact)
+    else { onCreateGroup(q); onChange(q); closeEditor() }
+  }
+  const col = selectedGroup ? getTagColor(availableGroups.indexOf(selectedGroup)) : null
+  return (
+    <div>
+      <div className="flex flex-wrap items-center gap-1.5">
+        {selectedGroup && col && (
+          <span className="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium" style={{ background: col.bg, borderColor: col.border, color: col.text }}>
+            {selectedGroup}
+            <button type="button" onClick={() => onChange('')} className="opacity-50 transition hover:opacity-100">✕</button>
+          </span>
+        )}
+        {!selectedGroup && !editing && (
+          <button type="button" onClick={openEditor}
+            className="inline-flex items-center gap-1 rounded-full border border-dashed border-[#c8c8c8] px-2.5 py-1 text-xs font-medium text-[#888] transition hover:border-[#48C9B0] hover:text-[#48C9B0]">
+            <Plus className="h-3 w-3" /> Grupo
+          </button>
+        )}
+        {editing && (
+          <span className="inline-flex items-center gap-1 rounded-full border border-[#48C9B0] bg-white py-0.5 pl-2.5 pr-1.5">
+            <input ref={inputRef} value={query} onChange={e => setQuery(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); confirmAdd() } if (e.key === 'Escape') closeEditor() }}
+              placeholder="Nuevo grupo" className="w-24 bg-transparent text-xs text-[#1D1E20] outline-none placeholder:text-[#bbb]" />
+            <button type="button" onClick={confirmAdd} disabled={!q} title="Agregar" className="text-[#48C9B0] transition disabled:opacity-30"><Check className="h-4 w-4" strokeWidth={3} /></button>
+            <button type="button" onClick={closeEditor} title="Cancelar" className="text-[#bbb] transition hover:text-[#888]"><X className="h-4 w-4" /></button>
+          </span>
+        )}
+      </div>
+      {editing && suggestions.length > 0 && (
+        <div className="mt-2.5">
+          <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-[#bbb]">Existentes</p>
+          <div className="flex flex-wrap gap-1.5">
+            {suggestions.map(g => {
+              const c = getTagColor(availableGroups.indexOf(g))
+              return (
+                <span key={g} className="inline-flex items-center gap-1 rounded-full border bg-white px-2 py-0.5 text-xs" style={{ borderColor: c.border, color: c.text }}>
+                  <button type="button" onClick={() => choose(g)} className="font-medium">{g}</button>
+                  <button type="button" onClick={() => setConfirmDelete(g)} title="Eliminar del evento" className="text-[#ccc] transition hover:text-[#cc3333]"><Trash2 className="h-3 w-3" /></button>
+                </span>
+              )
+            })}
+          </div>
+        </div>
+      )}
+      {confirmDelete && (
+        <div className="fixed inset-0 z-[400] flex items-center justify-center bg-black/40 p-4" onClick={() => setConfirmDelete(null)}>
+          <div className="w-full max-w-xs rounded-2xl border border-[#e8e8e8] bg-white p-6 text-center shadow-xl" onClick={e => e.stopPropagation()}>
+            <h3 className="text-base font-bold text-[#1D1E20]">¿Eliminar el grupo &quot;{confirmDelete}&quot;?</h3>
+            <p className="mt-1.5 text-xs text-[#666]">Se quitará de todos los invitados del evento. Esta acción no se puede deshacer.</p>
+            <div className="mt-5 flex gap-2.5">
+              <button type="button" onClick={() => setConfirmDelete(null)} className="flex-1 rounded-lg border border-[#e0e0e0] py-2.5 text-sm text-[#888] transition hover:bg-[#f8f8f8]">Cancelar</button>
+              <button type="button" onClick={() => { onDeleteGroup(confirmDelete); setConfirmDelete(null) }} className="flex-1 rounded-lg bg-[#cc3333] py-2.5 text-sm font-semibold text-white transition hover:bg-[#b82e2e]">Eliminar</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
 
 const inp: React.CSSProperties = {
   width: '100%', padding: '10px 14px',
@@ -133,64 +223,96 @@ type GuestTableInfo = { tableNumber: number; tableName: string | null }
 
 function normalizePhone(phone: string): string { return phone.replace(/\D/g, '') }
 
-function TagSelector({ availableTags, selectedTags, onChange }: { availableTags: string[]; selectedTags: string[]; onChange: (tags: string[]) => void }) {
-  if (availableTags.length === 0) return <p className="text-xs text-[#bbb]">Sin tags — agrégalos desde Configuración.</p>
-  const toggle = (tag: string) => onChange(selectedTags.includes(tag) ? selectedTags.filter(t => t !== tag) : [...selectedTags, tag])
+function TagInput({ availableTags, selectedTags, onChangeSelected, onCreateTag, onDeleteTag, label = 'Tag' }: {
+  availableTags: string[]
+  selectedTags: string[]
+  onChangeSelected: (tags: string[]) => void
+  onCreateTag: (tag: string) => void
+  onDeleteTag: (tag: string) => void
+  label?: string
+}) {
+  const [editing, setEditing] = useState(false)
+  const [query, setQuery] = useState('')
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const q = query.trim()
+  const ql = q.toLowerCase()
+  const exactExists = availableTags.some(t => t.toLowerCase() === ql)
+  const suggestions = availableTags.filter(t => !selectedTags.includes(t) && (!q || t.toLowerCase().includes(ql)))
+  const openEditor = () => { setEditing(true); setTimeout(() => inputRef.current?.focus(), 0) }
+  const closeEditor = () => { setEditing(false); setQuery('') }
+  const remove = (tag: string) => onChangeSelected(selectedTags.filter(t => t !== tag))
+  const assign = (tag: string) => { if (!selectedTags.includes(tag)) onChangeSelected([...selectedTags, tag]); setQuery('') }
+  const confirmAdd = () => {
+    if (!q) return
+    const exact = availableTags.find(t => t.toLowerCase() === ql)
+    if (exact) assign(exact)
+    else { onCreateTag(q); onChangeSelected([...selectedTags, q]); setQuery('') }
+  }
   return (
-    <div className="flex flex-wrap gap-1.5">
-      {availableTags.map((tag, i) => {
-        const col = getTagColor(i)
-        const isSelected = selectedTags.includes(tag)
-        return (
-          <button key={tag} type="button" onClick={() => toggle(tag)}
-            className="rounded-full border px-2.5 py-1 text-xs font-medium transition"
-            style={isSelected ? { background: col.bg, borderColor: col.border, color: col.text } : { background: '#f8f8f8', borderColor: '#e0e0e0', color: '#aaa' }}>
-            {tag}
+    <div>
+      <div className="flex flex-wrap items-center gap-1.5">
+        {selectedTags.map(tag => {
+          const col = getTagColor(availableTags.indexOf(tag))
+          return (
+            <span key={tag} className="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium"
+              style={{ background: col.bg, borderColor: col.border, color: col.text }}>
+              {tag}
+              <button type="button" onClick={() => remove(tag)} className="opacity-50 transition hover:opacity-100">✕</button>
+            </span>
+          )
+        })}
+        {!editing ? (
+          <button type="button" onClick={openEditor}
+            className="inline-flex items-center gap-1 rounded-full border border-dashed border-[#c8c8c8] px-2.5 py-1 text-xs font-medium text-[#888] transition hover:border-[#48C9B0] hover:text-[#48C9B0]">
+            <Plus className="h-3 w-3" /> {label}
           </button>
-        )
-      })}
+        ) : (
+          <span className="inline-flex items-center gap-1 rounded-full border border-[#48C9B0] bg-white py-0.5 pl-2.5 pr-1.5">
+            <input ref={inputRef} value={query} onChange={e => setQuery(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); confirmAdd() } if (e.key === 'Escape') closeEditor() }}
+              placeholder={label} className="w-24 bg-transparent text-xs text-[#1D1E20] outline-none placeholder:text-[#bbb]" />
+            <button type="button" onClick={confirmAdd} disabled={!q} title="Agregar" className="text-[#48C9B0] transition disabled:opacity-30"><Check className="h-4 w-4" strokeWidth={3} /></button>
+            <button type="button" onClick={closeEditor} title="Cancelar" className="text-[#bbb] transition hover:text-[#888]"><X className="h-4 w-4" /></button>
+          </span>
+        )}
+      </div>
+
+      {editing && suggestions.length > 0 && (
+        <div className="mt-2.5">
+          <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-[#bbb]">Existentes</p>
+          <div className="flex flex-wrap gap-1.5">
+            {suggestions.map(tag => {
+              const col = getTagColor(availableTags.indexOf(tag))
+              return (
+                <span key={tag} className="inline-flex items-center gap-1 rounded-full border bg-white px-2 py-0.5 text-xs"
+                  style={{ borderColor: col.border, color: col.text }}>
+                  <button type="button" onClick={() => assign(tag)} className="font-medium">{tag}</button>
+                  <button type="button" onClick={() => setConfirmDelete(tag)} title="Eliminar del evento" className="text-[#ccc] transition hover:text-[#cc3333]"><Trash2 className="h-3 w-3" /></button>
+                </span>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {confirmDelete && (
+        <div className="fixed inset-0 z-[400] flex items-center justify-center bg-black/40 p-4" onClick={() => setConfirmDelete(null)}>
+          <div className="w-full max-w-xs rounded-2xl border border-[#e8e8e8] bg-white p-6 text-center shadow-xl" onClick={e => e.stopPropagation()}>
+            <h3 className="text-base font-bold text-[#1D1E20]">¿Eliminar &quot;{confirmDelete}&quot;?</h3>
+            <p className="mt-1.5 text-xs text-[#666]">Se quitará de todos los invitados del evento. Esta acción no se puede deshacer.</p>
+            <div className="mt-5 flex gap-2.5">
+              <button type="button" onClick={() => setConfirmDelete(null)} className="flex-1 rounded-lg border border-[#e0e0e0] py-2.5 text-sm text-[#888] transition hover:bg-[#f8f8f8]">Cancelar</button>
+              <button type="button" onClick={() => { onDeleteTag(confirmDelete); setConfirmDelete(null) }} className="flex-1 rounded-lg bg-[#cc3333] py-2.5 text-sm font-semibold text-white transition hover:bg-[#b82e2e]">Eliminar</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
 
 const ALLERGY_OPTIONS = ['Gluten', 'Lácteos', 'Mariscos', 'Nueces', 'Huevo', 'Soya', 'Cerdo']
-
-function AllergySelector({ value, onChange }: { value: string[]; onChange: (v: string[]) => void }) {
-  const [otherText, setOtherText] = useState('')
-  const otherAllergies = value.filter(a => !ALLERGY_OPTIONS.includes(a))
-  const toggle = (a: string) => onChange(value.includes(a) ? value.filter(x => x !== a) : [...value, a])
-  const addOther = () => { const t = otherText.trim(); if (t && !value.includes(t)) onChange([...value, t]); setOtherText('') }
-  return (
-    <div className="flex flex-col gap-2">
-      <div className="flex flex-wrap gap-1.5">
-        {ALLERGY_OPTIONS.map(a => (
-          <button key={a} type="button" onClick={() => toggle(a)}
-            className={'rounded-full border px-2.5 py-1 text-xs font-medium transition ' +
-              (value.includes(a) ? 'border-[#cc3333] bg-[#fff0f0] text-[#cc3333]' : 'border-[#e0e0e0] bg-[#f8f8f8] text-[#aaa] hover:border-[#cc3333] hover:text-[#cc3333]')}>
-            {a}
-          </button>
-        ))}
-      </div>
-      {otherAllergies.length > 0 && (
-        <div className="flex flex-wrap gap-1.5">
-          {otherAllergies.map(a => (
-            <span key={a} className="flex items-center gap-1 rounded-full border border-[#e0e0e0] bg-[#f8f8f8] px-2.5 py-1 text-xs text-[#555]">
-              {a}
-              <button type="button" onClick={() => onChange(value.filter(x => x !== a))} className="opacity-60 transition hover:opacity-100">×</button>
-            </span>
-          ))}
-        </div>
-      )}
-      <div className="flex gap-2">
-        <input type="text" value={otherText} onChange={e => setOtherText(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && addOther()} placeholder="Otra alergia..."
-          className="flex-1 rounded-lg border border-[#e0e0e0] bg-[#f8f8f8] px-3 py-1.5 text-xs text-[#1D1E20] outline-none transition focus:border-[#48C9B0]" />
-        <button type="button" onClick={addOther} disabled={!otherText.trim()}
-          className="rounded-lg bg-[#48C9B0] px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-40">+</button>
-      </div>
-    </div>
-  )
-}
 
 function MembersEditor({ value, onChange }: { value: EditMember[]; onChange: (v: EditMember[]) => void }) {
   const MAX = 15
@@ -230,8 +352,11 @@ function MembersEditor({ value, onChange }: { value: EditMember[]; onChange: (v:
 
 type CsvDuplicateResult = {
   hasDuplicates: boolean
-  rows: Array<{ event_id: string; name: string; phone: string | null; email: string | null; party_size: number; rsvp_status: string; tags: string[]; notes: string | null }>
+  rows: Array<{ event_id: string; name: string; phone: string | null; email: string | null; party_size: number; rsvp_status: string; tags: string[]; notes: string | null; side: string | null; allergies: string[] | null; _companions: string[] }>
   duplicates: Array<{ row: number; name: string; phone: string; conflictWith: string }>
+  newTags: string[]
+  newGroups: string[]
+  newAllergies: string[]
 }
 
 function SwipeableGuestCard({ guest, groupColor, isSelected, guestTags, availableTags, onSelect, onEdit, onDelete, onWaLongPressStart, onWaLongPressEnd, onWaTouchMove, onStatusChange }: {
@@ -293,9 +418,10 @@ type BulkMenuContentProps = {
   onBulkUpdateStatus: (status: RsvpStatus) => void
   onBulkDelete: () => void
   onOpenCompanionModal: () => void
+  hasGuests: boolean
 }
 
-function BulkMenuContent({ onClose, onBulkUpdateStatus, onBulkDelete, onOpenCompanionModal }: BulkMenuContentProps) {
+function BulkMenuContent({ onClose, onBulkUpdateStatus, onBulkDelete, onOpenCompanionModal, hasGuests }: BulkMenuContentProps) {
   return (
     <>
       <p className="mb-1 px-3 pt-0.5 text-[10px] font-semibold uppercase tracking-wider text-[#aaa]">Marcar como</p>
@@ -308,11 +434,13 @@ function BulkMenuContent({ onClose, onBulkUpdateStatus, onBulkDelete, onOpenComp
           </button>
         )
       })}
-      <div className="my-1 mx-3 h-px bg-[#f0f0f0]" />
-      <button onClick={() => { onClose(); onOpenCompanionModal() }} className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-xs transition hover:bg-[#f8f8f8] sm:py-2">
-        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[#e8e8e8] bg-[#f8f8f8] text-[#555]"><UserPlus size={11} /></span>
-        <span className="font-medium text-[#555]">Agregar acompañante</span>
-      </button>
+      {hasGuests && (<>
+        <div className="my-1 mx-3 h-px bg-[#f0f0f0]" />
+        <button onClick={() => { onClose(); onOpenCompanionModal() }} className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-xs transition hover:bg-[#f8f8f8] sm:py-2">
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[#e8e8e8] bg-[#f8f8f8] text-[#555]"><UserPlus size={11} /></span>
+          <span className="font-medium text-[#555]">Agregar acompañante</span>
+        </button>
+      </>)}
       <div className="my-1 mx-3 h-px bg-[#f0f0f0]" />
       <button onClick={onBulkDelete} className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-xs transition hover:bg-[#fff0f0] sm:py-2">
         <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[#ffc0c0] bg-[#fff0f0] text-[#cc3333]"><Trash2 size={11} /></span>
@@ -322,6 +450,10 @@ function BulkMenuContent({ onClose, onBulkUpdateStatus, onBulkDelete, onOpenComp
   )
 }
 
+type FilterField = 'tag' | 'allergy' | 'side' | 'rsvp_status' | 'table'
+type FilterCondition = { field: FilterField; value: string }
+const FILTER_LABEL: Record<FilterField, string> = { tag: 'Tag', allergy: 'Alergia', side: 'Grupo', rsvp_status: 'Estatus', table: 'Mesa' }
+
 export default function EventPage() {
   const { id } = useParams()
 
@@ -330,15 +462,22 @@ export default function EventPage() {
   const [event, setEvent] = useState<Event | null>(null)
   const [eventSettings, setEventSettings] = useState<EventSettings | null>(null)
   const [guests, setGuests] = useState<Guest[]>([])
-  const [filtered, setFiltered] = useState<Guest[]>([])
+  const [groupPool, setGroupPool] = useState<string[]>([])
+  const [allergyPool, setAllergyPool] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
   const [filter, setFilter] = useState<'all' | RsvpStatus>('all')
+  const [filters, setFilters] = useState<FilterCondition[]>([])
+  const [showFilterMenu, setShowFilterMenu] = useState(false)
+  const filterMenuRef = useRef<HTMLDivElement>(null)
   const [guestTableMap, setGuestTableMap] = useState<Map<string, GuestTableInfo>>(new Map())
 
   const [visibleCols, setVisibleCols] = useState<Set<ColumnKey>>(() => loadSavedColumns())
   const [showColMenu, setShowColMenu] = useState(false)
   const colMenuRef = useRef<HTMLDivElement>(null)
+  const [showExportMenu, setShowExportMenu] = useState(false)
+  const exportMenuRef = useRef<HTMLDivElement>(null)
 
   const [showModal, setShowModal] = useState(false)
   const [showCsvModal, setShowCsvModal] = useState(false)
@@ -361,6 +500,7 @@ export default function EventPage() {
   const [editAllergies, setEditAllergies] = useState<string[]>([])
 
   const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [selectedMembers, setSelectedMembers] = useState<Set<string>>(new Set())
   const [showBulkMenu, setShowBulkMenu] = useState(false)
   const [showMobileBulkSheet, setShowMobileBulkSheet] = useState(false)
   const bulkMenuRef = useRef<HTMLDivElement>(null)
@@ -400,9 +540,30 @@ export default function EventPage() {
   }, [])
 
   useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 180)
+    return () => clearTimeout(t)
+  }, [search])
+
+  const addFilter = (field: FilterField, value: string) => setFilters(prev => prev.some(f => f.field === field && f.value === value) ? prev : [...prev, { field, value }])
+  const removeFilter = (field: FilterField, value: string) => setFilters(prev => prev.filter(f => !(f.field === field && f.value === value)))
+  const clearFilters = () => setFilters([])
+
+  const filtered = useMemo(() => {
     let result = guests
+    for (const f of filters) {
+      result = result.filter(g => {
+        switch (f.field) {
+          case 'tag':         return (g.tags || []).includes(f.value)
+          case 'allergy':     return (g.allergies || []).includes(f.value)
+          case 'side':        return g.side === f.value
+          case 'rsvp_status': return g.rsvp_status === f.value || g.party_members.some(m => m.rsvp_status === f.value)
+          case 'table':       { const tb = guestTableMap.get(g.id); return !!tb && `Mesa ${tb.tableNumber}` === f.value }
+          default:            return true
+        }
+      })
+    }
     if (filter !== 'all') result = result.filter(g => g.rsvp_status === filter || g.party_members.some(m => m.rsvp_status === filter))
-    if (search) result = result.filter(g => g.name.toLowerCase().includes(search.toLowerCase()))
+    if (debouncedSearch) result = result.filter(g => g.name.toLowerCase().includes(debouncedSearch.toLowerCase()))
     if (sortField) {
       result = [...result].sort((a, b) => {
         let aVal: any = '', bVal: any = ''
@@ -417,14 +578,16 @@ export default function EventPage() {
         return 0
       })
     }
-    setFiltered(result)
-  }, [guests, filter, search, sortField, sortDirection])
+    return result
+  }, [guests, filters, filter, debouncedSearch, sortField, sortDirection, guestTableMap])
 
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
       if (bulkMenuRef.current && !bulkMenuRef.current.contains(e.target as Node)) setShowBulkMenu(false)
       if (waMenuRef.current && !waMenuRef.current.contains(e.target as Node)) setShowWaMenu(null)
       if (colMenuRef.current && !colMenuRef.current.contains(e.target as Node)) setShowColMenu(false)
+      if (filterMenuRef.current && !filterMenuRef.current.contains(e.target as Node)) setShowFilterMenu(false)
+      if (exportMenuRef.current && !exportMenuRef.current.contains(e.target as Node)) setShowExportMenu(false)
     }
     document.addEventListener('mousedown', handleClick)
     return () => document.removeEventListener('mousedown', handleClick)
@@ -496,6 +659,8 @@ export default function EventPage() {
 
     setGuestTableMap(seatMap)
     setGuests(guestsData.map(g => ({ ...g, tags: g.tags || [], party_members: membersByGuest.get(g.id) || [] })))
+    setGroupPool(Array.from(new Set(guestsData.map(g => g.side).filter((s): s is string => !!s))))
+    setAllergyPool(Array.from(new Set([...ALLERGY_OPTIONS, ...guestsData.flatMap(g => g.allergies || [])])))
     setLoading(false)
   }
 
@@ -512,6 +677,7 @@ export default function EventPage() {
   const deleteGuest = async (guestId: string) => {
     if (!confirm('¿Eliminar este invitado?')) return
     await supabase.from('guests').delete().eq('id', guestId)
+    await supabase.from('party_members').delete().eq('guest_id', guestId)
     await supabase.rpc('decrement_guests', { event_id_input: id })
     setGuests(prev => prev.filter(g => g.id !== guestId))
     setEvent(prev => prev ? { ...prev, total_guests: Math.max(0, prev.total_guests - 1) } : prev)
@@ -566,42 +732,71 @@ export default function EventPage() {
   }
 
   const toggleSelect = (guestId: string, idx: number, shiftKey: boolean) => {
-    if (shiftKey && lastCheckedIdx.current !== null) {
-      const start = Math.min(lastCheckedIdx.current, idx)
-      const end   = Math.max(lastCheckedIdx.current, idx)
-      const rangeIds = filtered.slice(start, end + 1).map(g => g.id)
-      setSelected(prev => {
-        const next = new Set(prev)
-        const adding = !prev.has(guestId)
-        rangeIds.forEach(rid => adding ? next.add(rid) : next.delete(rid))
-        return next
-      })
-    } else {
-      setSelected(prev => { const next = new Set(prev); next.has(guestId) ? next.delete(guestId) : next.add(guestId); return next })
-    }
+    const adding = !selected.has(guestId)
+    const affected = (shiftKey && lastCheckedIdx.current !== null)
+      ? filtered.slice(Math.min(lastCheckedIdx.current, idx), Math.max(lastCheckedIdx.current, idx) + 1)
+      : filtered.filter(g => g.id === guestId)
+    setSelected(prev => {
+      const next = new Set(prev)
+      affected.forEach(g => adding ? next.add(g.id) : next.delete(g.id))
+      return next
+    })
+    setSelectedMembers(prev => {
+      const next = new Set(prev)
+      affected.forEach(g => g.party_members.forEach(m => adding ? next.add(m.id) : next.delete(m.id)))
+      return next
+    })
     lastCheckedIdx.current = idx
   }
 
+  const toggleSelectMember = (memberId: string) => {
+    setSelectedMembers(prev => { const next = new Set(prev); next.has(memberId) ? next.delete(memberId) : next.add(memberId); return next })
+  }
+
   const toggleSelectAll = () => {
-    setSelected(selected.size === filtered.length ? new Set() : new Set(filtered.map(g => g.id)))
+    if (selected.size === filtered.length) {
+      setSelected(new Set()); setSelectedMembers(new Set())
+    } else {
+      setSelected(new Set(filtered.map(g => g.id)))
+      setSelectedMembers(new Set(filtered.flatMap(g => g.party_members.map(m => m.id))))
+    }
     lastCheckedIdx.current = null
   }
 
   const bulkUpdateStatus = async (status: RsvpStatus) => {
     const ids = Array.from(selected)
-    await supabase.from('guests').update({ rsvp_status: status }).in('id', ids)
-    setGuests(prev => prev.map(g => selected.has(g.id) ? { ...g, rsvp_status: status } : g))
-    setSelected(new Set()); setShowBulkMenu(false); setShowMobileBulkSheet(false)
+    const memberIds = Array.from(selectedMembers)
+    if (ids.length > 0) await supabase.from('guests').update({ rsvp_status: status }).in('id', ids)
+    for (let i = 0; i < memberIds.length; i += 200) await supabase.from('party_members').update({ rsvp_status: status }).in('id', memberIds.slice(i, i + 200))
+    setGuests(prev => prev.map(g => {
+      const ng = selected.has(g.id) ? { ...g, rsvp_status: status } : g
+      return g.party_members.some(m => selectedMembers.has(m.id))
+        ? { ...ng, party_members: ng.party_members.map(m => selectedMembers.has(m.id) ? { ...m, rsvp_status: status } : m) }
+        : ng
+    }))
+    setSelected(new Set()); setSelectedMembers(new Set()); setShowBulkMenu(false); setShowMobileBulkSheet(false)
   }
 
   const bulkDelete = async () => {
-    if (!confirm('¿Eliminar ' + selected.size + ' invitados?')) return
-    const ids = Array.from(selected)
-    await supabase.from('guests').delete().in('id', ids)
-    await supabase.rpc('increment_guests_by', { event_id_input: id, amount: -ids.length })
-    setGuests(prev => prev.filter(g => !selected.has(g.id)))
-    setEvent(prev => prev ? { ...prev, total_guests: Math.max(0, prev.total_guests - ids.length) } : prev)
-    setSelected(new Set()); setShowBulkMenu(false); setShowMobileBulkSheet(false)
+    const guestIds = Array.from(selected)
+    const deletedGuestSet = new Set(guestIds)
+    const looseMemberIds = Array.from(selectedMembers).filter(mid => { const g = guests.find(gg => gg.party_members.some(m => m.id === mid)); return g && !deletedGuestSet.has(g.id) })
+    if (guestIds.length + looseMemberIds.length === 0) return
+    if (!confirm('¿Eliminar ' + guestIds.length + ' invitado(s)' + (guestIds.length ? ' con sus acompañantes' : '') + (looseMemberIds.length ? ' y ' + looseMemberIds.length + ' acompañante(s) más' : '') + '?')) return
+    const memberIdsToDelete = new Set<string>(looseMemberIds)
+    for (const g of guests) if (deletedGuestSet.has(g.id)) g.party_members.forEach(m => memberIdsToDelete.add(m.id))
+    if (guestIds.length > 0) {
+      await supabase.from('guests').delete().in('id', guestIds)
+      await supabase.rpc('increment_guests_by', { event_id_input: id, amount: -guestIds.length })
+    }
+    const memberArr = Array.from(memberIdsToDelete)
+    for (let i = 0; i < memberArr.length; i += 200) await supabase.from('party_members').delete().in('id', memberArr.slice(i, i + 200))
+    setGuests(prev => prev.filter(g => !deletedGuestSet.has(g.id)).map(g => {
+      const removing = g.party_members.filter(m => memberIdsToDelete.has(m.id))
+      return removing.length === 0 ? g : { ...g, party_size: Math.max(1, g.party_size - removing.length), party_members: g.party_members.filter(m => !memberIdsToDelete.has(m.id)) }
+    }))
+    setEvent(prev => prev ? { ...prev, total_guests: Math.max(0, prev.total_guests - guestIds.length) } : prev)
+    setSelected(new Set()); setSelectedMembers(new Set()); setShowBulkMenu(false); setShowMobileBulkSheet(false)
   }
 
   const bulkAddCompanions = async () => {
@@ -609,23 +804,25 @@ export default function EventPage() {
     setBulkCompanionSaving(true)
     const ids = Array.from(selected)
     const rows: { guest_id: string; event_id: string; name: string; phone: null; rsvp_status: string }[] = []
+    const sizeUpdates: { id: string; party_size: number }[] = []
     for (const guestId of ids) {
       const guest = guests.find(g => g.id === guestId); if (!guest) continue
       const canAdd = Math.max(0, 15 - guest.party_members.length)
       const toAdd = Math.min(bulkCompanionCount, canAdd)
+      if (toAdd <= 0) continue
       for (let i = 0; i < toAdd; i++) rows.push({ guest_id: guestId, event_id: id as string, name: '', phone: null, rsvp_status: 'pending' })
+      sizeUpdates.push({ id: guestId, party_size: guest.party_size + toAdd })
     }
     if (rows.length === 0) { setBulkCompanionSaving(false); setShowBulkCompanionModal(false); return }
-    await supabase.from('party_members').insert(rows)
-    for (const guestId of ids) {
-      const guest = guests.find(g => g.id === guestId); if (!guest) continue
-      const canAdd = Math.max(0, 15 - guest.party_members.length)
-      const toAdd = Math.min(bulkCompanionCount, canAdd)
-      if (toAdd > 0) await supabase.from('guests').update({ party_size: guest.party_size + toAdd }).eq('id', guestId)
+    const CHUNK = 500
+    for (let i = 0; i < rows.length; i += CHUNK) await supabase.from('party_members').insert(rows.slice(i, i + CHUNK))
+    const UCHUNK = 50
+    for (let i = 0; i < sizeUpdates.length; i += UCHUNK) {
+      await Promise.all(sizeUpdates.slice(i, i + UCHUNK).map(u => supabase.from('guests').update({ party_size: u.party_size }).eq('id', u.id)))
     }
     await loadGuests()
     setBulkCompanionSaving(false); setShowBulkCompanionModal(false)
-    setBulkCompanionCount(1); setSelected(new Set()); setShowBulkMenu(false); setShowMobileBulkSheet(false)
+    setBulkCompanionCount(1); setSelected(new Set()); setSelectedMembers(new Set()); setShowBulkMenu(false); setShowMobileBulkSheet(false)
   }
 
   const buildWaText = (guest: Guest, templateIndex = 0) => {
@@ -673,7 +870,10 @@ export default function EventPage() {
       const notesIdx  = headers.findIndex(h => h.includes('nota') || h.includes('note'))
       const tagsIdx   = headers.findIndex(h => h.includes('tag') || h.includes('etiqueta'))
       const statusIdx = headers.findIndex(h => h.includes('status') || h.includes('estado') || h.includes('rsvp'))
-      const plusIdx   = headers.findIndex(h => h.includes('plus') || h.includes('acomp'))
+      const plusIdx   = headers.findIndex(h => h.includes('plus'))
+      const compIdx   = headers.findIndex(h => h.includes('acomp') || h.includes('companion'))
+      const grupoIdx  = headers.findIndex(h => h.includes('grupo') || h.includes('lado') || h === 'side')
+      const alergIdx  = headers.findIndex(h => h.includes('alerg') || h.includes('allerg'))
       if (nameIdx === -1) { setCsvError('No se encontró columna "nombre"'); return }
       const eventTags = event?.guest_tags || []
       const rows = lines.slice(1).map(line => {
@@ -681,9 +881,15 @@ export default function EventPage() {
         const rawStatus = statusIdx >= 0 ? cols[statusIdx]?.toLowerCase() || '' : ''
         const rsvpStatus = rawStatus.includes('conf') ? 'confirmed' : rawStatus.includes('decl') || rawStatus.includes('no') ? 'declined' : 'pending'
         const rawTags = tagsIdx >= 0 ? cols[tagsIdx] || '' : ''
-        const parsedTags = rawTags ? rawTags.split(/[,|]/).map((t: string) => t.trim()).filter((t: string) => eventTags.includes(t)) : []
+        const parsedTags = rawTags ? rawTags.split(/[,|]/).map((t: string) => t.trim()).filter(Boolean) : []
         const plusOnes = plusIdx >= 0 ? parseInt(cols[plusIdx] || '0', 10) || 0 : 0
-        return { event_id: id as string, name: cols[nameIdx] || '', phone: phoneIdx >= 0 ? cols[phoneIdx] || null : null, email: emailIdx >= 0 ? cols[emailIdx] || null : null, party_size: 1 + plusOnes, rsvp_status: rsvpStatus, tags: parsedTags, notes: notesIdx >= 0 ? cols[notesIdx] || null : null }
+        const compRaw = compIdx >= 0 ? cols[compIdx] || '' : ''
+        const compNames = compRaw ? compRaw.split(/[,|]/).map((s: string) => s.trim()).filter(Boolean) : []
+        const _companions = compNames.length > 0 ? compNames : Array(plusOnes).fill('')
+        const sideVal = grupoIdx >= 0 ? (cols[grupoIdx] || '').trim() || null : null
+        const alergRaw = alergIdx >= 0 ? cols[alergIdx] || '' : ''
+        const alergArr = alergRaw ? alergRaw.split(/[|]/).map((s: string) => s.trim()).filter(Boolean) : []
+        return { event_id: id as string, name: cols[nameIdx] || '', phone: phoneIdx >= 0 ? cols[phoneIdx] || null : null, email: emailIdx >= 0 ? cols[emailIdx] || null : null, party_size: 1 + _companions.length, rsvp_status: rsvpStatus, tags: parsedTags, notes: notesIdx >= 0 ? cols[notesIdx] || null : null, side: sideVal, allergies: alergArr.length > 0 ? alergArr : null, _companions }
       }).filter(r => r.name)
       if (!rows.length) { setCsvError('No se encontraron invitados válidos'); return }
       const duplicates: CsvDuplicateResult['duplicates'] = []
@@ -696,7 +902,10 @@ export default function EventPage() {
         if (seenInFile.has(norm)) { duplicates.push({ row: idx + 2, name: row.name, phone: row.phone, conflictWith: seenInFile.get(norm)! + ' (misma importación)' }); return }
         seenInFile.set(norm, row.name)
       })
-      setCsvPreview({ hasDuplicates: duplicates.length > 0, rows, duplicates })
+      const newTags = Array.from(new Set(rows.flatMap(r => r.tags))).filter(t => !eventTags.includes(t))
+      const newGroups = Array.from(new Set(rows.map(r => r.side).filter((s): s is string => !!s))).filter(s => !groupPool.includes(s))
+      const newAllergies = Array.from(new Set(rows.flatMap(r => r.allergies || []))).filter(a => !allergyPool.includes(a))
+      setCsvPreview({ hasDuplicates: duplicates.length > 0, rows, duplicates, newTags, newGroups, newAllergies })
       if (fileRef.current) fileRef.current.value = ''
     }
     const readerUtf8 = new FileReader()
@@ -721,13 +930,106 @@ export default function EventPage() {
       rowsToImport = csvPreview.rows.filter(r => !duplicateKeys.has(r.name + '|' + r.phone))
     }
     if (!rowsToImport.length) { setCsvError('No quedan invitados para importar'); setCsvImporting(false); setCsvPreview(null); return }
-    const { error } = await supabase.from('guests').insert(rowsToImport)
+    const guestPayload = rowsToImport.map(r => ({ event_id: r.event_id, name: r.name, phone: r.phone, email: r.email, party_size: r.party_size, rsvp_status: r.rsvp_status, tags: r.tags, notes: r.notes, side: r.side, allergies: r.allergies }))
+    const { data: insertedGuests, error } = await supabase.from('guests').insert(guestPayload).select('id')
     if (error) { setCsvError('Error al importar: ' + error.message); setCsvImporting(false); return }
+    const memberRows = (insertedGuests || []).flatMap((g, i) => rowsToImport[i]._companions.map(name => ({ guest_id: g.id, event_id: id as string, name: name || '', phone: null, rsvp_status: 'pending' })))
+    for (let i = 0; i < memberRows.length; i += 500) await supabase.from('party_members').insert(memberRows.slice(i, i + 500))
     await supabase.rpc('increment_guests_by', { event_id_input: id, amount: rowsToImport.length })
-    setEvent(prev => prev ? { ...prev, total_guests: prev.total_guests + rowsToImport.length } : prev)
+    const curEventTags = event?.guest_tags || []
+    const newTagsToAdd = Array.from(new Set(rowsToImport.flatMap(r => r.tags))).filter(t => !curEventTags.includes(t))
+    if (newTagsToAdd.length) {
+      const merged = [...curEventTags, ...newTagsToAdd]
+      await supabase.from('events').update({ guest_tags: merged }).eq('id', id)
+      setEvent(prev => prev ? { ...prev, total_guests: prev.total_guests + rowsToImport.length, guest_tags: merged } : prev)
+    } else {
+      setEvent(prev => prev ? { ...prev, total_guests: prev.total_guests + rowsToImport.length } : prev)
+    }
     await loadGuests()
-    setCsvSuccess('✓ ' + rowsToImport.length + ' invitados importados' + (skipDuplicates && csvPreview.duplicates.length > 0 ? ' (' + csvPreview.duplicates.length + ' duplicados omitidos)' : ''))
+    setCsvSuccess('✓ ' + rowsToImport.length + ' invitados' + (memberRows.length ? ' y ' + memberRows.length + ' acompañantes' : '') + ' importados' + (newTagsToAdd.length ? ' · ' + newTagsToAdd.length + ' tags nuevos' : '') + (skipDuplicates && csvPreview.duplicates.length > 0 ? ' (' + csvPreview.duplicates.length + ' duplicados omitidos)' : ''))
     setCsvPreview(null); setCsvImporting(false)
+  }
+
+  const exportExcel = () => {
+    const data = filtered.map(g => {
+      const t = guestTableMap.get(g.id)
+      return {
+        Nombre: g.name,
+        'Teléfono': g.phone || '',
+        Email: g.email || '',
+        Estatus: STATUS_LABEL[g.rsvp_status].label,
+        Mesa: t ? `Mesa ${t.tableNumber}${t.tableName ? ' - ' + t.tableName : ''}` : '',
+        Grupo: g.side || '',
+        Tags: (g.tags || []).join(', '),
+        Alergias: (g.allergies || []).join(', '),
+        Notas: g.notes || '',
+        'Acompañantes': g.party_members.map(m => m.name || 'Acompañante').join(', '),
+      }
+    })
+    const ws = XLSX.utils.json_to_sheet(data)
+    ws['!cols'] = [{ wch: 24 }, { wch: 16 }, { wch: 24 }, { wch: 16 }, { wch: 18 }, { wch: 14 }, { wch: 22 }, { wch: 22 }, { wch: 28 }, { wch: 40 }]
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Invitados')
+    XLSX.writeFile(wb, 'invitados_' + (event?.name?.replace(/\s+/g, '_') || 'evento') + '.xlsx')
+  }
+
+  const exportPDF = async () => {
+    const doc = new jsPDF()
+    const pageW = doc.internal.pageSize.getWidth()
+    const pageH = doc.internal.pageSize.getHeight()
+    const printDate = new Date().toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' })
+    const brandLogoUrl = '/images/logo.png' // white-label hook: si plan agency con logo propio, sustituir esta URL
+    let logoBottom = 14
+    try {
+      const logo = await loadImageData(brandLogoUrl)
+      const lw = 40, lh = (logo.h / logo.w) * lw
+      doc.addImage(logo.dataUrl, 'PNG', pageW - 14 - lw, 14, lw, lh)
+      logoBottom = 14 + lh
+    } catch { /* sin logo */ }
+    let y = 21
+    doc.setFontSize(17); doc.setTextColor(29, 30, 32)
+    doc.text(event?.name || 'Evento', 14, y); y += 6
+    doc.setFontSize(10.5); doc.setTextColor(120)
+    doc.text('Lista de invitados', 14, y); y += 7
+    doc.setFontSize(9.5); doc.setTextColor(90)
+    if (event?.event_date) {
+      const f = new Date(event.event_date).toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+      doc.text(event.event_time ? `${f} · ${event.event_time}` : f, 14, y); y += 5
+    }
+    if (event?.venue) { doc.text(event.venue, 14, y); y += 5 }
+    if (event?.address) { doc.text(event.address, 14, y); y += 5 }
+    doc.setFontSize(9); doc.setTextColor(140)
+    doc.text(`${filtered.length} invitados · ${filtered.reduce((a, g) => a + 1 + g.party_members.length, 0)} personas`, 14, y)
+    const startY = Math.max(y, logoBottom) + 6
+
+    const colDefs: { label: string; guest: (g: Guest) => string; member: (m: PartyMember) => string }[] = [
+      { label: 'Nombre', guest: g => g.name, member: m => '     + ' + (m.name || 'Acompañante') },
+    ]
+    if (visibleCols.has('estatus')) colDefs.push({ label: 'Estatus', guest: g => STATUS_LABEL[g.rsvp_status].label, member: m => STATUS_LABEL[m.rsvp_status].label })
+    if (visibleCols.has('lado'))     colDefs.push({ label: 'Grupo', guest: g => g.side || '', member: () => '' })
+    if (visibleCols.has('mesa'))     colDefs.push({ label: 'Mesa', guest: g => { const t = guestTableMap.get(g.id); return t ? `Mesa ${t.tableNumber}` : '' }, member: () => '' })
+    if (visibleCols.has('tags'))     colDefs.push({ label: 'Tags', guest: g => (g.tags || []).join(', '), member: () => '' })
+    if (visibleCols.has('notas'))    colDefs.push({ label: 'Notas', guest: g => g.notes || '', member: () => '' })
+    if (visibleCols.has('telefono')) colDefs.push({ label: 'Teléfono', guest: g => g.phone || '', member: m => m.phone || '' })
+
+    const body: string[][] = []
+    filtered.forEach(g => {
+      body.push(colDefs.map(c => c.guest(g)))
+      g.party_members.forEach(m => body.push(colDefs.map(c => c.member(m))))
+    })
+    autoTable(doc, {
+      head: [colDefs.map(c => c.label)],
+      body,
+      startY,
+      styles: { fontSize: 8.5, cellPadding: 1.8, overflow: 'linebreak' },
+      headStyles: { fillColor: [29, 30, 32], textColor: 255 },
+      columnStyles: { 0: { cellWidth: 50 } },
+      didDrawPage: () => {
+        doc.setFontSize(8); doc.setTextColor(160)
+        doc.text(`Descargado desde Anfiora.com · ${printDate}`, pageW / 2, pageH - 8, { align: 'center' })
+      },
+    })
+    doc.save(`ANFIORA - ${event?.name || 'Evento'} - Lista de invitados.pdf`)
   }
 
   const exportCSV = () => {
@@ -747,18 +1049,18 @@ export default function EventPage() {
 
   const downloadTemplate = () => {
     const eventTags = event?.guest_tags || []
-    const tagExample = eventTags.length >= 2 ? eventTags[0] + ',' + eventTags[1] : eventTags.length === 1 ? eventTags[0] : 'familia'
-    const headers = 'nombre,telefono,email,notas,tags,rsvp_status'
+    const tagExample = eventTags.length >= 2 ? `${eventTags[0]} | ${eventTags[1]}` : eventTags.length === 1 ? eventTags[0] : 'Familia'
+    const headers = 'nombre,telefono,email,notas,tags,rsvp_status,acompanantes,grupo,alergias'
     const examples = [
-      `"Maria Jose Garcia","+52 81 1234 5678","mj@ejemplo.com","Mesa 3","${tagExample}","confirmed"`,
-      `"Patricio Juarez","+52 55 9876 5432","","Sin restricciones alimentarias","","pending"`,
-      `"Andres Garza","","andres@ejemplo.com","Llegara tarde","","pending"`,
+      `"Maria Jose Garcia","+52 81 1234 5678","mj@ejemplo.com","Mesa 3","${tagExample}","confirmed","Juan Garcia | Sofia Garcia","Novia","Gluten | Mariscos"`,
+      `"Patricio Juarez","+52 55 9876 5432","","Sin restricciones alimentarias","","pending","","Novio",""`,
+      `"Andres Garza","","andres@ejemplo.com","Llegara tarde","","pending","Acompanante de Andres","","Nueces"`,
     ]
-    const instructions = ['', '# INSTRUCCIONES:', '# nombre -> obligatorio', '# telefono -> formato +52 XX XXXX XXXX (opcional)', '# email -> correo electronico (opcional)', '# notas -> texto libre (opcional)', `# tags -> separados por coma: ${eventTags.length ? eventTags.join(', ') : '(configura tags en Configuracion)'}`, '# rsvp_status -> confirmed | pending | declined  (vacio = pending)']
+    const instructions = ['', '# INSTRUCCIONES:', '# nombre -> obligatorio', '# telefono -> formato +52 XX XXXX XXXX (opcional)', '# email -> correo electronico (opcional)', '# notas -> texto libre (opcional)', `# tags -> separados por | (pipe): ${eventTags.length ? eventTags.join(' | ') : 'VIP | Familia'} (se crean los nuevos)`, '# rsvp_status -> confirmed | pending | declined  (vacio = pending)', '# acompanantes -> nombres separados por | (pipe): Juan Perez | Maria Lopez (opcional)', '# grupo -> un valor (ej. Novia, Novio, Trabajo) - se crean los nuevos (opcional)', '# alergias -> separadas por | (pipe): Gluten | Nueces - se crean las nuevas (opcional)']
     const csv = [headers, ...examples, ...instructions].join('\n')
     const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
-    const a = document.createElement('a'); a.href = url; a.download = 'plantilla_guestflow.csv'; a.click()
+    const a = document.createElement('a'); a.href = url; a.download = 'Importar a ANFIORA - ' + (event?.name || 'Evento') + '.csv'; a.click()
     URL.revokeObjectURL(url)
   }
 
@@ -782,11 +1084,56 @@ export default function EventPage() {
   const conAtencion     = accionNecesaria + respondio
 
   const allSelected = filtered.length > 0 && selected.size === filtered.length
-  const someSelected = selected.size > 0
+  const someSelected = selected.size > 0 || selectedMembers.size > 0
 
   const activeTemplates = (eventSettings?.message_templates as string[] | null)?.filter((t: string) => t.trim()) || []
   const templateNames = eventSettings?.template_names as string[] | null
   const availableTags = event?.guest_tags || []
+  const tableFilterValues = useMemo(() => Array.from(new Set(guests.map(g => { const t = guestTableMap.get(g.id); return t ? `Mesa ${t.tableNumber}` : '' }).filter(Boolean))) as string[], [guests, guestTableMap])
+  const createEventTag = async (tag: string) => {
+    const t = tag.trim()
+    if (!t || availableTags.some(x => x.toLowerCase() === t.toLowerCase())) return
+    const next = [...availableTags, t]
+    setEvent(prev => prev ? { ...prev, guest_tags: next } : prev)
+    await supabase.from('events').update({ guest_tags: next }).eq('id', id)
+  }
+  const deleteEventTag = async (tag: string) => {
+    const next = availableTags.filter(t => t !== tag)
+    setEvent(prev => prev ? { ...prev, guest_tags: next } : prev)
+    setNewTags(prev => prev.filter(t => t !== tag))
+    setEditTags(prev => prev.filter(t => t !== tag))
+    await supabase.from('events').update({ guest_tags: next }).eq('id', id)
+    const affected = guests.filter(g => (g.tags || []).includes(tag))
+    if (affected.length > 0) {
+      await Promise.all(affected.map(g => supabase.from('guests').update({ tags: (g.tags || []).filter(t => t !== tag) }).eq('id', g.id)))
+      setGuests(prev => prev.map(g => ({ ...g, tags: (g.tags || []).filter(t => t !== tag) })))
+    }
+  }
+  const createGroup = (group: string) => setGroupPool(prev => prev.includes(group) ? prev : [...prev, group])
+  const deleteGroup = async (group: string) => {
+    setGroupPool(prev => prev.filter(g => g !== group))
+    setNewSide(prev => prev === group ? '' : prev)
+    setEditSide(prev => prev === group ? '' : prev)
+    const affected = guests.filter(g => g.side === group)
+    if (affected.length > 0) {
+      await Promise.all(affected.map(g => supabase.from('guests').update({ side: null }).eq('id', g.id)))
+      setGuests(prev => prev.map(g => g.side === group ? { ...g, side: undefined } : g))
+    }
+  }
+  const createAllergy = (a: string) => setAllergyPool(prev => prev.includes(a) ? prev : [...prev, a])
+  const deleteAllergy = async (a: string) => {
+    setAllergyPool(prev => prev.filter(x => x !== a))
+    setNewAllergies(prev => prev.filter(x => x !== a))
+    setEditAllergies(prev => prev.filter(x => x !== a))
+    const affected = guests.filter(g => (g.allergies || []).includes(a))
+    if (affected.length > 0) {
+      await Promise.all(affected.map(g => {
+        const left = (g.allergies || []).filter(x => x !== a)
+        return supabase.from('guests').update({ allergies: left.length > 0 ? left : null }).eq('id', g.id)
+      }))
+      setGuests(prev => prev.map(g => ({ ...g, allergies: (g.allergies || []).filter(x => x !== a) })))
+    }
+  }
 
   const maxCanAdd = selected.size === 0 ? 15 : Math.max(0, 15 - Math.max(...Array.from(selected).map(gid => guests.find(g => g.id === gid)?.party_members.length ?? 0)))
 
@@ -796,9 +1143,9 @@ export default function EventPage() {
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#ffffff', color: '#1D1E20', overflow: 'hidden' }}>
 
       <div className="shrink-0 border-b border-[#e8e8e8] px-4 pt-4 pb-0 sm:px-6 sm:pt-5 lg:px-10 lg:pt-6">
-        <div className="mb-4 flex items-start justify-between gap-3">
+        <div className="mb-4 flex items-start justify-between gap-4">
           <div className="min-w-0 flex-1">
-            <h1 className="text-lg font-bold text-[#1D1E20] sm:text-xl">Invitados</h1>
+            <h1 className="text-xl font-bold text-[#1D1E20]">Invitados</h1>
             <p className="mt-0.5 text-xs text-[#888] sm:text-sm">Gestiona a todos tus invitados.</p>
           </div>
           <div className="lg:hidden shrink-0 pt-1">
@@ -807,41 +1154,41 @@ export default function EventPage() {
         </div>
 
         <StatsCollapse visible={statsVisible}>
-          <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
-            <div className="rounded-xl border border-[#e8e8e8] bg-white p-3">
-              <div className="mb-1.5 flex items-center justify-between">
-                <span className="text-[10px] font-semibold uppercase tracking-wide text-[#aaa]">Confirmados</span>
-                <CheckCircle size={14} className="text-[#48C9B0]" />
+          <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div className="rounded-xl border border-[#e8e8e8] bg-white p-4">
+              <div className="flex items-center gap-2">
+                <CheckCircle size={16} className="text-[#48C9B0]" />
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-[#888]">Confirmados</span>
               </div>
-              <div className="text-xl font-bold text-[#1D1E20]">{confirmed}<span className="ml-1.5 text-sm font-normal text-[#aaa]">/ {totalPersonas}</span></div>
+              <p className="mt-2 text-2xl font-bold tabular-nums text-[#1D1E20]">{confirmed}<span className="ml-1.5 text-sm font-normal text-[#aaa]">/ {totalPersonas}</span></p>
               <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-[#e8e8e8]">
                 <div className="h-full rounded-full bg-[#48C9B0] transition-all" style={{ width: totalPersonas > 0 ? `${(confirmed / totalPersonas) * 100}%` : '0%' }} />
               </div>
             </div>
-            <div className="rounded-xl border border-[#e8e8e8] bg-white p-3">
-              <div className="mb-1.5 flex items-center justify-between">
-                <span className="text-[10px] font-semibold uppercase tracking-wide text-[#aaa]">Pendientes</span>
-                <Clock size={14} className={pending > 0 ? 'text-[#b8860b]' : 'text-[#bbb]'} />
+            <div className="rounded-xl border border-[#e8e8e8] bg-white p-4">
+              <div className="flex items-center gap-2">
+                <Clock size={16} className={pending > 0 ? 'text-[#b8860b]' : 'text-[#bbb]'} />
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-[#888]">Pendientes</span>
               </div>
-              <div className="text-xl font-bold" style={{ color: pending > 0 ? '#b8860b' : '#1D1E20' }}>{pending + mensajeEnviado}</div>
+              <p className="mt-2 text-2xl font-bold tabular-nums" style={{ color: pending > 0 ? '#b8860b' : '#1D1E20' }}>{pending + mensajeEnviado}</p>
               <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-[#e8e8e8]">
                 <div className="h-full rounded-full bg-[#f0d080] transition-all" style={{ width: totalPersonas > 0 ? `${((pending + mensajeEnviado) / totalPersonas) * 100}%` : '0%' }} />
               </div>
             </div>
-            <div className="rounded-xl border border-[#e8e8e8] bg-white p-3">
-              <div className="mb-1.5 flex items-center justify-between">
-                <span className="text-[10px] font-semibold uppercase tracking-wide text-[#aaa]">Atención</span>
-                <AlertCircle size={14} className={conAtencion > 0 ? 'text-[#cc3333]' : 'text-[#bbb]'} />
+            <div className="rounded-xl border border-[#e8e8e8] bg-white p-4">
+              <div className="flex items-center gap-2">
+                <AlertCircle size={16} className={conAtencion > 0 ? 'text-[#cc3333]' : 'text-[#bbb]'} />
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-[#888]">Atención</span>
               </div>
-              <div className="text-xl font-bold" style={{ color: conAtencion > 0 ? '#cc3333' : '#1D1E20' }}>{conAtencion}</div>
-              {conAtencion > 0 ? <div className="mt-1 text-[10px] font-medium text-[#cc3333]">Respondieron o acción requerida</div> : <div className="mt-1 text-[10px] text-[#48C9B0]">Sin pendientes urgentes ✓</div>}
+              <p className="mt-2 text-2xl font-bold tabular-nums" style={{ color: conAtencion > 0 ? '#cc3333' : '#1D1E20' }}>{conAtencion}</p>
+              {conAtencion > 0 ? <p className="mt-1 text-[10px] font-medium text-[#cc3333]">Respondieron o acción requerida</p> : <p className="mt-1 text-[10px] text-[#48C9B0]">Sin pendientes urgentes ✓</p>}
             </div>
-            <div className="rounded-xl border border-[#e8e8e8] bg-white p-3">
-              <div className="mb-1.5 flex items-center justify-between">
-                <span className="text-[10px] font-semibold uppercase tracking-wide text-[#aaa]">Declinados</span>
-                <XCircle size={14} className={declined > 0 ? 'text-[#cc3333]' : 'text-[#bbb]'} />
+            <div className="rounded-xl border border-[#e8e8e8] bg-white p-4">
+              <div className="flex items-center gap-2">
+                <XCircle size={16} className={declined > 0 ? 'text-[#cc3333]' : 'text-[#bbb]'} />
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-[#888]">Declinados</span>
               </div>
-              <div className="text-xl font-bold" style={{ color: declined > 0 ? '#cc3333' : '#1D1E20' }}>{declined}</div>
+              <p className="mt-2 text-2xl font-bold tabular-nums" style={{ color: declined > 0 ? '#cc3333' : '#1D1E20' }}>{declined}</p>
               <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-[#e8e8e8]">
                 <div className="h-full rounded-full bg-[#ffc0c0] transition-all" style={{ width: totalPersonas > 0 ? `${(declined / totalPersonas) * 100}%` : '0%' }} />
               </div>
@@ -856,7 +1203,7 @@ export default function EventPage() {
               className="w-full rounded-lg border border-[#e0e0e0] bg-[#f8f8f8] pl-8 pr-3 py-2 text-sm text-[#1D1E20] outline-none" />
           </div>
           <select value={filter} onChange={e => setFilter(e.target.value as typeof filter)}
-            className="min-w-0 flex-1 cursor-pointer rounded-lg border-none bg-[#1D1E20] px-3 py-2 text-sm font-semibold text-white outline-none sm:flex-none sm:w-48">
+            className="min-w-0 flex-1 cursor-pointer rounded-lg border-none bg-[#1D1E20] px-3 py-2 text-xs font-semibold text-white outline-none sm:flex-none sm:w-48">
             <option value="all">Todos ({totalPersonas})</option>
             <option value="confirmed">Confirmados ({confirmed})</option>
             <option value="pending">Pendientes ({pending})</option>
@@ -869,14 +1216,14 @@ export default function EventPage() {
           {someSelected && (
             <button onClick={() => setShowMobileBulkSheet(true)}
               className="whitespace-nowrap rounded-lg bg-[#1D1E20] px-3 py-2 text-xs font-semibold text-white sm:hidden">
-              {selected.size} sel. ▾
+              {selected.size + selectedMembers.size} sel. ▾
             </button>
           )}
           {someSelected && (
             <div className="relative hidden sm:block" ref={bulkMenuRef}>
               <button onClick={() => setShowBulkMenu(!showBulkMenu)}
                 className="whitespace-nowrap rounded-lg bg-[#1D1E20] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#2d2e30]">
-                {selected.size} seleccionados ▾
+                {selected.size + selectedMembers.size} seleccionados ▾
               </button>
               {showBulkMenu && (
                 <div className="absolute right-0 top-full z-50 mt-1 min-w-[230px] rounded-xl border border-[#e8e8e8] bg-white py-1.5 shadow-xl">
@@ -885,11 +1232,45 @@ export default function EventPage() {
                     onBulkUpdateStatus={bulkUpdateStatus}
                     onBulkDelete={bulkDelete}
                     onOpenCompanionModal={() => { setBulkCompanionCount(1); setShowBulkCompanionModal(true) }}
+                    hasGuests={selected.size > 0}
                   />
                 </div>
               )}
             </div>
           )}
+          <div className="relative hidden sm:block" ref={filterMenuRef}>
+            <button onClick={() => setShowFilterMenu(v => !v)}
+              className="flex items-center gap-1.5 whitespace-nowrap rounded-lg border border-[#e0e0e0] px-3 py-2 text-xs text-[#666] transition hover:border-[#48C9B0] hover:text-[#48C9B0]">
+              <Filter size={13} />Filtros{filters.length > 0 ? ` (${filters.length})` : ''}
+            </button>
+            {showFilterMenu && (
+              <div className="absolute right-0 top-full z-50 mt-1 max-h-[60vh] w-64 overflow-y-auto rounded-xl border border-[#e8e8e8] bg-white p-2 shadow-lg">
+                {([
+                  { title: 'Tags', field: 'tag' as FilterField, values: availableTags },
+                  { title: 'Alergias', field: 'allergy' as FilterField, values: allergyPool },
+                  { title: 'Grupos', field: 'side' as FilterField, values: groupPool },
+                  { title: 'Mesas', field: 'table' as FilterField, values: tableFilterValues },
+                ]).map(sec => sec.values.length > 0 && (
+                  <div key={sec.field} className="mb-1.5">
+                    <p className="mb-1 px-2 text-[10px] font-semibold uppercase tracking-wide text-[#aaa]">{sec.title}</p>
+                    {sec.values.map(v => {
+                      const active = filters.some(f => f.field === sec.field && f.value === v)
+                      return (
+                        <button key={v} onClick={() => active ? removeFilter(sec.field, v) : addFilter(sec.field, v)}
+                          className="flex w-full items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-left text-xs text-[#1D1E20] transition hover:bg-[#f8f8f8]">
+                          <span className="truncate">{v}</span>
+                          {active && <Check size={13} className="shrink-0 text-[#48C9B0]" />}
+                        </button>
+                      )
+                    })}
+                  </div>
+                ))}
+                {availableTags.length === 0 && allergyPool.length === 0 && groupPool.length === 0 && tableFilterValues.length === 0 && (
+                  <p className="px-2 py-2 text-xs text-[#aaa]">No hay valores para filtrar todavia</p>
+                )}
+              </div>
+            )}
+          </div>
           <div className="relative hidden sm:block" ref={colMenuRef}>
             <button onClick={() => setShowColMenu(v => !v)}
               className="flex items-center gap-1.5 whitespace-nowrap rounded-lg border border-[#e0e0e0] px-3 py-2 text-xs text-[#666] transition hover:border-[#48C9B0] hover:text-[#48C9B0]">
@@ -908,9 +1289,24 @@ export default function EventPage() {
               </div>
             )}
           </div>
-          <button onClick={exportCSV} className="hidden items-center gap-1.5 whitespace-nowrap rounded-lg border border-[#e0e0e0] px-3 py-2 text-xs text-[#666] transition hover:border-[#48C9B0] hover:text-[#48C9B0] sm:flex">
-            <Download size={13} />Exportar
-          </button>
+          <div className="relative hidden sm:block" ref={exportMenuRef}>
+            <button onClick={() => setShowExportMenu(v => !v)} className="flex items-center gap-1.5 whitespace-nowrap rounded-lg border border-[#e0e0e0] px-3 py-2 text-xs text-[#666] transition hover:border-[#48C9B0] hover:text-[#48C9B0]">
+              <Download size={13} />Exportar
+            </button>
+            {showExportMenu && (
+              <div className="absolute right-0 top-full z-50 mt-1 min-w-[170px] rounded-xl border border-[#e8e8e8] bg-white p-1.5 shadow-lg">
+                <button onClick={() => { setShowExportMenu(false); exportExcel() }} className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs text-[#1D1E20] transition hover:bg-[#f8f8f8]">
+                  <FileSpreadsheet size={15} className="text-[#1a9e5a]" />Excel (.xlsx)
+                </button>
+                <button onClick={() => { setShowExportMenu(false); exportPDF() }} className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs text-[#1D1E20] transition hover:bg-[#f8f8f8]">
+                  <FileText size={15} className="text-[#cc3333]" />PDF
+                </button>
+                <button onClick={() => { setShowExportMenu(false); exportCSV() }} className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs text-[#1D1E20] transition hover:bg-[#f8f8f8]">
+                  <Download size={15} className="text-[#888]" />CSV
+                </button>
+              </div>
+            )}
+          </div>
           <button onClick={() => { setCsvError(''); setCsvSuccess(''); setCsvPreview(null); setShowCsvModal(true) }} className="hidden items-center gap-1.5 whitespace-nowrap rounded-lg border border-[#e0e0e0] px-3 py-2 text-xs text-[#666] transition hover:border-[#48C9B0] hover:text-[#48C9B0] sm:flex">
             <Upload size={13} />Importar
           </button>
@@ -919,23 +1315,23 @@ export default function EventPage() {
             + Agregar
           </button>
         </div>
+
+        {filters.length > 0 && (
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            {filters.map(f => (
+              <span key={f.field + ':' + f.value} className="inline-flex items-center gap-1.5 rounded-lg bg-[#1D1E20] px-2.5 py-1 text-xs font-medium text-white">
+                {FILTER_LABEL[f.field]}: {f.value}
+                <button onClick={() => removeFilter(f.field, f.value)} className="text-white/60 transition hover:text-white"><X size={12} /></button>
+              </span>
+            ))}
+            {filters.length >= 2 && (
+              <button onClick={clearFilters} className="text-xs font-medium text-[#888] underline transition hover:text-[#1D1E20]">Limpiar</button>
+            )}
+          </div>
+        )}
       </div>
 
-      <div className="hidden shrink-0 border-b border-[#e8e8e8] bg-[#f8f8f8] px-6 py-2 sm:px-6 lg:px-10 sm:block">
-        <div className="items-center" style={{ display: 'grid', gridTemplateColumns: gridCols }}>
-          <input type="checkbox" checked={allSelected} onChange={toggleSelectAll} className="cursor-pointer accent-[#48C9B0]" />
-          <button onClick={() => handleHeaderClick('name')} className="cursor-pointer text-left text-[11px] font-semibold uppercase tracking-wide text-[#aaa] transition hover:text-[#1D1E20]">Nombre{getSortIndicator('name')}</button>
-          {visibleCols.has('tags')     && <div className="text-[11px] font-semibold uppercase tracking-wide text-[#aaa]">Tags</div>}
-          {visibleCols.has('mesa')     && <div className="text-[11px] font-semibold uppercase tracking-wide text-[#aaa]">Mesa</div>}
-          {visibleCols.has('lado')     && <div className="text-[11px] font-semibold uppercase tracking-wide text-[#aaa]">Lado</div>}
-          {visibleCols.has('notas')    && <button onClick={() => handleHeaderClick('notes')} className="cursor-pointer text-left text-[11px] font-semibold uppercase tracking-wide text-[#aaa] transition hover:text-[#1D1E20]">Notas{getSortIndicator('notes')}</button>}
-          {visibleCols.has('telefono') && <button onClick={() => handleHeaderClick('phone')} className="cursor-pointer text-left text-[11px] font-semibold uppercase tracking-wide text-[#aaa] transition hover:text-[#1D1E20]">Teléfono{getSortIndicator('phone')}</button>}
-          {visibleCols.has('estatus')  && <button onClick={() => handleHeaderClick('status')} className="cursor-pointer text-left text-[11px] font-semibold uppercase tracking-wide text-[#aaa] transition hover:text-[#1D1E20]">Estatus{getSortIndicator('status')}</button>}
-          <div />
-        </div>
-      </div>
-
-      <div className="flex-1 overflow-y-auto px-4 pb-6 pt-3 sm:px-6 lg:px-10">
+      <div className="flex-1 overflow-y-auto px-4 pb-6 pt-0 sm:px-6 lg:px-10">
         {loading ? (
           <p className="pt-5 text-sm text-[#999]">Cargando...</p>
         ) : filtered.length === 0 ? (
@@ -946,7 +1342,7 @@ export default function EventPage() {
           </div>
         ) : (
           <>
-            <div className="flex flex-col gap-2 sm:hidden">
+            <div className="mt-3 flex flex-col gap-2 sm:hidden">
               {filtered.map((guest, gIdx) => {
                 const groupColor = guest.party_members.length > 0 ? GROUP_COLORS[gIdx % GROUP_COLORS.length] : null
                 const guestTags = guest.tags || []
@@ -965,7 +1361,8 @@ export default function EventPage() {
                       const isLast = mi === guest.party_members.length - 1
                       return (
                         <div key={m.id} className={'border border-t-0 bg-[#fafafa] px-3 py-2 ' + (isLast ? 'rounded-b-xl' : '')} style={{ borderColor: '#e8e8e8' }}>
-                          <div className="flex items-center gap-2 pl-6">
+                          <div className="flex items-center gap-2 pl-2">
+                            <input type="checkbox" checked={selectedMembers.has(m.id)} onChange={() => toggleSelectMember(m.id)} className="shrink-0" style={{ cursor: 'pointer', accentColor: '#48C9B0' }} />
                             <div className="h-6 w-[3px] shrink-0 rounded-full opacity-40" style={{ background: groupColor }} />
                             <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold" style={{ background: groupColor + '22', color: groupColor }}>+{mi + 1}</div>
                             <span className="flex-1 truncate text-xs text-[#888]">{m.name || 'Acompañante'}</span>
@@ -979,7 +1376,18 @@ export default function EventPage() {
               })}
             </div>
 
-            <div className="hidden rounded-b-xl border border-[#e8e8e8] sm:block">
+            <div className="mt-3 hidden rounded-xl border border-[#e8e8e8] sm:block">
+              <div className="sticky top-0 z-10 items-center rounded-t-xl border-b border-[#e8e8e8] bg-[#f8f8f8] px-4 py-2" style={{ display: 'grid', gridTemplateColumns: gridCols }}>
+                <input type="checkbox" checked={allSelected} onChange={toggleSelectAll} className="cursor-pointer accent-[#48C9B0]" />
+                <button onClick={() => handleHeaderClick('name')} className="cursor-pointer text-left text-[11px] font-semibold uppercase tracking-wide text-[#aaa] transition hover:text-[#1D1E20]">Nombre{getSortIndicator('name')}</button>
+                {visibleCols.has('tags')     && <div className="text-[11px] font-semibold uppercase tracking-wide text-[#aaa]">Tags</div>}
+                {visibleCols.has('mesa')     && <div className="text-[11px] font-semibold uppercase tracking-wide text-[#aaa]">Mesa</div>}
+                {visibleCols.has('lado')     && <div className="text-[11px] font-semibold uppercase tracking-wide text-[#aaa]">Grupo</div>}
+                {visibleCols.has('notas')    && <button onClick={() => handleHeaderClick('notes')} className="cursor-pointer text-left text-[11px] font-semibold uppercase tracking-wide text-[#aaa] transition hover:text-[#1D1E20]">Notas{getSortIndicator('notes')}</button>}
+                {visibleCols.has('telefono') && <button onClick={() => handleHeaderClick('phone')} className="cursor-pointer text-left text-[11px] font-semibold uppercase tracking-wide text-[#aaa] transition hover:text-[#1D1E20]">Teléfono{getSortIndicator('phone')}</button>}
+                {visibleCols.has('estatus')  && <button onClick={() => handleHeaderClick('status')} className="cursor-pointer text-left text-[11px] font-semibold uppercase tracking-wide text-[#aaa] transition hover:text-[#1D1E20]">Estatus{getSortIndicator('status')}</button>}
+                <div />
+              </div>
               {filtered.map((guest, gIdx) => {
                 const groupColor = guest.party_members.length > 0 ? GROUP_COLORS[gIdx % GROUP_COLORS.length] : null
                 const isLastGuest = gIdx === filtered.length - 1
@@ -1002,14 +1410,14 @@ export default function EventPage() {
                       </div>
                       {visibleCols.has('tags') && (
                         <div onClick={() => openEdit(guest)} className="flex flex-wrap gap-1 cursor-pointer">
-                          {guestTags.length > 0 ? guestTags.map(tag => { const tagIdx = availableTags.indexOf(tag); const col = getTagColor(tagIdx >= 0 ? tagIdx : 0); return <span key={tag} className="rounded-full border px-2 py-0.5 text-[10px] font-medium" style={{ background: col.bg, borderColor: col.border, color: col.text }}>{tag}</span> }) : <span className="text-[#ddd] text-xs">—</span>}
+                          {guestTags.length > 0 ? (<>{guestTags.slice(0, 2).map(tag => { const tagIdx = availableTags.indexOf(tag); const col = getTagColor(tagIdx >= 0 ? tagIdx : 0); return <span key={tag} onClick={(e) => { e.stopPropagation(); addFilter('tag', tag) }} className="cursor-pointer truncate rounded-full border px-2 py-0.5 text-[10px] font-medium transition hover:opacity-75" style={{ background: col.bg, borderColor: col.border, color: col.text, maxWidth: '120px' }}>{tag}</span> })}{guestTags.length > 2 && <span className="rounded-full border border-[#e0e0e0] bg-[#f2f2f2] px-2 py-0.5 text-[10px] font-medium text-[#888]">+{guestTags.length - 2}</span>}</>) : <span className="text-[#ddd] text-xs">—</span>}
                         </div>
                       )}
                       {visibleCols.has('mesa') && (
-                        <div>{tableLabel ? <span className="rounded-full border border-[#c8ede7] bg-[#f0fdfb] px-2 py-0.5 text-[10px] font-semibold text-[#1a9e88]">{tableLabel}</span> : <span className="text-[#ddd] text-xs">—</span>}</div>
+                        <div>{tableLabel ? <span onClick={(e) => { e.stopPropagation(); addFilter('table', tableLabel) }} className="cursor-pointer rounded-full border border-[#c8ede7] bg-[#f0fdfb] px-2 py-0.5 text-[10px] font-semibold text-[#1a9e88] transition hover:opacity-75">{tableLabel}</span> : <span className="text-[#ddd] text-xs">—</span>}</div>
                       )}
                       {visibleCols.has('lado') && (
-                        <div>{guest.side ? <span className="rounded-full border border-[#e0e0e0] bg-[#f8f8f8] px-2 py-0.5 text-[10px] font-medium text-[#555]">{SIDE_OPTIONS.find(o => o.value === guest.side)?.label ?? guest.side}</span> : <span className="text-[#ddd] text-xs">—</span>}</div>
+                        <div>{guest.side ? <span onClick={(e) => { e.stopPropagation(); addFilter('side', guest.side!) }} className="cursor-pointer rounded-full border border-[#e0e0e0] bg-[#f8f8f8] px-2 py-0.5 text-[10px] font-medium text-[#555] transition hover:opacity-75">{guest.side}</span> : <span className="text-[#ddd] text-xs">—</span>}</div>
                       )}
                       {visibleCols.has('notas') && (
                         <div onClick={() => openEdit(guest)} className="cursor-pointer overflow-hidden text-ellipsis whitespace-nowrap text-xs text-[#aaa] hover:text-[#1D1E20]" title={guest.notes || ''}>
@@ -1065,7 +1473,9 @@ export default function EventPage() {
                         <div key={m.id}
                           className={'items-center px-4 py-2.5 bg-[#fafafa] ' + (isLastMember && !isLastGuest ? 'border-b-2 border-[#f0f0f0]' : 'border-b border-[#f8f8f8]')}
                           style={{ display: 'grid', gridTemplateColumns: gridCols }}>
-                          <div />
+                          <div className="flex items-center justify-center">
+                            <input type="checkbox" checked={selectedMembers.has(m.id)} onChange={() => toggleSelectMember(m.id)} style={{ cursor: 'pointer', accentColor: '#48C9B0' }} />
+                          </div>
                           <div className="flex items-center gap-2 pl-4">
                             <div className="h-4 w-[2px] shrink-0 rounded-full opacity-40" style={{ background: groupColor }} />
                             <div className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[9px] font-bold" style={{ background: groupColor + '22', color: groupColor }}>+{mi + 1}</div>
@@ -1104,29 +1514,26 @@ export default function EventPage() {
 
       {editGuest && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-md overflow-y-auto rounded-2xl border border-[#e8e8e8] bg-white p-6 shadow-xl sm:p-8" style={{ maxHeight: '90vh' }}>
+          <div className="w-full max-w-2xl overflow-y-auto rounded-2xl border border-[#e8e8e8] bg-white p-6 shadow-xl sm:p-8" style={{ maxHeight: '90vh' }}>
             <div className="mb-6 flex items-center justify-between">
               <h2 className="text-lg font-bold text-[#1D1E20] sm:text-xl">Editar invitado</h2>
               <button onClick={() => setEditGuest(null)} className="text-xl text-[#aaa]">✕</button>
             </div>
-            <div className="flex flex-col gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div><label className="mb-1.5 block text-xs font-medium text-[#555]">Nombre *</label><input type="text" value={editName} onChange={e => setEditName(e.target.value)} style={inp} /></div>
               <div><label className="mb-1.5 block text-xs font-medium text-[#555]">WhatsApp</label><input type="tel" value={editPhone} onChange={e => setEditPhone(e.target.value)} placeholder="+52 81 1234 5678" style={inp} /></div>
               <div><label className="mb-1.5 block text-xs font-medium text-[#555]">Email</label><input type="email" value={editEmail} onChange={e => setEditEmail(e.target.value)} placeholder="ana@ejemplo.com" style={inp} /></div>
-              <div><label className="mb-1.5 block text-xs font-medium text-[#555]">Notas</label><textarea value={editNotes} onChange={e => setEditNotes(e.target.value)} placeholder="Mesa preferida, restricciones..." rows={2} style={{ ...inp, resize: 'vertical' }} /></div>
-              {availableTags.length > 0 && <div><label className="mb-1.5 block text-xs font-medium text-[#555]">Tags</label><TagSelector availableTags={availableTags} selectedTags={editTags} onChange={setEditTags} /></div>}
               <div>
-                <label className="mb-1.5 block text-xs font-medium text-[#555]">Lado <span className="font-normal text-[#ccc]">(opcional)</span></label>
-                <select value={editSide} onChange={e => setEditSide(e.target.value)} className="w-full rounded-lg border border-[#e0e0e0] bg-[#f8f8f8] px-3.5 py-2.5 text-sm text-[#1D1E20] outline-none transition focus:border-[#48C9B0]">
-                  <option value="">— Sin asignar —</option>
-                  {SIDE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                </select>
+                <label className="mb-1.5 block text-xs font-medium text-[#555]">Grupo <span className="font-normal text-[#ccc]">(opcional)</span></label>
+                <GroupInput availableGroups={groupPool} selectedGroup={editSide} onChange={setEditSide} onCreateGroup={createGroup} onDeleteGroup={deleteGroup} />
               </div>
-              <div>
+              <div className="sm:col-span-2"><label className="mb-1.5 block text-xs font-medium text-[#555]">Tags</label><TagInput availableTags={availableTags} selectedTags={editTags} onChangeSelected={setEditTags} onCreateTag={createEventTag} onDeleteTag={deleteEventTag} /></div>
+              <div className="sm:col-span-2">
                 <label className="mb-1.5 block text-xs font-medium text-[#555]">Alergias <span className="font-normal text-[#ccc]">(opcional)</span></label>
-                <AllergySelector value={editAllergies} onChange={setEditAllergies} />
+                <TagInput availableTags={allergyPool} selectedTags={editAllergies} onChangeSelected={setEditAllergies} onCreateTag={createAllergy} onDeleteTag={deleteAllergy} label="Alergia" />
               </div>
-              <div className="border-t border-[#f0f0f0] pt-4"><MembersEditor value={editMembers} onChange={setEditMembers} /></div>
+              <div className="sm:col-span-2"><label className="mb-1.5 block text-xs font-medium text-[#555]">Notas</label><textarea value={editNotes} onChange={e => setEditNotes(e.target.value)} placeholder="Mesa preferida, restricciones..." rows={2} style={{ ...inp, resize: 'vertical' }} /></div>
+              <div className="sm:col-span-2 border-t border-[#f0f0f0] pt-4"><MembersEditor value={editMembers} onChange={setEditMembers} /></div>
             </div>
             {editError && <div className="mt-3 rounded-lg border border-[#ffc0c0] bg-[#fff0f0] p-2.5 text-xs text-[#cc3333]">{editError}</div>}
             <div className="mt-6 flex gap-2.5">
@@ -1143,29 +1550,26 @@ export default function EventPage() {
 
       {showModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-md overflow-y-auto rounded-2xl border border-[#e8e8e8] bg-white p-6 shadow-xl sm:p-8" style={{ maxHeight: '90vh' }}>
+          <div className="w-full max-w-2xl overflow-y-auto rounded-2xl border border-[#e8e8e8] bg-white p-6 shadow-xl sm:p-8" style={{ maxHeight: '90vh' }}>
             <div className="mb-6 flex items-center justify-between">
               <h2 className="text-lg font-bold text-[#1D1E20] sm:text-xl">Agregar invitado</h2>
               <button onClick={() => setShowModal(false)} className="text-xl text-[#aaa]">✕</button>
             </div>
-            <div className="flex flex-col gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div><label className="mb-1.5 block text-xs font-medium text-[#555]">Nombre *</label><input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Ana García" style={inp} /></div>
               <div><label className="mb-1.5 block text-xs font-medium text-[#555]">WhatsApp <span className="font-normal text-[#ccc]">(opcional)</span></label><input type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="+52 81 1234 5678" style={inp} /></div>
               <div><label className="mb-1.5 block text-xs font-medium text-[#555]">Email <span className="font-normal text-[#ccc]">(opcional)</span></label><input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="ana@ejemplo.com" style={inp} /></div>
-              <div><label className="mb-1.5 block text-xs font-medium text-[#555]">Notas <span className="font-normal text-[#ccc]">(opcional)</span></label><textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Mesa preferida, restricciones..." rows={2} style={{ ...inp, resize: 'vertical' }} /></div>
-              {availableTags.length > 0 && <div><label className="mb-1.5 block text-xs font-medium text-[#555]">Tags <span className="font-normal text-[#ccc]">(opcional)</span></label><TagSelector availableTags={availableTags} selectedTags={newTags} onChange={setNewTags} /></div>}
               <div>
-                <label className="mb-1.5 block text-xs font-medium text-[#555]">Lado <span className="font-normal text-[#ccc]">(opcional)</span></label>
-                <select value={newSide} onChange={e => setNewSide(e.target.value)} className="w-full rounded-lg border border-[#e0e0e0] bg-[#f8f8f8] px-3.5 py-2.5 text-sm text-[#1D1E20] outline-none transition focus:border-[#48C9B0]">
-                  <option value="">— Sin asignar —</option>
-                  {SIDE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                </select>
+                <label className="mb-1.5 block text-xs font-medium text-[#555]">Grupo <span className="font-normal text-[#ccc]">(opcional)</span></label>
+                <GroupInput availableGroups={groupPool} selectedGroup={newSide} onChange={setNewSide} onCreateGroup={createGroup} onDeleteGroup={deleteGroup} />
               </div>
-              <div>
+              <div className="sm:col-span-2"><label className="mb-1.5 block text-xs font-medium text-[#555]">Tags <span className="font-normal text-[#ccc]">(opcional)</span></label><TagInput availableTags={availableTags} selectedTags={newTags} onChangeSelected={setNewTags} onCreateTag={createEventTag} onDeleteTag={deleteEventTag} /></div>
+              <div className="sm:col-span-2">
                 <label className="mb-1.5 block text-xs font-medium text-[#555]">Alergias <span className="font-normal text-[#ccc]">(opcional)</span></label>
-                <AllergySelector value={newAllergies} onChange={setNewAllergies} />
+                <TagInput availableTags={allergyPool} selectedTags={newAllergies} onChangeSelected={setNewAllergies} onCreateTag={createAllergy} onDeleteTag={deleteAllergy} label="Alergia" />
               </div>
-              <div className="border-t border-[#f0f0f0] pt-4"><MembersEditor value={newMembers} onChange={setNewMembers} /></div>
+              <div className="sm:col-span-2"><label className="mb-1.5 block text-xs font-medium text-[#555]">Notas <span className="font-normal text-[#ccc]">(opcional)</span></label><textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Mesa preferida, restricciones..." rows={2} style={{ ...inp, resize: 'vertical' }} /></div>
+              <div className="sm:col-span-2 border-t border-[#f0f0f0] pt-4"><MembersEditor value={newMembers} onChange={setNewMembers} /></div>
             </div>
             {formError && <div className="mt-3 rounded-lg border border-[#ffc0c0] bg-[#fff0f0] p-2.5 text-xs text-[#cc3333]">{formError}</div>}
             <div className="mt-6 flex gap-2.5">
@@ -1238,6 +1642,16 @@ export default function EventPage() {
                     </div>
                   </div>
                 )}
+                {(csvPreview.newTags.length > 0 || csvPreview.newGroups.length > 0 || csvPreview.newAllergies.length > 0) && (
+                  <div className="mb-4">
+                    <p className="mb-2 text-xs font-semibold text-[#1a9e88]">Se agregarán estos nuevos:</p>
+                    <div className="flex flex-col gap-1.5 rounded-lg border border-[#c8ede7] bg-[#f0fdfb] p-3 text-xs text-[#1a9e88]">
+                      {csvPreview.newTags.length > 0 && <div><span className="font-semibold">Tags:</span> {csvPreview.newTags.join(', ')}</div>}
+                      {csvPreview.newGroups.length > 0 && <div><span className="font-semibold">Grupos:</span> {csvPreview.newGroups.join(', ')}</div>}
+                      {csvPreview.newAllergies.length > 0 && <div><span className="font-semibold">Alergias:</span> {csvPreview.newAllergies.join(', ')}</div>}
+                    </div>
+                  </div>
+                )}
                 {csvError && <div className="mb-3 rounded-lg border border-[#ffc0c0] bg-[#fff0f0] p-2.5 text-xs text-[#cc3333]">{csvError}</div>}
                 {csvSuccess && <div className="mb-3 rounded-lg border border-[#a0e0c0] bg-[#f0fff6] p-2.5 text-xs text-[#2a7a50]">{csvSuccess}</div>}
                 <div className="flex flex-col gap-2">
@@ -1263,7 +1677,7 @@ export default function EventPage() {
           <div className="w-full max-w-xs rounded-2xl border border-[#e8e8e8] bg-white p-6 shadow-xl">
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-base font-bold text-[#1D1E20]">Agregar acompañantes</h2>
-              <button onClick={() => setShowBulkCompanionModal(false)} className="text-xl text-[#aaa]">✕</button>
+              <button onClick={() => setShowBulkCompanionModal(false)} disabled={bulkCompanionSaving} className="text-xl text-[#aaa] disabled:opacity-40">✕</button>
             </div>
             <p className="mb-4 text-xs text-[#888]">
               Se agregará <span className="font-semibold text-[#1D1E20]">{bulkCompanionCount} acompañante{bulkCompanionCount > 1 ? 's' : ''}</span> a cada uno de los <span className="font-semibold text-[#1D1E20]">{selected.size} invitados</span> seleccionados.
@@ -1281,8 +1695,8 @@ export default function EventPage() {
               </>
             )}
             <div className="flex gap-2.5">
-              <button onClick={() => setShowBulkCompanionModal(false)} className="flex-1 rounded-lg border border-[#e0e0e0] py-2.5 text-sm text-[#888]">Cancelar</button>
-              <button onClick={bulkAddCompanions} disabled={bulkCompanionSaving || maxCanAdd === 0} className="flex-[2] rounded-lg bg-[#48C9B0] py-2.5 text-sm font-semibold text-white disabled:opacity-60">{bulkCompanionSaving ? 'Guardando...' : 'Confirmar'}</button>
+              <button onClick={() => setShowBulkCompanionModal(false)} disabled={bulkCompanionSaving} className="flex-1 rounded-lg border border-[#e0e0e0] py-2.5 text-sm text-[#888] disabled:opacity-50">Cancelar</button>
+              <button onClick={bulkAddCompanions} disabled={bulkCompanionSaving || maxCanAdd === 0} className="flex flex-[2] items-center justify-center gap-2 rounded-lg bg-[#48C9B0] py-2.5 text-sm font-semibold text-white disabled:opacity-60">{bulkCompanionSaving ? <><Loader2 size={15} className="animate-spin" />Guardando...</> : 'Confirmar'}</button>
             </div>
           </div>
         </div>
@@ -1320,7 +1734,7 @@ export default function EventPage() {
           <div className="w-full rounded-t-2xl border-t border-[#e8e8e8] bg-white pb-8 pt-3 shadow-2xl" onClick={e => e.stopPropagation()}>
             <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-[#e0e0e0]" />
             <div className="mb-2 px-3">
-              <p className="text-xs font-semibold text-[#1D1E20]">{selected.size} invitados seleccionados</p>
+              <p className="text-xs font-semibold text-[#1D1E20]">{selected.size} invitados{selectedMembers.size > 0 ? ' · ' + selectedMembers.size + ' acompañantes' : ''} seleccionados</p>
             </div>
             <div className="max-h-[60vh] overflow-y-auto">
               <BulkMenuContent
@@ -1328,6 +1742,7 @@ export default function EventPage() {
                 onBulkUpdateStatus={bulkUpdateStatus}
                 onBulkDelete={bulkDelete}
                 onOpenCompanionModal={() => { setBulkCompanionCount(1); setShowBulkCompanionModal(true) }}
+                hasGuests={selected.size > 0}
               />
             </div>
             <div className="px-3 pt-2">

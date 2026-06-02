@@ -207,8 +207,6 @@ export default function ConfiguracionPage() {
   const [venue, setVenue]                 = useState('')
   const [address, setAddress]             = useState('')
   const [eventStatus, setEventStatus]     = useState<EventStatus>('active')
-  const [guestTags, setGuestTags]         = useState<string[]>([])
-  const [newTag, setNewTag]               = useState('')
 
   // Datos de event_settings
   const [settingsId, setSettingsId]             = useState<string | null>(null)
@@ -259,7 +257,6 @@ export default function ConfiguracionPage() {
       setVenue(eventData.venue || '')
       setAddress(eventData.address || '')
       setEventStatus(eventData.event_status || 'active')
-      setGuestTags(Array.isArray(eventData.guest_tags) ? eventData.guest_tags : [])
     }
 
     if (settingsData) {
@@ -296,7 +293,6 @@ export default function ConfiguracionPage() {
       event_time:     eventTime || null,
       venue:          venue || null,
       address:        address || null,
-      guest_tags:     guestTags,
     }).eq('id', id)
 
     if (eventErr) { setError('Error: ' + eventErr.message); setSaving(false); return }
@@ -340,19 +336,6 @@ export default function ConfiguracionPage() {
     const { error: err } = await supabase.from('events').update({ event_status: newStatus }).eq('id', id)
     if (!err) setEventStatus(newStatus)
     setStatusSaving(false)
-  }
-
-  const handleAddTag = () => {
-    const trimmed = newTag.trim()
-    if (!trimmed || guestTags.includes(trimmed)) return
-    setGuestTags(prev => [...prev, trimmed])
-    setNewTag('')
-    scheduleAutoSave()
-  }
-
-  const handleRemoveTag = (tag: string) => {
-    setGuestTags(prev => prev.filter(t => t !== tag))
-    scheduleAutoSave()
   }
 
   const updateTemplate     = (i: number, value: string) => {
@@ -585,38 +568,6 @@ export default function ConfiguracionPage() {
                     </div>
                   </div>
 
-                </div>
-              </div>
-
-              {/* Tags */}
-              <div className="rounded-xl bg-[#fafafa] p-4 sm:p-5">
-                <h2 className="mb-1.5 text-base font-semibold text-[#1D1E20] sm:text-lg">Tags para invitados</h2>
-                <p className="mb-3 text-xs text-[#666]">Define las etiquetas que podras asignar a tus invitados. Ej: VIP, Mesa 1, Vegetariano...</p>
-                {guestTags.length > 0 && (
-                  <div className="mb-3 flex flex-wrap gap-1.5">
-                    {guestTags.map((tag, i) => {
-                      const col = getTagColor(i)
-                      return (
-                        <span key={tag} className="flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium"
-                          style={{ background: col.bg, borderColor: col.border, color: col.text }}>
-                          {tag}
-                          <button onClick={() => handleRemoveTag(tag)}
-                            className="ml-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full opacity-60 transition hover:opacity-100"
-                            style={{ color: col.text }}>x</button>
-                        </span>
-                      )
-                    })}
-                  </div>
-                )}
-                <div className="flex gap-2">
-                  <input type="text" value={newTag} onChange={e => setNewTag(e.target.value)}
-                    onKeyDown={e => e.key === 'Enter' && handleAddTag()} placeholder="Nuevo tag..."
-                    className="flex-1 rounded-lg border border-[#d0d0d0] bg-white px-3 py-2 text-sm text-[#1D1E20] outline-none transition focus:border-[#48C9B0]"
-                  />
-                  <button onClick={handleAddTag} disabled={!newTag.trim()}
-                    className="shrink-0 rounded-lg bg-[#48C9B0] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#3ab89f] disabled:opacity-40">
-                    Agregar
-                  </button>
                 </div>
               </div>
 
