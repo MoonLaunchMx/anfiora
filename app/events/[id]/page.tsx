@@ -605,7 +605,7 @@ export default function EventPage() {
   }
 
   const handleWaLongPressStart = (guest: Guest) => { waLongPressTimer.current = setTimeout(() => { waLongPressTimer.current = null; setShowWaSheet(guest) }, 400) }
-  const handleWaLongPressEnd = (guest: Guest) => { if (waLongPressTimer.current) { clearTimeout(waLongPressTimer.current); waLongPressTimer.current = null; window.open('https://wa.me/' + guest.phone!.replace(/\D/g, ''), '_blank') } }
+  const handleWaLongPressEnd = (guest: Guest) => { if (waLongPressTimer.current) { clearTimeout(waLongPressTimer.current); waLongPressTimer.current = null; openWhatsApp(guest.phone!) } }
   const handleWaTouchMove = () => { if (waLongPressTimer.current) { clearTimeout(waLongPressTimer.current); waLongPressTimer.current = null } }
 
   const loadEvent = async () => {
@@ -858,6 +858,18 @@ export default function EventPage() {
     let text = templates?.[templateIndex] || 'Hola {nombre}, te escribimos de parte de {evento}.'
     for (const [token, value] of Object.entries(repl)) text = text.split(token).join(value)
     return encodeURIComponent(text)
+  }
+
+  // Abre WhatsApp reusando una sola pestana en desktop (web.whatsapp.com/send, sin la pagina
+  // intermedia de wa.me). En mobile abre la app con wa.me. encodedText ya viene de buildWaText.
+  const openWhatsApp = (phone: string, encodedText?: string) => {
+    const num = (phone || '').replace(/\D/g, '')
+    const isMobile = typeof navigator !== 'undefined' && /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)
+    if (isMobile) {
+      window.open('https://wa.me/' + num + (encodedText ? '?text=' + encodedText : ''), '_blank')
+    } else {
+      window.open('https://web.whatsapp.com/send?phone=' + num + (encodedText ? '&text=' + encodedText : ''), 'anfiora_whatsapp')
+    }
   }
 
   const resetForm = () => { setName(''); setPhone(''); setEmail(''); setNotes(''); setNewTags([]); setNewMembers([]); setNewSide(''); setNewAllergies([]); setFormError('') }
@@ -1462,7 +1474,7 @@ export default function EventPage() {
                                     {activeTemplates.length === 0 ? (
                                       <p className="px-3 py-2.5 text-xs text-[#aaa]">No hay plantillas — ve a Configuración</p>
                                     ) : activeTemplates.map((template: string, ti: number) => (
-                                      <button key={ti} onClick={() => { window.open('https://wa.me/' + guest.phone!.replace(/\D/g, '') + '?text=' + buildWaText(guest, ti), '_blank'); setShowWaMenu(null) }}
+                                      <button key={ti} onClick={() => { openWhatsApp(guest.phone!, buildWaText(guest, ti)); setShowWaMenu(null) }}
                                         className="w-full rounded-lg px-3 py-2 text-left text-xs leading-snug text-[#1D1E20] hover:bg-[#f0fdfb]">
                                         <span className="mb-0.5 block text-[10px] font-semibold text-[#48C9B0]">{templateNames?.[ti] || 'Plantilla ' + (ti + 1)}</span>
                                         {template.length > 60 ? template.substring(0, 60) + '...' : template}
@@ -1740,7 +1752,7 @@ export default function EventPage() {
             ) : (
               <div className="flex max-h-[55vh] flex-col overflow-y-auto">
                 {activeTemplates.map((template: string, ti: number) => (
-                  <button key={ti} onClick={() => { window.open('https://wa.me/' + showWaSheet.phone!.replace(/\D/g, '') + '?text=' + buildWaText(showWaSheet, ti), '_blank'); setShowWaSheet(null) }}
+                  <button key={ti} onClick={() => { openWhatsApp(showWaSheet.phone!, buildWaText(showWaSheet, ti)); setShowWaSheet(null) }}
                     className="border-b border-[#f5f5f5] px-5 py-3.5 text-left transition active:bg-[#f0fdfb]">
                     <p className="mb-0.5 text-[10px] font-semibold text-[#48C9B0]">{templateNames?.[ti] || 'Plantilla ' + (ti + 1)}</p>
                     <p className="text-sm text-[#1D1E20] line-clamp-2">{template.length > 80 ? template.substring(0, 80) + '...' : template}</p>
