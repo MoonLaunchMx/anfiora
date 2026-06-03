@@ -4,7 +4,8 @@ import { useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { supabase } from '@/lib/supabase'
-import { User, Phone, Lock, Eye, EyeOff, CheckCircle, AlertCircle, ArrowLeft } from 'lucide-react'
+import { User, Phone, Lock, Eye, EyeOff, CheckCircle, AlertCircle, ArrowLeft, ChevronDown } from 'lucide-react'
+import { ROLES, getRole, Role } from '@/lib/roles'
 
 type PlanInfo = {
   label: string
@@ -88,6 +89,11 @@ export default function PerfilPage() {
   const [plan, setPlan]         = useState('free')
   const [loading, setLoading]   = useState(true)
 
+  const [role, setRole]               = useState<string>('')
+  const [editingRole, setEditingRole] = useState(false)
+  const [savingRole, setSavingRole]   = useState(false)
+  const [roleMsg, setRoleMsg]         = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+
   // Perfil
   const [savingProfile, setSavingProfile] = useState(false)
   const [profileMsg, setProfileMsg]       = useState<{ type: 'success' | 'error'; text: string } | null>(null)
@@ -113,7 +119,7 @@ export default function PerfilPage() {
       // Jalar perfil de tabla users
       const { data } = await supabase
         .from('users')
-        .select('full_name, phone, plan')
+        .select('full_name, phone, plan, role')
         .eq('id', user.id)
         .single()
 
@@ -121,12 +127,27 @@ export default function PerfilPage() {
         setName(data.full_name || '')
         setPhone(data.phone || '')
         setPlan(data.plan || 'free')
+        setRole(data.role || '')
       }
 
       setLoading(false)
     }
     load()
   }, [router])
+
+  const handleChangeRole = async (newRole: Role) => {
+    setSavingRole(true)
+    setRoleMsg(null)
+    const { error } = await supabase.from('users').update({ role: newRole }).eq('id', userId)
+    if (error) {
+      setRoleMsg({ type: 'error', text: 'No se pudo cambiar el tipo de perfil.' })
+    } else {
+      setRole(newRole)
+      setEditingRole(false)
+      setRoleMsg({ type: 'success', text: 'Tipo de perfil actualizado' })
+    }
+    setSavingRole(false)
+  }
 
   const handleSaveProfile = async () => {
     if (!name.trim()) {
@@ -191,6 +212,8 @@ export default function PerfilPage() {
   }
 
   const planStyle = PLAN_STYLES[plan] || PLAN_STYLES.free
+  const currentRole = getRole(role)
+  const CurrentIcon = currentRole?.icon
 
   if (loading) {
     return (
@@ -205,7 +228,7 @@ export default function PerfilPage() {
 
       {/* Header */}
       <header className="sticky top-0 z-10 border-b border-[#e8e8e8] bg-white">
-        <div className="mx-auto flex h-14 max-w-2xl items-center justify-between px-4 sm:h-16 sm:px-6">
+        <div className="mx-auto flex h-14 max-w-3xl items-center justify-between px-4 sm:h-16 sm:px-6">
           <button onClick={() => router.push('/dashboard')} className="shrink-0">
             <Image src="/images/Logo-010526newest.svg" alt="Anfiora" width={110} height={45} priority className="object-contain" />
           </button>
@@ -219,7 +242,7 @@ export default function PerfilPage() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-2xl px-4 py-6 sm:px-6 sm:py-10">
+      <main className="mx-auto max-w-3xl px-4 py-6 sm:px-6 sm:py-10">
 
         <div className="mb-6">
           <h1 className="text-xl font-bold text-[#1D1E20] sm:text-2xl">Mi perfil</h1>
@@ -227,6 +250,67 @@ export default function PerfilPage() {
         </div>
 
         <div className="flex flex-col gap-4">
+
+          {/* ── Identidad ── */}
+          <section className="rounded-2xl border border-[#e8e8e8] bg-white p-5 sm:p-6">
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex min-w-0 items-center gap-3">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#f0fdfb] text-base font-bold text-[#1a9e88]">
+                  {(name || email).charAt(0).toUpperCase()}
+                </div>
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-[#1D1E20]">{name || 'Tu perfil'}</p>
+                  <p className="truncate text-xs text-[#888]">{email}</p>
+                </div>
+              </div>
+
+              <div className="relative shrink-0">
+                <button
+                  onClick={() => setEditingRole(p => !p)}
+                  className="flex items-center gap-2 rounded-full border border-[#e0e0e0] bg-white px-3 py-1.5 text-xs font-semibold text-[#555] transition hover:border-[#48C9B0]"
+                >
+                  {currentRole && CurrentIcon ? (
+                    <>
+                      <CurrentIcon size={14} className="text-[#1a9e88]" />
+                      {currentRole.shortLabel}
+                    </>
+                  ) : (
+                    <span className="text-[#aaa]">Sin definir</span>
+                  )}
+                  <ChevronDown size={13} className="text-[#bbb]" />
+                </button>
+
+                {editingRole && (
+                  <div className="absolute right-0 top-full z-20 mt-2 w-64 overflow-hidden rounded-xl border border-[#e8e8e8] bg-white shadow-lg">
+                    {ROLES.map(r => {
+                      const Icon = r.icon
+                      const active = r.value === role
+                      return (
+                        <button
+                          key={r.value}
+                          onClick={() => handleChangeRole(r.value)}
+                          disabled={savingRole}
+                          className={'flex w-full items-start gap-3 px-4 py-3 text-left transition hover:bg-[#f8f8f8] disabled:opacity-50 ' + (active ? 'bg-[#f0fdfb]' : '')}
+                        >
+                          <Icon size={16} className={active ? 'text-[#1a9e88]' : 'text-[#999]'} />
+                          <div>
+                            <p className="text-sm font-medium text-[#1D1E20]">{r.shortLabel}</p>
+                            <p className="text-[11px] text-[#888]">{r.description}</p>
+                          </div>
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {roleMsg && (
+              <div className="mt-4">
+                <Toast type={roleMsg.type} message={roleMsg.text} />
+              </div>
+            )}
+          </section>
 
           {/* ── Plan actual ── */}
           <section className="rounded-2xl border border-[#e8e8e8] bg-white p-5 sm:p-6">
