@@ -650,7 +650,16 @@ export default function Dashboard() {
                 </div>
               )}
             </div>
-            <span className="hidden truncate text-xs text-[#888] sm:block sm:max-w-[200px] sm:text-sm">{userEmail}</span>
+            <button
+              onClick={() => window.location.href = '/perfil'}
+              title="Mi perfil"
+              className="flex items-center gap-2 rounded-full border border-[#e0e0e0] p-1 transition hover:border-[#48C9B0] sm:pr-3"
+            >
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#f0fdfb] text-xs font-bold text-[#1a9e88]">
+                {(userEmail || '?').charAt(0).toUpperCase()}
+              </span>
+              <span className="hidden truncate text-xs text-[#888] sm:block sm:max-w-[160px] sm:text-sm">{userEmail}</span>
+            </button>
             <button onClick={handleLogout} className="rounded-md border border-[#e0e0e0] px-3 py-1.5 text-xs text-[#888] transition hover:bg-[#f5f5f5] sm:px-4 sm:text-sm">Salir</button>
           </div>
         </div>
