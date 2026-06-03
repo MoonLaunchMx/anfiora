@@ -12,7 +12,7 @@ export default function TerminosPage() {
         style={{ borderColor: 'var(--border)', background: 'var(--bg)' }}
       >
         <Link href="/">
-          <Image src="/images/Logo SVG.svg" alt="Anfiora" width={110} height={32} priority />
+          <Image src="/images/isotipoylogo.svg" alt="Anfiora" width={110} height={32} priority />
         </Link>
         <Link href="/" className="text-sm" style={{ color: 'var(--text-sec)' }}>
           Volver al inicio
