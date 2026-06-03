@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { EventStatus } from '@/lib/types'
+import { getTemplatePack } from '@/lib/message-templates'
 import DatePicker from '@/app/components/ui/DatePicker'
 import TimePicker from '@/app/components/ui/TimePicker'
 import { TabToggle, type TabItem } from '@/app/components/ui/TabToggle'
@@ -47,6 +48,7 @@ const BASE_VARIABLES = [
   { key: '{venue}',     label: 'venue' },
   { key: '{direccion}', label: 'direccion' },
   { key: '{playlist}',  label: 'playlist' },
+  { key: '{album}',     label: 'album' },
 ]
 
 // Variables extra según tipo de evento
@@ -288,6 +290,19 @@ export default function ConfiguracionPage() {
     return () => { if (autoSaveTimeoutRef.current) clearTimeout(autoSaveTimeoutRef.current) }
   }, [])
 
+  const applyPack = (pack: { name: string; body: string }[]) => {
+    const newTemplates = [...pack.map(t => t.body), ...Array(10).fill('')].slice(0, 10)
+    const newNames     = [...pack.map(t => t.name), ...DEFAULT_NAMES].slice(0, 10).map((n, i) => n || DEFAULT_NAMES[i])
+    setTemplates(newTemplates)
+    setTemplateNames(newNames)
+    setVisibleTemplates(Math.max(2, pack.length))
+    return { newTemplates, newNames }
+  }
+
+  // true si los slots no han sido editados a mano (vacios o iguales al pack del tipo dado)
+  const templatesArePristine = (forType: string) =>
+    templates.every((t, i) => !t?.trim() || t === (getTemplatePack(forType)[i]?.body ?? ''))
+
   const loadEvent = async () => {
     const [{ data: eventData }, { data: settingsData }, { data: collabData }] = await Promise.all([
       supabase.from('events').select('*').eq('id', id).single(),
@@ -329,6 +344,20 @@ export default function ConfiguracionPage() {
         const loadedNames = [...settingsData.template_names, ...DEFAULT_NAMES].slice(0, 10)
         setTemplateNames(loadedNames.map((n: string, i: number) => n || DEFAULT_NAMES[i]))
       }
+    }
+
+    // Sembrar plantillas recomendadas por tipo si los slots estan vacios
+    const loadedTemplates = Array.isArray(settingsData?.message_templates) ? settingsData!.message_templates : []
+    const allEmpty = !loadedTemplates.some((t: string) => t?.trim())
+    if (allEmpty && eventData?.event_type) {
+      const { newTemplates, newNames } = applyPack(getTemplatePack(eventData.event_type))
+      await supabase.from('event_settings').upsert({
+        ...(settingsData?.id ? { id: settingsData.id } : {}),
+        event_id:          id,
+        message_templates: newTemplates,
+        template_names:    newNames,
+        updated_at:        new Date().toISOString(),
+      }, { onConflict: 'event_id' })
     }
 
     if (collabData) setCollaborators(collabData as Collaborator[])
@@ -609,16 +638,7 @@ export default function ConfiguracionPage() {
                 <h2 className="mb-4 text-sm font-semibold text-[#1D1E20]">Datos generales</h2>
                 <div className="flex flex-col gap-3">
 
-                  {/* Nombre */}
-                  <div>
-                    <label className="mb-1.5 block text-xs font-medium text-[#555]">Nombre *</label>
-                    <input type="text" value={name} onChange={e => { setName(e.target.value); scheduleAutoSave() }}
-                      placeholder="Boda Ana & Carlos"
-                      className="w-full rounded-lg border border-[#d0d0d0] bg-white px-3 py-2.5 text-sm text-[#1D1E20] outline-none transition focus:border-[#48C9B0]"
-                    />
-                  </div>
-
-                  {/* Tipo de evento — full width, nunca flota */}
+                  {/* Tipo de evento — full width, el grande */}
                   <div>
                     <label className="mb-1.5 block text-xs font-medium text-[#555]">Tipo de evento</label>
                     {eventType && !showTypeSelector ? (
@@ -654,7 +674,7 @@ export default function ConfiguracionPage() {
                             const isSelected = eventType === type.value
                             return (
                               <button key={type.value}
-                                onClick={() => { setEventType(type.value); setShowTypeSelector(false); scheduleAutoSave() }}
+                                onClick={() => { if (templatesArePristine(eventType)) applyPack(getTemplatePack(type.value)); setEventType(type.value); setShowTypeSelector(false); scheduleAutoSave() }}
                                 className={'flex flex-col items-center gap-1.5 rounded-lg border px-2 py-2.5 transition ' + (isSelected ? 'border-[#48C9B0] bg-[#f0fdfb]' : 'border-[#e0e0e0] text-[#444] hover:border-[#48C9B0] hover:bg-[#f0fdfb]')}>
                                 <Icon size={16} className={isSelected ? 'text-[#48C9B0]' : 'text-[#888]'} />
                                 <span className={'text-[11px] leading-tight text-center ' + (isSelected ? 'font-semibold text-[#1a9e88]' : 'text-[#555]')}>
@@ -674,9 +694,20 @@ export default function ConfiguracionPage() {
                     )}
                   </div>
 
-                  {/* Fila 2: Hosts contextuales */}
-                  {isSocial && (
-                    <div className="grid grid-cols-2 gap-3">
+                  {/* Resto de campos — grilla uniforme 33% */}
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:items-start">
+
+                    {/* Nombre */}
+                    <div>
+                      <label className="mb-1.5 block text-xs font-medium text-[#555]">Nombre *</label>
+                      <input type="text" value={name} onChange={e => { setName(e.target.value); scheduleAutoSave() }}
+                        placeholder="Boda Ana & Carlos"
+                        className="w-full rounded-lg border border-[#d0d0d0] bg-white px-3 py-2.5 text-sm text-[#1D1E20] outline-none transition focus:border-[#48C9B0]"
+                      />
+                    </div>
+
+                    {/* Anfitrion principal (Novia / Festejada / etc.) */}
+                    {isSocial && (
                       <div>
                         <label className="mb-1.5 block text-xs font-medium text-[#555]">
                           {hostLabel} <span className="font-normal text-[#bbb]">(opc.)</span>
@@ -686,83 +717,88 @@ export default function ConfiguracionPage() {
                           className="w-full rounded-lg border border-[#d0d0d0] bg-white px-3 py-2.5 text-sm text-[#1D1E20] outline-none transition focus:border-[#48C9B0]"
                         />
                       </div>
-                      {isBoda ? (
-                        <div>
-                          <label className="mb-1.5 block text-xs font-medium text-[#555]">
-                            Novio <span className="font-normal text-[#bbb]">(opc.)</span>
-                          </label>
-                          <input type="text" value={hostName2} onChange={e => { setHostName2(e.target.value); scheduleAutoSave() }}
-                            placeholder="Novio"
-                            className="w-full rounded-lg border border-[#d0d0d0] bg-white px-3 py-2.5 text-sm text-[#1D1E20] outline-none transition focus:border-[#48C9B0]"
-                          />
-                        </div>
-                      ) : <div />}
-                    </div>
-                  )}
+                    )}
 
-                  {isCorp && (
-                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    {/* Novio */}
+                    {isBoda && (
                       <div>
                         <label className="mb-1.5 block text-xs font-medium text-[#555]">
-                          Empresa u organizacion <span className="font-normal text-[#bbb]">(opcional)</span>
+                          Novio <span className="font-normal text-[#bbb]">(opc.)</span>
+                        </label>
+                        <input type="text" value={hostName2} onChange={e => { setHostName2(e.target.value); scheduleAutoSave() }}
+                          placeholder="Novio"
+                          className="w-full rounded-lg border border-[#d0d0d0] bg-white px-3 py-2.5 text-sm text-[#1D1E20] outline-none transition focus:border-[#48C9B0]"
+                        />
+                      </div>
+                    )}
+
+                    {/* Empresa u organizacion */}
+                    {isCorp && (
+                      <div>
+                        <label className="mb-1.5 block text-xs font-medium text-[#555]">
+                          Empresa u organizacion <span className="font-normal text-[#bbb]">(opc.)</span>
                         </label>
                         <input type="text" value={organization} onChange={e => { setOrganization(e.target.value); scheduleAutoSave() }}
                           placeholder="Grupo Femsa, ITESM, etc."
                           className="w-full rounded-lg border border-[#d0d0d0] bg-white px-3 py-2.5 text-sm text-[#1D1E20] outline-none transition focus:border-[#48C9B0]"
                         />
                       </div>
-                    </div>
-                  )}
+                    )}
 
-                  {/* Fila 3: Fecha inicio + Fecha fin + Hora */}
-                  <div className="grid grid-cols-3 gap-3">
+                    {/* Fecha */}
                     <div>
                       <label className="mb-1.5 block text-xs font-medium text-[#555]">Fecha</label>
                       <DatePicker value={eventDate} onChange={v => { setEventDate(v); scheduleAutoSave() }} placeholder="Fecha" />
                     </div>
+
+                    {/* Fecha fin */}
                     <div>
                       <label className="mb-1.5 block text-xs font-medium text-[#555]">
                         Fin <span className="font-normal text-[#bbb]">(opc.)</span>
                       </label>
                       <DatePicker value={eventEndDate} onChange={v => { setEventEndDate(v); scheduleAutoSave() }} placeholder="Fecha fin" minDate={eventDate || undefined} />
                     </div>
+
+                    {/* Hora */}
                     <div>
                       <label className="mb-1.5 block text-xs font-medium text-[#555]">Hora</label>
                       <TimePicker value={eventTime} onChange={v => { setEventTime(v); scheduleAutoSave() }} />
                     </div>
-                  </div>
 
-                  {eventDays && (
-                    <div className="flex items-center gap-1.5 rounded-lg border border-[#c8ede7] bg-[#f0fdfb] px-3 py-2">
-                      <span className="text-xs font-semibold text-[#1a9e88]">{eventDays === 1 ? '1 dia' : `${eventDays} dias`}</span>
-                      <span className="text-xs text-[#888]">de duracion</span>
-                    </div>
-                  )}
+                    {/* Duracion — full width */}
+                    {eventDays && (
+                      <div className="flex items-center gap-1.5 rounded-lg border border-[#c8ede7] bg-[#f0fdfb] px-3 py-2 sm:col-span-3">
+                        <span className="text-xs font-semibold text-[#1a9e88]">{eventDays === 1 ? '1 dia' : `${eventDays} dias`}</span>
+                        <span className="text-xs text-[#888]">de duracion</span>
+                      </div>
+                    )}
 
-                  {/* Fila 4: Venue full width */}
-                  <div>
-                    <label className="mb-1.5 block text-xs font-medium text-[#555]">Venue</label>
-                    <input type="text" value={venue} onChange={e => { setVenue(e.target.value); scheduleAutoSave() }}
-                      placeholder="Hacienda San Miguel"
-                      className="w-full rounded-lg border border-[#d0d0d0] bg-white px-3 py-2.5 text-sm text-[#1D1E20] outline-none transition focus:border-[#48C9B0]"
-                    />
-                  </div>
-
-                  {/* Fila 5: Direccion full width */}
-                  <div>
-                    <label className="mb-1.5 block text-xs font-medium text-[#555]">Direccion</label>
-                    <div className="flex gap-2">
-                      <input type="text" value={address} onChange={e => { setAddress(e.target.value); scheduleAutoSave() }}
-                        placeholder="Carr. Saltillo-Monterrey Km 4.5"
-                        className="flex-1 rounded-lg border border-[#d0d0d0] bg-white px-3 py-2.5 text-sm text-[#1D1E20] outline-none transition focus:border-[#48C9B0]"
+                    {/* Venue */}
+                    <div>
+                      <label className="mb-1.5 block text-xs font-medium text-[#555]">Venue</label>
+                      <input type="text" value={venue} onChange={e => { setVenue(e.target.value); scheduleAutoSave() }}
+                        placeholder="Hacienda San Miguel"
+                        className="w-full rounded-lg border border-[#d0d0d0] bg-white px-3 py-2.5 text-sm text-[#1D1E20] outline-none transition focus:border-[#48C9B0]"
                       />
-                      {address && (
-                        <button type="button" onClick={openMaps}
-                          className="shrink-0 flex items-center gap-1.5 rounded-lg border border-[#d0d0d0] bg-white px-3 py-2 text-xs text-[#666] transition hover:border-[#48C9B0] hover:text-[#1a9e88]">
-                          Maps
-                        </button>
-                      )}
                     </div>
+
+                    {/* Direccion — 2/3 para cerrar la fila */}
+                    <div className="sm:col-span-2">
+                      <label className="mb-1.5 block text-xs font-medium text-[#555]">Direccion</label>
+                      <div className="flex gap-2">
+                        <input type="text" value={address} onChange={e => { setAddress(e.target.value); scheduleAutoSave() }}
+                          placeholder="Carr. Saltillo-Monterrey Km 4.5"
+                          className="flex-1 rounded-lg border border-[#d0d0d0] bg-white px-3 py-2.5 text-sm text-[#1D1E20] outline-none transition focus:border-[#48C9B0]"
+                        />
+                        {address && (
+                          <button type="button" onClick={openMaps}
+                            className="shrink-0 flex items-center gap-1.5 rounded-lg border border-[#d0d0d0] bg-white px-3 py-2 text-xs text-[#666] transition hover:border-[#48C9B0] hover:text-[#1a9e88]">
+                            Maps
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
                   </div>
 
                 </div>
@@ -808,6 +844,18 @@ export default function ConfiguracionPage() {
                     </span>
                   )}
                 </p>
+                {eventType && (
+                  <button
+                    onClick={() => {
+                      const label = EVENT_TYPES.find(t => t.value === eventType)?.label ?? 'este evento'
+                      if (!templatesArePristine(eventType) && !window.confirm('Esto reemplazara tus plantillas por las recomendadas para ' + label + '. Continuar?')) return
+                      applyPack(getTemplatePack(eventType))
+                      scheduleAutoSave()
+                    }}
+                    className="mb-4 rounded-lg border border-[#c8ede7] bg-[#f0fdfb] px-3 py-2 text-xs font-semibold text-[#1a9e88] transition hover:bg-[#e3f7f3]">
+                    Cargar plantillas recomendadas de {EVENT_TYPES.find(t => t.value === eventType)?.label ?? eventType}
+                  </button>
+                )}
                 <div className="flex flex-col gap-5">
                   {templates.slice(0, visibleTemplates).map((template, i) => (
                     <TemplateInput

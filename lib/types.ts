@@ -73,6 +73,10 @@ export type Event = {
   guest_tags: string[]
   currency: Currency
   created_at: string
+  host_name?: string | null
+  host_name_2?: string | null
+  organization?: string | null
+  event_category?: string | null
 }
 
 export type EventSettings = {

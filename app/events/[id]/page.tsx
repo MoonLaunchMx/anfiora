@@ -461,6 +461,7 @@ export default function EventPage() {
 
   const [event, setEvent] = useState<Event | null>(null)
   const [eventSettings, setEventSettings] = useState<EventSettings | null>(null)
+  const [plannerName, setPlannerName] = useState('')
   const [guests, setGuests] = useState<Guest[]>([])
   const [groupPool, setGroupPool] = useState<string[]>([])
   const [allergyPool, setAllergyPool] = useState<string[]>([])
@@ -612,7 +613,13 @@ export default function EventPage() {
       supabase.from('events').select('*').eq('id', id).single(),
       supabase.from('event_settings').select('*').eq('event_id', id).single(),
     ])
-    if (data) setEvent(data)
+    if (data) {
+      setEvent(data)
+      if (data.user_id) {
+        const { data: planner } = await supabase.from('users').select('full_name').eq('id', data.user_id).single()
+        if (planner?.full_name) setPlannerName(planner.full_name)
+      }
+    }
     if (settings) setEventSettings(settings)
   }
 
@@ -827,12 +834,29 @@ export default function EventPage() {
 
   const buildWaText = (guest: Guest, templateIndex = 0) => {
     const playlistUrl = eventSettings?.playlist_token ? window.location.origin + '/playlist/' + eventSettings.playlist_token : ''
+    const hostName = event?.host_name || ''
+    const repl: Record<string, string> = {
+      '{nombre}':    guest.name,
+      '{planner}':   plannerName,
+      '{evento}':    event?.name || '',
+      '{fecha}':     event?.event_date ? new Date(event.event_date).toLocaleDateString('es-MX') : '',
+      '{hora}':      event?.event_time || '',
+      '{venue}':     event?.venue || '',
+      '{direccion}': event?.address || '',
+      '{playlist}':  playlistUrl,
+      '{album}':     eventSettings?.album_url || '',
+      '{novia}':     hostName,
+      '{novio}':     event?.host_name_2 || '',
+      '{festejada}': hostName,
+      '{festejado}': hostName,
+      '{graduado}':  hostName,
+      '{bautizado}': hostName,
+      '{anfitrion}': hostName,
+      '{empresa}':   event?.organization || '',
+    }
     const templates = eventSettings?.message_templates as string[] | null
-    const text = (templates?.[templateIndex] || 'Hola {nombre}, te escribimos de parte de {evento}.')
-      .replace('{nombre}', guest.name).replace('{evento}', event?.name || '')
-      .replace('{fecha}', event?.event_date ? new Date(event.event_date).toLocaleDateString('es-MX') : '')
-      .replace('{hora}', event?.event_time || '').replace('{venue}', event?.venue || '')
-      .replace('{direccion}', event?.address || '').replace('{playlist}', playlistUrl)
+    let text = templates?.[templateIndex] || 'Hola {nombre}, te escribimos de parte de {evento}.'
+    for (const [token, value] of Object.entries(repl)) text = text.split(token).join(value)
     return encodeURIComponent(text)
   }
 
