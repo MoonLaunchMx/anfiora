@@ -15,9 +15,9 @@ export default function PrivacidadPage() {
         className="border-b px-6 py-4 flex items-center justify-between"
         style={{ borderColor: 'var(--border)', background: 'var(--bg)' }}
       >
-        <Link href="/landing">
+        <Link href="/">
           <Image
-            src="/images/Logo SVG.svg"
+            src="/images/isotipoylogo.svg"
             alt="Anfiora"
             width={110}
             height={32}
@@ -25,7 +25,7 @@ export default function PrivacidadPage() {
           />
         </Link>
         <Link
-          href="/landing"
+          href="/"
           className="text-sm"
           style={{ color: 'var(--text-sec)' }}
         >

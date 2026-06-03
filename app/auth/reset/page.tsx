@@ -47,7 +47,7 @@ export default function ResetPasswordPage() {
         className="w-full max-w-[440px] rounded-[20px] border border-[#e8e8e8] bg-white p-8 shadow-[0_8px_40px_rgba(0,0,0,0.10)]"
       >
         <div className="mb-7 flex justify-center">
-          <Image src="/images/Logo SVG.svg" alt="Anfiora" width={140} height={56} priority className="object-contain" />
+          <Image src="/images/isotipoylogo.svg" alt="Anfiora" width={140} height={56} priority className="object-contain" />
         </div>
 
         {/* Loading */}
