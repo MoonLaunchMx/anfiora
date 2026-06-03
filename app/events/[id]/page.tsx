@@ -516,6 +516,7 @@ export default function EventPage() {
   const waMenuRef = useRef<HTMLDivElement>(null)
   const [showWaSheet, setShowWaSheet] = useState<Guest | null>(null)
   const waLongPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const waWindowRef = useRef<Window | null>(null)
 
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
@@ -877,8 +878,17 @@ export default function EventPage() {
       // App de escritorio (instancia unica): el protocolo whatsapp:// la abre sin pestanas de navegador
       window.location.href = 'whatsapp://send?phone=' + num + (encodedText ? '&text=' + encodedText : '')
     } else {
-      // WhatsApp Web: reusa una sola pestana (ventana nombrada)
-      window.open('https://web.whatsapp.com/send?phone=' + num + (encodedText ? '&text=' + encodedText : ''), 'anfiora_whatsapp')
+      // WhatsApp Web: reusa la misma pestana via referencia directa (el nombre de ventana
+      // no sirve porque WhatsApp Web lo borra al cargar). Si sigue abierta, la re-navega.
+      const url = 'https://web.whatsapp.com/send?phone=' + num + (encodedText ? '&text=' + encodedText : '')
+      try {
+        if (waWindowRef.current && !waWindowRef.current.closed) {
+          waWindowRef.current.location.href = url
+          waWindowRef.current.focus()
+          return
+        }
+      } catch {}
+      waWindowRef.current = window.open(url, 'anfiora_whatsapp')
     }
   }
 
