@@ -653,7 +653,7 @@ export default function Dashboard() {
             <button
               onClick={() => window.location.href = '/perfil'}
               title="Mi perfil"
-              className="flex items-center gap-2 rounded-full border border-[#e0e0e0] p-1 transition hover:border-[#48C9B0] sm:pr-3"
+              className="flex items-center gap-2 rounded-lg border border-[#e0e0e0] p-1 transition hover:border-[#48C9B0] sm:pr-3"
             >
               <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#f0fdfb] text-xs font-bold text-[#1a9e88]">
                 {(userEmail || '?').charAt(0).toUpperCase()}

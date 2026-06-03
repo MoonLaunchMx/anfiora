@@ -229,11 +229,11 @@ export default function PerfilPage() {
       {/* Header */}
       <header className="sticky top-0 z-10 border-b border-[#e8e8e8] bg-white">
         <div className="mx-auto flex h-14 max-w-3xl items-center justify-between px-4 sm:h-16 sm:px-6">
-          <button onClick={() => router.push('/dashboard')} className="shrink-0">
+          <button onClick={() => { window.location.href = '/dashboard' }} className="shrink-0">
             <Image src="/images/Logo-010526newest.svg" alt="Anfiora" width={110} height={45} priority className="object-contain" />
           </button>
           <button
-            onClick={() => router.back()}
+            onClick={() => { window.location.href = '/dashboard' }}
             className="flex items-center gap-1.5 text-xs text-[#888] transition hover:text-[#48C9B0]"
           >
             <ArrowLeft size={14} />
@@ -267,7 +267,7 @@ export default function PerfilPage() {
               <div className="relative shrink-0">
                 <button
                   onClick={() => setEditingRole(p => !p)}
-                  className="flex items-center gap-2 rounded-full border border-[#e0e0e0] bg-white px-3 py-1.5 text-xs font-semibold text-[#555] transition hover:border-[#48C9B0]"
+                  className="flex items-center gap-2 rounded-lg border border-[#e0e0e0] bg-white px-3 py-1.5 text-xs font-semibold text-[#555] transition hover:border-[#48C9B0]"
                 >
                   {currentRole && CurrentIcon ? (
                     <>
