@@ -32,7 +32,6 @@ type ReminderTask = {
   event_name?: string
 }
 
-const FEEDBACK_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSfESosGtmv8JPds_zhTw280121oV1h09WNIbAhW-IyCAFq8cw/viewform?usp=publish-editor'
 
 const ROLE_LABEL: Record<string, string> = {
   admin: 'Admin',
@@ -98,7 +97,6 @@ export default function Dashboard() {
   const [now, setNow]                   = useState(new Date())
   const [activeTab, setActiveTab]       = useState<Tab>('activos')
   const [openMenuId, setOpenMenuId]     = useState<string | null>(null)
-  const [showWelcome, setShowWelcome]   = useState(false)
   const [reminders, setReminders]       = useState<ReminderTask[]>([])
   const [showBellMenu, setShowBellMenu] = useState(false)
   const [showNewEvent, setShowNewEvent] = useState(false)
@@ -131,8 +129,7 @@ export default function Dashboard() {
       setShowOnboarding(true)
       return
     }
-    const welcomed = localStorage.getItem('gf_welcomed')
-    if (!welcomed) { setShowWelcome(true); localStorage.setItem('gf_welcomed', '1') }
+    if (!localStorage.getItem('gf_welcomed')) localStorage.setItem('gf_welcomed', '1')
   }
 
   const loadData = async () => {
@@ -536,46 +533,6 @@ export default function Dashboard() {
       <WhatsNewModal />
       <OnboardingModal open={showOnboarding} onCompleted={() => setShowOnboarding(false)} />
 
-      {showWelcome && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 px-4">
-          <div className="w-full max-w-md rounded-2xl bg-white p-7 shadow-2xl">
-            <div className="mb-5 flex items-center gap-3">
-              <span style={{ fontFamily: 'Georgia, serif' }} className="text-xl font-bold text-[#1D1E20]">
-                Anfi<span className="text-[#48C9B0]">ora</span>
-              </span>
-              <span className="rounded-full border border-[#48C9B0]/40 bg-[#f0fdfb] px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#48C9B0]">Beta</span>
-            </div>
-            <h2 className="mb-2 text-lg font-bold text-[#1D1E20]">Bienvenido a Anfiora</h2>
-            <p className="mb-4 text-sm leading-relaxed text-[#666]">
-              Gracias por ser parte de esta version beta. Anfiora te ayuda a gestionar listas de invitados y automatizar comunicacion por WhatsApp para tus eventos.
-            </p>
-            <div className="mb-5 flex flex-col gap-2 rounded-xl bg-[#f8f8f8] p-4">
-              {[
-                'Crea eventos y agrega invitados facilmente',
-                'Envia mensajes de WhatsApp con plantillas personalizadas',
-                'Rastrea confirmaciones, pendientes y declinados en tiempo real',
-                'Importa listas desde CSV con un clic',
-              ].map((text, i) => (
-                <div key={i} className="flex items-start gap-2.5">
-                  <div className="mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[#48C9B0]" />
-                  <p className="text-xs leading-relaxed text-[#555]">{text}</p>
-                </div>
-              ))}
-            </div>
-            <p className="mb-5 text-xs leading-relaxed text-[#888]">Estas usando una version beta. Tu feedback es muy valioso para mejorar la app.</p>
-            <div className="flex flex-col gap-2.5">
-              <button onClick={() => window.open(FEEDBACK_URL, '_blank')}
-                className="w-full rounded-lg border border-[#48C9B0] bg-[#f0fdfb] py-2.5 text-sm font-semibold text-[#1a9e88] transition hover:bg-[#e0faf5]">
-                Dar feedback
-              </button>
-              <button onClick={() => setShowWelcome(false)}
-                className="w-full rounded-lg bg-[#1D1E20] py-2.5 text-sm font-semibold text-white transition hover:bg-[#2d2e30]">
-                Empezar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       <header className="shrink-0 border-b border-[#e8e8e8] bg-white">
         <div className="mx-auto flex h-14 max-w-4xl items-center justify-between px-4 sm:h-16 sm:px-6 lg:px-8">
