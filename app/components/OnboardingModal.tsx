@@ -33,7 +33,7 @@ export function OnboardingModal({ open, onCompleted }: OnboardingModalProps) {
     const { error: upErr } = await supabase
       .from('users').update({ role, event_focus: focus }).eq('id', user.id)
     if (upErr) {
-      setError('No pudimos guardar tu informacion. Intenta de nuevo.')
+      setError('No pudimos guardar tu información. Intenta de nuevo.')
       setLoading(false)
       return
     }
@@ -41,7 +41,7 @@ export function OnboardingModal({ open, onCompleted }: OnboardingModalProps) {
     onCompleted()
   }
 
-  const focusTitle = role === 'planner' ? '¿Que tipos de eventos manejas?' : '¿Que tipo de evento organizas?'
+  const focusTitle = role === 'planner' ? '¿Qué tipos de eventos manejas?' : '¿Qué tipo de evento organizas?'
 
   return (
     <AnimatePresence>
@@ -79,7 +79,7 @@ export function OnboardingModal({ open, onCompleted }: OnboardingModalProps) {
                       transition={{ duration: 0.18 }}
                     >
                       <h2 className="text-xl font-bold text-[#1D1E20]">Te damos la bienvenida</h2>
-                      <p className="mt-1.5 text-sm text-[#777]">Cuentanos quien eres para personalizar tu experiencia.</p>
+                      <p className="mt-1.5 text-sm text-[#777]">Cuéntanos quién eres para personalizar tu experiencia.</p>
 
                       <div className="mt-6 grid gap-4 sm:grid-cols-2">
                         {ROLES.map(r => {
@@ -112,7 +112,7 @@ export function OnboardingModal({ open, onCompleted }: OnboardingModalProps) {
                         onClick={() => { setStep(1); setError('') }}
                         className="mb-4 flex items-center gap-1.5 text-xs text-[#888] transition hover:text-[#1D1E20]"
                       >
-                        <ArrowLeft size={13} /> Atras
+                        <ArrowLeft size={13} /> Atrás
                       </button>
 
                       <h2 className="text-xl font-bold text-[#1D1E20]">{focusTitle}</h2>

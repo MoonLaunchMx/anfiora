@@ -1626,7 +1626,7 @@ export default function MesasPage() {
                         </div>
                       )})}
                       {avail>0&&<div className={`border-b border-[#f0f0f0] px-4 py-2 ${bg}`}><button onClick={()=>{setAssignModal({tableId:table.id,tableCapacity:table.capacity});setAssignSearch('')}} className="flex items-center gap-1.5 text-xs text-[#48C9B0] hover:underline"><Plus width={11} height={11}/>Asignar invitado ({avail} libre{avail!==1?'s':''})</button></div>}
-                      {over&&<div className={`border-b border-[#f0f0f0] px-4 py-2 ${bg}`}><span className="text-xs font-medium text-[#cc3333]">Sobrecupo: {occ} de {table.capacity} asientos ({occ-table.capacity} de mas)</span></div>}
+                      {over&&<div className={`border-b border-[#f0f0f0] px-4 py-2 ${bg}`}><span className="text-xs font-medium text-[#cc3333]">Sobrecupo: {occ} de {table.capacity} asientos ({occ-table.capacity} de más)</span></div>}
                     </>}
                   </div>
                 )

@@ -254,7 +254,7 @@ export default function TimelinePage() {
 
   const handleGeneratePlan = async () => {
     if (!eventInfo?.event_date || generating) return
-    if (tasks.length > 0 && !window.confirm('Se agregaran las tareas sugeridas que falten para tu tipo de evento (las que ya existan no se duplican). Continuar?')) return
+    if (tasks.length > 0 && !window.confirm('Se agregarán las tareas sugeridas que falten para tu tipo de evento (las que ya existan no se duplican). ¿Continuar?')) return
     setGenerating(true)
     const existing = new Set(tasks.map(t => t.title.toLowerCase()))
     const rows = buildTimelineTasks(eventId, eventInfo.event_type, eventInfo.event_category, eventInfo.event_date, existing)

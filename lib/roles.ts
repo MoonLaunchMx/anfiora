@@ -13,7 +13,7 @@ export interface RoleConfig {
 
 export const ROLES: RoleConfig[] = [
   { value: 'planner',   shortLabel: 'Planner',   label: 'Planner / Organizador profesional', description: 'Organizo eventos para mis clientes.', icon: Briefcase },
-  { value: 'anfitrion', shortLabel: 'Anfitrion', label: 'Anfitrion', description: 'Organizo mi propio evento (boda, XV, fiesta...).', icon: PartyPopper },
+  { value: 'anfitrion', shortLabel: 'Anfitrión', label: 'Anfitrión', description: 'Organizo mi propio evento (boda, XV, fiesta...).', icon: PartyPopper },
 ]
 
 export function getRole(value: string | null | undefined): RoleConfig | undefined {

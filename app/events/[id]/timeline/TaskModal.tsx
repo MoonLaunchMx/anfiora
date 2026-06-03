@@ -361,7 +361,7 @@ export function TaskModal({ editTask, prefillDate, eventId, onClose, onSaved }: 
             className="flex items-center gap-1.5 self-end text-xs font-medium text-[#888] hover:text-[#48C9B0] transition-colors"
           >
             <ChevronDown size={13} className={'transition-transform ' + (showAdvanced ? 'rotate-180' : '')} />
-            Configuracion avanzada
+            Configuración avanzada
           </button>
 
           <AnimatePresence initial={false}>
