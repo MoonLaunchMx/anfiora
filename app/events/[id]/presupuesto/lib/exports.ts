@@ -20,9 +20,8 @@ type ExportData = {
 }
 
 function buildFileName(eventName: string, ext: string): string {
-  const safe = eventName.replace(/[^a-z0-9]/gi, '_').toLowerCase()
-  const date = new Date().toISOString().split('T')[0]
-  return `presupuesto_${safe}_${date}.${ext}`
+  const clean = eventName.replace(/[\\/:*?"<>|]/g, '').trim()
+  return `Presupuesto Anfiora ${clean}.${ext}`
 }
 
 function loadImage(src: string): Promise<{ dataUrl: string; w: number; h: number } | null> {
@@ -106,33 +105,37 @@ export function exportToExcel(data: ExportData) {
 // ============================================
 export async function exportToPDF(data: ExportData) {
   const doc = new jsPDF()
+  const pageW = doc.internal.pageSize.getWidth()
 
+  let logoBottom = 14
   const logo = await loadImage('/images/logo.png')
-  let cursorY = 18
   if (logo) {
-    const h = 9
-    const w = h * (logo.w / logo.h)
-    doc.addImage(logo.dataUrl, 'PNG', 14, 10, w, h)
-    cursorY = 26
+    const lw = 40
+    const lh = (logo.h / logo.w) * lw
+    doc.addImage(logo.dataUrl, 'PNG', pageW - 14 - lw, 14, lw, lh)
+    logoBottom = 14 + lh
   }
 
+  const titleY = logo ? (14 + logoBottom) / 2 + 2 : 20
   doc.setFontSize(16)
   doc.setTextColor(29, 30, 32)
-  doc.text('Presupuesto', 14, cursorY)
+  doc.text('Presupuesto', 14, titleY)
 
   doc.setFontSize(11)
   doc.setTextColor(100)
-  doc.text(data.hosts ? `${data.eventName} — ${data.hosts}` : data.eventName, 14, cursorY + 7)
+  doc.text(data.hosts ? `${data.eventName} — ${data.hosts}` : data.eventName, 14, titleY + 7)
 
+  let textBottom = titleY + 7
   const meta: string[] = []
   if (data.eventDate) meta.push(data.eventDate)
   if (data.venue) meta.push(data.venue)
-  let startY = cursorY + 13
   if (meta.length > 0) {
     doc.setFontSize(9)
-    doc.text(meta.join('   ·   '), 14, cursorY + 13)
-    startY = cursorY + 19
+    doc.text(meta.join('   ·   '), 14, titleY + 13)
+    textBottom = titleY + 13
   }
+
+  const startY = Math.max(textBottom, logoBottom) + 6
 
   const tableRows: any[] = []
   const categories = Object.keys(data.itemsByCategory) as BudgetCategory[]
