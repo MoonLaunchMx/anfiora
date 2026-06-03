@@ -462,6 +462,7 @@ export default function EventPage() {
   const [event, setEvent] = useState<Event | null>(null)
   const [eventSettings, setEventSettings] = useState<EventSettings | null>(null)
   const [plannerName, setPlannerName] = useState('')
+  const [waTarget, setWaTarget] = useState<'web' | 'app'>('web')
   const [guests, setGuests] = useState<Guest[]>([])
   const [groupPool, setGroupPool] = useState<string[]>([])
   const [allergyPool, setAllergyPool] = useState<string[]>([])
@@ -538,7 +539,10 @@ export default function EventPage() {
       }
     }
     init()
+    try { const v = localStorage.getItem('anfiora_wa_target'); if (v === 'app' || v === 'web') setWaTarget(v) } catch {}
   }, [])
+
+  const setWaTargetPref = (t: 'web' | 'app') => { setWaTarget(t); try { localStorage.setItem('anfiora_wa_target', t) } catch {} }
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search), 180)
@@ -867,7 +871,15 @@ export default function EventPage() {
     const isMobile = typeof navigator !== 'undefined' && /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)
     if (isMobile) {
       window.open('https://wa.me/' + num + (encodedText ? '?text=' + encodedText : ''), '_blank')
+      return
+    }
+    if (waTarget === 'app') {
+      // App de escritorio (instancia unica): reusa la app ya abierta, sin pestanas
+      const link = document.createElement('a')
+      link.href = 'whatsapp://send?phone=' + num + (encodedText ? '&text=' + encodedText : '')
+      document.body.appendChild(link); link.click(); link.remove()
     } else {
+      // WhatsApp Web: reusa una sola pestana (ventana nombrada)
       window.open('https://web.whatsapp.com/send?phone=' + num + (encodedText ? '&text=' + encodedText : ''), 'anfiora_whatsapp')
     }
   }
@@ -1470,16 +1482,25 @@ export default function EventPage() {
                                   <svg width="15" height="15" viewBox="0 0 24 24" fill="#25D366">{WA_ICON}</svg>
                                 </button>
                                 {showWaMenu === guest.id && (
-                                  <div ref={waMenuRef} className="absolute left-0 top-full z-50 mt-1 max-h-80 min-w-[220px] overflow-y-auto rounded-xl border border-[#e8e8e8] bg-white p-1 shadow-lg">
-                                    {activeTemplates.length === 0 ? (
-                                      <p className="px-3 py-2.5 text-xs text-[#aaa]">No hay plantillas — ve a Configuración</p>
-                                    ) : activeTemplates.map((template: string, ti: number) => (
-                                      <button key={ti} onClick={() => { openWhatsApp(guest.phone!, buildWaText(guest, ti)); setShowWaMenu(null) }}
-                                        className="w-full rounded-lg px-3 py-2 text-left text-xs leading-snug text-[#1D1E20] hover:bg-[#f0fdfb]">
-                                        <span className="mb-0.5 block text-[10px] font-semibold text-[#48C9B0]">{templateNames?.[ti] || 'Plantilla ' + (ti + 1)}</span>
-                                        {template.length > 60 ? template.substring(0, 60) + '...' : template}
-                                      </button>
-                                    ))}
+                                  <div ref={waMenuRef} className="absolute left-0 top-full z-50 mt-1 min-w-[240px] rounded-xl border border-[#e8e8e8] bg-white p-1 shadow-lg">
+                                    <div className="mb-1 flex items-center gap-1 border-b border-[#f0f0f0] px-1.5 pb-1.5 pt-0.5">
+                                      <span className="mr-auto text-[10px] font-medium uppercase tracking-wide text-[#aaa]">Abrir en</span>
+                                      <button onClick={e => { e.stopPropagation(); setWaTargetPref('app') }}
+                                        className={'rounded-md px-2 py-0.5 text-[10px] font-semibold transition ' + (waTarget === 'app' ? 'bg-[#f0fdfb] text-[#1a9e88]' : 'text-[#999] hover:text-[#1D1E20]')}>App</button>
+                                      <button onClick={e => { e.stopPropagation(); setWaTargetPref('web') }}
+                                        className={'rounded-md px-2 py-0.5 text-[10px] font-semibold transition ' + (waTarget === 'web' ? 'bg-[#f0fdfb] text-[#1a9e88]' : 'text-[#999] hover:text-[#1D1E20]')}>Web</button>
+                                    </div>
+                                    <div className="max-h-72 overflow-y-auto">
+                                      {activeTemplates.length === 0 ? (
+                                        <p className="px-3 py-2.5 text-xs text-[#aaa]">No hay plantillas — ve a Configuración</p>
+                                      ) : activeTemplates.map((template: string, ti: number) => (
+                                        <button key={ti} onClick={() => { openWhatsApp(guest.phone!, buildWaText(guest, ti)); setShowWaMenu(null) }}
+                                          className="w-full rounded-lg px-3 py-2 text-left text-xs leading-snug text-[#1D1E20] hover:bg-[#f0fdfb]">
+                                          <span className="mb-0.5 block text-[10px] font-semibold text-[#48C9B0]">{templateNames?.[ti] || 'Plantilla ' + (ti + 1)}</span>
+                                          {template.length > 60 ? template.substring(0, 60) + '...' : template}
+                                        </button>
+                                      ))}
+                                    </div>
                                   </div>
                                 )}
                               </div>
