@@ -1,7 +1,7 @@
 'use client'
 
 import {
-  Currency, formatCurrency, BUDGET_CATEGORY_LABELS,
+  Currency, formatCurrency, BUDGET_CATEGORY_LABELS, budgetCategoryLabel,
   EventSupplier, Supplier, EventBudget,
   SUPPLIER_STATUS_LABELS, SUPPLIER_STATUS_COLORS,
 } from '@/lib/types'
@@ -47,7 +47,7 @@ export default function SupplierListView({ items, budgets, currency, onSelect }:
                 <td className="px-4 py-3 text-[#888]">{BUDGET_CATEGORY_LABELS[s.category]}</td>
                 <td className="px-4 py-3 text-[#888]">
                   {linkedBudget
-                    ? linkedBudget.subcategory || BUDGET_CATEGORY_LABELS[linkedBudget.category]
+                    ? linkedBudget.subcategory || budgetCategoryLabel(linkedBudget.category)
                     : <span className="text-[#ccc]">—</span>}
                 </td>
                 <td className="px-4 py-3">

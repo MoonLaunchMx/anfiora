@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { X } from 'lucide-react'
 import {
-  BudgetCategory, BUDGET_CATEGORIES, BUDGET_CATEGORY_LABELS,
+  BudgetCategory, BUDGET_CATEGORIES, BUDGET_CATEGORY_LABELS, budgetCategoryLabel,
   EventBudget, Currency, formatCurrency,
 } from '@/lib/types'
 import { FiInstagram, FiGlobe, FiFacebook } from 'react-icons/fi'
@@ -152,7 +152,7 @@ export default function SupplierModal({ isOpen, onClose, currency, budgets, onSu
                     <option value="">Sin concepto</option>
                     {budgetsForCategory.map(b => (
                       <option key={b.id} value={b.id}>
-                        {b.subcategory || BUDGET_CATEGORY_LABELS[b.category]}
+                        {b.subcategory || budgetCategoryLabel(b.category)}
                         {b.budget_amount ? ` — ${formatCurrency(b.budget_amount, currency)}` : ''}
                       </option>
                     ))}

@@ -3,10 +3,10 @@
 import { useState } from 'react'
 import { ChevronDown, ChevronRight, Plus, AlertTriangle } from 'lucide-react'
 import {
-  BudgetCategory, BUDGET_CATEGORY_LABELS,
   EventBudget, EventSupplier, Supplier,
   Currency, formatCurrency,
 } from '@/lib/types'
+import { categoryLabel } from './lib/categories'
 import BudgetItemRow from './BudgetItemRow'
 import HealthBar from '@/app/components/ui/HealthBar'
 
@@ -15,14 +15,14 @@ type EventSupplierWithName = EventSupplier & {
 }
 
 type Props = {
-  category: BudgetCategory
+  category: string
   items: EventBudget[]
   currency: Currency
   contractedByItem: Record<string, number>
   paidByItem: Record<string, number>
   eventSuppliersById: Record<string, EventSupplierWithName>
   availableSuppliersForCategory: EventSupplierWithName[]
-  onOpenAddModal: (category: BudgetCategory) => void
+  onOpenAddModal: (category: string) => void
   onUpdateItem: (id: string, updates: { subcategory?: string; budget_amount?: number; event_supplier_id?: string | null }) => void
   onDeleteItem: (id: string) => void
   onOpenSupplier: (supplier: EventSupplierWithName) => void
@@ -52,7 +52,7 @@ export default function BudgetCategoryRow({
           : <ChevronRight size={16} className="shrink-0 text-[#888]" />
         }
         <h3 className="flex-1 text-sm font-semibold text-[#1D1E20] flex items-center gap-1.5">
-          {BUDGET_CATEGORY_LABELS[category]}
+          {categoryLabel(category)}
           {isOverBudget && (
             <span title="El total contratado supera el presupuesto de la categoría">
               <AlertTriangle size={13} className="shrink-0 text-amber-500" />

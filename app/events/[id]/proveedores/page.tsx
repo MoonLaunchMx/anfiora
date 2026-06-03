@@ -6,7 +6,7 @@ import { Search, Plus, LayoutGrid, List, Columns3 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import {
   Event, EventBudget, EventSupplier, Supplier, BudgetCategory,
-  BUDGET_CATEGORIES, BUDGET_CATEGORY_LABELS,
+  BUDGET_CATEGORIES, BUDGET_CATEGORY_LABELS, budgetCategoryLabel,
   SUPPLIER_STATUSES, SUPPLIER_STATUS_LABELS, SupplierStatus, Currency, formatCurrency,
 } from '@/lib/types'
 import StatsCollapse, { useStatsToggle, StatsToggleButton } from '@/app/components/ui/StatsCollapse'
@@ -383,7 +383,7 @@ function CardsView({ items, budgets, currency, groupBy, onSelect }: {
     if (groupBy === 'estatus')   key = SUPPLIER_STATUS_LABELS[item.status] || item.status
     if (groupBy === 'partida') {
       const budget = budgets.find(b => b.id === item.event_budget_id)
-      key = budget ? (budget.subcategory || BUDGET_CATEGORY_LABELS[budget.category]) : 'Sin concepto'
+      key = budget ? (budget.subcategory || budgetCategoryLabel(budget.category)) : 'Sin concepto'
     }
     if (!seen.has(key)) seen.set(key, [])
     seen.get(key)!.push(item)
