@@ -3,9 +3,10 @@
 import { useState, useEffect } from 'react'
 import { X } from 'lucide-react'
 import {
-  BudgetCategory, BUDGET_CATEGORIES, BUDGET_CATEGORY_LABELS, SUBCATEGORIES_BY_CATEGORY,
-  Currency, formatCurrency, EventSupplier, Supplier, SUPPLIER_STATUS_LABELS,
+  SUBCATEGORIES_BY_CATEGORY, BudgetCategory,
+  Currency, formatCurrency, EventSupplier, Supplier,
 } from '@/lib/types'
+import { categoryLabel } from './lib/categories'
 
 type EventSupplierWithName = EventSupplier & {
   supplier: Pick<Supplier, 'id' | 'name'>
@@ -15,10 +16,11 @@ type Props = {
   isOpen: boolean
   onClose: () => void
   currency: Currency
-  initialCategory?: BudgetCategory | null
+  categories: string[]
+  initialCategory?: string | null
   eventSuppliers: EventSupplierWithName[]
   onSubmit: (data: {
-    category: BudgetCategory
+    category: string
     subcategory: string
     budget_amount: number
     event_supplier_id: string | null
@@ -27,9 +29,9 @@ type Props = {
 }
 
 export default function BudgetItemModal({
-  isOpen, onClose, currency, initialCategory, eventSuppliers, onSubmit,
+  isOpen, onClose, currency, categories, initialCategory, eventSuppliers, onSubmit,
 }: Props) {
-  const [category, setCategory]       = useState<BudgetCategory>('Venue')
+  const [category, setCategory]       = useState<string>('Venue')
   const [subcategory, setSubcategory] = useState('')
   const [amount, setAmount]           = useState('')
   const [supplierId, setSupplierId]   = useState('')
@@ -38,18 +40,18 @@ export default function BudgetItemModal({
 
   useEffect(() => {
     if (isOpen) {
-      setCategory(initialCategory || 'Venue')
+      setCategory(initialCategory || (categories[0] ?? 'Venue'))
       setSubcategory('')
       setAmount('')
       setSupplierId('')
       setNotes('')
       setSubmitting(false)
     }
-  }, [isOpen, initialCategory])
+  }, [isOpen, initialCategory, categories])
 
   if (!isOpen) return null
 
-  const suggestions = SUBCATEGORIES_BY_CATEGORY[category] || []
+  const suggestions = SUBCATEGORIES_BY_CATEGORY[category as BudgetCategory] || []
 
   // Solo proveedores con status 'contratado' — son los unicos con contract_amount real y pagos
   const contratados = eventSuppliers.filter(es =>
@@ -64,7 +66,7 @@ export default function BudgetItemModal({
     setSubmitting(true)
     try {
       await onSubmit({
-        category,
+        category:          category,
         subcategory:       subcategory.trim(),
         budget_amount:     parseFloat(amount) || 0,
         event_supplier_id: supplierId || null,
@@ -108,11 +110,11 @@ export default function BudgetItemModal({
                 </label>
                 <select
                   value={category}
-                  onChange={e => { setCategory(e.target.value as BudgetCategory); setSubcategory('') }}
+                  onChange={e => { setCategory(e.target.value); setSubcategory('') }}
                   className="w-full rounded-lg border border-[#e0e0e0] bg-white px-3 py-2 text-sm text-[#1D1E20] outline-none transition focus:border-[#48C9B0]"
                 >
-                  {BUDGET_CATEGORIES.map(cat => (
-                    <option key={cat} value={cat}>{BUDGET_CATEGORY_LABELS[cat]}</option>
+                  {categories.map(cat => (
+                    <option key={cat} value={cat}>{categoryLabel(cat)}</option>
                   ))}
                 </select>
               </div>

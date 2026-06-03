@@ -2,7 +2,7 @@
 
 import { Mail, Globe } from 'lucide-react'
 import {
-  Currency, formatCurrency, BUDGET_CATEGORY_LABELS,
+  Currency, formatCurrency, BUDGET_CATEGORY_LABELS, budgetCategoryLabel,
   EventSupplier, Supplier, EventBudget,
   SUPPLIER_STATUS_LABELS, SUPPLIER_STATUS_COLORS,
 } from '@/lib/types'
@@ -68,7 +68,7 @@ export default function SupplierCard({ item, budgets, currency, onClick }: Props
       {/* Subcategoría / partida */}
       {linkedBudget ? (
         <p className="mb-3 text-xs text-[#888]">
-          {linkedBudget.subcategory || BUDGET_CATEGORY_LABELS[linkedBudget.category]}
+          {linkedBudget.subcategory || budgetCategoryLabel(linkedBudget.category)}
         </p>
       ) : s.subcategory ? (
         <p className="mb-3 text-xs text-[#888]">{s.subcategory}</p>

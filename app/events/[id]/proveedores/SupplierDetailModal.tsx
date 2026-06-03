@@ -11,7 +11,7 @@ import { FiInstagram, FiGlobe, FiMail, FiFacebook } from 'react-icons/fi'
 import { supabase } from '@/lib/supabase'
 import {
   EventSupplier, Supplier, SupplierPayment, EventBudget, Currency, formatCurrency,
-  BUDGET_CATEGORIES, BUDGET_CATEGORY_LABELS, BudgetCategory,
+  BUDGET_CATEGORIES, BUDGET_CATEGORY_LABELS, BudgetCategory, budgetCategoryLabel,
   SupplierStatus, SUPPLIER_STATUSES, SUPPLIER_STATUS_LABELS,
   PAYMENT_METHODS, PAYMENT_METHOD_LABELS, PaymentMethod,
   PAID_BY_OPTIONS, PAID_BY_LABELS, PaidBy,
@@ -354,7 +354,7 @@ export default function SupplierDetailModal({
                           <option value="">Sin concepto</option>
                           {budgetsForCategory.map(b => (
                             <option key={b.id} value={b.id}>
-                              {b.subcategory || BUDGET_CATEGORY_LABELS[b.category]} — {formatCurrency(b.budget_amount, currency)}
+                              {b.subcategory || budgetCategoryLabel(b.category)} — {formatCurrency(b.budget_amount, currency)}
                             </option>
                           ))}
                         </select>
@@ -429,7 +429,7 @@ export default function SupplierDetailModal({
                       <Wallet size={16} className="text-[#48C9B0]" />
                     </div>
                     <div>
-                      <div className="text-xs text-[#888]">{linkedBudget.subcategory || BUDGET_CATEGORY_LABELS[linkedBudget.category as BudgetCategory]}</div>
+                      <div className="text-xs text-[#888]">{linkedBudget.subcategory || budgetCategoryLabel(linkedBudget.category)}</div>
                       <div className="text-sm font-semibold text-[#1D1E20]">Meta: {formatCurrency(linkedBudget.budget_amount, currency)}</div>
                     </div>
                   </div>

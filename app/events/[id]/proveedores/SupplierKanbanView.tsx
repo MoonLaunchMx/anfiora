@@ -7,7 +7,7 @@ import {
 } from '@dnd-kit/core'
 import { Frown, Meh, Smile } from 'lucide-react'
 import {
-  Currency, formatCurrency, BUDGET_CATEGORY_LABELS,
+  Currency, formatCurrency, BUDGET_CATEGORY_LABELS, budgetCategoryLabel,
   EventSupplier, Supplier, EventBudget, SupplierStatus,
   SUPPLIER_STATUSES, SUPPLIER_STATUS_LABELS, SUPPLIER_STATUS_COLORS,
   SUPPLIER_MOOD_COLORS,
@@ -231,7 +231,7 @@ function KanbanCard({
       {/* Concepto */}
       {linkedBudget && (
         <p className="mt-0.5 text-[10px] text-[#aaa]">
-          {linkedBudget.subcategory || BUDGET_CATEGORY_LABELS[linkedBudget.category]}
+          {linkedBudget.subcategory || budgetCategoryLabel(linkedBudget.category)}
         </p>
       )}
  

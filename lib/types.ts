@@ -293,12 +293,16 @@ export const BUDGET_CATEGORY_LABELS: Record<BudgetCategory, string> = {
   'Otro':            'Otro',
 }
 
+export function budgetCategoryLabel(name: string): string {
+  return (BUDGET_CATEGORY_LABELS as Record<string, string>)[name] ?? name
+}
+
 // ─── FINANZAS — EVENT BUDGETS ────────────────────────────────────────────────
 
 export type EventBudget = {
   id: string
   event_id: string
-  category: BudgetCategory
+  category: string
   subcategory: string
   budget_amount: number
   event_supplier_id: string | null

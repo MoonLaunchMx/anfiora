@@ -2,13 +2,15 @@
 
 import { useEffect, useState, useRef } from 'react'
 import { useParams } from 'next/navigation'
-import { Search, FileSpreadsheet, FileText, Plus, Upload, X, AlertTriangle, Check, ChevronDown, Sparkles } from 'lucide-react'
+import { Search, FileSpreadsheet, FileText, Plus, Upload, X, AlertTriangle, Check, ChevronDown, Sparkles, SlidersHorizontal } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { supabase } from '@/lib/supabase'
 import {
   Event, EventBudget, BudgetCategory, BUDGET_CATEGORIES, BUDGET_CATEGORY_LABELS,
   Currency, EventSupplier, Supplier,
 } from '@/lib/types'
+import { getEventCategories, categoryLabel } from './lib/categories'
+import { BudgetCategoriesModal } from './BudgetCategoriesModal'
 import BudgetMetricsCards from '@/app/components/ui/BudgetMetricsCards'
 import StatsCollapse, { useStatsToggle, StatsToggleButton } from '@/app/components/ui/StatsCollapse'
 import BudgetCategoryRow from './BudgetCategoryRow'
@@ -52,7 +54,7 @@ export default function PresupuestoPage() {
   const [showExportMenu, setShowExportMenu] = useState(false)
 
   const [modalOpen, setModalOpen]         = useState(false)
-  const [modalCategory, setModalCategory] = useState<BudgetCategory | null>(null)
+  const [modalCategory, setModalCategory] = useState<string | null>(null)
 
   const [importModalOpen, setImportModalOpen] = useState(false)
   const [importRows, setImportRows]           = useState<ImportRow[]>([])
@@ -63,6 +65,11 @@ export default function PresupuestoPage() {
 
   const [selectedSupplier, setSelectedSupplier] = useState<EventSupplierWithName | null>(null)
   const [reviewSupplier, setReviewSupplier]     = useState<EventSupplierWithName | null>(null)
+
+  const [storedCategories, setStoredCategories]   = useState<string[] | null>(null)
+  const [showCategoriesModal, setShowCategoriesModal] = useState(false)
+  const [addingCategory, setAddingCategory]       = useState(false)
+  const [newCategoryName, setNewCategoryName]     = useState('')
 
   const statsToggle = useStatsToggle(eventId, 'presupuesto')
 
@@ -106,6 +113,10 @@ export default function PresupuestoPage() {
       }
 
       setBudgets((budgetsRes.data || []) as EventBudget[])
+
+      const { data: settingsRow } = await supabase
+        .from('event_settings').select('budget_categories').eq('event_id', eventId).single()
+      setStoredCategories((settingsRow?.budget_categories as string[] | null) ?? null)
     } catch (err: any) {
       console.error('Error cargando presupuesto:', err?.message ?? err, err)
     } finally {
@@ -121,8 +132,10 @@ export default function PresupuestoPage() {
   const eventSuppliersById: Record<string, EventSupplierWithName> = {}
   eventSuppliers.forEach(es => { eventSuppliersById[es.id] = es })
 
+  const categories = getEventCategories(storedCategories, event?.event_type ?? null, event?.event_category ?? null, budgets)
+
   const availableSuppliersByCategory: Record<string, EventSupplierWithName[]> = {}
-  BUDGET_CATEGORIES.forEach(cat => { availableSuppliersByCategory[cat] = [] })
+  categories.forEach(cat => { availableSuppliersByCategory[cat] = [] })
   eventSuppliers.forEach(es => {
     if (!es.supplier) return
     if (es.status !== 'contratado') return
@@ -148,21 +161,19 @@ export default function PresupuestoPage() {
   const filteredBudgets = search.trim()
     ? budgets.filter(b => {
         const q = search.toLowerCase()
-        return b.subcategory.toLowerCase().includes(q) || BUDGET_CATEGORY_LABELS[b.category].toLowerCase().includes(q)
+        return b.subcategory.toLowerCase().includes(q) || categoryLabel(b.category).toLowerCase().includes(q)
       })
     : budgets
 
-  const itemsByCategory: Record<BudgetCategory, EventBudget[]> = {} as any
-  BUDGET_CATEGORIES.forEach(cat => { itemsByCategory[cat] = [] })
-  filteredBudgets.forEach(b => {
-    if (itemsByCategory[b.category]) itemsByCategory[b.category].push(b)
-  })
+  const itemsByCategory: Record<string, EventBudget[]> = {}
+  categories.forEach(cat => { itemsByCategory[cat] = [] })
+  filteredBudgets.forEach(b => { (itemsByCategory[b.category] ||= []).push(b) })
 
   const totalBudget     = budgets.reduce((sum, b) => sum + b.budget_amount, 0)
   const totalContracted = budgets.reduce((sum, b) => sum + (contractedByItem[b.id] || 0), 0)
   const totalPaid       = budgets.reduce((sum, b) => sum + (paidByItem[b.id] || 0), 0)
 
-  const openAddModalForCategory = (category: BudgetCategory) => {
+  const openAddModalForCategory = (category: string) => {
     setModalCategory(category)
     setModalOpen(true)
   }
@@ -288,7 +299,7 @@ export default function PresupuestoPage() {
   }
 
   const handleModalSubmit = async (data: {
-    category: BudgetCategory
+    category: string
     subcategory: string
     budget_amount: number
     event_supplier_id: string | null
@@ -335,6 +346,43 @@ export default function PresupuestoPage() {
     if (error) { console.error('Error borrando concepto:', error?.message ?? error, error); loadAll() }
   }
 
+  const persistCategories = async (next: string[]) => {
+    setStoredCategories(next)
+    await supabase.from('event_settings').update({ budget_categories: next }).eq('event_id', eventId)
+  }
+
+  const addCategory = async (raw: string) => {
+    const name = raw.trim()
+    if (!name) return
+    if (categories.some(c => c.toLowerCase() === name.toLowerCase())) return
+    await persistCategories([...categories, name])
+    setNewCategoryName(''); setAddingCategory(false)
+  }
+
+  const renameCategory = async (oldName: string, raw: string) => {
+    const name = raw.trim()
+    if (!name || name === oldName) return
+    await persistCategories(categories.map(c => c === oldName ? name : c))
+    await supabase.from('event_budgets').update({ category: name }).eq('event_id', eventId).eq('category', oldName)
+    loadAll()
+  }
+
+  const deleteCategory = async (name: string) => {
+    const count = (itemsByCategory[name] || []).length
+    if (count > 0) {
+      if (!confirm(`"${categoryLabel(name)}" tiene ${count} concepto(s). Se moveran a "Otro". Continuar?`)) return
+      const next = categories.filter(c => c !== name)
+      if (!next.includes('Otro')) next.push('Otro')
+      await persistCategories(next)
+      await supabase.from('event_budgets').update({ category: 'Otro' }).eq('event_id', eventId).eq('category', name)
+      loadAll()
+    } else {
+      await persistCategories(categories.filter(c => c !== name))
+    }
+  }
+
+  const reorderCategories = (next: string[]) => persistCategories(next)
+
   const handleExport = async (format: 'excel' | 'pdf') => {
     if (!event) return
     const hosts = [event.host_name, event.host_name_2].filter(Boolean).join(' & ') || null
@@ -358,6 +406,10 @@ export default function PresupuestoPage() {
     const existing = new Set(budgets.map(b => `${b.category}|${b.subcategory}`.toLowerCase()))
     const rows = buildBudgetItems(eventId, event?.event_type ?? null, event?.event_category ?? null, tier, existing)
     if (rows.length > 0) await supabase.from('event_budgets').insert(rows)
+    const genCats = Array.from(new Set(rows.map(r => r.category as string)))
+    const merged = [...categories]
+    genCats.forEach(c => { if (!merged.some(x => x.toLowerCase() === c.toLowerCase())) merged.push(c) })
+    if (merged.length !== categories.length) await persistCategories(merged)
     setShowTierModal(false)
     await loadAll()
     setGenerating(false)
@@ -459,6 +511,11 @@ export default function PresupuestoPage() {
             )}
           </div>
 
+          <button onClick={() => setShowCategoriesModal(true)}
+            className="flex items-center gap-1.5 rounded-lg border border-[#e0e0e0] bg-white px-3 py-1.5 text-xs font-medium text-[#555] transition hover:border-[#48C9B0] hover:text-[#48C9B0]">
+            <SlidersHorizontal size={14} /><span className="hidden sm:inline">Categorías</span>
+          </button>
+
           <button
             onClick={handleGenerateClick}
             disabled={generating}
@@ -501,8 +558,8 @@ export default function PresupuestoPage() {
         )}
 
         <div className="space-y-3">
-          {BUDGET_CATEGORIES.map(category => {
-            const items = itemsByCategory[category]
+          {categories.map(category => {
+            const items = itemsByCategory[category] || []
             if (search.trim() && items.length === 0) return null
             return (
               <BudgetCategoryRow
@@ -521,6 +578,20 @@ export default function PresupuestoPage() {
               />
             )
           })}
+
+          {!search.trim() && (addingCategory ? (
+            <div className="flex items-center gap-2 px-1 py-2">
+              <input autoFocus value={newCategoryName} onChange={e => setNewCategoryName(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') addCategory(newCategoryName); if (e.key === 'Escape') { setAddingCategory(false); setNewCategoryName('') } }}
+                placeholder="Nombre de la categoría" className="flex-1 rounded-lg border border-[#e0e0e0] bg-white px-3 py-2 text-sm outline-none focus:border-[#48C9B0]" />
+              <button onClick={() => addCategory(newCategoryName)} className="rounded-lg bg-[#48C9B0] px-3 py-2 text-xs font-semibold text-white hover:bg-[#3ab89f]">Agregar</button>
+              <button onClick={() => { setAddingCategory(false); setNewCategoryName('') }} className="text-xs text-[#888] hover:text-[#1D1E20]">Cancelar</button>
+            </div>
+          ) : (
+            <button onClick={() => setAddingCategory(true)} className="flex items-center gap-1.5 px-1 py-2 text-sm text-[#888] hover:text-[#48C9B0]">
+              <Plus size={14} /> Agregar categoría
+            </button>
+          ))}
         </div>
       </div>
 
@@ -552,11 +623,24 @@ export default function PresupuestoPage() {
         </div>
       )}
 
+      {showCategoriesModal && (
+        <BudgetCategoriesModal
+          categories={categories}
+          itemCountByCategory={Object.fromEntries(categories.map(c => [c, (itemsByCategory[c] || []).length]))}
+          onAdd={addCategory}
+          onRename={renameCategory}
+          onDelete={deleteCategory}
+          onReorder={reorderCategories}
+          onClose={() => setShowCategoriesModal(false)}
+        />
+      )}
+
       {/* ── MODAL DE CONCEPTO ── */}
       <BudgetItemModal
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
         currency={currency}
+        categories={categories}
         initialCategory={modalCategory}
         eventSuppliers={eventSuppliers}
         onSubmit={handleModalSubmit}
@@ -639,7 +723,7 @@ export default function PresupuestoPage() {
                           )}
                         </div>
                         <span className="w-28 shrink-0 text-[#888]">
-                          {BUDGET_CATEGORY_LABELS[row.category]}
+                          {categoryLabel(row.category)}
                         </span>
                         <span className="flex-1 font-medium text-[#1D1E20]">{row.subcategory}</span>
                         <span className="shrink-0 tabular-nums text-[#888]">
