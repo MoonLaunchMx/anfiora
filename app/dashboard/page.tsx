@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase'
 import { Event, EventStatus } from '@/lib/types'
 import { Bell } from 'lucide-react'
 import { WhatsNewModal } from '@/app/components/WhatsNewModal'
+import { NewEventModal } from '@/app/components/NewEventModal'
 
 export const dynamic = 'force-dynamic'
 
@@ -99,6 +100,7 @@ export default function Dashboard() {
   const [showWelcome, setShowWelcome]   = useState(false)
   const [reminders, setReminders]       = useState<ReminderTask[]>([])
   const [showBellMenu, setShowBellMenu] = useState(false)
+  const [showNewEvent, setShowNewEvent] = useState(false)
 
   useEffect(() => {
     const interval = setInterval(() => setNow(new Date()), 1000)
@@ -195,7 +197,7 @@ export default function Dashboard() {
         .in('event_id', allEventIds),
       myIds.length > 0
         ? supabase
-            .from('event_timeline_tasks')
+            .from('timeline_tasks')
             .select('id, event_id, title, category, reminder_date')
             .in('event_id', myIds)
             .not('reminder_date', 'is', null)
@@ -409,7 +411,7 @@ export default function Dashboard() {
   const totalReminders = reminders.length
 
   const markDone = async (id: string) => {
-    await supabase.from('event_timeline_tasks').update({ is_completed: true }).eq('id', id)
+    await supabase.from('timeline_tasks').update({ is_completed: true }).eq('id', id)
     const target = reminders.find(r => r.id === id)
     setReminders(prev => prev.filter(x => x.id !== id))
     if (target) {
@@ -422,7 +424,7 @@ export default function Dashboard() {
 
   const markAllDone = async () => {
     await supabase
-      .from('event_timeline_tasks')
+      .from('timeline_tasks')
       .update({ is_completed: true })
       .in('id', reminders.map(r => r.id))
     setReminders([])
@@ -523,10 +525,8 @@ export default function Dashboard() {
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-[#f8f8f8] font-sans text-[#1D1E20]">
 
-      {/* ── What's New Modal — aparece una vez por release a usuarios existentes ── */}
       <WhatsNewModal />
 
-      {/* MODAL BIENVENIDA */}
       {showWelcome && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 px-4">
           <div className="w-full max-w-md rounded-2xl bg-white p-7 shadow-2xl">
@@ -536,28 +536,28 @@ export default function Dashboard() {
               </span>
               <span className="rounded-full border border-[#48C9B0]/40 bg-[#f0fdfb] px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#48C9B0]">Beta</span>
             </div>
-            <h2 className="mb-2 text-lg font-bold text-[#1D1E20]">¡Bienvenido a Anfiora!</h2>
+            <h2 className="mb-2 text-lg font-bold text-[#1D1E20]">Bienvenido a Anfiora</h2>
             <p className="mb-4 text-sm leading-relaxed text-[#666]">
-              Gracias por ser parte de esta versión beta. Anfiora te ayuda a gestionar listas de invitados y automatizar comunicación por WhatsApp para tus eventos.
+              Gracias por ser parte de esta version beta. Anfiora te ayuda a gestionar listas de invitados y automatizar comunicacion por WhatsApp para tus eventos.
             </p>
             <div className="mb-5 flex flex-col gap-2 rounded-xl bg-[#f8f8f8] p-4">
               {[
-                { icon: '📋', text: 'Crea eventos y agrega invitados fácilmente' },
-                { icon: '💬', text: 'Envía mensajes de WhatsApp con plantillas personalizadas' },
-                { icon: '📊', text: 'Rastrea confirmaciones, pendientes y declinados en tiempo real' },
-                { icon: '📁', text: 'Importa listas desde CSV con un clic' },
-              ].map((item, i) => (
+                'Crea eventos y agrega invitados facilmente',
+                'Envia mensajes de WhatsApp con plantillas personalizadas',
+                'Rastrea confirmaciones, pendientes y declinados en tiempo real',
+                'Importa listas desde CSV con un clic',
+              ].map((text, i) => (
                 <div key={i} className="flex items-start gap-2.5">
-                  <span className="text-base">{item.icon}</span>
-                  <p className="text-xs leading-relaxed text-[#555]">{item.text}</p>
+                  <div className="mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[#48C9B0]" />
+                  <p className="text-xs leading-relaxed text-[#555]">{text}</p>
                 </div>
               ))}
             </div>
-            <p className="mb-5 text-xs leading-relaxed text-[#888]">Estás usando una versión beta. Tu feedback es muy valioso para mejorar la app.</p>
+            <p className="mb-5 text-xs leading-relaxed text-[#888]">Estas usando una version beta. Tu feedback es muy valioso para mejorar la app.</p>
             <div className="flex flex-col gap-2.5">
               <button onClick={() => window.open(FEEDBACK_URL, '_blank')}
                 className="w-full rounded-lg border border-[#48C9B0] bg-[#f0fdfb] py-2.5 text-sm font-semibold text-[#1a9e88] transition hover:bg-[#e0faf5]">
-                Dar feedback →
+                Dar feedback
               </button>
               <button onClick={() => setShowWelcome(false)}
                 className="w-full rounded-lg bg-[#1D1E20] py-2.5 text-sm font-semibold text-white transition hover:bg-[#2d2e30]">
@@ -568,7 +568,6 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Header */}
       <header className="shrink-0 border-b border-[#e8e8e8] bg-white">
         <div className="mx-auto flex h-14 max-w-4xl items-center justify-between px-4 sm:h-16 sm:px-6 lg:px-8">
           <button onClick={() => window.location.href = '/dashboard'} className="shrink-0">
@@ -594,7 +593,7 @@ export default function Dashboard() {
                     <p className="text-xs font-semibold text-[#1D1E20]">Recordatorios</p>
                     {reminders.length > 0 && (
                       <button onClick={markAllDone} className="text-[11px] text-[#aaa] transition hover:text-[#48C9B0]">
-                        Marcar todos ✓
+                        Marcar todos
                       </button>
                     )}
                   </div>
@@ -648,7 +647,6 @@ export default function Dashboard() {
         </div>
       </header>
 
-      {/* Zona fija */}
       <div className="shrink-0 bg-[#f8f8f8]">
         <div className="mx-auto max-w-4xl px-4 pt-3 sm:px-6 sm:pt-4 lg:px-8">
           <div className="mb-5 flex items-center justify-between sm:mb-6">
@@ -656,8 +654,10 @@ export default function Dashboard() {
               <h1 className="text-xl font-bold text-[#1D1E20] sm:text-2xl">Dashboard</h1>
               <p className="mt-0.5 text-xs text-[#888] sm:text-sm">Resumen de tus eventos</p>
             </div>
-            <button onClick={() => window.location.href = '/events/new'}
-              className="rounded-lg bg-[#48C9B0] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#3ab89f] active:scale-95 sm:px-5 sm:py-2.5">
+            <button
+              onClick={() => setShowNewEvent(true)}
+              className="rounded-lg bg-[#48C9B0] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#3ab89f] active:scale-95 sm:px-5 sm:py-2.5"
+            >
               <span className="sm:hidden">+ Nuevo</span>
               <span className="hidden sm:inline">+ Nuevo evento</span>
             </button>
@@ -670,7 +670,7 @@ export default function Dashboard() {
                 <div className="min-w-0 flex-1">
                   <div className="mb-1.5 flex flex-wrap items-center gap-2">
                     <span className="inline-block rounded-full bg-[#e8f7f3] px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#48C9B0]">
-                      Próximo evento
+                      Proximo evento
                     </span>
                     {nextEvent.is_shared && nextEvent.shared_role && (
                       <span className={'rounded px-1.5 py-0.5 text-[10px] font-semibold ' + (ROLE_STYLES[nextEvent.shared_role] || '')}>
@@ -710,7 +710,7 @@ export default function Dashboard() {
                 <div className="mt-3 border-t border-[#f0f0f0] pt-2">
                   {sameDay.map(e => (
                     <p key={e.id} className="text-xs text-[#aaa]">
-                      También tienes: <span className="font-semibold text-[#888]">{e.name}</span>
+                      Tambien tienes: <span className="font-semibold text-[#888]">{e.name}</span>
                       {e.event_time && ' a las ' + formatTime(e.event_time)}
                     </p>
                   ))}
@@ -744,7 +744,6 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Lista scrolleable */}
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto max-w-4xl px-4 pb-8 sm:px-6 lg:px-8">
           {loading ? (
@@ -753,9 +752,14 @@ export default function Dashboard() {
             </div>
           ) : (myEvents.length === 0 && sharedEvents.length === 0) ? (
             <div className="rounded-xl border border-dashed border-[#e0e0e0] px-6 py-16 text-center sm:py-20">
-              <div className="mb-4 text-4xl">💍</div>
-              <p className="text-sm text-[#888] sm:text-base">Aún no tienes eventos</p>
+              <p className="text-sm text-[#888] sm:text-base">Aun no tienes eventos</p>
               <p className="mt-1 text-xs text-[#bbb] sm:text-sm">Crea tu primer evento para empezar</p>
+              <button
+                onClick={() => setShowNewEvent(true)}
+                className="mt-4 rounded-lg bg-[#48C9B0] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#3ab89f]"
+              >
+                + Crear evento
+              </button>
             </div>
           ) : (currentMy.length === 0 && currentShared.length === 0) ? (
             <div className="rounded-xl border border-dashed border-[#e0e0e0] px-6 py-16 text-center sm:py-20">
@@ -794,6 +798,15 @@ export default function Dashboard() {
           )}
         </div>
       </div>
+
+      <NewEventModal
+        open={showNewEvent}
+        onClose={() => setShowNewEvent(false)}
+        onCreated={(eventId) => {
+          setShowNewEvent(false)
+          window.location.href = '/events/' + eventId
+        }}
+      />
 
     </div>
   )
