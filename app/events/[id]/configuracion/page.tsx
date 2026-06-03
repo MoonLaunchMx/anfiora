@@ -856,7 +856,7 @@ export default function ConfiguracionPage() {
                     Cargar plantillas recomendadas de {EVENT_TYPES.find(t => t.value === eventType)?.label ?? eventType}
                   </button>
                 )}
-                <div className="flex flex-col gap-5">
+                <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 sm:items-start">
                   {templates.slice(0, visibleTemplates).map((template, i) => (
                     <TemplateInput
                       key={i}
@@ -874,7 +874,7 @@ export default function ConfiguracionPage() {
                   ))}
                   {visibleTemplates < 10 && (
                     <button onClick={() => setVisibleTemplates(v => Math.min(v + 1, 10))}
-                      className="flex items-center gap-1.5 text-xs text-[#48C9B0] transition hover:text-[#3ab89f]">
+                      className="flex items-center gap-1.5 text-xs text-[#48C9B0] transition hover:text-[#3ab89f] sm:col-span-2">
                       <span className="text-base leading-none">+</span> Agregar plantilla
                     </button>
                   )}
