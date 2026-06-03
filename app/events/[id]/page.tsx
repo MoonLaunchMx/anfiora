@@ -874,10 +874,8 @@ export default function EventPage() {
       return
     }
     if (waTarget === 'app') {
-      // App de escritorio (instancia unica): reusa la app ya abierta, sin pestanas
-      const link = document.createElement('a')
-      link.href = 'whatsapp://send?phone=' + num + (encodedText ? '&text=' + encodedText : '')
-      document.body.appendChild(link); link.click(); link.remove()
+      // App de escritorio (instancia unica): el protocolo whatsapp:// la abre sin pestanas de navegador
+      window.location.href = 'whatsapp://send?phone=' + num + (encodedText ? '&text=' + encodedText : '')
     } else {
       // WhatsApp Web: reusa una sola pestana (ventana nombrada)
       window.open('https://web.whatsapp.com/send?phone=' + num + (encodedText ? '&text=' + encodedText : ''), 'anfiora_whatsapp')
