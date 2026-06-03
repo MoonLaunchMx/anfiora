@@ -6,6 +6,7 @@ import { Event, EventStatus } from '@/lib/types'
 import { Bell } from 'lucide-react'
 import { WhatsNewModal } from '@/app/components/WhatsNewModal'
 import { NewEventModal } from '@/app/components/NewEventModal'
+import { OnboardingModal } from '@/app/components/OnboardingModal'
 
 export const dynamic = 'force-dynamic'
 
@@ -101,6 +102,7 @@ export default function Dashboard() {
   const [reminders, setReminders]       = useState<ReminderTask[]>([])
   const [showBellMenu, setShowBellMenu] = useState(false)
   const [showNewEvent, setShowNewEvent] = useState(false)
+  const [showOnboarding, setShowOnboarding] = useState(false)
 
   useEffect(() => {
     const interval = setInterval(() => setNow(new Date()), 1000)
@@ -123,6 +125,12 @@ export default function Dashboard() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { window.location.href = '/'; return }
     setUserEmail(user.email || '')
+    const { data: profile, error: profErr } = await supabase
+      .from('users').select('role').eq('id', user.id).single()
+    if (!profErr && profile && !profile.role) {
+      setShowOnboarding(true)
+      return
+    }
     const welcomed = localStorage.getItem('gf_welcomed')
     if (!welcomed) { setShowWelcome(true); localStorage.setItem('gf_welcomed', '1') }
   }
@@ -526,6 +534,7 @@ export default function Dashboard() {
     <div className="flex h-screen flex-col overflow-hidden bg-[#f8f8f8] font-sans text-[#1D1E20]">
 
       <WhatsNewModal />
+      <OnboardingModal open={showOnboarding} onCompleted={() => setShowOnboarding(false)} />
 
       {showWelcome && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 px-4">

@@ -1,5 +1,17 @@
 @import "tailwindcss";
 
+/* ── CURSOR ──────────────────────────────────────────────── */
+/* Tailwind v4 deja los botones en cursor:default. Regla global: */
+/* todo elemento interactivo no deshabilitado muestra la manita. */
+
+button:not(:disabled),
+[role="button"]:not([aria-disabled="true"]),
+label[for],
+summary,
+select:not(:disabled) {
+  cursor: pointer;
+}
+
 /* ── FUENTES ─────────────────────────────────────────────── */
 
 @font-face {
