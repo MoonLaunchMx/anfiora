@@ -31,7 +31,7 @@ type SupplierPaymentRow = {
 }
 
 type ImportRow = {
-  category: BudgetCategory
+  category: string
   subcategory: string
   budget_amount: number
   isDuplicate: boolean
@@ -242,8 +242,7 @@ export default function PresupuestoPage() {
           if (!catRaw || !conRaw) continue
           if (conRaw.toLowerCase().startsWith('ejemplo:')) continue
 
-          const category = LABEL_TO_CATEGORY[catRaw.toLowerCase()]
-          if (!category) continue
+          const category = LABEL_TO_CATEGORY[catRaw.toLowerCase()] ?? catRaw
 
           const isDuplicate = existingKeys.has(`${category}||${conRaw.toLowerCase()}`)
           parsed.push({ category, subcategory: conRaw, budget_amount: amtRaw, isDuplicate })
@@ -490,7 +489,7 @@ export default function PresupuestoPage() {
             {showImportMenu && (
               <div className="absolute right-0 top-full z-30 mt-1 w-52 overflow-hidden rounded-xl border border-[#e8e8e8] bg-white shadow-lg">
                 <button onClick={() => { setShowImportMenu(false); fileInputRef.current?.click() }} className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-xs text-[#1D1E20] hover:bg-[#f8f8f8]"><Upload size={13} className="text-[#888]" />Importar archivo Excel</button>
-                <button onClick={() => { setShowImportMenu(false); downloadImportTemplate() }} className="flex w-full items-center gap-2 border-t border-[#f0f0f0] px-4 py-2.5 text-left text-xs text-[#1D1E20] hover:bg-[#f8f8f8]"><FileSpreadsheet size={13} className="text-[#888]" />Descargar plantilla</button>
+                <button onClick={() => { setShowImportMenu(false); downloadImportTemplate({ categories, eventType: event?.event_type ?? null, eventCategory: event?.event_category ?? null }) }} className="flex w-full items-center gap-2 border-t border-[#f0f0f0] px-4 py-2.5 text-left text-xs text-[#1D1E20] hover:bg-[#f8f8f8]"><FileSpreadsheet size={13} className="text-[#888]" />Descargar plantilla</button>
               </div>
             )}
           </div>
