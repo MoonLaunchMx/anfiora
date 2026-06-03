@@ -2,8 +2,10 @@ import * as XLSX from 'xlsx'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import {
-  BudgetCategory, BUDGET_CATEGORIES, BUDGET_CATEGORY_LABELS, EventBudget, Currency, formatCurrency,
+  BudgetCategory, BUDGET_CATEGORY_LABELS, EventBudget, Currency, formatCurrency,
 } from '@/lib/types'
+import { getSuggestedItems } from './templates'
+import { categoryLabel } from './categories'
 
 type ExportData = {
   eventName: string
@@ -187,38 +189,44 @@ export async function exportToPDF(data: ExportData) {
 // ============================================
 // PLANTILLA PARA IMPORTAR
 // ============================================
-export function downloadImportTemplate() {
-  // Hoja de instrucciones + datos de ejemplo
-  const rows: any[] = [
-    ['Categoría', 'Concepto', 'Presupuesto'],
-    // Ejemplos por categoria
-    ...BUDGET_CATEGORIES.map(cat => [
-      BUDGET_CATEGORY_LABELS[cat],
-      'Ejemplo: ' + (cat === 'Venue' ? 'Salón principal' :
-                     cat === 'Banquete' ? 'Catering 200 personas' :
-                     cat === 'Audio y Video' ? 'DJ' :
-                     cat === 'Imagen' ? 'Fotografía' :
-                     cat === 'Decoracion' ? 'Florería' : 'Concepto'),
-      0,
-    ]),
-  ]
+export function downloadImportTemplate(opts: { categories: string[]; eventType: string | null; eventCategory: string | null }) {
+  const { categories, eventType, eventCategory } = opts
+  const suggested = getSuggestedItems(eventType, eventCategory)
 
+  // Hoja "Instrucciones"
+  const instrucciones: any[] = [
+    ['Plantilla de presupuesto - Anfiora'],
+    [],
+    ['Como usar esta plantilla:'],
+    ['1) Ve a la hoja "Presupuesto".'],
+    ['2) Escribe el monto estimado de cada concepto en la columna "Presupuesto".'],
+    ['3) Borra las filas que no apliquen a tu evento.'],
+    ['4) Agrega tus propios conceptos en filas nuevas (respeta las 3 columnas).'],
+    ['5) Guarda el archivo y subelo en el boton "Importar" dentro de Presupuesto.'],
+    [],
+    ['Notas:'],
+    ['- La columna "Categoria" agrupa tus conceptos; usa las que ya vienen en la lista.'],
+    ['- Puedes dejar el monto en blanco; lo defines despues en la app.'],
+    ['- Al importar no se duplican los conceptos que ya tengas.'],
+  ]
+  const wsInstr = XLSX.utils.aoa_to_sheet(instrucciones)
+  wsInstr['!cols'] = [{ wch: 70 }]
+
+  // Hoja "Presupuesto" pre-llenada
+  const rows: any[] = [['Categoría', 'Concepto', 'Presupuesto']]
+  for (const cat of categories) {
+    const items = suggested.filter(s => s.category === cat)
+    if (items.length === 0) {
+      rows.push([categoryLabel(cat), '', ''])
+    } else {
+      items.forEach(it => rows.push([categoryLabel(cat), it.concepto, '']))
+    }
+  }
   const ws = XLSX.utils.aoa_to_sheet(rows)
-
-  // Ancho de columnas
-  ws['!cols'] = [{ wch: 22 }, { wch: 35 }, { wch: 16 }]
-
-  // Hoja de categorias validas como referencia
-  const refRows: any[] = [
-    ['Categorías válidas (cópialas exactamente como aparecen aquí)'],
-    ...BUDGET_CATEGORIES.map(cat => [BUDGET_CATEGORY_LABELS[cat]]),
-  ]
-  const wsRef = XLSX.utils.aoa_to_sheet(refRows)
-  wsRef['!cols'] = [{ wch: 40 }]
+  ws['!cols'] = [{ wch: 22 }, { wch: 38 }, { wch: 16 }]
 
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(wb, ws, 'Presupuesto')
-  XLSX.utils.book_append_sheet(wb, wsRef, 'Categorías')
-
+  XLSX.utils.book_append_sheet(wb, wsInstr, 'Instrucciones')
   XLSX.writeFile(wb, 'Plantilla presupuesto Anfiora.xlsx')
 }

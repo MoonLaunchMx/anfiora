@@ -78,6 +78,12 @@ export function getBodaItems(tier: BudgetTier): BudgetItemTpl[] {
   return [...BODA_ESENCIAL, ...BODA_CLASICA_EXTRA, ...BODA_PREMIUM_EXTRA]
 }
 
+export function getSuggestedItems(eventType: string | null, eventCategory: string | null): { category: string; concepto: string }[] {
+  if (eventType === 'boda') return getBodaItems('clasica')
+  if (eventCategory === 'corporativo') return CORPORATIVO
+  return SOCIAL
+}
+
 export function buildBudgetItems(
   eventId: string,
   eventType: string | null,
