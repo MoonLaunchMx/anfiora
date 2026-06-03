@@ -1458,7 +1458,7 @@ export default function EventPage() {
                                   <svg width="15" height="15" viewBox="0 0 24 24" fill="#25D366">{WA_ICON}</svg>
                                 </button>
                                 {showWaMenu === guest.id && (
-                                  <div ref={waMenuRef} className="absolute left-0 top-full z-50 mt-1 min-w-[220px] rounded-xl border border-[#e8e8e8] bg-white p-1 shadow-lg">
+                                  <div ref={waMenuRef} className="absolute left-0 top-full z-50 mt-1 max-h-80 min-w-[220px] overflow-y-auto rounded-xl border border-[#e8e8e8] bg-white p-1 shadow-lg">
                                     {activeTemplates.length === 0 ? (
                                       <p className="px-3 py-2.5 text-xs text-[#aaa]">No hay plantillas — ve a Configuración</p>
                                     ) : activeTemplates.map((template: string, ti: number) => (
@@ -1738,7 +1738,7 @@ export default function EventPage() {
             {activeTemplates.length === 0 ? (
               <p className="px-5 py-4 text-sm text-[#aaa]">No hay plantillas — configúralas en Configuración.</p>
             ) : (
-              <div className="flex flex-col">
+              <div className="flex max-h-[55vh] flex-col overflow-y-auto">
                 {activeTemplates.map((template: string, ti: number) => (
                   <button key={ti} onClick={() => { window.open('https://wa.me/' + showWaSheet.phone!.replace(/\D/g, '') + '?text=' + buildWaText(showWaSheet, ti), '_blank'); setShowWaSheet(null) }}
                     className="border-b border-[#f5f5f5] px-5 py-3.5 text-left transition active:bg-[#f0fdfb]">
