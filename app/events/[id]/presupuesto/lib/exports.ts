@@ -190,15 +190,15 @@ export async function exportToPDF(data: ExportData) {
 export function downloadImportTemplate() {
   // Hoja de instrucciones + datos de ejemplo
   const rows: any[] = [
-    ['Categoria', 'Concepto', 'Presupuesto'],
+    ['Categoría', 'Concepto', 'Presupuesto'],
     // Ejemplos por categoria
     ...BUDGET_CATEGORIES.map(cat => [
       BUDGET_CATEGORY_LABELS[cat],
-      'Ejemplo: ' + (cat === 'Venue' ? 'Salon principal' :
+      'Ejemplo: ' + (cat === 'Venue' ? 'Salón principal' :
                      cat === 'Banquete' ? 'Catering 200 personas' :
                      cat === 'Audio y Video' ? 'DJ' :
-                     cat === 'Imagen' ? 'Fotografia' :
-                     cat === 'Decoracion' ? 'Floreria' : 'Concepto'),
+                     cat === 'Imagen' ? 'Fotografía' :
+                     cat === 'Decoracion' ? 'Florería' : 'Concepto'),
       0,
     ]),
   ]
@@ -210,7 +210,7 @@ export function downloadImportTemplate() {
 
   // Hoja de categorias validas como referencia
   const refRows: any[] = [
-    ['Categorias validas (copia exactamente como aparece aqui)'],
+    ['Categorías válidas (cópialas exactamente como aparecen aquí)'],
     ...BUDGET_CATEGORIES.map(cat => [BUDGET_CATEGORY_LABELS[cat]]),
   ]
   const wsRef = XLSX.utils.aoa_to_sheet(refRows)
@@ -218,7 +218,7 @@ export function downloadImportTemplate() {
 
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(wb, ws, 'Presupuesto')
-  XLSX.utils.book_append_sheet(wb, wsRef, 'Categorias')
+  XLSX.utils.book_append_sheet(wb, wsRef, 'Categorías')
 
-  XLSX.writeFile(wb, 'plantilla_presupuesto_anfiora.xlsx')
+  XLSX.writeFile(wb, 'Plantilla presupuesto Anfiora.xlsx')
 }
