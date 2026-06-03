@@ -4,9 +4,8 @@ import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { motion, AnimatePresence } from 'framer-motion'
 import { EVENT_TYPES, CATEGORIES } from '@/lib/event-types'
-import { Briefcase, PartyPopper, Check, ArrowLeft } from 'lucide-react'
-
-type Role = 'planner' | 'anfitrion'
+import { Check, ArrowLeft } from 'lucide-react'
+import { ROLES, Role } from '@/lib/roles'
 
 interface OnboardingModalProps {
   open: boolean
@@ -83,31 +82,24 @@ export function OnboardingModal({ open, onCompleted }: OnboardingModalProps) {
                       <p className="mt-1.5 text-sm text-[#777]">Cuentanos quien eres para personalizar tu experiencia.</p>
 
                       <div className="mt-6 grid gap-4 sm:grid-cols-2">
-                        <button
-                          onClick={() => selectRole('planner')}
-                          className="group flex flex-col items-start gap-4 rounded-2xl border border-[#e8e8e8] bg-white p-6 text-left transition hover:border-[#48C9B0] hover:bg-[#f0fdfb] active:scale-[0.99]"
-                        >
-                          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#f4f4f4] transition group-hover:bg-[#d0f5ec]">
-                            <Briefcase size={20} className="text-[#888] transition group-hover:text-[#0F6E56]" />
-                          </div>
-                          <div>
-                            <p className="text-base font-semibold text-[#1D1E20]">Planner / Organizador profesional</p>
-                            <p className="mt-1 text-sm text-[#888]">Organizo eventos para mis clientes.</p>
-                          </div>
-                        </button>
-
-                        <button
-                          onClick={() => selectRole('anfitrion')}
-                          className="group flex flex-col items-start gap-4 rounded-2xl border border-[#e8e8e8] bg-white p-6 text-left transition hover:border-[#48C9B0] hover:bg-[#f0fdfb] active:scale-[0.99]"
-                        >
-                          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#f4f4f4] transition group-hover:bg-[#d0f5ec]">
-                            <PartyPopper size={20} className="text-[#888] transition group-hover:text-[#0F6E56]" />
-                          </div>
-                          <div>
-                            <p className="text-base font-semibold text-[#1D1E20]">Anfitrion</p>
-                            <p className="mt-1 text-sm text-[#888]">Organizo mi propio evento (boda, XV, fiesta...).</p>
-                          </div>
-                        </button>
+                        {ROLES.map(r => {
+                          const Icon = r.icon
+                          return (
+                            <button
+                              key={r.value}
+                              onClick={() => selectRole(r.value)}
+                              className="group flex flex-col items-start gap-4 rounded-2xl border border-[#e8e8e8] bg-white p-6 text-left transition hover:border-[#48C9B0] hover:bg-[#f0fdfb] active:scale-[0.99]"
+                            >
+                              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#f4f4f4] transition group-hover:bg-[#d0f5ec]">
+                                <Icon size={20} className="text-[#888] transition group-hover:text-[#0F6E56]" />
+                              </div>
+                              <div>
+                                <p className="text-base font-semibold text-[#1D1E20]">{r.label}</p>
+                                <p className="mt-1 text-sm text-[#888]">{r.description}</p>
+                              </div>
+                            </button>
+                          )
+                        })}
                       </div>
                     </motion.div>
                   ) : (
