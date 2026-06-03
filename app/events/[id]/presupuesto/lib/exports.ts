@@ -9,6 +9,8 @@ type ExportData = {
   eventName: string
   eventDate: string | null
   currency: Currency
+  venue?: string | null
+  hosts?: string | null
   itemsByCategory: Record<BudgetCategory, EventBudget[]>
   contractedByItem: Record<string, number>
   paidByItem: Record<string, number>
@@ -18,9 +20,29 @@ type ExportData = {
 }
 
 function buildFileName(eventName: string, ext: string): string {
-  const safe = eventName.replace(/[^a-z0-9]/gi, '_').toLowerCase()
-  const date = new Date().toISOString().split('T')[0]
-  return `presupuesto_${safe}_${date}.${ext}`
+  const clean = eventName.replace(/[\\/:*?"<>|]/g, '').trim()
+  return `Presupuesto Anfiora ${clean}.${ext}`
+}
+
+function loadImage(src: string): Promise<{ dataUrl: string; w: number; h: number } | null> {
+  return new Promise(resolve => {
+    const img = new Image()
+    img.onload = () => {
+      const canvas = document.createElement('canvas')
+      canvas.width = img.naturalWidth
+      canvas.height = img.naturalHeight
+      const ctx = canvas.getContext('2d')
+      if (!ctx) { resolve(null); return }
+      ctx.drawImage(img, 0, 0)
+      try {
+        resolve({ dataUrl: canvas.toDataURL('image/png'), w: img.naturalWidth, h: img.naturalHeight })
+      } catch {
+        resolve(null)
+      }
+    }
+    img.onerror = () => resolve(null)
+    img.src = src
+  })
 }
 
 // ============================================
@@ -29,11 +51,16 @@ function buildFileName(eventName: string, ext: string): string {
 export function exportToExcel(data: ExportData) {
   const rows: any[] = []
 
-  rows.push(['Presupuesto', data.eventName])
-  if (data.eventDate) rows.push(['Fecha del evento', data.eventDate])
+  rows.push(['Anfiora'])
+  rows.push(['Presupuesto del evento'])
+  rows.push([])
+  rows.push(['Evento', data.eventName])
+  if (data.hosts) rows.push(['Anfitriones', data.hosts])
+  if (data.eventDate) rows.push(['Fecha', data.eventDate])
+  if (data.venue) rows.push(['Lugar', data.venue])
   rows.push(['Moneda', data.currency])
   rows.push([])
-  rows.push(['Categoria', 'Partida', 'Estimado', 'Cotizado', 'Pagado', 'Por pagar'])
+  rows.push(['Categoría', 'Concepto', 'Estimado', 'Cotizado', 'Pagado', 'Por pagar'])
 
   const categories = Object.keys(data.itemsByCategory) as BudgetCategory[]
   categories.forEach(cat => {
@@ -76,21 +103,39 @@ export function exportToExcel(data: ExportData) {
 // ============================================
 // EXPORT PDF
 // ============================================
-export function exportToPDF(data: ExportData) {
+export async function exportToPDF(data: ExportData) {
   const doc = new jsPDF()
+  const pageW = doc.internal.pageSize.getWidth()
 
-  doc.setFontSize(18)
+  let logoBottom = 14
+  const logo = await loadImage('/images/logo.png')
+  if (logo) {
+    const lw = 40
+    const lh = (logo.h / logo.w) * lw
+    doc.addImage(logo.dataUrl, 'PNG', pageW - 14 - lw, 14, lw, lh)
+    logoBottom = 14 + lh
+  }
+
+  const titleY = logo ? (14 + logoBottom) / 2 + 2 : 20
+  doc.setFontSize(16)
   doc.setTextColor(29, 30, 32)
-  doc.text('Presupuesto', 14, 18)
+  doc.text('Presupuesto', 14, titleY)
 
   doc.setFontSize(11)
   doc.setTextColor(100)
-  doc.text(data.eventName, 14, 25)
+  doc.text(data.hosts ? `${data.eventName} — ${data.hosts}` : data.eventName, 14, titleY + 7)
 
-  if (data.eventDate) {
+  let textBottom = titleY + 7
+  const meta: string[] = []
+  if (data.eventDate) meta.push(data.eventDate)
+  if (data.venue) meta.push(data.venue)
+  if (meta.length > 0) {
     doc.setFontSize(9)
-    doc.text(data.eventDate, 14, 31)
+    doc.text(meta.join('   ·   '), 14, titleY + 13)
+    textBottom = titleY + 13
   }
+
+  const startY = Math.max(textBottom, logoBottom) + 6
 
   const tableRows: any[] = []
   const categories = Object.keys(data.itemsByCategory) as BudgetCategory[]
@@ -122,8 +167,8 @@ export function exportToPDF(data: ExportData) {
   ])
 
   autoTable(doc, {
-    startY: 38,
-    head: [['Categoria', 'Partida', 'Estimado', 'Cotizado', 'Pagado', 'Por pagar']],
+    startY,
+    head: [['Categoría', 'Concepto', 'Estimado', 'Cotizado', 'Pagado', 'Por pagar']],
     body: tableRows,
     theme: 'grid',
     headStyles: { fillColor: [72, 201, 176], textColor: 255, fontSize: 9, fontStyle: 'bold' },
@@ -145,15 +190,15 @@ export function exportToPDF(data: ExportData) {
 export function downloadImportTemplate() {
   // Hoja de instrucciones + datos de ejemplo
   const rows: any[] = [
-    ['Categoria', 'Concepto', 'Presupuesto'],
+    ['Categoría', 'Concepto', 'Presupuesto'],
     // Ejemplos por categoria
     ...BUDGET_CATEGORIES.map(cat => [
       BUDGET_CATEGORY_LABELS[cat],
-      'Ejemplo: ' + (cat === 'Venue' ? 'Salon principal' :
+      'Ejemplo: ' + (cat === 'Venue' ? 'Salón principal' :
                      cat === 'Banquete' ? 'Catering 200 personas' :
                      cat === 'Audio y Video' ? 'DJ' :
-                     cat === 'Imagen' ? 'Fotografia' :
-                     cat === 'Decoracion' ? 'Floreria' : 'Concepto'),
+                     cat === 'Imagen' ? 'Fotografía' :
+                     cat === 'Decoracion' ? 'Florería' : 'Concepto'),
       0,
     ]),
   ]
@@ -165,7 +210,7 @@ export function downloadImportTemplate() {
 
   // Hoja de categorias validas como referencia
   const refRows: any[] = [
-    ['Categorias validas (copia exactamente como aparece aqui)'],
+    ['Categorías válidas (cópialas exactamente como aparecen aquí)'],
     ...BUDGET_CATEGORIES.map(cat => [BUDGET_CATEGORY_LABELS[cat]]),
   ]
   const wsRef = XLSX.utils.aoa_to_sheet(refRows)
@@ -173,7 +218,7 @@ export function downloadImportTemplate() {
 
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(wb, ws, 'Presupuesto')
-  XLSX.utils.book_append_sheet(wb, wsRef, 'Categorias')
+  XLSX.utils.book_append_sheet(wb, wsRef, 'Categorías')
 
-  XLSX.writeFile(wb, 'plantilla_presupuesto_anfiora.xlsx')
+  XLSX.writeFile(wb, 'Plantilla presupuesto Anfiora.xlsx')
 }
