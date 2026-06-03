@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react'
 import { useParams } from 'next/navigation'
-import { Search, FileSpreadsheet, FileText, Plus, Upload, X, AlertTriangle, Check } from 'lucide-react'
+import { Search, FileSpreadsheet, FileText, Plus, Upload, X, AlertTriangle, Check, ChevronDown, Sparkles } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { supabase } from '@/lib/supabase'
 import {
@@ -13,7 +13,7 @@ import BudgetMetricsCards from '@/app/components/ui/BudgetMetricsCards'
 import StatsCollapse, { useStatsToggle, StatsToggleButton } from '@/app/components/ui/StatsCollapse'
 import BudgetCategoryRow from './BudgetCategoryRow'
 import BudgetItemModal from './BudgetItemModal'
-import { buildSeedBudgets } from './lib/seed'
+import { buildBudgetItems, BudgetTier } from './lib/templates'
 import { exportToExcel, exportToPDF, downloadImportTemplate } from './lib/exports'
 import SupplierDetailModal from '../proveedores/SupplierDetailModal'
 import SupplierReviewModal from '../proveedores/SupplierReviewModal'
@@ -46,6 +46,11 @@ export default function PresupuestoPage() {
   const [loading, setLoading]               = useState(true)
   const [search, setSearch]                 = useState('')
 
+  const [showTierModal, setShowTierModal]   = useState(false)
+  const [generating, setGenerating]         = useState(false)
+  const [showImportMenu, setShowImportMenu] = useState(false)
+  const [showExportMenu, setShowExportMenu] = useState(false)
+
   const [modalOpen, setModalOpen]         = useState(false)
   const [modalCategory, setModalCategory] = useState<BudgetCategory | null>(null)
 
@@ -65,6 +70,15 @@ export default function PresupuestoPage() {
     if (!eventId) return
     loadAll()
   }, [eventId])
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      const t = e.target as HTMLElement
+      if (!t.closest('[data-budget-menu]')) { setShowImportMenu(false); setShowExportMenu(false) }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
 
   const loadAll = async () => {
     setLoading(true)
@@ -91,15 +105,7 @@ export default function PresupuestoPage() {
         setPayments([])
       }
 
-      let currentBudgets = (budgetsRes.data || []) as EventBudget[]
-      if (currentBudgets.length === 0) {
-        const seed = buildSeedBudgets(eventId)
-        const { data: inserted, error: seedError } = await supabase.from('event_budgets').insert(seed).select()
-        if (seedError) console.error('Error sembrando presupuesto:', seedError?.message ?? seedError)
-        if (inserted) currentBudgets = inserted as EventBudget[]
-      }
-
-      setBudgets(currentBudgets)
+      setBudgets((budgetsRes.data || []) as EventBudget[])
     } catch (err: any) {
       console.error('Error cargando presupuesto:', err?.message ?? err, err)
     } finally {
@@ -340,6 +346,21 @@ export default function PresupuestoPage() {
     else exportToPDF(exportData)
   }
 
+  const handleGenerateClick = () => {
+    if (event?.event_type === 'boda') { setShowTierModal(true); return }
+    generateWith('esencial')
+  }
+
+  const generateWith = async (tier: BudgetTier) => {
+    setGenerating(true)
+    const existing = new Set(budgets.map(b => `${b.category}|${b.subcategory}`.toLowerCase()))
+    const rows = buildBudgetItems(eventId, event?.event_type ?? null, event?.event_category ?? null, tier, existing)
+    if (rows.length > 0) await supabase.from('event_budgets').insert(rows)
+    setShowTierModal(false)
+    await loadAll()
+    setGenerating(false)
+  }
+
   if (loading || !event) {
     return (
       <div className="space-y-3 p-4 sm:p-6">
@@ -396,22 +417,6 @@ export default function PresupuestoPage() {
             />
           </div>
 
-          <button
-            onClick={() => handleExport('excel')}
-            className="hidden items-center gap-1.5 rounded-lg border border-[#e0e0e0] bg-white px-3 py-1.5 text-xs font-medium text-[#555] transition hover:border-[#48C9B0] hover:text-[#48C9B0] sm:flex"
-          >
-            <FileSpreadsheet size={14} />
-            Excel
-          </button>
-
-          <button
-            onClick={() => handleExport('pdf')}
-            className="flex items-center gap-1.5 rounded-lg border border-[#e0e0e0] bg-white px-3 py-1.5 text-xs font-medium text-[#555] transition hover:border-[#48C9B0] hover:text-[#48C9B0]"
-          >
-            <FileText size={14} />
-            <span className="hidden sm:inline">PDF</span>
-          </button>
-
           <input
             ref={fileInputRef}
             type="file"
@@ -419,20 +424,45 @@ export default function PresupuestoPage() {
             className="hidden"
             onChange={handleFileChange}
           />
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            className="hidden items-center gap-1.5 rounded-lg border border-[#e0e0e0] bg-white px-3 py-1.5 text-xs font-medium text-[#555] transition hover:border-[#48C9B0] hover:text-[#48C9B0] sm:flex"
-          >
-            <Upload size={14} />
-            Importar
-          </button>
+
+          <div className="relative" data-budget-menu>
+            <button
+              onClick={() => { setShowImportMenu(v => !v); setShowExportMenu(false) }}
+              className="flex items-center gap-1.5 rounded-lg border border-[#e0e0e0] bg-white px-3 py-1.5 text-xs font-medium text-[#555] transition hover:border-[#48C9B0] hover:text-[#48C9B0]"
+            >
+              <Upload size={14} /><span className="hidden sm:inline">Importar</span>
+              <ChevronDown size={12} className="text-[#aaa]" />
+            </button>
+            {showImportMenu && (
+              <div className="absolute right-0 top-full z-30 mt-1 w-52 overflow-hidden rounded-xl border border-[#e8e8e8] bg-white shadow-lg">
+                <button onClick={() => { setShowImportMenu(false); fileInputRef.current?.click() }} className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-xs text-[#1D1E20] hover:bg-[#f8f8f8]"><Upload size={13} className="text-[#888]" />Importar archivo Excel</button>
+                <button onClick={() => { setShowImportMenu(false); downloadImportTemplate() }} className="flex w-full items-center gap-2 border-t border-[#f0f0f0] px-4 py-2.5 text-left text-xs text-[#1D1E20] hover:bg-[#f8f8f8]"><FileSpreadsheet size={13} className="text-[#888]" />Descargar plantilla</button>
+              </div>
+            )}
+          </div>
+
+          <div className="relative" data-budget-menu>
+            <button
+              onClick={() => { setShowExportMenu(v => !v); setShowImportMenu(false) }}
+              className="flex items-center gap-1.5 rounded-lg border border-[#e0e0e0] bg-white px-3 py-1.5 text-xs font-medium text-[#555] transition hover:border-[#48C9B0] hover:text-[#48C9B0]"
+            >
+              <FileText size={14} /><span className="hidden sm:inline">Exportar</span>
+              <ChevronDown size={12} className="text-[#aaa]" />
+            </button>
+            {showExportMenu && (
+              <div className="absolute right-0 top-full z-30 mt-1 w-44 overflow-hidden rounded-xl border border-[#e8e8e8] bg-white shadow-lg">
+                <button onClick={() => { setShowExportMenu(false); handleExport('excel') }} className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-xs text-[#1D1E20] hover:bg-[#f8f8f8]"><FileSpreadsheet size={13} className="text-[#888]" />Excel</button>
+                <button onClick={() => { setShowExportMenu(false); handleExport('pdf') }} className="flex w-full items-center gap-2 border-t border-[#f0f0f0] px-4 py-2.5 text-left text-xs text-[#1D1E20] hover:bg-[#f8f8f8]"><FileText size={13} className="text-[#888]" />PDF</button>
+              </div>
+            )}
+          </div>
 
           <button
-            onClick={downloadImportTemplate}
-            className="hidden items-center gap-1.5 rounded-lg border border-dashed border-[#e0e0e0] bg-white px-3 py-1.5 text-xs font-medium text-[#aaa] transition hover:border-[#48C9B0] hover:text-[#48C9B0] sm:flex"
+            onClick={handleGenerateClick}
+            disabled={generating}
+            className="flex items-center gap-1.5 rounded-lg border border-[#48C9B0] bg-[#f0fdfb] px-3 py-1.5 text-xs font-semibold text-[#1a9e88] transition hover:bg-[#e0faf5] disabled:opacity-50"
           >
-            <FileSpreadsheet size={14} />
-            Plantilla
+            <Sparkles size={14} /><span className="hidden sm:inline">{generating ? 'Generando...' : 'Generar presupuesto'}</span><span className="sm:hidden">Generar</span>
           </button>
 
           <button
@@ -440,7 +470,7 @@ export default function PresupuestoPage() {
             className="flex items-center gap-1.5 rounded-lg bg-[#48C9B0] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#3aa896]"
           >
             <Plus size={14} />
-            <span>Nuevo concepto</span>
+            <span className="hidden sm:inline">Nuevo concepto</span>
           </button>
         </div>
       </div>
@@ -454,6 +484,16 @@ export default function PresupuestoPage() {
             <p className="text-xs text-amber-700">{importError}</p>
             <button onClick={() => setImportError('')} className="ml-auto text-amber-400 hover:text-amber-600">
               <X size={14} />
+            </button>
+          </div>
+        )}
+
+        {budgets.length === 0 && !search.trim() && (
+          <div className="mb-4 rounded-xl border border-dashed border-[#cfe9e2] bg-[#f0fdfb] px-5 py-6 text-center">
+            <p className="text-sm font-semibold text-[#1D1E20]">Tu presupuesto esta vacio</p>
+            <p className="mt-1 text-xs text-[#888]">Genera un presupuesto sugerido segun tu tipo de evento y ajustalo a tu gusto.</p>
+            <button onClick={handleGenerateClick} disabled={generating} className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-[#48C9B0] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#3ab89f] disabled:opacity-50">
+              <Sparkles size={15} />{generating ? 'Generando...' : 'Generar presupuesto sugerido'}
             </button>
           </div>
         )}
@@ -481,6 +521,34 @@ export default function PresupuestoPage() {
           })}
         </div>
       </div>
+
+      {showTierModal && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 p-4" onClick={() => { if (!generating) setShowTierModal(false) }}>
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="mb-1 flex items-center justify-between">
+              <h2 className="text-base font-bold text-[#1D1E20]">Generar presupuesto de boda</h2>
+              <button onClick={() => { if (!generating) setShowTierModal(false) }} className="text-[#aaa] hover:text-[#555]"><X size={18} /></button>
+            </div>
+            <p className="mb-4 text-xs text-[#888]">Elige el nivel. A mayor nivel, mas categorias y conceptos. Sin montos: tu los defines.</p>
+            <div className="flex flex-col gap-2.5">
+              {([
+                { tier: 'esencial' as BudgetTier, label: 'Esencial', desc: 'Lo indispensable para tu boda.' },
+                { tier: 'clasica' as BudgetTier,  label: 'Clasica',  desc: 'Boda completa estandar.' },
+                { tier: 'premium' as BudgetTier,  label: 'Premium',  desc: 'Todo + extras (planner, valet, candy bar...).' },
+              ]).map(o => (
+                <button key={o.tier} onClick={() => generateWith(o.tier)} disabled={generating}
+                  className="flex items-center justify-between rounded-xl border border-[#e8e8e8] bg-white px-4 py-3 text-left transition hover:border-[#48C9B0] hover:bg-[#f0fdfb] disabled:opacity-50">
+                  <div>
+                    <p className="text-sm font-semibold text-[#1D1E20]">{o.label}</p>
+                    <p className="text-[11px] text-[#888]">{o.desc}</p>
+                  </div>
+                  <ChevronDown size={16} className="-rotate-90 text-[#bbb]" />
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── MODAL DE CONCEPTO ── */}
       <BudgetItemModal
