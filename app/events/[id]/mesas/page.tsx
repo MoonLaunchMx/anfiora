@@ -1211,7 +1211,7 @@ function ModalMover({ moveModal, tables, moveSaving, onConfirm, onClose }: {
   return(
     <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/40 p-4">
       <div className="w-full max-w-sm rounded-2xl border border-[#e8e8e8] bg-white p-6 shadow-xl">
-        <div className="mb-4 text-center"><div className="mb-3 text-3xl">🔄</div><h2 className="text-base font-bold text-[#1D1E20]">¿Mover a otra mesa?</h2>
+        <div className="mb-4 text-center"><h2 className="text-base font-bold text-[#1D1E20]">¿Mover a otra mesa?</h2>
           <p className="mt-2 text-sm text-[#555]"><span className="font-semibold">{moveModal.guest.name}</span>{moveModal.guest.party_size>1&&<span className="text-[#888]"> +{moveModal.guest.party_size-1}</span>}{' '}está en <span className="font-semibold">Mesa #{moveModal.fromTableNumber}</span>. ¿Mover a <span className="font-semibold">Mesa #{tables.find(t=>t.id===moveModal.toTableId)?.number}</span>?</p>
         </div>
         <div className="flex gap-2.5"><button onClick={onClose} className="flex-1 rounded-lg border border-[#e0e0e0] py-3 text-sm text-[#888]">Cancelar</button><button onClick={onConfirm} disabled={moveSaving} className="flex-[2] rounded-lg bg-[#48C9B0] py-3 text-sm font-semibold text-white disabled:opacity-60">{moveSaving?'Moviendo…':'Sí, mover'}</button></div>
@@ -1547,10 +1547,10 @@ export default function MesasPage() {
         {/* Bloque de stats colapsable en mobile, siempre visible en desktop */}
         <StatsCollapse visible={statsVisible}>
           <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
-            <div className="rounded-xl border border-[#e8e8e8] bg-white p-3"><div className="mb-1.5 flex items-center justify-between"><span className="text-[10px] font-semibold uppercase tracking-wide text-[#aaa]">Confirmados</span><svg width="15" height="15" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="7" stroke="#48C9B0" strokeWidth="1.5"/><path d="M5 8l2 2 4-4" stroke="#48C9B0" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg></div><div className="text-2xl font-bold text-[#1D1E20] sm:text-3xl">{confirmed}</div><div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-[#e8e8e8]"><div className="h-full rounded-full bg-[#48C9B0]" style={{width:guests.length>0?`${(confirmed/guests.length)*100}%`:'0%'}}/></div><div className="mt-1 text-[10px] text-[#aaa]">{guests.length} invitados totales</div></div>
-            <div className="rounded-xl border border-[#e8e8e8] bg-white p-3"><div className="mb-1.5 flex items-center justify-between"><span className="text-[10px] font-semibold uppercase tracking-wide text-[#aaa]">Por asignar</span><svg width="15" height="15" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="5" r="2.5" stroke={unassigned>0?'#cc8800':'#bbb'} strokeWidth="1.5"/><path d="M3 14c0-2.2 2.2-5 5-5s5 2.2 5 5" stroke={unassigned>0?'#cc8800':'#bbb'} strokeWidth="1.5" strokeLinecap="round"/></svg></div><div className="text-2xl font-bold sm:text-3xl" style={{color:unassigned>0?'#cc8800':'#1D1E20'}}>{unassigned}</div>{unassigned>0?<div className="mt-1 text-[10px] font-medium text-[#cc8800]">Sin mesa asignada</div>:<div className="mt-1 text-[10px] text-[#48C9B0]">Todos asignados ✓</div>}</div>
-            <div className="rounded-xl border border-[#e8e8e8] bg-white p-3"><div className="mb-1.5 flex items-center justify-between"><span className="text-[10px] font-semibold uppercase tracking-wide text-[#aaa]">Asientos libres</span><svg width="15" height="15" viewBox="0 0 16 16" fill="none"><rect x="3" y="9" width="10" height="4" rx="1" stroke="#48C9B0" strokeWidth="1.5"/><path d="M5 9V6a3 3 0 0 1 6 0v3" stroke="#48C9B0" strokeWidth="1.5" strokeLinecap="round"/></svg></div><div className="text-2xl font-bold text-[#1D1E20] sm:text-3xl">{String(totalFree).padStart(2,'0')}</div><div className="mt-1 text-[10px] text-[#aaa]">de {totalSeats} totales</div></div>
-            <div className="rounded-xl border border-[#e8e8e8] bg-white p-3"><div className="mb-1.5"><span className="text-[10px] font-semibold uppercase tracking-wide text-[#aaa]">Mesas listas</span></div><div className="flex items-center justify-between"><div><div className="text-2xl font-bold text-[#1D1E20] sm:text-3xl">{fullTables}<span className="text-sm font-normal text-[#aaa]"> / {tables.length}</span></div><div className="mt-1 text-[10px] text-[#aaa]">Mesas al 100%</div></div><DonutChart value={fullTables} total={tables.length}/></div></div>
+            <div className="rounded-xl border border-[#e8e8e8] bg-white p-3"><div className="mb-1.5 flex items-center justify-between"><span className="text-[10px] font-semibold uppercase tracking-wide text-[#aaa]">Confirmados</span><svg width="15" height="15" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="7" stroke="#48C9B0" strokeWidth="1.5"/><path d="M5 8l2 2 4-4" stroke="#48C9B0" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg></div><div className="text-2xl font-bold text-[#1D1E20]">{confirmed}</div><div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-[#e8e8e8]"><div className="h-full rounded-full bg-[#48C9B0]" style={{width:guests.length>0?`${(confirmed/guests.length)*100}%`:'0%'}}/></div><div className="mt-1 text-[10px] text-[#aaa]">{guests.length} invitados totales</div></div>
+            <div className="rounded-xl border border-[#e8e8e8] bg-white p-3"><div className="mb-1.5 flex items-center justify-between"><span className="text-[10px] font-semibold uppercase tracking-wide text-[#aaa]">Por asignar</span><svg width="15" height="15" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="5" r="2.5" stroke={unassigned>0?'#cc8800':'#bbb'} strokeWidth="1.5"/><path d="M3 14c0-2.2 2.2-5 5-5s5 2.2 5 5" stroke={unassigned>0?'#cc8800':'#bbb'} strokeWidth="1.5" strokeLinecap="round"/></svg></div><div className="text-2xl font-bold" style={{color:unassigned>0?'#cc8800':'#1D1E20'}}>{unassigned}</div>{unassigned>0?<div className="mt-1 text-[10px] font-medium text-[#cc8800]">Sin mesa asignada</div>:<div className="mt-1 text-[10px] text-[#48C9B0]">Todos asignados</div>}</div>
+            <div className="rounded-xl border border-[#e8e8e8] bg-white p-3"><div className="mb-1.5 flex items-center justify-between"><span className="text-[10px] font-semibold uppercase tracking-wide text-[#aaa]">Asientos libres</span><svg width="15" height="15" viewBox="0 0 16 16" fill="none"><rect x="3" y="9" width="10" height="4" rx="1" stroke="#48C9B0" strokeWidth="1.5"/><path d="M5 9V6a3 3 0 0 1 6 0v3" stroke="#48C9B0" strokeWidth="1.5" strokeLinecap="round"/></svg></div><div className="text-2xl font-bold text-[#1D1E20]">{String(totalFree).padStart(2,'0')}</div><div className="mt-1 text-[10px] text-[#aaa]">de {totalSeats} totales</div></div>
+            <div className="rounded-xl border border-[#e8e8e8] bg-white p-3"><div className="mb-1.5"><span className="text-[10px] font-semibold uppercase tracking-wide text-[#aaa]">Mesas listas</span></div><div className="flex items-center justify-between"><div><div className="text-2xl font-bold text-[#1D1E20]">{fullTables}<span className="text-sm font-normal text-[#aaa]"> / {tables.length}</span></div><div className="mt-1 text-[10px] text-[#aaa]">Mesas al 100%</div></div><DonutChart value={fullTables} total={tables.length}/></div></div>
           </div>
         </StatsCollapse>
 
@@ -1571,7 +1571,7 @@ export default function MesasPage() {
       {/* Lista */}
       <div style={{flex:1,overflowY:'auto'}} className="px-4 pb-6 pt-3 sm:px-6 lg:px-10">
         {tables.length===0?(
-          <div className="mt-5 rounded-xl border border-dashed border-[#e0e0e0] px-6 py-14 text-center"><div className="mb-3 text-3xl">🪑</div><p className="text-sm text-[#888]">Sin mesas aún</p><p className="mt-1 text-xs text-[#bbb]">Crea tu primera mesa para empezar</p><div className="mt-4 flex items-center justify-center gap-2"><button onClick={()=>setShowBulk(true)} className="rounded-lg border border-[#e0e0e0] px-4 py-2.5 text-sm text-[#666] hover:border-[#48C9B0] hover:text-[#48C9B0]">Agregar en bulk</button><button onClick={openCreate} className="rounded-lg bg-[#48C9B0] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#3ab89f]">+ Nueva mesa</button></div></div>
+          <div className="mt-5 rounded-xl border border-dashed border-[#e0e0e0] px-6 py-14 text-center"><p className="text-sm text-[#888]">Sin mesas aún</p><p className="mt-1 text-xs text-[#bbb]">Crea tu primera mesa para empezar</p><div className="mt-4 flex items-center justify-center gap-2"><button onClick={()=>setShowBulk(true)} className="rounded-lg border border-[#e0e0e0] px-4 py-2.5 text-sm text-[#666] hover:border-[#48C9B0] hover:text-[#48C9B0]">Agregar en bulk</button><button onClick={openCreate} className="rounded-lg bg-[#48C9B0] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#3ab89f]">+ Nueva mesa</button></div></div>
         ):(
           <>
             {/* Desktop */}
@@ -1581,7 +1581,7 @@ export default function MesasPage() {
                 {['Invitado','Status','Tags','Notas','Asientos','Llegó',''].map((h,i)=><div key={i} className="text-[11px] font-semibold uppercase tracking-wide text-[#aaa]">{h}</div>)}
               </div>
               {filtered.map((table,idx)=>{
-                const occ=getOccupied(table),avail=table.capacity-occ,full=avail===0,open=expanded.has(table.id),bg=idx%2===0?'bg-white':'bg-[#fafafa]'
+                const occ=getOccupied(table),avail=table.capacity-occ,full=avail===0,over=occ>table.capacity,open=expanded.has(table.id),bg=idx%2===0?'bg-white':'bg-[#fafafa]'
                 return(
                   <div key={table.id}>
                     <div className={`grid items-center px-4 py-3 ${bg} border-b border-[#f0f0f0]`} style={{gridTemplateColumns:cols}}>
@@ -1590,10 +1590,10 @@ export default function MesasPage() {
                       <div/>
                       <div className="cursor-pointer" onClick={()=>openEditTable(table)}>
                         <span className="text-sm font-semibold text-[#1D1E20] hover:text-[#48C9B0]">{table.name||<span className="font-normal text-[#ccc]">Sin nombre</span>}</span>
-                        {full&&<span className="ml-2 rounded-full border border-[#a0e0c0] bg-[#f0fff6] px-1.5 py-0.5 text-[9px] font-semibold text-[#2a7a50]">Llena</span>}
+                        {over?<span className="ml-2 rounded-full border border-[#ffc0c0] bg-[#fff0f0] px-1.5 py-0.5 text-[9px] font-semibold text-[#cc3333]">Sobrecupo</span>:full&&<span className="ml-2 rounded-full border border-[#a0e0c0] bg-[#f0fff6] px-1.5 py-0.5 text-[9px] font-semibold text-[#2a7a50]">Llena</span>}
                       </div>
                       <div/><div/><div/>
-                      <div className="text-sm text-[#888]"><span className="font-semibold text-[#1D1E20]">{occ}</span>/{table.capacity}<div className="mt-0.5 h-1 w-12 overflow-hidden rounded-full bg-[#e8e8e8]"><div className="h-full rounded-full" style={{width:`${Math.min((occ/table.capacity)*100,100)}%`,background:full?'#48C9B0':'#a0e0c0'}}/></div></div>
+                      <div className="text-sm text-[#888]"><span className="font-semibold" style={{color:over?'#cc3333':'#1D1E20'}}>{occ}</span>/{table.capacity}<div className="mt-0.5 h-1 w-12 overflow-hidden rounded-full bg-[#e8e8e8]"><div className="h-full rounded-full" style={{width:`${Math.min((occ/table.capacity)*100,100)}%`,background:over?'#cc3333':full?'#48C9B0':'#a0e0c0'}}/></div></div>
                       <div/>
                       <div className="flex items-center justify-end gap-1">
                         <button onClick={()=>setExpanded(p=>{const n=new Set(p);n.has(table.id)?n.delete(table.id):n.add(table.id);return n})} className="flex h-7 w-7 items-center justify-center rounded-lg border border-[#e0e0e0] text-[#888] hover:border-[#48C9B0] hover:text-[#48C9B0]">{open?<ChevronUp width={12} height={12}/>:<ChevronDown width={12} height={12}/>}</button>
@@ -1625,7 +1625,8 @@ export default function MesasPage() {
                           ))}
                         </div>
                       )})}
-                      {!full&&<div className={`border-b border-[#f0f0f0] px-4 py-2 ${bg}`}><button onClick={()=>{setAssignModal({tableId:table.id,tableCapacity:table.capacity});setAssignSearch('')}} className="flex items-center gap-1.5 text-xs text-[#48C9B0] hover:underline"><Plus width={11} height={11}/>Asignar invitado ({avail} libre{avail!==1?'s':''})</button></div>}
+                      {avail>0&&<div className={`border-b border-[#f0f0f0] px-4 py-2 ${bg}`}><button onClick={()=>{setAssignModal({tableId:table.id,tableCapacity:table.capacity});setAssignSearch('')}} className="flex items-center gap-1.5 text-xs text-[#48C9B0] hover:underline"><Plus width={11} height={11}/>Asignar invitado ({avail} libre{avail!==1?'s':''})</button></div>}
+                      {over&&<div className={`border-b border-[#f0f0f0] px-4 py-2 ${bg}`}><span className="text-xs font-medium text-[#cc3333]">Sobrecupo: {occ} de {table.capacity} asientos ({occ-table.capacity} de mas)</span></div>}
                     </>}
                   </div>
                 )
@@ -1635,14 +1636,14 @@ export default function MesasPage() {
             {/* Mobile */}
             <div className="flex flex-col gap-3 sm:hidden">
               {filtered.map(table=>{
-                const occ=getOccupied(table),avail=table.capacity-occ,full=avail===0,open=expanded.has(table.id)
+                const occ=getOccupied(table),avail=table.capacity-occ,full=avail===0,over=occ>table.capacity,open=expanded.has(table.id)
                 return(
                   <div key={table.id} className="rounded-xl border border-[#e8e8e8] bg-white">
                     <div className="flex items-center gap-3 px-4 py-3">
                       <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#f8f8f8] text-xs font-semibold text-[#888]">{SHAPE_LABELS[table.shape as TableShape]?.slice(0,3)||'?'}</div>
                       <div className="min-w-0 flex-1 cursor-pointer" onClick={()=>openEditTable(table)}>
-                        <div className="flex items-center gap-2"><span className="rounded bg-[#f0f0f0] px-1.5 py-0.5 text-xs font-bold text-[#555]">#{table.number}</span><span className="text-sm font-bold text-[#1D1E20]">{table.name||`Mesa ${table.number}`}</span>{full&&<span className="rounded-full border border-[#a0e0c0] bg-[#f0fff6] px-1.5 py-0.5 text-[9px] font-semibold text-[#2a7a50]">Llena</span>}</div>
-                        <div className="mt-1 flex items-center gap-2"><span className="text-xs text-[#888]">{occ}/{table.capacity}</span><div className="h-1.5 w-20 overflow-hidden rounded-full bg-[#e8e8e8]"><div className="h-full rounded-full" style={{width:`${Math.min((occ/table.capacity)*100,100)}%`,background:full?'#48C9B0':'#a0e0c0'}}/></div><span className="text-[11px] text-[#bbb]">{avail} libres</span></div>
+                        <div className="flex items-center gap-2"><span className="rounded bg-[#f0f0f0] px-1.5 py-0.5 text-xs font-bold text-[#555]">#{table.number}</span><span className="text-sm font-bold text-[#1D1E20]">{table.name||`Mesa ${table.number}`}</span>{over?<span className="rounded-full border border-[#ffc0c0] bg-[#fff0f0] px-1.5 py-0.5 text-[9px] font-semibold text-[#cc3333]">Sobrecupo</span>:full&&<span className="rounded-full border border-[#a0e0c0] bg-[#f0fff6] px-1.5 py-0.5 text-[9px] font-semibold text-[#2a7a50]">Llena</span>}</div>
+                        <div className="mt-1 flex items-center gap-2"><span className="text-xs" style={{color:over?'#cc3333':'#888'}}>{occ}/{table.capacity}</span><div className="h-1.5 w-20 overflow-hidden rounded-full bg-[#e8e8e8]"><div className="h-full rounded-full" style={{width:`${Math.min((occ/table.capacity)*100,100)}%`,background:over?'#cc3333':full?'#48C9B0':'#a0e0c0'}}/></div><span className="text-[11px]" style={{color:over?'#cc3333':'#bbb'}}>{over?`+${occ-table.capacity} sobrecupo`:`${avail} libres`}</span></div>
                       </div>
                       <div className="flex shrink-0 items-center gap-1">
                         <button onClick={()=>setExpanded(p=>{const n=new Set(p);n.has(table.id)?n.delete(table.id):n.add(table.id);return n})} className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#e0e0e0] text-[#888]">{open?<ChevronUp width={14} height={14}/>:<ChevronDown width={14} height={14}/>}</button>
@@ -1661,7 +1662,8 @@ export default function MesasPage() {
                           </div>
                         )})}
                       </div>
-                      {!full&&<button onClick={()=>{setAssignModal({tableId:table.id,tableCapacity:table.capacity});setAssignSearch('')}} className="mt-2 flex w-full items-center gap-2 rounded-xl border border-dashed border-[#e0e0e0] px-3 py-2 hover:border-[#48C9B0] hover:bg-[#f0fdfb]"><Plus width={12} height={12} className="text-[#48C9B0]"/><span className="text-xs text-[#aaa]">Asignar invitado ({avail} libres)</span></button>}
+                      {avail>0&&<button onClick={()=>{setAssignModal({tableId:table.id,tableCapacity:table.capacity});setAssignSearch('')}} className="mt-2 flex w-full items-center gap-2 rounded-xl border border-dashed border-[#e0e0e0] px-3 py-2 hover:border-[#48C9B0] hover:bg-[#f0fdfb]"><Plus width={12} height={12} className="text-[#48C9B0]"/><span className="text-xs text-[#aaa]">Asignar invitado ({avail} libres)</span></button>}
+                      {over&&<p className="mt-2 text-xs font-medium text-[#cc3333]">Sobrecupo: {occ} de {table.capacity} asientos</p>}
                     </div>}
                   </div>
                 )
