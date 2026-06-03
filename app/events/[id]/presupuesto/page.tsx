@@ -335,15 +335,17 @@ export default function PresupuestoPage() {
     if (error) { console.error('Error borrando concepto:', error?.message ?? error, error); loadAll() }
   }
 
-  const handleExport = (format: 'excel' | 'pdf') => {
+  const handleExport = async (format: 'excel' | 'pdf') => {
     if (!event) return
+    const hosts = [event.host_name, event.host_name_2].filter(Boolean).join(' & ') || null
     const exportData = {
       eventName: event.name, eventDate: event.event_date, currency: event.currency,
+      venue: event.venue, hosts,
       itemsByCategory, contractedByItem, paidByItem,
       totalBudget, totalContracted, totalPaid,
     }
     if (format === 'excel') exportToExcel(exportData)
-    else exportToPDF(exportData)
+    else await exportToPDF(exportData)
   }
 
   const handleGenerateClick = () => {
@@ -490,8 +492,8 @@ export default function PresupuestoPage() {
 
         {budgets.length === 0 && !search.trim() && (
           <div className="mb-4 rounded-xl border border-dashed border-[#cfe9e2] bg-[#f0fdfb] px-5 py-6 text-center">
-            <p className="text-sm font-semibold text-[#1D1E20]">Tu presupuesto esta vacio</p>
-            <p className="mt-1 text-xs text-[#888]">Genera un presupuesto sugerido segun tu tipo de evento y ajustalo a tu gusto.</p>
+            <p className="text-sm font-semibold text-[#1D1E20]">Tu presupuesto está vacío</p>
+            <p className="mt-1 text-xs text-[#888]">Genera un presupuesto sugerido según tu tipo de evento y ajústalo a tu gusto.</p>
             <button onClick={handleGenerateClick} disabled={generating} className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-[#48C9B0] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#3ab89f] disabled:opacity-50">
               <Sparkles size={15} />{generating ? 'Generando...' : 'Generar presupuesto sugerido'}
             </button>
@@ -529,11 +531,11 @@ export default function PresupuestoPage() {
               <h2 className="text-base font-bold text-[#1D1E20]">Generar presupuesto de boda</h2>
               <button onClick={() => { if (!generating) setShowTierModal(false) }} className="text-[#aaa] hover:text-[#555]"><X size={18} /></button>
             </div>
-            <p className="mb-4 text-xs text-[#888]">Elige el nivel. A mayor nivel, mas categorias y conceptos. Sin montos: tu los defines.</p>
+            <p className="mb-4 text-xs text-[#888]">Elige el nivel. A mayor nivel, más categorías y conceptos. Sin montos: tú los defines.</p>
             <div className="flex flex-col gap-2.5">
               {([
                 { tier: 'esencial' as BudgetTier, label: 'Esencial', desc: 'Lo indispensable para tu boda.' },
-                { tier: 'clasica' as BudgetTier,  label: 'Clasica',  desc: 'Boda completa estandar.' },
+                { tier: 'clasica' as BudgetTier,  label: 'Clásica',  desc: 'Boda completa estándar.' },
                 { tier: 'premium' as BudgetTier,  label: 'Premium',  desc: 'Todo + extras (planner, valet, candy bar...).' },
               ]).map(o => (
                 <button key={o.tier} onClick={() => generateWith(o.tier)} disabled={generating}
