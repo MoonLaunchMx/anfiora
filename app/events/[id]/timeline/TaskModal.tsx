@@ -6,6 +6,7 @@ import { TimelineTask, TimelinePriority, EventCollaborator } from '@/lib/types'
 import {
   X, Plus, ChevronDown, Bell, Building2, User, Star, AlertTriangle
 } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
 import { formatDate } from './TaskCard'
 
 // ─── CONSTANTS ───────────────────────────────────────────────────────────────
@@ -98,6 +99,7 @@ export function TaskModal({ editTask, prefillDate, eventId, onClose, onSaved }: 
 
   const [saving, setSaving]               = useState(false)
   const [showEmoji, setShowEmoji]         = useState(false)
+  const [showAdvanced, setShowAdvanced]   = useState(false)
   const [collaborators, setCollaborators] = useState<EventCollaborator[]>([])
   const [suppliers, setSuppliers]         = useState<SupplierOption[]>([])
   const [assignMode, setAssignMode]       = useState<'collab' | 'free'>('collab')
@@ -353,6 +355,25 @@ export function TaskModal({ editTask, prefillDate, eventId, onClose, onSaved }: 
             )}
           </div>
 
+          {/* Toggle configuracion avanzada */}
+          <button
+            onClick={() => setShowAdvanced(p => !p)}
+            className="flex items-center gap-1.5 self-end text-xs font-medium text-[#888] hover:text-[#48C9B0] transition-colors"
+          >
+            <ChevronDown size={13} className={'transition-transform ' + (showAdvanced ? 'rotate-180' : '')} />
+            Configuracion avanzada
+          </button>
+
+          <AnimatePresence initial={false}>
+          {showAdvanced && (
+            <motion.div
+              key="advanced"
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+              className="flex flex-col gap-3.5 overflow-hidden"
+            >
           {/* Proveedor vinculado */}
           <div>
             <label className="text-xs font-medium text-[#555] mb-1 flex items-center gap-1.5 block">
@@ -450,6 +471,9 @@ export function TaskModal({ editTask, prefillDate, eventId, onClose, onSaved }: 
             <Star size={14} className={form.is_highlighted ? 'fill-amber-400 text-amber-400' : 'text-[#aaa]'} />
             {form.is_highlighted ? 'Tarea destacada' : 'Marcar como destacada'}
           </button>
+            </motion.div>
+          )}
+          </AnimatePresence>
         </div>
 
         {/* Footer sticky */}

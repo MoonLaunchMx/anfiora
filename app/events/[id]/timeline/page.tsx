@@ -12,6 +12,7 @@ import {
 import StatsCollapse, { StatsToggleButton, useStatsToggle } from '@/app/components/ui/StatsCollapse'
 import { TaskCard, CategoryIcon, CalendarTaskIcon, getUrgency, formatDateFull } from './TaskCard'
 import { TaskModal } from './TaskModal'
+import { buildTimelineTasks } from './lib/templates'
 
 // ─── CONSTANTS ───────────────────────────────────────────────────────────────
 
@@ -188,6 +189,8 @@ export default function TimelinePage() {
   const [search, setSearch]           = useState('')
   const [filterCat, setFilterCat]     = useState('')
   const [showFilters, setShowFilters] = useState(false)
+  const [eventInfo, setEventInfo]     = useState<{ event_date: string | null; event_type: string | null; event_category: string | null } | null>(null)
+  const [generating, setGenerating]   = useState(false)
 
   const hasActiveFilters = search.trim() !== '' || filterCat !== ''
 
@@ -225,6 +228,15 @@ export default function TimelinePage() {
   }, [eventId, fetchTasks])
 
   useEffect(() => {
+    supabase
+      .from('events')
+      .select('event_date, event_type, event_category')
+      .eq('id', eventId)
+      .single()
+      .then(({ data }) => { if (data) setEventInfo(data) })
+  }, [eventId])
+
+  useEffect(() => {
     if (!tasks.length) return
     const taskId = searchParams.get('task')
     if (!taskId) return
@@ -239,6 +251,17 @@ export default function TimelinePage() {
   const openEdit    = (t: TimelineTask) => { setEditTask(t); setPrefillDate(null); setShowModal(true) }
   const closeModal  = () => { setShowModal(false); setEditTask(null); setPrefillDate(null) }
   const handleSaved = () => { closeModal(); fetchTasks(); setSelectedDay(null) }
+
+  const handleGeneratePlan = async () => {
+    if (!eventInfo?.event_date || generating) return
+    if (tasks.length > 0 && !window.confirm('Se agregaran las tareas sugeridas que falten para tu tipo de evento (las que ya existan no se duplican). Continuar?')) return
+    setGenerating(true)
+    const existing = new Set(tasks.map(t => t.title.toLowerCase()))
+    const rows = buildTimelineTasks(eventId, eventInfo.event_type, eventInfo.event_category, eventInfo.event_date, existing)
+    if (rows.length > 0) await supabase.from('event_timeline_tasks').insert(rows)
+    await fetchTasks()
+    setGenerating(false)
+  }
 
   const toggleCompleted = async (t: TimelineTask) => {
     await supabase.from('event_timeline_tasks').update({ is_completed: !t.is_completed }).eq('id', t.id)
@@ -295,7 +318,20 @@ export default function TimelinePage() {
           </p>
           {hasActiveFilters
             ? <button onClick={clearFilters} className="mt-3 text-sm text-[#48C9B0] font-medium hover:underline">Limpiar filtros</button>
-            : <button onClick={() => openNew()} className="mt-4 rounded-lg bg-[#48C9B0] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#3ab89f]">+ Agregar tarea</button>
+            : (
+              <div className="mt-4 flex flex-col items-center gap-3">
+                <button
+                  onClick={handleGeneratePlan}
+                  disabled={!eventInfo?.event_date || generating}
+                  className="rounded-lg bg-[#48C9B0] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#3ab89f] disabled:opacity-50"
+                >
+                  {generating ? 'Generando...' : 'Generar plan sugerido'}
+                </button>
+                {!eventInfo?.event_date
+                  ? <p className="text-xs text-[#bbb]">Primero define la fecha del evento</p>
+                  : <button onClick={() => openNew()} className="text-sm text-[#888] hover:text-[#48C9B0]">o agrega una tarea manual</button>}
+              </div>
+            )
           }
         </div>
       )
@@ -395,7 +431,7 @@ export default function TimelinePage() {
       <div style={{ flexShrink: 0, borderBottom: '1px solid #e8e8e8' }} className="px-4 pt-4 pb-0 sm:px-6 sm:pt-5 lg:px-10 lg:pt-6">
         <div className="mb-4 flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
-            <h1 className="text-lg font-bold text-[#1D1E20] sm:text-xl lg:text-2xl">Timeline</h1>
+            <h1 className="text-lg font-bold text-[#1D1E20] sm:text-xl lg:text-2xl">Timeline & tareas</h1>
             <p className="mt-0.5 text-xs text-[#888] sm:text-sm">Planea tu evento desde el save the date hasta la torna boda</p>
           </div>
           <div className="lg:hidden shrink-0 pt-1">
@@ -506,7 +542,12 @@ export default function TimelinePage() {
             )}
           </button>
 
-          <div className="ml-auto">
+          <div className="ml-auto flex items-center gap-2">
+            <button onClick={handleGeneratePlan}
+              disabled={!eventInfo?.event_date || generating}
+              className="hidden sm:flex items-center gap-1.5 rounded-lg border border-[#e0e0e0] px-3 py-1.5 text-xs font-medium text-[#666] transition hover:border-[#48C9B0] hover:text-[#48C9B0] disabled:opacity-50">
+              <CalendarDays width={13} height={13} />{generating ? 'Generando...' : 'Generar plan'}
+            </button>
             <button onClick={() => openNew()}
               className="flex items-center gap-1.5 rounded-lg bg-[#48C9B0] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#3ab89f] sm:px-4 sm:text-sm">
               <Plus width={14} height={14} />Agregar
