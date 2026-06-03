@@ -205,7 +205,7 @@ export function downloadImportTemplate(opts: { categories: string[]; eventType: 
     ['5) Guarda el archivo y subelo en el boton "Importar" dentro de Presupuesto.'],
     [],
     ['Notas:'],
-    ['- La columna "Categoria" agrupa tus conceptos; usa las de la hoja "Categorias".'],
+    ['- La columna "Categoria" agrupa tus conceptos; usa las que ya vienen en la lista.'],
     ['- Puedes dejar el monto en blanco; lo defines despues en la app.'],
     ['- Al importar no se duplican los conceptos que ya tengas.'],
   ]
@@ -225,17 +225,8 @@ export function downloadImportTemplate(opts: { categories: string[]; eventType: 
   const ws = XLSX.utils.aoa_to_sheet(rows)
   ws['!cols'] = [{ wch: 22 }, { wch: 38 }, { wch: 16 }]
 
-  // Hoja "Categorias" (referencia)
-  const refRows: any[] = [
-    ['Categorías de tu evento (cópialas exactamente como aparecen aquí)'],
-    ...categories.map(c => [categoryLabel(c)]),
-  ]
-  const wsRef = XLSX.utils.aoa_to_sheet(refRows)
-  wsRef['!cols'] = [{ wch: 45 }]
-
   const wb = XLSX.utils.book_new()
-  XLSX.utils.book_append_sheet(wb, wsInstr, 'Instrucciones')
   XLSX.utils.book_append_sheet(wb, ws, 'Presupuesto')
-  XLSX.utils.book_append_sheet(wb, wsRef, 'Categorías')
+  XLSX.utils.book_append_sheet(wb, wsInstr, 'Instrucciones')
   XLSX.writeFile(wb, 'Plantilla presupuesto Anfiora.xlsx')
 }

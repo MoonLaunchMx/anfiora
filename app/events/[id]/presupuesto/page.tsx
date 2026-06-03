@@ -50,7 +50,7 @@ export default function PresupuestoPage() {
 
   const [showTierModal, setShowTierModal]   = useState(false)
   const [generating, setGenerating]         = useState(false)
-  const [showImportMenu, setShowImportMenu] = useState(false)
+  const [showImportHelp, setShowImportHelp] = useState(false)
   const [showExportMenu, setShowExportMenu] = useState(false)
 
   const [modalOpen, setModalOpen]         = useState(false)
@@ -81,7 +81,7 @@ export default function PresupuestoPage() {
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       const t = e.target as HTMLElement
-      if (!t.closest('[data-budget-menu]')) { setShowImportMenu(false); setShowExportMenu(false) }
+      if (!t.closest('[data-budget-menu]')) { setShowExportMenu(false) }
     }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
@@ -199,16 +199,21 @@ export default function PresupuestoPage() {
       try {
         const data = new Uint8Array(ev.target?.result as ArrayBuffer)
         const wb   = XLSX.read(data, { type: 'array' })
-        const ws   = wb.Sheets[wb.SheetNames[0]]
-        const raw  = XLSX.utils.sheet_to_json<any>(ws, { header: 1 })
 
+        // Buscar entre TODAS las hojas la que tenga la fila de encabezados (Categoria)
+        let raw: any[] = []
         let headerIdx = -1
-        for (let i = 0; i < raw.length; i++) {
-          const row = raw[i].map((c: any) => String(c || '').toLowerCase())
-          if (row.includes('categoria') || row.includes('categoría')) {
-            headerIdx = i
-            break
+        for (const sheetName of wb.SheetNames) {
+          const sheetRows = XLSX.utils.sheet_to_json<any>(wb.Sheets[sheetName], { header: 1 })
+          for (let i = 0; i < sheetRows.length; i++) {
+            const row = (sheetRows[i] || []).map((c: any) => String(c || '').toLowerCase())
+            if (row.includes('categoria') || row.includes('categoría')) {
+              raw = sheetRows
+              headerIdx = i
+              break
+            }
           }
+          if (headerIdx !== -1) break
         }
 
         if (headerIdx === -1) {
@@ -267,28 +272,37 @@ export default function PresupuestoPage() {
   const handleImport = async () => {
     setImporting(true)
     try {
-      const toInsert = importMode === 'todos'
-        ? importRows
-        : importRows.filter(r => !r.isDuplicate)
+      const news = importRows.filter(r => !r.isDuplicate)
+      const dups = importMode === 'todos' ? importRows.filter(r => r.isDuplicate) : []
 
-      if (toInsert.length === 0) { setImportModalOpen(false); return }
+      if (news.length === 0 && dups.length === 0) { setImportModalOpen(false); return }
 
-      const { data: inserted, error } = await supabase
-        .from('event_budgets')
-        .insert(toInsert.map(r => ({
-          event_id:          eventId,
-          category:          r.category,
-          subcategory:       r.subcategory,
-          budget_amount:     r.budget_amount,
-          event_supplier_id: null,
-          notes:             null,
-        })))
-        .select()
+      if (news.length > 0) {
+        const { error } = await supabase
+          .from('event_budgets')
+          .insert(news.map(r => ({
+            event_id:          eventId,
+            category:          r.category,
+            subcategory:       r.subcategory,
+            budget_amount:     r.budget_amount,
+            event_supplier_id: null,
+            notes:             null,
+          })))
+        if (error) throw error
+      }
 
-      if (error) throw error
-      if (inserted) setBudgets(prev => [...prev, ...(inserted as EventBudget[])])
+      // Modo "todos": actualizar el monto de los conceptos que ya existen (no re-insertar)
+      for (const r of dups) {
+        const { error } = await supabase
+          .from('event_budgets')
+          .update({ budget_amount: r.budget_amount })
+          .eq('event_id', eventId).eq('category', r.category).eq('subcategory', r.subcategory)
+        if (error) throw error
+      }
+
       setImportModalOpen(false)
       setImportRows([])
+      await loadAll()
     } catch (err: any) {
       console.error('Error importando:', err?.message ?? err)
       alert(`Error importando: ${err?.message ?? 'Intenta de nuevo'}`)
@@ -478,25 +492,16 @@ export default function PresupuestoPage() {
             onChange={handleFileChange}
           />
 
-          <div className="relative" data-budget-menu>
-            <button
-              onClick={() => { setShowImportMenu(v => !v); setShowExportMenu(false) }}
-              className="flex items-center gap-1.5 rounded-lg border border-[#e0e0e0] bg-white px-3 py-1.5 text-xs font-medium text-[#555] transition hover:border-[#48C9B0] hover:text-[#48C9B0]"
-            >
-              <Upload size={14} /><span className="hidden sm:inline">Importar</span>
-              <ChevronDown size={12} className="text-[#aaa]" />
-            </button>
-            {showImportMenu && (
-              <div className="absolute right-0 top-full z-30 mt-1 w-52 overflow-hidden rounded-xl border border-[#e8e8e8] bg-white shadow-lg">
-                <button onClick={() => { setShowImportMenu(false); fileInputRef.current?.click() }} className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-xs text-[#1D1E20] hover:bg-[#f8f8f8]"><Upload size={13} className="text-[#888]" />Importar archivo Excel</button>
-                <button onClick={() => { setShowImportMenu(false); downloadImportTemplate({ categories, eventType: event?.event_type ?? null, eventCategory: event?.event_category ?? null }) }} className="flex w-full items-center gap-2 border-t border-[#f0f0f0] px-4 py-2.5 text-left text-xs text-[#1D1E20] hover:bg-[#f8f8f8]"><FileSpreadsheet size={13} className="text-[#888]" />Descargar plantilla</button>
-              </div>
-            )}
-          </div>
+          <button
+            onClick={() => setShowImportHelp(true)}
+            className="flex items-center gap-1.5 rounded-lg border border-[#e0e0e0] bg-white px-3 py-1.5 text-xs font-medium text-[#555] transition hover:border-[#48C9B0] hover:text-[#48C9B0]"
+          >
+            <Upload size={14} /><span className="hidden sm:inline">Importar</span>
+          </button>
 
           <div className="relative" data-budget-menu>
             <button
-              onClick={() => { setShowExportMenu(v => !v); setShowImportMenu(false) }}
+              onClick={() => setShowExportMenu(v => !v)}
               className="flex items-center gap-1.5 rounded-lg border border-[#e0e0e0] bg-white px-3 py-1.5 text-xs font-medium text-[#555] transition hover:border-[#48C9B0] hover:text-[#48C9B0]"
             >
               <FileText size={14} /><span className="hidden sm:inline">Exportar</span>
@@ -644,6 +649,43 @@ export default function PresupuestoPage() {
         eventSuppliers={eventSuppliers}
         onSubmit={handleModalSubmit}
       />
+
+      {/* ── MODAL AYUDA IMPORTAR (2 pasos) ── */}
+      {showImportHelp && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 p-4" onClick={() => setShowImportHelp(false)}>
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="mb-1 flex items-center justify-between">
+              <h2 className="text-base font-bold text-[#1D1E20]">Importar presupuesto</h2>
+              <button onClick={() => setShowImportHelp(false)} className="text-[#aaa] hover:text-[#555]"><X size={18} /></button>
+            </div>
+            <p className="mb-5 text-xs text-[#888]">Trae tu presupuesto desde Excel en dos pasos.</p>
+
+            <div className="mb-5">
+              <div className="mb-1.5 flex items-center gap-2">
+                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#48C9B0] text-[11px] font-bold text-white">1</span>
+                <span className="text-sm font-semibold text-[#1D1E20]">Descarga la plantilla</span>
+              </div>
+              <p className="mb-2 ml-7 text-xs text-[#666]">Viene con las categorías de tu evento y conceptos sugeridos. Llena los montos en Excel.</p>
+              <button onClick={() => downloadImportTemplate({ categories, eventType: event?.event_type ?? null, eventCategory: event?.event_category ?? null })}
+                className="ml-7 flex items-center gap-1.5 rounded-lg border border-[#48C9B0] px-4 py-2 text-xs font-medium text-[#1a9e88] transition hover:bg-[#f0fdfb]">
+                <FileSpreadsheet size={14} /> Descargar plantilla
+              </button>
+            </div>
+
+            <div>
+              <div className="mb-1.5 flex items-center gap-2">
+                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#48C9B0] text-[11px] font-bold text-white">2</span>
+                <span className="text-sm font-semibold text-[#1D1E20]">Sube tu archivo</span>
+              </div>
+              <p className="mb-2 ml-7 text-xs text-[#666]">Selecciona el Excel que llenaste (.xlsx). Verás una vista previa antes de guardar.</p>
+              <button onClick={() => { setShowImportHelp(false); fileInputRef.current?.click() }}
+                className="ml-7 flex items-center gap-1.5 rounded-lg bg-[#48C9B0] px-4 py-2 text-xs font-semibold text-white transition hover:bg-[#3ab89f]">
+                <Upload size={14} /> Seleccionar archivo
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── MODAL DE IMPORT ── */}
       {importModalOpen && (
