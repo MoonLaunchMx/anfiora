@@ -266,7 +266,7 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (avatarRef.current && !avatarRef.current.contains(e.target as Node)) {
+      if (!(e.target as HTMLElement).closest('[data-avatar-menu]')) {
         setAvatarOpen(false)
       }
     }
@@ -454,7 +454,7 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
             {event?.name || '...'}
           </span>
         </div>
-        <div ref={avatarRef} className="relative ml-3 shrink-0">
+        <div ref={avatarRef} data-avatar-menu className="relative ml-3 shrink-0">
           <button onClick={() => setAvatarOpen(p => !p)} className="flex items-center">
             <Avatar initials={initials} size="sm" />
           </button>
@@ -564,7 +564,7 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
           </nav>
 
           <div className="shrink-0 border-t border-[#e8e8e8]">
-            <div ref={avatarRef} className="relative px-3 py-3">
+            <div ref={avatarRef} data-avatar-menu className="relative px-3 py-3">
               <button
                 onClick={() => setAvatarOpen(p => !p)}
                 title={collapsed ? (userName || userEmail) : undefined}
