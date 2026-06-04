@@ -495,12 +495,12 @@ export default function PresupuestoPage() {
 
           <button
             onClick={() => setShowImportHelp(true)}
-            className="flex items-center gap-1.5 rounded-lg border border-[#e0e0e0] bg-white px-3 py-1.5 text-xs font-medium text-[#555] transition hover:border-[#48C9B0] hover:text-[#48C9B0]"
+            className="hidden items-center gap-1.5 rounded-lg border border-[#e0e0e0] bg-white px-3 py-1.5 text-xs font-medium text-[#555] transition hover:border-[#48C9B0] hover:text-[#48C9B0] sm:flex"
           >
             <Upload size={14} /><span className="hidden sm:inline">Importar</span>
           </button>
 
-          <div className="relative" data-budget-menu>
+          <div className="relative hidden sm:block" data-budget-menu>
             <button
               onClick={() => setShowExportMenu(v => !v)}
               className="flex items-center gap-1.5 rounded-lg border border-[#e0e0e0] bg-white px-3 py-1.5 text-xs font-medium text-[#555] transition hover:border-[#48C9B0] hover:text-[#48C9B0]"
@@ -524,9 +524,9 @@ export default function PresupuestoPage() {
           <button
             onClick={handleGenerateClick}
             disabled={generating}
-            className="flex items-center gap-1.5 rounded-lg border border-[#48C9B0] bg-[#f0fdfb] px-3 py-1.5 text-xs font-semibold text-[#1a9e88] transition hover:bg-[#e0faf5] disabled:opacity-50"
+            className="hidden items-center gap-1.5 rounded-lg border border-[#48C9B0] bg-[#f0fdfb] px-3 py-1.5 text-xs font-semibold text-[#1a9e88] transition hover:bg-[#e0faf5] disabled:opacity-50 sm:flex"
           >
-            <Sparkles size={14} /><span className="hidden sm:inline">{generating ? 'Generando...' : 'Generar presupuesto'}</span><span className="sm:hidden">Generar</span>
+            <Sparkles size={14} />{generating ? 'Generando...' : 'Generar presupuesto'}
           </button>
 
           <button
