@@ -3,12 +3,13 @@
 import { useEffect, useState, useRef, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { useParams } from 'next/navigation'
-import { motion, useMotionValue, useTransform, animate } from 'framer-motion'
+import { motion, AnimatePresence, useMotionValue, useTransform, animate } from 'framer-motion'
 import type { PanInfo } from 'framer-motion'
 import { Trash2, Send, Clock, MessageSquare, AlertCircle, CheckCircle, XCircle, Download, Upload, Columns3, Search, UserPlus, Plus, Check, X, Filter, Loader2, FileSpreadsheet, FileText } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { PartyMember, Guest, Event, EventSettings, EventStatus, RsvpStatus } from '@/lib/types'
 import StatsCollapse, { StatsToggleButton, useStatsToggle } from '@/app/components/ui/StatsCollapse'
+import { ImportStepsModal } from '@/app/components/ui/ImportStepsModal'
 import * as XLSX from 'xlsx'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
@@ -1645,51 +1646,43 @@ export default function EventPage() {
         </div>
       )}
 
-      {showCsvModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-lg rounded-2xl border border-[#e8e8e8] bg-white p-6 shadow-xl sm:p-8" style={{ maxHeight: '90vh', overflowY: 'auto' }}>
+      {/* input oculto para importar CSV */}
+      <input ref={fileRef} type="file" accept=".csv,.txt" onChange={handleCSV} className="hidden" />
+
+      {/* Importar invitados — pasos (componente compartido) */}
+      <ImportStepsModal
+        open={showCsvModal && !csvPreview}
+        onClose={() => { setShowCsvModal(false); setCsvPreview(null) }}
+        title="Importar invitados"
+        subtitle="Trae tu lista de invitados desde Excel en dos pasos."
+        step1Desc="Ya trae las columnas correctas (nombre, teléfono, email, notas, tags). Solo llénala y guárdala como CSV."
+        downloadLabel="Descargar plantilla CSV"
+        onDownload={downloadTemplate}
+        step2Desc="Selecciona el archivo CSV que llenaste. Verás una vista previa antes de guardar."
+        selectLabel="Seleccionar archivo CSV"
+        onSelectFile={() => fileRef.current?.click()}
+        error={csvError || undefined}
+      />
+
+      {/* Importar invitados — vista previa */}
+      <AnimatePresence>
+      {showCsvModal && csvPreview && (
+        <motion.div
+          key="csv-preview-overlay"
+          initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+          transition={{ duration: 0.2 }}
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 p-4"
+        >
+          <motion.div
+            initial={{ opacity: 0, scale: 0.97, y: 12 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.97, y: 12 }}
+            transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+            className="w-full max-w-md rounded-2xl border border-[#e8e8e8] bg-white p-6 shadow-2xl" style={{ maxHeight: '90vh', overflowY: 'auto' }}
+          >
             <div className="mb-5 flex items-center justify-between">
-              <h2 className="text-lg font-bold text-[#1D1E20] sm:text-xl">Importar invitados</h2>
+              <h2 className="text-base font-bold text-[#1D1E20]">Importar invitados</h2>
               <button onClick={() => { setShowCsvModal(false); setCsvPreview(null) }} className="text-xl text-[#aaa]">✕</button>
             </div>
-            {!csvPreview && (
-              <>
-                <div className="mb-6">
-                  <div className="mb-2 flex items-center gap-2.5">
-                    <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#48C9B0] text-xs font-bold text-white">1</div>
-                    <span className="text-sm font-semibold text-[#1D1E20]">Descarga la plantilla</span>
-                  </div>
-                  <p className="mb-3 ml-8 text-xs leading-relaxed text-[#666]">Llénala en Excel o Google Sheets y guárdala como CSV.</p>
-                  <div className="mb-3 ml-8 rounded-lg border border-[#e8e8e8] bg-[#f8f8f8] p-3 font-mono text-xs leading-relaxed">
-                    <span className="font-semibold text-[#b8860b]">nombre</span> — obligatorio<br/>
-                    <span className="font-semibold text-[#48C9B0]">telefono</span> — WhatsApp (opcional)<br/>
-                    <span className="font-semibold text-[#48C9B0]">email</span> — correo (opcional)<br/>
-                    <span className="font-semibold text-[#48C9B0]">notas</span> — texto libre (opcional)<br/>
-                    <span className="font-semibold text-[#48C9B0]">tags</span> — separados por coma (opcional)<br/>
-                    <span className="font-semibold text-[#48C9B0]">rsvp_status</span> — confirmed | pending | declined
-                  </div>
-                  <button onClick={downloadTemplate} className="ml-8 rounded-lg border border-[#48C9B0] px-4 py-2 text-xs text-[#1a9e88] transition hover:bg-[#f0fdfb]">Descargar plantilla CSV</button>
-                </div>
-                <div className="mb-6 border-t border-[#f0f0f0]" />
-                <div>
-                  <div className="mb-2 flex items-center gap-2.5">
-                    <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#48C9B0] text-xs font-bold text-white">2</div>
-                    <span className="text-sm font-semibold text-[#1D1E20]">Sube tu archivo</span>
-                  </div>
-                  {csvError && <div className="mb-3 ml-8 rounded-lg border border-[#ffc0c0] bg-[#fff0f0] p-2.5 text-xs text-[#cc3333]">{csvError}</div>}
-                  {csvSuccess && <div className="mb-3 ml-8 rounded-lg border border-[#a0e0c0] bg-[#f0fff6] p-2.5 text-xs text-[#2a7a50]">{csvSuccess}</div>}
-                  <label className="ml-8 inline-flex cursor-pointer items-center gap-2 rounded-lg bg-[#48C9B0] px-4 py-2 text-xs font-semibold text-white">
-                    Seleccionar archivo CSV
-                    <input ref={fileRef} type="file" accept=".csv,.txt" onChange={handleCSV} className="hidden" />
-                  </label>
-                </div>
-                <div className="mt-6 text-right">
-                  <button onClick={() => setShowCsvModal(false)} className="rounded-lg border border-[#e0e0e0] px-5 py-2 text-xs text-[#888]">Cerrar</button>
-                </div>
-              </>
-            )}
-            {csvPreview && (
-              <div>
+            <div>
                 <div className="mb-4 rounded-xl border border-[#e8e8e8] bg-[#f8f8f8] p-4">
                   <p className="mb-1 text-sm font-semibold text-[#1D1E20]">Resumen del archivo</p>
                   <p className="text-xs text-[#666]">{csvPreview.rows.length} invitados encontrados</p>
@@ -1732,10 +1725,10 @@ export default function EventPage() {
                   <button onClick={() => setCsvPreview(null)} disabled={csvImporting} className="w-full rounded-lg border border-[#e0e0e0] py-2.5 text-xs text-[#888] disabled:opacity-60">Cancelar</button>
                 </div>
               </div>
-            )}
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
       )}
+      </AnimatePresence>
 
       {showBulkCompanionModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 p-4">

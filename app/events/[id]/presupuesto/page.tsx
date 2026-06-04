@@ -11,6 +11,7 @@ import {
 } from '@/lib/types'
 import { getEventCategories, categoryLabel } from './lib/categories'
 import { BudgetCategoriesModal } from './BudgetCategoriesModal'
+import { ImportStepsModal } from '@/app/components/ui/ImportStepsModal'
 import BudgetMetricsCards from '@/app/components/ui/BudgetMetricsCards'
 import StatsCollapse, { useStatsToggle, StatsToggleButton } from '@/app/components/ui/StatsCollapse'
 import BudgetCategoryRow from './BudgetCategoryRow'
@@ -650,42 +651,19 @@ export default function PresupuestoPage() {
         onSubmit={handleModalSubmit}
       />
 
-      {/* ── MODAL AYUDA IMPORTAR (2 pasos) ── */}
-      {showImportHelp && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 p-4" onClick={() => setShowImportHelp(false)}>
-          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl" onClick={e => e.stopPropagation()}>
-            <div className="mb-1 flex items-center justify-between">
-              <h2 className="text-base font-bold text-[#1D1E20]">Importar presupuesto</h2>
-              <button onClick={() => setShowImportHelp(false)} className="text-[#aaa] hover:text-[#555]"><X size={18} /></button>
-            </div>
-            <p className="mb-5 text-xs text-[#888]">Trae tu presupuesto desde Excel en dos pasos.</p>
-
-            <div className="mb-5">
-              <div className="mb-1.5 flex items-center gap-2">
-                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#48C9B0] text-[11px] font-bold text-white">1</span>
-                <span className="text-sm font-semibold text-[#1D1E20]">Descarga la plantilla</span>
-              </div>
-              <p className="mb-2 ml-7 text-xs text-[#666]">Viene con las categorías de tu evento y conceptos sugeridos. Llena los montos en Excel.</p>
-              <button onClick={() => downloadImportTemplate({ categories, eventType: event?.event_type ?? null, eventCategory: event?.event_category ?? null })}
-                className="ml-7 flex items-center gap-1.5 rounded-lg border border-[#48C9B0] px-4 py-2 text-xs font-medium text-[#1a9e88] transition hover:bg-[#f0fdfb]">
-                <FileSpreadsheet size={14} /> Descargar plantilla
-              </button>
-            </div>
-
-            <div>
-              <div className="mb-1.5 flex items-center gap-2">
-                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#48C9B0] text-[11px] font-bold text-white">2</span>
-                <span className="text-sm font-semibold text-[#1D1E20]">Sube tu archivo</span>
-              </div>
-              <p className="mb-2 ml-7 text-xs text-[#666]">Selecciona el Excel que llenaste (.xlsx). Verás una vista previa antes de guardar.</p>
-              <button onClick={() => { setShowImportHelp(false); fileInputRef.current?.click() }}
-                className="ml-7 flex items-center gap-1.5 rounded-lg bg-[#48C9B0] px-4 py-2 text-xs font-semibold text-white transition hover:bg-[#3ab89f]">
-                <Upload size={14} /> Seleccionar archivo
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* ── MODAL AYUDA IMPORTAR (2 pasos, componente compartido) ── */}
+      <ImportStepsModal
+        open={showImportHelp}
+        onClose={() => setShowImportHelp(false)}
+        title="Importar presupuesto"
+        subtitle="Trae tu presupuesto desde Excel en dos pasos."
+        step1Desc="Viene con las categorías de tu evento y conceptos sugeridos. Llena los montos en Excel."
+        downloadLabel="Descargar plantilla"
+        onDownload={() => downloadImportTemplate({ categories, eventType: event?.event_type ?? null, eventCategory: event?.event_category ?? null })}
+        step2Desc="Selecciona el Excel que llenaste (.xlsx). Verás una vista previa antes de guardar."
+        selectLabel="Seleccionar archivo"
+        onSelectFile={() => { setShowImportHelp(false); fileInputRef.current?.click() }}
+      />
 
       {/* ── MODAL DE IMPORT ── */}
       {importModalOpen && (
