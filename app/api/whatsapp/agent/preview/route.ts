@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
   const pack = await buildPreviewPack(supabase, body.eventId, config)
   if (!pack) return NextResponse.json({ error: 'Evento no encontrado' }, { status: 404 })
 
-  const intent = await interpretRSVPMessage(body.message, '', '')
+  const intent = await interpretRSVPMessage(body.message, pack.guestName, pack.eventName)
   const outcome = await runPipelineOnPack(pack, body.message.trim(), intent, config, [])
 
   if (outcome.action === 'reply' || outcome.action === 'draft') {

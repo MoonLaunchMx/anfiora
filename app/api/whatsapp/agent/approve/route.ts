@@ -22,7 +22,9 @@ export async function POST(request: NextRequest) {
   const text = body.editedText?.trim() || draft.content
   const to = guest.phone.startsWith('whatsapp:') ? guest.phone : `whatsapp:${guest.phone}`
 
-  await enqueueOutbound(supabase, { to, body: text, guestId: draft.guest_id, eventId: draft.event_id, author: 'human' })
+  const result = await enqueueOutbound(supabase, { to, body: text, guestId: draft.guest_id, eventId: draft.event_id, author: 'human' })
+  if (!result.ok) return NextResponse.json({ error: 'No se pudo enviar el mensaje' }, { status: 502 })
+
   await supabase.from('wa_messages').update({ status: 'sent_from_draft' }).eq('id', draft.id)
   await supabase.from('guests').update({ wa_needs_human: false, wa_needs_human_reason: null }).eq('id', draft.guest_id)
 

@@ -75,7 +75,7 @@ export type OutboundPayload = {
   author: 'ia' | 'human'
 }
 
-export async function enqueueOutbound(supabase: SupabaseClient, p: OutboundPayload): Promise<void> {
+export async function enqueueOutbound(supabase: SupabaseClient, p: OutboundPayload): Promise<{ ok: boolean; status: string }> {
   const { data: guest } = await supabase
     .from('guests')
     .select('wa_opt_out')
@@ -83,7 +83,7 @@ export async function enqueueOutbound(supabase: SupabaseClient, p: OutboundPaylo
     .maybeSingle()
   if (guest?.wa_opt_out) {
     console.log('[WA] envio bloqueado: invitado con opt-out', p.guestId)
-    return
+    return { ok: false, status: 'blocked_opt_out' }
   }
 
   const accountSid = process.env.TWILIO_ACCOUNT_SID!
@@ -123,4 +123,5 @@ export async function enqueueOutbound(supabase: SupabaseClient, p: OutboundPaylo
     twilio_sid: sid,
     created_at: new Date().toISOString(),
   })
+  return { ok: status === 'sent', status }
 }

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { validateRequest } from 'twilio'
 import { getAgentConfig, buildHolding } from '@/lib/whatsapp/config'
-import { isDuplicate, isWithinSession, detectOptOut, applyOptOut, claimInboundForReply, enqueueOutbound } from '@/lib/whatsapp/reliability'
+import { isDuplicate, detectOptOut, applyOptOut, claimInboundForReply, enqueueOutbound } from '@/lib/whatsapp/reliability'
 import { runAgentPipeline } from '@/lib/whatsapp/agent'
 import type { MessageHistory } from '@/lib/ai-rsvp'
 
@@ -73,9 +73,6 @@ export async function POST(request: NextRequest) {
     // Agente apagado: no responde
     if (!config.enabled) return twiml()
 
-    // Fuera de ventana de 24h: no se envia texto libre (compliance)
-    if (!(await isWithinSession(supabase, guest.id))) return twiml()
-
     // Debounce: solo el ultimo mensaje de la rafaga responde
     if (!(await claimInboundForReply(supabase, guest.id, nowIso))) return twiml()
 
@@ -104,9 +101,9 @@ export async function POST(request: NextRequest) {
       })
       await supabase.from('guests').update({ wa_needs_human: true, wa_needs_human_reason: 'copiloto' }).eq('id', guest.id)
     } else if (outcome.action === 'handoff') {
-      await enqueueOutbound(supabase, { to: from, body: outcome.holding, guestId: guest.id, eventId: guest.event_id, author: 'ia' })
       const flag = outcome.reason === 'no_se' ? config.escalate.fuera_de_info : true
       if (flag) {
+        await enqueueOutbound(supabase, { to: from, body: outcome.holding, guestId: guest.id, eventId: guest.event_id, author: 'ia' })
         await supabase.from('guests').update({ wa_needs_human: true, wa_needs_human_reason: outcome.reason }).eq('id', guest.id)
       }
     }
