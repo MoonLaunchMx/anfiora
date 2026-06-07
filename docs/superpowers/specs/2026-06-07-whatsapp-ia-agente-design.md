@@ -224,3 +224,36 @@ Va después de SP2 (un número dedicado sin plantillas aprobadas sirve de poco).
 - **`lib/types.ts`:** cambiar tipos compartidos puede romper páginas; revisar consumidores antes.
 - **Defaults seguros:** si el agente queda `enabled` sin FAQ, responderá muchas `NO_SE`; por eso
   el default real es pedir configuración mínima antes de encender en producción.
+
+## 14. Notas de implementacion (al ejecutar el plan, 2026-06-07)
+
+Desviaciones e items conocidos surgidos en las revisiones de calidad (subagent-driven):
+
+- **Gate de 24h fuera del webhook (desviacion del §9):** responder a un mensaje entrante esta
+  SIEMPRE dentro de la ventana de 24h (el invitado acaba de escribir), asi que el chequeo era
+  codigo muerto en el webhook y "arreglarlo" rompia la primera respuesta. Se quito del webhook.
+  El helper `isWithinSession` permanece en `reliability.ts` para envios iniciados por el negocio
+  (SP2 masivos), que es donde la ventana SI importa.
+- **`enqueueOutbound` ahora devuelve `{ ok, status }`** para que `approve` (copiloto) solo marque
+  el borrador como enviado si Twilio acepto (si no, 502).
+- **`fuera_de_info` OFF + `no_se` (decision de producto PENDIENTE):** hoy, si el organizador
+  desactiva "lo que no este en mi info" y el agente no sabe, NO responde y NO marca handoff (el
+  mensaje del invitado queda guardado pero sin badge ni gap). Alternativas a decidir con Diego:
+  (A) silencio [actual], (B) holding + flag siempre, (C) respuesta honesta "por ahora no tengo
+  ese dato" sin flag. Recomendacion: C. El default `fuera_de_info=ON` evita el caso en el flujo comun.
+- **Doble render en approve fallido (menor):** si Twilio falla durante "Aprobar y enviar", queda
+  la tarjeta de borrador + una burbuja roja "No enviado". Recuperable (reintentar). Pendiente
+  limpieza opcional (borrar el echo fallido).
+- **DEUDA DE SEGURIDAD (tracked):** `/api/whatsapp/agent/preview` y `/api/whatsapp/agent/approve`
+  (como el ya existente `/api/whatsapp/send`) son route handlers SIN auth — patron pre-existente
+  del proyecto (auth client-side, API por service-role). Endurecer la auth de las API routes es un
+  trabajo transversal a hacer antes de clientes reales (idealmente junto al paywall). No se aborda
+  en SP1 para no romper la consistencia con las rutas existentes.
+
+### Setup para prueba local
+- El worktree `../anfiora-whatsapp` NO tiene `.env.local` — copiar el del repo principal para `npm run dev`.
+- Correr `whatsapp-ia-migration.sql` en Supabase (aditivo y nullable/defaulted: NO rompe `main`/prod,
+  que ignora las columnas nuevas — seguro aplicarlo antes del merge).
+- Local cubre: UI del tab Agente + **sandbox "prueba tu agente"** (corre el pipeline completo sin Twilio).
+- El webhook entrante real (auto-respuesta) necesita URL publica → se prueba en **preview de Vercel**
+  (o ngrok), no en localhost.
