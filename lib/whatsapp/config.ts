@@ -13,6 +13,8 @@ export const DEFAULT_AGENT_CONFIG: AgentConfig = {
   mode: 'autonomo',
   tone: 'calido',
   signature: '',
+  holdingMessage: 'Gracias por tu mensaje. En breve te confirmamos.',
+  deflectMessage: 'Por ahora no tengo ese dato. Te sugiero confirmarlo directamente con los novios.',
   escalate: { alergias: true, quejas: true, cambios_invitados: true, fuera_de_info: true },
   faq: [],
 }
@@ -36,14 +38,3 @@ export async function getAgentConfig(supabase: SupabaseClient, eventId: string):
   return mergeAgentConfig(data?.agent_config ?? null)
 }
 
-export function buildHolding(config: AgentConfig, guestName: string, reason: string): string {
-  const firma = config.signature?.trim()
-  const cierre = firma ? ` ${firma} te confirma en breve.` : ' Te confirmamos en breve.'
-  if (reason === 'alergia') {
-    return `Gracias, ${guestName}. Lo anotamos y nos aseguramos de tener una opcion para ti.${cierre}`
-  }
-  if (reason === 'queja') {
-    return `Lamento la molestia, ${guestName}. Le paso tu mensaje al organizador para atenderlo personalmente.`
-  }
-  return `Gracias por tu mensaje, ${guestName}. Dejame confirmarlo y te aviso.${cierre}`
-}

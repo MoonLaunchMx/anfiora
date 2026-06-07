@@ -151,6 +151,31 @@ export default function AgentePanel({ eventId }: { eventId: string }) {
         </div>
       </div>
 
+      {/* Mensajes del agente */}
+      <div className="rounded-xl border border-[#e8e8e8] bg-white p-4 space-y-3">
+        <p className="text-xs font-semibold uppercase tracking-wider text-[#9ca3af]">Mensajes del agente</p>
+        <div>
+          <label className="mb-1 block text-[11px] font-medium text-[#555]">Mensaje de espera (cuando te paso algo a ti)</label>
+          <textarea
+            value={config.holdingMessage}
+            onChange={e => setConfig({ ...config, holdingMessage: e.target.value })}
+            onBlur={() => save(configRef.current)}
+            rows={2}
+            className="w-full resize-none rounded-lg border border-[#e8e8e8] bg-[#fafafa] px-3 py-2 text-sm text-[#1D1E20] focus:border-[#48C9B0] focus:outline-none"
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-[11px] font-medium text-[#555]">Mensaje cuando no sé algo y no te aviso</label>
+          <textarea
+            value={config.deflectMessage}
+            onChange={e => setConfig({ ...config, deflectMessage: e.target.value })}
+            onBlur={() => save(configRef.current)}
+            rows={2}
+            className="w-full resize-none rounded-lg border border-[#e8e8e8] bg-[#fafafa] px-3 py-2 text-sm text-[#1D1E20] focus:border-[#48C9B0] focus:outline-none"
+          />
+        </div>
+      </div>
+
       {/* FAQ */}
       <div className="rounded-xl border border-[#e8e8e8] bg-white p-4">
         <div className="mb-3 flex items-center justify-between">

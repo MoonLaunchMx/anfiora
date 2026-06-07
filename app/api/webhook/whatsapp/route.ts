@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { validateRequest } from 'twilio'
-import { getAgentConfig, buildHolding } from '@/lib/whatsapp/config'
+import { getAgentConfig } from '@/lib/whatsapp/config'
 import { isDuplicate, detectOptOut, applyOptOut, claimInboundForReply, enqueueOutbound } from '@/lib/whatsapp/reliability'
 import { runAgentPipeline } from '@/lib/whatsapp/agent'
 import type { MessageHistory } from '@/lib/ai-rsvp'
@@ -101,9 +101,8 @@ export async function POST(request: NextRequest) {
       })
       await supabase.from('guests').update({ wa_needs_human: true, wa_needs_human_reason: 'copiloto' }).eq('id', guest.id)
     } else if (outcome.action === 'handoff') {
-      const flag = outcome.reason === 'no_se' ? config.escalate.fuera_de_info : true
-      if (flag) {
-        await enqueueOutbound(supabase, { to: from, body: outcome.holding, guestId: guest.id, eventId: guest.event_id, author: 'ia' })
+      await enqueueOutbound(supabase, { to: from, body: outcome.message, guestId: guest.id, eventId: guest.event_id, author: 'ia' })
+      if (outcome.escalate) {
         await supabase.from('guests').update({ wa_needs_human: true, wa_needs_human_reason: outcome.reason }).eq('id', guest.id)
       }
     }

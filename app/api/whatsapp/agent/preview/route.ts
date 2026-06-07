@@ -22,5 +22,5 @@ export async function POST(request: NextRequest) {
   if (outcome.action === 'reply' || outcome.action === 'draft') {
     return NextResponse.json({ kind: 'answer', text: outcome.text })
   }
-  return NextResponse.json({ kind: 'handoff', text: outcome.holding, reason: outcome.reason })
+  return NextResponse.json({ kind: 'handoff', text: outcome.message, reason: outcome.reason })
 }

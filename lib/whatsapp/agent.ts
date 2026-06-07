@@ -2,12 +2,10 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import type { AgentConfig } from '@/lib/types'
 import { interpretRSVPMessage, generateGroundedReply, selfCheckReply, type MessageHistory } from '@/lib/ai-rsvp'
 import { buildContextPack, renderContextPackText, type ContextPack } from './context-pack'
-import { buildHolding } from './config'
-
 export type AgentOutcome =
   | { action: 'reply'; text: string; rsvp: string | null }
   | { action: 'draft'; text: string; rsvp: string | null }
-  | { action: 'handoff'; holding: string; reason: string; rsvp: string | null }
+  | { action: 'handoff'; message: string; reason: string; escalate: boolean; rsvp: string | null }
 
 function isSensitive(text: string, intent: string, config: AgentConfig): string | null {
   const t = text.toLowerCase()
@@ -35,7 +33,7 @@ export async function runPipelineOnPack(
   // Candado 1: tema sensible -> handoff
   const sensitive = isSensitive(incomingText, intent.intent, config)
   if (sensitive) {
-    return { action: 'handoff', holding: buildHolding(config, pack.guestName, sensitive), reason: sensitive, rsvp }
+    return { action: 'handoff', message: config.holdingMessage, reason: sensitive, escalate: true, rsvp }
   }
 
   const contextText = renderContextPackText(pack)
@@ -43,18 +41,19 @@ export async function runPipelineOnPack(
   // Candado 2-3: generacion grounded (mundo cerrado)
   const gen = await generateGroundedReply(contextText, config.tone, config.signature, history, pack.guestName, incomingText)
   if (gen.deferred) {
-    return { action: 'handoff', holding: buildHolding(config, pack.guestName, 'no_se'), reason: 'no_se', rsvp }
+    const escalate = config.escalate.fuera_de_info
+    return { action: 'handoff', message: escalate ? config.holdingMessage : config.deflectMessage, reason: 'no_se', escalate, rsvp }
   }
 
   // Candado 4: self-check
   const ok = await selfCheckReply(contextText, gen.answer)
   if (!ok) {
-    return { action: 'handoff', holding: buildHolding(config, pack.guestName, 'self_check'), reason: 'self_check', rsvp }
+    return { action: 'handoff', message: config.holdingMessage, reason: 'self_check', escalate: true, rsvp }
   }
 
   // Candado 5: confianza
   if (intent.confidence === 'low') {
-    return { action: 'handoff', holding: buildHolding(config, pack.guestName, 'baja_confianza'), reason: 'baja_confianza', rsvp }
+    return { action: 'handoff', message: config.holdingMessage, reason: 'baja_confianza', escalate: true, rsvp }
   }
 
   // Modo copiloto: borrador en vez de envio

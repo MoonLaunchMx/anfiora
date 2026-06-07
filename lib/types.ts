@@ -73,6 +73,8 @@ export type AgentConfig = {
   mode: AgentMode
   tone: AgentTone
   signature: string
+  holdingMessage: string
+  deflectMessage: string
   escalate: AgentEscalateConfig
   faq: FaqEntry[]
 }
