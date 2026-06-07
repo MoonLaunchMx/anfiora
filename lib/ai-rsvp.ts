@@ -172,3 +172,66 @@ Genera la respuesta del agente:`
 
   return block.text.trim()
 }
+
+const NO_SE = 'NO_SE'
+
+export async function generateGroundedReply(
+  contextText: string,
+  tone: 'calido' | 'formal',
+  signature: string,
+  history: MessageHistory[],
+  guestName: string,
+  incomingMessage: string,
+): Promise<{ answer: string; deferred: boolean }> {
+  const tono = tone === 'formal' ? 'formal y respetuoso' : 'calido y cercano'
+  const firma = signature?.trim() ? `Firma como: ${signature.trim()}.` : ''
+
+  const system = `Eres el asistente de WhatsApp de un evento. Respondes SOLO con la informacion del CONTEXTO.
+
+REGLAS ESTRICTAS:
+- Si la respuesta NO esta explicita en el CONTEXTO, responde EXACTAMENTE con el texto: ${NO_SE}
+- Nunca inventes datos (horarios, direcciones, dress code, reglas) que no esten en el CONTEXTO.
+- Responde en espanol, tono ${tono}, maximo 3 oraciones, estilo WhatsApp.
+- Usa el nombre del invitado con naturalidad. Sin emojis, sin asteriscos. ${firma}
+
+CONTEXTO:
+${contextText}`
+
+  const hist = history.length
+    ? history.map(m => `${m.direction === 'sent' ? 'Agente' : guestName}: ${m.content}`).join('\n')
+    : 'Sin mensajes previos.'
+
+  const response = await client.messages.create({
+    model: 'claude-haiku-4-5',
+    max_tokens: 300,
+    system: [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }],
+    messages: [{ role: 'user', content: `Historial:\n${hist}\n\nMensaje de ${guestName}: "${incomingMessage}"\n\nRespuesta (o ${NO_SE}):` }],
+  })
+
+  const block = response.content[0]
+  if (block.type !== 'text') return { answer: '', deferred: true }
+  const text = block.text.trim()
+  if (text === NO_SE || text.toUpperCase().includes(NO_SE)) return { answer: '', deferred: true }
+  return { answer: text, deferred: false }
+}
+
+export async function selfCheckReply(contextText: string, reply: string): Promise<boolean> {
+  const system = `Eres un verificador. Te doy un CONTEXTO y una RESPUESTA.
+Devuelve UNICAMENTE "true" si cada dato afirmado en la RESPUESTA esta soportado por el CONTEXTO.
+Devuelve "false" si la RESPUESTA afirma cualquier dato que no este en el CONTEXTO.
+Responde solo con "true" o "false", sin nada mas.`
+
+  try {
+    const response = await client.messages.create({
+      model: 'claude-haiku-4-5',
+      max_tokens: 5,
+      system: [{ type: 'text', text: system }],
+      messages: [{ role: 'user', content: `CONTEXTO:\n${contextText}\n\nRESPUESTA:\n${reply}` }],
+    })
+    const block = response.content[0]
+    if (block.type !== 'text') return false
+    return block.text.trim().toLowerCase().startsWith('true')
+  } catch {
+    return false  // conservador: si el verificador falla, no enviamos
+  }
+}
