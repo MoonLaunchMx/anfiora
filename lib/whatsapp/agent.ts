@@ -69,8 +69,8 @@ export async function runAgentPipeline(
   supabase: SupabaseClient,
   args: { guestId: string; incomingText: string; config: AgentConfig; history: MessageHistory[] },
 ): Promise<AgentOutcome | null> {
-  const intent = await interpretRSVPMessage(args.incomingText, '', '')
   const pack = await buildContextPack(supabase, args.guestId, args.config)
   if (!pack) return null
+  const intent = await interpretRSVPMessage(args.incomingText, pack.guestName, pack.eventName)
   return runPipelineOnPack(pack, args.incomingText, intent, args.config, args.history)
 }

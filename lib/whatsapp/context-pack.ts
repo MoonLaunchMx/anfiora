@@ -34,18 +34,20 @@ export async function buildContextPack(
     .maybeSingle()
   if (!guest) return null
 
-  const { data: event } = await supabase
-    .from('events')
-    .select('name, event_type, event_date, event_time, venue, address, host_name, host_name_2')
-    .eq('id', guest.event_id)
-    .maybeSingle()
-
-  const { data: seat } = await supabase
-    .from('table_seats')
-    .select('tables(name, number)')
-    .eq('guest_id', guestId)
-    .maybeSingle()
-  const t = seat?.tables as any
+  const [{ data: event }, { data: seat }] = await Promise.all([
+    supabase
+      .from('events')
+      .select('name, event_type, event_date, event_time, venue, address, host_name, host_name_2')
+      .eq('id', guest.event_id)
+      .maybeSingle(),
+    supabase
+      .from('table_seats')
+      .select('tables(name, number)')
+      .eq('guest_id', guestId)
+      .maybeSingle(),
+  ])
+  const rawTables = seat?.tables as any
+  const t = Array.isArray(rawTables) ? rawTables[0] : rawTables
   const table = t ? (t.name ?? (t.number != null ? `Mesa ${t.number}` : null)) : null
 
   return {

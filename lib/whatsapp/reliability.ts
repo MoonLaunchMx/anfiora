@@ -27,9 +27,16 @@ export async function isWithinSession(supabase: SupabaseClient, guestId: string)
 }
 
 // ── Opt-out ─────────────────────────────────────────────────────────────────
+function normalize(s: string): string {
+  return s.trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+}
+
 export function detectOptOut(text: string): boolean {
-  const t = text.trim().toLowerCase()
-  return OPT_OUT_KEYWORDS.some(k => t === k || t.startsWith(k + ' ') || t === k + '.')
+  const t = normalize(text)
+  return OPT_OUT_KEYWORDS.some(k => {
+    const nk = normalize(k)
+    return t === nk || t.startsWith(nk + ' ') || t === nk + '.'
+  })
 }
 
 export async function applyOptOut(supabase: SupabaseClient, guestId: string): Promise<void> {

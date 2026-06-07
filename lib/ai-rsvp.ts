@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk'
+import type { AgentTone } from '@/lib/types'
 
 export type RSVPIntent = 'confirmed' | 'declined' | 'respondio' | 'accion_necesaria' | 'ambiguous'
 
@@ -177,7 +178,7 @@ const NO_SE = 'NO_SE'
 
 export async function generateGroundedReply(
   contextText: string,
-  tone: 'calido' | 'formal',
+  tone: AgentTone,
   signature: string,
   history: MessageHistory[],
   guestName: string,
@@ -225,7 +226,7 @@ Responde solo con "true" o "false", sin nada mas.`
     const response = await client.messages.create({
       model: 'claude-haiku-4-5',
       max_tokens: 5,
-      system: [{ type: 'text', text: system }],
+      system: [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }],
       messages: [{ role: 'user', content: `CONTEXTO:\n${contextText}\n\nRESPUESTA:\n${reply}` }],
     })
     const block = response.content[0]
