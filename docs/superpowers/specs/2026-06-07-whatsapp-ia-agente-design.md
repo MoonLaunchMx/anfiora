@@ -84,8 +84,8 @@ enqueueOutbound(payload): Promise<void>           // hoy: envía directo; mañan
 ```
 
 **Debounce "esperar-y-verificar"** (sin tabla, sin Redis): al entrar un mensaje se guarda,
-se espera ~10s (las funciones de Vercel viven hasta 300s), y se verifica si llegó uno más
-nuevo para ese invitado. Si sí, esta ejecución se calla; si no, se lee **toda la ráfaga junta**
+se espera **17s** (constante `DEBOUNCE_MS = 17_000`; las funciones de Vercel viven hasta 300s),
+y se verifica si llegó uno más nuevo para ese invitado. Si sí, esta ejecución se calla; si no, se lee **toda la ráfaga junta**
 y se genera **una** respuesta coherente. Resuelve el caso
 `hola… bien y tú… no podré… perdón, sí voy` con una sola respuesta al estado final.
 
@@ -175,7 +175,7 @@ POST /api/webhook/whatsapp
   4. ¿es STOP/BAJA? → marca opt-out, confirma, 200 y salir
   5. guarda entrante en wa_messages (con twilio_sid)
   6. agente apagado (agent_config.enabled=false)? → solo actualiza RSVP, 200 y salir
-  7. claimInboundForReply(guest) (debounce ~10s) → no soy el último: 200 y salir
+  7. claimInboundForReply(guest) (debounce 17s) → no soy el último: 200 y salir
   8. interpreta intent → si sensible: guarda dato + handoff + holding, 200
   9. buildContextPack → genera respuesta grounded (o NO_SE)
  10. self-check → si no pasa: holding + handoff
@@ -209,7 +209,7 @@ por eso va después: el agente (Sub-proyecto 1) se construye y prueba sin espera
 
 ## 13. Riesgos
 
-- **Latencia del debounce** (~10s antes de responder): aceptable para chat; configurable.
+- **Latencia del debounce** (17s antes de responder): aceptable para chat; constante única `DEBOUNCE_MS`.
 - **Costo de la 2ª llamada (self-check):** Haiku es barato y con cache; se mide en preview.
 - **`lib/types.ts`:** cambiar tipos compartidos puede romper páginas; revisar consumidores antes.
 - **Defaults seguros:** si el agente queda `enabled` sin FAQ, responderá muchas `NO_SE`; por eso
