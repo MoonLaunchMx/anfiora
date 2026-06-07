@@ -9,6 +9,12 @@ import {
   Megaphone, X, ChevronLeft, ChevronRight, Bot,
 } from 'lucide-react'
 import AgentePanel from './AgentePanel'
+import { TabToggle, type TabItem } from '@/app/components/ui/TabToggle'
+
+const MENSAJES_TABS: TabItem[] = [
+  { key: 'conversaciones', label: 'Conversaciones', icon: MessageCircle },
+  { key: 'agente',         label: 'Agente',         icon: Bot },
+]
 
 // ─── Tipos ───────────────────────────────────────────────────────────────────
 
@@ -839,16 +845,13 @@ export default function MensajesPage() {
 
   return (
     <div className="flex h-full flex-col bg-white text-[#1D1E20]">
-      {/* Barra de tabs */}
-      <div className="flex shrink-0 items-center gap-1 border-b border-[#e8e8e8] px-4 pt-3">
-        <button onClick={() => setTab('conversaciones')}
-          className={`-mb-px flex items-center gap-1.5 rounded-t-lg px-3 py-2 text-sm font-medium transition ${tab === 'conversaciones' ? 'border-b-2 border-[#48C9B0] text-[#1D1E20]' : 'border-b-2 border-transparent text-[#9ca3af]'}`}>
-          <MessageCircle size={15} /> Conversaciones
-        </button>
-        <button onClick={() => setTab('agente')}
-          className={`-mb-px flex items-center gap-1.5 rounded-t-lg px-3 py-2 text-sm font-medium transition ${tab === 'agente' ? 'border-b-2 border-[#48C9B0] text-[#1D1E20]' : 'border-b-2 border-transparent text-[#9ca3af]'}`}>
-          <Bot size={15} /> Agente
-        </button>
+      {/* Barra de tabs — patron compartido TabToggle (igual que configuracion) */}
+      <div className="flex shrink-0 items-center border-b border-[#e8e8e8] px-4 py-2.5">
+        <TabToggle
+          tabs={MENSAJES_TABS}
+          active={tab}
+          onChange={(k) => setTab(k as 'conversaciones' | 'agente')}
+        />
       </div>
 
       {tab === 'agente' ? (
