@@ -430,7 +430,7 @@ function PanelLista({
                     )}
                     {conv.guest.wa_needs_human && (
                       <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-semibold text-amber-700">
-                        <AlertCircle size={9} /> Necesita ti
+                        <AlertCircle size={9} /> Requiere atención
                       </span>
                     )}
                   </div>
@@ -456,11 +456,12 @@ interface PanelChatProps {
   onEnviar: () => void
   onToggleDetalles: () => void
   onAprobar: (messageId: string) => void
+  aprobandoId: string | null
 }
 
 function PanelChat({
   conv, mensaje, enviando, errorEnvio, chatBottomRef,
-  onMensajeChange, onEnviar, onToggleDetalles, onAprobar
+  onMensajeChange, onEnviar, onToggleDetalles, onAprobar, aprobandoId
 }: PanelChatProps) {
   const porFecha: { fecha: string; msgs: WaMessage[] }[] = []
   conv.messages.forEach(msg => {
@@ -510,8 +511,9 @@ function PanelChat({
                       <p className="text-sm text-[#1D1E20]">{msg.content}</p>
                       <button
                         onClick={() => onAprobar(msg.id)}
-                        className="mt-2 w-full rounded-lg bg-[#48C9B0] py-1.5 text-xs font-semibold text-white hover:bg-[#3ab89f]">
-                        Aprobar y enviar
+                        disabled={aprobandoId === msg.id}
+                        className="mt-2 w-full rounded-lg bg-[#48C9B0] py-1.5 text-xs font-semibold text-white hover:bg-[#3ab89f] disabled:opacity-50">
+                        {aprobandoId === msg.id ? 'Enviando...' : 'Aprobar y enviar'}
                       </button>
                     </div>
                   ) : msg.status === 'failed' ? (
@@ -709,6 +711,7 @@ export default function MensajesPage() {
   const [busqueda, setBusqueda]             = useState('')
   const [modalProximo, setModalProximo]     = useState(false)
   const [tab, setTab]                       = useState<'conversaciones' | 'agente'>('conversaciones')
+  const [aprobandoId, setAprobandoId]       = useState<string | null>(null)
 
   const chatBottomRef = useRef<HTMLDivElement>(null)
 
@@ -809,11 +812,20 @@ export default function MensajesPage() {
   }
 
   async function aprobarBorrador(messageId: string) {
-    await fetch('/api/whatsapp/agent/approve', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ messageId }),
-    })
-    await cargar()
+    if (aprobandoId) return
+    setAprobandoId(messageId)
+    try {
+      const res = await fetch('/api/whatsapp/agent/approve', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messageId }),
+      })
+      if (!res.ok) throw new Error('No se pudo enviar')
+      await cargar()
+    } catch {
+      setErrorEnvio('No se pudo enviar el borrador')
+    } finally {
+      setAprobandoId(null)
+    }
   }
 
   const convsFiltradas = conversaciones.filter(c =>
@@ -830,11 +842,11 @@ export default function MensajesPage() {
       {/* Barra de tabs */}
       <div className="flex shrink-0 items-center gap-1 border-b border-[#e8e8e8] px-4 pt-3">
         <button onClick={() => setTab('conversaciones')}
-          className={`flex items-center gap-1.5 rounded-t-lg px-3 py-2 text-sm font-medium transition ${tab === 'conversaciones' ? 'border-b-2 border-[#48C9B0] text-[#1D1E20]' : 'text-[#9ca3af]'}`}>
+          className={`-mb-px flex items-center gap-1.5 rounded-t-lg px-3 py-2 text-sm font-medium transition ${tab === 'conversaciones' ? 'border-b-2 border-[#48C9B0] text-[#1D1E20]' : 'border-b-2 border-transparent text-[#9ca3af]'}`}>
           <MessageCircle size={15} /> Conversaciones
         </button>
         <button onClick={() => setTab('agente')}
-          className={`flex items-center gap-1.5 rounded-t-lg px-3 py-2 text-sm font-medium transition ${tab === 'agente' ? 'border-b-2 border-[#48C9B0] text-[#1D1E20]' : 'text-[#9ca3af]'}`}>
+          className={`-mb-px flex items-center gap-1.5 rounded-t-lg px-3 py-2 text-sm font-medium transition ${tab === 'agente' ? 'border-b-2 border-[#48C9B0] text-[#1D1E20]' : 'border-b-2 border-transparent text-[#9ca3af]'}`}>
           <Bot size={15} /> Agente
         </button>
       </div>
@@ -877,6 +889,7 @@ export default function MensajesPage() {
                 onEnviar={enviarMensaje}
                 onToggleDetalles={() => setDetallesOpen(p => !p)}
                 onAprobar={aprobarBorrador}
+                aprobandoId={aprobandoId}
               />
             ) : (
               <EmptyChat />

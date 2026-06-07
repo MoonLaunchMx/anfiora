@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { mergeAgentConfig, DEFAULT_AGENT_CONFIG } from '@/lib/whatsapp/config'
 import type { AgentConfig, FaqEntry } from '@/lib/types'
@@ -24,6 +24,9 @@ export default function AgentePanel({ eventId }: { eventId: string }) {
   const [testResult, setTestResult] = useState<{ kind: string; text: string; reason?: string } | null>(null)
 
   const [gaps, setGaps] = useState<{ guestId: string; question: string }[]>([])
+
+  const configRef = useRef(config)
+  useEffect(() => { configRef.current = config }, [config])
 
   useEffect(() => {
     ;(async () => {
@@ -75,10 +78,9 @@ export default function AgentePanel({ eventId }: { eventId: string }) {
 
   function addFaq(q = '', a = '') { save({ ...config, faq: [...config.faq, { q, a }] }) }
   function updateFaq(i: number, patch: Partial<FaqEntry>) {
-    const faq = config.faq.map((f, idx) => idx === i ? { ...f, ...patch } : f)
-    setConfig({ ...config, faq })
+    setConfig(prev => ({ ...prev, faq: prev.faq.map((f, idx) => idx === i ? { ...f, ...patch } : f) }))
   }
-  function commitFaq() { save(config) }
+  function commitFaq() { save(configRef.current) }
   function removeFaq(i: number) { save({ ...config, faq: config.faq.filter((_, idx) => idx !== i) }) }
 
   if (loading) return <div className="p-6 text-sm text-[#9ca3af]">Cargando agente...</div>
@@ -144,7 +146,7 @@ export default function AgentePanel({ eventId }: { eventId: string }) {
         </div>
         <div className="rounded-xl border border-[#e8e8e8] bg-white p-4">
           <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-[#9ca3af]">Firma</p>
-          <input value={config.signature} onChange={e => setConfig({ ...config, signature: e.target.value })} onBlur={() => save(config)}
+          <input value={config.signature} onChange={e => setConfig({ ...config, signature: e.target.value })} onBlur={() => save(configRef.current)}
             placeholder="Los novios" className="w-full rounded-lg border border-[#e8e8e8] bg-[#fafafa] px-3 py-2 text-sm focus:border-[#48C9B0] focus:outline-none" />
         </div>
       </div>
