@@ -846,7 +846,7 @@ export default function MensajesPage() {
   return (
     <div className="flex h-full flex-col bg-white text-[#1D1E20]">
       {/* Barra de tabs — patron compartido TabToggle (igual que configuracion) */}
-      <div className="flex shrink-0 items-center border-b border-[#e8e8e8] px-4 py-2.5">
+      <div className="flex shrink-0 items-center justify-center border-b border-[#e8e8e8] px-4 py-2.5">
         <TabToggle
           tabs={MENSAJES_TABS}
           active={tab}
