@@ -192,12 +192,22 @@ POST /api/webhook/whatsapp
   lo configure, para no responder sin querer).
 - Self-check que falla por error de API → se trata como "no pasó" (conservador: holding + handoff).
 
-## 11. Sub-proyecto 2 (fuera de alcance, referencia)
+## 11. Fuera de alcance (sub-proyectos futuros, referencia)
 
-Masivos: librería de plantillas aprobadas por Meta, selector de destinatarios, envío por lotes
-(aquí `enqueueOutbound` respalda en una cola real — posible tabla `wa_outbound` o Redis),
-rate-limiting por tier de Meta, tracking de campaña. Depende de tiempos de aprobación de Meta,
-por eso va después: el agente (Sub-proyecto 1) se construye y prueba sin esperar a Meta.
+**Sub-proyecto 2 — Masivos:** librería de plantillas aprobadas por Meta, selector de
+destinatarios, envío por lotes (aquí `enqueueOutbound` respalda en una cola real — posible
+tabla `wa_outbound` o Redis), rate-limiting por tier de Meta, tracking de campaña. Depende de
+tiempos de aprobación de Meta, por eso va después: el agente (SP1) se construye y prueba sin esperar a Meta.
+
+**Sub-proyecto 3 — Elección de número / BYON:** dos opciones de remitente — (1) número
+compartido de Anfiora (lo que usa SP1 hoy), y (2) número **dedicado** del cliente registrado a
+la WhatsApp Business API (tier Agency). Nota dura: un número en la API deja de funcionar en la
+app normal de WhatsApp, así que "usar su celular personal con IA" es imposible; el modo manual
+`wa.me` (plan Free) es lo más cercano y ya existe. Implementación localizada: la resolución del
+remitente vive **dentro de `enqueueOutbound`** (hoy lee `TWILIO_WHATSAPP_FROM`); BYON = resolver
+credenciales/From por evento ahí + enrutar el webhook entrante por el número `To`. Es onboarding/
+provisioning (verificación Meta, subcuentas Twilio, embedded signup) + billing, no lógica de agente.
+Va después de SP2 (un número dedicado sin plantillas aprobadas sirve de poco).
 
 ## 12. Verificación y entrega
 
