@@ -54,6 +54,29 @@ export function formatCurrency(amount: number, currency: Currency): string {
   return `${symbol}${formatted}${suffix}`
 }
 
+// ─── WHATSAPP AGENT ──────────────────────────────────────────────────────────
+
+export type AgentMode = 'autonomo' | 'copiloto'
+export type AgentTone = 'calido' | 'formal'
+
+export type FaqEntry = { q: string; a: string }
+
+export type AgentEscalateConfig = {
+  alergias: boolean
+  quejas: boolean
+  cambios_invitados: boolean
+  fuera_de_info: boolean
+}
+
+export type AgentConfig = {
+  enabled: boolean
+  mode: AgentMode
+  tone: AgentTone
+  signature: string
+  escalate: AgentEscalateConfig
+  faq: FaqEntry[]
+}
+
 // ─── EVENT ───────────────────────────────────────────────────────────────────
 
 export type EventStatus = 'active' | 'paused' | 'cancelled' | 'completed'
@@ -89,6 +112,7 @@ export type EventSettings = {
   playlist_categories: string[] | null
   created_at: string
   updated_at: string
+  agent_config: AgentConfig | null
 }
 
 // ─── COLLABORATORS ───────────────────────────────────────────────────────────
@@ -140,6 +164,10 @@ export type Guest = {
   party_members: PartyMember[]
   side?: string
   allergies?: string[]
+  wa_opt_out?: boolean
+  wa_opt_out_at?: string | null
+  wa_needs_human?: boolean
+  wa_needs_human_reason?: string | null
 }
 
 // ─── MESSAGES ────────────────────────────────────────────────────────────────
@@ -153,6 +181,9 @@ export type WaMessage = {
   direction: MessageDirection
   content: string
   created_at: string
+  twilio_sid?: string | null
+  status?: string | null
+  author?: 'ia' | 'human' | null
 }
 
 // ─── FOOD PLANNER ────────────────────────────────────────────────────────────
