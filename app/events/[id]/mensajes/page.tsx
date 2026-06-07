@@ -6,8 +6,9 @@ import { supabase } from '@/lib/supabase'
 import {
   MessageCircle, Clock, Send, Sparkles, Info,
   AlertCircle, CheckCircle, XCircle,
-  Megaphone, X, ChevronLeft, ChevronRight,
+  Megaphone, X, ChevronLeft, ChevronRight, Bot,
 } from 'lucide-react'
+import AgentePanel from './AgentePanel'
 
 // ─── Tipos ───────────────────────────────────────────────────────────────────
 
@@ -28,6 +29,7 @@ interface Guest {
   tags: string[] | null
   allergies: string[] | null
   event_id: string
+  wa_needs_human?: boolean | null
 }
 
 interface WaMessage {
@@ -37,6 +39,8 @@ interface WaMessage {
   direction: 'sent' | 'received'
   content: string
   created_at: string
+  status?: string | null
+  author?: string | null
 }
 
 interface TableAssignment {
@@ -127,7 +131,6 @@ function ModalProximamente({ onClose }: { onClose: () => void }) {
   const [errorEmail, setErrorEmail] = useState('')
 
   async function notificar() {
-    // ── Validar formato antes de hacer nada ──
     if (!correo.trim()) return
     if (!EMAIL_REGEX.test(correo.trim())) {
       setErrorEmail('Ingresa un correo válido, por ejemplo: nombre@dominio.com')
@@ -289,7 +292,6 @@ function ModalProximamente({ onClose }: { onClose: () => void }) {
                     className={`w-full rounded-xl border bg-[#fafafa] px-3.5 py-2.5 text-sm text-[#1D1E20] placeholder:text-[#bbb] focus:outline-none transition
                       ${errorEmail ? 'border-red-400 focus:border-red-400' : 'border-[#e8e8e8] focus:border-[#48C9B0]'}`}
                   />
-                  {/* ── Error de validación ── */}
                   {errorEmail && (
                     <div className="flex items-center gap-1.5 text-[11px] text-red-500">
                       <AlertCircle size={11} className="shrink-0" />
@@ -419,12 +421,19 @@ function PanelLista({
                     <span className="truncate text-xs text-[#9ca3af]">{preview}</span>
                     <RsvpBadge status={conv.guest.rsvp_status} />
                   </div>
-                  {conv.lastMessage.direction === 'sent' && (
-                    <span className="mt-0.5 flex items-center gap-1 text-[10px] text-[#48C9B0]">
-                      <Sparkles size={9} />
-                      IA
-                    </span>
-                  )}
+                  <div className="mt-0.5 flex items-center gap-2">
+                    {conv.lastMessage.direction === 'sent' && (
+                      <span className="flex items-center gap-1 text-[10px] text-[#48C9B0]">
+                        <Sparkles size={9} />
+                        IA
+                      </span>
+                    )}
+                    {conv.guest.wa_needs_human && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-semibold text-amber-700">
+                        <AlertCircle size={9} /> Necesita ti
+                      </span>
+                    )}
+                  </div>
                 </div>
               </button>
             )
@@ -446,11 +455,12 @@ interface PanelChatProps {
   onMensajeChange: (v: string) => void
   onEnviar: () => void
   onToggleDetalles: () => void
+  onAprobar: (messageId: string) => void
 }
 
 function PanelChat({
   conv, mensaje, enviando, errorEnvio, chatBottomRef,
-  onMensajeChange, onEnviar, onToggleDetalles
+  onMensajeChange, onEnviar, onToggleDetalles, onAprobar
 }: PanelChatProps) {
   const porFecha: { fecha: string; msgs: WaMessage[] }[] = []
   conv.messages.forEach(msg => {
@@ -494,18 +504,44 @@ function PanelChat({
             {msgs.map(msg => (
               <div key={msg.id} className={`mb-2 flex ${msg.direction === 'sent' ? 'justify-end' : 'justify-start'}`}>
                 {msg.direction === 'sent' ? (
-                  <div className="max-w-[75%]">
-                    <div className="mb-0.5 flex items-center justify-end gap-1">
-                      <Sparkles size={10} className="text-[#48C9B0]" />
-                      <span className="text-[9px] font-medium text-[#48C9B0]">IA</span>
+                  msg.status === 'draft' ? (
+                    <div className="max-w-[75%] rounded-2xl border border-amber-300 bg-amber-50 px-3.5 py-2.5">
+                      <p className="mb-1 flex items-center gap-1 text-[10px] font-semibold text-amber-700"><Sparkles size={10} /> Borrador del agente</p>
+                      <p className="text-sm text-[#1D1E20]">{msg.content}</p>
+                      <button
+                        onClick={() => onAprobar(msg.id)}
+                        className="mt-2 w-full rounded-lg bg-[#48C9B0] py-1.5 text-xs font-semibold text-white hover:bg-[#3ab89f]">
+                        Aprobar y enviar
+                      </button>
                     </div>
-                    <div className="rounded-2xl rounded-tr-sm bg-[#48C9B0] px-3.5 py-2.5">
-                      <p className="text-sm leading-relaxed text-white break-words">{msg.content}</p>
-                      <div className="mt-1 flex justify-end">
-                        <span className="text-[10px] text-white/60">{formatHora(msg.created_at)}</span>
+                  ) : msg.status === 'failed' ? (
+                    <div className="max-w-[75%]">
+                      <div className="mb-0.5 flex items-center justify-end gap-1">
+                        <Sparkles size={10} className="text-[#48C9B0]" />
+                        <span className="text-[9px] font-medium text-[#48C9B0]">IA</span>
+                      </div>
+                      <div className="rounded-2xl rounded-tr-sm bg-[#48C9B0] px-3.5 py-2.5">
+                        <p className="text-sm leading-relaxed text-white break-words">{msg.content}</p>
+                        <div className="mt-1 flex items-center justify-end gap-1">
+                          <AlertCircle size={10} className="text-red-200" />
+                          <span className="text-[10px] text-red-200">No enviado</span>
+                        </div>
                       </div>
                     </div>
-                  </div>
+                  ) : (
+                    <div className="max-w-[75%]">
+                      <div className="mb-0.5 flex items-center justify-end gap-1">
+                        <Sparkles size={10} className="text-[#48C9B0]" />
+                        <span className="text-[9px] font-medium text-[#48C9B0]">IA</span>
+                      </div>
+                      <div className="rounded-2xl rounded-tr-sm bg-[#48C9B0] px-3.5 py-2.5">
+                        <p className="text-sm leading-relaxed text-white break-words">{msg.content}</p>
+                        <div className="mt-1 flex justify-end">
+                          <span className="text-[10px] text-white/60">{formatHora(msg.created_at)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  )
                 ) : (
                   <div className="max-w-[75%] rounded-2xl rounded-tl-sm border border-[#e8e8e8] bg-white px-3.5 py-2.5 shadow-sm">
                     <p className="text-sm leading-relaxed text-[#1D1E20] break-words">{msg.content}</p>
@@ -672,6 +708,7 @@ export default function MensajesPage() {
   const [errorEnvio, setErrorEnvio]         = useState<string | null>(null)
   const [busqueda, setBusqueda]             = useState('')
   const [modalProximo, setModalProximo]     = useState(false)
+  const [tab, setTab]                       = useState<'conversaciones' | 'agente'>('conversaciones')
 
   const chatBottomRef = useRef<HTMLDivElement>(null)
 
@@ -694,7 +731,7 @@ export default function MensajesPage() {
     const guestIds = [...new Set(mensajes.map((m: WaMessage) => m.guest_id))]
     const { data: guests } = await supabase
       .from('guests')
-      .select('id, name, phone, rsvp_status, side, tags, allergies, event_id')
+      .select('id, name, phone, rsvp_status, side, tags, allergies, event_id, wa_needs_human')
       .in('id', guestIds)
 
     if (!guests) { setCargando(false); return }
@@ -771,6 +808,14 @@ export default function MensajesPage() {
     }
   }
 
+  async function aprobarBorrador(messageId: string) {
+    await fetch('/api/whatsapp/agent/approve', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messageId }),
+    })
+    await cargar()
+  }
+
   const convsFiltradas = conversaciones.filter(c =>
     c.guest.name.toLowerCase().includes(busqueda.toLowerCase()) ||
     c.guest.phone.includes(busqueda)
@@ -781,76 +826,97 @@ export default function MensajesPage() {
   )
 
   return (
-    <div className="relative flex h-full overflow-hidden bg-white text-[#1D1E20]">
-
-      {/* COL 1 — Lista */}
-      <div className={`
-        w-full shrink-0 border-r border-[#e8e8e8]
-        lg:w-[280px] xl:w-[300px]
-        ${seleccionada ? 'hidden lg:flex lg:flex-col' : 'flex flex-col'}
-      `}>
-        <PanelLista
-          cargando={cargando}
-          convsFiltradas={convsFiltradas}
-          seleccionada={seleccionada}
-          busqueda={busqueda}
-          totalEnviados={totalEnviados}
-          onSelect={(conv) => { setSeleccionada(conv); setDetallesOpen(false) }}
-          onBusqueda={setBusqueda}
-          onBroadcast={() => setModalProximo(true)}
-        />
+    <div className="flex h-full flex-col bg-white text-[#1D1E20]">
+      {/* Barra de tabs */}
+      <div className="flex shrink-0 items-center gap-1 border-b border-[#e8e8e8] px-4 pt-3">
+        <button onClick={() => setTab('conversaciones')}
+          className={`flex items-center gap-1.5 rounded-t-lg px-3 py-2 text-sm font-medium transition ${tab === 'conversaciones' ? 'border-b-2 border-[#48C9B0] text-[#1D1E20]' : 'text-[#9ca3af]'}`}>
+          <MessageCircle size={15} /> Conversaciones
+        </button>
+        <button onClick={() => setTab('agente')}
+          className={`flex items-center gap-1.5 rounded-t-lg px-3 py-2 text-sm font-medium transition ${tab === 'agente' ? 'border-b-2 border-[#48C9B0] text-[#1D1E20]' : 'text-[#9ca3af]'}`}>
+          <Bot size={15} /> Agente
+        </button>
       </div>
 
-      {/* COL 2 — Chat */}
-      <div className={`flex-1 flex flex-col min-w-0 ${seleccionada ? 'flex' : 'hidden lg:flex'}`}>
-        {seleccionada ? (
-          <PanelChat
-            conv={seleccionada}
-            mensaje={mensaje}
-            enviando={enviando}
-            errorEnvio={errorEnvio}
-            chatBottomRef={chatBottomRef}
-            onMensajeChange={setMensaje}
-            onEnviar={enviarMensaje}
-            onToggleDetalles={() => setDetallesOpen(p => !p)}
-          />
-        ) : (
-          <EmptyChat />
-        )}
-      </div>
+      {tab === 'agente' ? (
+        <div className="flex-1 overflow-y-auto">
+          <AgentePanel eventId={eventId} />
+        </div>
+      ) : (
+        <div className="relative flex flex-1 overflow-hidden">
 
-      {/* COL 3 — Detalles */}
-      {seleccionada && (
-        <>
-          {detallesOpen && (
-            <div
-              onClick={() => setDetallesOpen(false)}
-              className="fixed inset-0 z-30 bg-black/20 xl:hidden"
-            />
-          )}
+          {/* COL 1 — Lista */}
           <div className={`
-            shrink-0 border-l border-[#e8e8e8] bg-white
-            xl:w-[240px] xl:flex xl:flex-col
-            ${detallesOpen
-              ? 'fixed right-0 top-0 bottom-0 z-40 w-[260px] flex flex-col shadow-xl'
-              : 'hidden xl:flex xl:flex-col'
-            }
+            w-full shrink-0 border-r border-[#e8e8e8]
+            lg:w-[280px] xl:w-[300px]
+            ${seleccionada ? 'hidden lg:flex lg:flex-col' : 'flex flex-col'}
           `}>
-            <PanelDetalles
-              conv={seleccionada}
-              mesa={mesa}
-              cargandoMesa={cargandoMesa}
-              onClose={() => setDetallesOpen(false)}
+            <PanelLista
+              cargando={cargando}
+              convsFiltradas={convsFiltradas}
+              seleccionada={seleccionada}
+              busqueda={busqueda}
+              totalEnviados={totalEnviados}
+              onSelect={(conv) => { setSeleccionada(conv); setDetallesOpen(false) }}
+              onBusqueda={setBusqueda}
+              onBroadcast={() => setModalProximo(true)}
             />
           </div>
-        </>
-      )}
 
-      {/* Modal — absolute inset-0, click fuera cierra, click dentro no */}
-      {modalProximo && (
-        <ModalProximamente onClose={() => setModalProximo(false)} />
-      )}
+          {/* COL 2 — Chat */}
+          <div className={`flex-1 flex flex-col min-w-0 ${seleccionada ? 'flex' : 'hidden lg:flex'}`}>
+            {seleccionada ? (
+              <PanelChat
+                conv={seleccionada}
+                mensaje={mensaje}
+                enviando={enviando}
+                errorEnvio={errorEnvio}
+                chatBottomRef={chatBottomRef}
+                onMensajeChange={setMensaje}
+                onEnviar={enviarMensaje}
+                onToggleDetalles={() => setDetallesOpen(p => !p)}
+                onAprobar={aprobarBorrador}
+              />
+            ) : (
+              <EmptyChat />
+            )}
+          </div>
 
+          {/* COL 3 — Detalles */}
+          {seleccionada && (
+            <>
+              {detallesOpen && (
+                <div
+                  onClick={() => setDetallesOpen(false)}
+                  className="fixed inset-0 z-30 bg-black/20 xl:hidden"
+                />
+              )}
+              <div className={`
+                shrink-0 border-l border-[#e8e8e8] bg-white
+                xl:w-[240px] xl:flex xl:flex-col
+                ${detallesOpen
+                  ? 'fixed right-0 top-0 bottom-0 z-40 w-[260px] flex flex-col shadow-xl'
+                  : 'hidden xl:flex xl:flex-col'
+                }
+              `}>
+                <PanelDetalles
+                  conv={seleccionada}
+                  mesa={mesa}
+                  cargandoMesa={cargandoMesa}
+                  onClose={() => setDetallesOpen(false)}
+                />
+              </div>
+            </>
+          )}
+
+          {/* Modal — absolute inset-0, click fuera cierra, click dentro no */}
+          {modalProximo && (
+            <ModalProximamente onClose={() => setModalProximo(false)} />
+          )}
+
+        </div>
+      )}
     </div>
   )
 }
