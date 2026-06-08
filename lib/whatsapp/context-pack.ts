@@ -12,6 +12,7 @@ export type ContextPack = {
   guestName: string
   rsvpStatus: string | null
   partySize: number | null
+  partyMembers: string[]
   table: string | null
   allergies: string[]
   faq: FaqEntry[]
@@ -34,7 +35,7 @@ export async function buildContextPack(
     .maybeSingle()
   if (!guest) return null
 
-  const [{ data: event }, { data: seat }] = await Promise.all([
+  const [{ data: event }, { data: seat }, { data: members }] = await Promise.all([
     supabase
       .from('events')
       .select('name, event_type, event_date, event_time, venue, address, host_name, host_name_2')
@@ -45,6 +46,10 @@ export async function buildContextPack(
       .select('tables(name, number)')
       .eq('guest_id', guestId)
       .maybeSingle(),
+    supabase
+      .from('party_members')
+      .select('name')
+      .eq('guest_id', guestId),
   ])
   const rawTables = seat?.tables as any
   const t = Array.isArray(rawTables) ? rawTables[0] : rawTables
@@ -61,6 +66,7 @@ export async function buildContextPack(
     guestName: guest.name?.trim() || 'Invitado',
     rsvpStatus: guest.rsvp_status ?? null,
     partySize: guest.party_size ?? null,
+    partyMembers: (members ?? []).map((m: any) => m.name).filter(Boolean),
     table,
     allergies: Array.isArray(guest.allergies) ? guest.allergies : [],
     faq: config.faq ?? [],
@@ -89,6 +95,7 @@ export async function buildPreviewPack(
     guestName: 'Invitado de prueba',
     rsvpStatus: null,
     partySize: null,
+    partyMembers: [],
     table: null,
     allergies: [],
     faq: config.faq ?? [],
@@ -110,7 +117,8 @@ export function renderContextPackText(pack: ContextPack): string {
     `--- Invitado ---`,
     `Nombre: ${pack.guestName}`,
     pack.table ? `Mesa asignada: ${pack.table}` : null,
-    pack.partySize ? `Personas en su grupo: ${pack.partySize}` : null,
+    pack.partySize ? `Su invitacion cubre ${pack.partySize} persona(s) en total (incluido el titular)` : null,
+    pack.partyMembers.length ? `Acompañantes registrados: ${pack.partyMembers.join(', ')}` : null,
     pack.allergies.length ? `Alergias registradas: ${pack.allergies.join(', ')}` : null,
   ].filter(Boolean)
 

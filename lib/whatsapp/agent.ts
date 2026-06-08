@@ -11,9 +11,15 @@ function isSensitive(text: string, intent: string, config: AgentConfig): string 
   const t = text.toLowerCase()
   if (config.escalate.alergias && /alerg|celiac|vegano|vegetarian|intoleran|diabet|sin gluten|no como/.test(t)) return 'alergia'
   if (config.escalate.quejas && (intent === 'accion_necesaria' || /queja|molest|pesim|terrible|mal organiz|enojad/.test(t))) return 'queja'
-  if (config.escalate.cambios_invitados && /somos \d|llevar a|puedo llevar|mas personas|un invitado mas|cancelar a/.test(t)) return 'cambios_invitados'
   if (intent === 'accion_necesaria') return 'accion_necesaria'
   return null
+}
+
+// Peticion relacionada a acompañantes / numero de invitados. Solo se usa cuando el
+// agente NO pudo responder desde la FAQ ni los datos del invitado (gen deferred):
+// en ese caso se escala para que el organizador se entere de la peticion.
+function isCompanionRequest(text: string): boolean {
+  return /llevar|acompañ|acompan|somos \d|mas persona|agregar|sumar|invitad|nin[oñ]|hij|pareja/.test(text.toLowerCase())
 }
 
 // Pipeline puro a partir de un ContextPack ya armado. Reusado por webhook y sandbox.
@@ -41,6 +47,9 @@ export async function runPipelineOnPack(
   // Candado 2-3: generacion grounded (mundo cerrado)
   const gen = await generateGroundedReply(contextText, config.tone, config.signature, history, pack.guestName, incomingText)
   if (gen.deferred) {
+    if (config.escalate.cambios_invitados && isCompanionRequest(incomingText)) {
+      return { action: 'handoff', message: config.holdingMessage, reason: 'cambios_invitados', escalate: true, rsvp }
+    }
     const escalate = config.escalate.fuera_de_info
     return { action: 'handoff', message: escalate ? config.holdingMessage : config.deflectMessage, reason: 'no_se', escalate, rsvp }
   }
