@@ -6,12 +6,11 @@ import { supabase } from '@/lib/supabase'
 import {
   MessageCircle, Clock, Send, Sparkles, Info,
   AlertCircle, CheckCircle, XCircle,
-  Megaphone, X, ChevronLeft, ChevronRight, Bot,
+  Megaphone, X, ChevronLeft, ChevronRight, Bot, FileText,
 } from 'lucide-react'
 import AgentePanel from './AgentePanel'
 import PlantillasPanel from './PlantillasPanel'
 import { TabToggle, type TabItem } from '@/app/components/ui/TabToggle'
-import { FileText } from 'lucide-react'
 
 const MENSAJES_TABS: TabItem[] = [
   { key: 'conversaciones', label: 'Conversaciones', icon: MessageCircle },
