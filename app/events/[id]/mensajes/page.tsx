@@ -9,11 +9,14 @@ import {
   Megaphone, X, ChevronLeft, ChevronRight, Bot,
 } from 'lucide-react'
 import AgentePanel from './AgentePanel'
+import PlantillasPanel from './PlantillasPanel'
 import { TabToggle, type TabItem } from '@/app/components/ui/TabToggle'
+import { FileText } from 'lucide-react'
 
 const MENSAJES_TABS: TabItem[] = [
   { key: 'conversaciones', label: 'Conversaciones', icon: MessageCircle },
   { key: 'agente',         label: 'Agente',         icon: Bot },
+  { key: 'plantillas',     label: 'Plantillas',     icon: FileText },
 ]
 
 // ─── Tipos ───────────────────────────────────────────────────────────────────
@@ -716,7 +719,7 @@ export default function MensajesPage() {
   const [errorEnvio, setErrorEnvio]         = useState<string | null>(null)
   const [busqueda, setBusqueda]             = useState('')
   const [modalProximo, setModalProximo]     = useState(false)
-  const [tab, setTab]                       = useState<'conversaciones' | 'agente'>('conversaciones')
+  const [tab, setTab]                       = useState<'conversaciones' | 'agente' | 'plantillas'>('conversaciones')
   const [aprobandoId, setAprobandoId]       = useState<string | null>(null)
 
   const chatBottomRef = useRef<HTMLDivElement>(null)
@@ -850,13 +853,17 @@ export default function MensajesPage() {
         <TabToggle
           tabs={MENSAJES_TABS}
           active={tab}
-          onChange={(k) => setTab(k as 'conversaciones' | 'agente')}
+          onChange={(k) => setTab(k as 'conversaciones' | 'agente' | 'plantillas')}
         />
       </div>
 
       {tab === 'agente' ? (
         <div className="min-h-0 flex-1 overflow-hidden">
           <AgentePanel eventId={eventId} />
+        </div>
+      ) : tab === 'plantillas' ? (
+        <div className="min-h-0 flex-1 overflow-hidden">
+          <PlantillasPanel eventId={eventId} />
         </div>
       ) : (
         <div className="relative flex flex-1 overflow-hidden">
