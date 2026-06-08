@@ -217,10 +217,11 @@ ${contextText}`
 }
 
 export async function selfCheckReply(contextText: string, reply: string): Promise<boolean> {
-  const system = `Eres un verificador. Te doy un CONTEXTO y una RESPUESTA.
-Devuelve UNICAMENTE "true" si cada dato afirmado en la RESPUESTA esta soportado por el CONTEXTO.
-Devuelve "false" si la RESPUESTA afirma cualquier dato que no este en el CONTEXTO.
-Responde solo con "true" o "false", sin nada mas.`
+  const system = `Verificas si una RESPUESTA esta respaldada por el CONTEXTO de un evento.
+El CONTEXTO incluye datos del evento y preguntas frecuentes oficiales (lineas "P:" y "R:"). TODO el contexto es informacion oficial y verdadera.
+Responde "true" si la RESPUESTA solo usa, repite o parafrasea informacion que ya esta en el CONTEXTO (incluidas las respuestas de la FAQ), aunque use otras palabras.
+Responde "false" SOLO si la RESPUESTA afirma un dato concreto que NO aparece en el CONTEXTO o que lo contradice.
+Ante la duda, responde "true". Responde unicamente "true" o "false".`
 
   try {
     const response = await client.messages.create({
