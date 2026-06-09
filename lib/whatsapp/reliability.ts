@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { DEBOUNCE_MS, OPT_OUT_KEYWORDS } from './config'
 import { twilioTransport } from './transport'
+import { getSenderForEvent } from './sender'
 
 // ── Idempotencia (Twilio reintenta el webhook) ──────────────────────────────
 export async function isDuplicate(supabase: SupabaseClient, twilioSid: string | null): Promise<boolean> {
@@ -90,7 +91,9 @@ export async function enqueueOutbound(supabase: SupabaseClient, p: OutboundPaylo
     return { ok: false, status: 'blocked_opt_out' }
   }
 
-  const from = p.from ?? process.env.TWILIO_WHATSAPP_FROM!
+  const from = p.from
+    ?? (await getSenderForEvent(supabase, p.eventId))?.from
+    ?? process.env.TWILIO_WHATSAPP_FROM!
   const { status, sid } = await twilioTransport.send({ to: p.to, body: p.body, from })
 
   await supabase.from('wa_messages').insert({

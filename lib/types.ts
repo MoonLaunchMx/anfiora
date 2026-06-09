@@ -81,6 +81,24 @@ export type AgentConfig = {
 
 // ─── EVENT ───────────────────────────────────────────────────────────────────
 
+export type WaSenderStatus = 'pending' | 'connected' | 'disconnected' | 'error'
+
+export type User = {
+  id: string
+  email: string
+  full_name: string | null
+  phone: string | null
+  plan: string
+  // Linea de WhatsApp dedicada del planner (multi-tenant, ANF-048).
+  // Nullable hasta que el planner conecta su linea via Embedded Signup (Fase 3).
+  wa_sender_phone?: string | null
+  wa_phone_number_id?: string | null
+  wa_waba_id?: string | null
+  wa_subaccount_sid?: string | null
+  wa_sender_status?: WaSenderStatus | null
+  wa_connected_at?: string | null
+}
+
 export type EventStatus = 'active' | 'paused' | 'cancelled' | 'completed'
 
 export type Event = {
