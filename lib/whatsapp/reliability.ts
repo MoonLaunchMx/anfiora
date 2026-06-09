@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { DEBOUNCE_MS, OPT_OUT_KEYWORDS } from './config'
+import { twilioTransport } from './transport'
 
 // ── Idempotencia (Twilio reintenta el webhook) ──────────────────────────────
 export async function isDuplicate(supabase: SupabaseClient, twilioSid: string | null): Promise<boolean> {
@@ -66,13 +67,16 @@ export async function claimInboundForReply(
   return new Date(data[0].created_at).getTime() <= new Date(inboundCreatedAt).getTime()
 }
 
-// ── Envio (guard opt-out). Hoy: directo. Manana: cola/Redis sin tocar callers.
+// ── Envio (guard opt-out). Transporte detras de transport.send (hoy Twilio).
+// El numero emisor `from` llega por parametro (multi-tenant); si no se pasa,
+// cae al env global TWILIO_WHATSAPP_FROM (comportamiento single-tenant previo).
 export type OutboundPayload = {
   to: string          // formato whatsapp:+52...
   body: string
   guestId: string
   eventId: string
   author: 'ia' | 'human'
+  from?: string       // linea emisora; default = TWILIO_WHATSAPP_FROM
 }
 
 export async function enqueueOutbound(supabase: SupabaseClient, p: OutboundPayload): Promise<{ ok: boolean; status: string }> {
@@ -86,32 +90,8 @@ export async function enqueueOutbound(supabase: SupabaseClient, p: OutboundPaylo
     return { ok: false, status: 'blocked_opt_out' }
   }
 
-  const accountSid = process.env.TWILIO_ACCOUNT_SID!
-  const authToken  = process.env.TWILIO_AUTH_TOKEN!
-  const from       = process.env.TWILIO_WHATSAPP_FROM!
-  const url        = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`
-  const creds      = Buffer.from(`${accountSid}:${authToken}`).toString('base64')
-  const params     = new URLSearchParams({ To: p.to, From: from, Body: p.body })
-
-  let status = 'sent'
-  let sid: string | null = null
-  try {
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { Authorization: `Basic ${creds}`, 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: params.toString(),
-    })
-    if (res.ok) {
-      const json = await res.json().catch(() => ({}))
-      sid = json?.sid ?? null
-    } else {
-      status = 'failed'
-      console.error('[WA] Twilio error:', await res.text())
-    }
-  } catch (err) {
-    status = 'failed'
-    console.error('[WA] Twilio fetch fallo:', err)
-  }
+  const from = p.from ?? process.env.TWILIO_WHATSAPP_FROM!
+  const { status, sid } = await twilioTransport.send({ to: p.to, body: p.body, from })
 
   await supabase.from('wa_messages').insert({
     guest_id: p.guestId,
