@@ -40,7 +40,8 @@ La linea dedicada es una **linea de negocio aparte** que el planner trae (chip/e
 - **Credenciales de sender a nivel PLANNER (`users`)**, no por evento. Un planner = una linea para todos sus eventos.
 - **Subaccount de Twilio por planner** (aisla quality rating). **No guardar tokens crudos** por planner: la cuenta maestra envia a nombre del subaccount; se guarda `subaccount_sid` + sender, no el token.
 - **Ruteo inbound por numero destino (`To`)** -> planner -> invitado por `From` entre sus eventos. Keyword/deep-link desambigua si el mismo telefono esta en 2 eventos del mismo planner.
-- **`from` entra en la firma de `enqueueOutbound` desde Fase 1** (default = env global) para que Fase 2 sea puro cableado, no otro cambio de firma.
+- **`from` entra en la firma de `enqueueOutbound` desde Fase 1** (default = env global). El "puro cableado" aplica a la **resolucion de credenciales** (`getSenderForEvent`), NO a `transport.ts`: con subaccount por planner cambia el **Account SID en la URL y el auth** (mandas a nombre del subaccount), y en Fase 3 la **Senders API** probablemente mueve el envio a un Messaging Service / sender registrado, no a `Messages.json` crudo. Por eso `transport.ts` recibe una **edicion real en Fase 2/3**, no solo wiring.
+- **No ensanchar `SendParams` de forma especulativa.** La forma exacta que pide la Senders API aun no se conoce; meter campos adivinados seria over-engineering. El "sender context" (`from` + `accountSid`/subaccount + auth-ref) se define **cuando se cablee el flujo real de subaccounts**, no antes.
 - **Cero tablas nuevas.** Solo columnas aditivas nullable en `users`, `wa_messages`, `event_settings`.
 - El `transport.ts` queda como interfaz por si algun dia se migra a Meta directo; **no es objetivo ahora**.
 
@@ -65,6 +66,7 @@ La linea dedicada es una **linea de negocio aparte** que el planner trae (chip/e
 - **Nuevos:** `lib/whatsapp/sender.ts` — `getSenderForEvent(eventId)` -> planner dueno -> linea/creds. Fuente unica.
 - **Modificados:** `reliability.ts` resuelve `from` via `getSenderForEvent` (fallback al env global si no hay sender, para dev); `lib/types.ts` agrega los campos al tipo `User`.
 - **Riesgo:** Medio. `from` dinamico; clave el fallback. Modelo subaccount: guardar `subaccount_sid` + sender, no tokens.
+- **Calibracion `transport.ts`:** aqui (o en Fase 3) `transport.ts` deja de usar las creds maestras del env: el envio pasa a usar el `accountSid`/subaccount y auth del sender resuelto. La firma de `send` evoluciona de `{ to, body, from }` a un "sender context"; se define al cablear subaccounts, no antes.
 - **DB:** Aditivo nullable.
 
 ### Fase 3 — UI Embedded Signup "Conectar WhatsApp" (mockup antes de codear)
