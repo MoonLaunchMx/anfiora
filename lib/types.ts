@@ -87,8 +87,42 @@ export type EventSettings = {
   album_url: string | null
   playlist_token: string | null
   playlist_categories: string[] | null
+  registry_token: string | null
   created_at: string
   updated_at: string
+}
+
+// ─── MESA DE REGALOS ─────────────────────────────────────────────────────────
+
+export type GiftType = 'external' | 'fund' | 'cash'
+
+export type GiftRegistryItem = {
+  id: string
+  event_id: string
+  type: GiftType
+  title: string
+  description: string | null
+  category: string | null
+  image_url: string | null
+  external_url: string | null
+  store: string | null
+  price: number | null
+  target_amount: number | null
+  created_at: string
+}
+
+export type GiftReservation = {
+  id: string
+  item_id: string
+  event_id: string
+  guest_id: string | null
+  guest_name: string
+  guest_phone: string | null
+  amount: number | null
+  message: string | null
+  purchased: boolean
+  thanked: boolean
+  created_at: string
 }
 
 // ─── COLLABORATORS ───────────────────────────────────────────────────────────
