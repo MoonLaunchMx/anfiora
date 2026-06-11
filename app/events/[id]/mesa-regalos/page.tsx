@@ -4,10 +4,10 @@ import { useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import {
-  Gift, Plus, Link2, Copy, Check, Trash2, ExternalLink, Coins, Mail, Heart, Eye,
+  Gift, Plus, Link2, Copy, Check, Trash2, ExternalLink, Coins, Mail, Heart, Eye, Settings, Landmark,
 } from 'lucide-react'
 import { FaWhatsapp } from 'react-icons/fa'
-import { GiftRegistryItem, GiftReservation } from '@/lib/types'
+import { GiftRegistryItem, GiftReservation, RegistryPaymentInfo } from '@/lib/types'
 import { TabToggle, type TabItem } from '@/app/components/ui/TabToggle'
 import StatsCollapse, { useStatsToggle, StatsToggleButton } from '@/app/components/ui/StatsCollapse'
 import AddGiftModal, { NewGiftData, GIFT_CATEGORIES } from './AddGiftModal'
@@ -42,15 +42,27 @@ export default function MesaRegalosPage() {
   const [editing, setEditing]           = useState<GiftRegistryItem | null>(null)
   const [copied, setCopied]             = useState(false)
   const [filter, setFilter]             = useState<'all' | 'external' | 'fund' | 'cash'>('all')
+  const [payBank, setPayBank]           = useState('')
+  const [payHolder, setPayHolder]       = useState('')
+  const [payClabe, setPayClabe]         = useState('')
+  const [paySaving, setPaySaving]       = useState(false)
+  const [paySaved, setPaySaved]         = useState(false)
+  const [payError, setPayError]         = useState('')
 
   useEffect(() => {
     const loadData = async () => {
       const [{ data: settings }, { data: itemsData }, { data: resData }] = await Promise.all([
-        supabase.from('event_settings').select('registry_token').eq('event_id', eventId).maybeSingle(),
+        supabase.from('event_settings').select('registry_token, registry_payment_info').eq('event_id', eventId).maybeSingle(),
         supabase.from('gift_registry_items').select('*').eq('event_id', eventId).order('created_at', { ascending: false }),
         supabase.from('gift_reservations').select('*').eq('event_id', eventId).order('created_at', { ascending: false }),
       ])
       setToken(settings?.registry_token || null)
+      const pay = settings?.registry_payment_info as RegistryPaymentInfo | null
+      if (pay) {
+        setPayBank(pay.bank || '')
+        setPayHolder(pay.account_holder || '')
+        setPayClabe(pay.clabe || '')
+      }
       setItems((itemsData as GiftRegistryItem[]) || [])
       setReservations((resData as GiftReservation[]) || [])
       setLoading(false)
@@ -62,6 +74,25 @@ export default function MesaRegalosPage() {
     const newToken = generateToken()
     setToken(newToken)
     await supabase.from('event_settings').update({ registry_token: newToken }).eq('event_id', eventId)
+  }
+
+  const handleSavePayment = async () => {
+    const clabe = payClabe.replace(/\s/g, '')
+    if (clabe && !/^\d{18}$/.test(clabe)) {
+      setPayError('La CLABE debe tener exactamente 18 dígitos.')
+      return
+    }
+    setPayError('')
+    setPaySaving(true)
+    const info = payBank.trim() || payHolder.trim() || clabe
+      ? { bank: payBank.trim(), account_holder: payHolder.trim(), clabe }
+      : null
+    const { error } = await supabase
+      .from('event_settings').update({ registry_payment_info: info }).eq('event_id', eventId)
+    setPaySaving(false)
+    if (error) { setPayError('No se pudo guardar. Intenta de nuevo.'); return }
+    setPaySaved(true)
+    setTimeout(() => setPaySaved(false), 2000)
   }
 
   const handleSubmitGift = async (data: NewGiftData) => {
@@ -125,7 +156,7 @@ export default function MesaRegalosPage() {
   const TABS: TabItem[] = [
     { key: 'regalos',   label: 'Regalos',   icon: Gift },
     { key: 'recibidos', label: 'Recibidos', icon: Heart, badge: reservations.length || undefined },
-    { key: 'compartir', label: 'Compartir', icon: Link2 },
+    { key: 'config',    label: 'Configuración', icon: Settings },
   ]
 
   if (loading) {
@@ -337,9 +368,10 @@ export default function MesaRegalosPage() {
           )
         )}
 
-        {/* ── Tab: Compartir ── */}
-        {tab === 'compartir' && (
-          <div className="rounded-xl border border-[#e8e8e8] bg-white p-4 sm:max-w-xl">
+        {/* ── Tab: Configuración ── */}
+        {tab === 'config' && (
+          <div className="space-y-4 sm:max-w-xl">
+          <div className="rounded-xl border border-[#e8e8e8] bg-white p-4">
             <div className="mb-1 flex items-center gap-2">
               <Link2 size={15} className="text-[#48C9B0]" />
               <h2 className="text-sm font-semibold text-[#1D1E20]">Link público de tu mesa</h2>
@@ -381,6 +413,58 @@ export default function MesaRegalosPage() {
                 <Link2 size={14} /> Generar link
               </button>
             )}
+          </div>
+
+          <div className="rounded-xl border border-[#e8e8e8] bg-white p-4">
+            <div className="mb-1 flex items-center gap-2">
+              <Landmark size={15} className="text-[#48C9B0]" />
+              <h2 className="text-sm font-semibold text-[#1D1E20]">Cuenta para transferencias</h2>
+            </div>
+            <p className="mb-3 text-xs text-[#888]">
+              Estos datos se muestran al invitado después de confirmar un aporte o sobre.
+            </p>
+            <div className="space-y-3">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-[#888]">Banco</label>
+                  <input
+                    className="w-full rounded-lg border border-[#e0e0e0] bg-white px-3 py-2 text-sm text-[#1D1E20] outline-none transition focus:border-[#48C9B0]"
+                    value={payBank}
+                    onChange={e => setPayBank(e.target.value)}
+                    placeholder="Ej. BBVA"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-[#888]">Titular</label>
+                  <input
+                    className="w-full rounded-lg border border-[#e0e0e0] bg-white px-3 py-2 text-sm text-[#1D1E20] outline-none transition focus:border-[#48C9B0]"
+                    value={payHolder}
+                    onChange={e => setPayHolder(e.target.value)}
+                    placeholder="Ej. María Pérez López"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-[#888]">CLABE</label>
+                <input
+                  className="w-full rounded-lg border border-[#e0e0e0] bg-white px-3 py-2 text-sm tabular-nums text-[#1D1E20] outline-none transition focus:border-[#48C9B0]"
+                  inputMode="numeric"
+                  maxLength={18}
+                  value={payClabe}
+                  onChange={e => setPayClabe(e.target.value.replace(/\D/g, ''))}
+                  placeholder="18 dígitos"
+                />
+              </div>
+              {payError && <p className="text-xs text-[#cc3333]">{payError}</p>}
+              <button
+                onClick={handleSavePayment}
+                disabled={paySaving}
+                className="flex items-center gap-1.5 rounded-lg bg-[#48C9B0] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#3aa896] disabled:opacity-50"
+              >
+                {paySaved ? <><Check size={14} /> Guardado</> : paySaving ? 'Guardando...' : 'Guardar'}
+              </button>
+            </div>
+          </div>
           </div>
         )}
 

@@ -88,11 +88,18 @@ export type EventSettings = {
   playlist_token: string | null
   playlist_categories: string[] | null
   registry_token: string | null
+  registry_payment_info: RegistryPaymentInfo | null
   created_at: string
   updated_at: string
 }
 
 // ─── MESA DE REGALOS ─────────────────────────────────────────────────────────
+
+export type RegistryPaymentInfo = {
+  bank: string
+  account_holder: string
+  clabe: string
+}
 
 export type GiftType = 'external' | 'fund' | 'cash'
 

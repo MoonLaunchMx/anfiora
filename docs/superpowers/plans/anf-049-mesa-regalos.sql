@@ -133,3 +133,10 @@ CREATE POLICY "host delete gift reservations" ON gift_reservations
   ));
 
 COMMIT;
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Incremento 2026-06-11: cuenta de los novios para transferencias.
+-- Columna JSONB en event_settings: { bank, account_holder, clabe }.
+-- Aditivo e inerte hasta que el codigo la use.
+
+ALTER TABLE event_settings ADD COLUMN IF NOT EXISTS registry_payment_info JSONB;

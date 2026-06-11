@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
-import { Gift, Coins, Mail, ExternalLink, Check, X, Heart } from 'lucide-react'
-import { GiftRegistryItem } from '@/lib/types'
+import { Gift, Coins, Mail, ExternalLink, Check, X, Heart, Copy, Landmark } from 'lucide-react'
+import { GiftRegistryItem, RegistryPaymentInfo } from '@/lib/types'
 
 type Aggregates = Record<string, { count: number; sum: number }>
 type EventInfo = {
@@ -33,6 +33,7 @@ export default function MesaPublicaPage() {
   const [event, setEvent]         = useState<EventInfo | null>(null)
   const [items, setItems]         = useState<GiftRegistryItem[]>([])
   const [agg, setAgg]             = useState<Aggregates>({})
+  const [paymentInfo, setPaymentInfo] = useState<RegistryPaymentInfo | null>(null)
   const [loading, setLoading]     = useState(true)
   const [notFound, setNotFound]   = useState(false)
   const [active, setActive]       = useState<GiftRegistryItem | null>(null)
@@ -46,6 +47,7 @@ export default function MesaPublicaPage() {
         setEvent(data.event)
         setItems(data.items || [])
         setAgg(data.aggregates || {})
+        setPaymentInfo(data.payment_info || null)
       } catch {
         setNotFound(true)
       } finally {
@@ -187,6 +189,7 @@ export default function MesaPublicaPage() {
         <ReserveModal
           token={token as string}
           item={active}
+          paymentInfo={paymentInfo}
           onClose={() => setActive(null)}
           onReserved={onReserved}
         />
@@ -196,10 +199,11 @@ export default function MesaPublicaPage() {
 }
 
 function ReserveModal({
-  token, item, onClose, onReserved,
+  token, item, paymentInfo, onClose, onReserved,
 }: {
   token: string
   item: GiftRegistryItem
+  paymentInfo: RegistryPaymentInfo | null
   onClose: () => void
   onReserved: (item: GiftRegistryItem, amount: number | null) => void
 }) {
@@ -210,8 +214,18 @@ function ReserveModal({
   const [submitting, setSubmitting] = useState(false)
   const [success, setSuccess]     = useState(false)
   const [error, setError]         = useState('')
+  const [clabeCopied, setClabeCopied] = useState(false)
 
   const needsAmount = item.type !== 'external'
+  const showPayment = needsAmount && paymentInfo &&
+    (paymentInfo.bank || paymentInfo.account_holder || paymentInfo.clabe)
+
+  const copyClabe = async () => {
+    if (!paymentInfo?.clabe) return
+    await navigator.clipboard.writeText(paymentInfo.clabe)
+    setClabeCopied(true)
+    setTimeout(() => setClabeCopied(false), 2000)
+  }
 
   const submit = async () => {
     if (!name.trim()) { setError('Escribe tu nombre'); return }
@@ -259,6 +273,33 @@ function ReserveModal({
                   ? <>Marcamos <strong>“{item.title}”</strong> como apartado para ti.</>
                   : <>Registramos tu {item.type === 'cash' ? 'sobre' : 'aporte'} de <strong>{fmtMXN(parseFloat(amount))}</strong>.</>}
               </p>
+              {showPayment && (
+                <div className="mx-auto mt-5 max-w-xs rounded-xl border border-[#eee4d6] bg-[#FBF7F0] p-4 text-left">
+                  <div className="mb-2 flex items-center gap-1.5 text-[#1a9e88]">
+                    <Landmark size={14} />
+                    <p className="text-[11px] font-semibold uppercase tracking-wider">Datos para tu transferencia</p>
+                  </div>
+                  <div className="space-y-1.5 text-sm text-[#1D1E20]">
+                    {paymentInfo!.bank && (
+                      <p><span className="text-xs text-[#999]">Banco:</span> <span className="font-medium">{paymentInfo!.bank}</span></p>
+                    )}
+                    {paymentInfo!.account_holder && (
+                      <p><span className="text-xs text-[#999]">Titular:</span> <span className="font-medium">{paymentInfo!.account_holder}</span></p>
+                    )}
+                    {paymentInfo!.clabe && (
+                      <p className="break-all"><span className="text-xs text-[#999]">CLABE:</span> <span className="font-medium tabular-nums">{paymentInfo!.clabe}</span></p>
+                    )}
+                  </div>
+                  {paymentInfo!.clabe && (
+                    <button
+                      onClick={copyClabe}
+                      className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg border border-[#48C9B0] bg-white px-3 py-2 text-xs font-semibold text-[#48C9B0] transition hover:bg-[#f0fdfb]"
+                    >
+                      {clabeCopied ? <><Check size={13} /> Copiada</> : <><Copy size={13} /> Copiar CLABE</>}
+                    </button>
+                  )}
+                </div>
+              )}
               {item.type === 'external' && item.external_url && (
                 <a
                   href={item.external_url}

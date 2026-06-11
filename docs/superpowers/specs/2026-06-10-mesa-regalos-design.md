@@ -49,3 +49,13 @@ Agregar a `lib/types.ts`: `GiftRegistryItem`, `GiftReservation`, `GiftType = 'ex
 - Sin pagos, sin Stripe. Solo Tailwind, UI en espanol, sin emojis, mobile first, Lucide.
 - Codigo completo, archivo entero. Commits en ingles sin acentos.
 - Local -> preview -> (Diego testea) -> main con su OK. SQL lo corre Diego.
+
+## 9. Incremento 2026-06-11: cuenta de los novios (tab Configuracion)
+
+**Objetivo:** los invitados que aportan a un fondo o dejan un sobre necesitan saber a donde transferir. Anfiora sigue sin tocar dinero: solo muestra los datos de la cuenta (honor-system).
+
+- **Schema:** `event_settings.registry_payment_info JSONB` con `{ bank, account_holder, clabe }`. Una sola columna JSONB (menos churn; campos futuros como tarjeta o nota no requieren ALTER).
+- **Vista anfitrion:** tab "Compartir" se renombra a **"Configuracion"** (icono Settings). Dos bloques: (1) link publico (igual que hoy), (2) "Cuenta para transferencias" con inputs Banco / Titular / CLABE (validacion suave 18 digitos) + Guardar.
+- **API publica:** `GET /api/mesa/[token]` regresa ademas `payment_info` (es informacion destinada a los invitados, no secreta).
+- **Vista publica:** en la pantalla de gracias del modal, SOLO para tipos `fund` y `cash`, bloque con Banco / Titular / CLABE + boton "Copiar CLABE". Si no hay cuenta configurada, la pantalla queda igual que hoy.
+- **Sin cambios:** reservas, RLS, tipos de regalo, regalos de tienda (external no muestra cuenta).
