@@ -4,13 +4,14 @@ import { useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import {
-  Gift, Plus, Link2, Copy, Check, Trash2, ExternalLink, Coins, Mail, Heart, Eye, Settings, Landmark,
+  Gift, Plus, Link2, Copy, Check, Trash2, ExternalLink, Coins, Mail, Heart, Eye, Settings, Landmark, Pencil,
 } from 'lucide-react'
 import { FaWhatsapp } from 'react-icons/fa'
-import { GiftRegistryItem, GiftReservation, RegistryPaymentInfo } from '@/lib/types'
+import { GiftRegistryItem, GiftReservation, RegistryPaymentMethod, normalizePaymentMethods } from '@/lib/types'
 import { TabToggle, type TabItem } from '@/app/components/ui/TabToggle'
 import StatsCollapse, { useStatsToggle, StatsToggleButton } from '@/app/components/ui/StatsCollapse'
 import AddGiftModal, { NewGiftData, GIFT_CATEGORIES } from './AddGiftModal'
+import PaymentMethodModal, { payTypeMeta } from './PaymentMethodModal'
 
 function generateToken(length = 10): string {
   const chars = 'abcdefghijklmnopqrstuvwxyz0123456789'
@@ -42,12 +43,9 @@ export default function MesaRegalosPage() {
   const [editing, setEditing]           = useState<GiftRegistryItem | null>(null)
   const [copied, setCopied]             = useState(false)
   const [filter, setFilter]             = useState<'all' | 'external' | 'fund' | 'cash'>('all')
-  const [payBank, setPayBank]           = useState('')
-  const [payHolder, setPayHolder]       = useState('')
-  const [payClabe, setPayClabe]         = useState('')
-  const [paySaving, setPaySaving]       = useState(false)
-  const [paySaved, setPaySaved]         = useState(false)
-  const [payError, setPayError]         = useState('')
+  const [payMethods, setPayMethods]     = useState<RegistryPaymentMethod[]>([])
+  const [showPayModal, setShowPayModal] = useState(false)
+  const [editingMethod, setEditingMethod] = useState<RegistryPaymentMethod | null>(null)
 
   useEffect(() => {
     const loadData = async () => {
@@ -57,12 +55,7 @@ export default function MesaRegalosPage() {
         supabase.from('gift_reservations').select('*').eq('event_id', eventId).order('created_at', { ascending: false }),
       ])
       setToken(settings?.registry_token || null)
-      const pay = settings?.registry_payment_info as RegistryPaymentInfo | null
-      if (pay) {
-        setPayBank(pay.bank || '')
-        setPayHolder(pay.account_holder || '')
-        setPayClabe(pay.clabe || '')
-      }
+      setPayMethods(normalizePaymentMethods(settings?.registry_payment_info))
       setItems((itemsData as GiftRegistryItem[]) || [])
       setReservations((resData as GiftReservation[]) || [])
       setLoading(false)
@@ -76,24 +69,26 @@ export default function MesaRegalosPage() {
     await supabase.from('event_settings').update({ registry_token: newToken }).eq('event_id', eventId)
   }
 
-  const handleSavePayment = async () => {
-    const clabe = payClabe.replace(/\s/g, '')
-    if (clabe && !/^\d{18}$/.test(clabe)) {
-      setPayError('La CLABE debe tener exactamente 18 dígitos.')
-      return
-    }
-    setPayError('')
-    setPaySaving(true)
-    const info = payBank.trim() || payHolder.trim() || clabe
-      ? { bank: payBank.trim(), account_holder: payHolder.trim(), clabe }
-      : null
-    const { error } = await supabase
-      .from('event_settings').update({ registry_payment_info: info }).eq('event_id', eventId)
-    setPaySaving(false)
-    if (error) { setPayError('No se pudo guardar. Intenta de nuevo.'); return }
-    setPaySaved(true)
-    setTimeout(() => setPaySaved(false), 2000)
+  const persistMethods = async (methods: RegistryPaymentMethod[]) => {
+    setPayMethods(methods)
+    await supabase
+      .from('event_settings')
+      .update({ registry_payment_info: methods.length ? { methods } : null })
+      .eq('event_id', eventId)
   }
+
+  const handleSaveMethod = async (m: RegistryPaymentMethod) => {
+    const exists = payMethods.some(x => x.id === m.id)
+    await persistMethods(exists ? payMethods.map(x => x.id === m.id ? m : x) : [...payMethods, m])
+  }
+
+  const handleDeleteMethod = async (id: string) => {
+    if (!confirm('¿Eliminar este método de pago?')) return
+    await persistMethods(payMethods.filter(x => x.id !== id))
+  }
+
+  const openAddMethod  = () => { setEditingMethod(null); setShowPayModal(true) }
+  const openEditMethod = (m: RegistryPaymentMethod) => { setEditingMethod(m); setShowPayModal(true) }
 
   const handleSubmitGift = async (data: NewGiftData) => {
     if (editing) {
@@ -455,52 +450,62 @@ export default function MesaRegalosPage() {
           <div className="rounded-xl border border-[#e8e8e8] bg-white p-4">
             <div className="mb-1 flex items-center gap-2">
               <Landmark size={15} className="text-[#48C9B0]" />
-              <h2 className="text-sm font-semibold text-[#1D1E20]">Cuenta para transferencias</h2>
+              <h2 className="text-sm font-semibold text-[#1D1E20]">Cuenta para recibir regalos</h2>
             </div>
             <p className="mb-3 text-xs text-[#888]">
-              Estos datos se muestran al invitado después de confirmar un aporte o sobre.
+              Estos métodos se muestran al invitado después de confirmar un aporte o sobre.
             </p>
-            <div className="space-y-3">
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div>
-                  <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-[#888]">Banco</label>
-                  <input
-                    className="w-full rounded-lg border border-[#e0e0e0] bg-white px-3 py-2 text-sm text-[#1D1E20] outline-none transition focus:border-[#48C9B0]"
-                    value={payBank}
-                    onChange={e => setPayBank(e.target.value)}
-                    placeholder="Ej. BBVA"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-[#888]">Titular</label>
-                  <input
-                    className="w-full rounded-lg border border-[#e0e0e0] bg-white px-3 py-2 text-sm text-[#1D1E20] outline-none transition focus:border-[#48C9B0]"
-                    value={payHolder}
-                    onChange={e => setPayHolder(e.target.value)}
-                    placeholder="Ej. María Pérez López"
-                  />
-                </div>
+
+            {payMethods.length > 0 && (
+              <div className="mb-3 divide-y divide-[#f0f0f0] rounded-lg border border-[#e8e8e8]">
+                {payMethods.map(m => {
+                  const meta = payTypeMeta(m.type)
+                  const masked = (m.type === 'transfer' || m.type === 'card')
+                    ? `•••• ${m.value.slice(-4)}`
+                    : m.value
+                  const line = m.type === 'other'
+                    ? m.label
+                    : [m.bank, m.holder].filter(Boolean).join(' · ')
+                  return (
+                    <div key={m.id} className="flex items-center gap-3 px-3 py-2.5">
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#f0fdfb] text-[#1a9e88]">
+                        {meta.icon}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-semibold text-[#1D1E20]">
+                          {m.type === 'other' && m.label ? m.label : meta.label}
+                          {line && m.type !== 'other' && <span className="ml-1.5 font-normal text-[#888]">{line}</span>}
+                        </p>
+                        <p className="truncate text-[11px] tabular-nums text-[#888]">{masked}</p>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-1">
+                        <button
+                          onClick={() => openEditMethod(m)}
+                          title="Editar"
+                          className="flex h-7 w-7 items-center justify-center rounded-md text-[#bbb] transition hover:bg-[#f5f5f5] hover:text-[#1D1E20]"
+                        >
+                          <Pencil size={13} />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteMethod(m.id)}
+                          title="Eliminar"
+                          className="flex h-7 w-7 items-center justify-center rounded-md text-[#bbb] transition hover:bg-[#fff0f0] hover:text-[#cc3333]"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    </div>
+                  )
+                })}
               </div>
-              <div>
-                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-[#888]">CLABE</label>
-                <input
-                  className="w-full rounded-lg border border-[#e0e0e0] bg-white px-3 py-2 text-sm tabular-nums text-[#1D1E20] outline-none transition focus:border-[#48C9B0]"
-                  inputMode="numeric"
-                  maxLength={18}
-                  value={payClabe}
-                  onChange={e => setPayClabe(e.target.value.replace(/\D/g, ''))}
-                  placeholder="18 dígitos"
-                />
-              </div>
-              {payError && <p className="text-xs text-[#cc3333]">{payError}</p>}
-              <button
-                onClick={handleSavePayment}
-                disabled={paySaving}
-                className="flex items-center gap-1.5 rounded-lg bg-[#48C9B0] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#3aa896] disabled:opacity-50"
-              >
-                {paySaved ? <><Check size={14} /> Guardado</> : paySaving ? 'Guardando...' : 'Guardar'}
-              </button>
-            </div>
+            )}
+
+            <button
+              onClick={openAddMethod}
+              className="flex items-center gap-1.5 rounded-lg bg-[#48C9B0] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#3aa896]"
+            >
+              <Plus size={14} /> Agregar método
+            </button>
           </div>
           </div>
         )}
@@ -508,6 +513,12 @@ export default function MesaRegalosPage() {
       </div>
 
       <AddGiftModal isOpen={showAdd} initial={editing} onClose={closeModal} onSubmit={handleSubmitGift} />
+      <PaymentMethodModal
+        isOpen={showPayModal}
+        initial={editingMethod}
+        onClose={() => { setShowPayModal(false); setEditingMethod(null) }}
+        onSave={handleSaveMethod}
+      />
     </div>
   )
 }

@@ -95,10 +95,38 @@ export type EventSettings = {
 
 // ─── MESA DE REGALOS ─────────────────────────────────────────────────────────
 
+export type RegistryPaymentMethodType =
+  'transfer' | 'card' | 'mercado_pago' | 'paypal' | 'zelle' | 'other'
+
+export type RegistryPaymentMethod = {
+  id: string
+  type: RegistryPaymentMethodType
+  bank?: string    // transfer y card
+  holder?: string  // transfer, card y zelle
+  value: string    // CLABE / tarjeta / link / email-tel / instruccion
+  label?: string   // solo other: nombre de la app
+}
+
 export type RegistryPaymentInfo = {
-  bank: string
-  account_holder: string
-  clabe: string
+  methods: RegistryPaymentMethod[]
+}
+
+// Acepta la forma vieja del JSONB ({ bank, account_holder, clabe }) y la nueva ({ methods })
+export function normalizePaymentMethods(raw: unknown): RegistryPaymentMethod[] {
+  if (!raw || typeof raw !== 'object') return []
+  const obj = raw as Record<string, unknown>
+  if (Array.isArray(obj.methods)) return obj.methods as RegistryPaymentMethod[]
+  const legacy = obj as { bank?: string; account_holder?: string; clabe?: string }
+  if (legacy.clabe || legacy.bank || legacy.account_holder) {
+    return [{
+      id: 'legacy-transfer',
+      type: 'transfer',
+      bank: legacy.bank || '',
+      holder: legacy.account_holder || '',
+      value: legacy.clabe || '',
+    }]
+  }
+  return []
 }
 
 export type GiftType = 'external' | 'fund' | 'cash'
