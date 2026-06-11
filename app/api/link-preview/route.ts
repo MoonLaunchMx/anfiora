@@ -31,11 +31,23 @@ function decode(s: string | null): string | null {
     .replace(/&#x2F;/g, '/').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim()
 }
 
+// Soporta formato US (1,234.56) y europeo (1.234,56 / 18,53): el separador que
+// aparece al final con 2 decimales es el decimal.
 function toNumber(raw: string | null): number | null {
   if (!raw) return null
-  // quita simbolos y separadores de miles (coma); deja el punto decimal
-  const cleaned = raw.replace(/[^0-9.,]/g, '').replace(/,/g, '')
-  const n = parseFloat(cleaned)
+  let s = raw.replace(/[^0-9.,]/g, '')
+  if (!s) return null
+  const lastDot = s.lastIndexOf('.')
+  const lastComma = s.lastIndexOf(',')
+  if (lastComma > -1 && lastDot > -1) {
+    s = lastComma > lastDot
+      ? s.replace(/\./g, '').replace(',', '.')
+      : s.replace(/,/g, '')
+  } else if (lastComma > -1) {
+    const frac = s.length - lastComma - 1
+    s = frac === 2 ? s.replace(',', '.') : s.replace(/,/g, '')
+  }
+  const n = parseFloat(s)
   return !isNaN(n) && n > 0 ? n : null
 }
 
@@ -86,6 +98,7 @@ function cleanTitle(raw: string, store: string | null, hostname: string): string
     t = t.replace(new RegExp(`\\s*(?:[|–—·:]|\\s-)\\s*[^|–—·:]*?(?:${alt})[\\s\\S]*$`, 'i'), '')
   }
   t = t.replace(/\s+:\s+[^:|0-9]{2,40}$/, '').trim()
+  t = t.replace(/\s*[·|]\s*★[\d.,]*\s*$/, '').trim()
   return t.length >= 4 ? t : raw
 }
 
@@ -110,8 +123,8 @@ function priceFromJsonLd(html: string): number | null {
   // barrido suelto en JSON embebido
   const loose = html.match(/"price(?:Amount)?"\s*:\s*"?([\d][\d.,]*)"?/i)
   if (loose) return toNumber(loose[1])
-  // estado embebido de SPAs (Liverpool y similares)
-  const spa = html.match(/"(?:promoPrice|salePrice|listPrice)"\s*:\s*"?([\d][\d.,]*)"?/i)
+  // estado embebido de SPAs (Liverpool, Airbnb y similares)
+  const spa = html.match(/"(?:promoPrice|salePrice|listPrice|discountedPrice)"\s*:\s*"?([\d][\d.,]*)"?/i)
   if (spa) return toNumber(spa[1])
   // markup de Amazon (no usa meta/JSON-LD estandar)
   const offscreen = html.match(/class="a-offscreen">\s*\$\s*([\d.,]+)\s*</i)
