@@ -1,8 +1,17 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { X, ExternalLink, Coins, Mail } from 'lucide-react'
+import { X, ExternalLink, Coins, Mail, Check } from 'lucide-react'
 import { GiftType } from '@/lib/types'
+
+function guessCategory(text: string): string | null {
+  const t = text.toLowerCase()
+  if (/(viaje|luna de miel|hotel|vuelo|maleta|equipaje|tour|crucero|airbnb)/.test(t)) return 'viajes'
+  if (/(vajilla|sabana|sábana|cocina|olla|sarten|sartén|cafetera|licuadora|toalla|edredon|edredón|mueble|lampara|lámpara|copa|cubierto|plato|cobija)/.test(t)) return 'hogar'
+  if (/(cena|experiencia|spa|masaje|clase|taller|boleto|concierto|restaurante|degustacion|degustación)/.test(t)) return 'experiencias'
+  if (/(bici|reloj|ropa|zapato|perfume|gadget|audifono|audífono|camara|cámara|maquillaje)/.test(t)) return 'estilo'
+  return null
+}
 
 export const GIFT_CATEGORIES = [
   { id: 'viajes',       label: 'Viajes' },
@@ -47,15 +56,43 @@ export default function AddGiftModal({ isOpen, onClose, onSubmit }: Props) {
   const [price, setPrice]             = useState('')
   const [target, setTarget]           = useState('')
   const [submitting, setSubmitting]   = useState(false)
+  const [fetching, setFetching]       = useState(false)
+  const [detectedStore, setDetected]  = useState<string | null>(null)
 
   useEffect(() => {
     if (isOpen) {
       setType('external')
       setTitle(''); setCategory('hogar'); setDescription(''); setImageUrl('')
       setExternalUrl(''); setStore(''); setPrice(''); setTarget('')
-      setSubmitting(false)
+      setSubmitting(false); setFetching(false); setDetected(null)
     }
   }, [isOpen])
+
+  // Auto-rellenar desde el link de la tienda (Open Graph / JSON-LD)
+  useEffect(() => {
+    if (type !== 'external') return
+    const url = externalUrl.trim()
+    if (!/^https?:\/\/.+\..+/.test(url)) { setDetected(null); return }
+    const ctrl = new AbortController()
+    setFetching(true)
+    const t = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/link-preview?url=${encodeURIComponent(url)}`, { signal: ctrl.signal })
+        const data = await res.json()
+        if (data?.ok) {
+          if (data.title && !title.trim())   setTitle(data.title)
+          if (data.store && !store.trim())   setStore(data.store)
+          if (data.price && !price)          setPrice(String(data.price))
+          if (data.image && !imageUrl.trim()) setImageUrl(data.image)
+          if (data.store) setDetected(data.store)
+          const g = guessCategory(`${data.title || ''} ${url}`)
+          if (g) setCategory(g)
+        }
+      } catch { /* sin conexion / abortado */ }
+      finally { setFetching(false) }
+    }, 700)
+    return () => { clearTimeout(t); ctrl.abort() }
+  }, [externalUrl, type])
 
   if (!isOpen) return null
 
@@ -147,14 +184,27 @@ export default function AddGiftModal({ isOpen, onClose, onSubmit }: Props) {
               {type === 'external' && (
                 <div>
                   <label className={labelCls}>Link de la tienda</label>
-                  <input
-                    type="url"
-                    value={externalUrl}
-                    onChange={e => setExternalUrl(e.target.value)}
-                    placeholder="https://liverpool.com.mx/..."
-                    className={inputCls}
-                  />
-                  <p className="mt-1 text-[10px] text-[#aaa]">El invitado abrirá este link para comprarlo.</p>
+                  <div className="relative">
+                    <input
+                      type="url"
+                      value={externalUrl}
+                      onChange={e => setExternalUrl(e.target.value)}
+                      placeholder="https://liverpool.com.mx/..."
+                      className={`${inputCls} ${fetching ? 'pr-9' : ''}`}
+                    />
+                    {fetching && (
+                      <span className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin rounded-full border-2 border-[#e8e8e8] border-t-[#48C9B0]" />
+                    )}
+                  </div>
+                  {detectedStore ? (
+                    <p className="mt-1 flex items-center gap-1 text-[10px] font-medium text-[#1a9e88]">
+                      <Check size={11} /> Datos detectados desde {detectedStore}. Puedes editarlos.
+                    </p>
+                  ) : (
+                    <p className="mt-1 text-[10px] text-[#aaa]">
+                      Pega el link y rellenamos título, precio, tienda e imagen solos.
+                    </p>
+                  )}
                 </div>
               )}
 
@@ -244,13 +294,23 @@ export default function AddGiftModal({ isOpen, onClose, onSubmit }: Props) {
               {type !== 'cash' && (
                 <div>
                   <label className={labelCls}>Imagen (opcional)</label>
-                  <input
-                    type="url"
-                    value={imageUrl}
-                    onChange={e => setImageUrl(e.target.value)}
-                    placeholder="https://...jpg"
-                    className={inputCls}
-                  />
+                  <div className="flex items-center gap-2">
+                    {imageUrl.trim() && (
+                      <img
+                        src={imageUrl}
+                        alt=""
+                        className="h-10 w-10 shrink-0 rounded-lg border border-[#e8e8e8] object-cover"
+                        onError={e => { (e.currentTarget.style.display = 'none') }}
+                      />
+                    )}
+                    <input
+                      type="url"
+                      value={imageUrl}
+                      onChange={e => setImageUrl(e.target.value)}
+                      placeholder="https://...jpg"
+                      className={inputCls}
+                    />
+                  </div>
                   <p className="mt-1 text-[10px] text-[#aaa]">Pega el link de una foto. Si lo dejas vacío usamos un ícono.</p>
                 </div>
               )}
