@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import {
-  Gift, Plus, Link2, Copy, Check, Trash2, ExternalLink, Coins, Mail, Heart,
+  Gift, Plus, Link2, Copy, Check, Trash2, ExternalLink, Coins, Mail, Heart, Eye,
 } from 'lucide-react'
 import { FaWhatsapp } from 'react-icons/fa'
 import { GiftRegistryItem, GiftReservation } from '@/lib/types'
@@ -363,6 +363,14 @@ export default function MesaRegalosPage() {
                   className="flex items-center gap-1.5 rounded-lg border border-[#e0e0e0] px-3 py-2 text-xs font-medium text-[#555] transition hover:border-[#25D366] hover:text-[#25D366]"
                 >
                   <FaWhatsapp size={14} /> WhatsApp
+                </a>
+                <a
+                  href={publicUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-[#e0e0e0] px-3 py-2 text-xs font-medium text-[#555] transition hover:border-[#48C9B0] hover:text-[#48C9B0] sm:w-auto"
+                >
+                  <Eye size={14} /> Ver como invitado
                 </a>
               </div>
             ) : (
