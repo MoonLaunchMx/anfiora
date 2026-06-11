@@ -290,7 +290,8 @@ function ReserveModal({
   onReserved: (item: GiftRegistryItem, amount: number | null) => void
 }) {
   const [name, setName]           = useState('')
-  const [phone, setPhone]         = useState('')
+  const [phone, setPhone]         = useState('')        // solo digitos, max 10
+  const [phoneCode, setPhoneCode] = useState('+52')
   const [amount, setAmount]       = useState('')
   const [message, setMessage]     = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -320,7 +321,7 @@ function ReserveModal({
         body: JSON.stringify({
           item_id: item.id,
           guest_name: name.trim(),
-          guest_phone: phone.trim() || null,
+          guest_phone: phone ? `${phoneCode} ${phone}` : null,
           amount: amountToSend,
           message: message.trim() || null,
         }),
@@ -526,8 +527,30 @@ function ReserveModal({
 
                   <div>
                     <label className={labelCls}>Tu WhatsApp <span className="font-normal text-[#bbb]">(opcional)</span></label>
-                    <input className={inputCls} type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="+52 55 1234 5678" />
-                    <p className="mt-1 text-[10px] text-[#aaa]">Para que los anfitriones puedan agradecerte.</p>
+                    <div className="flex gap-2">
+                      <select
+                        value={phoneCode}
+                        onChange={e => setPhoneCode(e.target.value)}
+                        className="w-24 shrink-0 rounded-lg border border-[#e0e0e0] bg-white px-2 py-2 text-sm text-[#1D1E20] outline-none transition focus:border-[#48C9B0]"
+                      >
+                        <option value="+52">MX +52</option>
+                        <option value="+1">US +1</option>
+                        <option value="+34">ES +34</option>
+                      </select>
+                      <input
+                        className={`${inputCls} tabular-nums`}
+                        type="tel"
+                        inputMode="numeric"
+                        value={
+                          phone.length <= 2 ? phone
+                          : phone.length <= 6 ? `${phone.slice(0, 2)} ${phone.slice(2)}`
+                          : `${phone.slice(0, 2)} ${phone.slice(2, 6)} ${phone.slice(6)}`
+                        }
+                        onChange={e => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                        placeholder="55 1234 5678"
+                      />
+                    </div>
+                    <p className="mt-1 text-[10px] text-[#aaa]">10 dígitos. Para que los anfitriones puedan agradecerte.</p>
                   </div>
 
                   <div>
