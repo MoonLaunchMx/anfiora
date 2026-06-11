@@ -294,13 +294,16 @@ function ReserveModal({
   const [amount, setAmount]       = useState('')
   const [message, setMessage]     = useState('')
   const [submitting, setSubmitting] = useState(false)
-  const [success, setSuccess]     = useState(false)
+  const [step, setStep]           = useState<'form' | 'choose' | 'done'>('form')
+  const [choice, setChoice]       = useState<'store' | 'deposit' | null>(null)
   const [error, setError]         = useState('')
   const [copiedId, setCopiedId]   = useState<string | null>(null)
 
   const isBuy = item.type === 'external' && mode === 'buy'
   const needsAmount = !isBuy
-  const showPayment = needsAmount && payMethods.length > 0
+  // "Lo regalo" con precio y metodos configurados: el invitado elige comprar o depositar
+  const hasChooser = isBuy && !!item.price && payMethods.length > 0
+  const showPayment = payMethods.length > 0 && (needsAmount || choice === 'deposit')
 
   const copyValue = async (m: RegistryPaymentMethod) => {
     await navigator.clipboard.writeText(m.value)
@@ -308,9 +311,7 @@ function ReserveModal({
     setTimeout(() => setCopiedId(null), 2000)
   }
 
-  const submit = async () => {
-    if (!name.trim()) { setError('Escribe tu nombre'); return }
-    if (needsAmount && !(parseFloat(amount) > 0)) { setError('Escribe un monto'); return }
+  const submit = async (amountToSend: number | null) => {
     setSubmitting(true); setError('')
     try {
       const res = await fetch(`/api/mesa/${token}`, {
@@ -320,18 +321,30 @@ function ReserveModal({
           item_id: item.id,
           guest_name: name.trim(),
           guest_phone: phone.trim() || null,
-          amount: needsAmount ? parseFloat(amount) : null,
+          amount: amountToSend,
           message: message.trim() || null,
         }),
       })
       if (!res.ok) { setError('No se pudo registrar. Intenta de nuevo.'); setSubmitting(false); return }
-      onReserved(item, needsAmount ? parseFloat(amount) : null)
-      setSuccess(true)
+      onReserved(item, amountToSend)
+      setStep('done')
     } catch {
       setError('Sin conexion. Intenta de nuevo.')
     } finally {
       setSubmitting(false)
     }
+  }
+
+  const handleContinue = () => {
+    if (!name.trim()) { setError('Escribe tu nombre'); return }
+    if (needsAmount && !(parseFloat(amount) > 0)) { setError('Escribe un monto'); return }
+    if (hasChooser) { setError(''); setStep('choose'); return }
+    submit(needsAmount ? parseFloat(amount) : null)
+  }
+
+  const handleChoice = (c: 'store' | 'deposit') => {
+    setChoice(c)
+    submit(c === 'deposit' ? item.price : null)
   }
 
   const inputCls = 'w-full rounded-lg border border-[#e0e0e0] bg-white px-3 py-2 text-sm text-[#1D1E20] outline-none transition focus:border-[#48C9B0]'
@@ -343,7 +356,7 @@ function ReserveModal({
       <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4">
         <div className="flex max-h-[90vh] w-full max-w-md flex-col overflow-hidden rounded-t-2xl bg-white shadow-xl sm:rounded-2xl">
 
-          {success ? (
+          {step === 'done' ? (
             <div className="px-6 py-10 text-center">
               <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-[#f0fdfb] text-[#1a9e88]">
                 <Check size={28} strokeWidth={2.4} />
@@ -351,7 +364,9 @@ function ReserveModal({
               <h3 className="text-xl font-bold text-[#1D1E20]" style={josefin}>¡Gracias, {name.split(' ')[0]}!</h3>
               <p className="mx-auto mt-2 max-w-xs text-sm leading-relaxed text-[#666]">
                 {isBuy
-                  ? <>Marcamos <strong>“{item.title}”</strong> como apartado por ti.</>
+                  ? (choice === 'deposit'
+                      ? <>Registramos tu regalo de <strong>{fmtMXN(item.price || 0)}</strong> para <strong>“{item.title}”</strong>.</>
+                      : <>Marcamos <strong>“{item.title}”</strong> como apartado por ti.</>)
                   : <>Registramos tu {item.type === 'cash' ? 'sobre' : 'aporte'} de <strong>{fmtMXN(parseFloat(amount))}</strong>.</>}
               </p>
               {showPayment && (
@@ -399,7 +414,7 @@ function ReserveModal({
                   </div>
                 </div>
               )}
-              {isBuy && item.external_url && (
+              {isBuy && choice !== 'deposit' && item.external_url && (
                 <a
                   href={item.external_url}
                   target="_blank"
@@ -411,6 +426,56 @@ function ReserveModal({
               )}
               <button onClick={onClose} className="mt-3 block w-full rounded-lg px-4 py-2 text-sm font-medium text-[#666] transition hover:bg-[#f5f5f5]">
                 Volver a la mesa
+              </button>
+            </div>
+          ) : step === 'choose' ? (
+            <div className="px-5 py-6">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-[#48C9B0]">Vas a regalar</p>
+              <h3 className="truncate text-base font-bold text-[#1D1E20]">{item.title}</h3>
+              <p className="mt-3 text-sm text-[#666]">¿Cómo prefieres hacerlo?</p>
+
+              <div className="mt-3 space-y-2.5">
+                <button
+                  onClick={() => handleChoice('store')}
+                  disabled={submitting}
+                  className="flex w-full items-start gap-3 rounded-xl border border-[#e8e8e8] bg-white p-3.5 text-left transition hover:border-[#48C9B0] hover:bg-[#f0fdfb] disabled:opacity-50"
+                >
+                  <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#f0fdfb] text-[#1a9e88]">
+                    <ExternalLink size={16} />
+                  </span>
+                  <span>
+                    <span className="block text-sm font-semibold text-[#1D1E20]">Lo compro yo en la tienda</span>
+                    <span className="mt-0.5 block text-xs leading-relaxed text-[#888]">
+                      Te llevamos al link del producto para que lo compres directo.
+                    </span>
+                  </span>
+                </button>
+
+                <button
+                  onClick={() => handleChoice('deposit')}
+                  disabled={submitting}
+                  className="flex w-full items-start gap-3 rounded-xl border border-[#e8e8e8] bg-white p-3.5 text-left transition hover:border-[#48C9B0] hover:bg-[#f0fdfb] disabled:opacity-50"
+                >
+                  <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#f0fdfb] text-[#1a9e88]">
+                    <Landmark size={16} />
+                  </span>
+                  <span>
+                    <span className="block text-sm font-semibold text-[#1D1E20]">Les deposito el monto · {fmtMXN(item.price || 0)}</span>
+                    <span className="mt-0.5 block text-xs leading-relaxed text-[#888]">
+                      Les haces llegar el dinero y ellos lo compran, sin líos de envíos o direcciones.
+                    </span>
+                  </span>
+                </button>
+              </div>
+
+              {error && <p className="mt-3 text-xs text-[#cc3333]">{error}</p>}
+
+              <button
+                onClick={() => setStep('form')}
+                disabled={submitting}
+                className="mt-3 block w-full rounded-lg px-4 py-2 text-sm font-medium text-[#666] transition hover:bg-[#f5f5f5] disabled:opacity-50"
+              >
+                Volver
               </button>
             </div>
           ) : (
@@ -478,8 +543,8 @@ function ReserveModal({
                 <button onClick={onClose} disabled={submitting} className="rounded-lg px-4 py-2 text-xs font-medium text-[#666] transition hover:bg-[#f0f0f0] disabled:opacity-50">
                   Cancelar
                 </button>
-                <button onClick={submit} disabled={submitting} className="rounded-lg bg-[#48C9B0] px-4 py-2 text-xs font-semibold text-white transition hover:bg-[#3aa896] disabled:opacity-50">
-                  {submitting ? 'Enviando...' : 'Confirmar'}
+                <button onClick={handleContinue} disabled={submitting} className="rounded-lg bg-[#48C9B0] px-4 py-2 text-xs font-semibold text-white transition hover:bg-[#3aa896] disabled:opacity-50">
+                  {submitting ? 'Enviando...' : hasChooser ? 'Siguiente' : 'Confirmar'}
                 </button>
               </div>
             </>
