@@ -62,15 +62,19 @@ function brandFromHost(hostname: string): string {
   return labels.pop() || ''
 }
 
-// Recorta sufijos de tienda en el titulo ("Producto : Amazon.com.mx: Electronicos",
-// "Producto | Liverpool"): corta desde el separador donde aparece la marca del host
-// o el og:site_name. Si lo recortado queda demasiado corto, conserva el original.
+// Limpia el titulo de tienda: prefijo de marca ("Amazon.com: Producto"),
+// sufijo con marca ("Producto | Liverpool") y categoria final ("... : Hogar y Cocina").
+// Si lo recortado queda demasiado corto, conserva el original.
 function cleanTitle(raw: string, store: string | null, hostname: string): string {
   const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
   const markers = [...new Set([brandFromHost(hostname), store || ''].filter(m => m.length >= 3).map(m => m.toLowerCase()))]
-  if (!markers.length) return raw
-  const re = new RegExp(`\\s*(?:[|–—·:]|\\s-)\\s*[^|–—·:]*?(?:${markers.map(esc).join('|')})[\\s\\S]*$`, 'i')
-  const t = raw.replace(re, '').trim()
+  let t = raw
+  if (markers.length) {
+    const alt = markers.map(esc).join('|')
+    t = t.replace(new RegExp(`^\\s*(?:www\\.)?(?:${alt})(?:\\.[a-z]{2,3}){0,2}\\s*[:|–—-]\\s*`, 'i'), '')
+    t = t.replace(new RegExp(`\\s*(?:[|–—·:]|\\s-)\\s*[^|–—·:]*?(?:${alt})[\\s\\S]*$`, 'i'), '')
+  }
+  t = t.replace(/\s+:\s+[^:|0-9]{2,40}$/, '').trim()
   return t.length >= 4 ? t : raw
 }
 
@@ -93,8 +97,17 @@ function priceFromJsonLd(html: string): number | null {
     }
   }
   // barrido suelto en JSON embebido
-  const loose = html.match(/"price"\s*:\s*"?([\d][\d.,]*)"?/i)
-  return loose ? toNumber(loose[1]) : null
+  const loose = html.match(/"price(?:Amount)?"\s*:\s*"?([\d][\d.,]*)"?/i)
+  if (loose) return toNumber(loose[1])
+  // markup de Amazon (no usa meta/JSON-LD estandar)
+  const offscreen = html.match(/class="a-offscreen">\s*\$\s*([\d.,]+)\s*</i)
+  if (offscreen) return toNumber(offscreen[1])
+  const whole = html.match(/class="a-price-whole">([\d,]+)/i)
+  if (whole) {
+    const frac = html.match(/class="a-price-fraction">(\d{1,2})/i)
+    return toNumber(whole[1] + (frac ? '.' + frac[1] : ''))
+  }
+  return null
 }
 
 function imageFromJsonLd(html: string): string | null {
@@ -118,18 +131,33 @@ export async function GET(request: NextRequest) {
   try {
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), 9000)
-    const res = await fetch(target.toString(), {
-      signal: controller.signal,
-      redirect: 'follow',
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'Accept-Language': 'es-MX,es;q=0.9,en;q=0.8',
-        'Upgrade-Insecure-Requests': '1',
-      },
-    })
+    const headers = {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      'Accept-Language': 'es-MX,es;q=0.9,en;q=0.8',
+      'Upgrade-Insecure-Requests': '1',
+    }
+    // Redirects manuales: valida cada salto contra isBlockedHost (anti-SSRF) y
+    // conserva la URL final (links cortos tipo a.co -> amazon.com.mx) para
+    // tienda/slug/imagenes relativas.
+    let finalUrl = target
+    let res: Response | null = null
+    for (let hop = 0; hop < 5; hop++) {
+      res = await fetch(finalUrl.toString(), { signal: controller.signal, redirect: 'manual', headers })
+      const loc = res.headers.get('location')
+      if (res.status >= 300 && res.status < 400 && loc) {
+        const next = new URL(loc, finalUrl)
+        if ((next.protocol !== 'http:' && next.protocol !== 'https:') || isBlockedHost(next.hostname)) {
+          clearTimeout(timeout)
+          return NextResponse.json({ ok: false }, { status: 200 })
+        }
+        finalUrl = next
+        continue
+      }
+      break
+    }
     clearTimeout(timeout)
-    if (!res.ok) return NextResponse.json({ ok: false }, { status: 200 })
+    if (!res || !res.ok) return NextResponse.json({ ok: false }, { status: 200 })
 
     const ctype = res.headers.get('content-type') || ''
     if (!ctype.includes('text/html')) return NextResponse.json({ ok: false }, { status: 200 })
@@ -137,24 +165,24 @@ export async function GET(request: NextRequest) {
     const html = new TextDecoder('utf-8').decode(buf.slice(0, 1024 * 1024))
 
     const store = decode(metaContent(html, ['og:site_name'])) ||
-      target.hostname.replace(/^www\./, '').split('.')[0].replace(/^\w/, c => c.toUpperCase())
+      brandFromHost(finalUrl.hostname).replace(/^\w/, c => c.toUpperCase())
 
     // Titulo: og/twitter -> <title> limpio -> slug. Si viene generico (== tienda), usa slug.
     const ogTitle      = decode(metaContent(html, ['og:title', 'twitter:title']))
     const rawPageTitle = decode(html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] || null)
     const pageTitle    = rawPageTitle ? rawPageTitle.split(/\s[|–\-]\s/)[0].trim() : null
-    const slugTitle    = titleFromSlug(target)
+    const slugTitle    = titleFromSlug(finalUrl)
 
     let title = ogTitle || pageTitle || slugTitle
     const isGeneric = title && store && title.toLowerCase() === store.toLowerCase()
     if (!title || isGeneric || title.length < 4) title = slugTitle || pageTitle || title
-    if (title) title = cleanTitle(title, store, target.hostname)
+    if (title) title = cleanTitle(title, store, finalUrl.hostname)
 
     // Imagen
     let image = decode(metaContent(html, ['og:image:secure_url', 'og:image', 'twitter:image', 'twitter:image:src']))
       || imageFromJsonLd(html)
-    if (image && image.startsWith('//')) image = target.protocol + image
-    if (image && image.startsWith('/')) image = target.origin + image
+    if (image && image.startsWith('//')) image = finalUrl.protocol + image
+    if (image && image.startsWith('/')) image = finalUrl.origin + image
 
     // Precio
     let price = toNumber(metaContent(html, ['product:price:amount', 'og:price:amount', 'price', 'twitter:data1']))
