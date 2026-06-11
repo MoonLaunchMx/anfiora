@@ -123,6 +123,17 @@ export default function MesaRegalosPage() {
     setReservations(prev => prev.map(x => x.id === r.id ? { ...x, thanked: !x.thanked } : x))
   }
 
+  const waThanksUrl = (r: GiftReservation, gift: GiftRegistryItem | undefined) => {
+    const num = (r.guest_phone || '').replace(/\D/g, '')
+    const firstName = r.guest_name.split(' ')[0]
+    const text = gift?.type === 'fund'
+      ? `¡Hola ${firstName}! Mil gracias por tu aporte a "${gift.title}". Nos hace mucha ilusión, un abrazo.`
+      : gift?.type === 'cash'
+      ? `¡Hola ${firstName}! Mil gracias por tu sobre. Nos hace mucha ilusión, un abrazo.`
+      : `¡Hola ${firstName}! Mil gracias por regalarnos "${gift?.title || 'tu detalle'}". Nos hace mucha ilusión, un abrazo.`
+    return `https://wa.me/${num}?text=${encodeURIComponent(text)}`
+  }
+
   const publicUrl = token
     ? `${typeof window !== 'undefined' ? window.location.origin : ''}/mesa/${token}`
     : null
@@ -351,15 +362,28 @@ export default function MesaRegalosPage() {
                     </div>
                     <div className="flex shrink-0 flex-col items-end gap-1.5">
                       {r.amount ? <span className="text-sm font-semibold tabular-nums text-[#1a9e88]">{fmtMXN(r.amount)}</span> : null}
-                      <button
-                        onClick={() => handleToggleThanked(r)}
-                        className={`flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-medium transition
-                          ${r.thanked
-                            ? 'border-[#c8ede7] bg-[#f0fdfb] text-[#1a9e88]'
-                            : 'border-[#e0e0e0] bg-white text-[#888] hover:border-[#48C9B0] hover:text-[#48C9B0]'}`}
-                      >
-                        {r.thanked ? <><Check size={12} /> Agradecido</> : 'Marcar agradecido'}
-                      </button>
+                      <div className="flex items-center gap-1.5">
+                        {r.guest_phone && (
+                          <a
+                            href={waThanksUrl(r, gift)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title="Agradecer por WhatsApp"
+                            className="flex h-7 w-7 items-center justify-center rounded-full border border-[#e0e0e0] bg-white text-[#888] transition hover:border-[#25D366] hover:text-[#25D366]"
+                          >
+                            <FaWhatsapp size={14} />
+                          </a>
+                        )}
+                        <button
+                          onClick={() => handleToggleThanked(r)}
+                          className={`flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-medium transition
+                            ${r.thanked
+                              ? 'border-[#c8ede7] bg-[#f0fdfb] text-[#1a9e88]'
+                              : 'border-[#e0e0e0] bg-white text-[#888] hover:border-[#48C9B0] hover:text-[#48C9B0]'}`}
+                        >
+                          {r.thanked ? <><Check size={12} /> Agradecido</> : 'Marcar agradecido'}
+                        </button>
+                      </div>
                     </div>
                   </div>
                 )
