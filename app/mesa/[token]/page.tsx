@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { Gift, Coins, Mail, ExternalLink, Check, X, Heart, Copy, Landmark } from 'lucide-react'
 import { GiftRegistryItem, RegistryPaymentMethod, normalizePaymentMethods } from '@/lib/types'
@@ -90,8 +90,8 @@ export default function MesaPublicaPage() {
     <div className="min-h-screen bg-[#FBF7F0]">
 
       {/* Hero */}
-      <section className="mx-auto max-w-2xl px-6 pb-8 pt-14 text-center sm:pt-20">
-        <p className="mb-5 text-[11px] uppercase tracking-[0.3em] text-[#aaa]" style={josefin}>
+      <section className="mx-auto max-w-2xl px-6 pb-8 pt-8 text-center sm:pt-10">
+        <p className="mb-4 text-[11px] uppercase tracking-[0.3em] text-[#aaa]" style={josefin}>
           Mesa de regalos
         </p>
         <h1 className="text-4xl font-bold leading-tight text-[#1D1E20] sm:text-5xl" style={josefin}>
@@ -107,14 +107,14 @@ export default function MesaPublicaPage() {
       </section>
 
       {/* Lista */}
-      <section className="mx-auto max-w-2xl px-4 pb-20 sm:px-6">
+      <section className="mx-auto max-w-2xl px-4 pb-20 sm:px-6 lg:w-[90%] lg:max-w-[1600px] lg:px-8">
         {items.length === 0 ? (
           <p className="rounded-xl border border-dashed border-[#e0d9cc] bg-white/60 px-6 py-12 text-center text-sm text-[#999]">
             Esta mesa aun no tiene regalos.
           </p>
         ) : (
-          <div className="space-y-3">
-            {items.map(item => {
+          <div className="space-y-3 lg:columns-2 lg:gap-5 lg:space-y-0 xl:columns-3 2xl:columns-4">
+            {items.map((item, i) => {
               const a = agg[item.id] || { count: 0, sum: 0 }
               const pct = item.type === 'fund' && item.target_amount
                 ? Math.min(100, Math.round((a.sum / item.target_amount) * 100))
@@ -122,58 +122,106 @@ export default function MesaPublicaPage() {
               const taken = item.type === 'external' && a.count > 0
               const done  = item.type === 'fund' && item.target_amount ? a.sum >= item.target_amount : false
 
-              return (
-                <article key={item.id} className="flex gap-4 rounded-2xl border border-[#eee4d6] bg-white p-4">
-                  <div className="h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-[#f0fdfb] sm:h-24 sm:w-24">
-                    {item.image_url ? (
-                      <img src={item.image_url} alt="" className="h-full w-full object-cover" />
-                    ) : (
-                      <div className="flex h-full w-full items-center justify-center text-[#48C9B0]">
-                        {item.type === 'fund' ? <Coins size={26} /> : item.type === 'cash' ? <Mail size={26} /> : <Gift size={26} />}
-                      </div>
-                    )}
+              const cta = done ? (
+                <span className="flex items-center gap-1 text-xs font-semibold text-[#1a9e88]">
+                  <Heart size={13} fill="currentColor" /> Completo
+                </span>
+              ) : taken ? (
+                <span className="rounded-full bg-[#f0fdfb] px-3 py-1.5 text-xs font-medium text-[#1a9e88]">Ya apartado</span>
+              ) : (
+                <button
+                  onClick={() => setActive(item)}
+                  className="rounded-full bg-[#48C9B0] px-4 py-1.5 text-xs font-semibold text-white transition hover:bg-[#3aa896]"
+                >
+                  {item.type === 'external' ? 'Lo regalo' : item.type === 'cash' ? 'Dejar sobre' : 'Aportar'}
+                </button>
+              )
+
+              const priceLabel = (
+                <span className="text-sm font-semibold tabular-nums text-[#1D1E20]">
+                  {item.type === 'external' && item.price ? fmtMXN(item.price) : ''}
+                  {item.type === 'cash' ? <span className="font-normal italic text-[#999]">Monto libre</span> : ''}
+                </span>
+              )
+
+              const fundProgress = item.type === 'fund' && (
+                <div className="mt-2">
+                  <div className="h-1.5 overflow-hidden rounded-full bg-[#f0ece3]">
+                    <div className="h-full rounded-full bg-[#48C9B0]" style={{ width: `${pct}%` }} />
                   </div>
+                  <p className="mt-1 text-[11px] tabular-nums text-[#888]">
+                    {fmtMXN(a.sum)}{item.target_amount ? ` de ${fmtMXN(item.target_amount)}` : ''}
+                  </p>
+                </div>
+              )
 
-                  <div className="flex min-w-0 flex-1 flex-col">
-                    {item.store && <span className="text-[10px] uppercase tracking-wider text-[#aaa]">{item.store}</span>}
-                    <h3 className="text-base font-semibold leading-snug text-[#1D1E20]" style={josefin}>{item.title}</h3>
-                    {item.description && (
-                      <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-[#888]">{item.description}</p>
-                    )}
+              // Alturas variadas para el mosaico desktop
+              const aspect = item.image_url
+                ? ['lg:aspect-[4/3]', 'lg:aspect-[3/4]', 'lg:aspect-square'][i % 3]
+                : 'lg:aspect-[16/8]'
 
-                    {item.type === 'fund' && (
-                      <div className="mt-2">
-                        <div className="h-1.5 overflow-hidden rounded-full bg-[#f0ece3]">
-                          <div className="h-full rounded-full bg-[#48C9B0]" style={{ width: `${pct}%` }} />
-                        </div>
-                        <p className="mt-1 text-[11px] tabular-nums text-[#888]">
-                          {fmtMXN(a.sum)}{item.target_amount ? ` de ${fmtMXN(item.target_amount)}` : ''}
-                        </p>
-                      </div>
-                    )}
-
-                    <div className="mt-2 flex items-center justify-between gap-2">
-                      <span className="text-sm font-semibold tabular-nums text-[#1D1E20]">
-                        {item.type === 'external' && item.price ? fmtMXN(item.price) : ''}
-                        {item.type === 'cash' ? <span className="font-normal italic text-[#999]">Monto libre</span> : ''}
-                      </span>
-                      {done ? (
-                        <span className="flex items-center gap-1 text-xs font-semibold text-[#1a9e88]">
-                          <Heart size={13} fill="currentColor" /> Completo
-                        </span>
-                      ) : taken ? (
-                        <span className="rounded-full bg-[#f0fdfb] px-3 py-1.5 text-xs font-medium text-[#1a9e88]">Ya apartado</span>
+              return (
+                <Fragment key={item.id}>
+                  {/* Card mobile (horizontal) */}
+                  <article className="flex gap-4 rounded-2xl border border-[#eee4d6] bg-white p-4 lg:hidden">
+                    <div className="h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-[#f0fdfb] sm:h-24 sm:w-24">
+                      {item.image_url ? (
+                        <img src={item.image_url} alt="" className="h-full w-full object-cover" />
                       ) : (
-                        <button
-                          onClick={() => setActive(item)}
-                          className="rounded-full bg-[#48C9B0] px-4 py-1.5 text-xs font-semibold text-white transition hover:bg-[#3aa896]"
-                        >
-                          {item.type === 'external' ? 'Lo regalo' : item.type === 'cash' ? 'Dejar sobre' : 'Aportar'}
-                        </button>
+                        <div className="flex h-full w-full items-center justify-center text-[#48C9B0]">
+                          {item.type === 'fund' ? <Coins size={26} /> : item.type === 'cash' ? <Mail size={26} /> : <Gift size={26} />}
+                        </div>
                       )}
                     </div>
-                  </div>
-                </article>
+
+                    <div className="flex min-w-0 flex-1 flex-col">
+                      {item.store && <span className="text-[10px] uppercase tracking-wider text-[#aaa]">{item.store}</span>}
+                      <h3 className="text-base font-semibold leading-snug text-[#1D1E20]" style={josefin}>{item.title}</h3>
+                      {item.description && (
+                        <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-[#888]">{item.description}</p>
+                      )}
+                      {fundProgress}
+                      <div className="mt-2 flex items-center justify-between gap-2">
+                        {priceLabel}
+                        {cta}
+                      </div>
+                    </div>
+                  </article>
+
+                  {/* Card desktop (vertical, mosaico) */}
+                  <article className="hidden overflow-hidden rounded-2xl border border-[#eee4d6] bg-white transition duration-200 hover:-translate-y-0.5 hover:shadow-md lg:mb-5 lg:block lg:break-inside-avoid">
+                    <div className={`relative w-full overflow-hidden bg-[#f0fdfb] ${aspect}`}>
+                      {item.image_url ? (
+                        <img src={item.image_url} alt="" className="absolute inset-0 h-full w-full object-cover" />
+                      ) : (
+                        <div className="absolute inset-0 flex items-center justify-center text-[#48C9B0]">
+                          {item.type === 'fund' ? <Coins size={34} /> : item.type === 'cash' ? <Mail size={34} /> : <Gift size={34} />}
+                        </div>
+                      )}
+                      {item.store && (
+                        <span className="absolute left-3 top-3 rounded-full bg-white/90 px-2.5 py-1 text-[10px] font-medium uppercase tracking-wider text-[#888]">
+                          {item.store}
+                        </span>
+                      )}
+                      {(done || taken) && (
+                        <span className="absolute right-3 top-3 flex items-center gap-1 rounded-full bg-white/90 px-2.5 py-1 text-[10px] font-semibold text-[#1a9e88]">
+                          <Heart size={11} fill="currentColor" /> {done ? 'Completo' : 'Apartado'}
+                        </span>
+                      )}
+                    </div>
+                    <div className="p-4">
+                      <h3 className="text-lg font-semibold leading-snug text-[#1D1E20]" style={josefin}>{item.title}</h3>
+                      {item.description && (
+                        <p className="mt-1 line-clamp-3 text-xs leading-relaxed text-[#888]">{item.description}</p>
+                      )}
+                      {fundProgress}
+                      <div className="mt-3 flex items-center justify-between gap-2">
+                        {priceLabel}
+                        {cta}
+                      </div>
+                    </div>
+                  </article>
+                </Fragment>
               )
             })}
           </div>
