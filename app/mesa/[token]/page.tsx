@@ -531,10 +531,10 @@ function ReserveModal({
                       <select
                         value={phoneCode}
                         onChange={e => setPhoneCode(e.target.value)}
-                        className="w-32 shrink-0 rounded-lg border border-[#e0e0e0] bg-white px-2 py-2 text-sm text-[#1D1E20] outline-none transition focus:border-[#48C9B0]"
+                        className="w-20 shrink-0 rounded-lg border border-[#e0e0e0] bg-white px-2 py-2 text-sm tabular-nums text-[#1D1E20] outline-none transition focus:border-[#48C9B0]"
                       >
                         {PHONE_COUNTRY_CODES.map(c => (
-                          <option key={c.code} value={c.code}>{c.label}</option>
+                          <option key={c.code} value={c.code}>{c.code}</option>
                         ))}
                       </select>
                       <input
