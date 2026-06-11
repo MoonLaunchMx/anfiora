@@ -39,20 +39,31 @@ function toNumber(raw: string | null): number | null {
   return !isNaN(n) && n > 0 ? n : null
 }
 
-// Nombre del producto desde el slug del URL (ej. ML: /MLM-123-cafetera-...-_JM)
+// Nombre del producto desde el slug del URL. Recorre los segmentos del path de
+// atras hacia adelante saltando IDs (Liverpool/Cimaco terminan en numero, Amazon
+// en ASIN, ML en MLM...) hasta encontrar uno con pinta de nombre.
 function titleFromSlug(u: URL): string | null {
-  const seg = u.pathname.split('/').filter(Boolean).pop()
-  if (!seg) return null
-  let s = decodeURIComponent(seg)
-    .replace(/\.(html?|php|aspx?)$/i, '')
-    .replace(/_JM$/i, '')
-    .replace(/^ML[A-Z]-?\d+-?/i, '')
-    .replace(/^(dp|gp|p|item)[-/]?/i, '')
-    .replace(/[-_+]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-  if (s.length < 3 || /^\d+$/.test(s)) return null
-  return s.charAt(0).toUpperCase() + s.slice(1)
+  const stop = new Set(['dp', 'gp', 'p', 'item', 'producto', 'product', 'pdp', 'tienda'])
+  const segs = u.pathname.split('/').filter(Boolean)
+  for (let i = segs.length - 1; i >= 0; i--) {
+    let s = decodeURIComponent(segs[i])
+      .replace(/\.(html?|php|aspx?)$/i, '')
+      .replace(/_JM$/i, '')
+      .replace(/^ML[A-Z]-?\d+-?/i, '')
+    if (stop.has(s.toLowerCase())) continue
+    if (/^B0[A-Z0-9]{8}$/i.test(s)) continue
+    if (/^ref=/i.test(s)) continue
+    s = s.replace(/[-_+]/g, ' ').replace(/\s+/g, ' ').trim()
+    if (s.length < 8 || /^\d+$/.test(s) || !/[a-zá-úñ]/i.test(s)) continue
+    return s.charAt(0).toUpperCase() + s.slice(1)
+  }
+  return null
+}
+
+// Desescapa strings sacados de JSON embebido (&, \/)
+function unJson(s: string | null): string | null {
+  if (!s) return null
+  try { return JSON.parse(`"${s}"`) } catch { return s }
 }
 
 // Marca del host ignorando subdominios y TLDs: articulo.mercadolibre.com.mx -> mercadolibre
@@ -99,6 +110,9 @@ function priceFromJsonLd(html: string): number | null {
   // barrido suelto en JSON embebido
   const loose = html.match(/"price(?:Amount)?"\s*:\s*"?([\d][\d.,]*)"?/i)
   if (loose) return toNumber(loose[1])
+  // estado embebido de SPAs (Liverpool y similares)
+  const spa = html.match(/"(?:promoPrice|salePrice|listPrice)"\s*:\s*"?([\d][\d.,]*)"?/i)
+  if (spa) return toNumber(spa[1])
   // markup de Amazon (no usa meta/JSON-LD estandar)
   const offscreen = html.match(/class="a-offscreen">\s*\$\s*([\d.,]+)\s*</i)
   if (offscreen) return toNumber(offscreen[1])
@@ -112,7 +126,22 @@ function priceFromJsonLd(html: string): number | null {
 
 function imageFromJsonLd(html: string): string | null {
   const m = html.match(/"image"\s*:\s*"(https?:\/\/[^"]+)"/i)
-  return m ? decode(m[1]) : null
+  return m ? unJson(m[1]) : null
+}
+
+// Imagenes en markup/estado embebido: Amazon (hiRes, landingImage) y SPAs (largeImage)
+function imageFromMarkup(html: string): string | null {
+  const pats = [
+    /"hiRes"\s*:\s*"(https?:\/\/[^"]+)"/i,
+    /data-old-hires="(https?:\/\/[^"]+)"/i,
+    /id="landingImage"[^>]+src="(https?:\/\/[^"]+)"/i,
+    /"largeImage"\s*:\s*"(https?:\/\/[^"]+)"/i,
+  ]
+  for (const p of pats) {
+    const m = html.match(p)
+    if (m) return unJson(m[1])
+  }
+  return null
 }
 
 export async function GET(request: NextRequest) {
@@ -171,16 +200,28 @@ export async function GET(request: NextRequest) {
     const ogTitle      = decode(metaContent(html, ['og:title', 'twitter:title']))
     const rawPageTitle = decode(html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] || null)
     const pageTitle    = rawPageTitle ? rawPageTitle.split(/\s[|–\-]\s/)[0].trim() : null
-    const slugTitle    = titleFromSlug(finalUrl)
+    // Slug del URL original (el que pego el usuario tiene el nombre del producto;
+    // un redirect a bot-check lo pierde). El final solo como respaldo (links cortos).
+    const slugTitle    = titleFromSlug(target) || titleFromSlug(finalUrl)
 
+    // Generico = el titulo es solo el nombre de la tienda ("Mercado Libre" vs "mercadolibre").
+    // Basura = titulo de pagina de bot-check / error (ML sirve "Account verification").
+    const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '')
+    const JUNK = /^(account verification|access denied|attention required|just a moment|are you a robot|robot check|captcha|error|page not found|acceso denegado|verificaci)/i
     let title = ogTitle || pageTitle || slugTitle
-    const isGeneric = title && store && title.toLowerCase() === store.toLowerCase()
-    if (!title || isGeneric || title.length < 4) title = slugTitle || pageTitle || title
+    const isGeneric = !!(title && (
+      (store && norm(title) === norm(store)) ||
+      norm(title) === norm(brandFromHost(finalUrl.hostname))
+    ))
+    const isJunk = !!(title && JUNK.test(title.trim()))
+    if (isGeneric || isJunk) title = slugTitle || title
+    else if (!title || title.length < 4) title = slugTitle || pageTitle || title
     if (title) title = cleanTitle(title, store, finalUrl.hostname)
 
     // Imagen
     let image = decode(metaContent(html, ['og:image:secure_url', 'og:image', 'twitter:image', 'twitter:image:src']))
       || imageFromJsonLd(html)
+      || imageFromMarkup(html)
     if (image && image.startsWith('//')) image = finalUrl.protocol + image
     if (image && image.startsWith('/')) image = finalUrl.origin + image
 
