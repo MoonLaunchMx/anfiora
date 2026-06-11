@@ -35,6 +35,7 @@ export default function MesaRegalosPage() {
   const [token, setToken]               = useState<string | null>(null)
   const [loading, setLoading]           = useState(true)
   const [showAdd, setShowAdd]           = useState(false)
+  const [editing, setEditing]           = useState<GiftRegistryItem | null>(null)
   const [copied, setCopied]             = useState(false)
   const [filter, setFilter]             = useState<'all' | 'external' | 'fund' | 'cash'>('all')
 
@@ -59,14 +60,28 @@ export default function MesaRegalosPage() {
     await supabase.from('event_settings').update({ registry_token: newToken }).eq('event_id', eventId)
   }
 
-  const handleAddGift = async (data: NewGiftData) => {
-    const { data: inserted } = await supabase
-      .from('gift_registry_items')
-      .insert({ event_id: eventId, ...data })
-      .select()
-      .single()
-    if (inserted) setItems(prev => [inserted as GiftRegistryItem, ...prev])
+  const handleSubmitGift = async (data: NewGiftData) => {
+    if (editing) {
+      const { data: updated } = await supabase
+        .from('gift_registry_items')
+        .update(data)
+        .eq('id', editing.id)
+        .select()
+        .single()
+      if (updated) setItems(prev => prev.map(i => i.id === editing.id ? (updated as GiftRegistryItem) : i))
+    } else {
+      const { data: inserted } = await supabase
+        .from('gift_registry_items')
+        .insert({ event_id: eventId, ...data })
+        .select()
+        .single()
+      if (inserted) setItems(prev => [inserted as GiftRegistryItem, ...prev])
+    }
   }
+
+  const openAdd  = () => { setEditing(null); setShowAdd(true) }
+  const openEdit = (item: GiftRegistryItem) => { setEditing(item); setShowAdd(true) }
+  const closeModal = () => { setShowAdd(false); setEditing(null) }
 
   const handleDeleteGift = async (itemId: string) => {
     if (!confirm('¿Eliminar este regalo de la mesa?')) return
@@ -121,7 +136,7 @@ export default function MesaRegalosPage() {
             </p>
           </div>
           <button
-            onClick={() => setShowAdd(true)}
+            onClick={openAdd}
             className="flex shrink-0 items-center gap-1.5 rounded-lg bg-[#48C9B0] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#3aa896] sm:text-sm"
           >
             <Plus size={15} /> <span className="hidden sm:inline">Agregar regalo</span><span className="sm:hidden">Agregar</span>
@@ -219,7 +234,7 @@ export default function MesaRegalosPage() {
             <p className="text-sm font-semibold text-[#1D1E20]">Tu mesa está vacía</p>
             <p className="mt-1 text-xs text-[#888]">Agrega tu primer regalo para empezar a recibir detalles.</p>
             <button
-              onClick={() => setShowAdd(true)}
+              onClick={openAdd}
               className="mx-auto mt-4 flex items-center gap-1.5 rounded-lg bg-[#48C9B0] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#3aa896]"
             >
               <Plus size={14} /> Agregar regalo
@@ -233,7 +248,11 @@ export default function MesaRegalosPage() {
                 ? Math.min(100, Math.round((res.sum / item.target_amount) * 100))
                 : 0
               return (
-                <div key={item.id} className="flex gap-3 rounded-xl border border-[#e8e8e8] bg-white p-3">
+                <div
+                  key={item.id}
+                  onClick={() => openEdit(item)}
+                  className="flex cursor-pointer gap-3 rounded-xl border border-[#e8e8e8] bg-white p-3 transition hover:border-[#48C9B0]"
+                >
                   {/* Imagen / icono */}
                   <div className="h-16 w-16 shrink-0 overflow-hidden rounded-lg bg-[#f0fdfb]">
                     {item.image_url ? (
@@ -289,7 +308,7 @@ export default function MesaRegalosPage() {
                   {/* Acciones */}
                   <div className="flex shrink-0 flex-col items-end justify-between">
                     <button
-                      onClick={() => handleDeleteGift(item.id)}
+                      onClick={(e) => { e.stopPropagation(); handleDeleteGift(item.id) }}
                       title="Eliminar"
                       className="flex h-7 w-7 items-center justify-center rounded-md text-[#bbb] transition hover:bg-[#fff0f0] hover:text-[#cc3333]"
                     >
@@ -308,7 +327,7 @@ export default function MesaRegalosPage() {
         )}
       </div>
 
-      <AddGiftModal isOpen={showAdd} onClose={() => setShowAdd(false)} onSubmit={handleAddGift} />
+      <AddGiftModal isOpen={showAdd} initial={editing} onClose={closeModal} onSubmit={handleSubmitGift} />
     </div>
   )
 }

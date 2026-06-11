@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { X, ExternalLink, Coins, Mail, Check } from 'lucide-react'
-import { GiftType } from '@/lib/types'
+import { GiftType, GiftRegistryItem } from '@/lib/types'
 
 function guessCategory(text: string): string | null {
   const t = text.toLowerCase()
@@ -37,6 +37,7 @@ type Props = {
   isOpen: boolean
   onClose: () => void
   onSubmit: (data: NewGiftData) => Promise<void>
+  initial?: GiftRegistryItem | null
 }
 
 const TYPES: { id: GiftType; label: string; sub: string; icon: React.ReactNode }[] = [
@@ -45,7 +46,8 @@ const TYPES: { id: GiftType; label: string; sub: string; icon: React.ReactNode }
   { id: 'cash',     label: 'Sobre',        sub: 'Efectivo, monto libre',       icon: <Mail size={15} /> },
 ]
 
-export default function AddGiftModal({ isOpen, onClose, onSubmit }: Props) {
+export default function AddGiftModal({ isOpen, onClose, onSubmit, initial }: Props) {
+  const isEdit = !!initial
   const [type, setType]               = useState<GiftType>('external')
   const [title, setTitle]             = useState('')
   const [category, setCategory]       = useState('hogar')
@@ -60,13 +62,26 @@ export default function AddGiftModal({ isOpen, onClose, onSubmit }: Props) {
   const [detectedStore, setDetected]  = useState<string | null>(null)
 
   useEffect(() => {
-    if (isOpen) {
+    if (!isOpen) return
+    if (initial) {
+      setType(initial.type)
+      setTitle(initial.title || '')
+      setCategory(initial.category || 'hogar')
+      setDescription(initial.description || '')
+      setImageUrl(initial.image_url || '')
+      setExternalUrl(initial.external_url || '')
+      setStore(initial.store || '')
+      setPrice(initial.price != null ? String(initial.price) : '')
+      setTarget(initial.target_amount != null ? String(initial.target_amount) : '')
+      setDetected(initial.store || null)
+    } else {
       setType('external')
       setTitle(''); setCategory('hogar'); setDescription(''); setImageUrl('')
       setExternalUrl(''); setStore(''); setPrice(''); setTarget('')
-      setSubmitting(false); setFetching(false); setDetected(null)
+      setDetected(null)
     }
-  }, [isOpen])
+    setSubmitting(false); setFetching(false)
+  }, [isOpen, initial])
 
   // Auto-rellenar desde el link de la tienda (Open Graph / JSON-LD)
   useEffect(() => {
@@ -139,8 +154,8 @@ export default function AddGiftModal({ isOpen, onClose, onSubmit }: Props) {
 
           <div className="flex shrink-0 items-center justify-between border-b border-[#f0f0f0] px-5 py-4">
             <div>
-              <h2 className="text-base font-bold text-[#1D1E20]">Agregar regalo</h2>
-              <p className="text-xs text-[#888]">Suma un detalle a tu mesa de regalos</p>
+              <h2 className="text-base font-bold text-[#1D1E20]">{isEdit ? 'Editar regalo' : 'Agregar regalo'}</h2>
+              <p className="text-xs text-[#888]">{isEdit ? 'Actualiza los datos de este regalo' : 'Suma un detalle a tu mesa de regalos'}</p>
             </div>
             <button
               onClick={onClose}
@@ -347,7 +362,7 @@ export default function AddGiftModal({ isOpen, onClose, onSubmit }: Props) {
               disabled={submitting || !canSubmit}
               className="rounded-lg bg-[#48C9B0] px-4 py-2 text-xs font-semibold text-white transition hover:bg-[#3aa896] disabled:opacity-50"
             >
-              {submitting ? 'Guardando...' : 'Agregar regalo'}
+              {submitting ? 'Guardando...' : isEdit ? 'Guardar cambios' : 'Agregar regalo'}
             </button>
           </div>
 
