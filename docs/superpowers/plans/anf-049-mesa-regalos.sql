@@ -137,6 +137,20 @@ COMMIT;
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Incremento 2026-06-11: cuenta de los novios para transferencias.
 -- Columna JSONB en event_settings: { bank, account_holder, clabe }.
--- Aditivo e inerte hasta que el codigo la use.
+-- La policy "public can read event_settings by token" (playlist_token IS NOT NULL)
+-- expone la fila completa a anon, asi que se excluye la columna nueva del
+-- privilegio SELECT de anon (privilegio a nivel columna). La vista publica de
+-- mesa lee via API service-role y el anfitrion via sesion authenticated, asi
+-- que nadie legitimo pierde acceso.
+
+BEGIN;
 
 ALTER TABLE event_settings ADD COLUMN IF NOT EXISTS registry_payment_info JSONB;
+
+REVOKE SELECT ON event_settings FROM anon;
+GRANT SELECT (id, event_id, message_templates, template_names, album_url,
+              playlist_token, playlist_categories, created_at, updated_at,
+              budget_categories, agent_config, registry_token)
+  ON event_settings TO anon;
+
+COMMIT;
