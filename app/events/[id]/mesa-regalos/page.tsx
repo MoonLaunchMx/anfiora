@@ -165,8 +165,8 @@ export default function MesaRegalosPage() {
           </div>
         </StatsCollapse>
 
-        {/* Toggle */}
-        <div className="mb-4">
+        {/* Toggle (centrado en mobile, izquierda en desktop) */}
+        <div className="mb-4 flex justify-center sm:justify-start">
           <TabToggle tabs={TABS} active={tab} onChange={setTab} />
         </div>
 
