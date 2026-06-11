@@ -3,7 +3,7 @@
 import { Fragment, useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { Gift, Coins, Mail, ExternalLink, Check, X, Heart, Copy, Landmark } from 'lucide-react'
-import { GiftRegistryItem, RegistryPaymentMethod, normalizePaymentMethods } from '@/lib/types'
+import { GiftRegistryItem, RegistryPaymentMethod, normalizePaymentMethods, PHONE_COUNTRY_CODES } from '@/lib/types'
 
 type Aggregates = Record<string, { count: number; sum: number; buyers: number }>
 type ReserveMode = 'buy' | 'contribute'
@@ -531,11 +531,11 @@ function ReserveModal({
                       <select
                         value={phoneCode}
                         onChange={e => setPhoneCode(e.target.value)}
-                        className="w-24 shrink-0 rounded-lg border border-[#e0e0e0] bg-white px-2 py-2 text-sm text-[#1D1E20] outline-none transition focus:border-[#48C9B0]"
+                        className="w-32 shrink-0 rounded-lg border border-[#e0e0e0] bg-white px-2 py-2 text-sm text-[#1D1E20] outline-none transition focus:border-[#48C9B0]"
                       >
-                        <option value="+52">MX +52</option>
-                        <option value="+1">US +1</option>
-                        <option value="+34">ES +34</option>
+                        {PHONE_COUNTRY_CODES.map(c => (
+                          <option key={c.code} value={c.code}>{c.label}</option>
+                        ))}
                       </select>
                       <input
                         className={`${inputCls} tabular-nums`}
@@ -544,13 +544,14 @@ function ReserveModal({
                         value={
                           phone.length <= 2 ? phone
                           : phone.length <= 6 ? `${phone.slice(0, 2)} ${phone.slice(2)}`
-                          : `${phone.slice(0, 2)} ${phone.slice(2, 6)} ${phone.slice(6)}`
+                          : phone.length <= 10 ? `${phone.slice(0, 2)} ${phone.slice(2, 6)} ${phone.slice(6)}`
+                          : `${phone.slice(0, 2)} ${phone.slice(2, 6)} ${phone.slice(6, 10)} ${phone.slice(10)}`
                         }
-                        onChange={e => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                        onChange={e => setPhone(e.target.value.replace(/\D/g, '').slice(0, 12))}
                         placeholder="55 1234 5678"
                       />
                     </div>
-                    <p className="mt-1 text-[10px] text-[#aaa]">10 dígitos. Para que los anfitriones puedan agradecerte.</p>
+                    <p className="mt-1 text-[10px] text-[#aaa]">Sin lada, solo tu número. Para que los anfitriones puedan agradecerte.</p>
                   </div>
 
                   <div>

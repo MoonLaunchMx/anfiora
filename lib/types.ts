@@ -95,6 +95,49 @@ export type EventSettings = {
 
 // ─── MESA DE REGALOS ─────────────────────────────────────────────────────────
 
+// Ladas para selects de telefono (MX primero, luego America y Europa)
+export const PHONE_COUNTRY_CODES: { code: string; label: string }[] = [
+  { code: '+52',  label: 'México +52' },
+  { code: '+1',   label: 'USA / Canadá +1' },
+  { code: '+54',  label: 'Argentina +54' },
+  { code: '+591', label: 'Bolivia +591' },
+  { code: '+55',  label: 'Brasil +55' },
+  { code: '+56',  label: 'Chile +56' },
+  { code: '+57',  label: 'Colombia +57' },
+  { code: '+506', label: 'Costa Rica +506' },
+  { code: '+53',  label: 'Cuba +53' },
+  { code: '+593', label: 'Ecuador +593' },
+  { code: '+503', label: 'El Salvador +503' },
+  { code: '+502', label: 'Guatemala +502' },
+  { code: '+504', label: 'Honduras +504' },
+  { code: '+505', label: 'Nicaragua +505' },
+  { code: '+507', label: 'Panamá +507' },
+  { code: '+595', label: 'Paraguay +595' },
+  { code: '+51',  label: 'Perú +51' },
+  { code: '+598', label: 'Uruguay +598' },
+  { code: '+58',  label: 'Venezuela +58' },
+  { code: '+34',  label: 'España +34' },
+  { code: '+49',  label: 'Alemania +49' },
+  { code: '+43',  label: 'Austria +43' },
+  { code: '+32',  label: 'Bélgica +32' },
+  { code: '+45',  label: 'Dinamarca +45' },
+  { code: '+33',  label: 'Francia +33' },
+  { code: '+30',  label: 'Grecia +30' },
+  { code: '+353', label: 'Irlanda +353' },
+  { code: '+39',  label: 'Italia +39' },
+  { code: '+47',  label: 'Noruega +47' },
+  { code: '+31',  label: 'Países Bajos +31' },
+  { code: '+48',  label: 'Polonia +48' },
+  { code: '+351', label: 'Portugal +351' },
+  { code: '+44',  label: 'Reino Unido +44' },
+  { code: '+46',  label: 'Suecia +46' },
+  { code: '+41',  label: 'Suiza +41' },
+  { code: '+61',  label: 'Australia +61' },
+  { code: '+86',  label: 'China +86' },
+  { code: '+972', label: 'Israel +972' },
+  { code: '+81',  label: 'Japón +81' },
+]
+
 export type RegistryPaymentMethodType =
   'transfer' | 'card' | 'mercado_pago' | 'paypal' | 'zelle' | 'other'
 
