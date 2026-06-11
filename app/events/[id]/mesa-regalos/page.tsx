@@ -402,7 +402,7 @@ export default function MesaRegalosPage() {
 
         {/* ── Tab: Configuración ── */}
         {tab === 'config' && (
-          <div className="space-y-4 sm:max-w-xl">
+          <div className="grid items-start gap-4 lg:grid-cols-2">
           <div className="rounded-xl border border-[#e8e8e8] bg-white p-4">
             <div className="mb-1 flex items-center gap-2">
               <Link2 size={15} className="text-[#48C9B0]" />
