@@ -55,6 +55,25 @@ function titleFromSlug(u: URL): string | null {
   return s.charAt(0).toUpperCase() + s.slice(1)
 }
 
+// Marca del host ignorando subdominios y TLDs: articulo.mercadolibre.com.mx -> mercadolibre
+function brandFromHost(hostname: string): string {
+  const skip = new Set(['www', 'com', 'mx', 'net', 'org', 'co', 'io', 'shop', 'store'])
+  const labels = hostname.toLowerCase().split('.').filter(l => !skip.has(l))
+  return labels.pop() || ''
+}
+
+// Recorta sufijos de tienda en el titulo ("Producto : Amazon.com.mx: Electronicos",
+// "Producto | Liverpool"): corta desde el separador donde aparece la marca del host
+// o el og:site_name. Si lo recortado queda demasiado corto, conserva el original.
+function cleanTitle(raw: string, store: string | null, hostname: string): string {
+  const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const markers = [...new Set([brandFromHost(hostname), store || ''].filter(m => m.length >= 3).map(m => m.toLowerCase()))]
+  if (!markers.length) return raw
+  const re = new RegExp(`\\s*(?:[|–—·:]|\\s-)\\s*[^|–—·:]*?(?:${markers.map(esc).join('|')})[\\s\\S]*$`, 'i')
+  const t = raw.replace(re, '').trim()
+  return t.length >= 4 ? t : raw
+}
+
 function priceFromJsonLd(html: string): number | null {
   const blocks = html.match(/<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)
   if (blocks) {
@@ -129,6 +148,7 @@ export async function GET(request: NextRequest) {
     let title = ogTitle || pageTitle || slugTitle
     const isGeneric = title && store && title.toLowerCase() === store.toLowerCase()
     if (!title || isGeneric || title.length < 4) title = slugTitle || pageTitle || title
+    if (title) title = cleanTitle(title, store, target.hostname)
 
     // Imagen
     let image = decode(metaContent(html, ['og:image:secure_url', 'og:image', 'twitter:image', 'twitter:image:src']))
