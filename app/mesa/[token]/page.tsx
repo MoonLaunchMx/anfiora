@@ -526,7 +526,7 @@ function ReserveModal({
                   )}
 
                   <div>
-                    <label className={labelCls}>Tu WhatsApp <span className="font-normal text-[#bbb]">(opcional)</span></label>
+                    <label className={labelCls}>Tu WhatsApp</label>
                     <div className="flex gap-2">
                       <select
                         value={phoneCode}
