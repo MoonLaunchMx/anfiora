@@ -270,7 +270,7 @@ function ReserveModal({
               <h3 className="text-xl font-bold text-[#1D1E20]" style={josefin}>¡Gracias, {name.split(' ')[0]}!</h3>
               <p className="mx-auto mt-2 max-w-xs text-sm leading-relaxed text-[#666]">
                 {item.type === 'external'
-                  ? <>Marcamos <strong>“{item.title}”</strong> como apartado para ti.</>
+                  ? <>Marcamos <strong>“{item.title}”</strong> como apartado por ti.</>
                   : <>Registramos tu {item.type === 'cash' ? 'sobre' : 'aporte'} de <strong>{fmtMXN(parseFloat(amount))}</strong>.</>}
               </p>
               {showPayment && (
