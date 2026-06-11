@@ -151,12 +151,13 @@ export default function MesaRegalosPage() {
     ? `https://wa.me/?text=${encodeURIComponent(`Te compartimos nuestra mesa de regalos:\n${publicUrl}`)}`
     : '#'
 
-  // Reservaciones agrupadas por regalo
-  const byItem = new Map<string, { count: number; sum: number }>()
+  // Reservaciones agrupadas por regalo (buyers = "lo regalo completo", sin monto)
+  const byItem = new Map<string, { count: number; sum: number; buyers: number }>()
   for (const r of reservations) {
-    const cur = byItem.get(r.item_id) || { count: 0, sum: 0 }
+    const cur = byItem.get(r.item_id) || { count: 0, sum: 0, buyers: 0 }
     cur.count += 1
     cur.sum += r.amount || 0
+    if (r.amount == null) cur.buyers += 1
     byItem.set(r.item_id, cur)
   }
 
@@ -262,7 +263,7 @@ export default function MesaRegalosPage() {
             ) : (
               <div className="space-y-2.5">
                 {visible.map(item => {
-                  const res = byItem.get(item.id) || { count: 0, sum: 0 }
+                  const res = byItem.get(item.id) || { count: 0, sum: 0, buyers: 0 }
                   const pct = item.type === 'fund' && item.target_amount
                     ? Math.min(100, Math.round((res.sum / item.target_amount) * 100))
                     : 0
@@ -308,8 +309,12 @@ export default function MesaRegalosPage() {
                         ) : item.type === 'external' ? (
                           <p className="mt-1 text-[11px] tabular-nums text-[#888]">
                             {item.price ? fmtMXN(item.price) + ' · ' : ''}
-                            {res.count > 0
-                              ? <span className="font-medium text-[#1a9e88]">Apartado por {res.count}</span>
+                            {res.buyers > 0
+                              ? <span className="font-medium text-[#1a9e88]">Apartado por {res.buyers}</span>
+                              : res.sum > 0
+                              ? <span className="font-medium text-[#1a9e88]">
+                                  {fmtMXN(res.sum)} aportados{item.price ? ` (${Math.min(100, Math.round((res.sum / item.price) * 100))}%)` : ''}
+                                </span>
                               : 'Disponible'}
                           </p>
                         ) : (
@@ -357,40 +362,38 @@ export default function MesaRegalosPage() {
                 const gift = itemById.get(r.item_id)
                 return (
                   <div key={r.id} className="flex flex-col rounded-xl border border-[#e8e8e8] bg-white p-4">
-                    <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <p className="truncate text-sm font-semibold text-[#1D1E20]">{r.guest_name}</p>
                         <p className="truncate text-xs text-[#888]">{gift?.title || 'Regalo'}</p>
                       </div>
-                      {r.amount ? (
-                        <span className="shrink-0 text-sm font-semibold tabular-nums text-[#1a9e88]">{fmtMXN(r.amount)}</span>
-                      ) : null}
+                      {r.guest_phone && (
+                        <button
+                          onClick={() => thankByWhatsApp(r, gift)}
+                          title="Agradecer por WhatsApp"
+                          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#e8e8e8] bg-white text-[#25D366] transition hover:border-[#25D366] hover:bg-[#25D366] hover:text-white"
+                        >
+                          <FaWhatsapp size={18} />
+                        </button>
+                      )}
                     </div>
 
                     {r.message && (
                       <p className="mt-2 line-clamp-3 text-xs italic leading-relaxed text-[#999]">“{r.message}”</p>
                     )}
 
-                    <div className="mt-3 flex items-center gap-2 border-t border-[#f0f0f0] pt-3">
-                      {r.guest_phone && (
-                        <button
-                          onClick={() => thankByWhatsApp(r, gift)}
-                          className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-[#25D366] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#1fb958]"
-                        >
-                          <FaWhatsapp size={16} /> Agradecer
-                        </button>
-                      )}
+                    <div className="mt-3 flex items-center justify-between gap-2 border-t border-[#f0f0f0] pt-3">
+                      {r.amount
+                        ? <span className="text-sm font-semibold tabular-nums text-[#1a9e88]">{fmtMXN(r.amount)}</span>
+                        : <span className="text-xs text-[#aaa]">Regalo apartado</span>}
                       <button
                         onClick={() => handleToggleThanked(r)}
-                        title={r.thanked ? 'Agradecido' : 'Marcar agradecido'}
-                        className={`flex items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium transition
-                          ${r.guest_phone ? '' : 'flex-1'}
+                        className={`flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-medium transition
                           ${r.thanked
                             ? 'border-[#c8ede7] bg-[#f0fdfb] text-[#1a9e88]'
                             : 'border-[#e0e0e0] bg-white text-[#888] hover:border-[#48C9B0] hover:text-[#48C9B0]'}`}
                       >
-                        <Check size={15} />
-                        {!r.guest_phone && (r.thanked ? 'Agradecido' : 'Marcar agradecido')}
+                        {r.thanked ? <><Check size={12} /> Agradecido</> : 'Marcar agradecido'}
                       </button>
                     </div>
                   </div>

@@ -5,7 +5,8 @@ import { useParams } from 'next/navigation'
 import { Gift, Coins, Mail, ExternalLink, Check, X, Heart, Copy, Landmark } from 'lucide-react'
 import { GiftRegistryItem, RegistryPaymentMethod, normalizePaymentMethods } from '@/lib/types'
 
-type Aggregates = Record<string, { count: number; sum: number }>
+type Aggregates = Record<string, { count: number; sum: number; buyers: number }>
+type ReserveMode = 'buy' | 'contribute'
 type EventInfo = {
   id: string
   name: string
@@ -36,7 +37,7 @@ export default function MesaPublicaPage() {
   const [payMethods, setPayMethods] = useState<RegistryPaymentMethod[]>([])
   const [loading, setLoading]     = useState(true)
   const [notFound, setNotFound]   = useState(false)
-  const [active, setActive]       = useState<GiftRegistryItem | null>(null)
+  const [active, setActive]       = useState<{ item: GiftRegistryItem; mode: ReserveMode } | null>(null)
 
   useEffect(() => {
     const load = async () => {
@@ -59,8 +60,15 @@ export default function MesaPublicaPage() {
 
   const onReserved = (item: GiftRegistryItem, amount: number | null) => {
     setAgg(prev => {
-      const cur = prev[item.id] || { count: 0, sum: 0 }
-      return { ...prev, [item.id]: { count: cur.count + 1, sum: cur.sum + (amount || 0) } }
+      const cur = prev[item.id] || { count: 0, sum: 0, buyers: 0 }
+      return {
+        ...prev,
+        [item.id]: {
+          count: cur.count + 1,
+          sum: cur.sum + (amount || 0),
+          buyers: cur.buyers + (amount == null ? 1 : 0),
+        },
+      }
     })
   }
 
@@ -115,12 +123,12 @@ export default function MesaPublicaPage() {
         ) : (
           <div className="space-y-3 lg:columns-2 lg:gap-5 lg:space-y-0 xl:columns-3 2xl:columns-4">
             {items.map((item, i) => {
-              const a = agg[item.id] || { count: 0, sum: 0 }
-              const pct = item.type === 'fund' && item.target_amount
-                ? Math.min(100, Math.round((a.sum / item.target_amount) * 100))
-                : 0
-              const taken = item.type === 'external' && a.count > 0
-              const done  = item.type === 'fund' && item.target_amount ? a.sum >= item.target_amount : false
+              const a = agg[item.id] || { count: 0, sum: 0, buyers: 0 }
+              // Meta de progreso: fondos usan target_amount; regalos de tienda usan su precio
+              const goal = item.type === 'fund' ? item.target_amount : item.type === 'external' ? item.price : null
+              const pct = goal ? Math.min(100, Math.round((a.sum / goal) * 100)) : 0
+              const taken = item.type === 'external' && a.buyers > 0
+              const done  = !!(goal && a.sum >= goal)
 
               const cta = done ? (
                 <span className="flex items-center gap-1 text-xs font-semibold text-[#1a9e88]">
@@ -128,12 +136,27 @@ export default function MesaPublicaPage() {
                 </span>
               ) : taken ? (
                 <span className="rounded-full bg-[#f0fdfb] px-3 py-1.5 text-xs font-medium text-[#1a9e88]">Ya apartado</span>
+              ) : item.type === 'external' ? (
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => setActive({ item, mode: 'contribute' })}
+                    className="rounded-full border border-[#48C9B0] bg-white px-3 py-1.5 text-xs font-semibold text-[#48C9B0] transition hover:bg-[#f0fdfb]"
+                  >
+                    Aportar
+                  </button>
+                  <button
+                    onClick={() => setActive({ item, mode: 'buy' })}
+                    className="rounded-full bg-[#48C9B0] px-3.5 py-1.5 text-xs font-semibold text-white transition hover:bg-[#3aa896]"
+                  >
+                    Lo regalo
+                  </button>
+                </div>
               ) : (
                 <button
-                  onClick={() => setActive(item)}
+                  onClick={() => setActive({ item, mode: 'contribute' })}
                   className="rounded-full bg-[#48C9B0] px-4 py-1.5 text-xs font-semibold text-white transition hover:bg-[#3aa896]"
                 >
-                  {item.type === 'external' ? 'Lo regalo' : item.type === 'cash' ? 'Dejar sobre' : 'Aportar'}
+                  {item.type === 'cash' ? 'Dejar sobre' : 'Aportar'}
                 </button>
               )
 
@@ -144,13 +167,13 @@ export default function MesaPublicaPage() {
                 </span>
               )
 
-              const fundProgress = item.type === 'fund' && (
+              const fundProgress = (item.type === 'fund' || (item.type === 'external' && a.sum > 0)) && (
                 <div className="mt-2">
                   <div className="h-1.5 overflow-hidden rounded-full bg-[#f0ece3]">
                     <div className="h-full rounded-full bg-[#48C9B0]" style={{ width: `${pct}%` }} />
                   </div>
                   <p className="mt-1 text-[11px] tabular-nums text-[#888]">
-                    {fmtMXN(a.sum)}{item.target_amount ? ` de ${fmtMXN(item.target_amount)}` : ''}
+                    {fmtMXN(a.sum)}{goal ? ` de ${fmtMXN(goal)}` : ''}{item.type === 'external' ? ' aportados' : ''}
                   </p>
                 </div>
               )
@@ -236,7 +259,8 @@ export default function MesaPublicaPage() {
       {active && (
         <ReserveModal
           token={token as string}
-          item={active}
+          item={active.item}
+          mode={active.mode}
           payMethods={payMethods}
           onClose={() => setActive(null)}
           onReserved={onReserved}
@@ -256,24 +280,26 @@ const PAY_LABEL: Record<string, string> = {
 }
 
 function ReserveModal({
-  token, item, payMethods, onClose, onReserved,
+  token, item, mode, payMethods, onClose, onReserved,
 }: {
   token: string
   item: GiftRegistryItem
+  mode: ReserveMode
   payMethods: RegistryPaymentMethod[]
   onClose: () => void
   onReserved: (item: GiftRegistryItem, amount: number | null) => void
 }) {
   const [name, setName]           = useState('')
   const [phone, setPhone]         = useState('')
-  const [amount, setAmount]       = useState(item.type === 'external' && item.price ? String(item.price) : '')
+  const [amount, setAmount]       = useState('')
   const [message, setMessage]     = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [success, setSuccess]     = useState(false)
   const [error, setError]         = useState('')
   const [copiedId, setCopiedId]   = useState<string | null>(null)
 
-  const needsAmount = item.type !== 'external'
+  const isBuy = item.type === 'external' && mode === 'buy'
+  const needsAmount = !isBuy
   const showPayment = needsAmount && payMethods.length > 0
 
   const copyValue = async (m: RegistryPaymentMethod) => {
@@ -324,7 +350,7 @@ function ReserveModal({
               </div>
               <h3 className="text-xl font-bold text-[#1D1E20]" style={josefin}>¡Gracias, {name.split(' ')[0]}!</h3>
               <p className="mx-auto mt-2 max-w-xs text-sm leading-relaxed text-[#666]">
-                {item.type === 'external'
+                {isBuy
                   ? <>Marcamos <strong>“{item.title}”</strong> como apartado por ti.</>
                   : <>Registramos tu {item.type === 'cash' ? 'sobre' : 'aporte'} de <strong>{fmtMXN(parseFloat(amount))}</strong>.</>}
               </p>
@@ -373,7 +399,7 @@ function ReserveModal({
                   </div>
                 </div>
               )}
-              {item.type === 'external' && item.external_url && (
+              {isBuy && item.external_url && (
                 <a
                   href={item.external_url}
                   target="_blank"
@@ -392,7 +418,7 @@ function ReserveModal({
               <div className="flex shrink-0 items-start justify-between border-b border-[#f0f0f0] px-5 py-4">
                 <div className="min-w-0">
                   <p className="text-[11px] font-semibold uppercase tracking-wider text-[#48C9B0]">
-                    {item.type === 'external' ? 'Vas a apartar' : item.type === 'cash' ? 'Dejar un sobre' : 'Aportar a'}
+                    {isBuy ? 'Vas a apartar' : item.type === 'cash' ? 'Dejar un sobre' : 'Aportar a'}
                   </p>
                   <h3 className="truncate text-base font-bold text-[#1D1E20]">{item.title}</h3>
                 </div>

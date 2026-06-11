@@ -28,12 +28,14 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
   ])
   if (!event) return NextResponse.json({ error: 'not_found' }, { status: 404 })
 
-  // Agregados por regalo (sin nombres, telefonos ni mensajes)
-  const aggregates: Record<string, { count: number; sum: number }> = {}
+  // Agregados por regalo (sin nombres, telefonos ni mensajes).
+  // buyers = reservas sin monto ("lo regalo completo"); sum = aportes parciales.
+  const aggregates: Record<string, { count: number; sum: number; buyers: number }> = {}
   for (const r of res || []) {
-    const a = aggregates[r.item_id] || { count: 0, sum: 0 }
+    const a = aggregates[r.item_id] || { count: 0, sum: 0, buyers: 0 }
     a.count += 1
     a.sum += r.amount || 0
+    if (r.amount == null) a.buyers += 1
     aggregates[r.item_id] = a
   }
 
