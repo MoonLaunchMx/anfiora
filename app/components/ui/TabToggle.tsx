@@ -5,6 +5,7 @@ import { type LucideIcon } from 'lucide-react'
 export interface TabItem {
   key: string
   label: string
+  shortLabel?: string  // se muestra en mobile cuando el label completo no cabe
   icon: LucideIcon
   badge?: number
 }
@@ -26,7 +27,7 @@ export function TabToggle({ tabs, active, onChange }: TabToggleProps) {
             key={tab.key}
             onClick={() => onChange(tab.key)}
             className={
-              'flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm transition ' +
+              'flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-3 py-1.5 text-sm transition ' +
               (isActive
                 ? 'bg-white font-medium text-[#1D1E20] shadow-[0_1px_3px_rgba(0,0,0,0.08)] border border-[#e8e8e8]'
                 : 'font-normal text-[#888] hover:text-[#555]')
@@ -36,7 +37,14 @@ export function TabToggle({ tabs, active, onChange }: TabToggleProps) {
               size={14}
               className={isActive ? 'text-[#48C9B0]' : 'text-[#bbb]'}
             />
-            <span>{tab.label}</span>
+            {tab.shortLabel ? (
+              <>
+                <span className="sm:hidden">{tab.shortLabel}</span>
+                <span className="hidden sm:inline">{tab.label}</span>
+              </>
+            ) : (
+              <span>{tab.label}</span>
+            )}
             {tab.badge !== undefined && (
               <span className={
                 'ml-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full px-1 text-[10px] font-semibold ' +

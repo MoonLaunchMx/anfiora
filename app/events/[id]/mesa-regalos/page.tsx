@@ -170,7 +170,7 @@ export default function MesaRegalosPage() {
   const TABS: TabItem[] = [
     { key: 'regalos',   label: 'Regalos',   icon: Gift },
     { key: 'recibidos', label: 'Recibidos', icon: Heart, badge: reservations.length || undefined },
-    { key: 'config',    label: 'Configuración', icon: Settings },
+    { key: 'config',    label: 'Configuración', shortLabel: 'Config', icon: Settings },
   ]
 
   if (loading) {
@@ -212,7 +212,7 @@ export default function MesaRegalosPage() {
         </StatsCollapse>
 
         {/* Toggle (centrado en mobile, izquierda en desktop) */}
-        <div className="mb-4 flex justify-center sm:justify-start">
+        <div className="mb-4 flex justify-center overflow-x-auto sm:justify-start">
           <TabToggle tabs={TABS} active={tab} onChange={setTab} />
         </div>
       </div>
