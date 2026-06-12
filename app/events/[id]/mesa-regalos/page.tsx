@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
+import { motion, useMotionValue, useTransform, animate, type PanInfo } from 'framer-motion'
 import { supabase } from '@/lib/supabase'
 import {
   Gift, Plus, Link2, Copy, Check, Trash2, ExternalLink, Coins, Mail, Heart, Eye, Settings, Landmark, Pencil,
@@ -29,6 +30,39 @@ const TYPE_META: Record<string, { label: string; icon: React.ReactNode }> = {
   cash:     { label: 'Sobre',  icon: <Mail size={11} /> },
 }
 
+// Swipe a la izquierda para eliminar (mismo patron que invitados). En desktop
+// el drag va apagado y se usa el icono de bote.
+function SwipeableGiftCard({ enabled, onDelete, onClick, children }: {
+  enabled: boolean
+  onDelete: () => void
+  onClick: () => void
+  children: React.ReactNode
+}) {
+  const x = useMotionValue(0)
+  const bgOpacity = useTransform(x, [-80, -20, 0], [1, 0.5, 0])
+  return (
+    <div className="relative overflow-hidden rounded-xl">
+      <motion.div className="absolute inset-0 flex items-center justify-end rounded-xl bg-red-500 pr-5" style={{ opacity: bgOpacity }}>
+        <Trash2 size={20} className="text-white" />
+      </motion.div>
+      <motion.div
+        style={{ x }}
+        drag={enabled ? 'x' : false}
+        dragConstraints={{ left: -80, right: 0 }}
+        dragElastic={{ left: 0.1, right: 0 }}
+        onDragEnd={(_: unknown, info: PanInfo) => {
+          if (info.offset.x < -60) onDelete()
+          else animate(x, 0, { type: 'spring', stiffness: 500, damping: 35 })
+        }}
+        onClick={onClick}
+        className="relative z-10 flex cursor-pointer gap-3 rounded-xl border border-[#e8e8e8] bg-white p-3 transition hover:border-[#48C9B0]"
+      >
+        {children}
+      </motion.div>
+    </div>
+  )
+}
+
 export default function MesaRegalosPage() {
   const { id } = useParams()
   const eventId = id as string
@@ -46,6 +80,15 @@ export default function MesaRegalosPage() {
   const [payMethods, setPayMethods]     = useState<RegistryPaymentMethod[]>([])
   const [showPayModal, setShowPayModal] = useState(false)
   const [editingMethod, setEditingMethod] = useState<RegistryPaymentMethod | null>(null)
+  const [isMobile, setIsMobile]         = useState(false)
+
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 639px)')
+    const sync = () => setIsMobile(mq.matches)
+    sync()
+    mq.addEventListener('change', sync)
+    return () => mq.removeEventListener('change', sync)
+  }, [])
 
   useEffect(() => {
     const loadData = async () => {
@@ -273,10 +316,11 @@ export default function MesaRegalosPage() {
                     ? Math.min(100, Math.round((res.sum / item.target_amount) * 100))
                     : 0
                   return (
-                    <div
+                    <SwipeableGiftCard
                       key={item.id}
+                      enabled={isMobile}
+                      onDelete={() => handleDeleteGift(item.id)}
                       onClick={() => openEdit(item)}
-                      className="flex cursor-pointer gap-3 rounded-xl border border-[#e8e8e8] bg-white p-3 transition hover:border-[#48C9B0]"
                     >
                       <div className="h-16 w-16 shrink-0 overflow-hidden rounded-lg bg-[#f0fdfb]">
                         {item.image_url ? (
@@ -333,7 +377,7 @@ export default function MesaRegalosPage() {
                         <button
                           onClick={(e) => { e.stopPropagation(); handleDeleteGift(item.id) }}
                           title="Eliminar"
-                          className="flex h-7 w-7 items-center justify-center rounded-md text-[#bbb] transition hover:bg-[#fff0f0] hover:text-[#cc3333]"
+                          className="hidden h-7 w-7 items-center justify-center rounded-md text-[#bbb] transition hover:bg-[#fff0f0] hover:text-[#cc3333] sm:flex"
                         >
                           <Trash2 size={14} />
                         </button>
@@ -343,7 +387,7 @@ export default function MesaRegalosPage() {
                           </span>
                         )}
                       </div>
-                    </div>
+                    </SwipeableGiftCard>
                   )
                 })}
               </div>
@@ -363,46 +407,49 @@ export default function MesaRegalosPage() {
             </div>
           ) : (
             <>
-            {/* Cards mobile */}
-            <div className="grid gap-3 sm:grid-cols-2 lg:hidden">
+            {/* Cards mobile (compactas, estilo invitados) */}
+            <div className="grid gap-2.5 sm:grid-cols-2 lg:hidden">
               {reservations.map(r => {
                 const gift = itemById.get(r.item_id)
                 return (
-                  <div key={r.id} className="flex flex-col rounded-xl border border-[#e8e8e8] bg-white p-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-semibold text-[#1D1E20]">{r.guest_name}</p>
-                        <p className="truncate text-xs text-[#888]">{gift?.title || 'Regalo'}</p>
-                      </div>
-                      {r.guest_phone && (
+                  <div key={r.id} className="rounded-xl border border-[#e8e8e8] bg-white px-3 py-3">
+                    <div className="flex items-center gap-2.5">
+                      {r.guest_phone ? (
                         <button
                           onClick={() => thankByWhatsApp(r, gift)}
                           title="Agradecer por WhatsApp"
-                          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#e8e8e8] bg-white text-[#25D366] transition hover:border-[#25D366] hover:bg-[#25D366] hover:text-white"
+                          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[#c0f0dc] bg-[#f0fff8]"
                         >
-                          <FaWhatsapp size={18} />
+                          <FaWhatsapp size={18} className="text-[#25D366]" />
                         </button>
+                      ) : (
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[#f0f0f0] bg-[#fafafa]">
+                          <FaWhatsapp size={16} className="text-[#ddd]" />
+                        </div>
                       )}
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-semibold text-[#1D1E20]">{r.guest_name}</p>
+                        <p className="truncate text-xs text-[#888]">{gift?.title || 'Regalo'}</p>
+                      </div>
+                      <div className="flex shrink-0 flex-col items-end gap-1">
+                        {r.amount
+                          ? <span className="text-sm font-semibold tabular-nums text-[#1a9e88]">{fmtMXN(r.amount)}</span>
+                          : <span className="text-[11px] text-[#aaa]">Apartado</span>}
+                        <button
+                          onClick={() => handleToggleThanked(r)}
+                          title={r.thanked ? 'Agradecido' : 'Marcar agradecido'}
+                          className={`flex h-6 w-6 items-center justify-center rounded-full border transition
+                            ${r.thanked
+                              ? 'border-[#c8ede7] bg-[#f0fdfb] text-[#1a9e88]'
+                              : 'border-[#e0e0e0] bg-white text-[#ccc]'}`}
+                        >
+                          <Check size={13} />
+                        </button>
+                      </div>
                     </div>
-
                     {r.message && (
-                      <p className="mt-2 line-clamp-3 text-xs italic leading-relaxed text-[#999]">“{r.message}”</p>
+                      <p className="mt-1.5 line-clamp-1 pl-[46px] text-xs italic text-[#999]">“{r.message}”</p>
                     )}
-
-                    <div className="mt-3 flex items-center justify-between gap-2 border-t border-[#f0f0f0] pt-3">
-                      {r.amount
-                        ? <span className="text-sm font-semibold tabular-nums text-[#1a9e88]">{fmtMXN(r.amount)}</span>
-                        : <span className="text-xs text-[#aaa]">Regalo apartado</span>}
-                      <button
-                        onClick={() => handleToggleThanked(r)}
-                        className={`flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-medium transition
-                          ${r.thanked
-                            ? 'border-[#c8ede7] bg-[#f0fdfb] text-[#1a9e88]'
-                            : 'border-[#e0e0e0] bg-white text-[#888] hover:border-[#48C9B0] hover:text-[#48C9B0]'}`}
-                      >
-                        {r.thanked ? <><Check size={12} /> Agradecido</> : 'Marcar agradecido'}
-                      </button>
-                    </div>
                   </div>
                 )
               })}
