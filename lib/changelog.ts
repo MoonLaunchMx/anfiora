@@ -1,4 +1,4 @@
-export const CURRENT_VERSION = '2026-05-13'
+export const CURRENT_VERSION = '2026-06-11'
 
 export type Release = {
   version: string
@@ -10,6 +10,19 @@ export type Release = {
 }
 
 export const changelog: Release[] = [
+  {
+    version: '2026-06-11',
+    date: '11 de junio, 2026',
+    title: 'Mesa de regalos',
+    subtitle: 'Crea tu mesa, compártela con un link y recibe regalos a tu manera.',
+    features: [
+      { icon: 'Gift',     text: 'Agrega regalos de tienda (pega el link y detectamos todo), fondos con meta y sobres' },
+      { icon: 'Link2',    text: 'Compártela con un link público — tus invitados apartan y aportan sin crear cuenta' },
+      { icon: 'Coins',    text: 'Aportes parciales: varios invitados pueden cooperar para un regalo grande' },
+      { icon: 'Landmark', text: 'Configura tu CLABE, tarjeta, Mercado Pago, PayPal o Zelle para recibir depósitos' },
+      { icon: 'Heart',    text: 'Lleva el control de lo recibido y agradece a cada invitado por WhatsApp con un clic' },
+    ],
+  },
   {
     version: '2026-05-13',
     date: '13 de mayo, 2026',

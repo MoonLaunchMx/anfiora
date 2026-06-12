@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { useParams, usePathname, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { Users, Images, Music2, Settings, LayoutGrid, PanelLeftClose, PanelLeftOpen, CalendarDays, House, User, LogOut, Wallet, Briefcase, Heart, MessageCircle, Receipt } from 'lucide-react'
+import { Users, Images, Music2, Settings, LayoutGrid, PanelLeftClose, PanelLeftOpen, CalendarDays, House, User, LogOut, Wallet, Briefcase, Heart, MessageCircle, Receipt, Gift } from 'lucide-react'
 import { Event } from '@/lib/types'
 import { EventAccessProvider, useEventAccess } from '@/lib/event-access-context'
 
@@ -80,6 +80,12 @@ const NAV_ITEMS: NavEntry[] = [
     label: 'Timeline', labelMobile: 'Timeline', path: '/timeline', adminOnly: false,
     iconOutline: <CalendarDays  width={18} height={18} strokeWidth={1.5} />,
     iconFilled:  <CalendarDays  width={18} height={18} strokeWidth={2.5} />,
+  },
+  {
+    type: 'item',
+    label: 'Mesa de regalos', labelMobile: 'Regalos', path: '/mesa-regalos', adminOnly: false,
+    iconOutline: <Gift width={18} height={18} strokeWidth={1.5} />,
+    iconFilled:  <Gift width={18} height={18} strokeWidth={2.5} />,
   },
   {
     type: 'group',

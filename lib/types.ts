@@ -87,8 +87,135 @@ export type EventSettings = {
   album_url: string | null
   playlist_token: string | null
   playlist_categories: string[] | null
+  registry_token: string | null
+  registry_payment_info: RegistryPaymentInfo | null
+  registry_external_links: RegistryExternalLink[] | null
   created_at: string
   updated_at: string
+}
+
+export type RegistryExternalLink = {
+  id: string
+  store: string
+  url: string
+}
+
+// ─── MESA DE REGALOS ─────────────────────────────────────────────────────────
+
+export const GIFT_CATEGORIES = [
+  { id: 'viajes',       label: 'Viajes' },
+  { id: 'hogar',        label: 'Hogar' },
+  { id: 'experiencias', label: 'Experiencias' },
+  { id: 'estilo',       label: 'Estilo de vida' },
+  { id: 'otro',         label: 'Otro' },
+] as const
+
+// Ladas para selects de telefono (MX primero, luego America y Europa)
+export const PHONE_COUNTRY_CODES: { code: string; label: string }[] = [
+  { code: '+52',  label: 'México +52' },
+  { code: '+1',   label: 'USA / Canadá +1' },
+  { code: '+54',  label: 'Argentina +54' },
+  { code: '+591', label: 'Bolivia +591' },
+  { code: '+55',  label: 'Brasil +55' },
+  { code: '+56',  label: 'Chile +56' },
+  { code: '+57',  label: 'Colombia +57' },
+  { code: '+506', label: 'Costa Rica +506' },
+  { code: '+53',  label: 'Cuba +53' },
+  { code: '+593', label: 'Ecuador +593' },
+  { code: '+503', label: 'El Salvador +503' },
+  { code: '+502', label: 'Guatemala +502' },
+  { code: '+504', label: 'Honduras +504' },
+  { code: '+505', label: 'Nicaragua +505' },
+  { code: '+507', label: 'Panamá +507' },
+  { code: '+595', label: 'Paraguay +595' },
+  { code: '+51',  label: 'Perú +51' },
+  { code: '+598', label: 'Uruguay +598' },
+  { code: '+58',  label: 'Venezuela +58' },
+  { code: '+34',  label: 'España +34' },
+  { code: '+49',  label: 'Alemania +49' },
+  { code: '+43',  label: 'Austria +43' },
+  { code: '+32',  label: 'Bélgica +32' },
+  { code: '+45',  label: 'Dinamarca +45' },
+  { code: '+33',  label: 'Francia +33' },
+  { code: '+30',  label: 'Grecia +30' },
+  { code: '+353', label: 'Irlanda +353' },
+  { code: '+39',  label: 'Italia +39' },
+  { code: '+47',  label: 'Noruega +47' },
+  { code: '+31',  label: 'Países Bajos +31' },
+  { code: '+48',  label: 'Polonia +48' },
+  { code: '+351', label: 'Portugal +351' },
+  { code: '+44',  label: 'Reino Unido +44' },
+  { code: '+46',  label: 'Suecia +46' },
+  { code: '+41',  label: 'Suiza +41' },
+  { code: '+61',  label: 'Australia +61' },
+  { code: '+86',  label: 'China +86' },
+  { code: '+972', label: 'Israel +972' },
+  { code: '+81',  label: 'Japón +81' },
+]
+
+export type RegistryPaymentMethodType =
+  'transfer' | 'card' | 'mercado_pago' | 'paypal' | 'zelle' | 'other'
+
+export type RegistryPaymentMethod = {
+  id: string
+  type: RegistryPaymentMethodType
+  bank?: string    // transfer y card
+  holder?: string  // transfer, card y zelle
+  value: string    // CLABE / tarjeta / link / email-tel / instruccion
+  label?: string   // solo other: nombre de la app
+}
+
+export type RegistryPaymentInfo = {
+  methods: RegistryPaymentMethod[]
+}
+
+// Acepta la forma vieja del JSONB ({ bank, account_holder, clabe }) y la nueva ({ methods })
+export function normalizePaymentMethods(raw: unknown): RegistryPaymentMethod[] {
+  if (!raw || typeof raw !== 'object') return []
+  const obj = raw as Record<string, unknown>
+  if (Array.isArray(obj.methods)) return obj.methods as RegistryPaymentMethod[]
+  const legacy = obj as { bank?: string; account_holder?: string; clabe?: string }
+  if (legacy.clabe || legacy.bank || legacy.account_holder) {
+    return [{
+      id: 'legacy-transfer',
+      type: 'transfer',
+      bank: legacy.bank || '',
+      holder: legacy.account_holder || '',
+      value: legacy.clabe || '',
+    }]
+  }
+  return []
+}
+
+export type GiftType = 'external' | 'fund' | 'cash'
+
+export type GiftRegistryItem = {
+  id: string
+  event_id: string
+  type: GiftType
+  title: string
+  description: string | null
+  category: string | null
+  image_url: string | null
+  external_url: string | null
+  store: string | null
+  price: number | null
+  target_amount: number | null
+  created_at: string
+}
+
+export type GiftReservation = {
+  id: string
+  item_id: string
+  event_id: string
+  guest_id: string | null
+  guest_name: string
+  guest_phone: string | null
+  amount: number | null
+  message: string | null
+  purchased: boolean
+  thanked: boolean
+  created_at: string
 }
 
 // ─── COLLABORATORS ───────────────────────────────────────────────────────────

@@ -3,14 +3,83 @@
 import { useEffect, useState } from 'react'
 import {
   X, LayoutList, User, Building2, AlertTriangle,
-  Bell, Clock, LucideIcon
+  Bell, Clock, Gift, Link2, Coins, Landmark, Heart, LucideIcon
 } from 'lucide-react'
 import { CURRENT_VERSION, changelog, Release } from '@/lib/changelog'
 
 const STORAGE_KEY = 'anfiora_seen_version'
 
 const ICON_MAP: Record<string, LucideIcon> = {
-  LayoutList, User, Building2, AlertTriangle, Bell, Clock,
+  LayoutList, User, Building2, AlertTriangle, Bell, Clock, Gift, Link2, Coins, Landmark, Heart,
+}
+
+function MesaRegalosMockup() {
+  return (
+    <div className="h-full w-full overflow-hidden rounded-l-2xl bg-[#FBF7F0]">
+      <div className="flex items-center gap-1.5 border-b border-[#eee4d6] bg-[#F5EFE3] px-3 py-2">
+        <span className="h-2 w-2 rounded-full bg-[#ff6b6b]" />
+        <span className="h-2 w-2 rounded-full bg-[#ffd93d]" />
+        <span className="h-2 w-2 rounded-full bg-[#6bcb77]" />
+        <span className="ml-2 text-[9px] text-[#aaa]">anfiora.com · Mesa de regalos</span>
+      </div>
+
+      <div className="px-3 pb-2 pt-3 text-center">
+        <p className="text-[7px] uppercase tracking-[0.25em] text-[#bbb]">Mesa de regalos</p>
+        <p className="mt-0.5 text-[14px] font-bold text-[#1D1E20]" style={{ fontFamily: "'Josefin Sans', sans-serif" }}>
+          Ana &amp; Diego
+        </p>
+        <p className="mt-0.5 text-[7px] text-[#999]">14 de noviembre de 2026</p>
+      </div>
+
+      <div className="space-y-2 px-3">
+        {/* Regalo de tienda */}
+        <div className="flex gap-2 rounded-lg border border-[#eee4d6] bg-white p-2">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-[#f0fdfb] text-[#48C9B0]">
+            <Gift size={13} />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-[6px] uppercase tracking-wider text-[#aaa]">Liverpool</p>
+            <p className="truncate text-[9px] font-semibold text-[#1D1E20]">Batidora KitchenAid Artisan</p>
+            <div className="mt-1 flex items-center justify-between">
+              <span className="text-[8px] font-semibold tabular-nums text-[#1D1E20]">$ 8,999</span>
+              <span className="rounded-full bg-[#48C9B0] px-2 py-0.5 text-[7px] font-semibold text-white">Lo regalo</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Fondo con progreso */}
+        <div className="flex gap-2 rounded-lg border border-[#eee4d6] bg-white p-2">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-[#f0fdfb] text-[#48C9B0]">
+            <Coins size={13} />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-[9px] font-semibold text-[#1D1E20]">Fondo luna de miel</p>
+            <div className="mt-1 h-1 overflow-hidden rounded-full bg-[#f0ece3]">
+              <div className="h-full w-[64%] rounded-full bg-[#48C9B0]" />
+            </div>
+            <div className="mt-1 flex items-center justify-between">
+              <span className="text-[7px] tabular-nums text-[#888]">$ 32,000 de $ 50,000</span>
+              <span className="rounded-full bg-[#48C9B0] px-2 py-0.5 text-[7px] font-semibold text-white">Aportar</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Sobre */}
+        <div className="flex gap-2 rounded-lg border border-[#eee4d6] bg-white p-2">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-[#f0fdfb] text-[#48C9B0]">
+            <Heart size={13} />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-[9px] font-semibold text-[#1D1E20]">Sobre con cariño</p>
+            <div className="mt-1 flex items-center justify-between">
+              <span className="text-[7px] italic text-[#999]">Monto libre</span>
+              <span className="rounded-full bg-[#48C9B0] px-2 py-0.5 text-[7px] font-semibold text-white">Dejar sobre</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 function TimelineMockup() {
@@ -149,9 +218,9 @@ export function WhatsNewModal() {
       <div className="w-full max-w-2xl overflow-hidden rounded-2xl bg-white shadow-2xl">
         <div className="flex flex-col sm:flex-row" style={{ minHeight: '420px' }}>
 
-          {/* Mockup izquierda */}
+          {/* Mockup izquierda (por version del release) */}
           <div className="h-56 w-full overflow-hidden sm:h-auto sm:w-[45%]">
-            <TimelineMockup />
+            {release.version === '2026-06-11' ? <MesaRegalosMockup /> : <TimelineMockup />}
           </div>
 
           {/* Contenido derecha */}

@@ -1,0 +1,627 @@
+'use client'
+
+import { Fragment, useEffect, useState } from 'react'
+import { useParams } from 'next/navigation'
+import { Gift, Coins, Mail, ExternalLink, Check, X, Heart, Copy, Landmark } from 'lucide-react'
+import { GiftRegistryItem, RegistryPaymentMethod, RegistryExternalLink, normalizePaymentMethods, PHONE_COUNTRY_CODES, GIFT_CATEGORIES } from '@/lib/types'
+
+type Aggregates = Record<string, { count: number; sum: number; buyers: number }>
+type ReserveMode = 'buy' | 'contribute'
+type EventInfo = {
+  id: string
+  name: string
+  host_name: string | null
+  host_name_2: string | null
+  event_date: string | null
+  venue: string | null
+  event_type: string | null
+}
+
+const fmtMXN = (n: number) => '$ ' + (n || 0).toLocaleString('es-MX')
+
+function formatEventDate(dateStr: string | null): string {
+  if (!dateStr) return ''
+  const [year, month, day] = dateStr.split('T')[0].split('-').map(Number)
+  const months = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre']
+  return `${day} de ${months[month - 1]} de ${year}`
+}
+
+const josefin = { fontFamily: "'Josefin Sans', sans-serif" }
+
+export default function MesaPublicaPage() {
+  const { token } = useParams()
+
+  const [event, setEvent]         = useState<EventInfo | null>(null)
+  const [items, setItems]         = useState<GiftRegistryItem[]>([])
+  const [agg, setAgg]             = useState<Aggregates>({})
+  const [payMethods, setPayMethods] = useState<RegistryPaymentMethod[]>([])
+  const [extLinks, setExtLinks]     = useState<RegistryExternalLink[]>([])
+  const [loading, setLoading]     = useState(true)
+  const [notFound, setNotFound]   = useState(false)
+  const [active, setActive]       = useState<{ item: GiftRegistryItem; mode: ReserveMode } | null>(null)
+  const [catFilter, setCatFilter] = useState('all')
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const res = await fetch(`/api/mesa/${token}`)
+        if (!res.ok) { setNotFound(true); setLoading(false); return }
+        const data = await res.json()
+        setEvent(data.event)
+        setItems(data.items || [])
+        setAgg(data.aggregates || {})
+        setPayMethods(normalizePaymentMethods(data.payment_info))
+        setExtLinks(data.external_links || [])
+      } catch {
+        setNotFound(true)
+      } finally {
+        setLoading(false)
+      }
+    }
+    load()
+  }, [token])
+
+  const onReserved = (item: GiftRegistryItem, amount: number | null) => {
+    setAgg(prev => {
+      const cur = prev[item.id] || { count: 0, sum: 0, buyers: 0 }
+      return {
+        ...prev,
+        [item.id]: {
+          count: cur.count + 1,
+          sum: cur.sum + (amount || 0),
+          buyers: cur.buyers + (amount == null ? 1 : 0),
+        },
+      }
+    })
+  }
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#FBF7F0]">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#e8e8e8] border-t-[#48C9B0]" />
+      </div>
+    )
+  }
+
+  if (notFound || !event) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center bg-[#FBF7F0] px-6 text-center">
+        <Gift size={32} className="mb-3 text-[#bbb]" />
+        <h1 className="text-lg font-semibold text-[#1D1E20]">Mesa no encontrada</h1>
+        <p className="mt-1 text-sm text-[#888]">Revisa el link que te compartieron.</p>
+      </div>
+    )
+  }
+
+  const couple = event.host_name && event.host_name_2
+    ? `${event.host_name} & ${event.host_name_2}`
+    : event.name
+
+  return (
+    <div className="min-h-screen bg-[#FBF7F0]">
+
+      {/* Hero */}
+      <section className="mx-auto max-w-2xl px-6 pb-8 pt-8 text-center sm:pt-10">
+        <p className="mb-4 text-[11px] uppercase tracking-[0.3em] text-[#aaa]" style={josefin}>
+          Mesa de regalos
+        </p>
+        <h1 className="text-4xl font-bold leading-tight text-[#1D1E20] sm:text-5xl" style={josefin}>
+          {couple}
+        </h1>
+        {event.event_date && (
+          <p className="mt-4 text-sm tracking-wide text-[#666]" style={josefin}>{formatEventDate(event.event_date)}</p>
+        )}
+        {event.venue && <p className="mt-1 text-xs text-[#999]">{event.venue}</p>}
+        <p className="mx-auto mt-7 max-w-md text-sm leading-relaxed text-[#666]">
+          Su presencia es nuestro mayor regalo. Si desean consentirnos, prepararamos esta mesa con mucho cariño.
+        </p>
+
+        {extLinks.length > 0 && (
+          <div className="mt-6">
+            <p className="text-[11px] uppercase tracking-[0.2em] text-[#aaa]" style={josefin}>
+              También tenemos mesa en
+            </p>
+            <div className="mt-3 flex flex-wrap justify-center gap-2">
+              {extLinks.map(l => (
+                <a
+                  key={l.id}
+                  href={l.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 rounded-full border border-[#e0d9cc] bg-white px-4 py-2 text-xs font-semibold text-[#1D1E20] transition hover:border-[#48C9B0] hover:text-[#1a9e88]"
+                >
+                  {l.store} <ExternalLink size={12} className="text-[#aaa]" />
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
+      </section>
+
+      {/* Lista */}
+      <section className="mx-auto max-w-2xl px-4 pb-20 sm:px-6 lg:w-[90%] lg:max-w-[1600px] lg:px-8">
+        {items.length === 0 ? (
+          <p className="rounded-xl border border-dashed border-[#e0d9cc] bg-white/60 px-6 py-12 text-center text-sm text-[#999]">
+            Esta mesa aun no tiene regalos.
+          </p>
+        ) : (
+          <>
+          {/* Filtro por categoria (solo las que existen en la mesa) */}
+          {(() => {
+            const present = GIFT_CATEGORIES.filter(c => items.some(it => it.category === c.id))
+            if (present.length < 2) return null
+            return (
+              <div className="mb-5 flex flex-wrap justify-center gap-2">
+                {[{ id: 'all', label: 'Todos' }, ...present].map(c => (
+                  <button
+                    key={c.id}
+                    onClick={() => setCatFilter(c.id)}
+                    className={`rounded-full border px-3.5 py-1.5 text-xs font-medium transition
+                      ${catFilter === c.id
+                        ? 'border-[#48C9B0] bg-[#48C9B0] text-white'
+                        : 'border-[#e0d9cc] bg-white text-[#888] hover:border-[#48C9B0] hover:text-[#48C9B0]'}`}
+                  >
+                    {c.label}
+                  </button>
+                ))}
+              </div>
+            )
+          })()}
+          <div className="space-y-3 lg:columns-2 lg:gap-5 lg:space-y-0 xl:columns-3 2xl:columns-4">
+            {items.filter(it => catFilter === 'all' || it.category === catFilter).map((item, i) => {
+              const a = agg[item.id] || { count: 0, sum: 0, buyers: 0 }
+              // Meta de progreso: fondos usan target_amount; regalos de tienda usan su precio
+              const goal = item.type === 'fund' ? item.target_amount : item.type === 'external' ? item.price : null
+              const pct = goal ? Math.min(100, Math.round((a.sum / goal) * 100)) : 0
+              const taken = item.type === 'external' && a.buyers > 0
+              const done  = !!(goal && a.sum >= goal)
+
+              const cta = done ? (
+                <span className="flex items-center gap-1 text-xs font-semibold text-[#1a9e88]">
+                  <Heart size={13} fill="currentColor" /> Completo
+                </span>
+              ) : taken ? (
+                <span className="rounded-full bg-[#f0fdfb] px-3 py-1.5 text-xs font-medium text-[#1a9e88]">Ya apartado</span>
+              ) : item.type === 'external' ? (
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => setActive({ item, mode: 'contribute' })}
+                    className="rounded-full border border-[#48C9B0] bg-white px-3 py-1.5 text-xs font-semibold text-[#48C9B0] transition hover:bg-[#f0fdfb]"
+                  >
+                    Aportar
+                  </button>
+                  <button
+                    onClick={() => setActive({ item, mode: 'buy' })}
+                    className="rounded-full bg-[#48C9B0] px-3.5 py-1.5 text-xs font-semibold text-white transition hover:bg-[#3aa896]"
+                  >
+                    Lo regalo
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setActive({ item, mode: 'contribute' })}
+                  className="rounded-full bg-[#48C9B0] px-4 py-1.5 text-xs font-semibold text-white transition hover:bg-[#3aa896]"
+                >
+                  {item.type === 'cash' ? 'Dejar sobre' : 'Aportar'}
+                </button>
+              )
+
+              const priceLabel = (
+                <span className="text-sm font-semibold tabular-nums text-[#1D1E20]">
+                  {item.type === 'external' && item.price ? fmtMXN(item.price) : ''}
+                  {item.type === 'cash' ? <span className="font-normal italic text-[#999]">Monto libre</span> : ''}
+                </span>
+              )
+
+              const fundProgress = (item.type === 'fund' || (item.type === 'external' && a.sum > 0)) && (
+                <div className="mt-2">
+                  <div className="h-1.5 overflow-hidden rounded-full bg-[#f0ece3]">
+                    <div className="h-full rounded-full bg-[#48C9B0]" style={{ width: `${pct}%` }} />
+                  </div>
+                  <p className="mt-1 text-[11px] tabular-nums text-[#888]">
+                    {fmtMXN(a.sum)}{goal ? ` de ${fmtMXN(goal)}` : ''}{item.type === 'external' ? ' aportados' : ''}
+                  </p>
+                </div>
+              )
+
+              // Alturas variadas para el mosaico desktop
+              const aspect = item.image_url
+                ? ['lg:aspect-[4/3]', 'lg:aspect-[3/4]', 'lg:aspect-square'][i % 3]
+                : 'lg:aspect-[16/8]'
+
+              return (
+                <Fragment key={item.id}>
+                  {/* Card mobile (horizontal) */}
+                  <article className="flex gap-4 rounded-2xl border border-[#eee4d6] bg-white p-4 lg:hidden">
+                    <div className="h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-[#f0fdfb] sm:h-24 sm:w-24">
+                      {item.image_url ? (
+                        <img src={item.image_url} alt="" className="h-full w-full object-cover" />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center text-[#48C9B0]">
+                          {item.type === 'fund' ? <Coins size={26} /> : item.type === 'cash' ? <Mail size={26} /> : <Gift size={26} />}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex min-w-0 flex-1 flex-col">
+                      {item.store && <span className="text-[10px] uppercase tracking-wider text-[#aaa]">{item.store}</span>}
+                      <h3 className="text-base font-semibold leading-snug text-[#1D1E20]" style={josefin}>{item.title}</h3>
+                      {item.description && (
+                        <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-[#888]">{item.description}</p>
+                      )}
+                      {fundProgress}
+                      <div className="mt-2 flex items-center justify-between gap-2">
+                        {priceLabel}
+                        {cta}
+                      </div>
+                    </div>
+                  </article>
+
+                  {/* Card desktop (vertical, mosaico) */}
+                  <article className="hidden overflow-hidden rounded-2xl border border-[#eee4d6] bg-white transition duration-200 hover:-translate-y-0.5 hover:shadow-md lg:mb-5 lg:block lg:break-inside-avoid">
+                    <div className={`relative w-full overflow-hidden bg-[#f0fdfb] ${aspect}`}>
+                      {item.image_url ? (
+                        <img src={item.image_url} alt="" className="absolute inset-0 h-full w-full object-cover" />
+                      ) : (
+                        <div className="absolute inset-0 flex items-center justify-center text-[#48C9B0]">
+                          {item.type === 'fund' ? <Coins size={34} /> : item.type === 'cash' ? <Mail size={34} /> : <Gift size={34} />}
+                        </div>
+                      )}
+                      {item.store && (
+                        <span className="absolute left-3 top-3 rounded-full bg-white/90 px-2.5 py-1 text-[10px] font-medium uppercase tracking-wider text-[#888]">
+                          {item.store}
+                        </span>
+                      )}
+                      {(done || taken) && (
+                        <span className="absolute right-3 top-3 flex items-center gap-1 rounded-full bg-white/90 px-2.5 py-1 text-[10px] font-semibold text-[#1a9e88]">
+                          <Heart size={11} fill="currentColor" /> {done ? 'Completo' : 'Apartado'}
+                        </span>
+                      )}
+                    </div>
+                    <div className="p-4">
+                      <h3 className="text-lg font-semibold leading-snug text-[#1D1E20]" style={josefin}>{item.title}</h3>
+                      {item.description && (
+                        <p className="mt-1 line-clamp-3 text-xs leading-relaxed text-[#888]">{item.description}</p>
+                      )}
+                      {fundProgress}
+                      <div className="mt-3 flex items-center justify-between gap-2">
+                        {priceLabel}
+                        {cta}
+                      </div>
+                    </div>
+                  </article>
+                </Fragment>
+              )
+            })}
+          </div>
+          </>
+        )}
+      </section>
+
+      <footer className="border-t border-[#eee4d6] bg-[#F5EFE3] py-6 text-center">
+        <p className="text-base font-bold tracking-wide text-[#1D1E20]" style={josefin}>Anfiora</p>
+        <p className="mt-1 text-[11px] text-[#aaa]">Tu mesa de regalos</p>
+      </footer>
+
+      {active && (
+        <ReserveModal
+          token={token as string}
+          item={active.item}
+          mode={active.mode}
+          payMethods={payMethods}
+          onClose={() => setActive(null)}
+          onReserved={onReserved}
+        />
+      )}
+    </div>
+  )
+}
+
+const PAY_LABEL: Record<string, string> = {
+  transfer:     'Transferencia',
+  card:         'Tarjeta',
+  mercado_pago: 'Mercado Pago',
+  paypal:       'PayPal',
+  zelle:        'Zelle',
+  other:        'Otro',
+}
+
+function ReserveModal({
+  token, item, mode, payMethods, onClose, onReserved,
+}: {
+  token: string
+  item: GiftRegistryItem
+  mode: ReserveMode
+  payMethods: RegistryPaymentMethod[]
+  onClose: () => void
+  onReserved: (item: GiftRegistryItem, amount: number | null) => void
+}) {
+  const [name, setName]           = useState('')
+  const [phone, setPhone]         = useState('')        // solo digitos, max 10
+  const [phoneCode, setPhoneCode] = useState('+52')
+  const [amount, setAmount]       = useState('')
+  const [message, setMessage]     = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [step, setStep]           = useState<'form' | 'choose' | 'done'>('form')
+  const [choice, setChoice]       = useState<'store' | 'deposit' | null>(null)
+  const [error, setError]         = useState('')
+  const [copiedId, setCopiedId]   = useState<string | null>(null)
+
+  const isBuy = item.type === 'external' && mode === 'buy'
+  const needsAmount = !isBuy
+  // "Lo regalo" con precio y metodos configurados: el invitado elige comprar o depositar
+  const hasChooser = isBuy && !!item.price && payMethods.length > 0
+  const showPayment = payMethods.length > 0 && (needsAmount || choice === 'deposit')
+
+  const copyValue = async (m: RegistryPaymentMethod) => {
+    await navigator.clipboard.writeText(m.value)
+    setCopiedId(m.id)
+    setTimeout(() => setCopiedId(null), 2000)
+  }
+
+  const submit = async (amountToSend: number | null) => {
+    setSubmitting(true); setError('')
+    try {
+      const res = await fetch(`/api/mesa/${token}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          item_id: item.id,
+          guest_name: name.trim(),
+          guest_phone: phone ? `${phoneCode} ${phone}` : null,
+          amount: amountToSend,
+          message: message.trim() || null,
+        }),
+      })
+      if (!res.ok) { setError('No se pudo registrar. Intenta de nuevo.'); setSubmitting(false); return }
+      onReserved(item, amountToSend)
+      setStep('done')
+    } catch {
+      setError('Sin conexion. Intenta de nuevo.')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const handleContinue = () => {
+    if (!name.trim()) { setError('Escribe tu nombre'); return }
+    if (needsAmount && !(parseFloat(amount) > 0)) { setError('Escribe un monto'); return }
+    if (hasChooser) { setError(''); setStep('choose'); return }
+    submit(needsAmount ? parseFloat(amount) : null)
+  }
+
+  const handleChoice = (c: 'store' | 'deposit') => {
+    setChoice(c)
+    submit(c === 'deposit' ? item.price : null)
+  }
+
+  const inputCls = 'w-full rounded-lg border border-[#e0e0e0] bg-white px-3 py-2 text-sm text-[#1D1E20] outline-none transition focus:border-[#48C9B0]'
+  const labelCls = 'mb-1 block text-[11px] font-semibold uppercase tracking-wider text-[#888]'
+
+  return (
+    <>
+      <div onClick={onClose} className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm" />
+      <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4">
+        <div className="flex max-h-[90vh] w-full max-w-md flex-col overflow-hidden rounded-t-2xl bg-white shadow-xl sm:rounded-2xl">
+
+          {step === 'done' ? (
+            <div className="px-6 py-10 text-center">
+              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-[#f0fdfb] text-[#1a9e88]">
+                <Check size={28} strokeWidth={2.4} />
+              </div>
+              <h3 className="text-xl font-bold text-[#1D1E20]" style={josefin}>¡Gracias, {name.split(' ')[0]}!</h3>
+              <p className="mx-auto mt-2 max-w-xs text-sm leading-relaxed text-[#666]">
+                {isBuy
+                  ? (choice === 'deposit'
+                      ? <>Registramos tu regalo de <strong>{fmtMXN(item.price || 0)}</strong> para <strong>“{item.title}”</strong>.</>
+                      : <>Marcamos <strong>“{item.title}”</strong> como apartado por ti.</>)
+                  : <>Registramos tu {item.type === 'cash' ? 'sobre' : 'aporte'} de <strong>{fmtMXN(parseFloat(amount))}</strong>.</>}
+              </p>
+              {showPayment && (
+                <div className="mx-auto mt-5 max-w-xs rounded-xl border border-[#eee4d6] bg-[#FBF7F0] p-4 text-left">
+                  <div className="mb-2.5 flex items-center gap-1.5 text-[#1a9e88]">
+                    <Landmark size={14} />
+                    <p className="text-[11px] font-semibold uppercase tracking-wider">¿Cómo prefieres hacerlo llegar?</p>
+                  </div>
+                  <div className="space-y-2">
+                    {payMethods.map(m => {
+                      const isLink = m.type === 'mercado_pago' || m.type === 'paypal' ||
+                        (m.type === 'other' && /^https?:\/\//i.test(m.value))
+                      const title = m.type === 'other' && m.label ? m.label : PAY_LABEL[m.type]
+                      if (isLink) {
+                        return (
+                          <a
+                            key={m.id}
+                            href={m.value}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-[#48C9B0] px-3 py-2.5 text-xs font-semibold text-white transition hover:bg-[#3aa896]"
+                          >
+                            <ExternalLink size={13} /> Pagar con {title}
+                          </a>
+                        )
+                      }
+                      const sub = [m.bank, m.holder].filter(Boolean).join(' · ')
+                      return (
+                        <div key={m.id} className="rounded-lg border border-[#eee4d6] bg-white p-2.5">
+                          <p className="text-[11px] font-semibold text-[#1D1E20]">
+                            {title}{sub && <span className="ml-1 font-normal text-[#999]">{sub}</span>}
+                          </p>
+                          <div className="mt-1 flex items-center justify-between gap-2">
+                            <span className="break-all text-xs font-medium tabular-nums text-[#1D1E20]">{m.value}</span>
+                            <button
+                              onClick={() => copyValue(m)}
+                              className="flex shrink-0 items-center gap-1 rounded-md border border-[#e0e0e0] px-2 py-1 text-[10px] font-medium text-[#666] transition hover:border-[#48C9B0] hover:text-[#48C9B0]"
+                            >
+                              {copiedId === m.id ? <><Check size={11} /> Copiado</> : <><Copy size={11} /> Copiar</>}
+                            </button>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+              {isBuy && choice !== 'deposit' && item.external_url && (
+                <a
+                  href={item.external_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-5 inline-flex items-center gap-1.5 rounded-lg bg-[#48C9B0] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#3aa896]"
+                >
+                  <ExternalLink size={15} /> Ir a la tienda
+                </a>
+              )}
+              <button onClick={onClose} className="mt-3 block w-full rounded-lg px-4 py-2 text-sm font-medium text-[#666] transition hover:bg-[#f5f5f5]">
+                Volver a la mesa
+              </button>
+            </div>
+          ) : step === 'choose' ? (
+            <div className="px-5 py-6">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-[#48C9B0]">Vas a regalar</p>
+              <h3 className="truncate text-base font-bold text-[#1D1E20]">{item.title}</h3>
+              <p className="mt-3 text-sm text-[#666]">¿Cómo prefieres hacerlo?</p>
+
+              <div className="mt-3 space-y-2.5">
+                <button
+                  onClick={() => handleChoice('store')}
+                  disabled={submitting}
+                  className="flex w-full items-start gap-3 rounded-xl border border-[#e8e8e8] bg-white p-3.5 text-left transition hover:border-[#48C9B0] hover:bg-[#f0fdfb] disabled:opacity-50"
+                >
+                  <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#f0fdfb] text-[#1a9e88]">
+                    <ExternalLink size={16} />
+                  </span>
+                  <span>
+                    <span className="block text-sm font-semibold text-[#1D1E20]">Lo compro yo en la tienda</span>
+                    <span className="mt-0.5 block text-xs leading-relaxed text-[#888]">
+                      Te llevamos al link del producto para que lo compres directo.
+                    </span>
+                  </span>
+                </button>
+
+                <button
+                  onClick={() => handleChoice('deposit')}
+                  disabled={submitting}
+                  className="flex w-full items-start gap-3 rounded-xl border border-[#e8e8e8] bg-white p-3.5 text-left transition hover:border-[#48C9B0] hover:bg-[#f0fdfb] disabled:opacity-50"
+                >
+                  <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#f0fdfb] text-[#1a9e88]">
+                    <Landmark size={16} />
+                  </span>
+                  <span>
+                    <span className="block text-sm font-semibold text-[#1D1E20]">Les deposito el monto · {fmtMXN(item.price || 0)}</span>
+                    <span className="mt-0.5 block text-xs leading-relaxed text-[#888]">
+                      Les haces llegar el dinero y ellos lo compran, sin líos de envíos o direcciones.
+                    </span>
+                  </span>
+                </button>
+              </div>
+
+              {error && <p className="mt-3 text-xs text-[#cc3333]">{error}</p>}
+
+              <button
+                onClick={() => setStep('form')}
+                disabled={submitting}
+                className="mt-3 block w-full rounded-lg px-4 py-2 text-sm font-medium text-[#666] transition hover:bg-[#f5f5f5] disabled:opacity-50"
+              >
+                Volver
+              </button>
+            </div>
+          ) : (
+            <>
+              <div className="flex shrink-0 items-start justify-between border-b border-[#f0f0f0] px-5 py-4">
+                <div className="min-w-0">
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-[#48C9B0]">
+                    {isBuy ? 'Vas a apartar' : item.type === 'cash' ? 'Dejar un sobre' : 'Aportar a'}
+                  </p>
+                  <h3 className="truncate text-base font-bold text-[#1D1E20]">{item.title}</h3>
+                </div>
+                <button onClick={onClose} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[#aaa] transition hover:bg-[#f5f5f5]">
+                  <X size={16} />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto px-5 py-4">
+                <div className="space-y-4">
+                  <div>
+                    <label className={labelCls}>¿Cómo te firmamos?</label>
+                    <input className={inputCls} value={name} onChange={e => setName(e.target.value)} placeholder="Ej. Familia Rodríguez" />
+                  </div>
+
+                  {needsAmount && (
+                    <div>
+                      <label className={labelCls}>{item.type === 'cash' ? 'Monto del sobre (MXN)' : 'Monto a aportar (MXN)'}</label>
+                      <input
+                        className={`${inputCls} tabular-nums`}
+                        inputMode="decimal"
+                        value={amount}
+                        onChange={e => {
+                          const c = e.target.value.replace(/[^0-9.]/g, '')
+                          if (c.split('.').length > 2) return
+                          setAmount(c)
+                        }}
+                        placeholder="1500"
+                      />
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {[500, 1000, 2500, 5000].map(v => (
+                          <button key={v} type="button" onClick={() => setAmount(String(v))}
+                            className="rounded-full border border-[#e0e0e0] bg-white px-2.5 py-1 text-[11px] text-[#555] transition hover:border-[#48C9B0] hover:text-[#48C9B0]">
+                            {fmtMXN(v)}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <div>
+                    <label className={labelCls}>Tu WhatsApp</label>
+                    <div className="flex gap-2">
+                      <select
+                        value={phoneCode}
+                        onChange={e => setPhoneCode(e.target.value)}
+                        className="w-20 shrink-0 rounded-lg border border-[#e0e0e0] bg-white px-2 py-2 text-sm tabular-nums text-[#1D1E20] outline-none transition focus:border-[#48C9B0]"
+                      >
+                        {PHONE_COUNTRY_CODES.map(c => (
+                          <option key={c.code} value={c.code}>{c.code}</option>
+                        ))}
+                      </select>
+                      <input
+                        className={`${inputCls} tabular-nums`}
+                        type="tel"
+                        inputMode="numeric"
+                        value={
+                          phone.length <= 2 ? phone
+                          : phone.length <= 6 ? `${phone.slice(0, 2)} ${phone.slice(2)}`
+                          : phone.length <= 10 ? `${phone.slice(0, 2)} ${phone.slice(2, 6)} ${phone.slice(6)}`
+                          : `${phone.slice(0, 2)} ${phone.slice(2, 6)} ${phone.slice(6, 10)} ${phone.slice(10)}`
+                        }
+                        onChange={e => setPhone(e.target.value.replace(/\D/g, '').slice(0, 12))}
+                        placeholder="55 1234 5678"
+                      />
+                    </div>
+                    <p className="mt-1 text-[10px] text-[#aaa]">Sin lada, solo tu número. Para que los anfitriones puedan agradecerte.</p>
+                  </div>
+
+                  <div>
+                    <label className={labelCls}>Mensaje para los novios <span className="font-normal text-[#bbb]">(opcional)</span></label>
+                    <textarea className={`${inputCls} resize-none`} rows={2} value={message} onChange={e => setMessage(e.target.value)} placeholder="Unas palabras de felicitación..." />
+                  </div>
+
+                  {error && <p className="text-xs text-[#cc3333]">{error}</p>}
+                </div>
+              </div>
+
+              <div className="flex shrink-0 items-center justify-end gap-2 border-t border-[#f0f0f0] bg-[#fafafa] px-5 py-3">
+                <button onClick={onClose} disabled={submitting} className="rounded-lg px-4 py-2 text-xs font-medium text-[#666] transition hover:bg-[#f0f0f0] disabled:opacity-50">
+                  Cancelar
+                </button>
+                <button onClick={handleContinue} disabled={submitting} className="rounded-lg bg-[#48C9B0] px-4 py-2 text-xs font-semibold text-white transition hover:bg-[#3aa896] disabled:opacity-50">
+                  {submitting ? 'Enviando...' : hasChooser ? 'Siguiente' : 'Confirmar'}
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </>
+  )
+}
