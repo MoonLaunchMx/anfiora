@@ -90,6 +90,7 @@ export type EventSettings = {
   registry_token: string | null
   registry_payment_info: RegistryPaymentInfo | null
   registry_external_links: RegistryExternalLink[] | null
+  enabled_features: Partial<Record<'mesas' | 'regalos' | 'album' | 'playlist' | 'comida', boolean>> | null
   created_at: string
   updated_at: string
 }
