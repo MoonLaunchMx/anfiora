@@ -1,10 +1,14 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { Music, Clock, Plus, MessageSquareText, ExternalLink, Trophy } from 'lucide-react'
+import { QRCodeCanvas } from 'qrcode.react'
+import { Music, Clock, Plus, MessageSquareText, ExternalLink, Trophy, Heart, Settings, Download, ListMusic } from 'lucide-react'
 import StatsCollapse, { StatsToggleButton, useStatsToggle } from '@/app/components/ui/StatsCollapse'
+import { TabToggle, type TabItem } from '@/app/components/ui/TabToggle'
+import HostSongsTab from './HostSongsTab'
+import { exportDjToExcel, exportDjToPDF, exportDjToM3U, type DjExportData } from './lib/exports'
 import {
   DndContext,
   closestCenter,
@@ -37,6 +41,14 @@ interface Song {
   thumbnail: string | null
   preview_url: string | null
   duration_ms: number | null
+  is_host_pick: boolean | null
+}
+
+interface EventInfo {
+  name: string
+  event_date: string | null
+  host_name: string | null
+  host_name_2: string | null
 }
 
 function generateToken(length = 10): string {
@@ -262,6 +274,8 @@ function DragCard({ song }: { song: Song }) {
   )
 }
 
+const LIMIT_OPTIONS = [1, 3, 5, 10, 0]  // 0 = sin limite
+
 export default function PlaylistPlannerPage() {
   const { id } = useParams()
 
@@ -271,6 +285,8 @@ export default function PlaylistPlannerPage() {
   const [allSongs, setAllSongs]           = useState<Song[]>([])
   const [categories, setCategories]       = useState<string[]>([])
   const [playlistToken, setPlaylistToken] = useState<string | null>(null)
+  const [maxSongs, setMaxSongs]           = useState<number | null>(null)
+  const [eventInfo, setEventInfo]         = useState<EventInfo | null>(null)
   const [loading, setLoading]             = useState(true)
   const [saving, setSaving]               = useState(false)
   const [filterCat, setFilterCat]         = useState('todas')
@@ -279,8 +295,10 @@ export default function PlaylistPlannerPage() {
   const [newCat, setNewCat]               = useState('')
   const [addingCat, setAddingCat]         = useState(false)
   const [copied, setCopied]               = useState(false)
-  const [mobileTab, setMobileTab]         = useState<'playlist' | 'config'>('playlist')
+  const [tab, setTab]                     = useState('playlist')
+  const [showExportMenu, setShowExportMenu] = useState(false)
   const [activeDragId, setActiveDragId]   = useState<string | null>(null)
+  const exportRef                         = useRef<HTMLDivElement>(null)
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -289,22 +307,42 @@ export default function PlaylistPlannerPage() {
 
   useEffect(() => { loadData() }, [])
 
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (exportRef.current && !exportRef.current.contains(e.target as Node)) {
+        setShowExportMenu(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
   const loadData = async () => {
-    const [{ data: settingsData }, { data: songsData }] = await Promise.all([
-      supabase.from('event_settings').select('playlist_categories, playlist_token').eq('event_id', id).single(),
+    const [{ data: settingsData }, { data: songsData }, { data: eventData }] = await Promise.all([
+      supabase.from('event_settings').select('playlist_categories, playlist_token, playlist_max_songs').eq('event_id', id).single(),
       supabase.from('song_recommendations').select('*').eq('event_id', id).order('position', { ascending: true }),
+      supabase.from('events').select('name, event_date, host_name, host_name_2').eq('id', id).single(),
     ])
     if (settingsData) {
       setCategories(Array.isArray(settingsData.playlist_categories) ? settingsData.playlist_categories : [])
       setPlaylistToken(settingsData.playlist_token || null)
+      setMaxSongs(settingsData.playlist_max_songs ?? null)
     }
     setAllSongs(songsData || [])
+    setEventInfo(eventData || null)
     setLoading(false)
   }
 
   const savePlaylistSettings = async (token: string | null, cats: string[]) => {
     await supabase.from('event_settings')
       .update({ playlist_token: token, playlist_categories: cats })
+      .eq('event_id', id)
+  }
+
+  const saveMaxSongs = async (n: number) => {
+    setMaxSongs(n)
+    await supabase.from('event_settings')
+      .update({ playlist_max_songs: n })
       .eq('event_id', id)
   }
 
@@ -341,16 +379,27 @@ export default function PlaylistPlannerPage() {
     await savePlaylistSettings(playlistToken, updated)
   }
 
+  // ─── Derivados: invitados vs novios ────────────────────────────
+  const guestSongs = allSongs.filter(s => !s.is_host_pick)
+  const hostSongs  = allSongs
+    .filter(s => !!s.is_host_pick)
+    .sort((a, b) => a.created_at.localeCompare(b.created_at))
+
+  const hostLabel = eventInfo?.host_name && eventInfo?.host_name_2
+    ? `${eventInfo.host_name} & ${eventInfo.host_name_2}`
+    : eventInfo?.host_name || 'Los novios'
+
   const handleDragStart = (event: DragStartEvent) => setActiveDragId(event.active.id as string)
 
   const handleDragEnd = async (event: DragEndEvent) => {
     setActiveDragId(null)
     const { active, over } = event
     if (!over || active.id === over.id) return
-    const oldIndex = allSongs.findIndex(s => s.id === active.id)
-    const newIndex = allSongs.findIndex(s => s.id === over.id)
-    const reordered = arrayMove(allSongs, oldIndex, newIndex).map((s, i) => ({ ...s, position: i }))
-    setAllSongs(reordered)
+    const oldIndex = guestSongs.findIndex(s => s.id === active.id)
+    const newIndex = guestSongs.findIndex(s => s.id === over.id)
+    if (oldIndex < 0 || newIndex < 0) return
+    const reordered = arrayMove(guestSongs, oldIndex, newIndex).map((s, i) => ({ ...s, position: i }))
+    setAllSongs([...hostSongs, ...reordered])
     setSaving(true)
     await Promise.all(reordered.map(s =>
       supabase.from('song_recommendations').update({ position: s.position }).eq('id', s.id)
@@ -364,15 +413,44 @@ export default function PlaylistPlannerPage() {
     setEditingNoteId(null)
   }
 
-  // ─── Métricas ──────────────────────────────────────────────
-  const totalSongs      = allSongs.length
+  const removeHostSong = async (songId: string) => {
+    await supabase.from('song_recommendations').delete().eq('id', songId)
+    setAllSongs(prev => prev.filter(s => s.id !== songId))
+  }
+
+  // ─── Export DJ: novios primero, luego invitados en su orden ────
+  const buildExportData = (): DjExportData => ({
+    eventName: eventInfo?.name || 'evento',
+    eventDate: eventInfo?.event_date || null,
+    songs: [...hostSongs, ...guestSongs].map(s => ({
+      song_title: s.song_title,
+      artist: s.artist,
+      category: s.category,
+      guest_name: s.guest_name,
+      is_host_pick: !!s.is_host_pick,
+      duration_ms: s.duration_ms,
+      spotify_url: s.spotify_url,
+      notes: s.notes,
+    })),
+  })
+
+  const handleExport = (format: 'excel' | 'pdf' | 'm3u') => {
+    const data = buildExportData()
+    if (format === 'excel') exportDjToExcel(data)
+    if (format === 'pdf') exportDjToPDF(data)
+    if (format === 'm3u') exportDjToM3U(data)
+    setShowExportMenu(false)
+  }
+
+  // ─── Métricas ──────────────────────────────────────────────────
+  const totalSongs      = guestSongs.length
   const totalDurationMs = allSongs.reduce((acc, s) => acc + (s.duration_ms || 0), 0)
-  const durationLabel   = totalSongs > 0 ? formatTotalDuration(totalDurationMs) : '0m'
+  const durationLabel   = formatTotalDuration(totalDurationMs)
 
   // Agrupa canciones por título+artista para detectar repeticiones (Top 5)
   const songCounts = (() => {
     const map = new Map<string, { title: string; artist: string; count: number }>()
-    for (const s of allSongs) {
+    for (const s of guestSongs) {
       const key = `${s.song_title.toLowerCase().trim()}|${s.artist.toLowerCase().trim()}`
       const existing = map.get(key)
       if (existing) existing.count++
@@ -383,9 +461,9 @@ export default function PlaylistPlannerPage() {
   const repeatedSongs = songCounts.filter(s => s.count > 1)
   const top5Repeated  = repeatedSongs.slice(0, 5)
 
-  const activeDragSong = activeDragId ? allSongs.find(s => s.id === activeDragId) : null
+  const activeDragSong = activeDragId ? guestSongs.find(s => s.id === activeDragId) : null
 
-  const filtered = allSongs.filter(s => {
+  const filtered = guestSongs.filter(s => {
     const matchCat    = filterCat === 'todas' || s.category === filterCat || (filterCat === '__none__' && !s.category)
     const matchSearch = search === '' ||
       s.song_title.toLowerCase().includes(search.toLowerCase()) ||
@@ -395,6 +473,12 @@ export default function PlaylistPlannerPage() {
   })
 
   if (loading) return <div className="p-8 text-sm text-[#666]">Cargando playlist...</div>
+
+  const TABS: TabItem[] = [
+    { key: 'playlist', label: 'Playlist', icon: ListMusic, badge: guestSongs.length },
+    { key: 'nuestras', label: 'Nuestras canciones', shortLabel: 'Nuestras', icon: Heart, badge: hostSongs.length },
+    { key: 'config', label: 'Configuración', shortLabel: 'Config', icon: Settings },
+  ]
 
   // Stats: solo canciones + duración
   const StatsCards = () => (
@@ -528,122 +612,163 @@ export default function PlaylistPlannerPage() {
     </div>
   )
 
-  const MobileConfigPanel = () => (
-    <div className="flex flex-col gap-5">
-      <div>
+  const ExportButton = () => (
+    <div ref={exportRef} className="relative shrink-0">
+      <button
+        onClick={() => setShowExportMenu(v => !v)}
+        disabled={allSongs.length === 0}
+        className="flex items-center gap-1.5 rounded-lg bg-[#48C9B0] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#3ab89f] disabled:opacity-40"
+      >
+        <Download size={14} />
+        <span className="hidden sm:inline">Descargar para DJ</span>
+        <span className="sm:hidden">DJ</span>
+      </button>
+      {showExportMenu && (
+        <div className="absolute right-0 top-full z-30 mt-1 w-44 overflow-hidden rounded-xl border border-[#e8e8e8] bg-white py-1 shadow-lg">
+          <button onClick={() => handleExport('excel')} className="block w-full px-3.5 py-2 text-left text-xs text-[#1D1E20] transition hover:bg-[#f0fdfb]">
+            Excel (.xlsx)
+          </button>
+          <button onClick={() => handleExport('pdf')} className="block w-full px-3.5 py-2 text-left text-xs text-[#1D1E20] transition hover:bg-[#f0fdfb]">
+            PDF
+          </button>
+          <button onClick={() => handleExport('m3u')} className="block w-full px-3.5 py-2 text-left text-xs text-[#1D1E20] transition hover:bg-[#f0fdfb]">
+            Setlist M3U (.m3u8)
+          </button>
+        </div>
+      )}
+    </div>
+  )
+
+  const ConfigTab = () => (
+    <div className="mx-auto flex w-full max-w-lg flex-col gap-4">
+
+      {/* Link + QR */}
+      <div className="rounded-xl border border-[#e8e8e8] bg-white p-4">
         <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-[#999]">Link para invitados</p>
         {!playlistToken ? (
           <button
             onClick={handleGenerateToken}
-            className="rounded-lg border border-dashed border-[#48C9B0] bg-[#f0fdfb] px-3 py-1.5 text-xs font-medium text-[#1a9e88]"
+            className="rounded-lg border border-dashed border-[#48C9B0] bg-[#f0fdfb] px-3 py-1.5 text-xs font-medium text-[#1a9e88] transition hover:bg-[#e0faf5]"
           >
             + Generar link
           </button>
         ) : (
-          <div className="flex flex-col gap-2">
-            <span className="truncate rounded-lg border border-dashed border-[#48C9B0] bg-[#f0fdfb] px-2.5 py-1.5 text-xs text-[#0F6E56]">
+          <div className="flex flex-col items-center gap-3">
+            <div className="rounded-xl border border-[#e8e8e8] bg-white p-4">
+              <QRCodeCanvas value={playlistUrl || ''} size={140} />
+            </div>
+            <span className="w-full truncate rounded-lg border border-dashed border-[#48C9B0] bg-[#f0fdfb] px-2.5 py-1.5 text-center text-xs text-[#0F6E56]">
               {playlistUrl}
             </span>
             <button
               onClick={copyLink}
-              className="rounded-lg bg-[#48C9B0] px-3 py-1.5 text-xs font-semibold text-white"
+              className="w-full rounded-lg bg-[#48C9B0] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#3ab89f]"
             >
               {copied ? '¡Copiado!' : 'Copiar link'}
             </button>
           </div>
         )}
       </div>
-      <StageManager />
+
+      {/* Límite por invitado */}
+      <div className="rounded-xl border border-[#e8e8e8] bg-white p-4">
+        <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-[#999]">Canciones por invitado</p>
+        <p className="mb-3 text-xs text-[#888]">Cuántas canciones puede recomendar cada invitado.</p>
+        <div className="flex flex-wrap gap-1.5">
+          {LIMIT_OPTIONS.map(n => {
+            const active = (maxSongs ?? 3) === n
+            return (
+              <button
+                key={n}
+                onClick={() => saveMaxSongs(n)}
+                className={`rounded-full border px-3.5 py-1.5 text-xs font-medium transition
+                  ${active
+                    ? 'border-[#48C9B0] bg-[#48C9B0] text-white'
+                    : 'border-[#e0e0e0] bg-white text-[#888] hover:border-[#48C9B0] hover:text-[#48C9B0]'}`}
+              >
+                {n === 0 ? 'Sin límite' : n}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* Etapas */}
+      <div className="rounded-xl border border-[#e8e8e8] bg-white p-4">
+        <StageManager />
+      </div>
     </div>
   )
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-[#f4f4f4]">
 
-      {/* MOBILE */}
-      <div className="flex h-full flex-col sm:hidden">
-        <div className="shrink-0 border-b border-[#e8e8e8] bg-white px-4 py-3">
-          {/* Título + subtítulo + toggle */}
-          <div className="mb-3 flex items-start justify-between gap-3">
-            <div className="min-w-0 flex-1">
-              <h1 className="text-lg font-bold text-[#1D1E20]">Playlist</h1>
-              <p className="mt-0.5 text-xs text-[#888]">Canciones recomendadas por tus invitados</p>
-            </div>
-            <div className="shrink-0 pt-1">
-              <StatsToggleButton visible={statsVisible} onClick={toggleStats} />
-            </div>
+      {/* Zona fija: header + stats + tabs (mismo patrón que mesa de regalos) */}
+      <div className="shrink-0 border-b border-[#e8e8e8] bg-white px-4 py-3 sm:px-6 sm:py-4">
+        <div className="mb-3 flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <h1 className="text-lg font-bold text-[#1D1E20] sm:text-xl lg:text-2xl">Playlist</h1>
+            <p className="mt-0.5 text-xs text-[#888] sm:text-sm">La música del evento: invitados y novios</p>
           </div>
-
-          <StatsCollapse visible={statsVisible}>
-            <div className="flex flex-col gap-2">
-              <div className="grid grid-cols-2 gap-2">
-                <StatsCards />
+          <div className="flex shrink-0 items-center gap-2 pt-1">
+            {saving && <span className="hidden text-xs text-[#aaa] sm:inline">Guardando orden...</span>}
+            {tab === 'playlist' && (
+              <div className="sm:hidden">
+                <StatsToggleButton visible={statsVisible} onClick={toggleStats} />
               </div>
-              <TopRepeatedSection />
-            </div>
-          </StatsCollapse>
-        </div>
-
-        <div className="flex shrink-0 border-b border-[#e8e8e8] bg-white">
-          <button
-            onClick={() => setMobileTab('playlist')}
-            className={`flex-1 py-2.5 text-xs font-medium transition ${mobileTab === 'playlist' ? 'border-b-2 border-[#48C9B0] text-[#48C9B0]' : 'text-[#999]'}`}
-          >
-            Playlist
-          </button>
-          <button
-            onClick={() => setMobileTab('config')}
-            className={`flex-1 py-2.5 text-xs font-medium transition ${mobileTab === 'config' ? 'border-b-2 border-[#48C9B0] text-[#48C9B0]' : 'text-[#999]'}`}
-          >
-            Configuración
-          </button>
-        </div>
-        <div className="flex-1 overflow-y-auto p-4">
-          {mobileTab === 'playlist'
-            ? (totalSongs === 0 ? <EmptyState /> : <SongList />)
-            : <MobileConfigPanel />}
-        </div>
-      </div>
-
-      {/* DESKTOP */}
-      <div className="hidden h-full flex-col overflow-hidden sm:flex">
-
-        {/* Header + stats */}
-        <div className="shrink-0 border-b border-[#e8e8e8] bg-white px-6 py-4">
-          <div className="mb-3 flex items-start justify-between gap-3">
-            <div>
-              <h1 className="text-lg font-bold text-[#1D1E20] sm:text-xl lg:text-2xl">Playlist</h1>
-              <p className="mt-0.5 text-xs text-[#888] sm:text-sm">Canciones recomendadas por tus invitados</p>
-            </div>
-            {saving && <span className="text-xs text-[#aaa]">Guardando orden...</span>}
+            )}
           </div>
-
-          {/* Si hay top 5 → side-by-side en desktop. Si no → solo stats */}
-          {top5Repeated.length > 0 ? (
-            <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-              <div className="grid grid-cols-2 gap-3">
-                <StatsCards />
-              </div>
-              <TopRepeatedSection />
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 gap-3">
-              <StatsCards />
-            </div>
-          )}
         </div>
 
-        {/* Toolbar */}
-        <div className="shrink-0 border-b border-[#e8e8e8] bg-white px-6 py-2.5">
-          <div className="flex items-center gap-2">
+        {/* Stats solo en tab playlist */}
+        {tab === 'playlist' && (
+          <>
+            {/* Mobile: colapsables */}
+            <div className="sm:hidden">
+              <StatsCollapse visible={statsVisible}>
+                <div className="mb-3 flex flex-col gap-2">
+                  <div className="grid grid-cols-2 gap-2">
+                    <StatsCards />
+                  </div>
+                  <TopRepeatedSection />
+                </div>
+              </StatsCollapse>
+            </div>
+            {/* Desktop: siempre visibles */}
+            <div className="mb-3 hidden sm:block">
+              {top5Repeated.length > 0 ? (
+                <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+                  <div className="grid grid-cols-2 gap-3">
+                    <StatsCards />
+                  </div>
+                  <TopRepeatedSection />
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-3">
+                  <StatsCards />
+                </div>
+              )}
+            </div>
+          </>
+        )}
+
+        <div className="flex items-center justify-between gap-2">
+          <div className="min-w-0 overflow-x-auto">
+            <TabToggle tabs={TABS} active={tab} onChange={setTab} />
+          </div>
+          {tab === 'playlist' && <ExportButton />}
+        </div>
+
+        {/* Toolbar del tab playlist */}
+        {tab === 'playlist' && (
+          <div className="mt-2.5 flex items-center gap-2">
             <input
               type="text"
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="Buscar canción, artista..."
-              className="w-52 shrink-0 rounded-lg border border-[#d0d0d0] bg-white px-3 py-1.5 text-xs text-[#1D1E20] outline-none transition focus:border-[#48C9B0]"
+              className="w-full rounded-lg border border-[#d0d0d0] bg-white px-3 py-1.5 text-xs text-[#1D1E20] outline-none transition focus:border-[#48C9B0] sm:w-52"
             />
-
             <select
               value={filterCat}
               onChange={e => setFilterCat(e.target.value)}
@@ -653,40 +778,23 @@ export default function PlaylistPlannerPage() {
               {categories.map(c => <option key={c} value={c}>{c}</option>)}
               <option value="__none__">Sin etapa</option>
             </select>
-
-            <div className="h-4 w-px shrink-0 bg-[#e8e8e8]" />
-
-            <div className="min-w-0 flex-1">
-              <StageManager compact />
-            </div>
-
-            <div className="h-4 w-px shrink-0 bg-[#e8e8e8]" />
-
-            {!playlistToken ? (
-              <button
-                onClick={handleGenerateToken}
-                className="shrink-0 rounded-lg border border-dashed border-[#48C9B0] bg-[#f0fdfb] px-3 py-1.5 text-xs font-medium text-[#1a9e88] transition hover:bg-[#e0faf5]"
-              >
-                + Generar link
-              </button>
-            ) : (
-              <div className="flex shrink-0 items-center gap-2">
-                <span className="max-w-[180px] truncate text-xs text-[#48C9B0]">{playlistUrl}</span>
-                <button
-                  onClick={copyLink}
-                  className="shrink-0 rounded-lg bg-[#48C9B0] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#3ab89f]"
-                >
-                  {copied ? '¡Copiado!' : 'Copiar link'}
-                </button>
-              </div>
-            )}
           </div>
-        </div>
+        )}
+      </div>
 
-        {/* List */}
-        <div className="flex-1 overflow-y-auto px-6 py-4">
-          {totalSongs === 0 ? <EmptyState /> : <SongList />}
-        </div>
+      {/* Zona scrolleable: contenido del tab */}
+      <div className="flex-1 overflow-y-auto p-4 sm:px-6">
+        {tab === 'playlist' && (totalSongs === 0 ? <EmptyState /> : <SongList />)}
+        {tab === 'nuestras' && (
+          <HostSongsTab
+            eventId={id as string}
+            hostLabel={hostLabel}
+            songs={hostSongs}
+            onAdded={song => setAllSongs(prev => [...prev, song as Song])}
+            onRemove={removeHostSong}
+          />
+        )}
+        {tab === 'config' && <ConfigTab />}
       </div>
     </div>
   )
