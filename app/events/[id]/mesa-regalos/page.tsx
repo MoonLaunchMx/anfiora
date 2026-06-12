@@ -293,6 +293,37 @@ export default function MesaRegalosPage() {
         <div className="mb-4 flex justify-center overflow-x-auto sm:justify-start">
           <TabToggle tabs={TABS} active={tab} onChange={setTab} />
         </div>
+
+        {/* Toolbar de Regalos: filtros + agregar, fija como en las demas paginas */}
+        {tab === 'regalos' && (
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-wrap gap-1.5">
+              {([
+                { id: 'all',      label: 'Todos' },
+                { id: 'external', label: 'De tienda' },
+                { id: 'fund',     label: 'Fondos' },
+                { id: 'cash',     label: 'Sobres' },
+              ] as const).map(f => (
+                <button
+                  key={f.id}
+                  onClick={() => setFilter(f.id)}
+                  className={`rounded-full border px-3 py-1 text-xs font-medium transition
+                    ${filter === f.id
+                      ? 'border-[#48C9B0] bg-[#48C9B0] text-white'
+                      : 'border-[#e0e0e0] bg-white text-[#666] hover:border-[#48C9B0] hover:text-[#48C9B0]'}`}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={openAdd}
+              className="flex items-center gap-1.5 rounded-lg bg-[#48C9B0] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#3aa896]"
+            >
+              <Plus size={15} /> Agregar regalo
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Zona scrolleable: contenido del tab */}
@@ -301,34 +332,6 @@ export default function MesaRegalosPage() {
         {/* ── Tab: Regalos ── */}
         {tab === 'regalos' && (
           <>
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-              <div className="flex flex-wrap gap-1.5">
-                {([
-                  { id: 'all',      label: 'Todos' },
-                  { id: 'external', label: 'De tienda' },
-                  { id: 'fund',     label: 'Fondos' },
-                  { id: 'cash',     label: 'Sobres' },
-                ] as const).map(f => (
-                  <button
-                    key={f.id}
-                    onClick={() => setFilter(f.id)}
-                    className={`rounded-full border px-3 py-1 text-xs font-medium transition
-                      ${filter === f.id
-                        ? 'border-[#48C9B0] bg-[#48C9B0] text-white'
-                        : 'border-[#e0e0e0] bg-white text-[#666] hover:border-[#48C9B0] hover:text-[#48C9B0]'}`}
-                  >
-                    {f.label}
-                  </button>
-                ))}
-              </div>
-              <button
-                onClick={openAdd}
-                className="flex items-center gap-1.5 rounded-lg bg-[#48C9B0] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#3aa896]"
-              >
-                <Plus size={15} /> Agregar regalo
-              </button>
-            </div>
-
             {items.length === 0 ? (
               <div className="rounded-xl border border-dashed border-[#e0e0e0] bg-[#fafafa] px-6 py-12 text-center">
                 <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-white text-[#bbb]">
