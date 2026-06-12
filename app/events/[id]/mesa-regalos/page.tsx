@@ -362,7 +362,9 @@ export default function MesaRegalosPage() {
               <p className="mt-1 text-xs text-[#888]">Comparte tu link y aquí verás quién te apartó cada detalle.</p>
             </div>
           ) : (
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <>
+            {/* Cards mobile */}
+            <div className="grid gap-3 sm:grid-cols-2 lg:hidden">
               {reservations.map(r => {
                 const gift = itemById.get(r.item_id)
                 return (
@@ -405,6 +407,75 @@ export default function MesaRegalosPage() {
                 )
               })}
             </div>
+
+            {/* Tabla desktop */}
+            <div className="hidden overflow-hidden rounded-xl border border-[#e8e8e8] bg-white lg:block">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-[#e8e8e8] bg-[#f8f8f8] text-left text-[11px] uppercase tracking-wider text-[#888]">
+                    <th className="px-4 py-2.5 font-semibold">Invitado</th>
+                    <th className="px-4 py-2.5 font-semibold">Regalo</th>
+                    <th className="px-4 py-2.5 font-semibold">Monto</th>
+                    <th className="px-4 py-2.5 font-semibold">Agradecimiento</th>
+                    <th className="px-4 py-2.5 text-right font-semibold">WhatsApp</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#f0f0f0]">
+                  {reservations.map(r => {
+                    const gift = itemById.get(r.item_id)
+                    return (
+                      <tr key={r.id} className="transition hover:bg-[#fafafa]">
+                        <td className="px-4 py-3">
+                          <p className="font-semibold text-[#1D1E20]">{r.guest_name}</p>
+                          {r.guest_phone && <p className="text-xs tabular-nums text-[#888]">{r.guest_phone}</p>}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[#1D1E20]">{gift?.title || 'Regalo'}</span>
+                            <span className="shrink-0 rounded-full border border-[#e8e8e8] bg-[#f8f8f8] px-2 py-0.5 text-[10px] text-[#888]">
+                              {categoryLabel(gift?.category ?? null)}
+                            </span>
+                          </div>
+                          {r.message && <p className="mt-0.5 line-clamp-1 text-xs italic text-[#999]">“{r.message}”</p>}
+                        </td>
+                        <td className="px-4 py-3">
+                          {r.amount
+                            ? <span className="font-semibold tabular-nums text-[#1a9e88]">{fmtMXN(r.amount)}</span>
+                            : <span className="text-xs text-[#aaa]">Apartado</span>}
+                        </td>
+                        <td className="px-4 py-3">
+                          <button
+                            onClick={() => handleToggleThanked(r)}
+                            className={`flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-medium transition
+                              ${r.thanked
+                                ? 'border-[#c8ede7] bg-[#f0fdfb] text-[#1a9e88]'
+                                : 'border-[#e0e0e0] bg-white text-[#888] hover:border-[#48C9B0] hover:text-[#48C9B0]'}`}
+                          >
+                            {r.thanked ? <><Check size={12} /> Agradecido</> : 'Marcar agradecido'}
+                          </button>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex justify-end">
+                            {r.guest_phone ? (
+                              <button
+                                onClick={() => thankByWhatsApp(r, gift)}
+                                title="Agradecer por WhatsApp"
+                                className="flex h-9 w-9 items-center justify-center rounded-full border border-[#e8e8e8] bg-white text-[#25D366] transition hover:border-[#25D366] hover:bg-[#25D366] hover:text-white"
+                              >
+                                <FaWhatsapp size={18} />
+                              </button>
+                            ) : (
+                              <span className="text-xs text-[#ccc]">—</span>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+            </>
           )
         )}
 

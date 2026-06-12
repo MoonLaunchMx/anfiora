@@ -3,7 +3,7 @@
 import { Fragment, useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { Gift, Coins, Mail, ExternalLink, Check, X, Heart, Copy, Landmark } from 'lucide-react'
-import { GiftRegistryItem, RegistryPaymentMethod, normalizePaymentMethods, PHONE_COUNTRY_CODES } from '@/lib/types'
+import { GiftRegistryItem, RegistryPaymentMethod, normalizePaymentMethods, PHONE_COUNTRY_CODES, GIFT_CATEGORIES } from '@/lib/types'
 
 type Aggregates = Record<string, { count: number; sum: number; buyers: number }>
 type ReserveMode = 'buy' | 'contribute'
@@ -38,6 +38,7 @@ export default function MesaPublicaPage() {
   const [loading, setLoading]     = useState(true)
   const [notFound, setNotFound]   = useState(false)
   const [active, setActive]       = useState<{ item: GiftRegistryItem; mode: ReserveMode } | null>(null)
+  const [catFilter, setCatFilter] = useState('all')
 
   useEffect(() => {
     const load = async () => {
@@ -121,8 +122,30 @@ export default function MesaPublicaPage() {
             Esta mesa aun no tiene regalos.
           </p>
         ) : (
+          <>
+          {/* Filtro por categoria (solo las que existen en la mesa) */}
+          {(() => {
+            const present = GIFT_CATEGORIES.filter(c => items.some(it => it.category === c.id))
+            if (present.length < 2) return null
+            return (
+              <div className="mb-5 flex flex-wrap justify-center gap-2">
+                {[{ id: 'all', label: 'Todos' }, ...present].map(c => (
+                  <button
+                    key={c.id}
+                    onClick={() => setCatFilter(c.id)}
+                    className={`rounded-full border px-3.5 py-1.5 text-xs font-medium transition
+                      ${catFilter === c.id
+                        ? 'border-[#48C9B0] bg-[#48C9B0] text-white'
+                        : 'border-[#e0d9cc] bg-white text-[#888] hover:border-[#48C9B0] hover:text-[#48C9B0]'}`}
+                  >
+                    {c.label}
+                  </button>
+                ))}
+              </div>
+            )
+          })()}
           <div className="space-y-3 lg:columns-2 lg:gap-5 lg:space-y-0 xl:columns-3 2xl:columns-4">
-            {items.map((item, i) => {
+            {items.filter(it => catFilter === 'all' || it.category === catFilter).map((item, i) => {
               const a = agg[item.id] || { count: 0, sum: 0, buyers: 0 }
               // Meta de progreso: fondos usan target_amount; regalos de tienda usan su precio
               const goal = item.type === 'fund' ? item.target_amount : item.type === 'external' ? item.price : null
@@ -248,6 +271,7 @@ export default function MesaPublicaPage() {
               )
             })}
           </div>
+          </>
         )}
       </section>
 

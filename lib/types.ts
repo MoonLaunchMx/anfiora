@@ -95,6 +95,14 @@ export type EventSettings = {
 
 // ─── MESA DE REGALOS ─────────────────────────────────────────────────────────
 
+export const GIFT_CATEGORIES = [
+  { id: 'viajes',       label: 'Viajes' },
+  { id: 'hogar',        label: 'Hogar' },
+  { id: 'experiencias', label: 'Experiencias' },
+  { id: 'estilo',       label: 'Estilo de vida' },
+  { id: 'otro',         label: 'Otro' },
+] as const
+
 // Ladas para selects de telefono (MX primero, luego America y Europa)
 export const PHONE_COUNTRY_CODES: { code: string; label: string }[] = [
   { code: '+52',  label: 'México +52' },

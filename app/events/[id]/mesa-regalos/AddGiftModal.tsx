@@ -2,7 +2,9 @@
 
 import { useState, useEffect } from 'react'
 import { X, ExternalLink, Coins, Mail, Check } from 'lucide-react'
-import { GiftType, GiftRegistryItem } from '@/lib/types'
+import { GiftType, GiftRegistryItem, GIFT_CATEGORIES } from '@/lib/types'
+
+export { GIFT_CATEGORIES }
 
 function guessCategory(text: string): string | null {
   const t = text.toLowerCase()
@@ -12,14 +14,6 @@ function guessCategory(text: string): string | null {
   if (/(bici|reloj|ropa|zapato|perfume|gadget|audifono|audífono|camara|cámara|maquillaje)/.test(t)) return 'estilo'
   return null
 }
-
-export const GIFT_CATEGORIES = [
-  { id: 'viajes',       label: 'Viajes' },
-  { id: 'hogar',        label: 'Hogar' },
-  { id: 'experiencias', label: 'Experiencias' },
-  { id: 'estilo',       label: 'Estilo de vida' },
-  { id: 'otro',         label: 'Otro' },
-]
 
 export type NewGiftData = {
   type: GiftType
