@@ -231,6 +231,13 @@ export default function MesaRegalosPage() {
     setReservations(prev => prev.map(x => x.id === r.id ? { ...x, thanked: true } : x))
   }
 
+  const handleReceived = async (r: GiftReservation, gift: GiftRegistryItem | undefined) => {
+    if (r.guest_phone) window.open(waThanksUrl(r, gift), '_blank', 'noopener,noreferrer')
+    const thanked = r.guest_phone ? true : r.thanked
+    await supabase.from('gift_reservations').update({ purchased: true, thanked }).eq('id', r.id)
+    setReservations(prev => prev.map(x => x.id === r.id ? { ...x, purchased: true, thanked } : x))
+  }
+
   const publicUrl = token
     ? `${typeof window !== 'undefined' ? window.location.origin : ''}/mesa/${token}`
     : null
@@ -263,6 +270,7 @@ export default function MesaRegalosPage() {
     a + (i.type === 'fund' ? (i.target_amount || 0) : i.type === 'external' ? (i.price || 0) : 0), 0)
   const pctReceived    = expectedTotal > 0 ? Math.min(100, Math.round((totalIntent / expectedTotal) * 100)) : null
   const thankedCount   = reservations.filter(r => r.thanked).length
+  const receivedCount  = reservations.filter(r => r.purchased).length
   const pendingThanks  = reservations.length - thankedCount
   const categoryCount  = new Set(items.map(i => i.category || 'otro')).size
 
@@ -313,7 +321,7 @@ export default function MesaRegalosPage() {
                 </div>
               </div>
             ) : tab === 'recibidos' ? (
-              <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-5">
                 <div className="rounded-xl border border-[#e8e8e8] bg-white p-3">
                   <p className="text-[10px] font-semibold uppercase tracking-wider text-[#aaa]">Recibido</p>
                   <p className="mt-1 text-xl font-bold tabular-nums text-[#1a9e88]">
@@ -334,6 +342,12 @@ export default function MesaRegalosPage() {
                 <div className="rounded-xl border border-[#e8e8e8] bg-white p-3">
                   <p className="text-[10px] font-semibold uppercase tracking-wider text-[#aaa]">Agradecidos</p>
                   <p className="mt-1 text-xl font-bold tabular-nums text-[#1D1E20]">{thankedCount}</p>
+                </div>
+                <div className="rounded-xl border border-[#e8e8e8] bg-white p-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-[#aaa]">Entregados</p>
+                  <p className="mt-1 text-xl font-bold tabular-nums text-[#1D1E20]">
+                    {receivedCount}<span className="ml-1 text-xs font-medium tabular-nums text-[#aaa]">de {reservations.length}</span>
+                  </p>
                 </div>
               </div>
             ) : (
@@ -562,6 +576,20 @@ export default function MesaRegalosPage() {
                     {r.message && (
                       <p className="mt-1.5 line-clamp-1 pl-[60px] text-xs italic text-[#999]">“{r.message}”</p>
                     )}
+                    <div className="mt-2">
+                      {r.purchased ? (
+                        <span className="flex w-full items-center justify-center gap-1 rounded-lg border border-[#c8ede7] bg-[#f0fdfb] px-3 py-1.5 text-[11px] font-semibold text-[#1a9e88]">
+                          <Check size={12} /> Recibido
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => handleReceived(r, gift)}
+                          className="flex w-full items-center justify-center gap-1 rounded-lg bg-[#48C9B0] px-3 py-1.5 text-[11px] font-semibold text-white transition hover:bg-[#3aa896]"
+                        >
+                          <Gift size={12} /> Ya lo recibí
+                        </button>
+                      )}
+                    </div>
                   </div>
                 )
               })}
@@ -575,6 +603,7 @@ export default function MesaRegalosPage() {
                     <th className="px-4 py-2.5 font-semibold">Invitado</th>
                     <th className="px-4 py-2.5 font-semibold">Regalo</th>
                     <th className="px-4 py-2.5 font-semibold">Monto</th>
+                    <th className="px-4 py-2.5 font-semibold">Recibido</th>
                     <th className="px-4 py-2.5 font-semibold">Agradecimiento</th>
                     <th className="px-4 py-2.5 text-right font-semibold">WhatsApp</th>
                   </tr>
@@ -601,6 +630,20 @@ export default function MesaRegalosPage() {
                           {r.amount
                             ? <span className="font-semibold tabular-nums text-[#1a9e88]">{fmtMXN(r.amount)}</span>
                             : <span className="text-xs text-[#aaa]">Apartado</span>}
+                        </td>
+                        <td className="px-4 py-3">
+                          {r.purchased ? (
+                            <span className="flex w-fit items-center gap-1 rounded-full border border-[#c8ede7] bg-[#f0fdfb] px-2.5 py-1 text-[11px] font-medium text-[#1a9e88]">
+                              <Check size={12} /> Recibido
+                            </span>
+                          ) : (
+                            <button
+                              onClick={() => handleReceived(r, gift)}
+                              className="flex items-center gap-1 rounded-full bg-[#48C9B0] px-2.5 py-1 text-[11px] font-semibold text-white transition hover:bg-[#3aa896]"
+                            >
+                              Ya lo recibí
+                            </button>
+                          )}
                         </td>
                         <td className="px-4 py-3">
                           <button
