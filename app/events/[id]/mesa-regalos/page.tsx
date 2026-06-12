@@ -303,10 +303,12 @@ export default function MesaRegalosPage() {
               <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
                 <div className="rounded-xl border border-[#e8e8e8] bg-white p-3">
                   <p className="text-[10px] font-semibold uppercase tracking-wider text-[#aaa]">Recibido</p>
-                  <p className="mt-1 text-xl font-bold tabular-nums text-[#1a9e88]">{fmtMXN(totalIntent)}</p>
-                  {pctReceived !== null && (
-                    <p className="mt-0.5 text-[10px] tabular-nums text-[#aaa]">{pctReceived}% de {fmtMXN(expectedTotal)}</p>
-                  )}
+                  <p className="mt-1 text-xl font-bold tabular-nums text-[#1a9e88]">
+                    {fmtMXN(totalIntent)}
+                    {pctReceived !== null && (
+                      <span className="ml-1.5 text-xs font-medium tabular-nums text-[#aaa]">{pctReceived}%</span>
+                    )}
+                  </p>
                 </div>
                 <div className="rounded-xl border border-[#e8e8e8] bg-white p-3">
                   <p className="text-[10px] font-semibold uppercase tracking-wider text-[#aaa]">Invitados</p>
@@ -612,6 +614,8 @@ export default function MesaRegalosPage() {
         {/* ── Tab: Configuración ── */}
         {tab === 'config' && (
           <div className="grid items-start gap-4 lg:grid-cols-2">
+          {/* Columna izquierda: link publico + mesas externas */}
+          <div className="space-y-4">
           <div className="rounded-xl border border-[#e8e8e8] bg-white p-4">
             <div className="mb-1 flex items-center gap-2">
               <Link2 size={15} className="text-[#48C9B0]" />
@@ -654,67 +658,6 @@ export default function MesaRegalosPage() {
                 <Link2 size={14} /> Generar link
               </button>
             )}
-          </div>
-
-          <div className="rounded-xl border border-[#e8e8e8] bg-white p-4">
-            <div className="mb-1 flex items-center gap-2">
-              <Landmark size={15} className="text-[#48C9B0]" />
-              <h2 className="text-sm font-semibold text-[#1D1E20]">Cuenta para recibir regalos</h2>
-            </div>
-            <p className="mb-3 text-xs text-[#888]">
-              Estos métodos se muestran al invitado después de confirmar un aporte o sobre.
-            </p>
-
-            {payMethods.length > 0 && (
-              <div className="mb-3 divide-y divide-[#f0f0f0] rounded-lg border border-[#e8e8e8]">
-                {payMethods.map(m => {
-                  const meta = payTypeMeta(m.type)
-                  const masked = (m.type === 'transfer' || m.type === 'card')
-                    ? `•••• ${m.value.slice(-4)}`
-                    : m.value
-                  const line = m.type === 'other'
-                    ? m.label
-                    : [m.bank, m.holder].filter(Boolean).join(' · ')
-                  return (
-                    <div key={m.id} className="flex items-center gap-3 px-3 py-2.5">
-                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#f0fdfb] text-[#1a9e88]">
-                        {meta.icon}
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-xs font-semibold text-[#1D1E20]">
-                          {m.type === 'other' && m.label ? m.label : meta.label}
-                          {line && m.type !== 'other' && <span className="ml-1.5 font-normal text-[#888]">{line}</span>}
-                        </p>
-                        <p className="truncate text-[11px] tabular-nums text-[#888]">{masked}</p>
-                      </div>
-                      <div className="flex shrink-0 items-center gap-1">
-                        <button
-                          onClick={() => openEditMethod(m)}
-                          title="Editar"
-                          className="flex h-7 w-7 items-center justify-center rounded-md text-[#bbb] transition hover:bg-[#f5f5f5] hover:text-[#1D1E20]"
-                        >
-                          <Pencil size={13} />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteMethod(m.id)}
-                          title="Eliminar"
-                          className="flex h-7 w-7 items-center justify-center rounded-md text-[#bbb] transition hover:bg-[#fff0f0] hover:text-[#cc3333]"
-                        >
-                          <Trash2 size={13} />
-                        </button>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-
-            <button
-              onClick={openAddMethod}
-              className="flex items-center gap-1.5 rounded-lg bg-[#48C9B0] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#3aa896]"
-            >
-              <Plus size={14} /> Agregar método
-            </button>
           </div>
 
           <div className="rounded-xl border border-[#e8e8e8] bg-white p-4">
@@ -776,6 +719,69 @@ export default function MesaRegalosPage() {
               </button>
             </div>
             {extError && <p className="mt-2 text-xs text-[#cc3333]">{extError}</p>}
+          </div>
+          </div>
+
+          {/* Columna derecha: metodos de pago */}
+          <div className="rounded-xl border border-[#e8e8e8] bg-white p-4">
+            <div className="mb-1 flex items-center gap-2">
+              <Landmark size={15} className="text-[#48C9B0]" />
+              <h2 className="text-sm font-semibold text-[#1D1E20]">Cuenta para recibir regalos</h2>
+            </div>
+            <p className="mb-3 text-xs text-[#888]">
+              Estos métodos se muestran al invitado después de confirmar un aporte o sobre.
+            </p>
+
+            {payMethods.length > 0 && (
+              <div className="mb-3 divide-y divide-[#f0f0f0] rounded-lg border border-[#e8e8e8]">
+                {payMethods.map(m => {
+                  const meta = payTypeMeta(m.type)
+                  const masked = (m.type === 'transfer' || m.type === 'card')
+                    ? `•••• ${m.value.slice(-4)}`
+                    : m.value
+                  const line = m.type === 'other'
+                    ? m.label
+                    : [m.bank, m.holder].filter(Boolean).join(' · ')
+                  return (
+                    <div key={m.id} className="flex items-center gap-3 px-3 py-2.5">
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#f0fdfb] text-[#1a9e88]">
+                        {meta.icon}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-semibold text-[#1D1E20]">
+                          {m.type === 'other' && m.label ? m.label : meta.label}
+                          {line && m.type !== 'other' && <span className="ml-1.5 font-normal text-[#888]">{line}</span>}
+                        </p>
+                        <p className="truncate text-[11px] tabular-nums text-[#888]">{masked}</p>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-1">
+                        <button
+                          onClick={() => openEditMethod(m)}
+                          title="Editar"
+                          className="flex h-7 w-7 items-center justify-center rounded-md text-[#bbb] transition hover:bg-[#f5f5f5] hover:text-[#1D1E20]"
+                        >
+                          <Pencil size={13} />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteMethod(m.id)}
+                          title="Eliminar"
+                          className="flex h-7 w-7 items-center justify-center rounded-md text-[#bbb] transition hover:bg-[#fff0f0] hover:text-[#cc3333]"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+
+            <button
+              onClick={openAddMethod}
+              className="flex items-center gap-1.5 rounded-lg bg-[#48C9B0] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#3aa896]"
+            >
+              <Plus size={14} /> Agregar método
+            </button>
           </div>
           </div>
         )}
