@@ -2,7 +2,7 @@
 
 import { Fragment, useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
-import { Gift, Coins, Mail, ExternalLink, Check, X, Heart, Copy, Landmark } from 'lucide-react'
+import { Gift, Coins, Mail, ExternalLink, Check, X, Heart, Copy, Landmark, MapPin } from 'lucide-react'
 import { GiftRegistryItem, RegistryPaymentMethod, RegistryExternalLink, normalizePaymentMethods, PHONE_COUNTRY_CODES, GIFT_CATEGORIES } from '@/lib/types'
 
 type Aggregates = Record<string, { count: number; sum: number; buyers: number }>
@@ -346,6 +346,7 @@ function ReserveModal({
   const [choice, setChoice]       = useState<'store' | 'deposit' | null>(null)
   const [error, setError]         = useState('')
   const [copiedId, setCopiedId]   = useState<string | null>(null)
+  const [shippingAddress, setShippingAddress] = useState<string | null>(null)
 
   const isBuy = item.type === 'external' && mode === 'buy'
   const needsAmount = !isBuy
@@ -356,6 +357,13 @@ function ReserveModal({
   const copyValue = async (m: RegistryPaymentMethod) => {
     await navigator.clipboard.writeText(m.value)
     setCopiedId(m.id)
+    setTimeout(() => setCopiedId(null), 2000)
+  }
+
+  const copyAddress = async () => {
+    if (!shippingAddress) return
+    await navigator.clipboard.writeText(shippingAddress)
+    setCopiedId('address')
     setTimeout(() => setCopiedId(null), 2000)
   }
 
@@ -374,6 +382,8 @@ function ReserveModal({
         }),
       })
       if (!res.ok) { setError('No se pudo registrar. Intenta de nuevo.'); setSubmitting(false); return }
+      const data = await res.json().catch(() => null)
+      setShippingAddress(data?.shipping_address || null)
       onReserved(item, amountToSend)
       setStep('done')
     } catch {
@@ -385,6 +395,7 @@ function ReserveModal({
 
   const handleContinue = () => {
     if (!name.trim()) { setError('Escribe tu nombre'); return }
+    if (phone.length < 8) { setError('Déjanos tu WhatsApp para poder agradecerte'); return }
     if (needsAmount && !(parseFloat(amount) > 0)) { setError('Escribe un monto'); return }
     if (hasChooser) { setError(''); setStep('choose'); return }
     submit(needsAmount ? parseFloat(amount) : null)
@@ -462,6 +473,21 @@ function ReserveModal({
                   </div>
                 </div>
               )}
+              {isBuy && choice !== 'deposit' && shippingAddress && (
+                <div className="mx-auto mt-5 max-w-xs rounded-xl border border-[#eee4d6] bg-[#FBF7F0] p-4 text-left">
+                  <div className="mb-2 flex items-center gap-1.5 text-[#1a9e88]">
+                    <MapPin size={14} />
+                    <p className="text-[11px] font-semibold uppercase tracking-wider">Envíalo a esta dirección</p>
+                  </div>
+                  <p className="whitespace-pre-line text-xs leading-relaxed text-[#1D1E20]">{shippingAddress}</p>
+                  <button
+                    onClick={copyAddress}
+                    className="mt-2.5 flex items-center gap-1 rounded-md border border-[#e0d9cc] bg-white px-2 py-1 text-[10px] font-medium text-[#666] transition hover:border-[#48C9B0] hover:text-[#48C9B0]"
+                  >
+                    {copiedId === 'address' ? <><Check size={11} /> Copiada</> : <><Copy size={11} /> Copiar dirección</>}
+                  </button>
+                </div>
+              )}
               {isBuy && choice !== 'deposit' && item.external_url && (
                 <a
                   href={item.external_url}
@@ -494,7 +520,7 @@ function ReserveModal({
                   <span>
                     <span className="block text-sm font-semibold text-[#1D1E20]">Lo compro yo en la tienda</span>
                     <span className="mt-0.5 block text-xs leading-relaxed text-[#888]">
-                      Te llevamos al link del producto para que lo compres directo.
+                      Te llevamos al link del producto y te mostramos a dónde enviarlo.
                     </span>
                   </span>
                 </button>
