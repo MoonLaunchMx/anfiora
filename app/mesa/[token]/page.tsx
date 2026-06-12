@@ -3,7 +3,7 @@
 import { Fragment, useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { Gift, Coins, Mail, ExternalLink, Check, X, Heart, Copy, Landmark, MapPin } from 'lucide-react'
-import { GiftRegistryItem, RegistryPaymentMethod, RegistryExternalLink, normalizePaymentMethods, PHONE_COUNTRY_CODES, GIFT_CATEGORIES } from '@/lib/types'
+import { GiftRegistryItem, RegistryPaymentMethod, RegistryExternalLink, normalizePaymentMethods, formatShippingAddress, PHONE_COUNTRY_CODES, GIFT_CATEGORIES } from '@/lib/types'
 
 type Aggregates = Record<string, { count: number; sum: number; buyers: number }>
 type ReserveMode = 'buy' | 'contribute'
@@ -383,7 +383,8 @@ function ReserveModal({
       })
       if (!res.ok) { setError('No se pudo registrar. Intenta de nuevo.'); setSubmitting(false); return }
       const data = await res.json().catch(() => null)
-      setShippingAddress(data?.shipping_address || null)
+      const formatted = data?.shipping_address ? formatShippingAddress(data.shipping_address) : ''
+      setShippingAddress(formatted || null)
       onReserved(item, amountToSend)
       setStep('done')
     } catch {
