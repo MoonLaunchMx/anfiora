@@ -3,7 +3,9 @@
 import { useEffect, useState } from 'react'
 import {
   X, LayoutList, User, Building2, AlertTriangle,
-  Bell, Clock, Gift, Link2, Coins, Landmark, Heart, LucideIcon
+  Bell, Clock, Gift, Link2, Coins, Landmark, Heart, LucideIcon,
+  SlidersHorizontal, Sparkles, Settings2, UtensilsCrossed,
+  LayoutGrid, Images, Music2,
 } from 'lucide-react'
 import { CURRENT_VERSION, changelog, Release } from '@/lib/changelog'
 
@@ -11,6 +13,55 @@ const STORAGE_KEY = 'anfiora_seen_version'
 
 const ICON_MAP: Record<string, LucideIcon> = {
   LayoutList, User, Building2, AlertTriangle, Bell, Clock, Gift, Link2, Coins, Landmark, Heart,
+  SlidersHorizontal, Sparkles, Settings2, UtensilsCrossed,
+}
+
+function HerramientasMockup() {
+  const rows: { icon: LucideIcon; label: string; on: boolean }[] = [
+    { icon: LayoutGrid,      label: 'Mesas y check-in',      on: true },
+    { icon: Gift,            label: 'Mesa de regalos',        on: true },
+    { icon: Images,          label: 'Álbum de fotos',         on: true },
+    { icon: Music2,          label: 'Playlist',               on: false },
+    { icon: UtensilsCrossed, label: 'Planificador de comida', on: false },
+  ]
+  return (
+    <div className="h-full w-full overflow-hidden rounded-l-2xl bg-[#FBF7F0]">
+      <div className="flex items-center gap-1.5 border-b border-[#eee4d6] bg-[#F5EFE3] px-3 py-2">
+        <span className="h-2 w-2 rounded-full bg-[#ff6b6b]" />
+        <span className="h-2 w-2 rounded-full bg-[#ffd93d]" />
+        <span className="h-2 w-2 rounded-full bg-[#6bcb77]" />
+        <span className="ml-2 text-[9px] text-[#aaa]">anfiora.com · Nuevo evento</span>
+      </div>
+
+      <div className="px-4 pb-2 pt-4">
+        <p className="text-[7px] uppercase tracking-[0.25em] text-[#bbb]">Paso 3</p>
+        <p className="mt-0.5 text-[13px] font-bold text-[#1D1E20]">Activa tus herramientas</p>
+      </div>
+
+      <div className="flex flex-col gap-1.5 px-4 pb-4">
+        {rows.map(r => {
+          const Icon = r.icon
+          return (
+            <div
+              key={r.label}
+              className={
+                'flex items-center gap-2 rounded-lg border px-2.5 py-2 ' +
+                (r.on ? 'border-[#c8ede7] bg-[#f0fdfb]' : 'border-[#eee4d6] bg-white')
+              }
+            >
+              <Icon size={12} className={r.on ? 'text-[#0F6E56]' : 'text-[#bbb]'} />
+              <span className={'flex-1 text-[9px] font-medium ' + (r.on ? 'text-[#1D1E20]' : 'text-[#aaa]')}>
+                {r.label}
+              </span>
+              <span className={'relative h-3 w-6 rounded-full ' + (r.on ? 'bg-[#48C9B0]' : 'bg-[#e0e0e0]')}>
+                <span className={'absolute top-0.5 h-2 w-2 rounded-full bg-white ' + (r.on ? 'left-3.5' : 'left-0.5')} />
+              </span>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
 }
 
 function MesaRegalosMockup() {
@@ -220,7 +271,11 @@ export function WhatsNewModal() {
 
           {/* Mockup izquierda (por version del release) */}
           <div className="h-56 w-full overflow-hidden sm:h-auto sm:w-[45%]">
-            {release.version === '2026-06-11' ? <MesaRegalosMockup /> : <TimelineMockup />}
+            {release.version === '2026-06-12'
+              ? <HerramientasMockup />
+              : release.version === '2026-06-11'
+                ? <MesaRegalosMockup />
+                : <TimelineMockup />}
           </div>
 
           {/* Contenido derecha */}
