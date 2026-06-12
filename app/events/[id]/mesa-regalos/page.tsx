@@ -249,7 +249,7 @@ export default function MesaRegalosPage() {
         {tab !== 'config' && (
           <StatsCollapse visible={statsToggle.visible}>
             {tab === 'regalos' ? (
-              <div className="mb-4 grid grid-cols-3 gap-3">
+              <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
                 <div className="rounded-xl border border-[#e8e8e8] bg-white p-3">
                   <p className="text-[10px] font-semibold uppercase tracking-wider text-[#aaa]">Regalos</p>
                   <p className="mt-1 text-xl font-bold tabular-nums text-[#1D1E20]">{items.length}</p>
@@ -258,7 +258,7 @@ export default function MesaRegalosPage() {
                   <p className="text-[10px] font-semibold uppercase tracking-wider text-[#aaa]">Valor total</p>
                   <p className="mt-1 text-xl font-bold tabular-nums text-[#1D1E20]">{fmtMXN(expectedTotal)}</p>
                 </div>
-                <div className="rounded-xl border border-[#e8e8e8] bg-white p-3">
+                <div className="hidden rounded-xl border border-[#e8e8e8] bg-white p-3 sm:block">
                   <p className="text-[10px] font-semibold uppercase tracking-wider text-[#aaa]">Categorías</p>
                   <p className="mt-1 text-xl font-bold tabular-nums text-[#1D1E20]">{categoryCount}</p>
                 </div>
