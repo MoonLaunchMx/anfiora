@@ -447,8 +447,8 @@ export default function MesaRegalosPage() {
               {reservations.map(r => {
                 const gift = itemById.get(r.item_id)
                 return (
-                  <div key={r.id} className="rounded-xl border border-[#e8e8e8] bg-white p-3">
-                    <div className="flex items-center gap-3">
+                  <div key={r.id} className="min-w-0 overflow-hidden rounded-xl border border-[#e8e8e8] bg-white p-3">
+                    <div className="flex min-w-0 items-center gap-3">
                       <div className="h-12 w-12 shrink-0 overflow-hidden rounded-lg bg-[#f0fdfb]">
                         {gift?.image_url ? (
                           <img src={gift.image_url} alt="" className="h-full w-full object-cover" />
