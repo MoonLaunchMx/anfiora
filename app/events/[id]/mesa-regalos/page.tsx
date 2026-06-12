@@ -205,7 +205,14 @@ export default function MesaRegalosPage() {
   }
 
   const totalIntent   = reservations.reduce((a, r) => a + (r.amount || 0), 0)
-  const reservedItems = new Set(reservations.map(r => r.item_id)).size
+
+  // Stats por tab
+  const expectedTotal = items.reduce((a, i) =>
+    a + (i.type === 'fund' ? (i.target_amount || 0) : i.type === 'external' ? (i.price || 0) : 0), 0)
+  const pctReceived    = expectedTotal > 0 ? Math.min(100, Math.round((totalIntent / expectedTotal) * 100)) : null
+  const thankedCount   = reservations.filter(r => r.thanked).length
+  const pendingThanks  = reservations.length - thankedCount
+  const categoryCount  = new Set(items.map(i => i.category || 'otro')).size
 
   const visible = items.filter(i => filter === 'all' || i.type === filter)
   const itemById = new Map(items.map(i => [i.id, i]))
@@ -231,28 +238,56 @@ export default function MesaRegalosPage() {
             <h1 className="text-xl font-bold text-[#1D1E20]">Mesa de regalos</h1>
             <p className="mt-0.5 text-xs text-[#888]">Arma y comparte tu lista de regalos.</p>
           </div>
-          <div className="shrink-0 pt-1 lg:hidden">
-            <StatsToggleButton visible={statsToggle.visible} onClick={statsToggle.toggle} />
-          </div>
+          {tab !== 'config' && (
+            <div className="shrink-0 pt-1 lg:hidden">
+              <StatsToggleButton visible={statsToggle.visible} onClick={statsToggle.toggle} />
+            </div>
+          )}
         </div>
 
-        {/* Stats arriba */}
-        <StatsCollapse visible={statsToggle.visible}>
-          <div className="mb-4 grid grid-cols-3 gap-3">
-            <div className="rounded-xl border border-[#e8e8e8] bg-white p-3">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-[#aaa]">Regalos</p>
-              <p className="mt-1 text-xl font-bold tabular-nums text-[#1D1E20]">{items.length}</p>
-            </div>
-            <div className="rounded-xl border border-[#e8e8e8] bg-white p-3">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-[#aaa]">Apartados</p>
-              <p className="mt-1 text-xl font-bold tabular-nums text-[#1D1E20]">{reservedItems}</p>
-            </div>
-            <div className="rounded-xl border border-[#e8e8e8] bg-white p-3">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-[#aaa]">Intención $</p>
-              <p className="mt-1 text-xl font-bold tabular-nums text-[#1a9e88]">{fmtMXN(totalIntent)}</p>
-            </div>
-          </div>
-        </StatsCollapse>
+        {/* Stats propias de cada tab */}
+        {tab !== 'config' && (
+          <StatsCollapse visible={statsToggle.visible}>
+            {tab === 'regalos' ? (
+              <div className="mb-4 grid grid-cols-3 gap-3">
+                <div className="rounded-xl border border-[#e8e8e8] bg-white p-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-[#aaa]">Regalos</p>
+                  <p className="mt-1 text-xl font-bold tabular-nums text-[#1D1E20]">{items.length}</p>
+                </div>
+                <div className="rounded-xl border border-[#e8e8e8] bg-white p-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-[#aaa]">Valor total</p>
+                  <p className="mt-1 text-xl font-bold tabular-nums text-[#1D1E20]">{fmtMXN(expectedTotal)}</p>
+                </div>
+                <div className="rounded-xl border border-[#e8e8e8] bg-white p-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-[#aaa]">Categorías</p>
+                  <p className="mt-1 text-xl font-bold tabular-nums text-[#1D1E20]">{categoryCount}</p>
+                </div>
+              </div>
+            ) : (
+              <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <div className="rounded-xl border border-[#e8e8e8] bg-white p-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-[#aaa]">Recibido</p>
+                  <p className="mt-1 text-xl font-bold tabular-nums text-[#1a9e88]">{fmtMXN(totalIntent)}</p>
+                  {pctReceived !== null && (
+                    <p className="mt-0.5 text-[10px] tabular-nums text-[#aaa]">{pctReceived}% de {fmtMXN(expectedTotal)}</p>
+                  )}
+                </div>
+                <div className="rounded-xl border border-[#e8e8e8] bg-white p-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-[#aaa]">Invitados</p>
+                  <p className="mt-1 text-xl font-bold tabular-nums text-[#1D1E20]">{reservations.length}</p>
+                </div>
+                <div className="rounded-xl border border-[#e8e8e8] bg-white p-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-[#aaa]">Por agradecer</p>
+                  <p className={`mt-1 text-xl font-bold tabular-nums ${pendingThanks > 0 ? 'text-amber-500' : 'text-[#1D1E20]'}`}>{pendingThanks}</p>
+                </div>
+                <div className="rounded-xl border border-[#e8e8e8] bg-white p-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-[#aaa]">Agradecidos</p>
+                  <p className="mt-1 text-xl font-bold tabular-nums text-[#1D1E20]">{thankedCount}</p>
+                </div>
+              </div>
+            )}
+          </StatsCollapse>
+        )}
 
         {/* Toggle (centrado en mobile, izquierda en desktop) */}
         <div className="mb-4 flex justify-center overflow-x-auto sm:justify-start">
@@ -407,34 +442,43 @@ export default function MesaRegalosPage() {
             </div>
           ) : (
             <>
-            {/* Cards mobile (compactas, estilo invitados) */}
+            {/* Cards mobile: imagen del regalo izquierda, monto visible, acciones derecha */}
             <div className="grid gap-2.5 sm:grid-cols-2 lg:hidden">
               {reservations.map(r => {
                 const gift = itemById.get(r.item_id)
                 return (
-                  <div key={r.id} className="rounded-xl border border-[#e8e8e8] bg-white px-3 py-3">
-                    <div className="flex items-center gap-2.5">
-                      {r.guest_phone ? (
-                        <button
-                          onClick={() => thankByWhatsApp(r, gift)}
-                          title="Agradecer por WhatsApp"
-                          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[#c0f0dc] bg-[#f0fff8]"
-                        >
-                          <FaWhatsapp size={18} className="text-[#25D366]" />
-                        </button>
-                      ) : (
-                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[#f0f0f0] bg-[#fafafa]">
-                          <FaWhatsapp size={16} className="text-[#ddd]" />
-                        </div>
-                      )}
+                  <div key={r.id} className="rounded-xl border border-[#e8e8e8] bg-white p-3">
+                    <div className="flex items-center gap-3">
+                      <div className="h-12 w-12 shrink-0 overflow-hidden rounded-lg bg-[#f0fdfb]">
+                        {gift?.image_url ? (
+                          <img src={gift.image_url} alt="" className="h-full w-full object-cover" />
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center text-[#48C9B0]">
+                            {gift?.type === 'fund' ? <Coins size={18} /> : gift?.type === 'cash' ? <Mail size={18} /> : <Gift size={18} />}
+                          </div>
+                        )}
+                      </div>
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-semibold text-[#1D1E20]">{r.guest_name}</p>
                         <p className="truncate text-xs text-[#888]">{gift?.title || 'Regalo'}</p>
-                      </div>
-                      <div className="flex shrink-0 flex-col items-end gap-1">
                         {r.amount
-                          ? <span className="text-sm font-semibold tabular-nums text-[#1a9e88]">{fmtMXN(r.amount)}</span>
-                          : <span className="text-[11px] text-[#aaa]">Apartado</span>}
+                          ? <p className="mt-0.5 text-sm font-semibold tabular-nums text-[#1a9e88]">{fmtMXN(r.amount)}</p>
+                          : <p className="mt-0.5 text-[11px] font-medium text-[#aaa]">Regalo apartado</p>}
+                      </div>
+                      <div className="flex shrink-0 flex-col items-center gap-1.5">
+                        {r.guest_phone ? (
+                          <button
+                            onClick={() => thankByWhatsApp(r, gift)}
+                            title="Agradecer por WhatsApp"
+                            className="flex h-9 w-9 items-center justify-center rounded-xl border border-[#c0f0dc] bg-[#f0fff8]"
+                          >
+                            <FaWhatsapp size={18} className="text-[#25D366]" />
+                          </button>
+                        ) : (
+                          <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-[#f0f0f0] bg-[#fafafa]">
+                            <FaWhatsapp size={16} className="text-[#ddd]" />
+                          </div>
+                        )}
                         <button
                           onClick={() => handleToggleThanked(r)}
                           title={r.thanked ? 'Agradecido' : 'Marcar agradecido'}
@@ -448,7 +492,7 @@ export default function MesaRegalosPage() {
                       </div>
                     </div>
                     {r.message && (
-                      <p className="mt-1.5 line-clamp-1 pl-[46px] text-xs italic text-[#999]">“{r.message}”</p>
+                      <p className="mt-1.5 line-clamp-1 pl-[60px] text-xs italic text-[#999]">“{r.message}”</p>
                     )}
                   </div>
                 )
