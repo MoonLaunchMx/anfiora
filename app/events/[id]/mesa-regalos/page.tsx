@@ -290,16 +290,13 @@ export default function MesaRegalosPage() {
             <h1 className="text-xl font-bold text-[#1D1E20]">Mesa de regalos</h1>
             <p className="mt-0.5 text-xs text-[#888]">Arma y comparte tu lista de regalos.</p>
           </div>
-          {tab !== 'config' && (
-            <div className="shrink-0 pt-1 lg:hidden">
-              <StatsToggleButton visible={statsToggle.visible} onClick={statsToggle.toggle} />
-            </div>
-          )}
+          <div className="shrink-0 pt-1 lg:hidden">
+            <StatsToggleButton visible={statsToggle.visible} onClick={statsToggle.toggle} />
+          </div>
         </div>
 
         {/* Stats propias de cada tab */}
-        {tab !== 'config' && (
-          <StatsCollapse visible={statsToggle.visible}>
+        <StatsCollapse visible={statsToggle.visible}>
             {tab === 'regalos' ? (
               <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
                 <div className="rounded-xl border border-[#e8e8e8] bg-white p-3">
@@ -315,7 +312,7 @@ export default function MesaRegalosPage() {
                   <p className="mt-1 text-xl font-bold tabular-nums text-[#1D1E20]">{categoryCount}</p>
                 </div>
               </div>
-            ) : (
+            ) : tab === 'recibidos' ? (
               <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
                 <div className="rounded-xl border border-[#e8e8e8] bg-white p-3">
                   <p className="text-[10px] font-semibold uppercase tracking-wider text-[#aaa]">Recibido</p>
@@ -339,9 +336,23 @@ export default function MesaRegalosPage() {
                   <p className="mt-1 text-xl font-bold tabular-nums text-[#1D1E20]">{thankedCount}</p>
                 </div>
               </div>
+            ) : (
+              <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                {[
+                  { label: 'Método de pago',       done: payMethods.length > 0 },
+                  { label: 'Dirección de entrega', done: shippingAddress.trim() !== '' },
+                  { label: 'Mesa externa',         done: extLinks.length > 0 },
+                ].map(c => (
+                  <div key={c.label} className="rounded-xl border border-[#e8e8e8] bg-white p-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-[#aaa]">{c.label}</p>
+                    <p className={`mt-1 flex items-center gap-1.5 text-xl font-bold ${c.done ? 'text-[#1a9e88]' : 'text-[#bbb]'}`}>
+                      {c.done ? <><Check size={18} /> Listo</> : <><Clock size={18} /> Pendiente</>}
+                    </p>
+                  </div>
+                ))}
+              </div>
             )}
           </StatsCollapse>
-        )}
 
         {/* Toggle (centrado en mobile, izquierda en desktop) */}
         <div className="mb-4 flex justify-center overflow-x-auto sm:justify-start">
