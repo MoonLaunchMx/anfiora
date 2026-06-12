@@ -34,11 +34,11 @@ Las columnas son inertes para el código en prod (`select *` las ignora, nadie l
 
 Rediseño con el patrón de mesa de regalos: zona fija (header + stats + `TabToggle` de `app/components/ui/TabToggle.tsx`) y zona scrolleable por tab. Reemplaza el split view actual y el toggle móvil `playlist | config`.
 
-**Tab Playlist** — la lista actual de sugerencias de invitados (`is_host_pick = false`): drag and drop, filtro por etapa, búsqueda, notas inline, preview 30s. Aquí vive el botón **Descargar para DJ** (dropdown: Excel / PDF / M3U). Stats: total canciones, duración total, top repetidas.
+> Corrección de Diego (12-jun): NO hay tab "Nuestras canciones". Es UNA SOLA lista donde se distingue quién agregó cada canción, y la config debe seguir el patrón exacto del tab config de mesa de regalos.
 
-**Tab Nuestras canciones** — espacio de los novios: el mismo buscador de Spotify de la página pública (vía `/api/spotify/search`), lista de sus canciones con eliminar y reordenar. Inserta en `song_recommendations` con `is_host_pick = true`. Sin límite de cantidad.
+**Tab Playlist** — una sola lista con todas las canciones (novios + invitados), distinguidas en la card: las de los novios llevan corazón teal + "De los novios" + botón eliminar; las de invitados llevan avatar con inicial + nombre. Drag and drop sobre la lista completa, búsqueda, filtro (Todas / De los novios / etapas / Sin etapa), notas inline. En la fila de tabs: botón **Agregar canción** (abre modal con buscador Spotify — preferencia de Diego por modales — inserta `is_host_pick = true` con posición al final) y botón **Descargar para DJ** (dropdown: Excel / PDF / M3U). Stats: total con desglose invitados/novios, duración, top repetidas (solo invitados).
 
-**Tab Configuración** — lo que hoy vive en el panel de config: generar/copiar link, QR del link (nuevo, con `QRCodeCanvas` de `qrcode.react` como en album), etapas (playlist_categories), y el nuevo selector **Canciones por invitado**: pills `1 · 3 · 5 · 10 · Sin límite` (default 3). Guarda `playlist_max_songs` (`0` = sin límite) en `event_settings`.
+**Tab Configuración** — patrón exacto del tab config de mesa de regalos: `grid items-start gap-4 lg:grid-cols-2`, cards `rounded-xl border-[#e8e8e8] bg-white p-4` con header de ícono teal 15px + título `text-sm font-semibold` + descripción `text-xs text-[#888]`. Columna izquierda: card "Link público de tu playlist" (link en caja gris `bg-[#f8f8f8]` con fuente mono, botones Copiar / WhatsApp / Ver como invitado, "Generar link" en negro `#1D1E20`; debajo de un divisor, QR de 96px con caption "QR para el evento") y card "Canciones por invitado" (pills `1 · 3 · 5 · 10 · Sin límite`, default 3, guarda `playlist_max_songs`, `0` = sin límite). Columna derecha: card "Etapas del evento".
 
 ## Página pública (`/playlist/[token]`)
 
@@ -54,7 +54,7 @@ Restyle completo al lenguaje de la mesa pública (`app/mesa/[token]/page.tsx`), 
 
 ## Export DJ (`app/events/[id]/playlist/lib/exports.ts`)
 
-Tres formatos, mismo stack que presupuesto/pagos. Orden: canciones de los novios primero, luego la lista en su orden (position).
+Tres formatos, mismo stack que presupuesto/pagos. Orden: el de la lista (position), tal como el planner la acomodó con drag and drop.
 
 - **Excel** (`xlsx`): columnas Orden, Canción, Artista, Etapa, De los novios (Sí/No), Veces pedida, Pedida por, Duración, Link Spotify, Notas. Header con nombre del evento y fecha.
 - **PDF** (`jspdf` + `jspdf-autotable`): misma tabla, formato imprimible.

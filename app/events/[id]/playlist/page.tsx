@@ -4,10 +4,14 @@ import { useEffect, useRef, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { QRCodeCanvas } from 'qrcode.react'
-import { Music, Clock, Plus, MessageSquareText, ExternalLink, Trophy, Heart, Settings, Download, ListMusic } from 'lucide-react'
+import { FaWhatsapp } from 'react-icons/fa'
+import {
+  Music, Clock, Plus, MessageSquareText, ExternalLink, Trophy, Heart,
+  Settings, Download, ListMusic, Link2, Copy, Check, Eye, Tags, Trash2,
+} from 'lucide-react'
 import StatsCollapse, { StatsToggleButton, useStatsToggle } from '@/app/components/ui/StatsCollapse'
 import { TabToggle, type TabItem } from '@/app/components/ui/TabToggle'
-import HostSongsTab from './HostSongsTab'
+import AddSongModal from './AddSongModal'
 import { exportDjToExcel, exportDjToPDF, exportDjToM3U, type DjExportData } from './lib/exports'
 import {
   DndContext,
@@ -91,13 +95,14 @@ function DragDots() {
 
 // Card de canción — toda la card es draggable, excepto botones y sección de nota
 function SongRow({
-  song, onEditNote, isEditingNote, onCloseNote, onSaveNote,
+  song, onEditNote, isEditingNote, onCloseNote, onSaveNote, onRemove,
 }: {
   song: Song
   onEditNote: () => void
   isEditingNote: boolean
   onCloseNote: () => void
   onSaveNote: (note: string) => Promise<void>
+  onRemove?: () => void
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: song.id })
   const [localNote, setLocalNote] = useState(song.notes || '')
@@ -114,6 +119,7 @@ function SongRow({
 
   const songDuration = formatSongDuration(song.duration_ms)
   const initial = getInitial(song.guest_name)
+  const isHost = !!song.is_host_pick
 
   // Helper para evitar que el drag se active desde botones/inputs
   const stopDragPropagation = (e: React.PointerEvent) => e.stopPropagation()
@@ -158,20 +164,29 @@ function SongRow({
               <span className="rounded-full bg-[#E1F5EE] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#0F6E56]">
                 {song.category}
               </span>
-            ) : (
+            ) : !isHost ? (
               <span className="rounded-full border border-dashed border-[#e0e0e0] px-2 py-0.5 text-[10px] uppercase tracking-wide text-[#bbb]">
                 Sin etapa
               </span>
-            )}
-            {/* Invitado con avatar circular y color teal */}
-            <div className="flex min-w-0 items-center gap-1.5">
-              <div className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-[#48C9B0] text-[8px] font-bold text-white">
-                {initial}
+            ) : null}
+            {/* Quién la agregó: novios con corazón, invitado con avatar */}
+            {isHost ? (
+              <div className="flex min-w-0 items-center gap-1.5">
+                <Heart size={12} className="shrink-0 text-[#48C9B0]" fill="currentColor" />
+                <span className="truncate text-[11px] font-medium text-[#1a9e88]">
+                  De los novios
+                </span>
               </div>
-              <span className="truncate text-[11px] font-medium text-[#1a9e88]">
-                {song.guest_name}
-              </span>
-            </div>
+            ) : (
+              <div className="flex min-w-0 items-center gap-1.5">
+                <div className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-[#48C9B0] text-[8px] font-bold text-white">
+                  {initial}
+                </div>
+                <span className="truncate text-[11px] font-medium text-[#1a9e88]">
+                  {song.guest_name}
+                </span>
+              </div>
+            )}
           </div>
         </div>
 
@@ -196,6 +211,16 @@ function SongRow({
               title="Abrir en Spotify"
             >
               <ExternalLink size={16} />
+            </button>
+          )}
+          {onRemove && (
+            <button
+              onPointerDown={stopDragPropagation}
+              onClick={onRemove}
+              className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg text-[#bbb] transition hover:bg-[#fff0f0] hover:text-[#cc3333]"
+              title="Quitar canción"
+            >
+              <Trash2 size={16} />
             </button>
           )}
         </div>
@@ -264,10 +289,16 @@ function DragCard({ song }: { song: Song }) {
         <p className="truncate text-sm font-semibold text-[#1D1E20]">{song.song_title}</p>
         <p className="truncate text-xs text-[#888]">{song.artist}</p>
         <div className="mt-1 flex items-center gap-1.5">
-          <div className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-[#48C9B0] text-[8px] font-bold text-white">
-            {initial}
-          </div>
-          <span className="truncate text-[11px] font-medium text-[#1a9e88]">{song.guest_name}</span>
+          {song.is_host_pick ? (
+            <Heart size={12} className="shrink-0 text-[#48C9B0]" fill="currentColor" />
+          ) : (
+            <div className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-[#48C9B0] text-[8px] font-bold text-white">
+              {initial}
+            </div>
+          )}
+          <span className="truncate text-[11px] font-medium text-[#1a9e88]">
+            {song.is_host_pick ? 'De los novios' : song.guest_name}
+          </span>
         </div>
       </div>
     </div>
@@ -296,6 +327,7 @@ export default function PlaylistPlannerPage() {
   const [addingCat, setAddingCat]         = useState(false)
   const [copied, setCopied]               = useState(false)
   const [tab, setTab]                     = useState('playlist')
+  const [showAddModal, setShowAddModal]   = useState(false)
   const [showExportMenu, setShowExportMenu] = useState(false)
   const [activeDragId, setActiveDragId]   = useState<string | null>(null)
   const exportRef                         = useRef<HTMLDivElement>(null)
@@ -356,6 +388,10 @@ export default function PlaylistPlannerPage() {
     ? `${typeof window !== 'undefined' ? window.location.origin : ''}/playlist/${playlistToken}`
     : null
 
+  const waShareUrl = playlistUrl
+    ? `https://wa.me/?text=${encodeURIComponent(`Recomienda canciones para nuestro evento: ${playlistUrl}`)}`
+    : ''
+
   const copyLink = async () => {
     if (!playlistUrl) return
     await navigator.clipboard.writeText(playlistUrl)
@@ -379,11 +415,8 @@ export default function PlaylistPlannerPage() {
     await savePlaylistSettings(playlistToken, updated)
   }
 
-  // ─── Derivados: invitados vs novios ────────────────────────────
+  const hostSongs  = allSongs.filter(s => !!s.is_host_pick)
   const guestSongs = allSongs.filter(s => !s.is_host_pick)
-  const hostSongs  = allSongs
-    .filter(s => !!s.is_host_pick)
-    .sort((a, b) => a.created_at.localeCompare(b.created_at))
 
   const hostLabel = eventInfo?.host_name && eventInfo?.host_name_2
     ? `${eventInfo.host_name} & ${eventInfo.host_name_2}`
@@ -395,11 +428,11 @@ export default function PlaylistPlannerPage() {
     setActiveDragId(null)
     const { active, over } = event
     if (!over || active.id === over.id) return
-    const oldIndex = guestSongs.findIndex(s => s.id === active.id)
-    const newIndex = guestSongs.findIndex(s => s.id === over.id)
+    const oldIndex = allSongs.findIndex(s => s.id === active.id)
+    const newIndex = allSongs.findIndex(s => s.id === over.id)
     if (oldIndex < 0 || newIndex < 0) return
-    const reordered = arrayMove(guestSongs, oldIndex, newIndex).map((s, i) => ({ ...s, position: i }))
-    setAllSongs([...hostSongs, ...reordered])
+    const reordered = arrayMove(allSongs, oldIndex, newIndex).map((s, i) => ({ ...s, position: i }))
+    setAllSongs(reordered)
     setSaving(true)
     await Promise.all(reordered.map(s =>
       supabase.from('song_recommendations').update({ position: s.position }).eq('id', s.id)
@@ -418,11 +451,11 @@ export default function PlaylistPlannerPage() {
     setAllSongs(prev => prev.filter(s => s.id !== songId))
   }
 
-  // ─── Export DJ: novios primero, luego invitados en su orden ────
+  // ─── Export DJ: la lista en su orden actual ────────────────────
   const buildExportData = (): DjExportData => ({
     eventName: eventInfo?.name || 'evento',
     eventDate: eventInfo?.event_date || null,
-    songs: [...hostSongs, ...guestSongs].map(s => ({
+    songs: allSongs.map(s => ({
       song_title: s.song_title,
       artist: s.artist,
       category: s.category,
@@ -443,11 +476,11 @@ export default function PlaylistPlannerPage() {
   }
 
   // ─── Métricas ──────────────────────────────────────────────────
-  const totalSongs      = guestSongs.length
+  const totalSongs      = allSongs.length
   const totalDurationMs = allSongs.reduce((acc, s) => acc + (s.duration_ms || 0), 0)
   const durationLabel   = formatTotalDuration(totalDurationMs)
 
-  // Agrupa canciones por título+artista para detectar repeticiones (Top 5)
+  // Agrupa canciones por título+artista para detectar repeticiones (Top 5, solo invitados)
   const songCounts = (() => {
     const map = new Map<string, { title: string; artist: string; count: number }>()
     for (const s of guestSongs) {
@@ -461,10 +494,11 @@ export default function PlaylistPlannerPage() {
   const repeatedSongs = songCounts.filter(s => s.count > 1)
   const top5Repeated  = repeatedSongs.slice(0, 5)
 
-  const activeDragSong = activeDragId ? guestSongs.find(s => s.id === activeDragId) : null
+  const activeDragSong = activeDragId ? allSongs.find(s => s.id === activeDragId) : null
 
-  const filtered = guestSongs.filter(s => {
+  const filtered = allSongs.filter(s => {
     const matchCat    = filterCat === 'todas' || s.category === filterCat || (filterCat === '__none__' && !s.category)
+      || (filterCat === '__novios__' && !!s.is_host_pick)
     const matchSearch = search === '' ||
       s.song_title.toLowerCase().includes(search.toLowerCase()) ||
       s.artist.toLowerCase().includes(search.toLowerCase()) ||
@@ -475,12 +509,11 @@ export default function PlaylistPlannerPage() {
   if (loading) return <div className="p-8 text-sm text-[#666]">Cargando playlist...</div>
 
   const TABS: TabItem[] = [
-    { key: 'playlist', label: 'Playlist', icon: ListMusic, badge: guestSongs.length },
-    { key: 'nuestras', label: 'Nuestras canciones', shortLabel: 'Nuestras', icon: Heart, badge: hostSongs.length },
+    { key: 'playlist', label: 'Playlist', icon: ListMusic, badge: totalSongs },
     { key: 'config', label: 'Configuración', shortLabel: 'Config', icon: Settings },
   ]
 
-  // Stats: solo canciones + duración
+  // Stats: canciones + duración
   const StatsCards = () => (
     <>
       {/* Canciones */}
@@ -490,7 +523,9 @@ export default function PlaylistPlannerPage() {
           <Music size={14} className="text-[#48C9B0]" />
         </div>
         <div className="text-xl font-bold text-[#1D1E20]">{totalSongs}</div>
-        <div className="mt-1 text-[10px] text-[#aaa]">recibidas de invitados</div>
+        <div className="mt-1 text-[10px] text-[#aaa]">
+          {guestSongs.length} de invitados · {hostSongs.length} de novios
+        </div>
       </div>
 
       {/* Duración */}
@@ -543,38 +578,35 @@ export default function PlaylistPlannerPage() {
     )
   }
 
-  const StageManager = ({ compact = false }: { compact?: boolean }) => (
-    <div className={compact ? 'flex flex-wrap items-center gap-1.5' : 'flex flex-col gap-3'}>
-      {!compact && <p className="text-[10px] font-semibold uppercase tracking-wide text-[#999]">Etapas</p>}
-      <div className="flex flex-wrap items-center gap-1.5">
-        {categories.map(cat => (
-          <span key={cat} className="flex items-center gap-1 rounded-full bg-[#E1F5EE] px-2.5 py-1 text-xs font-medium text-[#0F6E56]">
-            {cat}
-            <button onClick={() => removeCategory(cat)} className="ml-0.5 text-[#48C9B0] hover:text-[#0F6E56]">×</button>
-          </span>
-        ))}
-        {addingCat ? (
-          <div className="flex items-center gap-1">
-            <input
-              autoFocus
-              value={newCat}
-              onChange={e => setNewCat(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') addCategory(); if (e.key === 'Escape') setAddingCat(false) }}
-              placeholder="Nueva etapa..."
-              className="w-28 rounded-lg border border-[#48C9B0] px-2 py-1 text-xs outline-none"
-            />
-            <button onClick={addCategory} className="rounded-lg bg-[#48C9B0] px-2 py-1 text-xs text-white">✓</button>
-            <button onClick={() => setAddingCat(false)} className="rounded-lg border border-[#e0e0e0] px-2 py-1 text-xs text-[#aaa]">✕</button>
-          </div>
-        ) : (
-          <button
-            onClick={() => setAddingCat(true)}
-            className="rounded-full border border-dashed border-[#ccc] px-2.5 py-1 text-xs text-[#aaa] transition hover:border-[#48C9B0] hover:text-[#48C9B0]"
-          >
-            + Etapa
-          </button>
-        )}
-      </div>
+  const StageManager = () => (
+    <div className="flex flex-wrap items-center gap-1.5">
+      {categories.map(cat => (
+        <span key={cat} className="flex items-center gap-1 rounded-full bg-[#E1F5EE] px-2.5 py-1 text-xs font-medium text-[#0F6E56]">
+          {cat}
+          <button onClick={() => removeCategory(cat)} className="ml-0.5 text-[#48C9B0] hover:text-[#0F6E56]">×</button>
+        </span>
+      ))}
+      {addingCat ? (
+        <div className="flex items-center gap-1">
+          <input
+            autoFocus
+            value={newCat}
+            onChange={e => setNewCat(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') addCategory(); if (e.key === 'Escape') setAddingCat(false) }}
+            placeholder="Nueva etapa..."
+            className="w-28 rounded-lg border border-[#48C9B0] px-2 py-1 text-xs outline-none"
+          />
+          <button onClick={addCategory} className="rounded-lg bg-[#48C9B0] px-2 py-1 text-xs text-white">✓</button>
+          <button onClick={() => setAddingCat(false)} className="rounded-lg border border-[#e0e0e0] px-2 py-1 text-xs text-[#aaa]">✕</button>
+        </div>
+      ) : (
+        <button
+          onClick={() => setAddingCat(true)}
+          className="rounded-full border border-dashed border-[#ccc] px-2.5 py-1 text-xs text-[#aaa] transition hover:border-[#48C9B0] hover:text-[#48C9B0]"
+        >
+          + Etapa
+        </button>
+      )}
     </div>
   )
 
@@ -595,6 +627,7 @@ export default function PlaylistPlannerPage() {
               isEditingNote={editingNoteId === song.id}
               onCloseNote={() => setEditingNoteId(null)}
               onSaveNote={(note) => saveNote(song.id, note)}
+              onRemove={song.is_host_pick ? () => removeHostSong(song.id) : undefined}
             />
           ))}
         </div>
@@ -607,8 +640,14 @@ export default function PlaylistPlannerPage() {
 
   const EmptyState = () => (
     <div className="flex flex-col items-center justify-center py-20 text-center">
-      <h2 className="text-base font-semibold text-[#1D1E20]">Sin recomendaciones aún</h2>
-      <p className="mt-1 text-sm text-[#999]">Comparte el link con tus invitados.</p>
+      <h2 className="text-base font-semibold text-[#1D1E20]">Sin canciones aún</h2>
+      <p className="mt-1 text-sm text-[#999]">Comparte el link con tus invitados o agrega las suyas.</p>
+      <button
+        onClick={() => setShowAddModal(true)}
+        className="mt-4 flex items-center gap-1.5 rounded-lg bg-[#48C9B0] px-4 py-2 text-xs font-semibold text-white transition hover:bg-[#3aa896]"
+      >
+        <Plus size={14} /> Agregar canción
+      </button>
     </div>
   )
 
@@ -617,7 +656,7 @@ export default function PlaylistPlannerPage() {
       <button
         onClick={() => setShowExportMenu(v => !v)}
         disabled={allSongs.length === 0}
-        className="flex items-center gap-1.5 rounded-lg bg-[#48C9B0] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#3ab89f] disabled:opacity-40"
+        className="flex items-center gap-1.5 rounded-lg border border-[#e0e0e0] bg-white px-3 py-2 text-xs font-medium text-[#555] transition hover:border-[#48C9B0] hover:text-[#48C9B0] disabled:opacity-40"
       >
         <Download size={14} />
         <span className="hidden sm:inline">Descargar para DJ</span>
@@ -639,62 +678,104 @@ export default function PlaylistPlannerPage() {
     </div>
   )
 
+  // Config con el mismo patrón de mesa de regalos: grid de 2 columnas reales
   const ConfigTab = () => (
-    <div className="mx-auto flex w-full max-w-lg flex-col gap-4">
+    <div className="grid items-start gap-4 lg:grid-cols-2">
 
-      {/* Link + QR */}
-      <div className="rounded-xl border border-[#e8e8e8] bg-white p-4">
-        <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-[#999]">Link para invitados</p>
-        {!playlistToken ? (
-          <button
-            onClick={handleGenerateToken}
-            className="rounded-lg border border-dashed border-[#48C9B0] bg-[#f0fdfb] px-3 py-1.5 text-xs font-medium text-[#1a9e88] transition hover:bg-[#e0faf5]"
-          >
-            + Generar link
-          </button>
-        ) : (
-          <div className="flex flex-col items-center gap-3">
-            <div className="rounded-xl border border-[#e8e8e8] bg-white p-4">
-              <QRCodeCanvas value={playlistUrl || ''} size={140} />
-            </div>
-            <span className="w-full truncate rounded-lg border border-dashed border-[#48C9B0] bg-[#f0fdfb] px-2.5 py-1.5 text-center text-xs text-[#0F6E56]">
-              {playlistUrl}
-            </span>
-            <button
-              onClick={copyLink}
-              className="w-full rounded-lg bg-[#48C9B0] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#3ab89f]"
-            >
-              {copied ? '¡Copiado!' : 'Copiar link'}
-            </button>
+      {/* Columna izquierda: link público + límite */}
+      <div className="space-y-4">
+        <div className="rounded-xl border border-[#e8e8e8] bg-white p-4">
+          <div className="mb-1 flex items-center gap-2">
+            <Link2 size={15} className="text-[#48C9B0]" />
+            <h2 className="text-sm font-semibold text-[#1D1E20]">Link público de tu playlist</h2>
           </div>
-        )}
-      </div>
+          <p className="mb-3 text-xs text-[#888]">Compártelo con tus invitados para que recomienden canciones.</p>
+          {playlistUrl ? (
+            <>
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="flex min-w-0 flex-1 items-center gap-2 rounded-lg border border-[#e8e8e8] bg-[#f8f8f8] px-3 py-2">
+                  <span className="truncate font-mono text-xs text-[#555]">{playlistUrl.replace(/^https?:\/\//, '')}</span>
+                </div>
+                <button
+                  onClick={copyLink}
+                  className="flex items-center gap-1.5 rounded-lg border border-[#e0e0e0] px-3 py-2 text-xs font-medium text-[#555] transition hover:border-[#48C9B0] hover:text-[#48C9B0]"
+                >
+                  {copied ? <><Check size={14} /> Copiado</> : <><Copy size={14} /> Copiar</>}
+                </button>
+                <a
+                  href={waShareUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 rounded-lg border border-[#e0e0e0] px-3 py-2 text-xs font-medium text-[#555] transition hover:border-[#25D366] hover:text-[#25D366]"
+                >
+                  <FaWhatsapp size={14} /> WhatsApp
+                </a>
+                <a
+                  href={playlistUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-[#e0e0e0] px-3 py-2 text-xs font-medium text-[#555] transition hover:border-[#48C9B0] hover:text-[#48C9B0] sm:w-auto"
+                >
+                  <Eye size={14} /> Ver como invitado
+                </a>
+              </div>
+              <div className="mt-4 flex items-center gap-4 border-t border-[#f0f0f0] pt-4">
+                <div className="shrink-0 rounded-lg border border-[#e8e8e8] bg-white p-2">
+                  <QRCodeCanvas value={playlistUrl} size={96} />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold text-[#1D1E20]">QR para el evento</p>
+                  <p className="mt-0.5 text-[11px] leading-relaxed text-[#888]">
+                    Imprímelo y ponlo en las mesas para que tus invitados escaneen y recomienden.
+                  </p>
+                </div>
+              </div>
+            </>
+          ) : (
+            <button
+              onClick={handleGenerateToken}
+              className="flex items-center gap-1.5 rounded-lg bg-[#1D1E20] px-3 py-2 text-xs font-semibold text-white transition hover:bg-black"
+            >
+              <Link2 size={14} /> Generar link
+            </button>
+          )}
+        </div>
 
-      {/* Límite por invitado */}
-      <div className="rounded-xl border border-[#e8e8e8] bg-white p-4">
-        <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-[#999]">Canciones por invitado</p>
-        <p className="mb-3 text-xs text-[#888]">Cuántas canciones puede recomendar cada invitado.</p>
-        <div className="flex flex-wrap gap-1.5">
-          {LIMIT_OPTIONS.map(n => {
-            const active = (maxSongs ?? 3) === n
-            return (
-              <button
-                key={n}
-                onClick={() => saveMaxSongs(n)}
-                className={`rounded-full border px-3.5 py-1.5 text-xs font-medium transition
-                  ${active
-                    ? 'border-[#48C9B0] bg-[#48C9B0] text-white'
-                    : 'border-[#e0e0e0] bg-white text-[#888] hover:border-[#48C9B0] hover:text-[#48C9B0]'}`}
-              >
-                {n === 0 ? 'Sin límite' : n}
-              </button>
-            )
-          })}
+        <div className="rounded-xl border border-[#e8e8e8] bg-white p-4">
+          <div className="mb-1 flex items-center gap-2">
+            <ListMusic size={15} className="text-[#48C9B0]" />
+            <h2 className="text-sm font-semibold text-[#1D1E20]">Canciones por invitado</h2>
+          </div>
+          <p className="mb-3 text-xs text-[#888]">Cuántas canciones puede recomendar cada invitado desde el link.</p>
+          <div className="flex flex-wrap gap-1.5">
+            {LIMIT_OPTIONS.map(n => {
+              const active = (maxSongs ?? 3) === n
+              return (
+                <button
+                  key={n}
+                  onClick={() => saveMaxSongs(n)}
+                  className={`rounded-full border px-3.5 py-1.5 text-xs font-medium transition
+                    ${active
+                      ? 'border-[#48C9B0] bg-[#48C9B0] text-white'
+                      : 'border-[#e0e0e0] bg-white text-[#888] hover:border-[#48C9B0] hover:text-[#48C9B0]'}`}
+                >
+                  {n === 0 ? 'Sin límite' : n}
+                </button>
+              )
+            })}
+          </div>
         </div>
       </div>
 
-      {/* Etapas */}
+      {/* Columna derecha: etapas */}
       <div className="rounded-xl border border-[#e8e8e8] bg-white p-4">
+        <div className="mb-1 flex items-center gap-2">
+          <Tags size={15} className="text-[#48C9B0]" />
+          <h2 className="text-sm font-semibold text-[#1D1E20]">Etapas del evento</h2>
+        </div>
+        <p className="mb-3 text-xs text-[#888]">
+          Tus invitados pueden etiquetar su canción con una etapa: cóctel, cena, fiesta...
+        </p>
         <StageManager />
       </div>
     </div>
@@ -708,7 +789,7 @@ export default function PlaylistPlannerPage() {
         <div className="mb-3 flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
             <h1 className="text-lg font-bold text-[#1D1E20] sm:text-xl lg:text-2xl">Playlist</h1>
-            <p className="mt-0.5 text-xs text-[#888] sm:text-sm">La música del evento: invitados y novios</p>
+            <p className="mt-0.5 text-xs text-[#888] sm:text-sm">La música del evento, de invitados y novios</p>
           </div>
           <div className="flex shrink-0 items-center gap-2 pt-1">
             {saving && <span className="hidden text-xs text-[#aaa] sm:inline">Guardando orden...</span>}
@@ -753,10 +834,20 @@ export default function PlaylistPlannerPage() {
         )}
 
         <div className="flex items-center justify-between gap-2">
-          <div className="min-w-0 overflow-x-auto">
-            <TabToggle tabs={TABS} active={tab} onChange={setTab} />
-          </div>
-          {tab === 'playlist' && <ExportButton />}
+          <TabToggle tabs={TABS} active={tab} onChange={setTab} />
+          {tab === 'playlist' && (
+            <div className="flex shrink-0 items-center gap-2">
+              <ExportButton />
+              <button
+                onClick={() => setShowAddModal(true)}
+                className="flex items-center gap-1.5 rounded-lg bg-[#48C9B0] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#3aa896]"
+              >
+                <Plus size={14} />
+                <span className="hidden sm:inline">Agregar canción</span>
+                <span className="sm:hidden">Agregar</span>
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Toolbar del tab playlist */}
@@ -766,15 +857,16 @@ export default function PlaylistPlannerPage() {
               type="text"
               value={search}
               onChange={e => setSearch(e.target.value)}
-              placeholder="Buscar canción, artista..."
-              className="w-full rounded-lg border border-[#d0d0d0] bg-white px-3 py-1.5 text-xs text-[#1D1E20] outline-none transition focus:border-[#48C9B0] sm:w-52"
+              placeholder="Buscar canción, artista, invitado..."
+              className="w-full rounded-lg border border-[#d0d0d0] bg-white px-3 py-1.5 text-xs text-[#1D1E20] outline-none transition focus:border-[#48C9B0] sm:w-56"
             />
             <select
               value={filterCat}
               onChange={e => setFilterCat(e.target.value)}
               className="shrink-0 rounded-lg border border-[#1D1E20] bg-[#1D1E20] px-2.5 py-1.5 text-xs text-white outline-none"
             >
-              <option value="todas">Todas las etapas</option>
+              <option value="todas">Todas</option>
+              <option value="__novios__">De los novios</option>
               {categories.map(c => <option key={c} value={c}>{c}</option>)}
               <option value="__none__">Sin etapa</option>
             </select>
@@ -785,17 +877,17 @@ export default function PlaylistPlannerPage() {
       {/* Zona scrolleable: contenido del tab */}
       <div className="flex-1 overflow-y-auto p-4 sm:px-6">
         {tab === 'playlist' && (totalSongs === 0 ? <EmptyState /> : <SongList />)}
-        {tab === 'nuestras' && (
-          <HostSongsTab
-            eventId={id as string}
-            hostLabel={hostLabel}
-            songs={hostSongs}
-            onAdded={song => setAllSongs(prev => [...prev, song as Song])}
-            onRemove={removeHostSong}
-          />
-        )}
         {tab === 'config' && <ConfigTab />}
       </div>
+
+      <AddSongModal
+        isOpen={showAddModal}
+        eventId={id as string}
+        hostLabel={hostLabel}
+        nextPosition={allSongs.length}
+        onClose={() => setShowAddModal(false)}
+        onAdded={song => setAllSongs(prev => [...prev, song as Song])}
+      />
     </div>
   )
 }
