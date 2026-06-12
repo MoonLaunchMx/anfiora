@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation'
 import { motion, useMotionValue, useTransform, animate, type PanInfo } from 'framer-motion'
 import { supabase } from '@/lib/supabase'
 import {
-  Gift, Plus, Link2, Copy, Check, Trash2, ExternalLink, Coins, Mail, Heart, Eye, Settings, Landmark, Pencil,
+  Gift, Plus, Link2, Copy, Check, Trash2, ExternalLink, Coins, Mail, Heart, Eye, Settings, Landmark, Pencil, Clock,
 } from 'lucide-react'
 import { FaWhatsapp } from 'react-icons/fa'
 import { GiftRegistryItem, GiftReservation, RegistryPaymentMethod, normalizePaymentMethods } from '@/lib/types'
@@ -481,13 +481,13 @@ export default function MesaRegalosPage() {
                         )}
                         <button
                           onClick={() => handleToggleThanked(r)}
-                          title={r.thanked ? 'Agradecido' : 'Marcar agradecido'}
+                          title={r.thanked ? 'Agradecido' : 'Pendiente de agradecer'}
                           className={`flex h-6 w-6 items-center justify-center rounded-full border transition
                             ${r.thanked
                               ? 'border-[#c8ede7] bg-[#f0fdfb] text-[#1a9e88]'
-                              : 'border-[#e0e0e0] bg-white text-[#ccc]'}`}
+                              : 'border-[#f0e0c0] bg-[#fffbf0] text-amber-500'}`}
                         >
-                          <Check size={13} />
+                          {r.thanked ? <Check size={13} /> : <Clock size={13} />}
                         </button>
                       </div>
                     </div>
@@ -540,9 +540,9 @@ export default function MesaRegalosPage() {
                             className={`flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-medium transition
                               ${r.thanked
                                 ? 'border-[#c8ede7] bg-[#f0fdfb] text-[#1a9e88]'
-                                : 'border-[#e0e0e0] bg-white text-[#888] hover:border-[#48C9B0] hover:text-[#48C9B0]'}`}
+                                : 'border-[#f0e0c0] bg-[#fffbf0] text-amber-600 hover:border-[#48C9B0] hover:text-[#48C9B0]'}`}
                           >
-                            {r.thanked ? <><Check size={12} /> Agradecido</> : 'Marcar agradecido'}
+                            {r.thanked ? <><Check size={12} /> Agradecido</> : <><Clock size={12} /> Por agradecer</>}
                           </button>
                         </td>
                         <td className="px-4 py-3">
