@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
 import { motion, useMotionValue, useTransform, animate, type PanInfo } from 'framer-motion'
 import { supabase } from '@/lib/supabase'
+import FeatureGuard from '@/app/components/ui/FeatureGuard'
 import {
   Gift, Plus, Link2, Copy, Check, Trash2, ExternalLink, Coins, Mail, Heart, Eye, Settings, Landmark, Pencil, Clock,
 } from 'lucide-react'
@@ -63,7 +64,7 @@ function SwipeableGiftCard({ enabled, onDelete, onClick, children }: {
   )
 }
 
-export default function MesaRegalosPage() {
+function MesaRegalosPageInner() {
   const { id } = useParams()
   const eventId = id as string
   const statsToggle = useStatsToggle(eventId, 'mesa-regalos')
@@ -796,5 +797,13 @@ export default function MesaRegalosPage() {
         onSave={handleSaveMethod}
       />
     </div>
+  )
+}
+
+export default function MesaRegalosPage() {
+  return (
+    <FeatureGuard feature="regalos">
+      <MesaRegalosPageInner />
+    </FeatureGuard>
   )
 }

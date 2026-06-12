@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef, useCallback, useMemo } from 'react'
 import { useParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import FeatureGuard from '@/app/components/ui/FeatureGuard'
 import { Guest } from '@/lib/types'
 import { Plus, Trash2, ChevronDown, ChevronUp, X, List, Map as MapIcon, Printer, Search, LayoutGrid, ArrowLeft, LayoutPanelLeft, RotateCw } from 'lucide-react'
 import StatsCollapse, { StatsToggleButton, useStatsToggle } from '@/app/components/ui/StatsCollapse'
@@ -1221,7 +1222,7 @@ function ModalMover({ moveModal, tables, moveSaving, onConfirm, onClose }: {
 }
 
 // ─── PÁGINA PRINCIPAL ─────────────────────────
-export default function MesasPage() {
+function MesasPageInner() {
   const {id:eventId}=useParams()
 
   // Toggle de estadísticas en mobile (persiste por evento en localStorage)
@@ -1732,5 +1733,12 @@ export default function MesasPage() {
       <ModalAsignar tables={tables} guests={guests} assignModal={assignModal} assignSearch={assignSearch} setAssignSearch={setAssignSearch} assignRef={assignRef} gSeatMap={gSeatMap} getOccupied={getOccupied} handleSelectGuest={handleSelectGuest} onClose={()=>{setAssignModal(null);setAssignSearch('')}}/>
       <ModalMover moveModal={moveModal} tables={tables} moveSaving={moveSaving} onConfirm={handleMove} onClose={()=>setMoveModal(null)}/>
     </div>
+  )
+}
+export default function MesasPage() {
+  return (
+    <FeatureGuard feature="mesas">
+      <MesasPageInner />
+    </FeatureGuard>
   )
 }
