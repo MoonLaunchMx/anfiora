@@ -294,10 +294,10 @@ export default function MesaRegalosPage() {
           <TabToggle tabs={TABS} active={tab} onChange={setTab} />
         </div>
 
-        {/* Toolbar de Regalos: filtros + agregar, fija como en las demas paginas */}
+        {/* Toolbar de Regalos: filtros + agregar (boton siempre a la derecha) */}
         {tab === 'regalos' && (
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-            <div className="flex flex-wrap gap-1.5">
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <div className="flex min-w-0 flex-wrap gap-1.5">
               {([
                 { id: 'all',      label: 'Todos' },
                 { id: 'external', label: 'De tienda' },
@@ -318,9 +318,9 @@ export default function MesaRegalosPage() {
             </div>
             <button
               onClick={openAdd}
-              className="flex items-center gap-1.5 rounded-lg bg-[#48C9B0] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#3aa896]"
+              className="flex shrink-0 items-center gap-1.5 rounded-lg bg-[#48C9B0] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#3aa896]"
             >
-              <Plus size={15} /> Agregar regalo
+              <Plus size={15} /> <span className="hidden sm:inline">Agregar regalo</span><span className="sm:hidden">Agregar</span>
             </button>
           </div>
         )}
