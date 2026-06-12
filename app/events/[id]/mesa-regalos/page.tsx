@@ -8,7 +8,7 @@ import {
   Gift, Plus, Link2, Copy, Check, Trash2, ExternalLink, Coins, Mail, Heart, Eye, Settings, Landmark, Pencil, Clock,
 } from 'lucide-react'
 import { FaWhatsapp } from 'react-icons/fa'
-import { GiftRegistryItem, GiftReservation, RegistryPaymentMethod, normalizePaymentMethods } from '@/lib/types'
+import { GiftRegistryItem, GiftReservation, RegistryPaymentMethod, RegistryExternalLink, normalizePaymentMethods } from '@/lib/types'
 import { TabToggle, type TabItem } from '@/app/components/ui/TabToggle'
 import StatsCollapse, { useStatsToggle, StatsToggleButton } from '@/app/components/ui/StatsCollapse'
 import AddGiftModal, { NewGiftData, GIFT_CATEGORIES } from './AddGiftModal'
@@ -80,6 +80,9 @@ export default function MesaRegalosPage() {
   const [payMethods, setPayMethods]     = useState<RegistryPaymentMethod[]>([])
   const [showPayModal, setShowPayModal] = useState(false)
   const [editingMethod, setEditingMethod] = useState<RegistryPaymentMethod | null>(null)
+  const [extLinks, setExtLinks]         = useState<RegistryExternalLink[]>([])
+  const [newExtUrl, setNewExtUrl]       = useState('')
+  const [extError, setExtError]         = useState('')
   const [isMobile, setIsMobile]         = useState(false)
 
   useEffect(() => {
@@ -93,12 +96,13 @@ export default function MesaRegalosPage() {
   useEffect(() => {
     const loadData = async () => {
       const [{ data: settings }, { data: itemsData }, { data: resData }] = await Promise.all([
-        supabase.from('event_settings').select('registry_token, registry_payment_info').eq('event_id', eventId).maybeSingle(),
+        supabase.from('event_settings').select('registry_token, registry_payment_info, registry_external_links').eq('event_id', eventId).maybeSingle(),
         supabase.from('gift_registry_items').select('*').eq('event_id', eventId).order('created_at', { ascending: false }),
         supabase.from('gift_reservations').select('*').eq('event_id', eventId).order('created_at', { ascending: false }),
       ])
       setToken(settings?.registry_token || null)
       setPayMethods(normalizePaymentMethods(settings?.registry_payment_info))
+      setExtLinks((settings?.registry_external_links as RegistryExternalLink[]) || [])
       setItems((itemsData as GiftRegistryItem[]) || [])
       setReservations((resData as GiftReservation[]) || [])
       setLoading(false)
@@ -132,6 +136,38 @@ export default function MesaRegalosPage() {
 
   const openAddMethod  = () => { setEditingMethod(null); setShowPayModal(true) }
   const openEditMethod = (m: RegistryPaymentMethod) => { setEditingMethod(m); setShowPayModal(true) }
+
+  // Mesas de regalos externas (Liverpool, Amazon, Cimaco...)
+  const storeNameFromUrl = (url: string) => {
+    try {
+      const skip = new Set(['www', 'com', 'mx', 'net', 'org', 'co', 'io', 'shop', 'store', 'mesaderegalos'])
+      const labels = new URL(url).hostname.toLowerCase().split('.').filter(l => !skip.has(l))
+      const brand = labels.pop() || 'Tienda'
+      return brand.charAt(0).toUpperCase() + brand.slice(1)
+    } catch { return 'Tienda' }
+  }
+
+  const persistExtLinks = async (links: RegistryExternalLink[]) => {
+    setExtLinks(links)
+    await supabase
+      .from('event_settings')
+      .update({ registry_external_links: links.length ? links : null })
+      .eq('event_id', eventId)
+  }
+
+  const handleAddExtLink = async () => {
+    let url = newExtUrl.trim()
+    if (!url) return
+    if (!/^https?:\/\//i.test(url)) url = `https://${url}`
+    try { new URL(url) } catch { setExtError('Pega un link válido.'); return }
+    setExtError('')
+    await persistExtLinks([...extLinks, { id: generateToken(8), store: storeNameFromUrl(url), url }])
+    setNewExtUrl('')
+  }
+
+  const handleDeleteExtLink = async (linkId: string) => {
+    await persistExtLinks(extLinks.filter(l => l.id !== linkId))
+  }
 
   const handleSubmitGift = async (data: NewGiftData) => {
     if (editing) {
@@ -679,6 +715,67 @@ export default function MesaRegalosPage() {
             >
               <Plus size={14} /> Agregar método
             </button>
+          </div>
+
+          <div className="rounded-xl border border-[#e8e8e8] bg-white p-4">
+            <div className="mb-1 flex items-center gap-2">
+              <ExternalLink size={15} className="text-[#48C9B0]" />
+              <h2 className="text-sm font-semibold text-[#1D1E20]">Mesas de regalos externas</h2>
+            </div>
+            <p className="mb-3 text-xs text-[#888]">
+              ¿Ya tienen mesa en Liverpool, Amazon o Cimaco? Pega el link y tus invitados la verán desde tu mesa.
+            </p>
+
+            {extLinks.length > 0 && (
+              <div className="mb-3 divide-y divide-[#f0f0f0] rounded-lg border border-[#e8e8e8]">
+                {extLinks.map(l => (
+                  <div key={l.id} className="flex items-center gap-3 px-3 py-2.5">
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#f0fdfb] text-[#1a9e88]">
+                      <ExternalLink size={14} />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-semibold text-[#1D1E20]">{l.store}</p>
+                      <p className="truncate text-[11px] text-[#888]">{l.url.replace(/^https?:\/\//, '')}</p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-1">
+                      <a
+                        href={l.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title="Abrir"
+                        className="flex h-7 w-7 items-center justify-center rounded-md text-[#bbb] transition hover:bg-[#f5f5f5] hover:text-[#1D1E20]"
+                      >
+                        <Eye size={13} />
+                      </a>
+                      <button
+                        onClick={() => handleDeleteExtLink(l.id)}
+                        title="Eliminar"
+                        className="flex h-7 w-7 items-center justify-center rounded-md text-[#bbb] transition hover:bg-[#fff0f0] hover:text-[#cc3333]"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="flex gap-2">
+              <input
+                className="min-w-0 flex-1 rounded-lg border border-[#e0e0e0] bg-white px-3 py-2 text-sm text-[#1D1E20] outline-none transition focus:border-[#48C9B0]"
+                value={newExtUrl}
+                onChange={e => setNewExtUrl(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') handleAddExtLink() }}
+                placeholder="mesaderegalos.liverpool.com.mx/..."
+              />
+              <button
+                onClick={handleAddExtLink}
+                className="flex shrink-0 items-center gap-1.5 rounded-lg bg-[#48C9B0] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#3aa896]"
+              >
+                <Plus size={14} /> Agregar
+              </button>
+            </div>
+            {extError && <p className="mt-2 text-xs text-[#cc3333]">{extError}</p>}
           </div>
           </div>
         )}

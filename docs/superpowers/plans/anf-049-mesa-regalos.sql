@@ -154,3 +154,10 @@ GRANT SELECT (id, event_id, message_templates, template_names, album_url,
   ON event_settings TO anon;
 
 COMMIT;
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Incremento 2026-06-11 (2): mesas de regalos externas (Liverpool, Amazon...).
+-- Array JSONB de { id, store, url }. La vista publica lo lee via API service-role;
+-- anon no tiene grant sobre la columna (la lista de columnas de arriba no la incluye).
+
+ALTER TABLE event_settings ADD COLUMN IF NOT EXISTS registry_external_links JSONB;

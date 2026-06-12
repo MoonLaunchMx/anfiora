@@ -24,7 +24,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
     db.from('events').select('id, name, host_name, host_name_2, event_date, venue, event_type').eq('id', eventId).maybeSingle(),
     db.from('gift_registry_items').select('*').eq('event_id', eventId).order('created_at', { ascending: true }),
     db.from('gift_reservations').select('item_id, amount').eq('event_id', eventId),
-    db.from('event_settings').select('registry_payment_info').eq('event_id', eventId).maybeSingle(),
+    db.from('event_settings').select('registry_payment_info, registry_external_links').eq('event_id', eventId).maybeSingle(),
   ])
   if (!event) return NextResponse.json({ error: 'not_found' }, { status: 404 })
 
@@ -44,6 +44,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
     items: items || [],
     aggregates,
     payment_info: settings?.registry_payment_info || null,
+    external_links: settings?.registry_external_links || [],
   })
 }
 

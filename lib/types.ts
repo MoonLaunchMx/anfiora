@@ -89,8 +89,15 @@ export type EventSettings = {
   playlist_categories: string[] | null
   registry_token: string | null
   registry_payment_info: RegistryPaymentInfo | null
+  registry_external_links: RegistryExternalLink[] | null
   created_at: string
   updated_at: string
+}
+
+export type RegistryExternalLink = {
+  id: string
+  store: string
+  url: string
 }
 
 // ─── MESA DE REGALOS ─────────────────────────────────────────────────────────

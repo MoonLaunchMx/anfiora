@@ -3,7 +3,7 @@
 import { Fragment, useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { Gift, Coins, Mail, ExternalLink, Check, X, Heart, Copy, Landmark } from 'lucide-react'
-import { GiftRegistryItem, RegistryPaymentMethod, normalizePaymentMethods, PHONE_COUNTRY_CODES, GIFT_CATEGORIES } from '@/lib/types'
+import { GiftRegistryItem, RegistryPaymentMethod, RegistryExternalLink, normalizePaymentMethods, PHONE_COUNTRY_CODES, GIFT_CATEGORIES } from '@/lib/types'
 
 type Aggregates = Record<string, { count: number; sum: number; buyers: number }>
 type ReserveMode = 'buy' | 'contribute'
@@ -35,6 +35,7 @@ export default function MesaPublicaPage() {
   const [items, setItems]         = useState<GiftRegistryItem[]>([])
   const [agg, setAgg]             = useState<Aggregates>({})
   const [payMethods, setPayMethods] = useState<RegistryPaymentMethod[]>([])
+  const [extLinks, setExtLinks]     = useState<RegistryExternalLink[]>([])
   const [loading, setLoading]     = useState(true)
   const [notFound, setNotFound]   = useState(false)
   const [active, setActive]       = useState<{ item: GiftRegistryItem; mode: ReserveMode } | null>(null)
@@ -50,6 +51,7 @@ export default function MesaPublicaPage() {
         setItems(data.items || [])
         setAgg(data.aggregates || {})
         setPayMethods(normalizePaymentMethods(data.payment_info))
+        setExtLinks(data.external_links || [])
       } catch {
         setNotFound(true)
       } finally {
@@ -113,6 +115,27 @@ export default function MesaPublicaPage() {
         <p className="mx-auto mt-7 max-w-md text-sm leading-relaxed text-[#666]">
           Su presencia es nuestro mayor regalo. Si desean consentirnos, prepararamos esta mesa con mucho cariño.
         </p>
+
+        {extLinks.length > 0 && (
+          <div className="mt-6">
+            <p className="text-[11px] uppercase tracking-[0.2em] text-[#aaa]" style={josefin}>
+              También tenemos mesa en
+            </p>
+            <div className="mt-3 flex flex-wrap justify-center gap-2">
+              {extLinks.map(l => (
+                <a
+                  key={l.id}
+                  href={l.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 rounded-full border border-[#e0d9cc] bg-white px-4 py-2 text-xs font-semibold text-[#1D1E20] transition hover:border-[#48C9B0] hover:text-[#1a9e88]"
+                >
+                  {l.store} <ExternalLink size={12} className="text-[#aaa]" />
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
       </section>
 
       {/* Lista */}
