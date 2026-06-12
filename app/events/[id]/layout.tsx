@@ -82,6 +82,12 @@ const NAV_ITEMS: NavEntry[] = [
     iconFilled:  <CalendarDays  width={18} height={18} strokeWidth={2.5} />,
   },
   {
+    type: 'item',
+    label: 'Mesa de regalos', labelMobile: 'Regalos', path: '/mesa-regalos', adminOnly: false,
+    iconOutline: <Gift width={18} height={18} strokeWidth={1.5} />,
+    iconFilled:  <Gift width={18} height={18} strokeWidth={2.5} />,
+  },
+  {
     type: 'group',
     label: 'Finanzas', labelMobile: 'Finanzas',
     defaultPath: '/presupuesto',
@@ -123,12 +129,6 @@ const NAV_ITEMS: NavEntry[] = [
         iconFilled:  <Music2 width={18} height={18} strokeWidth={2.5} />,
       },
     ],
-  },
-  {
-    type: 'item',
-    label: 'Mesa de regalos', labelMobile: 'Regalos', path: '/mesa-regalos', adminOnly: false,
-    iconOutline: <Gift width={18} height={18} strokeWidth={1.5} />,
-    iconFilled:  <Gift width={18} height={18} strokeWidth={2.5} />,
   },
   {
     type: 'item',
