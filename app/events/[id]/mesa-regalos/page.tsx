@@ -179,7 +179,8 @@ export default function MesaRegalosPage() {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-6">
+      {/* Zona fija: header + stats + tabs (mismo patron que presupuesto) */}
+      <div className="shrink-0 border-b border-[#e8e8e8] px-4 pt-4 sm:px-6 sm:pt-5">
 
         {/* Header */}
         <div className="mb-4 flex items-start justify-between gap-4">
@@ -214,6 +215,10 @@ export default function MesaRegalosPage() {
         <div className="mb-4 flex justify-center sm:justify-start">
           <TabToggle tabs={TABS} active={tab} onChange={setTab} />
         </div>
+      </div>
+
+      {/* Zona scrolleable: contenido del tab */}
+      <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-6">
 
         {/* ── Tab: Regalos ── */}
         {tab === 'regalos' && (
