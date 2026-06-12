@@ -3,7 +3,8 @@
 import { useEffect, useState, useRef } from 'react'
 import { useParams, usePathname, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { Users, Images, Music2, Settings, LayoutGrid, PanelLeftClose, PanelLeftOpen, CalendarDays, House, User, LogOut, Wallet, Briefcase, Heart, MessageCircle, Receipt, Gift } from 'lucide-react'
+import { Users, Images, Music2, Settings, LayoutGrid, PanelLeftClose, PanelLeftOpen, CalendarDays, House, User, LogOut, Wallet, Briefcase, Heart, MessageCircle, Receipt, Gift, UtensilsCrossed } from 'lucide-react'
+import { LEGACY_FEATURES, type FeatureKey } from '@/lib/features'
 import { Event } from '@/lib/types'
 import { EventAccessProvider, useEventAccess } from '@/lib/event-access-context'
 
@@ -83,6 +84,12 @@ const NAV_ITEMS: NavEntry[] = [
   },
   {
     type: 'item',
+    label: 'Comida', labelMobile: 'Comida', path: '/comida', adminOnly: false,
+    iconOutline: <UtensilsCrossed width={18} height={18} strokeWidth={1.5} />,
+    iconFilled:  <UtensilsCrossed width={18} height={18} strokeWidth={2.5} />,
+  },
+  {
+    type: 'item',
     label: 'Mesa de regalos', labelMobile: 'Regalos', path: '/mesa-regalos', adminOnly: false,
     iconOutline: <Gift width={18} height={18} strokeWidth={1.5} />,
     iconFilled:  <Gift width={18} height={18} strokeWidth={2.5} />,
@@ -137,6 +144,38 @@ const NAV_ITEMS: NavEntry[] = [
     iconFilled:  <Settings      width={18} height={18} strokeWidth={2.5} />,
   },
 ]
+
+const FEATURE_BY_PATH: Record<string, FeatureKey> = {
+  '/mesas':        'mesas',
+  '/mesa-regalos': 'regalos',
+  '/album':        'album',
+  '/playlist':     'playlist',
+  '/comida':       'comida',
+}
+
+function filterNavByFeatures(entries: NavEntry[], features: Record<FeatureKey, boolean> | null): NavEntry[] {
+  const effective = features ?? LEGACY_FEATURES
+  const result: NavEntry[] = []
+  for (const entry of entries) {
+    if (entry.type === 'item') {
+      const fk = FEATURE_BY_PATH[entry.path]
+      if (fk && !effective[fk]) continue
+      result.push(entry)
+    } else {
+      const children = entry.children.filter(child => {
+        const fk = FEATURE_BY_PATH[child.path]
+        return !fk || effective[fk]
+      })
+      if (children.length === 0) continue
+      result.push({
+        ...entry,
+        children,
+        defaultPath: children.some(c => c.path === entry.defaultPath) ? entry.defaultPath : children[0].path,
+      })
+    }
+  }
+  return result
+}
 
 function ProBadge({ active = false }: { active?: boolean }) {
   return (
@@ -241,7 +280,7 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
   const { id } = useParams()
   const pathname = usePathname()
   const router = useRouter()
-  const { canAdmin } = useEventAccess()
+  const { canAdmin, features } = useEventAccess()
 
   const [event, setEvent]             = useState<Event | null>(null)
   const [drawerOpen, setDrawerOpen]   = useState(false)
@@ -254,8 +293,11 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
   const navScrollRef = useRef<HTMLDivElement>(null)
   const avatarRef    = useRef<HTMLDivElement>(null)
 
-  const visibleEntries = NAV_ITEMS.filter(entry =>
-    entry.type === 'item' ? (!entry.adminOnly || canAdmin) : true
+  const visibleEntries = filterNavByFeatures(
+    NAV_ITEMS.filter(entry =>
+      entry.type === 'item' ? (!entry.adminOnly || canAdmin) : true
+    ),
+    features,
   )
 
   useEffect(() => {
