@@ -465,29 +465,29 @@ export default function MesaRegalosPage() {
                           ? <p className="mt-0.5 text-sm font-semibold tabular-nums text-[#1a9e88]">{fmtMXN(r.amount)}</p>
                           : <p className="mt-0.5 text-[11px] font-medium text-[#aaa]">Regalo apartado</p>}
                       </div>
-                      <div className="flex shrink-0 flex-col items-center gap-1.5">
+                      <div className="flex shrink-0 items-center gap-2">
                         {r.guest_phone ? (
                           <button
                             onClick={() => thankByWhatsApp(r, gift)}
                             title="Agradecer por WhatsApp"
-                            className="flex h-9 w-9 items-center justify-center rounded-xl border border-[#c0f0dc] bg-[#f0fff8]"
+                            className="flex h-10 w-10 items-center justify-center rounded-xl border border-[#c0f0dc] bg-[#f0fff8]"
                           >
-                            <FaWhatsapp size={18} className="text-[#25D366]" />
+                            <FaWhatsapp size={20} className="text-[#25D366]" />
                           </button>
                         ) : (
-                          <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-[#f0f0f0] bg-[#fafafa]">
-                            <FaWhatsapp size={16} className="text-[#ddd]" />
+                          <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-[#f0f0f0] bg-[#fafafa]">
+                            <FaWhatsapp size={18} className="text-[#ddd]" />
                           </div>
                         )}
                         <button
                           onClick={() => handleToggleThanked(r)}
                           title={r.thanked ? 'Agradecido' : 'Pendiente de agradecer'}
-                          className={`flex h-6 w-6 items-center justify-center rounded-full border transition
+                          className={`flex h-10 w-10 items-center justify-center rounded-xl border transition
                             ${r.thanked
                               ? 'border-[#c8ede7] bg-[#f0fdfb] text-[#1a9e88]'
                               : 'border-[#f0e0c0] bg-[#fffbf0] text-amber-500'}`}
                         >
-                          {r.thanked ? <Check size={13} /> : <Clock size={13} />}
+                          {r.thanked ? <Check size={16} /> : <Clock size={16} />}
                         </button>
                       </div>
                     </div>
