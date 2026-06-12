@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation'
 import { motion, useMotionValue, useTransform, animate, type PanInfo } from 'framer-motion'
 import { supabase } from '@/lib/supabase'
 import {
-  Gift, Plus, Link2, Copy, Check, Trash2, ExternalLink, Coins, Mail, Heart, Eye, Settings, Landmark, Pencil, Clock,
+  Gift, Plus, Link2, Copy, Check, Trash2, ExternalLink, Coins, Mail, Heart, Eye, Settings, Landmark, Pencil, Clock, MapPin,
 } from 'lucide-react'
 import { FaWhatsapp } from 'react-icons/fa'
 import { GiftRegistryItem, GiftReservation, RegistryPaymentMethod, RegistryExternalLink, normalizePaymentMethods } from '@/lib/types'
@@ -84,6 +84,9 @@ export default function MesaRegalosPage() {
   const [newExtUrl, setNewExtUrl]       = useState('')
   const [extError, setExtError]         = useState('')
   const [isMobile, setIsMobile]         = useState(false)
+  const [shippingAddress, setShippingAddress] = useState('')
+  const [addrDirty, setAddrDirty]             = useState(false)
+  const [addrSaved, setAddrSaved]             = useState(false)
 
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 639px)')
@@ -96,13 +99,14 @@ export default function MesaRegalosPage() {
   useEffect(() => {
     const loadData = async () => {
       const [{ data: settings }, { data: itemsData }, { data: resData }] = await Promise.all([
-        supabase.from('event_settings').select('registry_token, registry_payment_info, registry_external_links').eq('event_id', eventId).maybeSingle(),
+        supabase.from('event_settings').select('registry_token, registry_payment_info, registry_external_links, registry_shipping_address').eq('event_id', eventId).maybeSingle(),
         supabase.from('gift_registry_items').select('*').eq('event_id', eventId).order('created_at', { ascending: false }),
         supabase.from('gift_reservations').select('*').eq('event_id', eventId).order('created_at', { ascending: false }),
       ])
       setToken(settings?.registry_token || null)
       setPayMethods(normalizePaymentMethods(settings?.registry_payment_info))
       setExtLinks((settings?.registry_external_links as RegistryExternalLink[]) || [])
+      setShippingAddress((settings?.registry_shipping_address as string) || '')
       setItems((itemsData as GiftRegistryItem[]) || [])
       setReservations((resData as GiftReservation[]) || [])
       setLoading(false)
@@ -167,6 +171,18 @@ export default function MesaRegalosPage() {
 
   const handleDeleteExtLink = async (linkId: string) => {
     await persistExtLinks(extLinks.filter(l => l.id !== linkId))
+  }
+
+  const handleSaveAddress = async () => {
+    const trimmed = shippingAddress.trim()
+    await supabase
+      .from('event_settings')
+      .update({ registry_shipping_address: trimmed || null })
+      .eq('event_id', eventId)
+    setShippingAddress(trimmed)
+    setAddrDirty(false)
+    setAddrSaved(true)
+    setTimeout(() => setAddrSaved(false), 2000)
   }
 
   const handleSubmitGift = async (data: NewGiftData) => {
@@ -722,7 +738,8 @@ export default function MesaRegalosPage() {
           </div>
           </div>
 
-          {/* Columna derecha: metodos de pago */}
+          {/* Columna derecha: metodos de pago + direccion de entrega */}
+          <div className="space-y-4">
           <div className="rounded-xl border border-[#e8e8e8] bg-white p-4">
             <div className="mb-1 flex items-center gap-2">
               <Landmark size={15} className="text-[#48C9B0]" />
@@ -782,6 +799,34 @@ export default function MesaRegalosPage() {
             >
               <Plus size={14} /> Agregar método
             </button>
+          </div>
+
+          <div className="rounded-xl border border-[#e8e8e8] bg-white p-4">
+            <div className="mb-1 flex items-center gap-2">
+              <MapPin size={15} className="text-[#48C9B0]" />
+              <h2 className="text-sm font-semibold text-[#1D1E20]">Dirección de entrega</h2>
+            </div>
+            <p className="mb-3 text-xs text-[#888]">
+              Cuando un invitado aparte un regalo y lo compre él mismo, le mostramos esta dirección para el envío.
+            </p>
+            <textarea
+              value={shippingAddress}
+              onChange={e => { setShippingAddress(e.target.value); setAddrDirty(true) }}
+              rows={3}
+              placeholder="Calle y número, colonia, CP, ciudad. Referencias para el repartidor."
+              className="w-full resize-none rounded-lg border border-[#e0e0e0] bg-white px-3 py-2 text-sm text-[#1D1E20] outline-none transition focus:border-[#48C9B0]"
+            />
+            <div className="mt-2 flex items-center justify-between gap-2">
+              <p className="text-[10px] text-[#aaa]">Solo se muestra a invitados que apartan un regalo.</p>
+              <button
+                onClick={handleSaveAddress}
+                disabled={!addrDirty}
+                className="flex shrink-0 items-center gap-1.5 rounded-lg bg-[#48C9B0] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#3aa896] disabled:opacity-50"
+              >
+                {addrSaved ? <><Check size={14} /> Guardada</> : 'Guardar dirección'}
+              </button>
+            </div>
+          </div>
           </div>
           </div>
         )}
