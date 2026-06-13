@@ -642,7 +642,7 @@ export default function ConfiguracionPage() {
 
           {/* ── TAB: EVENTO ── */}
           {activeTab === 'evento' && (
-            <div className="flex flex-col gap-4 sm:gap-5">
+            <div className="flex flex-col gap-4 sm:gap-5 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,420px)] lg:items-start lg:gap-8">
 
               {/* Datos generales */}
               <div>
@@ -832,7 +832,7 @@ export default function ConfiguracionPage() {
                 </div>
 
                 {features ? (
-                  <div className="flex flex-col gap-2 sm:max-w-xl">
+                  <div className="flex flex-col gap-2">
                     {FEATURES.map(f => {
                       const Icon = f.icon
                       const on = features[f.key]
