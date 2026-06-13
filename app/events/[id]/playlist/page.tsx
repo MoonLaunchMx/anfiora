@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { FaWhatsapp } from 'react-icons/fa'
 import {
-  Music, Clock, Plus, MessageSquareText, ExternalLink, Trophy, Heart,
+  Music, Plus, MessageSquareText, ExternalLink, Trophy, Heart,
   Settings, Download, ListMusic, Link2, Copy, Check, Eye, Tags, Trash2,
 } from 'lucide-react'
 import StatsCollapse, { StatsToggleButton, useStatsToggle } from '@/app/components/ui/StatsCollapse'
@@ -512,31 +512,22 @@ export default function PlaylistPlannerPage() {
     { key: 'config', label: 'Configuración', shortLabel: 'Config', icon: Settings },
   ]
 
-  // Stats: canciones + duración
+  // Stats compactas (mismo estilo que mesa de regalos)
   const StatsCards = () => (
-    <>
-      {/* Canciones */}
+    <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
       <div className="rounded-xl border border-[#e8e8e8] bg-white p-3">
-        <div className="mb-1.5 flex items-center justify-between">
-          <span className="text-[10px] font-semibold uppercase tracking-wide text-[#aaa]">Canciones</span>
-          <Music size={14} className="text-[#48C9B0]" />
-        </div>
-        <div className="text-xl font-bold text-[#1D1E20]">{totalSongs}</div>
-        <div className="mt-1 text-[10px] text-[#aaa]">
-          {guestSongs.length} de invitados · {hostSongs.length} de novios
-        </div>
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-[#aaa]">Canciones</p>
+        <p className="mt-1 text-xl font-bold tabular-nums text-[#1D1E20]">{totalSongs}</p>
       </div>
-
-      {/* Duración */}
       <div className="rounded-xl border border-[#e8e8e8] bg-white p-3">
-        <div className="mb-1.5 flex items-center justify-between">
-          <span className="text-[10px] font-semibold uppercase tracking-wide text-[#aaa]">Duración</span>
-          <Clock size={14} className="text-[#48C9B0]" />
-        </div>
-        <div className="text-xl font-bold text-[#1D1E20]">{durationLabel}</div>
-        <div className="mt-1 text-[10px] text-[#aaa]">tiempo total estimado</div>
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-[#aaa]">De los novios</p>
+        <p className="mt-1 text-xl font-bold tabular-nums text-[#1D1E20]">{hostSongs.length}</p>
       </div>
-    </>
+      <div className="hidden rounded-xl border border-[#e8e8e8] bg-white p-3 sm:block">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-[#aaa]">Duración</p>
+        <p className="mt-1 text-xl font-bold tabular-nums text-[#1D1E20]">{durationLabel}</p>
+      </div>
+    </div>
   )
 
   // Sección Top 5 — solo se muestra si hay repeticiones
@@ -770,19 +761,21 @@ export default function PlaylistPlannerPage() {
   )
 
   return (
-    <div className="flex h-full flex-col overflow-hidden bg-[#f4f4f4]">
+    <div className="flex h-full flex-col">
 
-      {/* Zona fija: header + stats + tabs (mismo patrón que mesa de regalos) */}
-      <div className="shrink-0 border-b border-[#e8e8e8] bg-white px-4 py-3 sm:px-6 sm:py-4">
-        <div className="mb-3 flex items-start justify-between gap-3">
-          <div className="min-w-0 flex-1">
-            <h1 className="text-lg font-bold text-[#1D1E20] sm:text-xl lg:text-2xl">Playlist</h1>
-            <p className="mt-0.5 text-xs text-[#888] sm:text-sm">La música del evento, de invitados y novios</p>
+      {/* Zona fija: header + stats + tabs + toolbar (mismo patrón que mesa de regalos) */}
+      <div className="shrink-0 border-b border-[#e8e8e8] px-4 pt-4 sm:px-6 sm:pt-5">
+
+        {/* Header */}
+        <div className="mb-4 flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-xl font-bold text-[#1D1E20]">Playlist</h1>
+            <p className="mt-0.5 text-xs text-[#888]">La música del evento, de invitados y novios.</p>
           </div>
           <div className="flex shrink-0 items-center gap-2 pt-1">
             {saving && <span className="hidden text-xs text-[#aaa] sm:inline">Guardando orden...</span>}
             {tab === 'playlist' && (
-              <div className="sm:hidden">
+              <div className="lg:hidden">
                 <StatsToggleButton visible={statsVisible} onClick={toggleStats} />
               </div>
             )}
@@ -791,80 +784,64 @@ export default function PlaylistPlannerPage() {
 
         {/* Stats solo en tab playlist */}
         {tab === 'playlist' && (
-          <>
-            {/* Mobile: colapsables */}
-            <div className="sm:hidden">
-              <StatsCollapse visible={statsVisible}>
-                <div className="mb-3 flex flex-col gap-2">
-                  <div className="grid grid-cols-2 gap-2">
-                    <StatsCards />
-                  </div>
-                  <TopRepeatedSection />
-                </div>
-              </StatsCollapse>
-            </div>
-            {/* Desktop: siempre visibles */}
-            <div className="mb-3 hidden sm:block">
-              {top5Repeated.length > 0 ? (
-                <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-                  <div className="grid grid-cols-2 gap-3">
-                    <StatsCards />
-                  </div>
-                  <TopRepeatedSection />
-                </div>
-              ) : (
-                <div className="grid grid-cols-2 gap-3">
-                  <StatsCards />
-                </div>
-              )}
-            </div>
-          </>
+          <StatsCollapse visible={statsVisible}>
+            <StatsCards />
+          </StatsCollapse>
         )}
 
-        <div className="flex items-center justify-between gap-2">
+        {/* Toggle (centrado en mobile, izquierda en desktop) */}
+        <div className="mb-4 flex justify-center overflow-x-auto sm:justify-start">
           <TabToggle tabs={TABS} active={tab} onChange={setTab} />
-          {tab === 'playlist' && (
+        </div>
+
+        {/* Toolbar: buscador + filtro a la izquierda, acciones a la derecha */}
+        {tab === 'playlist' && (
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <div className="flex min-w-0 flex-1 items-center gap-2">
+              <input
+                type="text"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Buscar canción, artista, invitado..."
+                className="min-w-0 flex-1 rounded-lg border border-[#d0d0d0] bg-white px-3 py-2 text-xs text-[#1D1E20] outline-none transition focus:border-[#48C9B0] sm:max-w-xs"
+              />
+              <select
+                value={filterCat}
+                onChange={e => setFilterCat(e.target.value)}
+                className="shrink-0 rounded-lg border border-[#1D1E20] bg-[#1D1E20] px-2.5 py-2 text-xs text-white outline-none"
+              >
+                <option value="todas">Todas</option>
+                <option value="__novios__">De los novios</option>
+                {categories.map(c => <option key={c} value={c}>{c}</option>)}
+                <option value="__none__">Sin etapa</option>
+              </select>
+            </div>
             <div className="flex shrink-0 items-center gap-2">
               <ExportButton />
               <button
                 onClick={() => setShowAddModal(true)}
-                className="flex items-center gap-1.5 rounded-lg bg-[#48C9B0] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#3aa896]"
+                className="flex shrink-0 items-center gap-1.5 rounded-lg bg-[#48C9B0] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#3aa896]"
               >
-                <Plus size={14} />
+                <Plus size={15} />
                 <span className="hidden sm:inline">Agregar canción</span>
-                <span className="sm:hidden">Agregar</span>
               </button>
             </div>
-          )}
-        </div>
-
-        {/* Toolbar del tab playlist */}
-        {tab === 'playlist' && (
-          <div className="mt-2.5 flex items-center gap-2">
-            <input
-              type="text"
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder="Buscar canción, artista, invitado..."
-              className="w-full rounded-lg border border-[#d0d0d0] bg-white px-3 py-1.5 text-xs text-[#1D1E20] outline-none transition focus:border-[#48C9B0] sm:w-56"
-            />
-            <select
-              value={filterCat}
-              onChange={e => setFilterCat(e.target.value)}
-              className="shrink-0 rounded-lg border border-[#1D1E20] bg-[#1D1E20] px-2.5 py-1.5 text-xs text-white outline-none"
-            >
-              <option value="todas">Todas</option>
-              <option value="__novios__">De los novios</option>
-              {categories.map(c => <option key={c} value={c}>{c}</option>)}
-              <option value="__none__">Sin etapa</option>
-            </select>
           </div>
         )}
       </div>
 
       {/* Zona scrolleable: contenido del tab */}
-      <div className="flex-1 overflow-y-auto p-4 sm:px-6">
-        {tab === 'playlist' && (totalSongs === 0 ? <EmptyState /> : <SongList />)}
+      <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-6">
+        {tab === 'playlist' && (
+          <>
+            {top5Repeated.length > 0 && (
+              <div className="mb-4 lg:max-w-md">
+                <TopRepeatedSection />
+              </div>
+            )}
+            {totalSongs === 0 ? <EmptyState /> : <SongList />}
+          </>
+        )}
         {tab === 'config' && <ConfigTab />}
       </div>
 
