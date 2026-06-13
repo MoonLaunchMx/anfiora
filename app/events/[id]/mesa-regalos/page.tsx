@@ -667,177 +667,8 @@ export default function MesaRegalosPage() {
         {/* ── Tab: Configuración ── */}
         {tab === 'config' && (
           <div className="grid items-start gap-4 lg:grid-cols-2">
-          {/* Columna izquierda: link publico + mesas externas */}
+          {/* Columna izquierda: direccion de entrega + link publico */}
           <div className="space-y-4">
-          <div className="rounded-xl border border-[#e8e8e8] bg-white p-4">
-            <div className="mb-1 flex items-center gap-2">
-              <Link2 size={15} className="text-[#48C9B0]" />
-              <h2 className="text-sm font-semibold text-[#1D1E20]">Link público de tu mesa</h2>
-            </div>
-            <p className="mb-3 text-xs text-[#888]">Compártelo con tus invitados para que vean y aparten regalos.</p>
-            {publicUrl ? (
-              <div className="flex flex-wrap items-center gap-2">
-                <div className="flex min-w-0 flex-1 items-center gap-2 rounded-lg border border-[#e8e8e8] bg-[#f8f8f8] px-3 py-2">
-                  <span className="truncate font-mono text-xs text-[#555]">{publicUrl.replace(/^https?:\/\//, '')}</span>
-                </div>
-                <button
-                  onClick={copyLink}
-                  className="flex items-center gap-1.5 rounded-lg border border-[#e0e0e0] px-3 py-2 text-xs font-medium text-[#555] transition hover:border-[#48C9B0] hover:text-[#48C9B0]"
-                >
-                  {copied ? <><Check size={14} /> Copiado</> : <><Copy size={14} /> Copiar</>}
-                </button>
-                <a
-                  href={waShareUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-1.5 rounded-lg border border-[#e0e0e0] px-3 py-2 text-xs font-medium text-[#555] transition hover:border-[#25D366] hover:text-[#25D366]"
-                >
-                  <FaWhatsapp size={14} /> WhatsApp
-                </a>
-                <a
-                  href={publicUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-[#e0e0e0] px-3 py-2 text-xs font-medium text-[#555] transition hover:border-[#48C9B0] hover:text-[#48C9B0] sm:w-auto"
-                >
-                  <Eye size={14} /> Ver como invitado
-                </a>
-              </div>
-            ) : (
-              <button
-                onClick={handleGenerateLink}
-                className="flex items-center gap-1.5 rounded-lg bg-[#1D1E20] px-3 py-2 text-xs font-semibold text-white transition hover:bg-black"
-              >
-                <Link2 size={14} /> Generar link
-              </button>
-            )}
-          </div>
-
-          <div className="rounded-xl border border-[#e8e8e8] bg-white p-4">
-            <div className="mb-1 flex items-center gap-2">
-              <ExternalLink size={15} className="text-[#48C9B0]" />
-              <h2 className="text-sm font-semibold text-[#1D1E20]">Mesas de regalos externas</h2>
-            </div>
-            <p className="mb-3 text-xs text-[#888]">
-              ¿Ya tienen mesa en Liverpool, Amazon o Cimaco? Pega el link y tus invitados la verán desde tu mesa.
-            </p>
-
-            {extLinks.length > 0 && (
-              <div className="mb-3 divide-y divide-[#f0f0f0] rounded-lg border border-[#e8e8e8]">
-                {extLinks.map(l => (
-                  <div key={l.id} className="flex items-center gap-3 px-3 py-2.5">
-                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#f0fdfb] text-[#1a9e88]">
-                      <ExternalLink size={14} />
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-xs font-semibold text-[#1D1E20]">{l.store}</p>
-                      <p className="truncate text-[11px] text-[#888]">{l.url.replace(/^https?:\/\//, '')}</p>
-                    </div>
-                    <div className="flex shrink-0 items-center gap-1">
-                      <a
-                        href={l.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        title="Abrir"
-                        className="flex h-7 w-7 items-center justify-center rounded-md text-[#bbb] transition hover:bg-[#f5f5f5] hover:text-[#1D1E20]"
-                      >
-                        <Eye size={13} />
-                      </a>
-                      <button
-                        onClick={() => handleDeleteExtLink(l.id)}
-                        title="Eliminar"
-                        className="flex h-7 w-7 items-center justify-center rounded-md text-[#bbb] transition hover:bg-[#fff0f0] hover:text-[#cc3333]"
-                      >
-                        <Trash2 size={13} />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            <div className="flex gap-2">
-              <input
-                className="min-w-0 flex-1 rounded-lg border border-[#e0e0e0] bg-white px-3 py-2 text-sm text-[#1D1E20] outline-none transition focus:border-[#48C9B0]"
-                value={newExtUrl}
-                onChange={e => setNewExtUrl(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') handleAddExtLink() }}
-                placeholder="mesaderegalos.liverpool.com.mx/..."
-              />
-              <button
-                onClick={handleAddExtLink}
-                className="flex shrink-0 items-center gap-1.5 rounded-lg bg-[#48C9B0] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#3aa896]"
-              >
-                <Plus size={14} /> Agregar
-              </button>
-            </div>
-            {extError && <p className="mt-2 text-xs text-[#cc3333]">{extError}</p>}
-          </div>
-          </div>
-
-          {/* Columna derecha: metodos de pago + direccion de entrega */}
-          <div className="space-y-4">
-          <div className="rounded-xl border border-[#e8e8e8] bg-white p-4">
-            <div className="mb-1 flex items-center gap-2">
-              <Landmark size={15} className="text-[#48C9B0]" />
-              <h2 className="text-sm font-semibold text-[#1D1E20]">Cuenta para recibir regalos</h2>
-            </div>
-            <p className="mb-3 text-xs text-[#888]">
-              Estos métodos se muestran al invitado después de confirmar un aporte o sobre.
-            </p>
-
-            {payMethods.length > 0 && (
-              <div className="mb-3 divide-y divide-[#f0f0f0] rounded-lg border border-[#e8e8e8]">
-                {payMethods.map(m => {
-                  const meta = payTypeMeta(m.type)
-                  const masked = (m.type === 'transfer' || m.type === 'card')
-                    ? `•••• ${m.value.slice(-4)}`
-                    : m.value
-                  const line = m.type === 'other'
-                    ? m.label
-                    : [m.bank, m.holder].filter(Boolean).join(' · ')
-                  return (
-                    <div key={m.id} className="flex items-center gap-3 px-3 py-2.5">
-                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#f0fdfb] text-[#1a9e88]">
-                        {meta.icon}
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-xs font-semibold text-[#1D1E20]">
-                          {m.type === 'other' && m.label ? m.label : meta.label}
-                          {line && m.type !== 'other' && <span className="ml-1.5 font-normal text-[#888]">{line}</span>}
-                        </p>
-                        <p className="truncate text-[11px] tabular-nums text-[#888]">{masked}</p>
-                      </div>
-                      <div className="flex shrink-0 items-center gap-1">
-                        <button
-                          onClick={() => openEditMethod(m)}
-                          title="Editar"
-                          className="flex h-7 w-7 items-center justify-center rounded-md text-[#bbb] transition hover:bg-[#f5f5f5] hover:text-[#1D1E20]"
-                        >
-                          <Pencil size={13} />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteMethod(m.id)}
-                          title="Eliminar"
-                          className="flex h-7 w-7 items-center justify-center rounded-md text-[#bbb] transition hover:bg-[#fff0f0] hover:text-[#cc3333]"
-                        >
-                          <Trash2 size={13} />
-                        </button>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-
-            <button
-              onClick={openAddMethod}
-              className="flex items-center gap-1.5 rounded-lg bg-[#48C9B0] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#3aa896]"
-            >
-              <Plus size={14} /> Agregar método
-            </button>
-          </div>
-
           <div className="rounded-xl border border-[#e8e8e8] bg-white p-4">
             <div className="mb-1 flex items-center gap-2">
               <MapPin size={15} className="text-[#48C9B0]" />
@@ -905,6 +736,180 @@ export default function MesaRegalosPage() {
                 {addrSaved ? <><Check size={14} /> Guardada</> : 'Guardar dirección'}
               </button>
             </div>
+          </div>
+
+          <div className="rounded-xl border border-[#e8e8e8] bg-white p-4">
+            <div className="mb-1 flex items-center gap-2">
+              <Link2 size={15} className="text-[#48C9B0]" />
+              <h2 className="text-sm font-semibold text-[#1D1E20]">Link público de tu mesa</h2>
+            </div>
+            <p className="mb-3 text-xs text-[#888]">Compártelo con tus invitados para que vean y aparten regalos.</p>
+            {publicUrl ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="flex min-w-0 flex-1 items-center gap-2 rounded-lg border border-[#e8e8e8] bg-[#f8f8f8] px-3 py-2">
+                  <span className="truncate font-mono text-xs text-[#555]">{publicUrl.replace(/^https?:\/\//, '')}</span>
+                </div>
+                <button
+                  onClick={copyLink}
+                  className="flex items-center gap-1.5 rounded-lg border border-[#e0e0e0] px-3 py-2 text-xs font-medium text-[#555] transition hover:border-[#48C9B0] hover:text-[#48C9B0]"
+                >
+                  {copied ? <><Check size={14} /> Copiado</> : <><Copy size={14} /> Copiar</>}
+                </button>
+                <a
+                  href={waShareUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 rounded-lg border border-[#e0e0e0] px-3 py-2 text-xs font-medium text-[#555] transition hover:border-[#25D366] hover:text-[#25D366]"
+                >
+                  <FaWhatsapp size={14} /> WhatsApp
+                </a>
+                <a
+                  href={publicUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-[#e0e0e0] px-3 py-2 text-xs font-medium text-[#555] transition hover:border-[#48C9B0] hover:text-[#48C9B0] sm:w-auto"
+                >
+                  <Eye size={14} /> Ver como invitado
+                </a>
+              </div>
+            ) : (
+              <div className="flex justify-end">
+                <button
+                  onClick={handleGenerateLink}
+                  className="flex items-center gap-1.5 rounded-lg bg-[#1D1E20] px-3 py-2 text-xs font-semibold text-white transition hover:bg-black"
+                >
+                  <Link2 size={14} /> Generar link
+                </button>
+              </div>
+            )}
+          </div>
+
+          </div>
+
+          {/* Columna derecha: cuenta para recibir + mesas externas */}
+          <div className="space-y-4">
+          <div className="rounded-xl border border-[#e8e8e8] bg-white p-4">
+            <div className="mb-1 flex items-center gap-2">
+              <Landmark size={15} className="text-[#48C9B0]" />
+              <h2 className="text-sm font-semibold text-[#1D1E20]">Cuenta para recibir regalos</h2>
+            </div>
+            <p className="mb-3 text-xs text-[#888]">
+              Estos métodos se muestran al invitado después de confirmar un aporte o sobre.
+            </p>
+
+            {payMethods.length > 0 && (
+              <div className="mb-3 divide-y divide-[#f0f0f0] rounded-lg border border-[#e8e8e8]">
+                {payMethods.map(m => {
+                  const meta = payTypeMeta(m.type)
+                  const masked = (m.type === 'transfer' || m.type === 'card')
+                    ? `•••• ${m.value.slice(-4)}`
+                    : m.value
+                  const line = m.type === 'other'
+                    ? m.label
+                    : [m.bank, m.holder].filter(Boolean).join(' · ')
+                  return (
+                    <div key={m.id} className="flex items-center gap-3 px-3 py-2.5">
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#f0fdfb] text-[#1a9e88]">
+                        {meta.icon}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-semibold text-[#1D1E20]">
+                          {m.type === 'other' && m.label ? m.label : meta.label}
+                          {line && m.type !== 'other' && <span className="ml-1.5 font-normal text-[#888]">{line}</span>}
+                        </p>
+                        <p className="truncate text-[11px] tabular-nums text-[#888]">{masked}</p>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-1">
+                        <button
+                          onClick={() => openEditMethod(m)}
+                          title="Editar"
+                          className="flex h-7 w-7 items-center justify-center rounded-md text-[#bbb] transition hover:bg-[#f5f5f5] hover:text-[#1D1E20]"
+                        >
+                          <Pencil size={13} />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteMethod(m.id)}
+                          title="Eliminar"
+                          className="flex h-7 w-7 items-center justify-center rounded-md text-[#bbb] transition hover:bg-[#fff0f0] hover:text-[#cc3333]"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+
+            <div className="flex justify-end">
+              <button
+                onClick={openAddMethod}
+                className="flex items-center gap-1.5 rounded-lg bg-[#48C9B0] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#3aa896]"
+              >
+                <Plus size={14} /> Agregar método
+              </button>
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-[#e8e8e8] bg-white p-4">
+            <div className="mb-1 flex items-center gap-2">
+              <ExternalLink size={15} className="text-[#48C9B0]" />
+              <h2 className="text-sm font-semibold text-[#1D1E20]">Mesas de regalos externas</h2>
+            </div>
+            <p className="mb-3 text-xs text-[#888]">
+              ¿Ya tienen mesa en Liverpool, Amazon o Cimaco? Pega el link y tus invitados la verán desde tu mesa.
+            </p>
+
+            {extLinks.length > 0 && (
+              <div className="mb-3 divide-y divide-[#f0f0f0] rounded-lg border border-[#e8e8e8]">
+                {extLinks.map(l => (
+                  <div key={l.id} className="flex items-center gap-3 px-3 py-2.5">
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#f0fdfb] text-[#1a9e88]">
+                      <ExternalLink size={14} />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-semibold text-[#1D1E20]">{l.store}</p>
+                      <p className="truncate text-[11px] text-[#888]">{l.url.replace(/^https?:\/\//, '')}</p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-1">
+                      <a
+                        href={l.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title="Abrir"
+                        className="flex h-7 w-7 items-center justify-center rounded-md text-[#bbb] transition hover:bg-[#f5f5f5] hover:text-[#1D1E20]"
+                      >
+                        <Eye size={13} />
+                      </a>
+                      <button
+                        onClick={() => handleDeleteExtLink(l.id)}
+                        title="Eliminar"
+                        className="flex h-7 w-7 items-center justify-center rounded-md text-[#bbb] transition hover:bg-[#fff0f0] hover:text-[#cc3333]"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="flex gap-2">
+              <input
+                className="min-w-0 flex-1 rounded-lg border border-[#e0e0e0] bg-white px-3 py-2 text-sm text-[#1D1E20] outline-none transition focus:border-[#48C9B0]"
+                value={newExtUrl}
+                onChange={e => setNewExtUrl(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') handleAddExtLink() }}
+                placeholder="mesaderegalos.liverpool.com.mx/..."
+              />
+              <button
+                onClick={handleAddExtLink}
+                className="flex shrink-0 items-center gap-1.5 rounded-lg bg-[#48C9B0] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#3aa896]"
+              >
+                <Plus size={14} /> Agregar
+              </button>
+            </div>
+            {extError && <p className="mt-2 text-xs text-[#cc3333]">{extError}</p>}
           </div>
           </div>
           </div>
