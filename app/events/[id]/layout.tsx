@@ -29,7 +29,6 @@ type NavSubItem = {
   label: string
   labelMobile?: string
   path: string
-  pro?: boolean
   iconOutline: React.ReactNode
   iconFilled: React.ReactNode
 }
@@ -40,7 +39,6 @@ type NavItem = {
   labelMobile: string
   path: string
   adminOnly: boolean
-  pro?: boolean
   iconOutline: React.ReactNode
   iconFilled: React.ReactNode
 }
@@ -67,7 +65,6 @@ const NAV_ITEMS: NavEntry[] = [
   {
     type: 'item',
     label: 'Mensajes', labelMobile: 'Mensajes', path: '/mensajes', adminOnly: false,
-    pro: true,
     iconOutline: <MessageCircle width={18} height={18} strokeWidth={1.5} />,
     iconFilled:  <MessageCircle width={18} height={18} strokeWidth={2.5} />,
   },
@@ -108,12 +105,12 @@ const NAV_ITEMS: NavEntry[] = [
         iconFilled:  <Wallet    width={18} height={18} strokeWidth={2.5} />,
       },
       {
-        label: 'Proveedores', path: '/proveedores', pro: true,
+        label: 'Proveedores', path: '/proveedores',
         iconOutline: <Briefcase width={18} height={18} strokeWidth={1.5} />,
         iconFilled:  <Briefcase width={18} height={18} strokeWidth={2.5} />,
       },
       {
-        label: 'Pagos', path: '/pagos', pro: true,
+        label: 'Pagos', path: '/pagos',
         iconOutline: <Receipt width={18} height={18} strokeWidth={1.5} />,
         iconFilled:  <Receipt width={18} height={18} strokeWidth={2.5} />,
       },
@@ -176,15 +173,6 @@ function filterNavByFeatures(entries: NavEntry[], features: Record<FeatureKey, b
     }
   }
   return result
-}
-
-function ProBadge({ active = false }: { active?: boolean }) {
-  return (
-    <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider
-      ${active ? 'bg-white text-[#1D1E20]' : 'bg-[#1D1E20] text-white'}`}>
-      PRO
-    </span>
-  )
 }
 
 function getInitials(name: string, email: string): string {
@@ -455,7 +443,6 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
       >
         {active ? entry.iconFilled : entry.iconOutline}
         <span className="flex-1">{entry.label}</span>
-        {entry.pro && <ProBadge active={active} />}
       </button>
     )
   }
@@ -488,7 +475,6 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
               >
                 {active ? child.iconFilled : child.iconOutline}
                 <span className="flex-1">{child.label}</span>
-                {child.pro && <ProBadge active={active} />}
               </button>
             </motion.div>
           )
