@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { QRCodeCanvas } from 'qrcode.react'
 import { FaWhatsapp } from 'react-icons/fa'
 import {
   Music, Clock, Plus, MessageSquareText, ExternalLink, Trophy, Heart,
@@ -718,17 +717,6 @@ export default function PlaylistPlannerPage() {
                 >
                   <Eye size={14} /> Ver como invitado
                 </a>
-              </div>
-              <div className="mt-4 flex items-center gap-4 border-t border-[#f0f0f0] pt-4">
-                <div className="shrink-0 rounded-lg border border-[#e8e8e8] bg-white p-2">
-                  <QRCodeCanvas value={playlistUrl} size={96} />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-xs font-semibold text-[#1D1E20]">QR para el evento</p>
-                  <p className="mt-0.5 text-[11px] leading-relaxed text-[#888]">
-                    Imprímelo y ponlo en las mesas para que tus invitados escaneen y recomienden.
-                  </p>
-                </div>
               </div>
             </>
           ) : (
