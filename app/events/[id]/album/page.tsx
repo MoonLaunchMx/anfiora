@@ -3,9 +3,10 @@
 import { useEffect, useState, useRef } from 'react'
 import { useParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import FeatureGuard from '@/app/components/ui/FeatureGuard'
 import { QRCodeCanvas } from 'qrcode.react'
 
-export default function AlbumPage() {
+function AlbumPageInner() {
   const { id } = useParams()
   const [albumUrl, setAlbumUrl]       = useState('')
   const [eventName, setEventName]     = useState('')
@@ -265,5 +266,12 @@ export default function AlbumPage() {
         </div>
       </div>
     </div>
+  )
+}
+export default function AlbumPage() {
+  return (
+    <FeatureGuard feature="album">
+      <AlbumPageInner />
+    </FeatureGuard>
   )
 }

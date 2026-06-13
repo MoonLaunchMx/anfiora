@@ -51,8 +51,9 @@ export default function TimePicker({ value, onChange, disabled }: TimePickerProp
     return () => { document.body.style.overflow = '' }
   }, [open])
 
-  const commit = (hour: number, min: number, per: 'am' | 'pm') => {
-    onChange(to24(hour, min, per))
+  const handleSave = () => {
+    onChange(to24(h, m, period))
+    setOpen(false)
   }
 
   const handleClear = (e: React.MouseEvent) => {
@@ -103,7 +104,7 @@ export default function TimePicker({ value, onChange, disabled }: TimePickerProp
               <div className="mb-4 grid grid-cols-6 gap-1.5">
                 {HOURS.map(hr => (
                   <button key={hr}
-                    onClick={() => { setH(hr); commit(hr, m, period) }}
+                    onClick={() => setH(hr)}
                     className={`rounded-lg py-2 text-center text-sm font-medium transition ${
                       h === hr ? 'bg-[#48C9B0] text-white' : 'border border-[#e8e8e8] text-[#555] hover:border-[#48C9B0] hover:text-[#1a9e88]'
                     }`}
@@ -116,7 +117,7 @@ export default function TimePicker({ value, onChange, disabled }: TimePickerProp
               <div className="mb-4 grid grid-cols-6 gap-1.5">
                 {MINUTES.map(min => (
                   <button key={min}
-                    onClick={() => { setM(min); commit(h, min, period) }}
+                    onClick={() => setM(min)}
                     className={`rounded-lg py-2 text-center text-sm font-medium transition ${
                       m === min ? 'bg-[#48C9B0] text-white' : 'border border-[#e8e8e8] text-[#555] hover:border-[#48C9B0] hover:text-[#1a9e88]'
                     }`}
@@ -129,7 +130,7 @@ export default function TimePicker({ value, onChange, disabled }: TimePickerProp
               <div className="grid grid-cols-2 gap-1.5">
                 {(['am', 'pm'] as const).map(p => (
                   <button key={p}
-                    onClick={() => { setPeriod(p); commit(h, m, p) }}
+                    onClick={() => setPeriod(p)}
                     className={`rounded-lg py-2.5 text-sm font-semibold uppercase transition ${
                       period === p
                         ? 'bg-[#48C9B0] text-white'
@@ -139,13 +140,19 @@ export default function TimePicker({ value, onChange, disabled }: TimePickerProp
                 ))}
               </div>
 
-              {/* Preview */}
-              {value && (
-                <p className="mt-4 text-center text-sm font-semibold text-[#48C9B0]">
-                  {formatDisplay(value)}
-                </p>
-              )}
+            </div>
 
+            {/* Footer: preview + guardar */}
+            <div className="flex items-center gap-3 border-t border-[#f0f0f0] px-4 py-3">
+              <p className="text-base font-bold tabular-nums text-[#1D1E20]">
+                {h}:{String(m).padStart(2, '0')} <span className="text-sm font-semibold uppercase text-[#888]">{period}</span>
+              </p>
+              <button
+                onClick={handleSave}
+                className="flex-1 rounded-lg bg-[#48C9B0] py-2.5 text-sm font-semibold text-white transition hover:bg-[#3ab89f]"
+              >
+                Guardar hora
+              </button>
             </div>
           </div>
         </div>

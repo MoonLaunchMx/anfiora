@@ -1,4 +1,4 @@
-export const CURRENT_VERSION = '2026-06-11'
+export const CURRENT_VERSION = '2026-06-12'
 
 export type Release = {
   version: string
@@ -10,6 +10,18 @@ export type Release = {
 }
 
 export const changelog: Release[] = [
+  {
+    version: '2026-06-12',
+    date: '12 de junio, 2026',
+    title: 'Herramientas a tu medida',
+    subtitle: 'Cada evento con solo las herramientas que necesita.',
+    features: [
+      { icon: 'SlidersHorizontal', text: 'Nuevo paso al crear tu evento: activa o desactiva mesas, regalos, álbum, playlist y comida' },
+      { icon: 'Sparkles',          text: 'Defaults inteligentes según el tipo — una boda no necesita lo mismo que una conferencia' },
+      { icon: 'Settings2',         text: 'Cámbialo cuando quieras desde Configuración, sin perder ningún dato' },
+      { icon: 'UtensilsCrossed',   text: 'El planificador de comida regresa al menú cuando lo activas' },
+    ],
+  },
   {
     version: '2026-06-11',
     date: '11 de junio, 2026',

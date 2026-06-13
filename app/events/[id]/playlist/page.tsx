@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import FeatureGuard from '@/app/components/ui/FeatureGuard'
 import { Music, Clock, Plus, MessageSquareText, ExternalLink, Trophy } from 'lucide-react'
 import StatsCollapse, { StatsToggleButton, useStatsToggle } from '@/app/components/ui/StatsCollapse'
 import {
@@ -262,7 +263,7 @@ function DragCard({ song }: { song: Song }) {
   )
 }
 
-export default function PlaylistPlannerPage() {
+function PlaylistPlannerPageInner() {
   const { id } = useParams()
 
   // Toggle de estadísticas en mobile (persiste por evento en localStorage)
@@ -689,5 +690,12 @@ export default function PlaylistPlannerPage() {
         </div>
       </div>
     </div>
+  )
+}
+export default function PlaylistPlannerPage() {
+  return (
+    <FeatureGuard feature="playlist">
+      <PlaylistPlannerPageInner />
+    </FeatureGuard>
   )
 }
