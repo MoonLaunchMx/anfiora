@@ -59,7 +59,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
   }
 
   const db = admin()
-  const eventId = await eventIdFromToken(db, token)
+  const { data: settings } = await db
+    .from('event_settings')
+    .select('event_id, registry_shipping_address')
+    .eq('registry_token', token)
+    .maybeSingle()
+  const eventId = settings?.event_id || null
   if (!eventId) return NextResponse.json({ error: 'not_found' }, { status: 404 })
 
   const { data: item } = await db
@@ -82,5 +87,5 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
   })
   if (error) return NextResponse.json({ error: 'no_guardado' }, { status: 500 })
 
-  return NextResponse.json({ ok: true })
+  return NextResponse.json({ ok: true, shipping_address: settings?.registry_shipping_address || null })
 }
