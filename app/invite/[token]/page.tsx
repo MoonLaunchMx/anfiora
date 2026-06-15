@@ -4,16 +4,15 @@ import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { logAction } from '@/lib/audit'
-import { CheckCircle, XCircle, Loader } from 'lucide-react'
+import { CheckCircle, XCircle, Loader, Eye, EyeOff } from 'lucide-react'
 
-// Datos de la invitación que cargamos del token
+// Datos seguros de la invitación que devuelve /api/invite/[token]
 interface InviteData {
-  id: string
   event_id: string
   email: string
   role: string
-  status: string
-  events: {
+  roleLabel: string
+  event: {
     name: string
     event_date: string | null
     venue: string | null
@@ -40,10 +39,12 @@ export default function InvitePage() {
   const [authMode, setAuthMode]     = useState<AuthMode>('login')
   const [email, setEmail]           = useState('')
   const [password, setPassword]     = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [fullName, setFullName]     = useState('')
   const [authError, setAuthError]   = useState('')
   const [authLoading, setAuthLoading] = useState(false)
   const [accepted, setAccepted]     = useState(false)
+  const [usedEventId, setUsedEventId] = useState<string | null>(null)
 
   // Al montar: verificar token y sesión activa
   useEffect(() => {
@@ -51,69 +52,67 @@ export default function InvitePage() {
   }, [token])
 
   const checkInvite = async () => {
-    // Buscar invitación por token incluyendo datos del evento
-    const { data, error } = await supabase
-      .from('event_collaborators')
-      .select('id, event_id, email, role, status, events(name, event_date, venue)')
-      .eq('invite_token', token)
-      .single()
+    // La verificacion del token corre en una API route con service role:
+    // el navegador nunca lee event_collaborators directo (sin RLS anon).
+    let payload: { status: PageState; invite?: InviteData; event_id?: string }
+    try {
+      const res = await fetch(`/api/invite/${token}`)
+      payload = await res.json()
+    } catch {
+      setPageState('error'); return
+    }
 
-    if (error || !data) { setPageState('invalid'); return }
+    if (payload.status === 'invalid') { setPageState('invalid'); return }
+    if (payload.status === 'already_used') {
+      setUsedEventId(payload.event_id ?? null)
+      setPageState('already_used'); return
+    }
+    if (!payload.invite) { setPageState('invalid'); return }
 
-    // Token revocado
-    if (data.status === 'revoked') { setPageState('invalid'); return }
-
-    // Ya fue aceptado
-    if (data.status === 'active') { setPageState('already_used'); return }
-
-    setInvite(data as unknown as InviteData)
+    setInvite(payload.invite)
 
     // Verificar si hay sesión activa
-    const { data: { user } } = await supabase.auth.getUser()
+    const { data: { session } } = await supabase.auth.getSession()
 
-    if (user) {
+    if (session) {
       // Hay sesión — aceptar directo
-      await acceptInvite(data.id, data.event_id, user.id, data.role)
+      await acceptInvite(session.access_token)
     } else {
       // Pre-llenar email si coincide
-      setEmail(data.email)
+      setEmail(payload.invite.email)
       setPageState('auth_required')
     }
   }
 
-  const acceptInvite = async (
-    inviteId: string,
-    eventId: string,
-    userId: string,
-    role: string,
-  ) => {
+  const acceptInvite = async (accessToken: string) => {
     setPageState('accepting')
 
-    const { error } = await supabase
-      .from('event_collaborators')
-      .update({
-        user_id:     userId,
-        status:      'active',
-        accepted_at: new Date().toISOString(),
+    let result: { ok?: boolean; event_id?: string; role?: string }
+    try {
+      const res = await fetch(`/api/invite/${token}`, {
+        method: 'POST',
+        headers: { Authorization: 'Bearer ' + accessToken },
       })
-      .eq('id', inviteId)
+      result = await res.json()
+    } catch {
+      setPageState('error'); return
+    }
 
-    if (error) { setPageState('error'); return }
+    if (!result.ok || !result.event_id) { setPageState('error'); return }
 
     // Registrar en audit log
     await logAction({
-      eventId,
+      eventId:     result.event_id,
       action:      'collaborator.accepted',
       entityType:  'collaborator',
-      entityId:    inviteId,
-      entityLabel: role,
+      entityLabel: result.role || '',
     })
 
     setPageState('success')
 
     // Redirigir al evento después de 2 segundos
     setTimeout(() => {
-      router.push(`/events/${eventId}`)
+      router.push(`/events/${result.event_id}`)
     }, 2000)
   }
 
@@ -127,7 +126,8 @@ export default function InvitePage() {
       // Intentar login
       const { data, error } = await supabase.auth.signInWithPassword({ email, password })
       if (error) { setAuthError('Email o contraseña incorrectos'); setAuthLoading(false); return }
-      await acceptInvite(invite.id, invite.event_id, data.user.id, invite.role)
+      if (!data.session) { setAuthError('Error al iniciar sesion'); setAuthLoading(false); return }
+      await acceptInvite(data.session.access_token)
 
     } else {
       // Registrar cuenta nueva
@@ -151,14 +151,18 @@ export default function InvitePage() {
     plan:      'free',
     }, { onConflict: 'id', ignoreDuplicates: true })
 
-    if (data.session) {
-      await fetch('/api/legal/accept', {
-        method: 'POST',
-        headers: { Authorization: 'Bearer ' + data.session.access_token },
-      }).catch(() => {})
+    if (!data.session) {
+      setAuthError('Revisa tu correo para confirmar la cuenta y vuelve a abrir el link')
+      setAuthLoading(false)
+      return
     }
 
-    await acceptInvite(invite.id, invite.event_id, data.user.id, invite.role)
+    await fetch('/api/legal/accept', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + data.session.access_token },
+    }).catch(() => {})
+
+    await acceptInvite(data.session.access_token)
     }
 
     setAuthLoading(false)
@@ -214,10 +218,10 @@ export default function InvitePage() {
         <div className="flex max-w-sm flex-col items-center gap-4 text-center">
           <CheckCircle size={48} className="text-[#48C9B0]" />
           <h1 className="text-lg font-bold text-[#1D1E20]">Ya tienes acceso</h1>
-          <p className="text-sm text-[#888]">Esta invitacion ya fue aceptada. Inicia sesion para acceder al evento.</p>
-          <button onClick={() => router.push('/')}
+          <p className="text-sm text-[#888]">Esta invitacion ya fue aceptada. Entra para ver el evento.</p>
+          <button onClick={() => router.push(usedEventId ? `/events/${usedEventId}` : '/dashboard')}
             className="mt-2 rounded-lg bg-[#48C9B0] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#3ab89f]">
-            Iniciar sesion
+            Ir al evento
           </button>
         </div>
       </div>
@@ -269,13 +273,13 @@ export default function InvitePage() {
               Invitacion al evento
             </p>
             <p className="mt-1 text-base font-bold text-[#1D1E20]">
-              {invite.events.name}
+              {invite.event.name}
             </p>
-            {invite.events.event_date && (
-              <p className="mt-0.5 text-xs text-[#888]">{formatDate(invite.events.event_date)}</p>
+            {invite.event.event_date && (
+              <p className="mt-0.5 text-xs text-[#888]">{formatDate(invite.event.event_date)}</p>
             )}
-            {invite.events.venue && (
-              <p className="text-xs text-[#aaa]">{invite.events.venue}</p>
+            {invite.event.venue && (
+              <p className="text-xs text-[#aaa]">{invite.event.venue}</p>
             )}
             <div className="mt-2 flex items-center gap-1.5">
               <span className="rounded-full border border-[#c8ede7] bg-white px-2 py-0.5 text-[11px] font-semibold text-[#1a9e88]">
@@ -323,14 +327,24 @@ export default function InvitePage() {
 
             <div>
               <label className="mb-1 block text-xs font-medium text-[#555]">Contrasena</label>
-              <input
-                type="password"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && handleAuth()}
-                placeholder="••••••••"
-                className="w-full rounded-lg border border-[#d0d0d0] bg-white px-3 py-2.5 text-sm text-[#1D1E20] outline-none transition focus:border-[#48C9B0]"
-              />
+              <div className="relative">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleAuth()}
+                  placeholder="••••••••"
+                  className="w-full rounded-lg border border-[#d0d0d0] bg-white px-3 py-2.5 pr-10 text-sm text-[#1D1E20] outline-none transition focus:border-[#48C9B0]"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(v => !v)}
+                  aria-label={showPassword ? 'Ocultar contrasena' : 'Mostrar contrasena'}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[#999] transition hover:text-[#555]"
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
             </div>
 
             {authMode === 'register' && (
