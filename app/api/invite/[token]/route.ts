@@ -30,8 +30,22 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
   if (data.status === 'revoked') return NextResponse.json({ status: 'invalid' }, { status: 404 })
   if (data.status === 'active') return NextResponse.json({ status: 'already_used', event_id: data.event_id })
 
+  // Si el correo invitado ya tiene cuenta, el front muestra "iniciar sesion";
+  // si no, muestra "crear cuenta". Solo se consulta el correo de esta invitacion.
+  const invitedEmail = (data.email || '').trim().toLowerCase()
+  let accountExists = false
+  if (invitedEmail) {
+    const { data: existing } = await db
+      .from('users')
+      .select('id')
+      .ilike('email', invitedEmail)
+      .maybeSingle()
+    accountExists = !!existing
+  }
+
   return NextResponse.json({
     status: 'pending',
+    account_exists: accountExists,
     invite: {
       event_id: data.event_id,
       email:    data.email,

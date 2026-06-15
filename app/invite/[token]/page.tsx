@@ -24,7 +24,7 @@ type PageState =
   | 'invalid'        // token no existe o ya fue revocado
   | 'already_used'   // ya fue aceptado antes
   | 'auth_required'  // necesita login o registro
-  | 'wrong_account'  // sesion con un correo distinto al invitado
+  | 'wrong_account'  // sesión con un correo distinto al invitado
   | 'accepting'      // procesando aceptación
   | 'success'        // todo bien
   | 'error'          // algo falló
@@ -47,6 +47,7 @@ export default function InvitePage() {
   const [accepted, setAccepted]     = useState(false)
   const [usedEventId, setUsedEventId] = useState<string | null>(null)
   const [currentEmail, setCurrentEmail] = useState('')
+  const [accountExists, setAccountExists] = useState(false)
 
   // Al montar: verificar token y sesión activa
   useEffect(() => {
@@ -54,9 +55,9 @@ export default function InvitePage() {
   }, [token])
 
   const checkInvite = async () => {
-    // La verificacion del token corre en una API route con service role:
+    // La verificación del token corre en una API route con service role:
     // el navegador nunca lee event_collaborators directo (sin RLS anon).
-    let payload: { status: PageState; invite?: InviteData; event_id?: string }
+    let payload: { status: PageState; invite?: InviteData; event_id?: string; account_exists?: boolean }
     try {
       const res = await fetch(`/api/invite/${token}`)
       payload = await res.json()
@@ -72,13 +73,15 @@ export default function InvitePage() {
     if (!payload.invite) { setPageState('invalid'); return }
 
     setInvite(payload.invite)
+    const exists = !!payload.account_exists
+    setAccountExists(exists)
 
     // Verificar si hay sesión activa
     const { data: { session } } = await supabase.auth.getSession()
 
     if (session) {
-      // Solo el correo invitado puede aceptar. Si la sesion es de otro correo,
-      // no consumimos la invitacion: avisamos y dejamos cambiar de cuenta.
+      // Solo el correo invitado puede aceptar. Si la sesión es de otro correo,
+      // no consumimos la invitación: avisamos y dejamos cambiar de cuenta.
       const sessionEmail = (session.user.email || '').trim().toLowerCase()
       const invitedEmail = (payload.invite.email || '').trim().toLowerCase()
       if (invitedEmail && sessionEmail !== invitedEmail) {
@@ -88,8 +91,10 @@ export default function InvitePage() {
       }
       await acceptInvite(session.access_token)
     } else {
-      // Pre-llenar email del invitado
+      // Pre-llenar email del invitado y mostrar el modo correcto:
+      // si ya tiene cuenta -> iniciar sesión; si no -> crear cuenta.
       setEmail(payload.invite.email)
+      setAuthMode(exists ? 'login' : 'register')
       setPageState('auth_required')
     }
   }
@@ -98,7 +103,7 @@ export default function InvitePage() {
     await supabase.auth.signOut()
     setCurrentEmail('')
     setPassword('')
-    setAuthMode('login')
+    setAuthMode(accountExists ? 'login' : 'register')
     setEmail(invite?.email || '')
     setAuthError('')
     setPageState('auth_required')
@@ -151,7 +156,7 @@ export default function InvitePage() {
       // Intentar login
       const { data, error } = await supabase.auth.signInWithPassword({ email, password })
       if (error) { setAuthError('Email o contraseña incorrectos'); setAuthLoading(false); return }
-      if (!data.session) { setAuthError('Error al iniciar sesion'); setAuthLoading(false); return }
+      if (!data.session) { setAuthError('Error al iniciar sesión'); setAuthLoading(false); return }
       await acceptInvite(data.session.access_token)
 
     } else {
@@ -177,7 +182,7 @@ export default function InvitePage() {
     }, { onConflict: 'id', ignoreDuplicates: true })
 
     if (!data.session) {
-      setAuthError('Revisa tu correo para confirmar la cuenta y vuelve a abrir el link')
+      setAuthError('Revisa tu correo para confirmar la cuenta y vuelve a abrir el enlace')
       setAuthLoading(false)
       return
     }
@@ -214,7 +219,7 @@ export default function InvitePage() {
         <div className="flex flex-col items-center gap-3">
           <Loader size={28} className="animate-spin text-[#48C9B0]" />
           <p className="text-sm text-[#888]">
-            {pageState === 'loading' ? 'Verificando invitacion...' : 'Aceptando invitacion...'}
+            {pageState === 'loading' ? 'Verificando invitación...' : 'Aceptando invitación...'}
           </p>
         </div>
       </div>
@@ -226,8 +231,8 @@ export default function InvitePage() {
       <div className="flex min-h-screen items-center justify-center bg-white px-4">
         <div className="flex max-w-sm flex-col items-center gap-4 text-center">
           <XCircle size={48} className="text-[#cc3333]" />
-          <h1 className="text-lg font-bold text-[#1D1E20]">Link invalido</h1>
-          <p className="text-sm text-[#888]">Este link de invitacion no existe o fue revocado. Pide al organizador que te mande uno nuevo.</p>
+          <h1 className="text-lg font-bold text-[#1D1E20]">Enlace inválido</h1>
+          <p className="text-sm text-[#888]">Este enlace de invitación no existe o fue revocado. Pídele al organizador que te mande uno nuevo.</p>
           <button onClick={() => router.push('/')}
             className="mt-2 rounded-lg bg-[#48C9B0] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#3ab89f]">
             Ir al inicio
@@ -243,7 +248,7 @@ export default function InvitePage() {
         <div className="flex max-w-sm flex-col items-center gap-4 text-center">
           <CheckCircle size={48} className="text-[#48C9B0]" />
           <h1 className="text-lg font-bold text-[#1D1E20]">Ya tienes acceso</h1>
-          <p className="text-sm text-[#888]">Esta invitacion ya fue aceptada. Entra para ver el evento.</p>
+          <p className="text-sm text-[#888]">Esta invitación ya fue aceptada. Entra para ver el evento.</p>
           <button onClick={() => router.push(usedEventId ? `/events/${usedEventId}` : '/dashboard')}
             className="mt-2 rounded-lg bg-[#48C9B0] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#3ab89f]">
             Ir al evento
@@ -260,17 +265,17 @@ export default function InvitePage() {
           <XCircle size={48} className="text-[#cc3333]" />
           <h1 className="text-lg font-bold text-[#1D1E20]">Cuenta incorrecta</h1>
           <p className="text-sm text-[#888]">
-            Esta invitacion es para <span className="font-semibold text-[#1D1E20]">{invite?.email}</span>
-            {currentEmail && <> pero iniciaste sesion como <span className="font-semibold text-[#1D1E20]">{currentEmail}</span></>}.
-            Cierra sesion e inicia con el correo invitado para aceptarla.
+            Esta invitación es para <span className="font-semibold text-[#1D1E20]">{invite?.email}</span>
+            {currentEmail && <> pero iniciaste sesión como <span className="font-semibold text-[#1D1E20]">{currentEmail}</span></>}.
+            Cierra sesión e inicia con el correo invitado para aceptarla.
           </p>
           <button onClick={handleSwitchAccount}
             className="mt-2 rounded-lg bg-[#48C9B0] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#3ab89f]">
-            Cerrar sesion y usar el correo invitado
+            Cerrar sesión y usar el correo invitado
           </button>
           <button onClick={() => router.push('/dashboard')}
             className="text-xs font-medium text-[#888] transition hover:text-[#555]">
-            Ir a mi dashboard
+            Ir a mi panel
           </button>
         </div>
       </div>
@@ -294,8 +299,8 @@ export default function InvitePage() {
       <div className="flex min-h-screen items-center justify-center bg-white px-4">
         <div className="flex max-w-sm flex-col items-center gap-4 text-center">
           <XCircle size={48} className="text-[#cc3333]" />
-          <h1 className="text-lg font-bold text-[#1D1E20]">Algo salio mal</h1>
-          <p className="text-sm text-[#888]">No pudimos procesar tu invitacion. Intenta de nuevo o contacta al organizador.</p>
+          <h1 className="text-lg font-bold text-[#1D1E20]">Algo salió mal</h1>
+          <p className="text-sm text-[#888]">No pudimos procesar tu invitación. Inténtalo de nuevo o contacta al organizador.</p>
           <button onClick={() => router.push('/')}
             className="mt-2 rounded-lg bg-[#48C9B0] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#3ab89f]">
             Ir al inicio
@@ -315,11 +320,11 @@ export default function InvitePage() {
           <img src="/images/isotipoylogo.svg" alt="Anfiora" className="h-16 w-auto max-w-full" />
         </div>
 
-        {/* Card de invitacion */}
+        {/* Card de invitación */}
         {invite && (
           <div className="mb-4 rounded-xl border border-[#c8ede7] bg-[#f0fdfb] p-4">
             <p className="text-[11px] font-semibold uppercase tracking-wide text-[#48C9B0]">
-              Invitacion al evento
+              Invitación al evento
             </p>
             <p className="mt-1 text-base font-bold text-[#1D1E20]">
               {invite.event.name}
@@ -341,11 +346,11 @@ export default function InvitePage() {
         {/* Form auth */}
         <div className="rounded-xl border border-[#e8e8e8] bg-white p-5 shadow-sm">
           <h2 className="mb-1 text-base font-bold text-[#1D1E20]">
-            {authMode === 'login' ? 'Inicia sesion para continuar' : 'Crea tu cuenta'}
+            {authMode === 'login' ? 'Inicia sesión para continuar' : 'Crea tu cuenta'}
           </h2>
           <p className="mb-4 text-xs text-[#888]">
             {authMode === 'login'
-              ? 'Usa tu cuenta de Anfiora para aceptar la invitacion.'
+              ? 'Usa tu cuenta de Anfiora para aceptar la invitación.'
               : 'Crea una cuenta gratuita para acceder al evento.'}
           </p>
 
@@ -357,7 +362,7 @@ export default function InvitePage() {
                   type="text"
                   value={fullName}
                   onChange={e => setFullName(e.target.value)}
-                  placeholder="Ana Garcia"
+                  placeholder="Ana García"
                   className="w-full rounded-lg border border-[#d0d0d0] bg-white px-3 py-2.5 text-sm text-[#1D1E20] outline-none transition focus:border-[#48C9B0]"
                 />
               </div>
@@ -374,12 +379,12 @@ export default function InvitePage() {
                 className={`w-full rounded-lg border border-[#d0d0d0] px-3 py-2.5 text-sm text-[#1D1E20] outline-none transition focus:border-[#48C9B0] ${invite ? 'cursor-not-allowed bg-[#f5f5f5] text-[#666]' : 'bg-white'}`}
               />
               {invite && (
-                <p className="mt-1 text-[11px] text-[#999]">La invitacion es para este correo.</p>
+                <p className="mt-1 text-[11px] text-[#999]">La invitación es para este correo.</p>
               )}
             </div>
 
             <div>
-              <label className="mb-1 block text-xs font-medium text-[#555]">Contrasena</label>
+              <label className="mb-1 block text-xs font-medium text-[#555]">Contraseña</label>
               <div className="relative">
                 <input
                   type={showPassword ? 'text' : 'password'}
@@ -392,7 +397,7 @@ export default function InvitePage() {
                 <button
                   type="button"
                   onClick={() => setShowPassword(v => !v)}
-                  aria-label={showPassword ? 'Ocultar contrasena' : 'Mostrar contrasena'}
+                  aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-[#999] transition hover:text-[#555]"
                 >
                   {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
@@ -428,7 +433,7 @@ export default function InvitePage() {
             >
               {authLoading
                 ? 'Procesando...'
-                : authMode === 'login' ? 'Ingresar y aceptar invitacion' : 'Crear cuenta y aceptar'}
+                : authMode === 'login' ? 'Ingresar y aceptar invitación' : 'Crear cuenta y aceptar'}
             </button>
           </div>
 
@@ -436,7 +441,7 @@ export default function InvitePage() {
           <div className="mt-4 border-t border-[#f0f0f0] pt-4 text-center">
             {authMode === 'login' ? (
               <p className="text-xs text-[#888]">
-                No tienes cuenta?{' '}
+                ¿No tienes cuenta?{' '}
                 <button onClick={() => { setAuthMode('register'); setAuthError('') }}
                   className="font-semibold text-[#48C9B0] transition hover:text-[#3ab89f]">
                   Crear una gratis
@@ -444,10 +449,10 @@ export default function InvitePage() {
               </p>
             ) : (
               <p className="text-xs text-[#888]">
-                Ya tienes cuenta?{' '}
+                ¿Ya tienes cuenta?{' '}
                 <button onClick={() => { setAuthMode('login'); setAuthError('') }}
                   className="font-semibold text-[#48C9B0] transition hover:text-[#3ab89f]">
-                  Iniciar sesion
+                  Iniciar sesión
                 </button>
               </p>
             )}
