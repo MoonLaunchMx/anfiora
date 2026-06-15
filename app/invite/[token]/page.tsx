@@ -24,6 +24,7 @@ type PageState =
   | 'invalid'        // token no existe o ya fue revocado
   | 'already_used'   // ya fue aceptado antes
   | 'auth_required'  // necesita login o registro
+  | 'wrong_account'  // sesion con un correo distinto al invitado
   | 'accepting'      // procesando aceptación
   | 'success'        // todo bien
   | 'error'          // algo falló
@@ -45,6 +46,7 @@ export default function InvitePage() {
   const [authLoading, setAuthLoading] = useState(false)
   const [accepted, setAccepted]     = useState(false)
   const [usedEventId, setUsedEventId] = useState<string | null>(null)
+  const [currentEmail, setCurrentEmail] = useState('')
 
   // Al montar: verificar token y sesión activa
   useEffect(() => {
@@ -75,19 +77,37 @@ export default function InvitePage() {
     const { data: { session } } = await supabase.auth.getSession()
 
     if (session) {
-      // Hay sesión — aceptar directo
+      // Solo el correo invitado puede aceptar. Si la sesion es de otro correo,
+      // no consumimos la invitacion: avisamos y dejamos cambiar de cuenta.
+      const sessionEmail = (session.user.email || '').trim().toLowerCase()
+      const invitedEmail = (payload.invite.email || '').trim().toLowerCase()
+      if (invitedEmail && sessionEmail !== invitedEmail) {
+        setCurrentEmail(session.user.email || '')
+        setPageState('wrong_account')
+        return
+      }
       await acceptInvite(session.access_token)
     } else {
-      // Pre-llenar email si coincide
+      // Pre-llenar email del invitado
       setEmail(payload.invite.email)
       setPageState('auth_required')
     }
   }
 
+  const handleSwitchAccount = async () => {
+    await supabase.auth.signOut()
+    setCurrentEmail('')
+    setPassword('')
+    setAuthMode('login')
+    setEmail(invite?.email || '')
+    setAuthError('')
+    setPageState('auth_required')
+  }
+
   const acceptInvite = async (accessToken: string) => {
     setPageState('accepting')
 
-    let result: { ok?: boolean; event_id?: string; role?: string }
+    let result: { ok?: boolean; event_id?: string; role?: string; error?: string; your_email?: string }
     try {
       const res = await fetch(`/api/invite/${token}`, {
         method: 'POST',
@@ -96,6 +116,11 @@ export default function InvitePage() {
       result = await res.json()
     } catch {
       setPageState('error'); return
+    }
+
+    if (result.error === 'email_mismatch') {
+      setCurrentEmail(result.your_email || '')
+      setPageState('wrong_account'); return
     }
 
     if (!result.ok || !result.event_id) { setPageState('error'); return }
@@ -228,6 +253,30 @@ export default function InvitePage() {
     )
   }
 
+  if (pageState === 'wrong_account') {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-white px-4">
+        <div className="flex max-w-sm flex-col items-center gap-4 text-center">
+          <XCircle size={48} className="text-[#cc3333]" />
+          <h1 className="text-lg font-bold text-[#1D1E20]">Cuenta incorrecta</h1>
+          <p className="text-sm text-[#888]">
+            Esta invitacion es para <span className="font-semibold text-[#1D1E20]">{invite?.email}</span>
+            {currentEmail && <> pero iniciaste sesion como <span className="font-semibold text-[#1D1E20]">{currentEmail}</span></>}.
+            Cierra sesion e inicia con el correo invitado para aceptarla.
+          </p>
+          <button onClick={handleSwitchAccount}
+            className="mt-2 rounded-lg bg-[#48C9B0] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#3ab89f]">
+            Cerrar sesion y usar el correo invitado
+          </button>
+          <button onClick={() => router.push('/dashboard')}
+            className="text-xs font-medium text-[#888] transition hover:text-[#555]">
+            Ir a mi dashboard
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   if (pageState === 'success') {
     return (
       <div className="flex min-h-screen items-center justify-center bg-white px-4">
@@ -320,9 +369,13 @@ export default function InvitePage() {
                 type="email"
                 value={email}
                 onChange={e => setEmail(e.target.value)}
+                readOnly={!!invite}
                 placeholder="tu@email.com"
-                className="w-full rounded-lg border border-[#d0d0d0] bg-white px-3 py-2.5 text-sm text-[#1D1E20] outline-none transition focus:border-[#48C9B0]"
+                className={`w-full rounded-lg border border-[#d0d0d0] px-3 py-2.5 text-sm text-[#1D1E20] outline-none transition focus:border-[#48C9B0] ${invite ? 'cursor-not-allowed bg-[#f5f5f5] text-[#666]' : 'bg-white'}`}
               />
+              {invite && (
+                <p className="mt-1 text-[11px] text-[#999]">La invitacion es para este correo.</p>
+              )}
             </div>
 
             <div>

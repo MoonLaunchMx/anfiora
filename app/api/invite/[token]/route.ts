@@ -56,12 +56,22 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
 
   const { data: invite } = await db
     .from('event_collaborators')
-    .select('id, event_id, role, status')
+    .select('id, event_id, email, role, status')
     .eq('invite_token', token)
     .maybeSingle()
 
   if (!invite || invite.status === 'revoked') {
     return NextResponse.json({ error: 'invalid' }, { status: 404 })
+  }
+
+  // La invitacion solo la acepta el correo al que fue enviada.
+  const invitedEmail = (invite.email || '').trim().toLowerCase()
+  const sessionEmail = (user.email || '').trim().toLowerCase()
+  if (invitedEmail && sessionEmail !== invitedEmail) {
+    return NextResponse.json(
+      { error: 'email_mismatch', invited: invite.email, your_email: user.email },
+      { status: 403 },
+    )
   }
 
   if (invite.status === 'active') {
