@@ -1,4 +1,4 @@
-export const CURRENT_VERSION = '2026-06-12'
+export const CURRENT_VERSION = '2026-06-15'
 
 export type Release = {
   version: string
@@ -10,6 +10,19 @@ export type Release = {
 }
 
 export const changelog: Release[] = [
+  {
+    version: '2026-06-15',
+    date: '15 de junio, 2026',
+    title: 'Playlist renovada',
+    subtitle: 'Una sola lista, las canciones de los novios destacadas y exportación para el DJ.',
+    features: [
+      { icon: 'Music2',            text: 'Una sola lista con las canciones de los novios destacadas y las de tus invitados' },
+      { icon: 'Heart',             text: 'Marca las canciones especiales de los novios para que el DJ las identifique al instante' },
+      { icon: 'SlidersHorizontal', text: 'Define cuántas canciones puede pedir cada invitado: 1, 3, 5, 10 o sin límite' },
+      { icon: 'Download',          text: 'Exporta la lista para el DJ en Excel, PDF o M3U, en el orden que tú definas' },
+      { icon: 'Link2',             text: 'Comparte el link público y tus invitados agregan canciones desde su celular, sin cuenta' },
+    ],
+  },
   {
     version: '2026-06-12',
     date: '12 de junio, 2026',
