@@ -46,12 +46,6 @@ function formatDuration(ms: number): string {
   return `${minutes}:${seconds.toString().padStart(2, '0')}`
 }
 
-function formatTime(sec: number): string {
-  const m = Math.floor(sec / 60)
-  const s = Math.floor(sec % 60)
-  return `${m}:${s.toString().padStart(2, '0')}`
-}
-
 function formatEventDate(dateStr: string | null): string {
   if (!dateStr) return ''
   const [year, month, day] = dateStr.split('T')[0].split('-').map(Number)
@@ -64,23 +58,6 @@ function formatEventDate(dateStr: string | null): string {
 
 const STORAGE_KEY_PREFIX = 'anfiora_playlist_'
 const josefin = { fontFamily: "'Josefin Sans', sans-serif" }
-
-function PlayIcon() {
-  return (
-    <svg width="7" height="9" viewBox="0 0 8 10" fill="none">
-      <path d="M1 1L7 5L1 9V1Z" fill="currentColor" />
-    </svg>
-  )
-}
-
-function PauseIcon() {
-  return (
-    <svg width="7" height="9" viewBox="0 0 8 10" fill="none">
-      <rect x="0" y="0" width="3" height="10" fill="currentColor" />
-      <rect x="5" y="0" width="3" height="10" fill="currentColor" />
-    </svg>
-  )
-}
 
 export default function PlaylistPublicPage() {
   const { token } = useParams()
@@ -110,12 +87,7 @@ export default function PlaylistPublicPage() {
   const [submitError, setSubmitError]     = useState('')
   const [nameError, setNameError]         = useState('')
 
-  const [playingId, setPlayingId]         = useState<string | null>(null)
-  const [currentTime, setCurrentTime]     = useState(0)
-  const audioRef                          = useRef<HTMLAudioElement | null>(null)
-
   useEffect(() => { loadData() }, [])
-  useEffect(() => { return () => { audioRef.current?.pause() } }, [])
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -285,32 +257,8 @@ export default function PlaylistPublicPage() {
     if (Number.isFinite(maxSongs) && newCount >= maxSongs) setDone(true)
   }
 
-  const togglePlay = useCallback((song: Song) => {
-    if (!song.preview_url) return
-    if (playingId === song.id) {
-      if (audioRef.current?.paused) {
-        audioRef.current.play()
-      } else {
-        audioRef.current?.pause()
-        setPlayingId(null)
-      }
-      return
-    }
-    audioRef.current?.pause()
-    const audio = new Audio(song.preview_url)
-    audioRef.current = audio
-    setPlayingId(song.id)
-    setCurrentTime(0)
-    audio.addEventListener('timeupdate', () => setCurrentTime(audio.currentTime))
-    audio.addEventListener('ended', () => { setPlayingId(null); setCurrentTime(0) })
-    audio.play()
-  }, [playingId])
-
   const hostSongs  = songs.filter(s => !!s.is_host_pick)
   const guestSongs = songs.filter(s => !s.is_host_pick)
-
-  const playingSong = playingId ? songs.find(s => s.id === playingId) : null
-  const pct = currentTime > 0 ? (currentTime / 30) * 100 : 0
 
   const couple = event?.host_name && event?.host_name_2
     ? `${event.host_name} & ${event.host_name_2}`
@@ -335,20 +283,11 @@ export default function PlaylistPublicPage() {
     </div>
   )
 
-  const SongProgressBar = () => (
-    <div className="mt-2.5 px-0.5">
-      <div className="h-0.5 w-full overflow-hidden rounded-full bg-[#f0ece3]">
-        <div className="h-full rounded-full bg-[#48C9B0] transition-all" style={{ width: `${pct}%` }} />
-      </div>
-      <p className="mt-1 text-right text-[10px] text-[#999]">{formatTime(currentTime)} / 0:30</p>
-    </div>
-  )
-
   return (
-    <div className="flex min-h-screen flex-col bg-[#FBF7F0]">
+    <div className="flex h-[100dvh] flex-col overflow-hidden bg-[#FBF7F0]">
 
-      {/* Hero */}
-      <section className="mx-auto w-full max-w-2xl px-6 pb-8 pt-8 text-center sm:pt-10">
+      {/* Hero (fijo) */}
+      <section className="mx-auto w-full max-w-2xl shrink-0 px-6 pb-4 pt-8 text-center sm:pt-10">
         <p className="mb-4 text-[11px] uppercase tracking-[0.3em] text-[#aaa]" style={josefin}>
           Playlist del evento
         </p>
@@ -361,12 +300,13 @@ export default function PlaylistPublicPage() {
           </p>
         )}
         {event?.venue && <p className="mt-1 text-xs text-[#999]">{event.venue}</p>}
-        <p className="mx-auto mt-7 max-w-md text-sm leading-relaxed text-[#666]">
+        <p className="mx-auto mt-4 max-w-md text-sm leading-relaxed text-[#666]">
           Ayúdanos a armar la playlist con las canciones que no pueden faltar.
         </p>
       </section>
 
-      <div className="flex flex-1 flex-col">
+      {/* Solo esta zona scrollea (debajo del hero) */}
+      <div className="flex flex-1 flex-col overflow-y-auto">
 
         {/* Canciones de los novios */}
         {hostSongs.length > 0 && (
@@ -379,20 +319,14 @@ export default function PlaylistPublicPage() {
             </div>
             <div className="flex flex-col gap-2">
               {hostSongs.map(song => (
-                <div
+                <a
                   key={song.id}
-                  className={`rounded-2xl border bg-white px-4 py-3 ${playingId === song.id ? 'border-[#48C9B0]' : 'border-[#d8f0ea]'}`}
+                  href={song.spotify_url || undefined}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block rounded-2xl border border-[#d8f0ea] bg-white px-4 py-3 transition hover:border-[#48C9B0]"
                 >
                   <div className="flex items-center gap-3">
-                    <button
-                      onClick={() => togglePlay(song)}
-                      disabled={!song.preview_url}
-                      className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full border transition
-                        ${playingId === song.id ? 'border-[#48C9B0] bg-[#48C9B0] text-white' : 'border-[#d8f0ea] text-[#48C9B0] hover:border-[#48C9B0]'}
-                        ${!song.preview_url ? 'cursor-not-allowed opacity-20' : ''}`}
-                    >
-                      {playingId === song.id ? <PauseIcon /> : <PlayIcon />}
-                    </button>
                     {song.thumbnail ? (
                       <img src={song.thumbnail} alt={song.song_title} className="h-9 w-9 shrink-0 rounded object-cover" />
                     ) : (
@@ -406,15 +340,14 @@ export default function PlaylistPublicPage() {
                     </div>
                     <Heart size={13} className="shrink-0 text-[#48C9B0]" fill="currentColor" />
                   </div>
-                  {playingId === song.id && <SongProgressBar />}
-                </div>
+                </a>
               ))}
             </div>
           </section>
         )}
 
         {/* Form */}
-        <div className="mx-auto w-full max-w-lg px-5 py-8">
+        <div className="mx-auto w-full max-w-lg px-5 py-4">
 
           {!done && Number.isFinite(maxSongs) && (
             <p className="mb-6 text-center text-sm text-[#999]">
@@ -445,9 +378,9 @@ export default function PlaylistPublicPage() {
             </div>
 
           ) : done ? (
-            <div className="rounded-2xl border border-[#eee4d6] bg-white px-6 py-7 text-center">
-              <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-[#f0fdfb] text-[#1a9e88]">
-                <Check size={24} strokeWidth={2.4} />
+            <div className="py-4 text-center">
+              <div className="mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-full bg-[#f0fdfb] text-[#1a9e88]">
+                <Check size={20} strokeWidth={2.4} />
               </div>
               <p className="text-xl font-bold text-[#1D1E20]" style={josefin}>
                 ¡Gracias, {guestName.split(' ')[0]}!
@@ -536,25 +469,6 @@ export default function PlaylistPublicPage() {
                     {selectedTrack.thumbnail && (
                       <img src={selectedTrack.thumbnail} alt={selectedTrack.title} className="h-10 w-10 shrink-0 rounded object-cover" />
                     )}
-                    {selectedTrack.preview_url && (
-                      <button
-                        onClick={() => togglePlay({
-                          id: 'preview',
-                          guest_name: '',
-                          song_title: selectedTrack.title,
-                          artist: selectedTrack.artist,
-                          spotify_url: selectedTrack.spotify_url,
-                          category: null,
-                          created_at: '',
-                          thumbnail: selectedTrack.thumbnail,
-                          preview_url: selectedTrack.preview_url,
-                          is_host_pick: false,
-                        })}
-                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#48C9B0] text-white"
-                      >
-                        {playingId === 'preview' ? <PauseIcon /> : <PlayIcon />}
-                      </button>
-                    )}
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium text-[#1D1E20]">{selectedTrack.title}</p>
                       <p className="truncate text-xs text-[#999]">{selectedTrack.artist}</p>
@@ -563,21 +477,12 @@ export default function PlaylistPublicPage() {
                       onClick={() => {
                         setSelectedTrack(null)
                         setSearchQuery('')
-                        if (playingId === 'preview') { audioRef.current?.pause(); setPlayingId(null) }
                       }}
                       className="shrink-0 text-[#aaa] transition hover:text-[#666]"
                     >
                       ✕
                     </button>
                   </div>
-                  {selectedTrack.preview_url && playingId === 'preview' && (
-                    <div className="mt-3 px-1">
-                      <div className="h-0.5 w-full overflow-hidden rounded-full bg-[#d8f0ea]">
-                        <div className="h-full rounded-full bg-[#48C9B0] transition-all" style={{ width: `${pct}%` }} />
-                      </div>
-                      <p className="mt-1 text-right text-[10px] text-[#999]">{formatTime(currentTime)} / 0:30</p>
-                    </div>
-                  )}
                 </div>
               )}
 
@@ -611,20 +516,14 @@ export default function PlaylistPublicPage() {
 
             <div className="flex flex-col gap-2">
               {guestSongs.map(song => (
-                <div
+                <a
                   key={song.id}
-                  className={`rounded-2xl border bg-white px-4 py-3 transition ${playingId === song.id ? 'border-[#48C9B0]' : 'border-[#eee4d6]'}`}
+                  href={song.spotify_url || undefined}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block rounded-2xl border border-[#eee4d6] bg-white px-4 py-3 transition hover:border-[#48C9B0]"
                 >
                   <div className="flex items-center gap-3">
-                    <button
-                      onClick={() => togglePlay(song)}
-                      disabled={!song.preview_url}
-                      className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full border transition
-                        ${playingId === song.id ? 'border-[#48C9B0] bg-[#48C9B0] text-white' : 'border-[#e0d9cc] text-[#bbb] hover:border-[#48C9B0] hover:text-[#48C9B0]'}
-                        ${!song.preview_url ? 'cursor-not-allowed opacity-20' : ''}`}
-                    >
-                      {playingId === song.id ? <PauseIcon /> : <PlayIcon />}
-                    </button>
                     {song.thumbnail ? (
                       <img src={song.thumbnail} alt={song.song_title} className="h-9 w-9 shrink-0 rounded object-cover" />
                     ) : (
@@ -646,40 +545,17 @@ export default function PlaylistPublicPage() {
                       </span>
                     )}
                   </div>
-                  {playingId === song.id && <SongProgressBar />}
-                </div>
+                </a>
               ))}
             </div>
           </div>
         )}
+
+        <footer className="mt-auto border-t border-[#eee4d6] bg-[#F5EFE3] py-6 text-center">
+          <p className="text-base font-bold tracking-wide text-[#1D1E20]" style={josefin}>Anfiora</p>
+          <p className="mt-1 text-[11px] text-[#aaa]">La playlist de tu evento</p>
+        </footer>
       </div>
-
-      <footer className="border-t border-[#eee4d6] bg-[#F5EFE3] py-6 text-center">
-        <p className="text-base font-bold tracking-wide text-[#1D1E20]" style={josefin}>Anfiora</p>
-        <p className="mt-1 text-[11px] text-[#aaa]">La playlist de tu evento</p>
-      </footer>
-
-      {/* Mini player móvil */}
-      {playingSong && playingId !== 'preview' && (
-        <div className="sticky bottom-0 flex items-center gap-3 border-t border-[#eee4d6] bg-white px-4 py-3 sm:hidden">
-          {playingSong.thumbnail && (
-            <img src={playingSong.thumbnail} alt={playingSong.song_title} className="h-8 w-8 shrink-0 rounded object-cover" />
-          )}
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-xs font-medium text-[#1D1E20]">{playingSong.song_title}</p>
-            <div className="mt-1 h-0.5 w-full overflow-hidden rounded-full bg-[#f0ece3]">
-              <div className="h-full rounded-full bg-[#48C9B0] transition-all" style={{ width: `${pct}%` }} />
-            </div>
-          </div>
-          <button
-            onClick={() => togglePlay(playingSong)}
-            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#48C9B0] text-white"
-          >
-            <PauseIcon />
-          </button>
-          <span className="text-[10px] text-[#bbb]">{formatTime(currentTime)}</span>
-        </div>
-      )}
     </div>
   )
 }

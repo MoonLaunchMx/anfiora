@@ -514,8 +514,9 @@ function PlaylistPlannerPageInner() {
   ]
 
   // Stats compactas (mismo estilo que mesa de regalos)
+  const mostRequested = top5Repeated[0] ?? null
   const StatsCards = () => (
-    <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
+    <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
       <div className="rounded-xl border border-[#e8e8e8] bg-white p-3">
         <p className="text-[10px] font-semibold uppercase tracking-wider text-[#aaa]">Canciones</p>
         <p className="mt-1 text-xl font-bold tabular-nums text-[#1D1E20]">{totalSongs}</p>
@@ -527,6 +528,17 @@ function PlaylistPlannerPageInner() {
       <div className="hidden rounded-xl border border-[#e8e8e8] bg-white p-3 sm:block">
         <p className="text-[10px] font-semibold uppercase tracking-wider text-[#aaa]">Duración</p>
         <p className="mt-1 text-xl font-bold tabular-nums text-[#1D1E20]">{durationLabel}</p>
+      </div>
+      <div className="col-span-2 rounded-xl border border-[#e8e8e8] bg-white p-3 sm:col-span-1">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-[#aaa]">Más pedida</p>
+        {mostRequested ? (
+          <div className="mt-1 flex items-center gap-1.5">
+            <p className="min-w-0 flex-1 truncate text-sm font-bold text-[#1D1E20]">{mostRequested.title}</p>
+            <span className="shrink-0 rounded-full bg-[#E1F5EE] px-1.5 py-0.5 text-[10px] font-bold text-[#0F6E56]">{mostRequested.count}x</span>
+          </div>
+        ) : (
+          <p className="mt-1 text-xl font-bold tabular-nums text-[#ccc]">—</p>
+        )}
       </div>
     </div>
   )
@@ -775,20 +787,16 @@ function PlaylistPlannerPageInner() {
           </div>
           <div className="flex shrink-0 items-center gap-2 pt-1">
             {saving && <span className="hidden text-xs text-[#aaa] sm:inline">Guardando orden...</span>}
-            {tab === 'playlist' && (
-              <div className="lg:hidden">
-                <StatsToggleButton visible={statsVisible} onClick={toggleStats} />
-              </div>
-            )}
+            <div className="lg:hidden">
+              <StatsToggleButton visible={statsVisible} onClick={toggleStats} />
+            </div>
           </div>
         </div>
 
-        {/* Stats solo en tab playlist */}
-        {tab === 'playlist' && (
-          <StatsCollapse visible={statsVisible}>
-            <StatsCards />
-          </StatsCollapse>
-        )}
+        {/* Stats en ambos tabs (playlist y configuracion) */}
+        <StatsCollapse visible={statsVisible}>
+          <StatsCards />
+        </StatsCollapse>
 
         {/* Toggle (centrado en mobile, izquierda en desktop) */}
         <div className="mb-4 flex justify-center overflow-x-auto sm:justify-start">
