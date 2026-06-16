@@ -106,6 +106,55 @@ export const landingCopy = {
         },
       ],
     },
+    platform: {
+      eyebrow: 'La plataforma',
+      title1: 'Para cada evento, ',
+      titleEm: 'todo en su lugar',
+      soon: 'Pronto',
+      cats: {
+        social: 'Social',
+        corp: 'Corporativo',
+        impact: 'Impacto',
+      },
+      mods: {
+        invitados: {
+          name: 'Invitados',
+          desc: 'Confirma, agrupa y da seguimiento a tu lista sin perseguir a nadie.',
+        },
+        checkin: {
+          name: 'Check-in con QR',
+          desc: 'Genera un código QR y registra el acceso de cada invitado al llegar.',
+        },
+        album: {
+          name: 'Álbum con QR',
+          desc: 'Reúne las fotos de todos en un álbum, sin perderse en el chat.',
+        },
+        playlist: {
+          name: 'Playlist',
+          desc: 'Tus invitados sugieren canciones por etapa: entrada, cena, vals o fiesta.',
+        },
+        mesas: {
+          name: 'Acomodo de mesas',
+          desc: 'Acomoda mesas, pista y lugares en un lienzo, arrastrando.',
+        },
+        regalos: {
+          name: 'Mesa de regalos',
+          desc: 'Tu propia mesa y un fondo de luna de miel, sin comisiones.',
+        },
+        donaciones: {
+          name: 'Mesa de donaciones',
+          desc: 'Recibe donativos en línea y muestra el avance de tu causa.',
+        },
+        finanzas: {
+          name: 'Presupuesto y pagos',
+          desc: 'Cada pago actualiza tu presupuesto al instante. Adiós Excel.',
+        },
+        proveedores: {
+          name: 'Proveedores',
+          desc: 'Cotizaciones, contratos y reseñas, cada proveedor en su lugar.',
+        },
+      },
+    },
   },
   en: {
     nav: {
@@ -211,6 +260,55 @@ export const landingCopy = {
           free: true,
         },
       ],
+    },
+    platform: {
+      eyebrow: 'The platform',
+      title1: 'For every event, ',
+      titleEm: 'everything in its place',
+      soon: 'Soon',
+      cats: {
+        social: 'Social',
+        corp: 'Corporate',
+        impact: 'Impact',
+      },
+      mods: {
+        invitados: {
+          name: 'Guests',
+          desc: 'Confirm, group and follow up your list without chasing anyone.',
+        },
+        checkin: {
+          name: 'QR check-in',
+          desc: 'Generate a QR code and register each guest as they arrive.',
+        },
+        album: {
+          name: 'QR album',
+          desc: 'Gather everyone’s photos in one album, without losing them in the chat.',
+        },
+        playlist: {
+          name: 'Playlist',
+          desc: 'Your guests suggest songs by stage: arrival, dinner, waltz or party.',
+        },
+        mesas: {
+          name: 'Table seating',
+          desc: 'Arrange tables, dance floor and seats on a canvas, by dragging.',
+        },
+        regalos: {
+          name: 'Gift registry',
+          desc: 'Your own registry and a honeymoon fund, with no commissions.',
+        },
+        donaciones: {
+          name: 'Donation registry',
+          desc: 'Receive donations online and show the progress of your cause.',
+        },
+        finanzas: {
+          name: 'Budget and payments',
+          desc: 'Every payment updates your budget instantly. Goodbye Excel.',
+        },
+        proveedores: {
+          name: 'Vendors',
+          desc: 'Quotes, contracts and reviews, every vendor in its place.',
+        },
+      },
     },
   },
 } as const

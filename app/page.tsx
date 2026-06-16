@@ -5,6 +5,7 @@ import AuthModal from '@/app/components/auth/AuthModal'
 import LandingNav from '@/app/components/landing/LandingNav'
 import Hero from '@/app/components/landing/Hero'
 import SectionPain from '@/app/components/landing/SectionPain'
+import SectionPlatform from '@/app/components/landing/SectionPlatform'
 import { landingCopy, type Lang } from '@/app/components/landing/i18n'
 
 export default function LandingPage() {
@@ -39,6 +40,7 @@ export default function LandingPage() {
         />
         <Hero t={t} onRegister={openRegister} />
         <SectionPain t={t} onPlans={openRegister} />
+        <SectionPlatform t={t} />
       </div>
 
       <AuthModal
