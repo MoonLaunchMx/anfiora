@@ -1,9 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Check, Minus, ChevronDown, MessageCircle, ArrowRight } from 'lucide-react'
+import { Check, Minus, ChevronDown, ArrowRight } from 'lucide-react'
+import { FaWhatsapp } from 'react-icons/fa'
 import { motion, AnimatePresence } from 'framer-motion'
 import AuthModal from '@/app/components/auth/AuthModal'
 import ContactSalesModal from '@/app/components/ContactSalesModal'
@@ -425,6 +426,60 @@ function FragmentGroup({ group, colCount }: { group: typeof ANFITRION_COMPARE[nu
   )
 }
 
+// Showcase del agente WhatsApp (feature estrella). `availability` cambia segun la vista.
+function WhatsappShowcase({ availability }: { availability: ReactNode }) {
+  return (
+    <div className="mt-4 overflow-hidden rounded-2xl border border-[#cdeee2] bg-gradient-to-br from-[#f0fff8] to-[#e7faf1] shadow-sm">
+      <div className="grid gap-6 p-6 sm:grid-cols-[1.1fr_0.9fr] sm:gap-8 sm:p-8">
+        <div>
+          <div className="flex items-center gap-3">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#25D366] shadow-sm">
+              <FaWhatsapp className="h-6 w-6 text-white" />
+            </span>
+            <div>
+              <div className="text-xs font-bold uppercase tracking-wide text-[#1f8f74]">Lo que más enamora a nuestros clientes</div>
+              <div className="text-[20px] font-extrabold leading-tight text-[#0a0a0a]">Confirma a tus invitados por WhatsApp, solo</div>
+            </div>
+          </div>
+          <p className="mt-3.5 text-[13.5px] leading-relaxed text-[#555]">
+            ¿Cansado de perseguir uno por uno para saber quién va? Tu asistente les escribe por WhatsApp, resuelve sus dudas con inteligencia artificial y va anotando a quién confirma. Tú solo ves tu lista llenarse, sin mover un dedo.
+          </p>
+          <ul className="mt-4 grid gap-2 sm:grid-cols-2">
+            {[
+              'Confirma y recuerda por ti, automático',
+              'Plantillas listas: personaliza y envía',
+              'Resuelve dudas de tus invitados con IA',
+              'Hasta 5,000 mensajes incluidos',
+            ].map((x, i) => (
+              <li key={i} className="flex items-center gap-2 text-[12.5px] font-medium text-[#3f6157]">
+                <Check className="h-[14px] w-[14px] shrink-0 text-[#1f8f74]" strokeWidth={3} />{x}
+              </li>
+            ))}
+          </ul>
+          <p className="mt-4 text-[11.5px] text-[#777]">{availability}</p>
+          <p className="mt-1 text-[10.5px] text-[#aaa]">Mensajería sujeta a plantillas aprobadas y políticas de WhatsApp.</p>
+        </div>
+        <div className="flex flex-col justify-center gap-2 rounded-2xl border border-[#d8efe6] bg-white p-4">
+          <div className="max-w-[90%] self-start rounded-2xl rounded-tl-sm bg-[#f0f2f5] px-3.5 py-2.5 text-[12px] leading-relaxed text-[#1d2b24] shadow-sm">
+            <p>¡Hola María!</p>
+            <p className="mt-1.5">Con mucha ilusión <strong className="font-semibold">Frida &amp; Phillip</strong> te invitan a su boda el <strong className="font-semibold">12 de octubre de 2027</strong> a las 5:00 pm en Hacienda San Miguel.</p>
+            <p className="mt-1.5">Confirma tu asistencia por aquí, porfa.</p>
+          </div>
+          <div className="max-w-[88%] self-end rounded-2xl rounded-tr-sm bg-[#d9fdd3] px-3.5 py-2 text-[12px] leading-snug text-[#1d2b24] shadow-sm">
+            Sí, ahí estaré con mi esposo
+          </div>
+          <div className="max-w-[88%] self-start rounded-2xl rounded-tl-sm bg-[#f0f2f5] px-3.5 py-2 text-[12px] leading-snug text-[#1d2b24] shadow-sm">
+            Listo, te anoté a 2 personas. Gracias por confirmar.
+          </div>
+          <div className="mt-1 flex items-center gap-1.5 self-center text-[10px] font-semibold text-[#9aa8a0]">
+            <FaWhatsapp className="h-3 w-3 text-[#25D366]" /> Respondido automático con IA
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function AnfitrionView({ openRegister, goToCheckout }: { openRegister: () => void; goToCheckout: (tipo: Vista, plan: string, billing?: Billing) => void }) {
   const compareCols: CompareCol[] = ANFITRION_PLANS.map((p): CompareCol => ({
     label: p.name,
@@ -485,17 +540,8 @@ function AnfitrionView({ openRegister, goToCheckout }: { openRegister: () => voi
         </div>
       </motion.button>
 
-      {/* banner agente whatsapp (informativo, dentro de la app) */}
-      <motion.div whileHover={{ y: -2 }} transition={{ type: 'spring', stiffness: 300, damping: 20 }}
-        className="mt-3 flex items-center gap-3.5 rounded-xl border border-[#a0e0c0] bg-[#f0fff6] px-5 py-4 shadow-sm transition-shadow hover:shadow-lg">
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#48C9B0]">
-          <MessageCircle className="h-[18px] w-[18px] text-white" />
-        </span>
-        <div>
-          <div className="text-sm font-bold text-[#1f8f74]">Agente de WhatsApp</div>
-          <div className="text-xs text-[#666]">Disponible únicamente dentro de la app, en los planes de pago. Tus invitados confirman solos por chat.</div>
-        </div>
-      </motion.div>
+      {/* showcase del agente WhatsApp (feature estrella) */}
+      <WhatsappShowcase availability={<><strong className="text-[#1f8f74]">Incluido</strong> en Gran Anfitrión y Sin Límites; <strong className="text-[#1f8f74]">add-on</strong> en Esencial y Pro.</>} />
 
       {/* salto free -> pago */}
       <div className="mt-7 overflow-hidden rounded-2xl border border-[#a0e0c0]">
