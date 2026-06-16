@@ -5,7 +5,7 @@ import {
   X, LayoutList, User, Building2, AlertTriangle,
   Bell, Clock, Gift, Link2, Coins, Landmark, Heart, LucideIcon,
   SlidersHorizontal, Sparkles, Settings2, UtensilsCrossed,
-  LayoutGrid, Images, Music2,
+  LayoutGrid, Images, Music2, Download, ListMusic,
 } from 'lucide-react'
 import { CURRENT_VERSION, changelog, Release } from '@/lib/changelog'
 
@@ -13,7 +13,7 @@ const STORAGE_KEY = 'anfiora_seen_version'
 
 const ICON_MAP: Record<string, LucideIcon> = {
   LayoutList, User, Building2, AlertTriangle, Bell, Clock, Gift, Link2, Coins, Landmark, Heart,
-  SlidersHorizontal, Sparkles, Settings2, UtensilsCrossed,
+  SlidersHorizontal, Sparkles, Settings2, UtensilsCrossed, Music2, Download, ListMusic,
 }
 
 function HerramientasMockup() {
@@ -242,6 +242,67 @@ function TimelineMockup() {
   )
 }
 
+function PlaylistMockup() {
+  const guests: { initials: string; title: string; artist: string }[] = [
+    { initials: 'MR', title: 'Tusa',            artist: 'Karol G, Nicki Minaj' },
+    { initials: 'JL', title: 'La Bicicleta',    artist: 'Shakira, Carlos Vives' },
+  ]
+  return (
+    <div className="h-full w-full overflow-hidden rounded-l-2xl bg-[#FBF7F0]">
+      <div className="flex items-center gap-1.5 border-b border-[#eee4d6] bg-[#F5EFE3] px-3 py-2">
+        <span className="h-2 w-2 rounded-full bg-[#ff6b6b]" />
+        <span className="h-2 w-2 rounded-full bg-[#ffd93d]" />
+        <span className="h-2 w-2 rounded-full bg-[#6bcb77]" />
+        <span className="ml-2 text-[9px] text-[#aaa]">anfiora.com · Playlist</span>
+      </div>
+
+      <div className="px-3 pb-2 pt-3 text-center">
+        <p className="text-[7px] uppercase tracking-[0.25em] text-[#bbb]">Playlist</p>
+        <p className="mt-0.5 text-[14px] font-bold text-[#1D1E20]" style={{ fontFamily: "'Josefin Sans', sans-serif" }}>
+          Ana &amp; Diego
+        </p>
+        <p className="mt-0.5 text-[7px] text-[#999]">24 canciones · 3 de los novios · 1h 38m</p>
+      </div>
+
+      <div className="space-y-2 px-3">
+        {/* Cancion de los novios */}
+        <div className="flex items-center gap-2 rounded-lg border border-[#c8ede7] bg-[#f0fdfb] p-2">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-white text-[#48C9B0]">
+            <Heart size={13} fill="currentColor" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-[9px] font-semibold text-[#1D1E20]">Perfect</p>
+            <p className="truncate text-[7px] text-[#999]">Ed Sheeran</p>
+          </div>
+          <span className="rounded-full bg-[#48C9B0] px-2 py-0.5 text-[7px] font-semibold text-white">De los novios</span>
+        </div>
+
+        {/* Canciones de invitados */}
+        {guests.map(g => (
+          <div key={g.title} className="flex items-center gap-2 rounded-lg border border-[#eee4d6] bg-white p-2">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#f0ece3] text-[7px] font-semibold text-[#999]">
+              {g.initials}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-[9px] font-semibold text-[#1D1E20]">{g.title}</p>
+              <p className="truncate text-[7px] text-[#999]">{g.artist}</p>
+            </div>
+            <Music2 size={11} className="shrink-0 text-[#ccc]" />
+          </div>
+        ))}
+
+        {/* Footer: exportar DJ */}
+        <div className="flex items-center justify-between rounded-lg bg-[#1D1E20] px-2.5 py-1.5">
+          <span className="flex items-center gap-1 text-[8px] font-medium text-white">
+            <Download size={10} /> Descargar para DJ
+          </span>
+          <span className="text-[7px] text-[#999]">Excel · PDF · M3U</span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function WhatsNewModal() {
   const [release, setRelease] = useState<Release | null>(null)
 
@@ -271,11 +332,13 @@ export function WhatsNewModal() {
 
           {/* Mockup izquierda (por version del release) */}
           <div className="h-56 w-full overflow-hidden sm:h-auto sm:w-[45%]">
-            {release.version === '2026-06-12'
-              ? <HerramientasMockup />
-              : release.version === '2026-06-11'
-                ? <MesaRegalosMockup />
-                : <TimelineMockup />}
+            {release.version === '2026-06-15'
+              ? <PlaylistMockup />
+              : release.version === '2026-06-12'
+                ? <HerramientasMockup />
+                : release.version === '2026-06-11'
+                  ? <MesaRegalosMockup />
+                  : <TimelineMockup />}
           </div>
 
           {/* Contenido derecha */}

@@ -87,12 +87,20 @@ export type EventSettings = {
   album_url: string | null
   playlist_token: string | null
   playlist_categories: string[] | null
+  playlist_max_songs: number | null
   registry_token: string | null
   registry_payment_info: RegistryPaymentInfo | null
   registry_external_links: RegistryExternalLink[] | null
   enabled_features: Partial<Record<'mesas' | 'regalos' | 'album' | 'playlist' | 'comida', boolean>> | null
   created_at: string
   updated_at: string
+}
+
+// Limite efectivo de canciones por invitado: null = 3 (default), 0 = sin limite
+export function resolveMaxSongs(value: number | null | undefined): number {
+  if (value === 0) return Infinity
+  if (!value || value < 0) return 3
+  return value
 }
 
 export type RegistryExternalLink = {

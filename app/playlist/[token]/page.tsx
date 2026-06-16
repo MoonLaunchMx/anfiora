@@ -3,12 +3,16 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { useParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { Music, Heart, Check } from 'lucide-react'
+import { resolveMaxSongs } from '@/lib/types'
 
 interface Event {
   id: string
   name: string
   event_date: string | null
   venue: string | null
+  host_name: string | null
+  host_name_2: string | null
 }
 
 interface Song {
@@ -21,6 +25,7 @@ interface Song {
   created_at: string
   thumbnail: string | null
   preview_url: string | null
+  is_host_pick: boolean | null
 }
 
 interface SpotifyTrack {
@@ -41,15 +46,9 @@ function formatDuration(ms: number): string {
   return `${minutes}:${seconds.toString().padStart(2, '0')}`
 }
 
-function formatTime(sec: number): string {
-  const m = Math.floor(sec / 60)
-  const s = Math.floor(sec % 60)
-  return `${m}:${s.toString().padStart(2, '0')}`
-}
-
 function formatEventDate(dateStr: string | null): string {
   if (!dateStr) return ''
-  const [year, month, day] = dateStr.split('-').map(Number)
+  const [year, month, day] = dateStr.split('T')[0].split('-').map(Number)
   const months = [
     'enero','febrero','marzo','abril','mayo','junio',
     'julio','agosto','septiembre','octubre','noviembre','diciembre'
@@ -58,6 +57,7 @@ function formatEventDate(dateStr: string | null): string {
 }
 
 const STORAGE_KEY_PREFIX = 'anfiora_playlist_'
+const josefin = { fontFamily: "'Josefin Sans', sans-serif" }
 
 export default function PlaylistPublicPage() {
   const { token } = useParams()
@@ -65,6 +65,7 @@ export default function PlaylistPublicPage() {
   const [event, setEvent]                 = useState<Event | null>(null)
   const [categories, setCategories]       = useState<string[]>([])
   const [songs, setSongs]                 = useState<Song[]>([])
+  const [maxSongs, setMaxSongs]           = useState<number>(3)
   const [loading, setLoading]             = useState(true)
   const [notFound, setNotFound]           = useState(false)
 
@@ -86,24 +87,7 @@ export default function PlaylistPublicPage() {
   const [submitError, setSubmitError]     = useState('')
   const [nameError, setNameError]         = useState('')
 
-  const [playingId, setPlayingId]         = useState<string | null>(null)
-  const [currentTime, setCurrentTime]     = useState(0)
-  const audioRef                          = useRef<HTMLAudioElement | null>(null)
-
-  const heroRef                           = useRef<HTMLDivElement>(null)
-  const [heroHeight, setHeroHeight]       = useState(0)
-
-  useEffect(() => {
-    if (!heroRef.current) return
-    const observer = new ResizeObserver(entries => {
-      setHeroHeight(entries[0].contentRect.height)
-    })
-    observer.observe(heroRef.current)
-    return () => observer.disconnect()
-  }, [])
-
   useEffect(() => { loadData() }, [])
-  useEffect(() => { return () => { audioRef.current?.pause() } }, [])
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -115,18 +99,31 @@ export default function PlaylistPublicPage() {
     return () => document.removeEventListener('mousedown', handler)
   }, [])
 
+  const countMySongs = async (eventId: string, name: string): Promise<number> => {
+    const { count } = await supabase
+      .from('song_recommendations')
+      .select('*', { count: 'exact', head: true })
+      .eq('event_id', eventId)
+      .eq('guest_name', name)
+      .eq('is_host_pick', false)
+    return count || 0
+  }
+
   const loadData = async () => {
     const { data: settingsData } = await supabase
       .from('event_settings')
-      .select('event_id, playlist_categories')
+      .select('event_id, playlist_categories, playlist_max_songs')
       .eq('playlist_token', token)
       .single()
 
     if (!settingsData) { setNotFound(true); setLoading(false); return }
 
+    const limit = resolveMaxSongs(settingsData.playlist_max_songs)
+    setMaxSongs(limit)
+
     const { data: eventData } = await supabase
       .from('events')
-      .select('id, name, event_date, venue')
+      .select('id, name, event_date, venue, host_name, host_name_2')
       .eq('id', settingsData.event_id)
       .single()
 
@@ -137,7 +134,7 @@ export default function PlaylistPublicPage() {
 
     const { data: songsData } = await supabase
       .from('song_recommendations')
-      .select('id, guest_name, song_title, artist, spotify_url, category, created_at, thumbnail, preview_url')
+      .select('id, guest_name, song_title, artist, spotify_url, category, created_at, thumbnail, preview_url, is_host_pick')
       .eq('event_id', eventData.id)
       .order('created_at', { ascending: true })
 
@@ -151,14 +148,9 @@ export default function PlaylistPublicPage() {
         if (parsed.name && parsed.eventId === eventData.id) {
           setGuestName(parsed.name)
           setNameConfirmed(true)
-          const { count } = await supabase
-            .from('song_recommendations')
-            .select('*', { count: 'exact', head: true })
-            .eq('event_id', eventData.id)
-            .eq('guest_name', parsed.name)
-          const dbCount = count || 0
+          const dbCount = await countMySongs(eventData.id, parsed.name)
           setMyCount(dbCount)
-          if (dbCount >= 3) setDone(true)
+          if (Number.isFinite(limit) && dbCount >= limit) setDone(true)
         }
       } catch {}
     }
@@ -171,15 +163,13 @@ export default function PlaylistPublicPage() {
     if (!trimmed) { setNameError('¿Cómo te llaman?'); return }
     setNameError('')
 
-    const { count } = await supabase
-      .from('song_recommendations')
-      .select('*', { count: 'exact', head: true })
-      .eq('event_id', event!.id)
-      .eq('guest_name', trimmed)
-
-    const dbCount = count || 0
+    const dbCount = await countMySongs(event!.id, trimmed)
     setMyCount(dbCount)
-    if (dbCount >= 3) { setDone(true); setNameConfirmed(true); return }
+    if (Number.isFinite(maxSongs) && dbCount >= maxSongs) {
+      setDone(true)
+      setNameConfirmed(true)
+      return
+    }
 
     localStorage.setItem(STORAGE_KEY_PREFIX + token, JSON.stringify({
       name: trimmed,
@@ -218,15 +208,14 @@ export default function PlaylistPublicPage() {
 
   const handleSubmit = async () => {
     if (!selectedTrack) { setSubmitError('Busca y selecciona una canción primero'); return }
-    if (myCount >= 3) return
+    if (Number.isFinite(maxSongs) && myCount >= maxSongs) return
 
-    const { count } = await supabase
-      .from('song_recommendations')
-      .select('*', { count: 'exact', head: true })
-      .eq('event_id', event!.id)
-      .eq('guest_name', guestName.trim())
-
-    if ((count || 0) >= 3) { setDone(true); setMyCount(3); return }
+    const dbCount = await countMySongs(event!.id, guestName.trim())
+    if (Number.isFinite(maxSongs) && dbCount >= maxSongs) {
+      setDone(true)
+      setMyCount(dbCount)
+      return
+    }
 
     setSubmitting(true)
     setSubmitError('')
@@ -255,6 +244,7 @@ export default function PlaylistPublicPage() {
       created_at: new Date().toISOString(),
       thumbnail: selectedTrack.thumbnail,
       preview_url: selectedTrack.preview_url,
+      is_host_pick: false,
     }])
 
     const newCount = myCount + 1
@@ -264,102 +254,110 @@ export default function PlaylistPublicPage() {
     setCategory('')
     setSubmitError('')
     setSubmitting(false)
-    if (newCount >= 3) setDone(true)
+    if (Number.isFinite(maxSongs) && newCount >= maxSongs) setDone(true)
   }
 
-  const togglePlay = useCallback((song: Song) => {
-    if (!song.preview_url) return
-    if (playingId === song.id) {
-      if (audioRef.current?.paused) {
-        audioRef.current.play()
-      } else {
-        audioRef.current?.pause()
-        setPlayingId(null)
-      }
-      return
-    }
-    audioRef.current?.pause()
-    const audio = new Audio(song.preview_url)
-    audioRef.current = audio
-    setPlayingId(song.id)
-    setCurrentTime(0)
-    audio.addEventListener('timeupdate', () => setCurrentTime(audio.currentTime))
-    audio.addEventListener('ended', () => { setPlayingId(null); setCurrentTime(0) })
-    audio.play()
-  }, [playingId])
+  const hostSongs  = songs.filter(s => !!s.is_host_pick)
+  const guestSongs = songs.filter(s => !s.is_host_pick)
 
-  const playingSong = playingId ? songs.find(s => s.id === playingId) : null
-  const pct = currentTime > 0 ? (currentTime / 30) * 100 : 0
+  const couple = event?.host_name && event?.host_name_2
+    ? `${event.host_name} & ${event.host_name_2}`
+    : event?.name || ''
 
   if (loading) return (
-    <div className="flex min-h-screen items-center justify-center bg-[#111]">
-      <p className="text-sm text-white/40">Cargando...</p>
+    <div className="flex min-h-screen items-center justify-center bg-[#FBF7F0]">
+      <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#e8e8e8] border-t-[#48C9B0]" />
     </div>
   )
 
-if (notFound) return (
-  <div className="flex min-h-screen flex-col items-center justify-center bg-white px-4 text-center">
-    <p
-      className="text-3xl text-[#1D1E20]"
-      style={{ fontFamily: "'Josefin Sans', sans-serif", fontWeight: 700, letterSpacing: '0.04em' }}
-    >
-      Ups
-    </p>
-    <p className="mt-3 text-sm text-[#999]">
-      No encontramos lo que buscas.<br />Es posible que este link haya expirado o no sea válido.
-    </p>
-    <p
-      className="mt-10 text-[11px] uppercase tracking-[0.16em] text-[#ddd]"
-      style={{ fontFamily: "'Josefin Sans', sans-serif", fontWeight: 600 }}
-    >
-      Anfiora
-    </p>
-  </div>
-)
+  if (notFound) return (
+    <div className="flex min-h-screen flex-col items-center justify-center bg-[#FBF7F0] px-6 text-center">
+      <Music size={32} className="mb-3 text-[#bbb]" />
+      <h1 className="text-lg font-semibold text-[#1D1E20]">Playlist no encontrada</h1>
+      <p className="mt-1 text-sm text-[#888]">
+        Es posible que este link haya expirado o no sea válido.
+      </p>
+      <p className="mt-10 text-[11px] uppercase tracking-[0.16em] text-[#ccc]" style={josefin}>
+        Anfiora
+      </p>
+    </div>
+  )
 
   return (
-    <div className="flex min-h-screen flex-col bg-white">
+    <div className="flex h-[100dvh] flex-col overflow-hidden bg-[#FBF7F0]">
 
-      {/* HERO — sticky, mide su altura */}
-      <div
-        ref={heroRef}
-        className="sticky top-0 z-20 flex flex-col items-center justify-center bg-[#111] px-6 py-12 text-center"
-      >
-        <p className="mb-3 text-[10px] uppercase tracking-[0.2em] text-white/30">
+      {/* Hero (fijo) */}
+      <section className="mx-auto w-full max-w-2xl shrink-0 px-6 pb-4 pt-8 text-center sm:pt-10">
+        <p className="mb-4 text-[11px] uppercase tracking-[0.3em] text-[#aaa]" style={josefin}>
           Playlist del evento
         </p>
-        <h1
-          className="text-3xl text-white"
-          style={{ fontFamily: "'Josefin Sans', sans-serif", fontWeight: 700, letterSpacing: '0.04em' }}
-        >
-          {event?.name}
+        <h1 className="text-4xl font-bold leading-tight text-[#1D1E20] sm:text-5xl" style={josefin}>
+          {couple}
         </h1>
         {event?.event_date && (
-          <p className="mt-2 text-[11px] uppercase tracking-[0.14em] text-white/30">
+          <p className="mt-4 text-sm tracking-wide text-[#666]" style={josefin}>
             {formatEventDate(event.event_date)}
           </p>
         )}
-        {event?.venue && (
-          <p className="mt-1 text-[11px] text-white/20">{event.venue}</p>
+        {event?.venue && <p className="mt-1 text-xs text-[#999]">{event.venue}</p>}
+        <p className="mx-auto mt-4 max-w-md text-sm leading-relaxed text-[#666]">
+          Ayúdanos a armar la playlist con las canciones que no pueden faltar.
+        </p>
+      </section>
+
+      {/* Solo esta zona scrollea (debajo del hero) */}
+      <div className="flex flex-1 flex-col overflow-y-auto">
+
+        {/* Canciones de los novios */}
+        {hostSongs.length > 0 && (
+          <section className="mx-auto w-full max-w-lg px-5 pb-2">
+            <div className="mb-3 flex items-center justify-center gap-1.5">
+              <Heart size={13} className="text-[#48C9B0]" fill="currentColor" />
+              <p className="text-[11px] uppercase tracking-[0.2em] text-[#aaa]" style={josefin}>
+                Las canciones de los novios
+              </p>
+            </div>
+            <div className="flex flex-col gap-2">
+              {hostSongs.map(song => (
+                <a
+                  key={song.id}
+                  href={song.spotify_url || undefined}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block rounded-2xl border border-[#d8f0ea] bg-white px-4 py-3 transition hover:border-[#48C9B0]"
+                >
+                  <div className="flex items-center gap-3">
+                    {song.thumbnail ? (
+                      <img src={song.thumbnail} alt={song.song_title} className="h-9 w-9 shrink-0 rounded object-cover" />
+                    ) : (
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded bg-[#f0fdfb]">
+                        <Music size={14} className="text-[#48C9B0]" />
+                      </div>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-[#1D1E20]">{song.song_title}</p>
+                      <p className="truncate text-xs text-[#999]">{song.artist}</p>
+                    </div>
+                    <Heart size={13} className="shrink-0 text-[#48C9B0]" fill="currentColor" />
+                  </div>
+                </a>
+              ))}
+            </div>
+          </section>
         )}
-        <div className="mt-6 h-px w-8 bg-white/15" />
-      </div>
 
-      {/* CONTENIDO — scroll normal */}
-      <div className="flex flex-col">
+        {/* Form */}
+        <div className="mx-auto w-full max-w-lg px-5 py-4">
 
-        {/* FORM */}
-        <div className="mx-auto w-full max-w-lg px-5 py-8">
-
-          {!done && (
+          {!done && Number.isFinite(maxSongs) && (
             <p className="mb-6 text-center text-sm text-[#999]">
-              Recomienda las canciones que no pueden faltar.<br />Hasta 3 por persona.
+              Hasta {maxSongs} canci{maxSongs === 1 ? 'ón' : 'ones'} por persona.
             </p>
           )}
 
           {!nameConfirmed ? (
-            <div className="flex flex-col gap-3">
-              <label className="text-[10px] uppercase tracking-[0.12em] text-[#bbb]">Tu nombre</label>
+            <div className="flex flex-col gap-3 rounded-2xl border border-[#eee4d6] bg-white p-5">
+              <label className="text-[11px] font-semibold uppercase tracking-wider text-[#888]">Tu nombre</label>
               <div className="flex gap-2">
                 <input
                   type="text"
@@ -367,52 +365,56 @@ if (notFound) return (
                   onChange={e => { setGuestName(e.target.value); setNameError('') }}
                   onKeyDown={e => { if (e.key === 'Enter') handleConfirmName() }}
                   placeholder="¿Cómo te llaman?"
-                  className="flex-1 rounded-lg border border-[#e0e0e0] bg-white px-4 py-2.5 text-sm text-[#1D1E20] outline-none transition focus:border-[#111]"
+                  className="min-w-0 flex-1 rounded-lg border border-[#e0e0e0] bg-white px-4 py-2.5 text-sm text-[#1D1E20] outline-none transition focus:border-[#48C9B0]"
                 />
                 <button
                   onClick={handleConfirmName}
-                  className="shrink-0 rounded-lg bg-[#111] px-5 py-2.5 text-sm font-medium text-white transition hover:bg-[#333]"
+                  className="shrink-0 rounded-lg bg-[#48C9B0] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#3aa896]"
                 >
                   Continuar
                 </button>
               </div>
-              {nameError && <p className="text-xs text-red-500">{nameError}</p>}
+              {nameError && <p className="text-xs text-[#cc3333]">{nameError}</p>}
             </div>
 
           ) : done ? (
-            <div className="rounded-xl border border-[#e8e8e8] bg-[#fafafa] px-6 py-5 text-center">
-              <p
-                className="text-lg text-[#111]"
-                style={{ fontFamily: "'Josefin Sans', sans-serif", fontWeight: 700, letterSpacing: '0.04em' }}
-              >
+            <div className="py-4 text-center">
+              <div className="mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-full bg-[#f0fdfb] text-[#1a9e88]">
+                <Check size={20} strokeWidth={2.4} />
+              </div>
+              <p className="text-xl font-bold text-[#1D1E20]" style={josefin}>
                 ¡Gracias, {guestName.split(' ')[0]}!
               </p>
-              <p className="mt-1 text-sm text-[#999]">Ya agregaste tus 3 canciones.</p>
+              <p className="mt-1 text-sm text-[#888]">
+                Ya agregaste tus {maxSongs === 1 ? 'canción' : `${maxSongs} canciones`}.
+              </p>
             </div>
 
           ) : (
-            <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-3 rounded-2xl border border-[#eee4d6] bg-white p-5">
               <div className="flex items-center justify-between">
-                <label className="text-[10px] uppercase tracking-[0.12em] text-[#bbb]">
+                <label className="text-[11px] font-semibold uppercase tracking-wider text-[#888]">
                   Hola, {guestName.split(' ')[0]}
                 </label>
-                <span className="text-[10px] uppercase tracking-[0.08em] text-[#bbb]">
-                  {myCount}/3 canciones
-                </span>
+                {Number.isFinite(maxSongs) && (
+                  <span className="text-[11px] font-medium uppercase tracking-wider text-[#48C9B0]">
+                    {myCount}/{maxSongs} canciones
+                  </span>
+                )}
               </div>
 
               {categories.length > 0 && (
                 <>
-                  <label className="text-[10px] uppercase tracking-[0.12em] text-[#bbb]">Etapa</label>
+                  <label className="text-[11px] font-semibold uppercase tracking-wider text-[#888]">Etapa</label>
                   <div className="flex flex-wrap gap-1.5">
                     {categories.map((cat: string) => (
                       <button
                         key={cat}
                         onClick={() => setCategory(prev => prev === cat ? '' : cat)}
-                        className={'rounded-full border px-3 py-1 text-xs transition ' +
+                        className={'rounded-full border px-3 py-1 text-xs font-medium transition ' +
                           (category === cat
-                            ? 'border-[#111] bg-[#111] text-white'
-                            : 'border-[#e0e0e0] text-[#666] hover:border-[#111] hover:text-[#111]'
+                            ? 'border-[#48C9B0] bg-[#48C9B0] text-white'
+                            : 'border-[#e0e0e0] text-[#888] hover:border-[#48C9B0] hover:text-[#48C9B0]'
                           )}
                       >
                         {cat}
@@ -422,7 +424,7 @@ if (notFound) return (
                 </>
               )}
 
-              <label className="text-[10px] uppercase tracking-[0.12em] text-[#bbb]">Canción</label>
+              <label className="text-[11px] font-semibold uppercase tracking-wider text-[#888]">Canción</label>
               <div ref={searchRef} className="relative">
                 <input
                   type="text"
@@ -430,20 +432,20 @@ if (notFound) return (
                   onChange={e => handleSearchChange(e.target.value)}
                   onFocus={() => { if (searchResults.length > 0) setShowResults(true) }}
                   placeholder="Busca una canción en Spotify..."
-                  className="w-full rounded-lg border border-[#e0e0e0] bg-white px-4 py-2.5 text-sm text-[#1D1E20] outline-none transition focus:border-[#111]"
+                  className="w-full rounded-lg border border-[#e0e0e0] bg-white px-4 py-2.5 text-sm text-[#1D1E20] outline-none transition focus:border-[#48C9B0]"
                 />
                 {searching && (
                   <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-[#111] border-t-transparent" />
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-[#48C9B0] border-t-transparent" />
                   </div>
                 )}
                 {showResults && searchResults.length > 0 && (
-                  <div className="absolute left-0 right-0 top-full z-30 mt-1 overflow-hidden rounded-xl border border-[#e8e8e8] bg-white shadow-lg">
+                  <div className="absolute left-0 right-0 top-full z-30 mt-1 overflow-hidden rounded-xl border border-[#eee4d6] bg-white shadow-lg">
                     {searchResults.map(track => (
                       <button
                         key={track.id}
                         onClick={() => handleSelectTrack(track)}
-                        className="flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-[#f5f5f5]"
+                        className="flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-[#f0fdfb]"
                       >
                         {track.thumbnail ? (
                           <img src={track.thumbnail} alt={track.title} className="h-10 w-10 shrink-0 rounded object-cover" />
@@ -462,37 +464,10 @@ if (notFound) return (
               </div>
 
               {selectedTrack && (
-                <div className="rounded-xl border border-[#111] bg-[#fafafa] px-4 py-3">
+                <div className="rounded-xl border border-[#48C9B0] bg-[#f0fdfb] px-4 py-3">
                   <div className="flex items-center gap-3">
                     {selectedTrack.thumbnail && (
                       <img src={selectedTrack.thumbnail} alt={selectedTrack.title} className="h-10 w-10 shrink-0 rounded object-cover" />
-                    )}
-                    {selectedTrack.preview_url && (
-                      <button
-                        onClick={() => togglePlay({
-                          id: 'preview',
-                          guest_name: '',
-                          song_title: selectedTrack.title,
-                          artist: selectedTrack.artist,
-                          spotify_url: selectedTrack.spotify_url,
-                          category: null,
-                          created_at: '',
-                          thumbnail: selectedTrack.thumbnail,
-                          preview_url: selectedTrack.preview_url,
-                        })}
-                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#111]"
-                      >
-                        {playingId === 'preview' ? (
-                          <svg width="7" height="9" viewBox="0 0 8 10" fill="none">
-                            <rect x="0" y="0" width="3" height="10" fill="white" />
-                            <rect x="5" y="0" width="3" height="10" fill="white" />
-                          </svg>
-                        ) : (
-                          <svg width="7" height="9" viewBox="0 0 8 10" fill="none">
-                            <path d="M1 1L7 5L1 9V1Z" fill="white" />
-                          </svg>
-                        )}
-                      </button>
                     )}
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium text-[#1D1E20]">{selectedTrack.title}</p>
@@ -502,154 +477,85 @@ if (notFound) return (
                       onClick={() => {
                         setSelectedTrack(null)
                         setSearchQuery('')
-                        if (playingId === 'preview') { audioRef.current?.pause(); setPlayingId(null) }
                       }}
-                      className="shrink-0 text-[#ccc] hover:text-[#888]"
+                      className="shrink-0 text-[#aaa] transition hover:text-[#666]"
                     >
                       ✕
                     </button>
                   </div>
-                  {selectedTrack.preview_url && playingId === 'preview' && (
-                    <div className="mt-3 px-1">
-                      <div className="h-0.5 w-full overflow-hidden rounded-full bg-[#e0e0e0]">
-                        <div className="h-full rounded-full bg-[#111] transition-all" style={{ width: `${pct}%` }} />
-                      </div>
-                      <p className="mt-1 text-right text-[10px] text-[#999]">{formatTime(currentTime)} / 0:30</p>
-                    </div>
-                  )}
                 </div>
               )}
 
-              {submitError && <p className="text-xs text-red-500">{submitError}</p>}
+              {submitError && <p className="text-xs text-[#cc3333]">{submitError}</p>}
 
               <button
                 onClick={handleSubmit}
                 disabled={submitting || !selectedTrack}
-                className="w-full rounded-lg bg-[#111] py-3 text-sm font-medium text-white transition hover:bg-[#333] disabled:opacity-30"
+                className="w-full rounded-lg bg-[#48C9B0] py-3 text-sm font-semibold text-white transition hover:bg-[#3aa896] disabled:opacity-30"
               >
                 {submitting
                   ? 'Guardando...'
-                  : myCount === 0
+                  : myCount === 0 || !Number.isFinite(maxSongs)
                     ? 'Agregar canción'
-                    : `Agregar canción (${myCount + 1} de 3)`}
+                    : `Agregar canción (${myCount + 1} de ${maxSongs})`}
               </button>
             </div>
           )}
         </div>
 
-        {/* LISTA — barra sticky + canciones */}
-        {songs.length > 0 && (
-          <div className="w-full">
-
-            {/* Barra sticky del contador — full width, debajo del hero */}
-            <div
-              className="sticky z-10 w-full border-y border-[#f0f0f0] bg-white py-2.5"
-              style={{ top: `${heroHeight}px` }}
-            >
-              <div className="mx-auto flex max-w-lg items-center gap-3 px-5">
-                <div className="h-px flex-1 bg-[#f0f0f0]" />
-                <p className="text-[10px] uppercase tracking-[0.14em] text-[#ccc]">
-                  {songs.length} canción{songs.length !== 1 ? 'es' : ''} en la lista
-                </p>
-                <div className="h-px flex-1 bg-[#f0f0f0]" />
-              </div>
+        {/* Lista de sugerencias */}
+        {guestSongs.length > 0 && (
+          <div className="mx-auto w-full max-w-lg px-5 pb-8">
+            <div className="mb-4 flex items-center gap-3">
+              <div className="h-px flex-1 bg-[#eee4d6]" />
+              <p className="text-[10px] uppercase tracking-[0.14em] text-[#bbb]" style={josefin}>
+                {guestSongs.length} canci{guestSongs.length !== 1 ? 'ones' : 'ón'} en la lista
+              </p>
+              <div className="h-px flex-1 bg-[#eee4d6]" />
             </div>
 
-            {/* Cards de canciones */}
-            <div className="mx-auto w-full max-w-lg px-5 py-4">
-              <div className="flex flex-col gap-2">
-                {songs.map(song => (
-                  <div
-                    key={song.id}
-                    className={`rounded-xl border bg-white px-4 py-3 transition ${playingId === song.id ? 'border-[#111]' : 'border-[#f0f0f0]'}`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <button
-                        onClick={() => togglePlay(song)}
-                        disabled={!song.preview_url}
-                        className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full border transition
-                          ${playingId === song.id ? 'border-[#111] bg-[#111]' : 'border-[#e0e0e0] hover:border-[#111]'}
-                          ${!song.preview_url ? 'cursor-not-allowed opacity-20' : ''}`}
-                      >
-                        {playingId === song.id ? (
-                          <svg width="7" height="9" viewBox="0 0 8 10" fill="none">
-                            <rect x="0" y="0" width="3" height="10" fill="white" />
-                            <rect x="5" y="0" width="3" height="10" fill="white" />
-                          </svg>
-                        ) : (
-                          <svg width="7" height="9" viewBox="0 0 8 10" fill="none">
-                            <path d="M1 1L7 5L1 9V1Z" fill="#ccc" />
-                          </svg>
-                        )}
-                      </button>
-                      {song.thumbnail ? (
-                        <img src={song.thumbnail} alt={song.song_title} className="h-9 w-9 shrink-0 rounded object-cover" />
-                      ) : (
-                        <div className="h-9 w-9 shrink-0 rounded bg-[#f5f5f5]" />
-                      )}
-                      <div className="min-w-0 flex-1">
-                        <p className={`truncate text-sm font-medium ${playingId === song.id ? 'text-[#111]' : 'text-[#1D1E20]'}`}>
-                          {song.song_title}
-                        </p>
-                        <p className="truncate text-xs text-[#bbb]">
-                          {song.artist}
-                          <span className="mx-1.5 text-[#ddd]">·</span>
-                          <span className="text-[#48C9B0]">{song.guest_name}</span>
-                        </p>
-                      </div>
-                      {song.category && (
-                        <span className="shrink-0 rounded-full border border-[#f0f0f0] px-2.5 py-0.5 text-[10px] text-[#bbb]">
-                          {song.category}
-                        </span>
-                      )}
+            <div className="flex flex-col gap-2">
+              {guestSongs.map(song => (
+                <a
+                  key={song.id}
+                  href={song.spotify_url || undefined}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block rounded-2xl border border-[#eee4d6] bg-white px-4 py-3 transition hover:border-[#48C9B0]"
+                >
+                  <div className="flex items-center gap-3">
+                    {song.thumbnail ? (
+                      <img src={song.thumbnail} alt={song.song_title} className="h-9 w-9 shrink-0 rounded object-cover" />
+                    ) : (
+                      <div className="h-9 w-9 shrink-0 rounded bg-[#f5f0e8]" />
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-[#1D1E20]">
+                        {song.song_title}
+                      </p>
+                      <p className="truncate text-xs text-[#bbb]">
+                        {song.artist}
+                        <span className="mx-1.5 text-[#ddd]">·</span>
+                        <span className="text-[#1a9e88]">{song.guest_name}</span>
+                      </p>
                     </div>
-                    {playingId === song.id && (
-                      <div className="mt-2.5 px-0.5">
-                        <div className="h-0.5 w-full overflow-hidden rounded-full bg-[#e8e8e8]">
-                          <div className="h-full rounded-full bg-[#111] transition-all" style={{ width: `${pct}%` }} />
-                        </div>
-                        <p className="mt-1 text-right text-[10px] text-[#999]">{formatTime(currentTime)} / 0:30</p>
-                      </div>
+                    {song.category && (
+                      <span className="shrink-0 rounded-full border border-[#eee4d6] px-2.5 py-0.5 text-[10px] text-[#bbb]">
+                        {song.category}
+                      </span>
                     )}
                   </div>
-                ))}
-              </div>
+                </a>
+              ))}
             </div>
           </div>
         )}
 
-        <p
-          className="mb-8 mt-4 text-center text-[11px] uppercase tracking-[0.16em] text-[#ddd]"
-          style={{ fontFamily: "'Josefin Sans', sans-serif", fontWeight: 600 }}
-        >
-          Anfiora
-        </p>
+        <footer className="mt-auto border-t border-[#eee4d6] bg-[#F5EFE3] py-6 text-center">
+          <p className="text-base font-bold tracking-wide text-[#1D1E20]" style={josefin}>Anfiora</p>
+          <p className="mt-1 text-[11px] text-[#aaa]">La playlist de tu evento</p>
+        </footer>
       </div>
-
-      {/* Mini player móvil */}
-      {playingSong && playingId !== 'preview' && (
-        <div className="sticky bottom-0 flex items-center gap-3 border-t border-[#e8e8e8] bg-white px-4 py-3 sm:hidden">
-          {playingSong.thumbnail && (
-            <img src={playingSong.thumbnail} alt={playingSong.song_title} className="h-8 w-8 shrink-0 rounded object-cover" />
-          )}
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-xs font-medium text-[#1D1E20]">{playingSong.song_title}</p>
-            <div className="mt-1 h-0.5 w-full overflow-hidden rounded-full bg-[#e8e8e8]">
-              <div className="h-full rounded-full bg-[#111] transition-all" style={{ width: `${pct}%` }} />
-            </div>
-          </div>
-          <button
-            onClick={() => togglePlay(playingSong)}
-            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#111]"
-          >
-            <svg width="7" height="9" viewBox="0 0 8 10" fill="none">
-              <rect x="0" y="0" width="3" height="10" fill="white" />
-              <rect x="5" y="0" width="3" height="10" fill="white" />
-            </svg>
-          </button>
-          <span className="text-[10px] text-[#bbb]">{formatTime(currentTime)}</span>
-        </div>
-      )}
     </div>
   )
 }
