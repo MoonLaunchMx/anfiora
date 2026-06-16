@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import AuthModal from '@/app/components/auth/AuthModal'
 import LandingNav from '@/app/components/landing/LandingNav'
 import Hero from '@/app/components/landing/Hero'
+import SectionPain from '@/app/components/landing/SectionPain'
 import { landingCopy, type Lang } from '@/app/components/landing/i18n'
 
 export default function LandingPage() {
@@ -37,6 +38,7 @@ export default function LandingPage() {
           onRegister={openRegister}
         />
         <Hero t={t} onRegister={openRegister} />
+        <SectionPain t={t} onPlans={openRegister} />
       </div>
 
       <AuthModal
