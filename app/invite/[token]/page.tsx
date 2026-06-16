@@ -4,16 +4,15 @@ import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { logAction } from '@/lib/audit'
-import { CheckCircle, XCircle, Loader } from 'lucide-react'
+import { CheckCircle, XCircle, Loader, Eye, EyeOff } from 'lucide-react'
 
-// Datos de la invitación que cargamos del token
+// Datos seguros de la invitación que devuelve /api/invite/[token]
 interface InviteData {
-  id: string
   event_id: string
   email: string
   role: string
-  status: string
-  events: {
+  roleLabel: string
+  event: {
     name: string
     event_date: string | null
     venue: string | null
@@ -25,6 +24,7 @@ type PageState =
   | 'invalid'        // token no existe o ya fue revocado
   | 'already_used'   // ya fue aceptado antes
   | 'auth_required'  // necesita login o registro
+  | 'wrong_account'  // sesión con un correo distinto al invitado
   | 'accepting'      // procesando aceptación
   | 'success'        // todo bien
   | 'error'          // algo falló
@@ -40,10 +40,14 @@ export default function InvitePage() {
   const [authMode, setAuthMode]     = useState<AuthMode>('login')
   const [email, setEmail]           = useState('')
   const [password, setPassword]     = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [fullName, setFullName]     = useState('')
   const [authError, setAuthError]   = useState('')
   const [authLoading, setAuthLoading] = useState(false)
   const [accepted, setAccepted]     = useState(false)
+  const [usedEventId, setUsedEventId] = useState<string | null>(null)
+  const [currentEmail, setCurrentEmail] = useState('')
+  const [accountExists, setAccountExists] = useState(false)
 
   // Al montar: verificar token y sesión activa
   useEffect(() => {
@@ -51,69 +55,94 @@ export default function InvitePage() {
   }, [token])
 
   const checkInvite = async () => {
-    // Buscar invitación por token incluyendo datos del evento
-    const { data, error } = await supabase
-      .from('event_collaborators')
-      .select('id, event_id, email, role, status, events(name, event_date, venue)')
-      .eq('invite_token', token)
-      .single()
+    // La verificación del token corre en una API route con service role:
+    // el navegador nunca lee event_collaborators directo (sin RLS anon).
+    let payload: { status: PageState; invite?: InviteData; event_id?: string; account_exists?: boolean }
+    try {
+      const res = await fetch(`/api/invite/${token}`)
+      payload = await res.json()
+    } catch {
+      setPageState('error'); return
+    }
 
-    if (error || !data) { setPageState('invalid'); return }
+    if (payload.status === 'invalid') { setPageState('invalid'); return }
+    if (payload.status === 'already_used') {
+      setUsedEventId(payload.event_id ?? null)
+      setPageState('already_used'); return
+    }
+    if (!payload.invite) { setPageState('invalid'); return }
 
-    // Token revocado
-    if (data.status === 'revoked') { setPageState('invalid'); return }
-
-    // Ya fue aceptado
-    if (data.status === 'active') { setPageState('already_used'); return }
-
-    setInvite(data as unknown as InviteData)
+    setInvite(payload.invite)
+    const exists = !!payload.account_exists
+    setAccountExists(exists)
 
     // Verificar si hay sesión activa
-    const { data: { user } } = await supabase.auth.getUser()
+    const { data: { session } } = await supabase.auth.getSession()
 
-    if (user) {
-      // Hay sesión — aceptar directo
-      await acceptInvite(data.id, data.event_id, user.id, data.role)
+    if (session) {
+      // Solo el correo invitado puede aceptar. Si la sesión es de otro correo,
+      // no consumimos la invitación: avisamos y dejamos cambiar de cuenta.
+      const sessionEmail = (session.user.email || '').trim().toLowerCase()
+      const invitedEmail = (payload.invite.email || '').trim().toLowerCase()
+      if (invitedEmail && sessionEmail !== invitedEmail) {
+        setCurrentEmail(session.user.email || '')
+        setPageState('wrong_account')
+        return
+      }
+      await acceptInvite(session.access_token)
     } else {
-      // Pre-llenar email si coincide
-      setEmail(data.email)
+      // Pre-llenar email del invitado y mostrar el modo correcto:
+      // si ya tiene cuenta -> iniciar sesión; si no -> crear cuenta.
+      setEmail(payload.invite.email)
+      setAuthMode(exists ? 'login' : 'register')
       setPageState('auth_required')
     }
   }
 
-  const acceptInvite = async (
-    inviteId: string,
-    eventId: string,
-    userId: string,
-    role: string,
-  ) => {
+  const handleSwitchAccount = async () => {
+    await supabase.auth.signOut()
+    setCurrentEmail('')
+    setPassword('')
+    setAuthMode(accountExists ? 'login' : 'register')
+    setEmail(invite?.email || '')
+    setAuthError('')
+    setPageState('auth_required')
+  }
+
+  const acceptInvite = async (accessToken: string) => {
     setPageState('accepting')
 
-    const { error } = await supabase
-      .from('event_collaborators')
-      .update({
-        user_id:     userId,
-        status:      'active',
-        accepted_at: new Date().toISOString(),
+    let result: { ok?: boolean; event_id?: string; role?: string; error?: string; your_email?: string }
+    try {
+      const res = await fetch(`/api/invite/${token}`, {
+        method: 'POST',
+        headers: { Authorization: 'Bearer ' + accessToken },
       })
-      .eq('id', inviteId)
+      result = await res.json()
+    } catch {
+      setPageState('error'); return
+    }
 
-    if (error) { setPageState('error'); return }
+    if (result.error === 'email_mismatch') {
+      setCurrentEmail(result.your_email || '')
+      setPageState('wrong_account'); return
+    }
+
+    if (!result.ok || !result.event_id) { setPageState('error'); return }
 
     // Registrar en audit log
     await logAction({
-      eventId,
+      eventId:     result.event_id,
       action:      'collaborator.accepted',
       entityType:  'collaborator',
-      entityId:    inviteId,
-      entityLabel: role,
+      entityLabel: result.role || '',
     })
 
     setPageState('success')
 
     // Redirigir al evento después de 2 segundos
     setTimeout(() => {
-      router.push(`/events/${eventId}`)
+      router.push(`/events/${result.event_id}`)
     }, 2000)
   }
 
@@ -127,7 +156,8 @@ export default function InvitePage() {
       // Intentar login
       const { data, error } = await supabase.auth.signInWithPassword({ email, password })
       if (error) { setAuthError('Email o contraseña incorrectos'); setAuthLoading(false); return }
-      await acceptInvite(invite.id, invite.event_id, data.user.id, invite.role)
+      if (!data.session) { setAuthError('Error al iniciar sesión'); setAuthLoading(false); return }
+      await acceptInvite(data.session.access_token)
 
     } else {
       // Registrar cuenta nueva
@@ -151,14 +181,18 @@ export default function InvitePage() {
     plan:      'free',
     }, { onConflict: 'id', ignoreDuplicates: true })
 
-    if (data.session) {
-      await fetch('/api/legal/accept', {
-        method: 'POST',
-        headers: { Authorization: 'Bearer ' + data.session.access_token },
-      }).catch(() => {})
+    if (!data.session) {
+      setAuthError('Revisa tu correo para confirmar la cuenta y vuelve a abrir el enlace')
+      setAuthLoading(false)
+      return
     }
 
-    await acceptInvite(invite.id, invite.event_id, data.user.id, invite.role)
+    await fetch('/api/legal/accept', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + data.session.access_token },
+    }).catch(() => {})
+
+    await acceptInvite(data.session.access_token)
     }
 
     setAuthLoading(false)
@@ -185,7 +219,7 @@ export default function InvitePage() {
         <div className="flex flex-col items-center gap-3">
           <Loader size={28} className="animate-spin text-[#48C9B0]" />
           <p className="text-sm text-[#888]">
-            {pageState === 'loading' ? 'Verificando invitacion...' : 'Aceptando invitacion...'}
+            {pageState === 'loading' ? 'Verificando invitación...' : 'Aceptando invitación...'}
           </p>
         </div>
       </div>
@@ -197,8 +231,8 @@ export default function InvitePage() {
       <div className="flex min-h-screen items-center justify-center bg-white px-4">
         <div className="flex max-w-sm flex-col items-center gap-4 text-center">
           <XCircle size={48} className="text-[#cc3333]" />
-          <h1 className="text-lg font-bold text-[#1D1E20]">Link invalido</h1>
-          <p className="text-sm text-[#888]">Este link de invitacion no existe o fue revocado. Pide al organizador que te mande uno nuevo.</p>
+          <h1 className="text-lg font-bold text-[#1D1E20]">Enlace inválido</h1>
+          <p className="text-sm text-[#888]">Este enlace de invitación no existe o fue revocado. Pídele al organizador que te mande uno nuevo.</p>
           <button onClick={() => router.push('/')}
             className="mt-2 rounded-lg bg-[#48C9B0] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#3ab89f]">
             Ir al inicio
@@ -214,10 +248,34 @@ export default function InvitePage() {
         <div className="flex max-w-sm flex-col items-center gap-4 text-center">
           <CheckCircle size={48} className="text-[#48C9B0]" />
           <h1 className="text-lg font-bold text-[#1D1E20]">Ya tienes acceso</h1>
-          <p className="text-sm text-[#888]">Esta invitacion ya fue aceptada. Inicia sesion para acceder al evento.</p>
-          <button onClick={() => router.push('/')}
+          <p className="text-sm text-[#888]">Esta invitación ya fue aceptada. Entra para ver el evento.</p>
+          <button onClick={() => router.push(usedEventId ? `/events/${usedEventId}` : '/dashboard')}
             className="mt-2 rounded-lg bg-[#48C9B0] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#3ab89f]">
-            Iniciar sesion
+            Ir al evento
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  if (pageState === 'wrong_account') {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-white px-4">
+        <div className="flex max-w-sm flex-col items-center gap-4 text-center">
+          <XCircle size={48} className="text-[#cc3333]" />
+          <h1 className="text-lg font-bold text-[#1D1E20]">Cuenta incorrecta</h1>
+          <p className="text-sm text-[#888]">
+            Esta invitación es para <span className="font-semibold text-[#1D1E20]">{invite?.email}</span>
+            {currentEmail && <> pero iniciaste sesión como <span className="font-semibold text-[#1D1E20]">{currentEmail}</span></>}.
+            Cierra sesión e inicia con el correo invitado para aceptarla.
+          </p>
+          <button onClick={handleSwitchAccount}
+            className="mt-2 rounded-lg bg-[#48C9B0] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#3ab89f]">
+            Cerrar sesión y usar el correo invitado
+          </button>
+          <button onClick={() => router.push('/dashboard')}
+            className="text-xs font-medium text-[#888] transition hover:text-[#555]">
+            Ir a mi panel
           </button>
         </div>
       </div>
@@ -241,8 +299,8 @@ export default function InvitePage() {
       <div className="flex min-h-screen items-center justify-center bg-white px-4">
         <div className="flex max-w-sm flex-col items-center gap-4 text-center">
           <XCircle size={48} className="text-[#cc3333]" />
-          <h1 className="text-lg font-bold text-[#1D1E20]">Algo salio mal</h1>
-          <p className="text-sm text-[#888]">No pudimos procesar tu invitacion. Intenta de nuevo o contacta al organizador.</p>
+          <h1 className="text-lg font-bold text-[#1D1E20]">Algo salió mal</h1>
+          <p className="text-sm text-[#888]">No pudimos procesar tu invitación. Inténtalo de nuevo o contacta al organizador.</p>
           <button onClick={() => router.push('/')}
             className="mt-2 rounded-lg bg-[#48C9B0] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#3ab89f]">
             Ir al inicio
@@ -259,23 +317,23 @@ export default function InvitePage() {
 
         {/* Logo */}
         <div className="mb-6 flex justify-center">
-          <img src="/images/logo.svg" alt="Anfiora" className="h-10" />
+          <img src="/images/isotipoylogo.svg" alt="Anfiora" className="h-16 w-auto max-w-full" />
         </div>
 
-        {/* Card de invitacion */}
+        {/* Card de invitación */}
         {invite && (
           <div className="mb-4 rounded-xl border border-[#c8ede7] bg-[#f0fdfb] p-4">
             <p className="text-[11px] font-semibold uppercase tracking-wide text-[#48C9B0]">
-              Invitacion al evento
+              Invitación al evento
             </p>
             <p className="mt-1 text-base font-bold text-[#1D1E20]">
-              {invite.events.name}
+              {invite.event.name}
             </p>
-            {invite.events.event_date && (
-              <p className="mt-0.5 text-xs text-[#888]">{formatDate(invite.events.event_date)}</p>
+            {invite.event.event_date && (
+              <p className="mt-0.5 text-xs text-[#888]">{formatDate(invite.event.event_date)}</p>
             )}
-            {invite.events.venue && (
-              <p className="text-xs text-[#aaa]">{invite.events.venue}</p>
+            {invite.event.venue && (
+              <p className="text-xs text-[#aaa]">{invite.event.venue}</p>
             )}
             <div className="mt-2 flex items-center gap-1.5">
               <span className="rounded-full border border-[#c8ede7] bg-white px-2 py-0.5 text-[11px] font-semibold text-[#1a9e88]">
@@ -288,11 +346,11 @@ export default function InvitePage() {
         {/* Form auth */}
         <div className="rounded-xl border border-[#e8e8e8] bg-white p-5 shadow-sm">
           <h2 className="mb-1 text-base font-bold text-[#1D1E20]">
-            {authMode === 'login' ? 'Inicia sesion para continuar' : 'Crea tu cuenta'}
+            {authMode === 'login' ? 'Inicia sesión para continuar' : 'Crea tu cuenta'}
           </h2>
           <p className="mb-4 text-xs text-[#888]">
             {authMode === 'login'
-              ? 'Usa tu cuenta de Anfiora para aceptar la invitacion.'
+              ? 'Usa tu cuenta de Anfiora para aceptar la invitación.'
               : 'Crea una cuenta gratuita para acceder al evento.'}
           </p>
 
@@ -304,7 +362,7 @@ export default function InvitePage() {
                   type="text"
                   value={fullName}
                   onChange={e => setFullName(e.target.value)}
-                  placeholder="Ana Garcia"
+                  placeholder="Ana García"
                   className="w-full rounded-lg border border-[#d0d0d0] bg-white px-3 py-2.5 text-sm text-[#1D1E20] outline-none transition focus:border-[#48C9B0]"
                 />
               </div>
@@ -316,21 +374,35 @@ export default function InvitePage() {
                 type="email"
                 value={email}
                 onChange={e => setEmail(e.target.value)}
+                readOnly={!!invite}
                 placeholder="tu@email.com"
-                className="w-full rounded-lg border border-[#d0d0d0] bg-white px-3 py-2.5 text-sm text-[#1D1E20] outline-none transition focus:border-[#48C9B0]"
+                className={`w-full rounded-lg border border-[#d0d0d0] px-3 py-2.5 text-sm text-[#1D1E20] outline-none transition focus:border-[#48C9B0] ${invite ? 'cursor-not-allowed bg-[#f5f5f5] text-[#666]' : 'bg-white'}`}
               />
+              {invite && (
+                <p className="mt-1 text-[11px] text-[#999]">La invitación es para este correo.</p>
+              )}
             </div>
 
             <div>
-              <label className="mb-1 block text-xs font-medium text-[#555]">Contrasena</label>
-              <input
-                type="password"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && handleAuth()}
-                placeholder="••••••••"
-                className="w-full rounded-lg border border-[#d0d0d0] bg-white px-3 py-2.5 text-sm text-[#1D1E20] outline-none transition focus:border-[#48C9B0]"
-              />
+              <label className="mb-1 block text-xs font-medium text-[#555]">Contraseña</label>
+              <div className="relative">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleAuth()}
+                  placeholder="••••••••"
+                  className="w-full rounded-lg border border-[#d0d0d0] bg-white px-3 py-2.5 pr-10 text-sm text-[#1D1E20] outline-none transition focus:border-[#48C9B0]"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(v => !v)}
+                  aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[#999] transition hover:text-[#555]"
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
             </div>
 
             {authMode === 'register' && (
@@ -361,7 +433,7 @@ export default function InvitePage() {
             >
               {authLoading
                 ? 'Procesando...'
-                : authMode === 'login' ? 'Ingresar y aceptar invitacion' : 'Crear cuenta y aceptar'}
+                : authMode === 'login' ? 'Ingresar y aceptar invitación' : 'Crear cuenta y aceptar'}
             </button>
           </div>
 
@@ -369,7 +441,7 @@ export default function InvitePage() {
           <div className="mt-4 border-t border-[#f0f0f0] pt-4 text-center">
             {authMode === 'login' ? (
               <p className="text-xs text-[#888]">
-                No tienes cuenta?{' '}
+                ¿No tienes cuenta?{' '}
                 <button onClick={() => { setAuthMode('register'); setAuthError('') }}
                   className="font-semibold text-[#48C9B0] transition hover:text-[#3ab89f]">
                   Crear una gratis
@@ -377,10 +449,10 @@ export default function InvitePage() {
               </p>
             ) : (
               <p className="text-xs text-[#888]">
-                Ya tienes cuenta?{' '}
+                ¿Ya tienes cuenta?{' '}
                 <button onClick={() => { setAuthMode('login'); setAuthError('') }}
                   className="font-semibold text-[#48C9B0] transition hover:text-[#3ab89f]">
-                  Iniciar sesion
+                  Iniciar sesión
                 </button>
               </p>
             )}

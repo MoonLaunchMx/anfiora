@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import FeatureGuard from '@/app/components/ui/FeatureGuard'
 import { FaWhatsapp } from 'react-icons/fa'
 import {
   Music, Plus, MessageSquareText, ExternalLink, Trophy, Heart,
@@ -306,7 +307,7 @@ function DragCard({ song }: { song: Song }) {
 
 const LIMIT_OPTIONS = [1, 3, 5, 10, 0]  // 0 = sin limite
 
-export default function PlaylistPlannerPage() {
+function PlaylistPlannerPageInner() {
   const { id } = useParams()
 
   // Toggle de estadísticas en mobile (persiste por evento en localStorage)
@@ -854,5 +855,12 @@ export default function PlaylistPlannerPage() {
         onAdded={song => setAllSongs(prev => [...prev, song as Song])}
       />
     </div>
+  )
+}
+export default function PlaylistPlannerPage() {
+  return (
+    <FeatureGuard feature="playlist">
+      <PlaylistPlannerPageInner />
+    </FeatureGuard>
   )
 }

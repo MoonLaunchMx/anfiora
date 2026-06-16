@@ -2,6 +2,8 @@
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
 import { supabase } from '@/lib/supabase'
+import { resolveFeatures, type FeatureKey } from '@/lib/features'
+import { logAction } from '@/lib/audit'
 
 // ============================================
 // Roles disponibles — owner es implícito (events.user_id)
@@ -19,6 +21,8 @@ interface EventAccessContextType {
   canInvite: boolean    // owner + admin
   isLoading: boolean
   hasAccess: boolean
+  features: Record<FeatureKey, boolean> | null   // null mientras carga
+  updateFeatures: (next: Record<FeatureKey, boolean>) => Promise<boolean>
 }
 
 const EventAccessContext = createContext<EventAccessContextType>({
@@ -29,6 +33,8 @@ const EventAccessContext = createContext<EventAccessContextType>({
   canInvite: false,
   isLoading: true,
   hasAccess: false,
+  features: null,
+  updateFeatures: async () => false,
 })
 
 // ============================================
@@ -43,32 +49,31 @@ export function EventAccessProvider({
   eventId: string
 }) {
   const [role, setRole] = useState<CollaboratorRole | null>(null)
+  const [features, setFeatures] = useState<Record<FeatureKey, boolean> | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
     async function checkAccess() {
       try {
-        // Obtener usuario actual
         const { data: { user } } = await supabase.auth.getUser()
-        if (!user) {
-          setIsLoading(false)
-          return
-        }
+        if (!user) return
 
-        // Verificar si es owner del evento
-        const { data: event } = await supabase
-          .from('events')
-          .select('user_id')
-          .eq('id', eventId)
-          .single()
+        // Si la columna enabled_features aun no existe en la DB, la query de
+        // settings regresa error y data null -> resolveFeatures(type, null) = legacy
+        const [{ data: event }, { data: settings }] = await Promise.all([
+          supabase.from('events').select('user_id, event_type').eq('id', eventId).single(),
+          supabase.from('event_settings').select('enabled_features').eq('event_id', eventId).maybeSingle(),
+        ])
+
+        if (event) {
+          setFeatures(resolveFeatures(event.event_type, settings?.enabled_features ?? null))
+        }
 
         if (event?.user_id === user.id) {
           setRole('owner')
-          setIsLoading(false)
           return
         }
 
-        // Verificar si es colaborador activo
         const { data: collaborator } = await supabase
           .from('event_collaborators')
           .select('role, status')
@@ -90,6 +95,31 @@ export function EventAccessProvider({
     checkAccess()
   }, [eventId])
 
+  // Persiste el JSON completo (las 5 claves explicitas) y actualiza el estado local
+  const updateFeatures = async (next: Record<FeatureKey, boolean>) => {
+    const old = features
+    const { error } = await supabase
+      .from('event_settings')
+      .upsert(
+        { event_id: eventId, enabled_features: next, updated_at: new Date().toISOString() },
+        { onConflict: 'event_id' },
+      )
+    if (error) {
+      console.error('[event-access] Error guardando herramientas:', error.message)
+      return false
+    }
+    setFeatures(next)
+    logAction({
+      eventId,
+      action: 'event.settings_updated',
+      entityType: 'settings',
+      entityLabel: 'Herramientas del evento',
+      oldValue: old ?? undefined,
+      newValue: next,
+    })
+    return true
+  }
+
   // Derivar permisos del rol — una sola fuente de verdad
   const isOwner = role === 'owner'
   const canAdmin = role === 'owner' || role === 'admin'
@@ -106,6 +136,8 @@ export function EventAccessProvider({
       canInvite,
       isLoading,
       hasAccess,
+      features,
+      updateFeatures,
     }}>
       {children}
     </EventAccessContext.Provider>

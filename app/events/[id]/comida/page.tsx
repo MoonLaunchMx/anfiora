@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import FeatureGuard from '@/app/components/ui/FeatureGuard'
 
 type MealLevel = 0 | 1 | 2 | 3
 type CategoryId = 'carne' | 'verduras' | 'alcohol' | 'noalcohol' | 'frutas'
@@ -103,7 +104,7 @@ function buildWaText(
   return encodeURIComponent(lines.join('\n'))
 }
 
-export default function ComidaPage() {
+function ComidaPageInner() {
   const { id } = useParams()
 
   const [eventName, setEventName]           = useState('')
@@ -442,5 +443,12 @@ export default function ComidaPage() {
         </div>
       </div>
     </div>
+  )
+}
+export default function ComidaPage() {
+  return (
+    <FeatureGuard feature="comida">
+      <ComidaPageInner />
+    </FeatureGuard>
   )
 }

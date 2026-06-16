@@ -8,6 +8,8 @@ import { getTemplatePack } from '@/lib/message-templates'
 import DatePicker from '@/app/components/ui/DatePicker'
 import TimePicker from '@/app/components/ui/TimePicker'
 import { TabToggle, type TabItem } from '@/app/components/ui/TabToggle'
+import { useEventAccess } from '@/lib/event-access-context'
+import { FEATURES, ALWAYS_ON_FEATURES, getDefaultFeatures, type FeatureKey } from '@/lib/features'
 import { Copy, Check, UserPlus, X, Shield, Pencil, Eye, Settings2, MessageCircle, Users, Smartphone, Gem, Crown, Cake, GraduationCap, Sun, PartyPopper, Wine, CalendarDays, Presentation, Monitor, UsersRound, Rocket, Building2, Tent, Mic, Flame, HeartHandshake, type LucideIcon } from 'lucide-react'
 
 // ─── Constantes ──────────────────────────────────────────────────────────────
@@ -231,6 +233,8 @@ function TemplateInput({
 
 export default function ConfiguracionPage() {
   const { id } = useParams()
+  const { features, updateFeatures, canAdmin } = useEventAccess()
+  const [featureSaving, setFeatureSaving] = useState<FeatureKey | null>(null)
 
   const [loading, setLoading]   = useState(true)
   const [saving, setSaving]     = useState(false)
@@ -412,6 +416,13 @@ export default function ConfiguracionPage() {
     autoSaveTimeoutRef.current = setTimeout(() => {
       if (hasChangesRef.current && name) handleSave(true)
     }, 2000)
+  }
+
+  const handleToggleFeature = async (key: FeatureKey) => {
+    if (!features || !canAdmin || featureSaving) return
+    setFeatureSaving(key)
+    await updateFeatures({ ...features, [key]: !features[key] })
+    setFeatureSaving(null)
   }
 
   const handleStatusChange = async (newStatus: EventStatus) => {
@@ -631,7 +642,7 @@ export default function ConfiguracionPage() {
 
           {/* ── TAB: EVENTO ── */}
           {activeTab === 'evento' && (
-            <div className="flex flex-col gap-4 sm:gap-5">
+            <div className="flex flex-col gap-4 sm:gap-5 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,420px)] lg:items-start lg:gap-8">
 
               {/* Datos generales */}
               <div>
@@ -804,6 +815,71 @@ export default function ConfiguracionPage() {
                 </div>
               </div>
 
+              {/* Herramientas del evento */}
+              <div>
+                <h2 className="mb-1 text-sm font-semibold text-[#1D1E20]">Herramientas del evento</h2>
+                <p className="mb-4 text-xs text-[#888]">
+                  Activa solo lo que tu evento necesita. Apagar una herramienta no borra sus datos — solo la oculta del menú.
+                </p>
+
+                <div className="mb-3 flex flex-wrap items-center gap-1.5">
+                  {ALWAYS_ON_FEATURES.map(label => (
+                    <span key={label} className="rounded-full border border-[#e8e8e8] bg-[#f8f8f8] px-2.5 py-1 text-[11px] font-medium text-[#888]">
+                      {label}
+                    </span>
+                  ))}
+                  <span className="text-[11px] text-[#bbb]">siempre incluidas</span>
+                </div>
+
+                {features ? (
+                  <div className="flex flex-col gap-2">
+                    {FEATURES.map(f => {
+                      const Icon = f.icon
+                      const on = features[f.key]
+                      const recommended = getDefaultFeatures(eventType)[f.key]
+                      return (
+                        <button
+                          key={f.key}
+                          type="button"
+                          onClick={() => handleToggleFeature(f.key)}
+                          disabled={!canAdmin || featureSaving !== null}
+                          className={
+                            'flex items-center gap-3 rounded-xl border p-3 text-left transition disabled:cursor-not-allowed ' +
+                            (on ? 'border-[#c8ede7] bg-[#f0fdfb]' : 'border-[#e8e8e8] bg-white hover:border-[#d0d0d0]')
+                          }
+                        >
+                          <div className={'flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ' + (on ? 'bg-[#d0f5ec]' : 'bg-[#f4f4f4]')}>
+                            <Icon size={18} className={on ? 'text-[#0F6E56]' : 'text-[#888]'} />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2">
+                              <p className="text-sm font-medium text-[#1D1E20]">{f.label}</p>
+                              {recommended && (
+                                <span className="rounded-full border border-[#f0e2c0] bg-[#fffbf0] px-2 py-0.5 text-[10px] font-semibold text-[#c49a3a]">
+                                  Recomendado
+                                </span>
+                              )}
+                            </div>
+                            <p className="mt-0.5 text-xs text-[#888]">{f.description}</p>
+                          </div>
+                          {featureSaving === f.key ? (
+                            <div className="h-5 w-5 shrink-0 animate-spin rounded-full border-2 border-[#e8e8e8] border-t-[#48C9B0]" />
+                          ) : (
+                            <div className={'relative h-6 w-11 shrink-0 rounded-full transition ' + (on ? 'bg-[#48C9B0]' : 'bg-[#e0e0e0]')}>
+                              <span className={'absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ' + (on ? 'left-[22px]' : 'left-0.5')} />
+                            </div>
+                          )}
+                        </button>
+                      )
+                    })}
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 text-xs text-[#aaa]">
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-[#e8e8e8] border-t-[#48C9B0]" />
+                    Cargando herramientas...
+                  </div>
+                )}
+              </div>
 
             </div>
           )}

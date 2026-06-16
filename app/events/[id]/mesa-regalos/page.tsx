@@ -4,11 +4,12 @@ import { useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
 import { motion, useMotionValue, useTransform, animate, type PanInfo } from 'framer-motion'
 import { supabase } from '@/lib/supabase'
+import FeatureGuard from '@/app/components/ui/FeatureGuard'
 import {
-  Gift, Plus, Link2, Copy, Check, Trash2, ExternalLink, Coins, Mail, Heart, Eye, Settings, Landmark, Pencil, Clock,
+  Gift, Plus, Link2, Copy, Check, Trash2, ExternalLink, Coins, Mail, Heart, Eye, Settings, Landmark, Pencil, Clock, MapPin,
 } from 'lucide-react'
 import { FaWhatsapp } from 'react-icons/fa'
-import { GiftRegistryItem, GiftReservation, RegistryPaymentMethod, RegistryExternalLink, normalizePaymentMethods } from '@/lib/types'
+import { GiftRegistryItem, GiftReservation, RegistryPaymentMethod, RegistryExternalLink, RegistryShippingAddress, normalizePaymentMethods } from '@/lib/types'
 import { TabToggle, type TabItem } from '@/app/components/ui/TabToggle'
 import StatsCollapse, { useStatsToggle, StatsToggleButton } from '@/app/components/ui/StatsCollapse'
 import AddGiftModal, { NewGiftData, GIFT_CATEGORIES } from './AddGiftModal'
@@ -20,6 +21,10 @@ function generateToken(length = 10): string {
 }
 
 const fmtMXN = (n: number) => '$ ' + (n || 0).toLocaleString('es-MX')
+
+const EMPTY_ADDRESS: RegistryShippingAddress = {
+  recipient: '', street: '', neighborhood: '', zip: '', city: '', state: '', references: '',
+}
 
 const categoryLabel = (id: string | null) =>
   GIFT_CATEGORIES.find(c => c.id === id)?.label || 'Otro'
@@ -63,7 +68,7 @@ function SwipeableGiftCard({ enabled, onDelete, onClick, children }: {
   )
 }
 
-export default function MesaRegalosPage() {
+function MesaRegalosPageInner() {
   const { id } = useParams()
   const eventId = id as string
   const statsToggle = useStatsToggle(eventId, 'mesa-regalos')
@@ -84,6 +89,9 @@ export default function MesaRegalosPage() {
   const [newExtUrl, setNewExtUrl]       = useState('')
   const [extError, setExtError]         = useState('')
   const [isMobile, setIsMobile]         = useState(false)
+  const [shipping, setShipping]   = useState<RegistryShippingAddress>(EMPTY_ADDRESS)
+  const [addrDirty, setAddrDirty] = useState(false)
+  const [addrSaved, setAddrSaved] = useState(false)
 
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 639px)')
@@ -96,13 +104,14 @@ export default function MesaRegalosPage() {
   useEffect(() => {
     const loadData = async () => {
       const [{ data: settings }, { data: itemsData }, { data: resData }] = await Promise.all([
-        supabase.from('event_settings').select('registry_token, registry_payment_info, registry_external_links').eq('event_id', eventId).maybeSingle(),
+        supabase.from('event_settings').select('registry_token, registry_payment_info, registry_external_links, registry_shipping_address').eq('event_id', eventId).maybeSingle(),
         supabase.from('gift_registry_items').select('*').eq('event_id', eventId).order('created_at', { ascending: false }),
         supabase.from('gift_reservations').select('*').eq('event_id', eventId).order('created_at', { ascending: false }),
       ])
       setToken(settings?.registry_token || null)
       setPayMethods(normalizePaymentMethods(settings?.registry_payment_info))
       setExtLinks((settings?.registry_external_links as RegistryExternalLink[]) || [])
+      setShipping({ ...EMPTY_ADDRESS, ...((settings?.registry_shipping_address as Partial<RegistryShippingAddress> | null) || {}) })
       setItems((itemsData as GiftRegistryItem[]) || [])
       setReservations((resData as GiftReservation[]) || [])
       setLoading(false)
@@ -169,6 +178,26 @@ export default function MesaRegalosPage() {
     await persistExtLinks(extLinks.filter(l => l.id !== linkId))
   }
 
+  const setAddrField = (k: keyof RegistryShippingAddress) => (e: React.ChangeEvent<HTMLInputElement>) => {
+    setShipping(prev => ({ ...prev, [k]: e.target.value }))
+    setAddrDirty(true)
+  }
+
+  const handleSaveAddress = async () => {
+    const trimmed = Object.fromEntries(
+      Object.entries(shipping).map(([k, v]) => [k, (v as string).trim()])
+    ) as RegistryShippingAddress
+    const hasContent = Object.values(trimmed).some(v => v !== '')
+    await supabase
+      .from('event_settings')
+      .update({ registry_shipping_address: hasContent ? trimmed : null })
+      .eq('event_id', eventId)
+    setShipping(trimmed)
+    setAddrDirty(false)
+    setAddrSaved(true)
+    setTimeout(() => setAddrSaved(false), 2000)
+  }
+
   const handleSubmitGift = async (data: NewGiftData) => {
     if (editing) {
       const { data: updated } = await supabase
@@ -215,6 +244,54 @@ export default function MesaRegalosPage() {
     setReservations(prev => prev.map(x => x.id === r.id ? { ...x, thanked: true } : x))
   }
 
+  const handleReceived = async (r: GiftReservation, gift: GiftRegistryItem | undefined) => {
+    const willThank = !r.thanked && !!r.guest_phone
+    if (willThank) window.open(waThanksUrl(r, gift), '_blank', 'noopener,noreferrer')
+    const thanked = r.thanked || willThank
+    await supabase.from('gift_reservations').update({ purchased: true, thanked }).eq('id', r.id)
+    setReservations(prev => prev.map(x => x.id === r.id ? { ...x, purchased: true, thanked } : x))
+  }
+
+  // Ciclo de vida de una reservacion: Por recibir -> Recibido -> Agradecido.
+  // Un solo chip de estado (clickeable para marcar agradecido manual) y una
+  // sola accion contextual por fila.
+  const statusChip = (r: GiftReservation) => (
+    !r.purchased ? (
+      <span className="inline-flex items-center gap-1 rounded-full border border-[#f0e0c0] bg-[#fffbf0] px-2.5 py-1 text-[11px] font-medium text-amber-600">
+        <Clock size={12} /> Por recibir
+      </span>
+    ) : (
+      <button
+        onClick={() => handleToggleThanked(r)}
+        title={r.thanked ? 'Quitar agradecido' : 'Marcar agradecido (sin WhatsApp)'}
+        className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-medium transition
+          ${r.thanked
+            ? 'border-[#c8ede7] bg-[#f0fdfb] text-[#1a9e88]'
+            : 'border-[#e0e0e0] bg-white text-[#666] hover:border-[#48C9B0] hover:text-[#48C9B0]'}`}
+      >
+        <Check size={12} /> {r.thanked ? 'Recibido · Agradecido' : 'Recibido'}
+      </button>
+    )
+  )
+
+  const actionFor = (r: GiftReservation, gift: GiftRegistryItem | undefined) => (
+    !r.purchased ? (
+      <button
+        onClick={() => handleReceived(r, gift)}
+        className="flex shrink-0 items-center gap-1 rounded-full bg-[#48C9B0] px-3 py-1.5 text-[11px] font-semibold text-white transition hover:bg-[#3aa896]"
+      >
+        <Gift size={12} /> Ya lo recibí
+      </button>
+    ) : !r.thanked && r.guest_phone ? (
+      <button
+        onClick={() => thankByWhatsApp(r, gift)}
+        className="flex shrink-0 items-center gap-1 rounded-full border border-[#c0f0dc] bg-[#f0fff8] px-3 py-1.5 text-[11px] font-semibold text-[#1a9e88] transition hover:border-[#25D366]"
+      >
+        <FaWhatsapp size={13} className="text-[#25D366]" /> Agradecer
+      </button>
+    ) : null
+  )
+
   const publicUrl = token
     ? `${typeof window !== 'undefined' ? window.location.origin : ''}/mesa/${token}`
     : null
@@ -247,6 +324,7 @@ export default function MesaRegalosPage() {
     a + (i.type === 'fund' ? (i.target_amount || 0) : i.type === 'external' ? (i.price || 0) : 0), 0)
   const pctReceived    = expectedTotal > 0 ? Math.min(100, Math.round((totalIntent / expectedTotal) * 100)) : null
   const thankedCount   = reservations.filter(r => r.thanked).length
+  const receivedCount  = reservations.filter(r => r.purchased).length
   const pendingThanks  = reservations.length - thankedCount
   const categoryCount  = new Set(items.map(i => i.category || 'otro')).size
 
@@ -274,16 +352,13 @@ export default function MesaRegalosPage() {
             <h1 className="text-xl font-bold text-[#1D1E20]">Mesa de regalos</h1>
             <p className="mt-0.5 text-xs text-[#888]">Arma y comparte tu lista de regalos.</p>
           </div>
-          {tab !== 'config' && (
-            <div className="shrink-0 pt-1 lg:hidden">
-              <StatsToggleButton visible={statsToggle.visible} onClick={statsToggle.toggle} />
-            </div>
-          )}
+          <div className="shrink-0 pt-1 lg:hidden">
+            <StatsToggleButton visible={statsToggle.visible} onClick={statsToggle.toggle} />
+          </div>
         </div>
 
         {/* Stats propias de cada tab */}
-        {tab !== 'config' && (
-          <StatsCollapse visible={statsToggle.visible}>
+        <StatsCollapse visible={statsToggle.visible}>
             {tab === 'regalos' ? (
               <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
                 <div className="rounded-xl border border-[#e8e8e8] bg-white p-3">
@@ -299,8 +374,8 @@ export default function MesaRegalosPage() {
                   <p className="mt-1 text-xl font-bold tabular-nums text-[#1D1E20]">{categoryCount}</p>
                 </div>
               </div>
-            ) : (
-              <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            ) : tab === 'recibidos' ? (
+              <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-5">
                 <div className="rounded-xl border border-[#e8e8e8] bg-white p-3">
                   <p className="text-[10px] font-semibold uppercase tracking-wider text-[#aaa]">Recibido</p>
                   <p className="mt-1 text-xl font-bold tabular-nums text-[#1a9e88]">
@@ -322,10 +397,30 @@ export default function MesaRegalosPage() {
                   <p className="text-[10px] font-semibold uppercase tracking-wider text-[#aaa]">Agradecidos</p>
                   <p className="mt-1 text-xl font-bold tabular-nums text-[#1D1E20]">{thankedCount}</p>
                 </div>
+                <div className="rounded-xl border border-[#e8e8e8] bg-white p-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-[#aaa]">Entregados</p>
+                  <p className="mt-1 text-xl font-bold tabular-nums text-[#1D1E20]">
+                    {receivedCount}<span className="ml-1 text-xs font-medium tabular-nums text-[#aaa]">de {reservations.length}</span>
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                {[
+                  { label: 'Método de pago',       done: payMethods.length > 0 },
+                  { label: 'Dirección de entrega', done: shipping.street.trim() !== '' },
+                  { label: 'Mesa externa',         done: extLinks.length > 0 },
+                ].map(c => (
+                  <div key={c.label} className="rounded-xl border border-[#e8e8e8] bg-white p-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-[#aaa]">{c.label}</p>
+                    <p className={`mt-1 flex items-center gap-1.5 text-xl font-bold ${c.done ? 'text-[#1a9e88]' : 'text-[#bbb]'}`}>
+                      {c.done ? <><Check size={18} /> Listo</> : <><Clock size={18} /> Pendiente</>}
+                    </p>
+                  </div>
+                ))}
               </div>
             )}
           </StatsCollapse>
-        )}
 
         {/* Toggle (centrado en mobile, izquierda en desktop) */}
         <div className="mb-4 flex justify-center overflow-x-auto sm:justify-start">
@@ -506,35 +601,14 @@ export default function MesaRegalosPage() {
                           ? <p className="mt-0.5 text-sm font-semibold tabular-nums text-[#1a9e88]">{fmtMXN(r.amount)}</p>
                           : <p className="mt-0.5 text-[11px] font-medium text-[#aaa]">Regalo apartado</p>}
                       </div>
-                      <div className="flex shrink-0 items-center gap-2">
-                        {r.guest_phone ? (
-                          <button
-                            onClick={() => thankByWhatsApp(r, gift)}
-                            title="Agradecer por WhatsApp"
-                            className="flex h-10 w-10 items-center justify-center rounded-xl border border-[#c0f0dc] bg-[#f0fff8]"
-                          >
-                            <FaWhatsapp size={20} className="text-[#25D366]" />
-                          </button>
-                        ) : (
-                          <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-[#f0f0f0] bg-[#fafafa]">
-                            <FaWhatsapp size={18} className="text-[#ddd]" />
-                          </div>
-                        )}
-                        <button
-                          onClick={() => handleToggleThanked(r)}
-                          title={r.thanked ? 'Agradecido' : 'Pendiente de agradecer'}
-                          className={`flex h-10 w-10 items-center justify-center rounded-xl border transition
-                            ${r.thanked
-                              ? 'border-[#c8ede7] bg-[#f0fdfb] text-[#1a9e88]'
-                              : 'border-[#f0e0c0] bg-[#fffbf0] text-amber-500'}`}
-                        >
-                          {r.thanked ? <Check size={16} /> : <Clock size={16} />}
-                        </button>
-                      </div>
                     </div>
                     {r.message && (
                       <p className="mt-1.5 line-clamp-1 pl-[60px] text-xs italic text-[#999]">“{r.message}”</p>
                     )}
+                    <div className="mt-2 flex items-center justify-between gap-2">
+                      {statusChip(r)}
+                      {actionFor(r, gift)}
+                    </div>
                   </div>
                 )
               })}
@@ -548,8 +622,8 @@ export default function MesaRegalosPage() {
                     <th className="px-4 py-2.5 font-semibold">Invitado</th>
                     <th className="px-4 py-2.5 font-semibold">Regalo</th>
                     <th className="px-4 py-2.5 font-semibold">Monto</th>
-                    <th className="px-4 py-2.5 font-semibold">Agradecimiento</th>
-                    <th className="px-4 py-2.5 text-right font-semibold">WhatsApp</th>
+                    <th className="px-4 py-2.5 font-semibold">Estado</th>
+                    <th className="px-4 py-2.5 text-right font-semibold">Acción</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#f0f0f0]">
@@ -575,30 +649,10 @@ export default function MesaRegalosPage() {
                             ? <span className="font-semibold tabular-nums text-[#1a9e88]">{fmtMXN(r.amount)}</span>
                             : <span className="text-xs text-[#aaa]">Apartado</span>}
                         </td>
-                        <td className="px-4 py-3">
-                          <button
-                            onClick={() => handleToggleThanked(r)}
-                            className={`flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-medium transition
-                              ${r.thanked
-                                ? 'border-[#c8ede7] bg-[#f0fdfb] text-[#1a9e88]'
-                                : 'border-[#f0e0c0] bg-[#fffbf0] text-amber-600 hover:border-[#48C9B0] hover:text-[#48C9B0]'}`}
-                          >
-                            {r.thanked ? <><Check size={12} /> Agradecido</> : <><Clock size={12} /> Por agradecer</>}
-                          </button>
-                        </td>
+                        <td className="px-4 py-3">{statusChip(r)}</td>
                         <td className="px-4 py-3">
                           <div className="flex justify-end">
-                            {r.guest_phone ? (
-                              <button
-                                onClick={() => thankByWhatsApp(r, gift)}
-                                title="Agradecer por WhatsApp"
-                                className="flex h-9 w-9 items-center justify-center rounded-full border border-[#e8e8e8] bg-white text-[#25D366] transition hover:border-[#25D366] hover:bg-[#25D366] hover:text-white"
-                              >
-                                <FaWhatsapp size={18} />
-                              </button>
-                            ) : (
-                              <span className="text-xs text-[#ccc]">—</span>
-                            )}
+                            {actionFor(r, gift) || <span className="text-xs text-[#ccc]">—</span>}
                           </div>
                         </td>
                       </tr>
@@ -614,8 +668,77 @@ export default function MesaRegalosPage() {
         {/* ── Tab: Configuración ── */}
         {tab === 'config' && (
           <div className="grid items-start gap-4 lg:grid-cols-2">
-          {/* Columna izquierda: link publico + mesas externas */}
+          {/* Columna izquierda: direccion de entrega + link publico */}
           <div className="space-y-4">
+          <div className="rounded-xl border border-[#e8e8e8] bg-white p-4">
+            <div className="mb-1 flex items-center gap-2">
+              <MapPin size={15} className="text-[#48C9B0]" />
+              <h2 className="text-sm font-semibold text-[#1D1E20]">Dirección de entrega</h2>
+            </div>
+            <p className="mb-3 text-xs text-[#888]">
+              Cuando un invitado aparte un regalo y lo compre él mismo, le mostramos esta dirección para el envío.
+            </p>
+            <div className="space-y-2.5">
+              <input
+                value={shipping.recipient}
+                onChange={setAddrField('recipient')}
+                placeholder="Quién recibe — Ej. Ana Martínez"
+                className="w-full rounded-lg border border-[#e0e0e0] bg-white px-3 py-2 text-sm text-[#1D1E20] outline-none transition focus:border-[#48C9B0]"
+              />
+              <input
+                value={shipping.street}
+                onChange={setAddrField('street')}
+                placeholder="Calle y número — Ej. Av. Roble 123, Int. 4"
+                className="w-full rounded-lg border border-[#e0e0e0] bg-white px-3 py-2 text-sm text-[#1D1E20] outline-none transition focus:border-[#48C9B0]"
+              />
+              <div className="grid grid-cols-2 gap-2.5">
+                <input
+                  value={shipping.neighborhood}
+                  onChange={setAddrField('neighborhood')}
+                  placeholder="Colonia"
+                  className="w-full rounded-lg border border-[#e0e0e0] bg-white px-3 py-2 text-sm text-[#1D1E20] outline-none transition focus:border-[#48C9B0]"
+                />
+                <input
+                  value={shipping.zip}
+                  onChange={setAddrField('zip')}
+                  inputMode="numeric"
+                  placeholder="Código postal"
+                  className="w-full rounded-lg border border-[#e0e0e0] bg-white px-3 py-2 text-sm tabular-nums text-[#1D1E20] outline-none transition focus:border-[#48C9B0]"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-2.5">
+                <input
+                  value={shipping.city}
+                  onChange={setAddrField('city')}
+                  placeholder="Ciudad"
+                  className="w-full rounded-lg border border-[#e0e0e0] bg-white px-3 py-2 text-sm text-[#1D1E20] outline-none transition focus:border-[#48C9B0]"
+                />
+                <input
+                  value={shipping.state}
+                  onChange={setAddrField('state')}
+                  placeholder="Estado"
+                  className="w-full rounded-lg border border-[#e0e0e0] bg-white px-3 py-2 text-sm text-[#1D1E20] outline-none transition focus:border-[#48C9B0]"
+                />
+              </div>
+              <input
+                value={shipping.references}
+                onChange={setAddrField('references')}
+                placeholder="Referencias para el repartidor (opcional)"
+                className="w-full rounded-lg border border-[#e0e0e0] bg-white px-3 py-2 text-sm text-[#1D1E20] outline-none transition focus:border-[#48C9B0]"
+              />
+            </div>
+            <div className="mt-2 flex items-center justify-between gap-2">
+              <p className="text-[10px] text-[#aaa]">Solo se muestra a invitados que apartan un regalo.</p>
+              <button
+                onClick={handleSaveAddress}
+                disabled={!addrDirty}
+                className="flex shrink-0 items-center gap-1.5 rounded-lg bg-[#48C9B0] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#3aa896] disabled:opacity-50"
+              >
+                {addrSaved ? <><Check size={14} /> Guardada</> : 'Guardar dirección'}
+              </button>
+            </div>
+          </div>
+
           <div className="rounded-xl border border-[#e8e8e8] bg-white p-4">
             <div className="mb-1 flex items-center gap-2">
               <Link2 size={15} className="text-[#48C9B0]" />
@@ -651,13 +774,82 @@ export default function MesaRegalosPage() {
                 </a>
               </div>
             ) : (
-              <button
-                onClick={handleGenerateLink}
-                className="flex items-center gap-1.5 rounded-lg bg-[#1D1E20] px-3 py-2 text-xs font-semibold text-white transition hover:bg-black"
-              >
-                <Link2 size={14} /> Generar link
-              </button>
+              <div className="flex justify-end">
+                <button
+                  onClick={handleGenerateLink}
+                  className="flex items-center gap-1.5 rounded-lg bg-[#1D1E20] px-3 py-2 text-xs font-semibold text-white transition hover:bg-black"
+                >
+                  <Link2 size={14} /> Generar link
+                </button>
+              </div>
             )}
+          </div>
+
+          </div>
+
+          {/* Columna derecha: cuenta para recibir + mesas externas */}
+          <div className="space-y-4">
+          <div className="rounded-xl border border-[#e8e8e8] bg-white p-4">
+            <div className="mb-1 flex items-center gap-2">
+              <Landmark size={15} className="text-[#48C9B0]" />
+              <h2 className="text-sm font-semibold text-[#1D1E20]">Cuenta para recibir regalos</h2>
+            </div>
+            <p className="mb-3 text-xs text-[#888]">
+              Estos métodos se muestran al invitado después de confirmar un aporte o sobre.
+            </p>
+
+            {payMethods.length > 0 && (
+              <div className="mb-3 divide-y divide-[#f0f0f0] rounded-lg border border-[#e8e8e8]">
+                {payMethods.map(m => {
+                  const meta = payTypeMeta(m.type)
+                  const masked = (m.type === 'transfer' || m.type === 'card')
+                    ? `•••• ${m.value.slice(-4)}`
+                    : m.value
+                  const line = m.type === 'other'
+                    ? m.label
+                    : [m.bank, m.holder].filter(Boolean).join(' · ')
+                  return (
+                    <div key={m.id} className="flex items-center gap-3 px-3 py-2.5">
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#f0fdfb] text-[#1a9e88]">
+                        {meta.icon}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-semibold text-[#1D1E20]">
+                          {m.type === 'other' && m.label ? m.label : meta.label}
+                          {line && m.type !== 'other' && <span className="ml-1.5 font-normal text-[#888]">{line}</span>}
+                        </p>
+                        <p className="truncate text-[11px] tabular-nums text-[#888]">{masked}</p>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-1">
+                        <button
+                          onClick={() => openEditMethod(m)}
+                          title="Editar"
+                          className="flex h-7 w-7 items-center justify-center rounded-md text-[#bbb] transition hover:bg-[#f5f5f5] hover:text-[#1D1E20]"
+                        >
+                          <Pencil size={13} />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteMethod(m.id)}
+                          title="Eliminar"
+                          className="flex h-7 w-7 items-center justify-center rounded-md text-[#bbb] transition hover:bg-[#fff0f0] hover:text-[#cc3333]"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+
+            <div className="flex justify-end">
+              <button
+                onClick={openAddMethod}
+                className="flex items-center gap-1.5 rounded-lg bg-[#48C9B0] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#3aa896]"
+              >
+                <Plus size={14} /> Agregar método
+              </button>
+            </div>
           </div>
 
           <div className="rounded-xl border border-[#e8e8e8] bg-white p-4">
@@ -721,68 +913,6 @@ export default function MesaRegalosPage() {
             {extError && <p className="mt-2 text-xs text-[#cc3333]">{extError}</p>}
           </div>
           </div>
-
-          {/* Columna derecha: metodos de pago */}
-          <div className="rounded-xl border border-[#e8e8e8] bg-white p-4">
-            <div className="mb-1 flex items-center gap-2">
-              <Landmark size={15} className="text-[#48C9B0]" />
-              <h2 className="text-sm font-semibold text-[#1D1E20]">Cuenta para recibir regalos</h2>
-            </div>
-            <p className="mb-3 text-xs text-[#888]">
-              Estos métodos se muestran al invitado después de confirmar un aporte o sobre.
-            </p>
-
-            {payMethods.length > 0 && (
-              <div className="mb-3 divide-y divide-[#f0f0f0] rounded-lg border border-[#e8e8e8]">
-                {payMethods.map(m => {
-                  const meta = payTypeMeta(m.type)
-                  const masked = (m.type === 'transfer' || m.type === 'card')
-                    ? `•••• ${m.value.slice(-4)}`
-                    : m.value
-                  const line = m.type === 'other'
-                    ? m.label
-                    : [m.bank, m.holder].filter(Boolean).join(' · ')
-                  return (
-                    <div key={m.id} className="flex items-center gap-3 px-3 py-2.5">
-                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#f0fdfb] text-[#1a9e88]">
-                        {meta.icon}
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-xs font-semibold text-[#1D1E20]">
-                          {m.type === 'other' && m.label ? m.label : meta.label}
-                          {line && m.type !== 'other' && <span className="ml-1.5 font-normal text-[#888]">{line}</span>}
-                        </p>
-                        <p className="truncate text-[11px] tabular-nums text-[#888]">{masked}</p>
-                      </div>
-                      <div className="flex shrink-0 items-center gap-1">
-                        <button
-                          onClick={() => openEditMethod(m)}
-                          title="Editar"
-                          className="flex h-7 w-7 items-center justify-center rounded-md text-[#bbb] transition hover:bg-[#f5f5f5] hover:text-[#1D1E20]"
-                        >
-                          <Pencil size={13} />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteMethod(m.id)}
-                          title="Eliminar"
-                          className="flex h-7 w-7 items-center justify-center rounded-md text-[#bbb] transition hover:bg-[#fff0f0] hover:text-[#cc3333]"
-                        >
-                          <Trash2 size={13} />
-                        </button>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-
-            <button
-              onClick={openAddMethod}
-              className="flex items-center gap-1.5 rounded-lg bg-[#48C9B0] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#3aa896]"
-            >
-              <Plus size={14} /> Agregar método
-            </button>
-          </div>
           </div>
         )}
 
@@ -796,5 +926,13 @@ export default function MesaRegalosPage() {
         onSave={handleSaveMethod}
       />
     </div>
+  )
+}
+
+export default function MesaRegalosPage() {
+  return (
+    <FeatureGuard feature="regalos">
+      <MesaRegalosPageInner />
+    </FeatureGuard>
   )
 }

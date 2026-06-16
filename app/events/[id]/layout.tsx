@@ -3,7 +3,9 @@
 import { useEffect, useState, useRef } from 'react'
 import { useParams, usePathname, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { Users, Images, Music2, Settings, LayoutGrid, PanelLeftClose, PanelLeftOpen, CalendarDays, House, User, LogOut, Wallet, Briefcase, Heart, MessageCircle, Receipt, Gift } from 'lucide-react'
+import { Users, Images, Music2, Settings, LayoutGrid, PanelLeftClose, PanelLeftOpen, CalendarDays, House, User, LogOut, Wallet, Briefcase, Heart, MessageCircle, Receipt, Gift, UtensilsCrossed } from 'lucide-react'
+import { LEGACY_FEATURES, type FeatureKey } from '@/lib/features'
+import { AnimatePresence, motion } from 'framer-motion'
 import { Event } from '@/lib/types'
 import { EventAccessProvider, useEventAccess } from '@/lib/event-access-context'
 
@@ -27,7 +29,6 @@ type NavSubItem = {
   label: string
   labelMobile?: string
   path: string
-  pro?: boolean
   iconOutline: React.ReactNode
   iconFilled: React.ReactNode
 }
@@ -38,7 +39,6 @@ type NavItem = {
   labelMobile: string
   path: string
   adminOnly: boolean
-  pro?: boolean
   iconOutline: React.ReactNode
   iconFilled: React.ReactNode
 }
@@ -65,7 +65,6 @@ const NAV_ITEMS: NavEntry[] = [
   {
     type: 'item',
     label: 'Mensajes', labelMobile: 'Mensajes', path: '/mensajes', adminOnly: false,
-    pro: true,
     iconOutline: <MessageCircle width={18} height={18} strokeWidth={1.5} />,
     iconFilled:  <MessageCircle width={18} height={18} strokeWidth={2.5} />,
   },
@@ -80,6 +79,12 @@ const NAV_ITEMS: NavEntry[] = [
     label: 'Timeline', labelMobile: 'Timeline', path: '/timeline', adminOnly: false,
     iconOutline: <CalendarDays  width={18} height={18} strokeWidth={1.5} />,
     iconFilled:  <CalendarDays  width={18} height={18} strokeWidth={2.5} />,
+  },
+  {
+    type: 'item',
+    label: 'Comida', labelMobile: 'Comida', path: '/comida', adminOnly: false,
+    iconOutline: <UtensilsCrossed width={18} height={18} strokeWidth={1.5} />,
+    iconFilled:  <UtensilsCrossed width={18} height={18} strokeWidth={2.5} />,
   },
   {
     type: 'item',
@@ -100,12 +105,12 @@ const NAV_ITEMS: NavEntry[] = [
         iconFilled:  <Wallet    width={18} height={18} strokeWidth={2.5} />,
       },
       {
-        label: 'Proveedores', path: '/proveedores', pro: true,
+        label: 'Proveedores', path: '/proveedores',
         iconOutline: <Briefcase width={18} height={18} strokeWidth={1.5} />,
         iconFilled:  <Briefcase width={18} height={18} strokeWidth={2.5} />,
       },
       {
-        label: 'Pagos', path: '/pagos', pro: true,
+        label: 'Pagos', path: '/pagos',
         iconOutline: <Receipt width={18} height={18} strokeWidth={1.5} />,
         iconFilled:  <Receipt width={18} height={18} strokeWidth={2.5} />,
       },
@@ -138,13 +143,36 @@ const NAV_ITEMS: NavEntry[] = [
   },
 ]
 
-function ProBadge({ active = false }: { active?: boolean }) {
-  return (
-    <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider
-      ${active ? 'bg-white text-[#1D1E20]' : 'bg-[#1D1E20] text-white'}`}>
-      PRO
-    </span>
-  )
+const FEATURE_BY_PATH: Record<string, FeatureKey> = {
+  '/mesas':        'mesas',
+  '/mesa-regalos': 'regalos',
+  '/album':        'album',
+  '/playlist':     'playlist',
+  '/comida':       'comida',
+}
+
+function filterNavByFeatures(entries: NavEntry[], features: Record<FeatureKey, boolean> | null): NavEntry[] {
+  const effective = features ?? LEGACY_FEATURES
+  const result: NavEntry[] = []
+  for (const entry of entries) {
+    if (entry.type === 'item') {
+      const fk = FEATURE_BY_PATH[entry.path]
+      if (fk && !effective[fk]) continue
+      result.push(entry)
+    } else {
+      const children = entry.children.filter(child => {
+        const fk = FEATURE_BY_PATH[child.path]
+        return !fk || effective[fk]
+      })
+      if (children.length === 0) continue
+      result.push({
+        ...entry,
+        children,
+        defaultPath: children.some(c => c.path === entry.defaultPath) ? entry.defaultPath : children[0].path,
+      })
+    }
+  }
+  return result
 }
 
 function getInitials(name: string, email: string): string {
@@ -241,7 +269,7 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
   const { id } = useParams()
   const pathname = usePathname()
   const router = useRouter()
-  const { canAdmin } = useEventAccess()
+  const { canAdmin, features } = useEventAccess()
 
   const [event, setEvent]             = useState<Event | null>(null)
   const [drawerOpen, setDrawerOpen]   = useState(false)
@@ -254,8 +282,11 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
   const navScrollRef = useRef<HTMLDivElement>(null)
   const avatarRef    = useRef<HTMLDivElement>(null)
 
-  const visibleEntries = NAV_ITEMS.filter(entry =>
-    entry.type === 'item' ? (!entry.adminOnly || canAdmin) : true
+  const visibleEntries = filterNavByFeatures(
+    NAV_ITEMS.filter(entry =>
+      entry.type === 'item' ? (!entry.adminOnly || canAdmin) : true
+    ),
+    features,
   )
 
   useEffect(() => {
@@ -412,7 +443,6 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
       >
         {active ? entry.iconFilled : entry.iconOutline}
         <span className="flex-1">{entry.label}</span>
-        {entry.pro && <ProBadge active={active} />}
       </button>
     )
   }
@@ -423,24 +453,33 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
       <div className="px-4 pb-1 pt-3 text-[10px] font-semibold uppercase tracking-wider text-[#aaa]">
         {group.label}
       </div>
-      {group.children.map(child => {
-        const active = isActive(child.path)
-        return (
-          <button
-            key={child.path}
-            onClick={() => navigate(child.path)}
-            className={`flex w-full items-center gap-2.5 border-l-[3px] py-2.5 pl-7 pr-4 text-left text-sm transition
-              ${active
-                ? 'border-[#48C9B0] bg-white font-semibold text-[#1D1E20]'
-                : 'border-transparent font-normal text-[#888] hover:bg-white/60 hover:text-[#1D1E20]'
-              }`}
-          >
-            {active ? child.iconFilled : child.iconOutline}
-            <span className="flex-1">{child.label}</span>
-            {child.pro && <ProBadge active={active} />}
-          </button>
-        )
-      })}
+      <AnimatePresence initial={false}>
+        {group.children.map(child => {
+          const active = isActive(child.path)
+          return (
+            <motion.div
+              key={child.path}
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.22, ease: 'easeOut' }}
+              className="overflow-hidden"
+            >
+              <button
+                onClick={() => navigate(child.path)}
+                className={`flex w-full items-center gap-2.5 border-l-[3px] py-2.5 pl-7 pr-4 text-left text-sm transition
+                  ${active
+                    ? 'border-[#48C9B0] bg-white font-semibold text-[#1D1E20]'
+                    : 'border-transparent font-normal text-[#888] hover:bg-white/60 hover:text-[#1D1E20]'
+                  }`}
+              >
+                {active ? child.iconFilled : child.iconOutline}
+                <span className="flex-1">{child.label}</span>
+              </button>
+            </motion.div>
+          )
+        })}
+      </AnimatePresence>
     </div>
   )
 
@@ -546,25 +585,50 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
         >
           <nav className="flex-1 overflow-y-auto py-2">
             {collapsed
-              ? collapsedItems.map(item => {
-                  const active = isActive(item.path)
-                  return (
-                    <button
-                      key={item.key}
-                      onClick={() => navigate(item.path)}
-                      title={item.label}
-                      className={`flex w-full items-center justify-center border-l-[3px] py-2.5 transition
-                        ${active
-                          ? 'border-[#48C9B0] bg-white text-[#1D1E20]'
-                          : 'border-transparent text-[#888] hover:bg-white/60 hover:text-[#1D1E20]'
-                        }`}
-                    >
-                      {active ? item.iconFilled : item.iconOutline}
-                    </button>
-                  )
-                })
-              : visibleEntries.map(entry =>
-                  entry.type === 'item' ? renderSidebarItem(entry) : renderSidebarGroup(entry)
+              ? (
+                  <AnimatePresence initial={false}>
+                    {collapsedItems.map(item => {
+                      const active = isActive(item.path)
+                      return (
+                        <motion.div
+                          key={item.key}
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: 'auto' }}
+                          exit={{ opacity: 0, height: 0 }}
+                          transition={{ duration: 0.22, ease: 'easeOut' }}
+                          className="overflow-hidden"
+                        >
+                          <button
+                            onClick={() => navigate(item.path)}
+                            title={item.label}
+                            className={`flex w-full items-center justify-center border-l-[3px] py-2.5 transition
+                              ${active
+                                ? 'border-[#48C9B0] bg-white text-[#1D1E20]'
+                                : 'border-transparent text-[#888] hover:bg-white/60 hover:text-[#1D1E20]'
+                              }`}
+                          >
+                            {active ? item.iconFilled : item.iconOutline}
+                          </button>
+                        </motion.div>
+                      )
+                    })}
+                  </AnimatePresence>
+                )
+              : (
+                  <AnimatePresence initial={false}>
+                    {visibleEntries.map(entry => (
+                      <motion.div
+                        key={entry.type === 'item' ? (entry.path || '__invitados') : entry.label}
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        transition={{ duration: 0.22, ease: 'easeOut' }}
+                        className="overflow-hidden"
+                      >
+                        {entry.type === 'item' ? renderSidebarItem(entry) : renderSidebarGroup(entry)}
+                      </motion.div>
+                    ))}
+                  </AnimatePresence>
                 )
             }
           </nav>
@@ -621,9 +685,20 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
                 )}
               </div>
               <nav className="flex-1 py-2">
-                {visibleEntries.map(entry =>
-                  entry.type === 'item' ? renderSidebarItem(entry) : renderSidebarGroup(entry)
-                )}
+                <AnimatePresence initial={false}>
+                  {visibleEntries.map(entry => (
+                    <motion.div
+                      key={entry.type === 'item' ? (entry.path || '__invitados') : entry.label}
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      transition={{ duration: 0.22, ease: 'easeOut' }}
+                      className="overflow-hidden"
+                    >
+                      {entry.type === 'item' ? renderSidebarItem(entry) : renderSidebarGroup(entry)}
+                    </motion.div>
+                  ))}
+                </AnimatePresence>
               </nav>
             </div>
           </>
@@ -655,18 +730,29 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
           <span>Inicio</span>
         </button>
 
-        {mobileItems.map(item => (
-          <button
-            key={item.key}
-            onClick={() => navigate(item.path)}
-            className={`flex shrink-0 flex-col items-center justify-center gap-1 py-2.5 text-[10px] font-medium transition
-              ${item.active ? 'text-[#48C9B0]' : 'text-[#bbb]'}`}
-            style={{ minWidth: '72px', scrollSnapAlign: 'center' }}
-          >
-            {item.active ? item.iconFilled : item.iconOutline}
-            <span>{item.label}</span>
-          </button>
-        ))}
+        <AnimatePresence initial={false}>
+          {mobileItems.map(item => (
+            <motion.div
+              key={item.key}
+              initial={{ opacity: 0, width: 0 }}
+              animate={{ opacity: 1, width: 'auto' }}
+              exit={{ opacity: 0, width: 0 }}
+              transition={{ duration: 0.22, ease: 'easeOut' }}
+              className="shrink-0 overflow-hidden"
+              style={{ scrollSnapAlign: 'center' }}
+            >
+              <button
+                onClick={() => navigate(item.path)}
+                className={`flex flex-col items-center justify-center gap-1 py-2.5 text-[10px] font-medium transition
+                  ${item.active ? 'text-[#48C9B0]' : 'text-[#bbb]'}`}
+                style={{ minWidth: '72px' }}
+              >
+                {item.active ? item.iconFilled : item.iconOutline}
+                <span>{item.label}</span>
+              </button>
+            </motion.div>
+          ))}
+        </AnimatePresence>
       </nav>
     </div>
   )

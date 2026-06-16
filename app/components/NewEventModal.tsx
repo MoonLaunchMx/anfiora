@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase'
 import { AnimatePresence, motion } from 'framer-motion'
 import { ChevronRight, ArrowLeft, X } from 'lucide-react'
 import { EVENT_TYPES, CATEGORIES, EventTypeConfig, EventCategory } from '@/lib/event-types'
+import { FEATURES, ALWAYS_ON_FEATURES, getDefaultFeatures, type FeatureKey } from '@/lib/features'
 
 function generatePlaylistToken(): string {
   return Math.random().toString(36).substring(2, 10) +
@@ -24,7 +25,7 @@ interface NewEventModalProps {
 // ─── Componente ──────────────────────────────────────────────────────────────
 
 export function NewEventModal({ open, onClose, onCreated }: NewEventModalProps) {
-  const [step, setStep]                   = useState<1 | 2>(1)
+  const [step, setStep]                   = useState<1 | 2 | 3>(1)
   const [category, setCategory]           = useState<EventCategory>('social')
   const [eventType, setEventType]         = useState<EventTypeConfig | null>(null)
 
@@ -35,6 +36,8 @@ export function NewEventModal({ open, onClose, onCreated }: NewEventModalProps) 
   const [date, setDate]                   = useState('')
   const [time, setTime]                   = useState('')
   const [venue, setVenue]                 = useState('')
+
+  const [features, setFeatures]           = useState<Record<FeatureKey, boolean>>(getDefaultFeatures('otro'))
 
   const [loading, setLoading]             = useState(false)
   const [error, setError]                 = useState('')
@@ -59,6 +62,7 @@ export function NewEventModal({ open, onClose, onCreated }: NewEventModalProps) 
     setEventType(null)
     setName(''); setHostName(''); setHostName2(''); setOrganization('')
     setDate(''); setTime(''); setVenue('')
+    setFeatures(getDefaultFeatures('otro'))
     setError('')
     setLoading(false)
   }
@@ -71,13 +75,21 @@ export function NewEventModal({ open, onClose, onCreated }: NewEventModalProps) 
 
   const handleSelectType = (type: EventTypeConfig) => {
     setEventType(type)
+    setFeatures(getDefaultFeatures(type.value))
     setStep(2)
     setError('')
   }
 
   const handleBack = () => {
-    setStep(1)
+    setStep(prev => (prev === 3 ? 2 : 1))
     setError('')
+  }
+
+  const handleNext = () => {
+    if (!name.trim()) { setError('El nombre del evento es obligatorio'); return }
+    if (!date)        { setError('La fecha del evento es obligatoria'); return }
+    setError('')
+    setStep(3)
   }
 
   const handleCreate = async () => {
@@ -121,6 +133,7 @@ export function NewEventModal({ open, onClose, onCreated }: NewEventModalProps) 
         playlist_token:    generatePlaylistToken(),
         message_templates: [],
         template_names:    [],
+        enabled_features:  features,
       })
 
     if (settingsError) {
@@ -310,6 +323,74 @@ export function NewEventModal({ open, onClose, onCreated }: NewEventModalProps) 
     )
   }
 
+  // ─── Paso 3 — Herramientas ───────────────────────────────────────────────
+
+  const renderStep3 = () => {
+    if (!eventType) return null
+    const defaults = getDefaultFeatures(eventType.value)
+
+    return (
+      <div className="flex flex-col gap-4">
+
+        <div>
+          <p className="mb-2 text-xs font-medium text-[#555]">Siempre incluidas</p>
+          <div className="flex flex-wrap items-center gap-1.5">
+            {ALWAYS_ON_FEATURES.map(label => (
+              <span
+                key={label}
+                className="rounded-full border border-[#e8e8e8] bg-[#f8f8f8] px-2.5 py-1 text-[11px] font-medium text-[#888]"
+              >
+                {label}
+              </span>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <p className="mb-2 text-xs font-medium text-[#555]">Activa lo que tu evento necesita</p>
+          <div className="flex flex-col gap-2">
+            {FEATURES.map(f => {
+              const Icon = f.icon
+              const on = features[f.key]
+              return (
+                <button
+                  key={f.key}
+                  type="button"
+                  onClick={() => setFeatures(prev => ({ ...prev, [f.key]: !prev[f.key] }))}
+                  className={
+                    'flex items-center gap-3 rounded-xl border p-3 text-left transition ' +
+                    (on ? 'border-[#c8ede7] bg-[#f0fdfb]' : 'border-[#e8e8e8] bg-white hover:border-[#d0d0d0]')
+                  }
+                >
+                  <div className={'flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ' + (on ? 'bg-[#d0f5ec]' : 'bg-[#f4f4f4]')}>
+                    <Icon size={18} className={on ? 'text-[#0F6E56]' : 'text-[#888]'} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-medium text-[#1D1E20]">{f.label}</p>
+                      {defaults[f.key] && (
+                        <span className="rounded-full border border-[#f0e2c0] bg-[#fffbf0] px-2 py-0.5 text-[10px] font-semibold text-[#c49a3a]">
+                          Recomendado
+                        </span>
+                      )}
+                    </div>
+                    <p className="mt-0.5 text-xs text-[#888]">{f.description}</p>
+                  </div>
+                  <div className={'relative h-6 w-11 shrink-0 rounded-full transition ' + (on ? 'bg-[#48C9B0]' : 'bg-[#e0e0e0]')}>
+                    <span className={'absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ' + (on ? 'left-[22px]' : 'left-0.5')} />
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        <p className="text-center text-[11px] text-[#aaa]">Puedes cambiar esto después en Configuración</p>
+
+      </div>
+    )
+  }
+
   // ─── Render ───────────────────────────────────────────────────────────────
 
   return (
@@ -343,25 +424,27 @@ export function NewEventModal({ open, onClose, onCreated }: NewEventModalProps) 
                 <div className="flex items-center gap-3">
                   {/* Steps */}
                   <div className="flex items-center gap-2">
-                    <div className={
-                      'flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold transition ' +
-                      (step === 1 ? 'bg-[#48C9B0] text-white' : 'bg-[#d0f5ec] text-[#0F6E56]')
-                    }>
-                      {step === 1 ? '1' : '✓'}
-                    </div>
-                    <span className={'text-xs font-medium ' + (step === 1 ? 'text-[#1D1E20]' : 'text-[#48C9B0]')}>
-                      Tipo
-                    </span>
-                    <div className="h-px w-4 bg-[#e8e8e8]" />
-                    <div className={
-                      'flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold transition ' +
-                      (step === 2 ? 'bg-[#48C9B0] text-white' : 'border border-[#e0e0e0] bg-white text-[#bbb]')
-                    }>
-                      2
-                    </div>
-                    <span className={'text-xs font-medium ' + (step === 2 ? 'text-[#1D1E20]' : 'text-[#bbb]')}>
-                      Datos
-                    </span>
+                    {([[1, 'Tipo'], [2, 'Datos'], [3, 'Herramientas']] as [number, string][]).map(([n, label], i) => (
+                      <div key={n} className="flex items-center gap-2">
+                        {i > 0 && <div className="h-px w-4 bg-[#e8e8e8]" />}
+                        <div className={
+                          'flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold transition ' +
+                          (step === n
+                            ? 'bg-[#48C9B0] text-white'
+                            : step > n
+                              ? 'bg-[#d0f5ec] text-[#0F6E56]'
+                              : 'border border-[#e0e0e0] bg-white text-[#bbb]')
+                        }>
+                          {step > n ? '✓' : n}
+                        </div>
+                        <span className={
+                          'text-xs font-medium ' +
+                          (step === n ? 'text-[#1D1E20]' : step > n ? 'hidden text-[#48C9B0] sm:inline' : 'hidden text-[#bbb] sm:inline')
+                        }>
+                          {label}
+                        </span>
+                      </div>
+                    ))}
                   </div>
                 </div>
                 <button
@@ -378,7 +461,9 @@ export function NewEventModal({ open, onClose, onCreated }: NewEventModalProps) 
               <p className="mt-0.5 text-xs text-[#888]">
                 {step === 1
                   ? 'Elige el tipo para personalizar los campos'
-                  : 'Completa los datos del evento'}
+                  : step === 2
+                    ? 'Completa los datos del evento'
+                    : 'Activa las herramientas de tu evento'}
               </p>
             </div>
 
@@ -392,7 +477,7 @@ export function NewEventModal({ open, onClose, onCreated }: NewEventModalProps) 
                   exit={{ opacity: 0, x: step === 2 ? -16 : 16 }}
                   transition={{ duration: 0.18 }}
                 >
-                  {step === 1 ? renderStep1() : renderStep2()}
+                  {step === 1 ? renderStep1() : step === 2 ? renderStep2() : renderStep3()}
                 </motion.div>
               </AnimatePresence>
 
@@ -403,8 +488,8 @@ export function NewEventModal({ open, onClose, onCreated }: NewEventModalProps) 
               )}
             </div>
 
-            {/* Footer fijo — solo en paso 2 */}
-            {step === 2 && (
+            {/* Footer fijo — pasos 2 y 3 */}
+            {step > 1 && (
               <div className="shrink-0 border-t border-[#e8e8e8] px-5 py-4">
                 <div className="flex gap-3">
                   <button
@@ -414,13 +499,22 @@ export function NewEventModal({ open, onClose, onCreated }: NewEventModalProps) 
                   >
                     <ArrowLeft size={14} /> Atras
                   </button>
-                  <button
-                    onClick={handleCreate}
-                    disabled={loading}
-                    className="flex-1 rounded-lg bg-[#48C9B0] py-2.5 text-sm font-semibold text-white transition hover:bg-[#3ab89f] disabled:opacity-60"
-                  >
-                    {loading ? 'Creando evento...' : 'Crear evento'}
-                  </button>
+                  {step === 2 ? (
+                    <button
+                      onClick={handleNext}
+                      className="flex-1 rounded-lg bg-[#48C9B0] py-2.5 text-sm font-semibold text-white transition hover:bg-[#3ab89f]"
+                    >
+                      Siguiente
+                    </button>
+                  ) : (
+                    <button
+                      onClick={handleCreate}
+                      disabled={loading}
+                      className="flex-1 rounded-lg bg-[#48C9B0] py-2.5 text-sm font-semibold text-white transition hover:bg-[#3ab89f] disabled:opacity-60"
+                    >
+                      {loading ? 'Creando evento...' : 'Crear evento'}
+                    </button>
+                  )}
                 </div>
               </div>
             )}

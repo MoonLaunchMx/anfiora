@@ -91,6 +91,7 @@ export type EventSettings = {
   registry_token: string | null
   registry_payment_info: RegistryPaymentInfo | null
   registry_external_links: RegistryExternalLink[] | null
+  enabled_features: Partial<Record<'mesas' | 'regalos' | 'album' | 'playlist' | 'comida', boolean>> | null
   created_at: string
   updated_at: string
 }
@@ -193,6 +194,23 @@ export function normalizePaymentMethods(raw: unknown): RegistryPaymentMethod[] {
     }]
   }
   return []
+}
+
+export type RegistryShippingAddress = {
+  recipient: string
+  street: string
+  neighborhood: string
+  zip: string
+  city: string
+  state: string
+  references: string
+}
+
+export function formatShippingAddress(a: Partial<RegistryShippingAddress>): string {
+  const cityLine = [a.zip ? `CP ${a.zip}` : '', a.city, a.state]
+    .map(s => (s || '').trim()).filter(Boolean).join(', ')
+  return [a.recipient, a.street, a.neighborhood, cityLine, a.references]
+    .map(s => (s || '').trim()).filter(Boolean).join('\n')
 }
 
 export type GiftType = 'external' | 'fund' | 'cash'
