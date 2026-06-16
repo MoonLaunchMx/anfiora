@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Anfiora — Sección 2 v4</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Josefin+Sans:wght@600;700&display=swap" rel="stylesheet">
+<link href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700,900&f[]=general-sans@300,400,500,600,700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#fbfaf7; --cream:#f6f1e9; --surface:#ffffff;
+    --ink:#1D1E20; --ink2:#555657; --muted:#8c8d8f; --faint:#b9b6b0;
+    --teal:#48C9B0; --teal-d:#0F6E56; --teal-soft:#e3f6f0;
+    --red:#e06b6b; --red-bg:#fdf1f1; --red-bd:#f6d6d6; --red-tx:#b14a4a;
+    --line:#ece8e0; --line2:#e0e0e0;
+    --display:'Satoshi',sans-serif; --body:'General Sans',sans-serif;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:var(--bg); color:var(--ink); font-family:var(--body); overflow-x:hidden; -webkit-font-smoothing:antialiased}
+
+  .sec{max-width:1200px; margin:0 auto; padding:80px 40px 60px}
+  .head{text-align:center; max-width:720px; margin:0 auto 50px}
+  .label{display:inline-flex; align-items:center; gap:9px; font-size:11px; letter-spacing:.22em;
+    text-transform:uppercase; color:var(--teal-d); font-weight:600; margin-bottom:16px}
+  .label .dot{width:6px; height:6px; border-radius:50%; background:var(--teal); box-shadow:0 0 10px var(--teal)}
+  h2{font-family:var(--display); font-weight:700; font-size:clamp(28px,3.8vw,44px); line-height:1.12;
+    letter-spacing:-.02em; color:var(--muted)}
+  h2 .big{color:var(--ink)}
+  h2 .big em{font-style:normal; color:var(--teal)}
+  .head p{font-size:16px; color:var(--ink2); margin-top:14px}
+
+  .grid{display:grid; grid-template-columns:1fr 1fr; gap:48px; align-items:center}
+
+  /* ---------- LEFT: click animation ---------- */
+  .stage{position:relative; height:440px; cursor:pointer; user-select:none}
+  .field{position:absolute; inset:0; transform-origin:center}
+  .hub{position:absolute; top:50%; left:50%; width:138px; height:138px; margin:-69px 0 0 -69px;
+    border-radius:50%; background:#ffffff; border:1px solid var(--line); display:grid; place-items:center; z-index:4; text-align:center;
+    box-shadow:0 16px 44px rgba(27,28,30,.10); transition:transform .8s cubic-bezier(.16,1,.3,1), box-shadow .8s}
+  .hub .iso{width:66px; height:66px; opacity:0; transform:scale(.5); transition:opacity .5s .1s, transform .6s .1s cubic-bezier(.16,1,.3,1)}
+  .hub .all{font-size:9px; letter-spacing:.2em; text-transform:uppercase; color:var(--teal-d); margin-top:3px; opacity:0; transition:opacity .5s .25s}
+  .hub .seed{position:absolute; width:8px; height:8px; border-radius:50%; background:var(--line2); transition:opacity .35s}
+  .ring{position:absolute; top:50%; left:50%; width:138px; height:138px; margin:-69px 0 0 -69px;
+    border-radius:50%; border:1px solid var(--teal); z-index:3; opacity:0;
+    transition:transform .8s cubic-bezier(.16,1,.3,1), opacity .8s}
+
+  .chip{position:absolute; top:50%; left:50%; display:flex; align-items:center; gap:9px;
+    background:var(--surface); border:1px solid var(--line2); border-radius:12px; padding:8px 12px; z-index:2;
+    box-shadow:0 8px 22px rgba(27,28,30,.08);
+    transform:translate(calc(-50% + var(--x)), calc(-50% + var(--y)));
+    transition:transform .9s cubic-bezier(.5,0,.2,1), opacity .7s, filter .7s; filter:grayscale(.5)}
+  .chip i{width:9px; height:9px; border-radius:3px; background:var(--c, var(--teal)); flex-shrink:0}
+  .chip .ct{display:flex; flex-direction:column; line-height:1.2; text-align:left}
+  .chip .t{font-weight:600; color:var(--ink); font-size:12px}
+  .chip .s{font-size:10.5px; color:var(--muted)}
+
+  /* collapsed (clic) -> todo entra y aparece isotipo */
+  .stage.collapsed .chip{transform:translate(-50%,-50%) scale(.18); opacity:0; filter:grayscale(0)}
+  .stage.collapsed .hub{transform:scale(1.1); box-shadow:0 22px 60px rgba(72,201,176,.42)}
+  .stage.collapsed .iso{opacity:1; transform:scale(1)}
+  .stage.collapsed .all{opacity:1}
+  .stage.collapsed .seed{opacity:0}
+  .stage.collapsed .ring{opacity:1; transform:scale(1.7)}
+  .stage.collapsed .ring.r2{transform:scale(2.3); transition-delay:.07s}
+
+  .tapcue{position:absolute; bottom:0; left:50%; transform:translateX(-50%);
+    display:inline-flex; align-items:center; gap:7px; font-size:11.5px; color:var(--teal-d);
+    background:var(--teal-soft); border:1px solid #cdeee5; padding:6px 13px; border-radius:100px; transition:opacity .4s}
+  .tapcue b{font-weight:600}
+  .stage.collapsed .tapcue .a{display:none}
+  .stage:not(.collapsed) .tapcue .b{display:none}
+
+  /* ---------- RIGHT: tabs ---------- */
+  .tabs{display:flex; flex-wrap:wrap; gap:8px; margin-bottom:18px}
+  .tab{cursor:pointer; background:var(--surface); border:1px solid var(--line2); color:var(--ink2);
+    padding:8px 14px; border-radius:100px; font-size:13px; font-family:inherit; font-weight:500; transition:.25s}
+  .tab:hover{border-color:var(--teal)}
+  .tab.active{background:var(--ink); color:#fff; border-color:var(--ink)}
+
+  .panel{background:var(--surface); border:1px solid var(--line); border-radius:18px; padding:24px;
+    box-shadow:0 14px 40px rgba(27,28,30,.06)}
+  .row{display:flex; gap:14px; align-items:flex-start}
+  .row + .row{margin-top:14px; padding-top:16px; border-top:1px dashed var(--line)}
+  .tagx{flex-shrink:0; width:96px; font-size:11px; letter-spacing:.06em; text-transform:uppercase; font-weight:700; padding-top:2px}
+  .tagx.bad{color:var(--red-tx)}
+  .tagx.good{color:var(--teal-d)}
+  .rc .h{font-size:14.5px; color:var(--ink); font-weight:600; margin-bottom:3px}
+  .rc .d{font-size:13.5px; color:var(--ink2); line-height:1.5}
+  .price{display:inline-block; margin-top:8px; font-size:11.5px; font-weight:600;
+    color:var(--red-tx); background:var(--red-bg); border:1px solid var(--red-bd); padding:3px 10px; border-radius:100px}
+  .price.free{color:var(--teal-d); background:var(--teal-soft); border-color:#cdeee5}
+
+  .react{max-width:1200px; margin:0 auto; padding:10px 40px 44px;
+    display:flex; align-items:center; gap:14px; flex-wrap:wrap}
+  .react .q{font-size:13px; color:var(--muted); margin-right:6px}
+  .react button.rb{cursor:pointer; background:var(--surface); border:1px solid var(--line2); color:var(--ink2);
+    padding:9px 16px; border-radius:10px; font-size:13px; font-family:inherit; transition:.3s}
+  .react button.rb:hover{border-color:var(--teal); color:var(--teal)}
+
+  @media(max-width:900px){
+    .sec{padding:56px 24px 40px}
+    .head{margin-bottom:34px}
+    .grid{grid-template-columns:1fr; gap:18px}
+    .stage{height:400px; order:1}
+    .right{order:2}
+    .field{transform:scale(.86)}
+    .react{padding:10px 24px 40px; justify-content:center}
+  }
+  @media(max-width:560px){
+    .stage{height:340px}
+    .field{transform:scale(.62)}
+    .tagx{width:74px; font-size:10px}
+    .panel{padding:18px}
+  }
+</style>
+</head>
+<body>
+  <section class="sec">
+    <div class="head">
+      <div class="label"><span class="dot"></span>Por qué Anfiora</div>
+      <h2>Las demás apps hacen una cosa. <span class="big">Anfiora las <em>reúne todas</em>.</span></h2>
+      <p>Una herramienta (y un pago) distinto para cada cosa. O todo en un solo lugar.</p>
+    </div>
+
+    <div class="grid">
+      <!-- LEFT animation -->
+      <div class="stage collapsed" id="stage">
+        <div class="field">
+          <div class="ring"></div>
+          <div class="ring r2"></div>
+          <div class="hub">
+            <span class="seed"></span>
+            <div>
+              <img class="iso" src="isotipo.svg" alt="Anfiora">
+              <div class="all">todo en uno</div>
+            </div>
+          </div>
+
+          <div class="chip" style="--x:-150px;--y:-120px;--c:#e06b6b"><i></i><div class="ct"><span class="t">Invitaciones</span><span class="s">$500–$1,200</span></div></div>
+          <div class="chip" style="--x:150px;--y:-128px;--c:#6b8be0"><i></i><div class="ct"><span class="t">Galería de fotos</span><span class="s">hasta $2,000</span></div></div>
+          <div class="chip" style="--x:-188px;--y:-4px;--c:#c77dff"><i></i><div class="ct"><span class="t">Mesa de regalos</span><span class="s">hasta $7,000</span></div></div>
+          <div class="chip" style="--x:182px;--y:2px;--c:#1DB954"><i></i><div class="ct"><span class="t">Playlist</span><span class="s">horas a mano</span></div></div>
+          <div class="chip" style="--x:-150px;--y:118px;--c:#e08a3c"><i></i><div class="ct"><span class="t">Presupuesto</span><span class="s">Excel a mano</span></div></div>
+          <div class="chip" style="--x:150px;--y:122px;--c:#2a9d8f"><i></i><div class="ct"><span class="t">Pagos</span><span class="s">Excel a mano</span></div></div>
+          <div class="chip" style="--x:0px;--y:-174px;--c:#48C9B0"><i></i><div class="ct"><span class="t">Proveedores</span><span class="s">Excel y notas</span></div></div>
+        </div>
+        <div class="tapcue"><span class="a">Haz clic para <b>reunirlas en Anfiora</b></span><span class="b">Haz clic para <b>ver las apps sueltas</b></span></div>
+      </div>
+
+      <!-- RIGHT tabs -->
+      <div class="right">
+        <div class="tabs" id="tabs"></div>
+        <div class="panel">
+          <div class="row">
+            <div class="tagx bad">Hoy</div>
+            <div class="rc">
+              <div class="h" id="aHead">—</div>
+              <div class="d" id="aDesc">—</div>
+              <span class="price" id="aPrice">—</span>
+            </div>
+          </div>
+          <div class="row">
+            <div class="tagx good">Con Anfiora</div>
+            <div class="rc">
+              <div class="d" id="bDesc" style="color:var(--ink);font-weight:500">—</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="react">
+    <span class="q">¿Ahora sí es lo que tenías en mente?</span>
+    <button class="rb" onclick="toggleSelect && toggleSelect(this)">Sí, esto era</button>
+    <button class="rb" onclick="toggleSelect && toggleSelect(this)">Ajustar textos / precios</button>
+    <button class="rb" onclick="toggleSelect && toggleSelect(this)">Ajustar la animación</button>
+    <button class="rb" onclick="toggleSelect && toggleSelect(this)">Ajustar las pestañas</button>
+  </div>
+
+<script>
+  // toggle animation
+  const stage=document.getElementById('stage');
+  stage.addEventListener('click', ()=> stage.classList.toggle('collapsed'));
+
+  // tabs data
+  const MODULES=[
+    {name:'Invitaciones', price:'$500–$1,200', free:false,
+      aHead:'Diseñar o pagar cada invitación', aDesc:'Otra app de invitaciones, o pagar por diseño — y luego perseguir las confirmaciones a mano.',
+      b:'Lista de invitados con confirmaciones por WhatsApp e IA, todo ligado y en tiempo real.'},
+    {name:'Galería de fotos', price:'hasta $2,000', free:false,
+      aHead:'Apps de galería que cobran', aDesc:'Plataformas de fotos con costo y que nadie sabe usar el día del evento.',
+      b:'Álbum colaborativo con QR: tus invitados suben las fotos al instante, sin apps extra.'},
+    {name:'Mesa de regalos', price:'hasta $7,000', free:false,
+      aHead:'Plataformas externas con comisión', aDesc:'Sitios de mesa de regalos con cuota alta o comisión sobre cada regalo.',
+      b:'Mesa de regalos propia: reservan desde la invitación, sin duplicados ni comisiones.'},
+    {name:'Playlist', price:'horas de tu tiempo', free:false,
+      aHead:'Pedir canciones una por una', aDesc:'Hoy la playlist se arma pidiéndola por WhatsApp a cada quien o mandando un formulario. Agotador.',
+      b:'Playlist colaborativa: cada invitado sugiere sus canciones desde su celular y tú llegas con la lista lista.'},
+    {name:'Presupuesto', price:'Excel a mano', free:true,
+      aHead:'Un Excel que armas a mano', aDesc:'Hojas de cálculo que tú mantienes y que se rompen a la primera fórmula.',
+      b:'Presupuesto por categorías que se actualiza solo con tus proveedores y pagos.'},
+    {name:'Pagos', price:'Excel a mano', free:true,
+      aHead:'Otro Excel de pagos', aDesc:'Anotar quién pagó qué y cuánto falta… si te acuerdas de actualizarlo.',
+      b:'Historial de pagos por proveedor, con export a Excel y PDF cuando lo necesites.'},
+    {name:'Proveedores', price:'Excel y notas', free:true,
+      aHead:'Notas, capturas y Excel', aDesc:'Información de proveedores regada entre notas, fotos y hojas de cálculo.',
+      b:'Directorio de proveedores con estado, cotizaciones, contratos y reseñas.'},
+  ];
+
+  const tabsEl=document.getElementById('tabs');
+  const aHead=document.getElementById('aHead'), aDesc=document.getElementById('aDesc'),
+        aPrice=document.getElementById('aPrice'), bDesc=document.getElementById('bDesc');
+  let active=0;
+  function render(){
+    MODULES.forEach((m,i)=>{
+      const t=document.createElement('button');
+      t.className='tab'+(i===active?' active':''); t.textContent=m.name;
+      t.onclick=()=>{active=i; paint();};
+      tabsEl.appendChild(t);
+    });
+  }
+  function paint(){
+    [...tabsEl.children].forEach((t,i)=>t.classList.toggle('active', i===active));
+    const m=MODULES[active];
+    aHead.textContent=m.aHead; aDesc.textContent=m.aDesc;
+    aPrice.textContent=m.free?'Excel · gratis pero a mano':m.price;
+    aPrice.className='price'+(m.free?' free':'');
+    bDesc.textContent=m.b;
+  }
+  render(); paint();
+</script>
+</body>
+</html>

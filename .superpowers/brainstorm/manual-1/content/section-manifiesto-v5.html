@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Anfiora — Sección 2 v5 (pain)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Josefin+Sans:wght@600;700&display=swap" rel="stylesheet">
+<link href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700,900&f[]=general-sans@300,400,500,600,700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#fbfaf7; --cream:#f6f1e9; --surface:#ffffff;
+    --ink:#1D1E20; --ink2:#555657; --muted:#8c8d8f; --faint:#b9b6b0;
+    --teal:#48C9B0; --teal-d:#0F6E56; --teal-soft:#e3f6f0;
+    --red:#e06b6b; --red-bg:#fdf1f1; --red-bd:#f6d6d6; --red-tx:#b14a4a;
+    --line:#ece8e0; --line2:#e0e0e0;
+    --display:'Satoshi',sans-serif; --body:'General Sans',sans-serif;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:var(--bg); color:var(--ink); font-family:var(--body); overflow-x:hidden; -webkit-font-smoothing:antialiased}
+
+  .sec{max-width:1200px; margin:0 auto; padding:80px 40px 60px}
+  .head{text-align:center; max-width:680px; margin:0 auto 50px}
+  h2{font-family:var(--display); font-weight:700; font-size:clamp(30px,4vw,46px); line-height:1.12;
+    letter-spacing:-.02em; color:var(--ink)}
+  .head p{font-size:16px; color:var(--muted); margin-top:12px}
+
+  .grid{display:grid; grid-template-columns:1fr 1fr; gap:48px; align-items:center}
+
+  /* ---------- LEFT: click animation ---------- */
+  .stage{position:relative; height:440px; cursor:pointer; user-select:none}
+  .field{position:absolute; inset:0; transform-origin:center}
+  .hub{position:absolute; top:50%; left:50%; width:138px; height:138px; margin:-69px 0 0 -69px;
+    border-radius:50%; background:#ffffff; border:1px solid var(--line); display:grid; place-items:center; z-index:4; text-align:center;
+    box-shadow:0 16px 44px rgba(27,28,30,.10); transition:transform .8s cubic-bezier(.16,1,.3,1), box-shadow .8s}
+  .hub .iso{width:66px; height:66px; opacity:0; transform:scale(.5); transition:opacity .5s .1s, transform .6s .1s cubic-bezier(.16,1,.3,1)}
+  .hub .all{font-size:9px; letter-spacing:.2em; text-transform:uppercase; color:var(--teal-d); margin-top:3px; opacity:0; transition:opacity .5s .25s}
+  .hub .seed{position:absolute; width:8px; height:8px; border-radius:50%; background:var(--line2); transition:opacity .35s}
+  .ring{position:absolute; top:50%; left:50%; width:138px; height:138px; margin:-69px 0 0 -69px;
+    border-radius:50%; border:1px solid var(--teal); z-index:3; opacity:0;
+    transition:transform .8s cubic-bezier(.16,1,.3,1), opacity .8s}
+
+  .chip{position:absolute; top:50%; left:50%; display:flex; align-items:center; gap:9px;
+    background:var(--surface); border:1px solid var(--line2); border-radius:12px; padding:8px 12px; z-index:2;
+    box-shadow:0 8px 22px rgba(27,28,30,.08);
+    transform:translate(calc(-50% + var(--x)), calc(-50% + var(--y)));
+    transition:transform .9s cubic-bezier(.5,0,.2,1), opacity .7s, filter .7s; filter:grayscale(.5)}
+  .chip i{width:9px; height:9px; border-radius:3px; background:var(--c, var(--teal)); flex-shrink:0}
+  .chip .ct{display:flex; flex-direction:column; line-height:1.2; text-align:left}
+  .chip .t{font-weight:600; color:var(--ink); font-size:12px}
+  .chip .s{font-size:10.5px; color:var(--muted)}
+
+  .stage.collapsed .chip{transform:translate(-50%,-50%) scale(.18); opacity:0; filter:grayscale(0)}
+  .stage.collapsed .hub{transform:scale(1.1); box-shadow:0 22px 60px rgba(72,201,176,.42)}
+  .stage.collapsed .iso{opacity:1; transform:scale(1)}
+  .stage.collapsed .all{opacity:1}
+  .stage.collapsed .seed{opacity:0}
+  .stage.collapsed .ring{opacity:1; transform:scale(1.7)}
+  .stage.collapsed .ring.r2{transform:scale(2.3); transition-delay:.07s}
+
+  .tapcue{position:absolute; bottom:0; left:50%; transform:translateX(-50%);
+    display:inline-flex; align-items:center; gap:7px; font-size:11.5px; color:var(--teal-d);
+    background:var(--teal-soft); border:1px solid #cdeee5; padding:6px 13px; border-radius:100px; transition:opacity .4s}
+  .tapcue b{font-weight:600}
+  .stage.collapsed .tapcue .a{display:none}
+  .stage:not(.collapsed) .tapcue .b{display:none}
+
+  /* ---------- RIGHT: tabs + pain ---------- */
+  .tabs{display:flex; flex-wrap:wrap; gap:8px; margin-bottom:18px}
+  .tab{cursor:pointer; background:var(--surface); border:1px solid var(--line2); color:var(--ink2);
+    padding:8px 14px; border-radius:100px; font-size:13px; font-family:inherit; font-weight:500; transition:.25s}
+  .tab:hover{border-color:var(--teal)}
+  .tab.active{background:var(--ink); color:#fff; border-color:var(--ink)}
+
+  .panel{position:relative; background:var(--surface); border:1px solid var(--line); border-radius:18px; padding:26px 28px;
+    box-shadow:0 14px 40px rgba(27,28,30,.06); min-height:188px}
+  .panel::before{content:""; position:absolute; left:0; top:22px; bottom:22px; width:3px; border-radius:3px; background:var(--red); opacity:.55}
+  .ph{font-family:var(--display); font-size:20px; font-weight:600; color:var(--ink); margin-bottom:10px}
+  .pd{font-size:15px; line-height:1.65; color:var(--ink2)}
+  .price{display:inline-block; margin-top:16px; font-size:12px; font-weight:600;
+    color:var(--red-tx); background:var(--red-bg); border:1px solid var(--red-bd); padding:4px 12px; border-radius:100px}
+  .price.free{color:var(--muted); background:var(--cream); border-color:var(--line2)}
+
+  .react{max-width:1200px; margin:0 auto; padding:10px 40px 44px;
+    display:flex; align-items:center; gap:14px; flex-wrap:wrap}
+  .react .q{font-size:13px; color:var(--muted); margin-right:6px}
+  .react button.rb{cursor:pointer; background:var(--surface); border:1px solid var(--line2); color:var(--ink2);
+    padding:9px 16px; border-radius:10px; font-size:13px; font-family:inherit; transition:.3s}
+  .react button.rb:hover{border-color:var(--teal); color:var(--teal)}
+
+  @media(max-width:900px){
+    .sec{padding:56px 24px 40px}
+    .head{margin-bottom:34px}
+    .grid{grid-template-columns:1fr; gap:20px}
+    .stage{height:400px; order:1}
+    .right{order:2}
+    .field{transform:scale(.86)}
+    .react{padding:10px 24px 40px; justify-content:center}
+  }
+  @media(max-width:560px){
+    .stage{height:340px}
+    .field{transform:scale(.62)}
+    .panel{padding:20px}
+    .ph{font-size:18px}
+  }
+</style>
+</head>
+<body>
+  <section class="sec">
+    <div class="head">
+      <h2>Por qué Anfiora</h2>
+      <p>Así se organiza un evento hoy.</p>
+    </div>
+
+    <div class="grid">
+      <!-- LEFT animation -->
+      <div class="stage collapsed" id="stage">
+        <div class="field">
+          <div class="ring"></div>
+          <div class="ring r2"></div>
+          <div class="hub">
+            <span class="seed"></span>
+            <div>
+              <img class="iso" src="isotipo.svg" alt="Anfiora">
+              <div class="all">todo en uno</div>
+            </div>
+          </div>
+
+          <div class="chip" style="--x:-150px;--y:-120px;--c:#e06b6b"><i></i><div class="ct"><span class="t">Invitaciones</span><span class="s">$500–$1,200</span></div></div>
+          <div class="chip" style="--x:150px;--y:-128px;--c:#6b8be0"><i></i><div class="ct"><span class="t">Galería de fotos</span><span class="s">hasta $2,000</span></div></div>
+          <div class="chip" style="--x:-188px;--y:-4px;--c:#c77dff"><i></i><div class="ct"><span class="t">Mesa de regalos</span><span class="s">hasta $7,000</span></div></div>
+          <div class="chip" style="--x:182px;--y:2px;--c:#1DB954"><i></i><div class="ct"><span class="t">Playlist</span><span class="s">horas a mano</span></div></div>
+          <div class="chip" style="--x:-150px;--y:118px;--c:#e08a3c"><i></i><div class="ct"><span class="t">Presupuesto</span><span class="s">Excel a mano</span></div></div>
+          <div class="chip" style="--x:150px;--y:122px;--c:#2a9d8f"><i></i><div class="ct"><span class="t">Pagos</span><span class="s">Excel a mano</span></div></div>
+          <div class="chip" style="--x:0px;--y:-174px;--c:#48C9B0"><i></i><div class="ct"><span class="t">Proveedores</span><span class="s">Excel y notas</span></div></div>
+        </div>
+        <div class="tapcue"><span class="a">Haz clic para <b>ver cómo es hoy</b></span><span class="b">Haz clic para <b>reunir todo</b></span></div>
+      </div>
+
+      <!-- RIGHT tabs -->
+      <div class="right">
+        <div class="tabs" id="tabs"></div>
+        <div class="panel">
+          <div class="ph" id="pHead">—</div>
+          <div class="pd" id="pDesc">—</div>
+          <span class="price" id="pPrice">—</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="react">
+    <span class="q">¿Así, puro pain (sin mencionar Anfiora)?</span>
+    <button class="rb" onclick="toggleSelect && toggleSelect(this)">Sí, esto era</button>
+    <button class="rb" onclick="toggleSelect && toggleSelect(this)">Más fuertes los pains</button>
+    <button class="rb" onclick="toggleSelect && toggleSelect(this)">Ajustar título</button>
+    <button class="rb" onclick="toggleSelect && toggleSelect(this)">Otro detalle</button>
+  </div>
+
+<script>
+  const stage=document.getElementById('stage');
+  stage.addEventListener('click', ()=> stage.classList.toggle('collapsed'));
+
+  const MODULES=[
+    {name:'Invitaciones', price:'$500–$1,200', free:false,
+      head:'Diseñar (o pagar) cada invitación',
+      desc:'Te metes a otra app a diseñar, o pagas por cada invitación digital. Y después persigues las confirmaciones una por una por WhatsApp, sin saber quién ya respondió.'},
+    {name:'Galería de fotos', price:'hasta $2,000', free:false,
+      head:'Una app de fotos que nadie usa',
+      desc:'Contratas una plataforma de fotos que cobra de más, y el día del evento nadie sabe cómo subir nada. Las fotos terminan regadas en mil teléfonos que nunca te comparten.'},
+    {name:'Mesa de regalos', price:'hasta $7,000', free:false,
+      head:'Plataformas con comisión',
+      desc:'Sitios externos que cobran cuota o se quedan con una comisión de cada regalo. Y aun así te llegan regalos repetidos porque nadie ve lo que ya apartaron.'},
+    {name:'Playlist', price:'horas de tu tiempo', free:true,
+      head:'Pedir canciones una por una',
+      desc:'La playlist se arma pidiéndola por WhatsApp a cada quien o mandando un formulario. Llegan a destiempo, repetidas, y juntarlas todas es agotador.'},
+    {name:'Presupuesto', price:'Excel a mano', free:true,
+      head:'Un Excel que se rompe solo',
+      desc:'Hojas de cálculo que tú mantienes a mano y que se rompen a la primera fórmula. Mandas una versión por correo, alguien edita otra, y a los tres días ya nadie sabe cuál es la buena.'},
+    {name:'Pagos', price:'Excel a mano', free:true,
+      head:'Quién pagó qué… ni idea',
+      desc:'Otro Excel para anotar abonos y saldos. Si olvidas actualizarlo pierdes el control, y entre versiones por correo nunca sabes cuánto llevas pagado de verdad.'},
+    {name:'Proveedores', price:'Excel y notas', free:true,
+      head:'Todo regado en mil lados',
+      desc:'Las cotizaciones en el correo, los contratos en WhatsApp, los teléfonos en notas. Cuando buscas algo del proveedor, justo eso no aparece.'},
+  ];
+
+  const tabsEl=document.getElementById('tabs');
+  const pHead=document.getElementById('pHead'), pDesc=document.getElementById('pDesc'), pPrice=document.getElementById('pPrice');
+  let active=0;
+  function render(){
+    MODULES.forEach((m,i)=>{
+      const t=document.createElement('button');
+      t.className='tab'+(i===active?' active':''); t.textContent=m.name;
+      t.onclick=()=>{active=i; paint();};
+      tabsEl.appendChild(t);
+    });
+  }
+  function paint(){
+    [...tabsEl.children].forEach((t,i)=>t.classList.toggle('active', i===active));
+    const m=MODULES[active];
+    pHead.textContent=m.head; pDesc.textContent=m.desc;
+    pPrice.textContent=m.free?m.price:('Cuesta '+m.price);
+    pPrice.className='price'+(m.free?' free':'');
+  }
+  render(); paint();
+</script>
+</body>
+</html>

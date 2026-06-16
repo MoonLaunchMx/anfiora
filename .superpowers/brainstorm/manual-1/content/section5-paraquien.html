@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Anfiora — Sección 5: Para quién</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Josefin+Sans:wght@600;700&display=swap" rel="stylesheet">
+<link href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700,900&f[]=general-sans@300,400,500,600,700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#fbfaf7; --cream:#f4efe7; --surface:#ffffff;
+    --ink:#1D1E20; --ink2:#585957; --muted:#9a9a96; --faint:#c4c2bb;
+    --teal:#48C9B0; --teal-d:#0F6E56; --teal-deep:#0b4e3d;
+    --mint:#eef9f5; --mint-2:#e2f4ec; --mint-bd:#cdebe1;
+    --line:#ebe6dd; --line2:#e0dbd1;
+    --display:'Satoshi',sans-serif; --body:'General Sans',sans-serif;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:var(--bg); color:var(--ink); font-family:var(--body); overflow-x:hidden; -webkit-font-smoothing:antialiased}
+
+  .sec{position:relative; max-width:1080px; margin:0 auto; padding:66px 40px 56px}
+  .sec::before{content:""; position:absolute; top:-30px; left:50%; transform:translateX(-50%); width:640px; height:280px; background:radial-gradient(60% 60% at 50% 0%, rgba(72,201,176,.09), transparent 70%); pointer-events:none}
+  .head{position:relative; text-align:center; max-width:640px; margin:0 auto 40px}
+  .kicker{display:inline-flex; align-items:center; gap:8px; font-size:11px; letter-spacing:.26em; text-transform:uppercase; color:var(--teal-d); font-weight:600; margin-bottom:14px}
+  .kicker::before,.kicker::after{content:""; width:22px; height:1px; background:var(--mint-bd)}
+  h2{font-family:var(--display); font-weight:700; font-size:clamp(28px,3.6vw,42px); line-height:1.1; letter-spacing:-.025em}
+  h2 em{font-style:italic; font-weight:500; color:var(--teal-d)}
+  .head p{font-size:16px; color:var(--muted); margin-top:12px}
+
+  .cards{display:grid; grid-template-columns:1fr 1fr; gap:20px}
+  .card{position:relative; border-radius:24px; padding:32px 30px; border:1px solid var(--line); background:var(--surface);
+    box-shadow:0 14px 40px rgba(27,28,30,.06); transition:transform .3s, box-shadow .3s; display:flex; flex-direction:column}
+  .card:hover{transform:translateY(-4px); box-shadow:0 26px 60px rgba(27,28,30,.1)}
+  .card.pro{background:linear-gradient(160deg,#ffffff 0%, var(--mint) 100%); border-color:var(--mint-bd)}
+  .ribbon{position:absolute; top:22px; right:22px; font-size:9.5px; font-weight:700; letter-spacing:.08em; text-transform:uppercase;
+    color:var(--teal-deep); background:var(--mint-2); border:1px solid var(--mint-bd); padding:5px 11px; border-radius:100px}
+
+  .cic{width:50px; height:50px; border-radius:15px; display:grid; place-items:center; background:var(--mint); color:var(--teal-d); box-shadow:inset 0 0 0 1px var(--mint-bd); margin-bottom:18px}
+  .cic svg{width:25px;height:25px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+  .ctag{font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); font-weight:600; margin-bottom:7px}
+  .ctitle{font-family:var(--display); font-weight:600; font-size:23px; letter-spacing:-.01em; color:var(--ink); margin-bottom:10px}
+  .cdesc{font-size:14.5px; line-height:1.55; color:var(--ink2); margin-bottom:22px}
+
+  .feats{display:flex; flex-direction:column; gap:11px; margin-bottom:26px}
+  .feat{display:flex; align-items:center; gap:11px; font-size:14px; color:var(--ink)}
+  .feat .fk{width:20px; height:20px; border-radius:50%; background:var(--mint-2); display:grid; place-items:center; flex-shrink:0}
+  .feat .fk svg{width:12px;height:12px;stroke:var(--teal-d);stroke-width:3;fill:none;stroke-linecap:round;stroke-linejoin:round}
+
+  .cfoot{margin-top:auto}
+  .price{display:flex; align-items:baseline; gap:7px; margin-bottom:16px}
+  .price b{font-family:var(--display); font-weight:700; font-size:26px; color:var(--ink)}
+  .price span{font-size:12.5px; color:var(--muted)}
+  .btn{display:block; width:100%; text-align:center; cursor:pointer; border:none; font-family:var(--body);
+    font-size:15px; font-weight:600; padding:14px; border-radius:12px; transition:.3s}
+  .btn.fill{background:var(--teal); color:#fff; box-shadow:0 6px 18px rgba(72,201,176,.32)} .btn.fill:hover{background:#3ab89f}
+  .btn.out{background:var(--surface); border:1px solid var(--line2); color:var(--ink)} .btn.out:hover{border-color:var(--teal); color:var(--teal-d)}
+
+  .react{max-width:1080px; margin:0 auto; padding:24px 40px 44px; display:flex; align-items:center; gap:14px; flex-wrap:wrap}
+  .react .q{font-size:13px; color:var(--muted); margin-right:6px}
+  .react button.rb{cursor:pointer; background:var(--surface); border:1px solid var(--line2); color:var(--ink2); padding:9px 16px; border-radius:10px; font-size:13px; font-family:inherit; transition:.3s}
+  .react button.rb:hover{border-color:var(--teal); color:var(--teal-d)}
+
+  @media(max-width:780px){
+    .sec{padding:50px 22px 38px}
+    .cards{grid-template-columns:1fr; gap:16px}
+    .react{padding:24px 22px 40px; justify-content:center}
+  }
+</style>
+</head>
+<body>
+  <section class="sec">
+    <div class="head">
+      <div class="kicker">Para quién</div>
+      <h2>Para los dos lados <em>del evento</em>.</h2>
+      <p>Lo organizas una vez o vives de organizarlos. Anfiora se adapta a ti.</p>
+    </div>
+
+    <div class="cards">
+      <div class="card">
+        <div class="cic"><svg viewBox="0 0 24 24"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8z"/></svg></div>
+        <div class="ctag">Anfitrión</div>
+        <div class="ctitle">Organizas tu propio evento</div>
+        <div class="cdesc">Tu boda, tus XV, tu fiesta. Todas las herramientas para vivir tu día sin estrés, no para apagarlo a fuegazos.</div>
+        <div class="feats">
+          <div class="feat"><span class="fk"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></span>Un evento, todas las herramientas</div>
+          <div class="feat"><span class="fk"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></span>Agente de IA para tus confirmaciones</div>
+          <div class="feat"><span class="fk"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></span>Listo en minutos, sin curva</div>
+        </div>
+        <div class="cfoot">
+          <div class="price"><b>Gratis</b><span>· hasta 50 invitados</span></div>
+          <button class="btn out" onclick="toggleSelect && toggleSelect(this)">Empezar gratis</button>
+        </div>
+      </div>
+
+      <div class="card pro">
+        <span class="ribbon">Para los mejores</span>
+        <div class="cic"><svg viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg></div>
+        <div class="ctag">Planner profesional</div>
+        <div class="ctitle">Vives de crear eventos</div>
+        <div class="cdesc">Maneja a todos tus clientes y eventos desde un solo lugar, luce impecable y haz crecer tu negocio.</div>
+        <div class="feats">
+          <div class="feat"><span class="fk"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></span>Eventos y clientes ilimitados</div>
+          <div class="feat"><span class="fk"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></span>Equipo y colaboradores con roles</div>
+          <div class="feat"><span class="fk"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></span>Número dedicado y agente de IA completo</div>
+        </div>
+        <div class="cfoot">
+          <div class="price"><b>Desde $1,990</b><span>· por mes</span></div>
+          <button class="btn fill" onclick="toggleSelect && toggleSelect(this)">Soy planner</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="react">
+    <span class="q">¿Las dos puertas (anfitrión / planner) comunican bien?</span>
+    <button class="rb" onclick="toggleSelect && toggleSelect(this)">Sí, me gusta</button>
+    <button class="rb" onclick="toggleSelect && toggleSelect(this)">Ajustar textos</button>
+    <button class="rb" onclick="toggleSelect && toggleSelect(this)">Ajustar diseño</button>
+    <button class="rb" onclick="toggleSelect && toggleSelect(this)">Otro detalle</button>
+  </div>
+</body>
+</html>

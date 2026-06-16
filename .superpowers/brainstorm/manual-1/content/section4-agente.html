@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Anfiora — Sección 4: Agente de IA</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Josefin+Sans:wght@600;700&display=swap" rel="stylesheet">
+<link href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700,900&f[]=general-sans@300,400,500,600,700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#fbfaf7; --cream:#f4efe7; --surface:#ffffff;
+    --ink:#1D1E20; --ink2:#585957; --muted:#9a9a96; --faint:#c4c2bb;
+    --teal:#48C9B0; --teal-d:#0F6E56; --teal-deep:#0b4e3d;
+    --mint:#eef9f5; --mint-2:#e2f4ec; --mint-bd:#cdebe1;
+    --line:#ebe6dd; --line2:#e0dbd1;
+    --display:'Satoshi',sans-serif; --body:'General Sans',sans-serif;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:var(--bg); color:var(--ink); font-family:var(--body); overflow-x:hidden; -webkit-font-smoothing:antialiased}
+
+  .sec{position:relative; max-width:1120px; margin:0 auto; padding:70px 40px 60px;
+    display:grid; grid-template-columns:1fr 1fr; gap:56px; align-items:center}
+  .sec::before{content:""; position:absolute; right:-60px; top:0; width:520px; height:520px;
+    background:radial-gradient(50% 50% at 70% 40%, rgba(72,201,176,.12), transparent 70%); pointer-events:none}
+
+  .kicker{display:inline-flex; align-items:center; gap:8px; font-size:11px; letter-spacing:.26em; text-transform:uppercase; color:var(--teal-d); font-weight:600; margin-bottom:18px}
+  .kicker .dot{width:6px; height:6px; border-radius:50%; background:var(--teal); box-shadow:0 0 10px var(--teal); animation:pulse 2.2s ease-in-out infinite}
+  @keyframes pulse{0%,100%{opacity:.4}50%{opacity:1}}
+  h2{font-family:var(--display); font-weight:700; font-size:clamp(30px,4vw,46px); line-height:1.1; letter-spacing:-.025em; margin-bottom:18px}
+  h2 em{font-style:italic; font-weight:500; color:var(--teal-d)}
+  .lead{font-size:17px; line-height:1.6; color:var(--ink2); max-width:440px; margin-bottom:26px}
+
+  .caps{display:flex; flex-direction:column; gap:13px; margin-bottom:28px}
+  .cap{display:flex; align-items:flex-start; gap:12px; font-size:14.5px; color:var(--ink); line-height:1.4}
+  .cap .ck{width:22px; height:22px; border-radius:50%; background:var(--mint-2); display:grid; place-items:center; flex-shrink:0; margin-top:1px}
+  .cap .ck svg{width:13px;height:13px;stroke:var(--teal-d);stroke-width:3;fill:none;stroke-linecap:round;stroke-linejoin:round}
+  .cap b{font-weight:600}
+
+  .chans{display:flex; gap:8px; flex-wrap:wrap; align-items:center}
+  .chan{display:inline-flex; align-items:center; gap:7px; font-size:12.5px; font-weight:500; padding:7px 13px; border-radius:100px; border:1px solid var(--mint-bd); background:var(--mint); color:var(--teal-d)}
+  .chan.soon{color:var(--muted); background:var(--surface); border-color:var(--line2); border-style:dashed}
+  .chan .d{width:7px; height:7px; border-radius:50%; background:var(--teal)}
+
+  /* phone chat */
+  .stage{position:relative; display:flex; justify-content:center}
+  .glow{position:absolute; width:340px; height:340px; border-radius:50%; background:radial-gradient(circle,rgba(72,201,176,.14),transparent 70%); top:50%; left:50%; transform:translate(-50%,-50%); animation:breathe 5s ease-in-out infinite}
+  @keyframes breathe{0%,100%{transform:translate(-50%,-50%) scale(1)}50%{transform:translate(-50%,-50%) scale(1.1)}}
+  .phone{position:relative; width:312px; height:512px; background:#fff; border-radius:38px; border:1px solid var(--line); box-shadow:0 34px 80px rgba(27,28,30,.16); overflow:hidden; display:flex; flex-direction:column}
+  .pbar{display:flex; align-items:center; gap:11px; padding:18px 18px 14px; border-bottom:1px solid var(--line); background:#fff}
+  .pav{width:40px; height:40px; border-radius:50%; position:relative; flex-shrink:0;
+    background:radial-gradient(circle at 35% 30%,#7fe0cd,var(--teal) 55%,var(--teal-d)); box-shadow:0 0 14px rgba(72,201,176,.5)}
+  .pav::after{content:""; position:absolute; right:-1px; bottom:-1px; width:11px; height:11px; border-radius:50%; background:#39d98a; border:2px solid #fff}
+  .pbar .who{font-size:14px; font-weight:600; color:var(--ink)}
+  .pbar .st{font-size:11px; color:var(--teal-d)}
+  .pbar .via{margin-left:auto; font-size:10px; color:var(--muted); background:var(--mint); border:1px solid var(--mint-bd); padding:3px 9px; border-radius:100px}
+  .pbody{flex:1; padding:16px; display:flex; flex-direction:column; gap:9px; overflow:hidden;
+    background:linear-gradient(180deg,#fcfdfc,#f7faf9)}
+  .msg{max-width:80%; font-size:12.8px; line-height:1.42; padding:9px 12px; opacity:0; transform:translateY(8px); animation:msgin .35s forwards}
+  .msg.me{align-self:flex-end; background:#eef0ee; color:var(--ink); border-radius:15px 15px 5px 15px}
+  .msg.ai{align-self:flex-start; background:var(--mint-2); color:var(--teal-deep); border-radius:15px 15px 15px 5px}
+  .msg .tag{display:block; font-size:8.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--teal-d); margin-top:5px; opacity:.7}
+  @keyframes msgin{to{opacity:1; transform:translateY(0)}}
+  .typing{align-self:flex-start; background:var(--mint-2); border-radius:15px 15px 15px 5px; padding:11px 13px; display:inline-flex; gap:4px; opacity:0; animation:msgin .3s forwards}
+  .typing i{width:6px; height:6px; border-radius:50%; background:var(--teal); animation:bdot 1.2s infinite}
+  .typing i:nth-child(2){animation-delay:.15s} .typing i:nth-child(3){animation-delay:.3s}
+  @keyframes bdot{0%,60%,100%{opacity:.3; transform:translateY(0)}30%{opacity:1; transform:translateY(-3px)}}
+  .sys{align-self:center; font-size:10.5px; color:var(--teal-d); background:#fff; border:1px solid var(--mint-bd); padding:6px 12px; border-radius:100px; margin-top:4px; opacity:0; animation:msgin .4s forwards; display:inline-flex; gap:6px; align-items:center}
+  .sys svg{width:12px;height:12px;stroke:var(--teal-d);stroke-width:3;fill:none;stroke-linecap:round;stroke-linejoin:round}
+
+  .react{max-width:1120px; margin:0 auto; padding:6px 40px 44px; display:flex; align-items:center; gap:14px; flex-wrap:wrap}
+  .react .q{font-size:13px; color:var(--muted); margin-right:6px}
+  .react button.rb{cursor:pointer; background:var(--surface); border:1px solid var(--line2); color:var(--ink2); padding:9px 16px; border-radius:10px; font-size:13px; font-family:inherit; transition:.3s}
+  .react button.rb:hover{border-color:var(--teal); color:var(--teal-d)}
+
+  @media(max-width:860px){
+    .sec{grid-template-columns:1fr; gap:40px; padding:54px 22px 44px; text-align:center}
+    .kicker,.chans,.caps{justify-content:center}
+    .cap{text-align:left}
+    .lead{margin-left:auto; margin-right:auto}
+    .stage{order:2}
+    .react{padding:6px 22px 40px; justify-content:center}
+  }
+</style>
+</head>
+<body>
+  <section class="sec">
+    <div class="copy">
+      <div class="kicker"><span class="dot"></span>El agente de IA</div>
+      <h2>Responde por ti, <em>día y noche</em>.</h2>
+      <p class="lead">Un agente con inteligencia artificial atiende a tus invitados como lo harías tú: confirma, resuelve dudas y mantiene tu lista al día. Sin que muevas un dedo.</p>
+      <div class="caps">
+        <div class="cap"><span class="ck"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></span><span>Confirma asistencia y <b>acompañantes</b></span></div>
+        <div class="cap"><span class="ck"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></span><span>Responde dudas: <b>hora, lugar, código de vestimenta</b></span></div>
+        <div class="cap"><span class="ck"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></span><span>Registra <b>cambios y alergias</b> al instante</span></div>
+        <div class="cap"><span class="ck"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></span><span>Mantiene tu <b>lista actualizada</b>, sola</span></div>
+      </div>
+      <div class="chans">
+        <span class="chan"><span class="d"></span>WhatsApp</span>
+        <span class="chan soon">Instagram · pronto</span>
+        <span class="chan soon">Facebook · pronto</span>
+        <span class="chan soon">Telegram · pronto</span>
+      </div>
+    </div>
+
+    <div class="stage">
+      <div class="glow"></div>
+      <div class="phone">
+        <div class="pbar">
+          <div class="pav"></div>
+          <div><div class="who">Agente Anfiora</div><div class="st">en línea</div></div>
+          <span class="via">vía WhatsApp</span>
+        </div>
+        <div class="pbody" id="body"></div>
+      </div>
+    </div>
+  </section>
+
+  <div class="react">
+    <span class="q">¿La sección del agente comunica bien el diferenciador?</span>
+    <button class="rb" onclick="toggleSelect && toggleSelect(this)">Sí, me gusta</button>
+    <button class="rb" onclick="toggleSelect && toggleSelect(this)">Ajustar el chat</button>
+    <button class="rb" onclick="toggleSelect && toggleSelect(this)">Ajustar textos</button>
+    <button class="rb" onclick="toggleSelect && toggleSelect(this)">Otro detalle</button>
+  </div>
+
+<script>
+  const body=document.getElementById('body');
+  const CHECK='<svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>';
+  const steps=[
+    {ai:false, t:'Hola, ¿a qué hora es la ceremonia?'},
+    {ai:true,  t:'La ceremonia es a las 6:00 pm en el Jardín Norte. ¿Confirmo tu lugar?'},
+    {ai:false, t:'Sí, vamos 2 😊'},
+    {ai:true,  t:'¡Listo! Te confirmé a ti +1. ¿Alguna alergia que deba anotar?', tag:'Respondido por IA'},
+    {ai:false, t:'Mi pareja es vegetariana'},
+    {ai:true,  t:'Anotado: menú vegetariano para 1. ¡Los esperamos!'},
+    {sys:'Lista actualizada · +2 confirmados · 1 nota'},
+  ];
+
+  function bubble(s){
+    const d=document.createElement('div');
+    if(s.sys){ d.className='sys'; d.innerHTML=CHECK+'<span>'+s.sys+'</span>'; }
+    else{ d.className='msg '+(s.ai?'ai':'me'); d.innerHTML=s.t+(s.tag?'<span class="tag">'+s.tag+'</span>':''); }
+    body.appendChild(d); body.scrollTop=body.scrollHeight;
+  }
+  function typing(){ const d=document.createElement('div'); d.className='typing'; d.id='typing'; d.innerHTML='<i></i><i></i><i></i>'; body.appendChild(d); body.scrollTop=body.scrollHeight; return d; }
+
+  function cycle(){
+    body.innerHTML='';
+    let delay=400;
+    steps.forEach((s)=>{
+      if(s.ai){
+        setTimeout(()=>{ const tp=typing(); }, delay);
+        delay+=950;
+        setTimeout(()=>{ const tp=document.getElementById('typing'); if(tp) tp.remove(); bubble(s); }, delay);
+        delay+=Math.min(2200, 700 + s.t.length*22);
+      } else if(s.sys){
+        delay+=300; setTimeout(()=>bubble(s), delay); delay+=600;
+      } else {
+        setTimeout(()=>bubble(s), delay); delay+=Math.min(1800, 600 + s.t.length*24);
+      }
+    });
+    setTimeout(cycle, delay+2800);
+  }
+  cycle();
+</script>
+</body>
+</html>

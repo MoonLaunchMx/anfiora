@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Anfiora — Sección 3 v4</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Josefin+Sans:wght@600;700&display=swap" rel="stylesheet">
+<link href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700,900&f[]=general-sans@300,400,500,600,700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#fbfaf7; --cream:#f4efe7; --surface:#ffffff;
+    --ink:#1D1E20; --ink2:#585957; --muted:#9a9a96; --faint:#c4c2bb;
+    --teal:#48C9B0; --teal-d:#0F6E56; --teal-deep:#0b4e3d;
+    --mint:#eef9f5; --mint-2:#e2f4ec; --mint-bd:#cdebe1;
+    --line:#ebe6dd; --line2:#e0dbd1;
+    --display:'Satoshi',sans-serif; --body:'General Sans',sans-serif;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:var(--bg); color:var(--ink); font-family:var(--body); overflow-x:hidden; -webkit-font-smoothing:antialiased}
+
+  .sec{position:relative; max-width:1200px; margin:0 auto; padding:64px 40px 52px}
+  .sec::before{content:""; position:absolute; top:-40px; left:50%; transform:translateX(-50%);
+    width:680px; height:340px; background:radial-gradient(60% 60% at 50% 0%, rgba(72,201,176,.10), transparent 70%); pointer-events:none}
+
+  .head{position:relative; max-width:760px; margin:0 auto 30px; text-align:center}
+  .kicker{display:inline-flex; align-items:center; gap:8px; font-size:11px; letter-spacing:.26em; text-transform:uppercase;
+    color:var(--teal-d); font-weight:600; margin-bottom:16px}
+  .kicker::before,.kicker::after{content:""; width:22px; height:1px; background:var(--mint-bd)}
+  h2{font-family:var(--display); font-weight:700; font-size:clamp(28px,3.6vw,42px); line-height:1.1; letter-spacing:-.025em; color:var(--ink)}
+  h2 em{font-style:italic; font-weight:500; color:var(--teal-d)}
+
+  /* segmented categories */
+  .seg{display:inline-flex; padding:4px; gap:3px; background:var(--surface); border:1px solid var(--line);
+    border-radius:100px; box-shadow:0 6px 20px rgba(27,28,30,.05)}
+  .segwrap{display:flex; justify-content:center; margin:24px 0 16px}
+  .seg button{position:relative; z-index:1; cursor:pointer; border:none; background:none; font-family:inherit;
+    font-size:13.5px; font-weight:600; color:var(--ink2); padding:9px 22px; border-radius:100px; transition:color .3s}
+  .seg button.active{color:var(--teal-deep)}
+  .seg .pill{position:absolute; z-index:0; top:4px; bottom:4px; border-radius:100px;
+    background:var(--mint-2); transition:left .4s cubic-bezier(.22,1,.36,1), width .4s cubic-bezier(.22,1,.36,1)}
+
+  .subs{display:flex; justify-content:center; gap:7px; flex-wrap:wrap; margin:0 auto 30px; max-width:640px; min-height:26px}
+  .sub{font-size:11.5px; color:var(--ink2); background:transparent; border:1px solid var(--line2); padding:5px 13px; border-radius:100px;
+    transition:.2s; animation:subin .4s both}
+  .sub:hover{border-color:var(--mint-bd); color:var(--teal-d)}
+  @keyframes subin{from{opacity:0; transform:translateY(6px)}to{opacity:1; transform:translateY(0)}}
+
+  /* accordion */
+  .acc{display:flex; gap:12px; height:340px}
+  .panel{position:relative; flex:1 1 0; min-width:62px; height:100%; border-radius:20px; cursor:pointer; overflow:hidden;
+    background:var(--surface); border:1px solid var(--line);
+    transition:flex-grow .55s cubic-bezier(.22,1,.36,1), box-shadow .5s, border-color .5s, background .5s}
+  .panel:not(.active):hover{border-color:var(--mint-bd); background:#fcfdfc}
+
+  .pin{position:absolute; inset:0; padding:20px; display:flex; flex-direction:column; align-items:center}
+  .num{font-family:var(--display); font-weight:600; font-size:12px; color:var(--faint); letter-spacing:.02em}
+  .ic{width:42px; height:42px; border-radius:13px; display:grid; place-items:center; margin-top:16px;
+    background:var(--mint); color:var(--teal-d); transition:.5s; box-shadow:inset 0 0 0 1px var(--mint-bd)}
+  .vlabel{margin-top:auto; writing-mode:vertical-rl; transform:rotate(180deg); white-space:nowrap;
+    text-transform:uppercase; letter-spacing:.16em; font-size:11px; font-weight:600; color:var(--muted); transition:opacity .3s}
+
+  .full{position:absolute; inset:0; padding:30px 32px; opacity:0; pointer-events:none;
+    display:flex; flex-direction:column; transition:opacity .45s .12s}
+  .full .topline{display:flex; align-items:center; justify-content:space-between}
+  .full .ic{margin-top:0}
+  .full .num{color:var(--teal-d); opacity:.55}
+  .full h3{font-family:var(--display); font-weight:600; font-size:24px; letter-spacing:-.02em; color:var(--ink); margin-top:auto}
+  .full h3::after{content:""; display:block; width:34px; height:3px; border-radius:3px; background:var(--teal); margin-top:14px}
+  .full p{font-size:15px; line-height:1.55; color:var(--ink2); margin-top:14px; max-width:360px}
+  .ghost{position:absolute; right:-26px; bottom:-30px; width:200px; height:200px; color:var(--teal); opacity:.06; pointer-events:none}
+  .ghost svg{width:100%; height:100%}
+  .badge{position:absolute; top:18px; right:18px; z-index:2; font-size:9.5px; font-weight:700; letter-spacing:.06em; text-transform:uppercase;
+    color:var(--teal-d); background:var(--mint-2); border:1px solid var(--mint-bd); padding:4px 10px; border-radius:100px}
+
+  .panel.active{flex-grow:7; background:linear-gradient(150deg,#ffffff 0%, var(--mint) 100%);
+    border-color:var(--mint-bd); box-shadow:0 22px 54px rgba(15,110,86,.14)}
+  .panel.active .ic{background:#fff; color:var(--teal-d); box-shadow:inset 0 0 0 1px var(--mint-bd), 0 6px 16px rgba(72,201,176,.18)}
+  .panel.active .pin{opacity:0}
+  .panel.active .full{opacity:1}
+
+  .icn{width:23px;height:23px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+
+  .react{max-width:1200px; margin:0 auto; padding:24px 40px 44px; display:flex; align-items:center; gap:14px; flex-wrap:wrap}
+  .react .q{font-size:13px; color:var(--muted); margin-right:6px}
+  .react button.rb{cursor:pointer; background:var(--surface); border:1px solid var(--line2); color:var(--ink2);
+    padding:9px 16px; border-radius:10px; font-size:13px; font-family:inherit; transition:.3s}
+  .react button.rb:hover{border-color:var(--teal); color:var(--teal-d)}
+
+  @media(max-width:760px){
+    .sec{padding:48px 20px 34px}
+    .acc{flex-direction:column; height:auto; gap:10px}
+    .panel{flex:none; min-width:0}
+    .pin{position:static; flex-direction:row; align-items:center; gap:14px; padding:16px 18px}
+    .pin .ic{margin-top:0}
+    .pin .num{order:3; margin-left:auto}
+    .vlabel{writing-mode:horizontal-tb; transform:none; margin:0; letter-spacing:.04em; font-size:14px; color:var(--ink); text-transform:none}
+    .full{position:relative; inset:auto; padding:0 18px 18px; max-height:0; overflow:hidden; opacity:1; transition:max-height .45s}
+    .full .topline{display:none}
+    .full h3{display:none}
+    .full p{margin-top:0}
+    .panel.active .pin{opacity:1}
+    .panel.active .full{max-height:160px; padding-top:4px}
+    .ghost{display:none}
+    .react{padding:24px 20px 40px; justify-content:center}
+  }
+</style>
+</head>
+<body>
+  <section class="sec">
+    <div class="head">
+      <div class="kicker">La plataforma</div>
+      <h2>Para cada evento, <em>todo en su lugar</em>.</h2>
+    </div>
+
+    <div class="segwrap">
+      <div class="seg" id="seg"><span class="pill" id="pill"></span></div>
+    </div>
+    <div class="subs" id="subs"></div>
+    <div class="acc" id="acc"></div>
+  </section>
+
+  <div class="react">
+    <span class="q">¿Ahora sí se siente premium y el teal más amigable?</span>
+    <button class="rb" onclick="toggleSelect && toggleSelect(this)">Sí, mucho mejor</button>
+    <button class="rb" onclick="toggleSelect && toggleSelect(this)">Casi, ajuste fino</button>
+    <button class="rb" onclick="toggleSelect && toggleSelect(this)">Otra dirección</button>
+  </div>
+
+<script>
+  const I={
+    ai:'<circle cx="12" cy="12" r="3.2"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/>',
+    users:'<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+    qr:'<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3M21 14v7h-7"/>',
+    photo:'<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/>',
+    music:'<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>',
+    table:'<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/>',
+    gift:'<polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/>',
+    money:'<line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>',
+    vendor:'<path d="M20 7h-9M14 17H5"/><circle cx="17" cy="17" r="3"/><circle cx="7" cy="7" r="3"/>',
+    cal:'<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 10h18M8 2v4M16 2v4"/>',
+  };
+  const M={
+    ai:{t:'Agente de IA', d:'Confirma invitados, resuelve dudas y mantiene tu lista al día — solo, en cada canal.', i:'ai'},
+    invitados:{t:'Invitados', d:'Tu lista viva: confirma, agrupa y da seguimiento sin perseguir a nadie.', i:'users'},
+    checkin:{t:'Check-in con QR', d:'Genera un código QR y registra el acceso de cada invitado al llegar.', i:'qr', badge:'Pronto'},
+    album:{t:'Álbum con QR', d:'Las fotos de todos, juntas en un álbum, sin perderse en el chat.', i:'photo'},
+    playlist:{t:'Playlist', d:'Tus invitados eligen las canciones y tú llegas con la lista lista.', i:'music'},
+    mesas:{t:'Acomodo de mesas', d:'Arrastra y acomoda a tus invitados en segundos.', i:'table'},
+    regalos:{t:'Mesa de regalos', d:'Tu propia mesa: sin comisiones y sin regalos repetidos.', i:'gift'},
+    finanzas:{t:'Presupuesto y pagos', d:'Conectados: cada pago actualiza tu presupuesto al instante.', i:'money'},
+    proveedores:{t:'Proveedores', d:'Cotizaciones, contratos y reseñas — cada proveedor en su lugar.', i:'vendor'},
+    registro:{t:'Registro de asistentes', d:'Altas, control de cupo y seguimiento, todo en un lugar.', i:'users'},
+    logistica:{t:'Logística y tiempos', d:'Agenda y montaje que todo tu equipo puede consultar.', i:'cal'},
+  };
+  const CATS=[
+    {label:'Sociales', subs:['Bodas','XV años','Cumpleaños','Graduaciones','Bautizos','Fiestas','Despedidas','Otros'],
+      keys:['ai','invitados','checkin','album','playlist','mesas','regalos','finanzas','proveedores']},
+    {label:'Corporativos', subs:['Conferencias','Capacitaciones','Team building','Lanzamientos','Asambleas'],
+      keys:['ai','registro','checkin','album','logistica','finanzas','proveedores']},
+    {label:'Impacto', subs:['Galas benéficas','Recaudaciones','Voluntariados','Causas'],
+      keys:['ai','invitados','checkin','album','regalos','finanzas','proveedores']},
+  ];
+
+  const segEl=document.getElementById('seg'), pillEl=document.getElementById('pill'),
+        subsEl=document.getElementById('subs'), accEl=document.getElementById('acc');
+  let cat=0, activeKey='ai', segBtns=[];
+
+  function buildSeg(){
+    CATS.forEach((c,i)=>{
+      const b=document.createElement('button'); b.className=i===cat?'active':''; b.textContent=c.label;
+      b.onclick=()=>{cat=i; if(!CATS[cat].keys.includes(activeKey)) activeKey=CATS[cat].keys[0]; renderAll();};
+      segEl.appendChild(b); segBtns.push(b);
+    });
+  }
+  function movePill(){
+    const b=segBtns[cat];
+    pillEl.style.left=b.offsetLeft+'px'; pillEl.style.width=b.offsetWidth+'px';
+    segBtns.forEach((x,i)=>x.className=i===cat?'active':'');
+  }
+  function renderAll(){
+    movePill();
+    subsEl.innerHTML='';
+    CATS[cat].subs.forEach((s,i)=>{ const e=document.createElement('span'); e.className='sub'; e.style.animationDelay=(i*0.03)+'s'; e.textContent=s; subsEl.appendChild(e); });
+    accEl.innerHTML='';
+    CATS[cat].keys.forEach((k,idx)=>{
+      const m=M[k];
+      const num=String(idx+1).padStart(2,'0');
+      const p=document.createElement('div'); p.className='panel'+(k===activeKey?' active':'');
+      p.innerHTML=
+        (m.badge?'<span class="badge">'+m.badge+'</span>':'')+
+        '<div class="pin"><span class="num">'+num+'</span><div class="ic"><svg class="icn" viewBox="0 0 24 24">'+I[m.i]+'</svg></div><div class="vlabel">'+m.t+'</div></div>'+
+        '<div class="full"><div class="topline"><div class="ic"><svg class="icn" viewBox="0 0 24 24">'+I[m.i]+'</svg></div><span class="num">'+num+'</span></div>'+
+        '<h3>'+m.t+'</h3><p>'+m.d+'</p>'+
+        '<div class="ghost"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">'+I[m.i]+'</svg></div></div>';
+      p.onclick=()=>{ activeKey=k; renderAll(); };
+      p.onmouseenter=()=>{ if(window.innerWidth>760 && activeKey!==k){ activeKey=k; renderAll(); } };
+      accEl.appendChild(p);
+    });
+  }
+  buildSeg(); renderAll();
+  window.addEventListener('resize', movePill);
+</script>
+</body>
+</html>

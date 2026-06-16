@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Anfiora — Sección 3 v2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Josefin+Sans:wght@600;700&display=swap" rel="stylesheet">
+<link href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700,900&f[]=general-sans@300,400,500,600,700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#fbfaf7; --cream:#f6f1e9; --surface:#ffffff;
+    --ink:#1D1E20; --ink2:#555657; --muted:#8c8d8f; --faint:#b9b6b0;
+    --teal:#48C9B0; --teal-d:#0F6E56; --teal-soft:#e3f6f0;
+    --line:#ece8e0; --line2:#e0e0e0;
+    --display:'Satoshi',sans-serif; --body:'General Sans',sans-serif;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:var(--bg); color:var(--ink); font-family:var(--body); overflow-x:hidden; -webkit-font-smoothing:antialiased}
+
+  .sec{max-width:1180px; margin:0 auto; padding:56px 40px 50px}
+  .head{text-align:center; max-width:680px; margin:0 auto 22px}
+  .eyebrow{display:inline-flex; align-items:center; gap:9px; font-size:11px; letter-spacing:.22em;
+    text-transform:uppercase; color:var(--teal-d); font-weight:600; margin-bottom:12px}
+  .eyebrow .dot{width:6px; height:6px; border-radius:50%; background:var(--teal); box-shadow:0 0 10px var(--teal)}
+  h2{font-family:var(--display); font-weight:700; font-size:clamp(26px,3.4vw,40px); line-height:1.12; letter-spacing:-.02em; color:var(--ink)}
+  h2 em{font-style:normal; color:var(--teal-d)}
+  .head p{font-size:15.5px; color:var(--muted); margin-top:10px}
+
+  .types{display:flex; justify-content:center; gap:8px; flex-wrap:wrap; margin-bottom:26px}
+  .type{cursor:pointer; background:transparent; border:1px solid var(--line2); color:var(--ink2);
+    padding:8px 16px; border-radius:100px; font-size:13px; font-family:inherit; font-weight:500; transition:.25s}
+  .type:hover{border-color:var(--teal)}
+  .type.active{background:var(--teal-soft); border-color:var(--teal); color:var(--teal-d); font-weight:600}
+
+  .bento{display:grid; grid-template-columns:repeat(4,1fr); grid-auto-rows:118px; gap:13px}
+  .card{position:relative; cursor:pointer; background:var(--surface); border:1px solid var(--line); border-radius:16px; padding:16px; overflow:hidden;
+    box-shadow:0 8px 24px rgba(27,28,30,.05); transition:background .35s, color .35s, border-color .35s, box-shadow .35s, transform .25s}
+  .card:hover{transform:translateY(-2px); border-color:#d8efe8}
+  .ic{width:36px; height:36px; border-radius:10px; display:grid; place-items:center; margin-bottom:10px;
+    background:var(--teal-soft); color:var(--teal-d); transition:.35s}
+  .card h3{font-size:14px; font-weight:600; color:var(--ink); transition:color .35s}
+  .desc{font-size:12.5px; line-height:1.45; color:var(--ink2); margin-top:6px; opacity:0; max-height:0; transition:opacity .35s, max-height .35s}
+  .badge{position:absolute; top:14px; right:14px; font-size:9.5px; font-weight:700; letter-spacing:.04em; text-transform:uppercase;
+    color:var(--teal-d); background:var(--teal-soft); border:1px solid #cdeee5; padding:3px 8px; border-radius:100px; transition:.35s}
+
+  .card.active{grid-column:span 2; background:var(--teal); border-color:var(--teal); box-shadow:0 18px 44px rgba(72,201,176,.38)}
+  .card.active .ic{background:rgba(255,255,255,.22); color:#fff}
+  .card.active h3{color:#fff; font-size:16px}
+  .card.active .desc{opacity:1; max-height:80px; color:rgba(255,255,255,.94)}
+  .card.active .badge{color:#fff; background:rgba(255,255,255,.18); border-color:rgba(255,255,255,.3)}
+
+  .icn{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+
+  .react{max-width:1180px; margin:0 auto; padding:20px 40px 44px; display:flex; align-items:center; gap:14px; flex-wrap:wrap}
+  .react .q{font-size:13px; color:var(--muted); margin-right:6px}
+  .react button.rb{cursor:pointer; background:var(--surface); border:1px solid var(--line2); color:var(--ink2);
+    padding:9px 16px; border-radius:10px; font-size:13px; font-family:inherit; transition:.3s}
+  .react button.rb:hover{border-color:var(--teal); color:var(--teal)}
+
+  @media(max-width:900px){
+    .sec{padding:46px 24px 34px}
+    .bento{grid-template-columns:repeat(2,1fr); grid-auto-rows:120px}
+    .card.active{grid-column:span 2}
+    .react{padding:20px 24px 40px; justify-content:center}
+  }
+  @media(max-width:560px){
+    .bento{grid-template-columns:1fr; grid-auto-rows:auto}
+    .card,.card.active{grid-column:auto; min-height:96px}
+    .card.active .desc{max-height:120px}
+  }
+</style>
+</head>
+<body>
+  <section class="sec">
+    <div class="head">
+      <div class="eyebrow"><span class="dot"></span>La plataforma</div>
+      <h2>Todo tu evento, <em>en calma</em>.</h2>
+      <p>Toca cada herramienta para verla. Lo que antes eran diez apps, ahora en un solo lugar.</p>
+    </div>
+
+    <div class="types" id="types"></div>
+    <div class="bento" id="bento"></div>
+  </section>
+
+  <div class="react">
+    <span class="q">¿Compacto + clic para ampliar en teal + tipos de evento?</span>
+    <button class="rb" onclick="toggleSelect && toggleSelect(this)">Sí, me gusta</button>
+    <button class="rb" onclick="toggleSelect && toggleSelect(this)">Ajustar layout</button>
+    <button class="rb" onclick="toggleSelect && toggleSelect(this)">Ajustar herramientas/textos</button>
+    <button class="rb" onclick="toggleSelect && toggleSelect(this)">Otro detalle</button>
+  </div>
+
+<script>
+  const I={
+    ai:'<circle cx="12" cy="12" r="3.2"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/>',
+    users:'<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+    qr:'<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3M21 14v7h-7"/>',
+    photo:'<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/>',
+    music:'<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>',
+    table:'<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/>',
+    gift:'<polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/>',
+    money:'<line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>',
+    vendor:'<path d="M20 7h-9M14 17H5"/><circle cx="17" cy="17" r="3"/><circle cx="7" cy="7" r="3"/>',
+    cal:'<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 10h18M8 2v4M16 2v4"/>',
+  };
+  const M={
+    ai:{t:'Agente de IA', d:'Confirma invitados, resuelve dudas y mantiene tu lista al día — solo, en cada canal.', i:'ai'},
+    invitados:{t:'Invitados y confirmaciones', d:'Tu lista viva: confirma, agrupa y da seguimiento sin perseguir a nadie.', i:'users'},
+    checkin:{t:'Check-in con QR', d:'Genera un código QR y registra el acceso de cada invitado al llegar.', i:'qr', badge:'Pronto'},
+    album:{t:'Álbum con QR', d:'Las fotos de todos, juntas en un álbum, sin perderse en el chat.', i:'photo'},
+    playlist:{t:'Playlist colaborativa', d:'Tus invitados eligen las canciones y tú llegas con la lista lista.', i:'music'},
+    mesas:{t:'Acomodo de mesas', d:'Arrastra y acomoda a tus invitados en segundos.', i:'table'},
+    regalos:{t:'Mesa de regalos', d:'Tu propia mesa: sin comisiones y sin regalos repetidos.', i:'gift'},
+    finanzas:{t:'Presupuesto y pagos', d:'Conectados: cada pago actualiza tu presupuesto al instante. Adiós Excel.', i:'money'},
+    proveedores:{t:'Proveedores', d:'Cotizaciones, contratos y reseñas — cada proveedor en su lugar.', i:'vendor'},
+    registro:{t:'Registro de asistentes', d:'Altas y seguimiento de asistentes, todo en un solo lugar.', i:'users'},
+    logistica:{t:'Logística y tiempos', d:'Agenda y montaje que todo tu equipo puede consultar.', i:'cal'},
+  };
+  const TYPES=[
+    {label:'Boda', keys:['ai','invitados','checkin','album','playlist','mesas','regalos','finanzas','proveedores']},
+    {label:'XV años', keys:['ai','invitados','checkin','album','playlist','mesas','regalos','finanzas','proveedores']},
+    {label:'Bautizo', keys:['ai','invitados','checkin','album','mesas','regalos','finanzas','proveedores']},
+    {label:'Evento corporativo', keys:['ai','registro','checkin','album','logistica','finanzas','proveedores']},
+  ];
+
+  const typesEl=document.getElementById('types'), bentoEl=document.getElementById('bento');
+  let et=0, activeKey='ai';
+
+  function render(){
+    typesEl.innerHTML='';
+    TYPES.forEach((t,i)=>{
+      const b=document.createElement('button'); b.className='type'+(i===et?' active':''); b.textContent=t.label;
+      b.onclick=()=>{et=i; if(!TYPES[et].keys.includes(activeKey)) activeKey=TYPES[et].keys[0]; render();};
+      typesEl.appendChild(b);
+    });
+    bentoEl.innerHTML='';
+    TYPES[et].keys.forEach(k=>{
+      const m=M[k];
+      const c=document.createElement('div'); c.className='card'+(k===activeKey?' active':'');
+      c.innerHTML='<div class="ic"><svg class="icn" viewBox="0 0 24 24">'+I[m.i]+'</svg></div>'+
+                  (m.badge?'<span class="badge">'+m.badge+'</span>':'')+
+                  '<h3>'+m.t+'</h3><div class="desc">'+m.d+'</div>';
+      c.onclick=()=>{ activeKey = (activeKey===k? null : k); render(); };
+      bentoEl.appendChild(c);
+    });
+  }
+  render();
+</script>
+</body>
+</html>

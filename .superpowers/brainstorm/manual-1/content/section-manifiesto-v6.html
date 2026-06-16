@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Anfiora — Sección 2 v6</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Josefin+Sans:wght@600;700&display=swap" rel="stylesheet">
+<link href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700,900&f[]=general-sans@300,400,500,600,700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#fbfaf7; --cream:#f6f1e9; --surface:#ffffff;
+    --ink:#1D1E20; --ink2:#555657; --muted:#8c8d8f; --faint:#b9b6b0;
+    --red-bg:#fdf1f1; --red-bd:#f6d6d6; --red-tx:#b14a4a;
+    --teal:#48C9B0; --teal-d:#0F6E56; --teal-soft:#e3f6f0;
+    --line:#ece8e0; --line2:#e0e0e0;
+    --display:'Satoshi',sans-serif; --body:'General Sans',sans-serif;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:var(--bg); color:var(--ink); font-family:var(--body); overflow-x:hidden; -webkit-font-smoothing:antialiased}
+
+  .sec{max-width:1200px; margin:0 auto; padding:80px 40px 50px}
+  .head{text-align:center; max-width:680px; margin:0 auto 48px}
+  h2{font-family:var(--display); font-weight:700; font-size:clamp(30px,4vw,46px); line-height:1.12;
+    letter-spacing:-.02em; color:var(--ink)}
+  .head p{font-size:16px; color:var(--muted); margin-top:12px}
+
+  .grid{display:grid; grid-template-columns:1fr 1fr; gap:48px; align-items:center}
+
+  /* LEFT animation */
+  .stage{position:relative; height:440px; cursor:pointer; user-select:none}
+  .field{position:absolute; inset:0; transform-origin:center}
+  .hub{position:absolute; top:50%; left:50%; width:138px; height:138px; margin:-69px 0 0 -69px;
+    border-radius:50%; background:#ffffff; border:1px solid var(--line); display:grid; place-items:center; z-index:4; text-align:center;
+    box-shadow:0 16px 44px rgba(27,28,30,.10); transition:transform .8s cubic-bezier(.16,1,.3,1), box-shadow .8s}
+  .hub .iso{width:66px; height:66px; opacity:0; transform:scale(.5); transition:opacity .5s .1s, transform .6s .1s cubic-bezier(.16,1,.3,1)}
+  .hub .all{font-size:9px; letter-spacing:.2em; text-transform:uppercase; color:var(--teal-d); margin-top:3px; opacity:0; transition:opacity .5s .25s}
+  .hub .seed{position:absolute; width:8px; height:8px; border-radius:50%; background:var(--line2); transition:opacity .35s}
+  .ring{position:absolute; top:50%; left:50%; width:138px; height:138px; margin:-69px 0 0 -69px;
+    border-radius:50%; border:1px solid var(--teal); z-index:3; opacity:0;
+    transition:transform .8s cubic-bezier(.16,1,.3,1), opacity .8s}
+
+  .chip{position:absolute; top:50%; left:50%; display:flex; align-items:center; gap:9px;
+    background:var(--surface); border:1px solid var(--line2); border-radius:12px; padding:8px 12px; z-index:2;
+    box-shadow:0 8px 22px rgba(27,28,30,.08);
+    transform:translate(calc(-50% + var(--x)), calc(-50% + var(--y)));
+    transition:transform .9s cubic-bezier(.5,0,.2,1), opacity .7s, filter .7s; filter:grayscale(.5)}
+  .chip i{width:9px; height:9px; border-radius:3px; background:var(--c, var(--teal)); flex-shrink:0}
+  .chip .ct{display:flex; flex-direction:column; line-height:1.2; text-align:left}
+  .chip .t{font-weight:600; color:var(--ink); font-size:12px}
+  .chip .s{font-size:10.5px; color:var(--muted)}
+
+  .stage.collapsed .chip{transform:translate(-50%,-50%) scale(.18); opacity:0; filter:grayscale(0)}
+  .stage.collapsed .hub{transform:scale(1.1); box-shadow:0 22px 60px rgba(72,201,176,.42)}
+  .stage.collapsed .iso{opacity:1; transform:scale(1)}
+  .stage.collapsed .all{opacity:1}
+  .stage.collapsed .seed{opacity:0}
+  .stage.collapsed .ring{opacity:1; transform:scale(1.7)}
+  .stage.collapsed .ring.r2{transform:scale(2.3); transition-delay:.07s}
+
+  .tapcue{position:absolute; bottom:0; left:50%; transform:translateX(-50%);
+    display:inline-flex; align-items:center; gap:7px; font-size:11.5px; color:var(--teal-d);
+    background:var(--teal-soft); border:1px solid #cdeee5; padding:6px 13px; border-radius:100px; transition:opacity .4s}
+  .tapcue b{font-weight:600}
+  .stage.collapsed .tapcue .a{display:none}
+  .stage:not(.collapsed) .tapcue .b{display:none}
+
+  /* RIGHT tabs + pain */
+  .tabs{display:flex; flex-wrap:wrap; gap:8px; margin-bottom:18px}
+  .tab{cursor:pointer; background:var(--surface); border:1px solid var(--line2); color:var(--ink2);
+    padding:8px 14px; border-radius:100px; font-size:13px; font-family:inherit; font-weight:500; transition:.25s}
+  .tab:hover{border-color:var(--teal)}
+  .tab.active{background:var(--ink); color:#fff; border-color:var(--ink)}
+
+  .panel{background:var(--surface); border:1px solid var(--line); border-radius:18px; padding:28px;
+    box-shadow:0 14px 40px rgba(27,28,30,.06); min-height:170px; display:flex; flex-direction:column; justify-content:center}
+  .ph{font-family:var(--display); font-size:21px; font-weight:600; color:var(--ink); margin-bottom:10px}
+  .pd{font-size:15.5px; line-height:1.55; color:var(--ink2)}
+  .price{align-self:flex-start; margin-top:18px; font-size:12px; font-weight:600;
+    color:var(--red-tx); background:var(--red-bg); border:1px solid var(--red-bd); padding:4px 12px; border-radius:100px}
+  .price.free{color:var(--muted); background:var(--cream); border-color:var(--line2)}
+
+  /* CTA */
+  .cta{text-align:center; margin-top:56px; padding-top:44px; border-top:1px solid var(--line)}
+  .cta h3{font-family:var(--display); font-weight:700; font-size:clamp(22px,2.6vw,30px); color:var(--ink); letter-spacing:-.01em}
+  .cta-row{display:flex; gap:14px; justify-content:center; flex-wrap:wrap; margin-top:22px}
+  .btn-primary{cursor:pointer; border:none; background:var(--teal); color:#fff; font-weight:600; font-size:16px;
+    font-family:var(--body); padding:14px 30px; border-radius:12px; box-shadow:0 4px 16px rgba(72,201,176,.35); transition:background .3s}
+  .btn-primary:hover{background:#3ab89f}
+  .btn-secondary{cursor:pointer; background:var(--surface); border:1px solid var(--line2); color:var(--ink2);
+    font-size:16px; font-family:var(--body); padding:14px 30px; border-radius:12px; transition:.3s}
+  .btn-secondary:hover{border-color:var(--teal); color:var(--teal)}
+
+  .react{max-width:1200px; margin:0 auto; padding:14px 40px 44px;
+    display:flex; align-items:center; gap:14px; flex-wrap:wrap}
+  .react .q{font-size:13px; color:var(--muted); margin-right:6px}
+  .react button.rb{cursor:pointer; background:var(--surface); border:1px solid var(--line2); color:var(--ink2);
+    padding:9px 16px; border-radius:10px; font-size:13px; font-family:inherit; transition:.3s}
+  .react button.rb:hover{border-color:var(--teal); color:var(--teal)}
+
+  @media(max-width:900px){
+    .sec{padding:56px 24px 40px}
+    .head{margin-bottom:32px}
+    .grid{grid-template-columns:1fr; gap:20px}
+    .stage{height:400px; order:1}
+    .right{order:2}
+    .field{transform:scale(.86)}
+    .cta{margin-top:40px; padding-top:36px}
+    .react{padding:14px 24px 40px; justify-content:center}
+  }
+  @media(max-width:560px){
+    .stage{height:340px}
+    .field{transform:scale(.62)}
+    .panel{padding:22px}
+    .ph{font-size:19px}
+    .cta-row .btn-primary, .cta-row .btn-secondary{width:100%}
+  }
+</style>
+</head>
+<body>
+  <section class="sec">
+    <div class="head">
+      <h2>Por qué Anfiora</h2>
+      <p>Así se organiza un evento hoy.</p>
+    </div>
+
+    <div class="grid">
+      <!-- LEFT animation -->
+      <div class="stage collapsed" id="stage">
+        <div class="field">
+          <div class="ring"></div>
+          <div class="ring r2"></div>
+          <div class="hub">
+            <span class="seed"></span>
+            <div>
+              <img class="iso" src="isotipo.svg" alt="Anfiora">
+              <div class="all">todo en uno</div>
+            </div>
+          </div>
+
+          <div class="chip" style="--x:-152px;--y:-120px;--c:#e06b6b"><i></i><div class="ct"><span class="t">Invitaciones</span><span class="s">hasta $1,200</span></div></div>
+          <div class="chip" style="--x:152px;--y:-128px;--c:#6b8be0"><i></i><div class="ct"><span class="t">Galería de fotos</span><span class="s">hasta $2,000</span></div></div>
+          <div class="chip" style="--x:0px;--y:-176px;--c:#48C9B0"><i></i><div class="ct"><span class="t">Proveedores</span><span class="s">notas</span></div></div>
+          <div class="chip" style="--x:-194px;--y:6px;--c:#c77dff"><i></i><div class="ct"><span class="t">Mesa de regalos</span><span class="s">hasta $7,000</span></div></div>
+          <div class="chip" style="--x:190px;--y:6px;--c:#1DB954"><i></i><div class="ct"><span class="t">Playlist</span><span class="s">horas</span></div></div>
+          <div class="chip" style="--x:-150px;--y:120px;--c:#e08a3c"><i></i><div class="ct"><span class="t">Presupuesto</span><span class="s">Excel</span></div></div>
+          <div class="chip" style="--x:150px;--y:124px;--c:#2a9d8f"><i></i><div class="ct"><span class="t">Pagos</span><span class="s">Excel</span></div></div>
+          <div class="chip" style="--x:0px;--y:178px;--c:#d4a853"><i></i><div class="ct"><span class="t">Acomodo de mesas</span><span class="s">Excel y papel</span></div></div>
+        </div>
+        <div class="tapcue"><span class="a">Haz clic para <b>ver cómo es hoy</b></span><span class="b">Haz clic para <b>reunir todo</b></span></div>
+      </div>
+
+      <!-- RIGHT tabs -->
+      <div class="right">
+        <div class="tabs" id="tabs"></div>
+        <div class="panel">
+          <div class="ph" id="pHead">—</div>
+          <div class="pd" id="pDesc">—</div>
+          <span class="price" id="pPrice">—</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="cta">
+      <h3>Todo esto, en un solo lugar.</h3>
+      <div class="cta-row">
+        <button class="btn-primary" onclick="toggleSelect && toggleSelect(this)">Ver planes</button>
+        <button class="btn-secondary">Iniciar sesión</button>
+      </div>
+    </div>
+  </section>
+
+  <div class="react">
+    <span class="q">¿Más limpio y con CTA?</span>
+    <button class="rb" onclick="toggleSelect && toggleSelect(this)">Sí, va quedando</button>
+    <button class="rb" onclick="toggleSelect && toggleSelect(this)">Ajustar pains</button>
+    <button class="rb" onclick="toggleSelect && toggleSelect(this)">Ajustar el CTA</button>
+    <button class="rb" onclick="toggleSelect && toggleSelect(this)">Otro detalle</button>
+  </div>
+
+<script>
+  const stage=document.getElementById('stage');
+  stage.addEventListener('click', ()=> stage.classList.toggle('collapsed'));
+
+  const MODULES=[
+    {name:'Invitaciones', price:'hasta $1,200', free:false,
+      head:'Diseñar y confirmar, por tu cuenta',
+      desc:'Pagas por cada invitación y, encima, hay quien te cobra por confirmar a tus invitados uno por uno.'},
+    {name:'Galería de fotos', price:'hasta $2,000', free:false,
+      head:'Una app de fotos que nadie usa',
+      desc:'Contratas una galería con costo y, al final, las fotos acaban regadas en mil celulares.'},
+    {name:'Mesa de regalos', price:'hasta $7,000', free:false,
+      head:'Comisión por cada regalo',
+      desc:'Las plataformas externas cobran cuota o comisión, y aun así llegan regalos repetidos.'},
+    {name:'Playlist', price:'horas de tu tiempo', free:true,
+      head:'Canciones pedidas por WhatsApp',
+      desc:'Las juntas una por una o con un formulario, y armar la lista termina siendo eterno.'},
+    {name:'Acomodo de mesas', price:'Excel y papel', free:true,
+      head:'Mesas que mueves a mano',
+      desc:'Acomodas nombres en papel o en Excel, y vuelves a empezar cada vez que alguien cambia de planes.'},
+    {name:'Presupuesto', price:'Excel a mano', free:true,
+      head:'Un Excel que se rompe solo',
+      desc:'Lo mantienes a mano y, entre versiones por correo, nadie sabe cuál es la buena.'},
+    {name:'Pagos', price:'Excel a mano', free:true,
+      head:'¿Quién pagó qué?',
+      desc:'Otro Excel de abonos y saldos que, si no actualizas, pierdes de vista por completo.'},
+    {name:'Proveedores', price:'correo y notas', free:true,
+      head:'Información regada en todos lados',
+      desc:'Cotizaciones en el correo, contratos en WhatsApp y teléfonos en notas sueltas.'},
+  ];
+
+  const tabsEl=document.getElementById('tabs');
+  const pHead=document.getElementById('pHead'), pDesc=document.getElementById('pDesc'), pPrice=document.getElementById('pPrice');
+  let active=0;
+  function render(){
+    MODULES.forEach((m,i)=>{
+      const t=document.createElement('button');
+      t.className='tab'+(i===active?' active':''); t.textContent=m.name;
+      t.onclick=()=>{active=i; paint();};
+      tabsEl.appendChild(t);
+    });
+  }
+  function paint(){
+    [...tabsEl.children].forEach((t,i)=>t.classList.toggle('active', i===active));
+    const m=MODULES[active];
+    pHead.textContent=m.head; pDesc.textContent=m.desc;
+    pPrice.textContent=m.free?m.price:('Cuesta '+m.price);
+    pPrice.className='price'+(m.free?' free':'');
+  }
+  render(); paint();
+</script>
+</body>
+</html>

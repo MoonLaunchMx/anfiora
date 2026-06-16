@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Anfiora — Sección 2: Manifiesto</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Josefin+Sans:wght@600;700&display=swap" rel="stylesheet">
+<link href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700,900&f[]=general-sans@300,400,500,600,700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#fbfaf7; --cream:#f6f1e9; --surface:#ffffff;
+    --ink:#1D1E20; --ink2:#555657; --muted:#8c8d8f; --faint:#b9b6b0;
+    --teal:#48C9B0; --teal-d:#0F6E56; --teal-soft:#e3f6f0;
+    --line:#ece8e0; --line2:#e0e0e0;
+    --display:'Satoshi',sans-serif; --body:'General Sans',sans-serif;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:var(--bg); color:var(--ink); font-family:var(--body); overflow-x:hidden; -webkit-font-smoothing:antialiased}
+
+  .sec{position:relative; max-width:1200px; margin:0 auto; padding:90px 40px;
+    display:grid; grid-template-columns:1fr 1fr; gap:56px; align-items:center; min-height:100vh}
+
+  .label{display:inline-flex; align-items:center; gap:9px; font-size:11px; letter-spacing:.22em;
+    text-transform:uppercase; color:var(--teal-d); font-weight:600; margin-bottom:22px}
+  .label .dot{width:6px; height:6px; border-radius:50%; background:var(--teal); box-shadow:0 0 10px var(--teal)}
+  h2{font-family:var(--display); font-weight:700; font-size:clamp(30px,4vw,46px); line-height:1.12;
+    letter-spacing:-.02em; margin-bottom:8px; color:var(--muted)}
+  h2 .big{display:block; color:var(--ink); margin-top:2px}
+  h2 .big em{font-style:normal; color:var(--teal)}
+  .copy p{font-size:17px; line-height:1.65; color:var(--ink2); max-width:480px; margin-top:22px}
+  .copy p b{color:var(--ink); font-weight:600}
+  .chl{display:flex; gap:8px; flex-wrap:wrap; margin-top:26px}
+  .chl span{font-size:12.5px; color:var(--teal-d); background:var(--teal-soft); border:1px solid #cdeee5;
+    padding:6px 12px; border-radius:100px; font-weight:500}
+
+  /* ---- consolidation animation ---- */
+  .stage{position:relative; height:460px}
+  .field{position:absolute; inset:0; transform-origin:center}
+  .hub{position:absolute; top:50%; left:50%; width:128px; height:128px; margin:-64px 0 0 -64px;
+    border-radius:50%; background:linear-gradient(160deg,#ffffff,#f4fbf9);
+    border:1px solid var(--line); display:grid; place-items:center; z-index:4;
+    box-shadow:0 18px 50px rgba(27,28,30,.12); transition:transform .9s cubic-bezier(.16,1,.3,1), box-shadow .9s}
+  .hub .name{font-family:'Josefin Sans',sans-serif; font-weight:700; font-size:19px; color:var(--ink)}
+  .hub .all{font-size:9.5px; letter-spacing:.18em; text-transform:uppercase; color:var(--teal-d);
+    margin-top:3px; opacity:0; transition:opacity .6s .25s}
+  .ring{position:absolute; top:50%; left:50%; width:128px; height:128px; margin:-64px 0 0 -64px;
+    border-radius:50%; border:1px solid var(--teal); z-index:3; opacity:0;
+    transition:transform .9s cubic-bezier(.16,1,.3,1), opacity .9s}
+
+  .chip{position:absolute; top:50%; left:50%; display:flex; align-items:center; gap:8px;
+    background:var(--surface); border:1px solid var(--line2); border-radius:12px; padding:8px 12px;
+    font-size:12.5px; color:var(--ink2); white-space:nowrap; z-index:2;
+    box-shadow:0 8px 22px rgba(27,28,30,.07);
+    transform:translate(calc(-50% + var(--x)), calc(-50% + var(--y)));
+    transition:transform 1s cubic-bezier(.5,0,.2,1), opacity .8s, filter .8s;
+    filter:grayscale(.7) opacity(.85)}
+  .chip i{width:9px; height:9px; border-radius:3px; background:var(--c, var(--teal)); flex-shrink:0}
+
+  /* converged state */
+  .stage.on .chip{transform:translate(-50%,-50%) scale(.25); opacity:0; filter:grayscale(0)}
+  .stage.on .hub{transform:scale(1.1); box-shadow:0 24px 60px rgba(72,201,176,.4)}
+  .stage.on .hub .all{opacity:1}
+  .stage.on .ring{opacity:1; transform:scale(1.7)}
+  .stage.on .ring.r2{transform:scale(2.3); transition-delay:.08s}
+
+  .hint{position:absolute; bottom:6px; left:50%; transform:translateX(-50%); font-size:11px;
+    color:var(--faint); letter-spacing:.04em; transition:opacity .5s}
+  .stage.on .hint{opacity:0}
+
+  .react{max-width:1200px; margin:0 auto; padding:24px 40px 50px; border-top:1px solid var(--line);
+    display:flex; align-items:center; gap:14px; flex-wrap:wrap}
+  .react .q{font-size:13px; color:var(--muted); margin-right:6px}
+  .react button{cursor:pointer; background:var(--surface); border:1px solid var(--line2); color:var(--ink2);
+    padding:9px 16px; border-radius:10px; font-size:13px; font-family:inherit; transition:.3s}
+  .react button:hover{border-color:var(--teal); color:var(--teal)}
+
+  @media(max-width:900px){
+    .sec{grid-template-columns:1fr; gap:20px; padding:64px 26px; text-align:center; min-height:auto}
+    .label{justify-content:center}
+    .copy p{margin-left:auto; margin-right:auto}
+    .chl{justify-content:center}
+    .stage{order:2; height:400px}
+    .field{transform:scale(.82)}
+  }
+  @media(max-width:560px){
+    .sec{padding:48px 20px}
+    .copy p{font-size:15.5px}
+    .stage{height:340px}
+    .field{transform:scale(.6)}
+    .react{padding:22px 20px 40px}
+  }
+</style>
+</head>
+<body>
+  <section class="sec">
+    <div class="copy">
+      <div class="label"><span class="dot"></span>Por qué Anfiora</div>
+      <h2>
+        Las demás apps hacen una cosa.
+        <span class="big">Anfiora las <em>reúne todas</em>.</span>
+      </h2>
+      <p>
+        Invitaciones, confirmaciones, fotos, música, regalos, presupuesto, proveedores y pagos.
+        Antes, una app distinta para cada cosa — y todas por separado.
+        <b>Anfiora junta todo en una sola plataforma</b>, con un agente de IA que responde por ti.
+      </p>
+      <div class="chl">
+        <span>WhatsApp</span><span>Instagram</span><span>Facebook</span><span>Telegram</span>
+      </div>
+    </div>
+
+    <div class="stage" id="stage">
+      <div class="field">
+        <div class="ring"></div>
+        <div class="ring r2"></div>
+        <div class="hub">
+          <div>
+            <div class="name">Anfiora</div>
+            <div class="all">todo en uno</div>
+          </div>
+        </div>
+        <div class="chip" style="--x:-160px;--y:-120px;--c:#e06b6b"><i></i>Invitaciones</div>
+        <div class="chip" style="--x:150px;--y:-140px;--c:#d4a853"><i></i>Confirmaciones</div>
+        <div class="chip" style="--x:-195px;--y:0px;--c:#6b8be0"><i></i>Galería de fotos</div>
+        <div class="chip" style="--x:185px;--y:-12px;--c:#1DB954"><i></i>Playlist</div>
+        <div class="chip" style="--x:-150px;--y:120px;--c:#c77dff"><i></i>Mesa de regalos</div>
+        <div class="chip" style="--x:155px;--y:120px;--c:#2a9d8f"><i></i>Pagos</div>
+        <div class="chip" style="--x:-12px;--y:-170px;--c:#e08a3c"><i></i>Presupuesto</div>
+        <div class="chip" style="--x:8px;--y:172px;--c:#48C9B0"><i></i>Proveedores</div>
+      </div>
+      <div class="hint">una app para cada cosa…</div>
+    </div>
+  </section>
+
+  <div class="react">
+    <span class="q">¿Funciona el concepto de "se fusionan en Anfiora"?</span>
+    <button onclick="toggleSelect && toggleSelect(this)">Sí, me encanta</button>
+    <button onclick="toggleSelect && toggleSelect(this)">Buena, ajustar copy</button>
+    <button onclick="toggleSelect && toggleSelect(this)">Más rápido / más lento</button>
+    <button onclick="toggleSelect && toggleSelect(this)">Otra idea visual</button>
+  </div>
+
+<script>
+  const stage=document.getElementById('stage');
+  let on=false;
+  function loop(){ on=!on; stage.classList.toggle('on', on); setTimeout(loop, on?2600:2800); }
+  setTimeout(loop, 1600);
+</script>
+</body>
+</html>

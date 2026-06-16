@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Anfiora — Sección 3: La plataforma</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Josefin+Sans:wght@600;700&display=swap" rel="stylesheet">
+<link href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700,900&f[]=general-sans@300,400,500,600,700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#fbfaf7; --cream:#f6f1e9; --surface:#ffffff;
+    --ink:#1D1E20; --ink2:#555657; --muted:#8c8d8f; --faint:#b9b6b0;
+    --teal:#48C9B0; --teal-d:#0F6E56; --teal-soft:#e3f6f0;
+    --line:#ece8e0; --line2:#e0e0e0;
+    --display:'Satoshi',sans-serif; --body:'General Sans',sans-serif;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:var(--bg); color:var(--ink); font-family:var(--body); overflow-x:hidden; -webkit-font-smoothing:antialiased}
+
+  .sec{max-width:1180px; margin:0 auto; padding:60px 40px 56px}
+  .head{text-align:center; max-width:680px; margin:0 auto 36px}
+  .eyebrow{display:inline-flex; align-items:center; gap:9px; font-size:11px; letter-spacing:.22em;
+    text-transform:uppercase; color:var(--teal-d); font-weight:600; margin-bottom:14px}
+  .eyebrow .dot{width:6px; height:6px; border-radius:50%; background:var(--teal); box-shadow:0 0 10px var(--teal)}
+  h2{font-family:var(--display); font-weight:700; font-size:clamp(28px,3.6vw,42px); line-height:1.12; letter-spacing:-.02em; color:var(--ink)}
+  h2 em{font-style:normal; color:var(--teal-d)}
+  .head p{font-size:16px; color:var(--muted); margin-top:12px}
+
+  .bento{display:grid; grid-template-columns:repeat(4,1fr); grid-auto-rows:172px; gap:14px}
+  .card{position:relative; background:var(--surface); border:1px solid var(--line); border-radius:18px; padding:20px; overflow:hidden;
+    box-shadow:0 10px 30px rgba(27,28,30,.05); transition:transform .3s, box-shadow .3s, border-color .3s}
+  .card:hover{transform:translateY(-3px); box-shadow:0 18px 44px rgba(27,28,30,.1); border-color:#d8efe8}
+  .card .ic{width:38px; height:38px; border-radius:11px; display:grid; place-items:center; margin-bottom:12px;
+    background:var(--teal-soft); color:var(--teal-d)}
+  .card h3{font-size:15px; font-weight:600; color:var(--ink); margin-bottom:5px}
+  .card p{font-size:12.5px; line-height:1.45; color:var(--ink2)}
+  .card .tagok{position:absolute; top:16px; right:16px; font-size:10px; font-weight:600; color:var(--teal-d);
+    background:var(--teal-soft); border:1px solid #cdeee5; padding:3px 9px; border-radius:100px}
+
+  .c-wide{grid-column:span 2}
+  .c-tall{grid-row:span 2}
+  .c-feat{grid-column:span 2; grid-row:span 2; background:linear-gradient(150deg,#ffffff,#f3fbf8)}
+
+  /* AI feature card visual */
+  .ai-orb{width:44px; height:44px; border-radius:50%; flex-shrink:0; position:relative; margin-bottom:14px;
+    background:radial-gradient(circle at 35% 30%,#7fe0cd,var(--teal) 55%,var(--teal-d)); box-shadow:0 0 18px rgba(72,201,176,.5)}
+  .ai-orb::after{content:""; position:absolute; inset:-4px; border-radius:50%; border:1px solid rgba(72,201,176,.5); animation:ring 2.6s ease-out infinite}
+  @keyframes ring{0%{transform:scale(.9);opacity:.8}100%{transform:scale(1.5);opacity:0}}
+  .c-feat h3{font-family:var(--display); font-size:20px; margin-bottom:8px}
+  .c-feat p{font-size:13.5px; max-width:300px}
+  .chans{display:flex; gap:7px; margin-top:16px; flex-wrap:wrap}
+  .chans span{font-size:11px; color:var(--teal-d); background:#fff; border:1px solid #cdeee5; padding:5px 11px; border-radius:100px; font-weight:500}
+  .chans span.soon{color:var(--muted); border-style:dashed}
+
+  .icn{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+
+  .react{max-width:1180px; margin:0 auto; padding:18px 40px 44px; display:flex; align-items:center; gap:14px; flex-wrap:wrap}
+  .react .q{font-size:13px; color:var(--muted); margin-right:6px}
+  .react button.rb{cursor:pointer; background:var(--surface); border:1px solid var(--line2); color:var(--ink2);
+    padding:9px 16px; border-radius:10px; font-size:13px; font-family:inherit; transition:.3s}
+  .react button.rb:hover{border-color:var(--teal); color:var(--teal)}
+
+  @media(max-width:900px){
+    .sec{padding:48px 24px 36px}
+    .bento{grid-template-columns:repeat(2,1fr); grid-auto-rows:160px}
+    .c-feat{grid-column:span 2}
+    .react{padding:18px 24px 40px; justify-content:center}
+  }
+  @media(max-width:560px){
+    .bento{grid-template-columns:1fr; grid-auto-rows:auto}
+    .card,.c-wide,.c-tall,.c-feat{grid-column:auto; grid-row:auto; min-height:130px}
+  }
+</style>
+</head>
+<body>
+  <section class="sec">
+    <div class="head">
+      <div class="eyebrow"><span class="dot"></span>La plataforma</div>
+      <h2>Todo tu evento, <em>en calma</em>.</h2>
+      <p>Lo que antes eran diez apps y mil pendientes, ahora vive en un solo lugar.</p>
+    </div>
+
+    <div class="bento">
+      <!-- AI feature (big) -->
+      <div class="card c-feat">
+        <div class="ai-orb"></div>
+        <h3>Un agente de IA que responde por ti</h3>
+        <p>Confirma invitados, resuelve dudas y mantiene tu lista al día — solo, todo el día, en cada canal.</p>
+        <div class="chans">
+          <span>WhatsApp</span>
+          <span class="soon">Instagram</span>
+          <span class="soon">Facebook</span>
+          <span class="soon">Telegram</span>
+        </div>
+      </div>
+
+      <!-- Invitados / confirmaciones -->
+      <div class="card c-wide">
+        <span class="tagok">incluido</span>
+        <div class="ic"><svg class="icn" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
+        <h3>Invitados y confirmaciones</h3>
+        <p>Tu lista viva: confirma, agrupa y da seguimiento sin perseguir a nadie.</p>
+      </div>
+
+      <!-- Galería -->
+      <div class="card">
+        <div class="ic"><svg class="icn" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg></div>
+        <h3>Álbum con QR</h3>
+        <p>Tus fotos juntas, sin perderse en el chat.</p>
+      </div>
+
+      <!-- Playlist -->
+      <div class="card">
+        <div class="ic"><svg class="icn" viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></div>
+        <h3>Playlist colaborativa</h3>
+        <p>Tus invitados eligen, tú llegas con la lista lista.</p>
+      </div>
+
+      <!-- Mesas -->
+      <div class="card">
+        <div class="ic"><svg class="icn" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/></svg></div>
+        <h3>Acomodo de mesas</h3>
+        <p>Arrastra y acomoda en segundos.</p>
+      </div>
+
+      <!-- Mesa de regalos -->
+      <div class="card">
+        <div class="ic"><svg class="icn" viewBox="0 0 24 24"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg></div>
+        <h3>Mesa de regalos</h3>
+        <p>Sin comisiones ni regalos repetidos.</p>
+      </div>
+
+      <!-- Presupuesto + Pagos (wide) -->
+      <div class="card c-wide">
+        <span class="tagok">en vivo</span>
+        <div class="ic"><svg class="icn" viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
+        <h3>Presupuesto y pagos</h3>
+        <p>Todo conectado: cada pago actualiza tu presupuesto al instante. Adiós Excel.</p>
+      </div>
+
+      <!-- Proveedores -->
+      <div class="card c-wide">
+        <div class="ic"><svg class="icn" viewBox="0 0 24 24"><path d="M20 7h-9M14 17H5"/><circle cx="17" cy="17" r="3"/><circle cx="7" cy="7" r="3"/></svg></div>
+        <h3>Proveedores</h3>
+        <p>Cotizaciones, contratos y reseñas — cada proveedor en su lugar, no en mil chats.</p>
+      </div>
+    </div>
+  </section>
+
+  <div class="react">
+    <span class="q">¿Te late este formato "bento" para mostrar la plataforma?</span>
+    <button class="rb" onclick="toggleSelect && toggleSelect(this)">Sí, me gusta</button>
+    <button class="rb" onclick="toggleSelect && toggleSelect(this)">Ajustar el layout</button>
+    <button class="rb" onclick="toggleSelect && toggleSelect(this)">Ajustar textos</button>
+    <button class="rb" onclick="toggleSelect && toggleSelect(this)">Otra idea</button>
+  </div>
+</body>
+</html>

@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Anfiora — Sección 2 v2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Josefin+Sans:wght@600;700&display=swap" rel="stylesheet">
+<link href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700,900&f[]=general-sans@300,400,500,600,700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#fbfaf7; --cream:#f6f1e9; --surface:#ffffff;
+    --ink:#1D1E20; --ink2:#555657; --muted:#8c8d8f; --faint:#b9b6b0;
+    --teal:#48C9B0; --teal-d:#0F6E56; --teal-soft:#e3f6f0;
+    --line:#ece8e0; --line2:#e0e0e0;
+    --display:'Satoshi',sans-serif; --body:'General Sans',sans-serif;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:var(--bg); color:var(--ink); font-family:var(--body); overflow-x:hidden; -webkit-font-smoothing:antialiased}
+
+  .sec{position:relative; max-width:1200px; margin:0 auto; padding:90px 40px;
+    display:grid; grid-template-columns:1fr 1fr; gap:56px; align-items:center; min-height:100vh}
+
+  .label{display:inline-flex; align-items:center; gap:9px; font-size:11px; letter-spacing:.22em;
+    text-transform:uppercase; color:var(--teal-d); font-weight:600; margin-bottom:22px}
+  .label .dot{width:6px; height:6px; border-radius:50%; background:var(--teal); box-shadow:0 0 10px var(--teal)}
+  h2{font-family:var(--display); font-weight:700; font-size:clamp(30px,4vw,46px); line-height:1.12;
+    letter-spacing:-.02em; margin-bottom:8px; color:var(--muted)}
+  h2 .big{display:block; color:var(--ink); margin-top:2px}
+  h2 .big em{font-style:normal; color:var(--teal)}
+  .copy p{font-size:17px; line-height:1.65; color:var(--ink2); max-width:480px; margin-top:22px}
+  .copy p b{color:var(--ink); font-weight:600}
+  .chl{display:flex; gap:8px; flex-wrap:wrap; margin-top:26px}
+  .chl span{font-size:12.5px; color:var(--teal-d); background:var(--teal-soft); border:1px solid #cdeee5;
+    padding:6px 12px; border-radius:100px; font-weight:500}
+
+  .stage{position:relative; height:480px; cursor:pointer}
+  .field{position:absolute; inset:0; transform-origin:center}
+
+  .hub{position:absolute; top:50%; left:50%; width:132px; height:132px; margin:-66px 0 0 -66px;
+    border-radius:50%; background:linear-gradient(160deg,#ffffff,#f4fbf9);
+    border:1px solid var(--line); display:grid; place-items:center; z-index:4; text-align:center;
+    box-shadow:0 18px 50px rgba(27,28,30,.10); transition:transform .9s cubic-bezier(.16,1,.3,1), box-shadow .9s}
+  .hub .iso{width:62px; height:62px; opacity:0; transform:scale(.6); transition:opacity .6s .15s, transform .7s .15s cubic-bezier(.16,1,.3,1)}
+  .hub .all{font-size:9px; letter-spacing:.2em; text-transform:uppercase; color:var(--teal-d);
+    margin-top:4px; opacity:0; transition:opacity .5s .3s; height:0}
+  .hub .seed{position:absolute; width:9px; height:9px; border-radius:50%; background:var(--line2);
+    opacity:1; transition:opacity .4s}
+  .ring{position:absolute; top:50%; left:50%; width:132px; height:132px; margin:-66px 0 0 -66px;
+    border-radius:50%; border:1px solid var(--teal); z-index:3; opacity:0;
+    transition:transform .9s cubic-bezier(.16,1,.3,1), opacity .9s}
+
+  .chip{position:absolute; top:50%; left:50%; display:flex; align-items:center; gap:9px;
+    background:var(--surface); border:1px solid var(--line2); border-radius:12px; padding:8px 12px;
+    z-index:2; box-shadow:0 8px 22px rgba(27,28,30,.07);
+    transform:translate(calc(-50% + var(--x)), calc(-50% + var(--y)));
+    transition:transform 1s cubic-bezier(.5,0,.2,1), opacity .8s, filter .8s; filter:grayscale(.55)}
+  .chip i{width:9px; height:9px; border-radius:3px; background:var(--c, var(--teal)); flex-shrink:0}
+  .chip .ct{display:flex; flex-direction:column; line-height:1.18; text-align:left}
+  .chip .t{font-weight:600; color:var(--ink); font-size:12.5px}
+  .chip .s{font-size:10.5px; color:var(--muted)}
+
+  /* converged: auto-loop (.on), hover, or click-lock (.locked) */
+  .stage.on .chip, .stage:hover .chip, .stage.locked .chip{transform:translate(-50%,-50%) scale(.2); opacity:0; filter:grayscale(0)}
+  .stage.on .hub, .stage:hover .hub, .stage.locked .hub{transform:scale(1.12); box-shadow:0 24px 64px rgba(72,201,176,.42)}
+  .stage.on .iso, .stage:hover .iso, .stage.locked .iso{opacity:1; transform:scale(1)}
+  .stage.on .all, .stage:hover .all, .stage.locked .all{opacity:1}
+  .stage.on .seed, .stage:hover .seed, .stage.locked .seed{opacity:0}
+  .stage.on .ring, .stage:hover .ring, .stage.locked .ring{opacity:1; transform:scale(1.7)}
+  .stage.on .ring.r2, .stage:hover .ring.r2, .stage.locked .ring.r2{transform:scale(2.3); transition-delay:.08s}
+
+  .hint{position:absolute; bottom:0; left:50%; transform:translateX(-50%); font-size:11px;
+    color:var(--faint); letter-spacing:.04em; transition:opacity .5s}
+  .stage.on .hint, .stage:hover .hint, .stage.locked .hint{opacity:0}
+
+  .react{max-width:1200px; margin:0 auto; padding:24px 40px 50px; border-top:1px solid var(--line);
+    display:flex; align-items:center; gap:14px; flex-wrap:wrap}
+  .react .q{font-size:13px; color:var(--muted); margin-right:6px}
+  .react button{cursor:pointer; background:var(--surface); border:1px solid var(--line2); color:var(--ink2);
+    padding:9px 16px; border-radius:10px; font-size:13px; font-family:inherit; transition:.3s}
+  .react button:hover{border-color:var(--teal); color:var(--teal)}
+
+  @media(max-width:900px){
+    .sec{grid-template-columns:1fr; gap:20px; padding:64px 26px; text-align:center; min-height:auto}
+    .label{justify-content:center}
+    .copy p{margin-left:auto; margin-right:auto}
+    .chl{justify-content:center}
+    .stage{order:2; height:420px}
+    .field{transform:scale(.82)}
+  }
+  @media(max-width:560px){
+    .sec{padding:48px 20px}
+    .copy p{font-size:15.5px}
+    .stage{height:360px}
+    .field{transform:scale(.62)}
+    .react{padding:22px 20px 40px}
+  }
+</style>
+</head>
+<body>
+  <section class="sec">
+    <div class="copy">
+      <div class="label"><span class="dot"></span>Por qué Anfiora</div>
+      <h2>
+        Las demás apps hacen una cosa.
+        <span class="big">Anfiora las <em>reúne todas</em>.</span>
+      </h2>
+      <p>
+        Invitaciones, confirmaciones, fotos, música, regalos, presupuesto, proveedores y pagos.
+        Antes, una herramienta distinta para cada cosa — y todas por separado.
+        <b>Anfiora junta todo en una sola plataforma</b>, con un agente de IA que responde por ti.
+      </p>
+      <div class="chl">
+        <span>WhatsApp</span><span>Instagram</span><span>Facebook</span><span>Telegram</span>
+      </div>
+    </div>
+
+    <div class="stage" id="stage" title="Pasa el cursor o haz clic">
+      <div class="field">
+        <div class="ring"></div>
+        <div class="ring r2"></div>
+        <div class="hub">
+          <span class="seed"></span>
+          <div>
+            <img class="iso" src="isotipo.svg" alt="Anfiora">
+            <div class="all">todo en uno</div>
+          </div>
+        </div>
+
+        <div class="chip" style="--x:-168px;--y:-118px;--c:#e06b6b"><i></i><div class="ct"><span class="t">Invitaciones</span><span class="s">otra app</span></div></div>
+        <div class="chip" style="--x:150px;--y:-142px;--c:#d4a853"><i></i><div class="ct"><span class="t">Confirmaciones</span><span class="s">una por una</span></div></div>
+        <div class="chip" style="--x:-205px;--y:6px;--c:#6b8be0"><i></i><div class="ct"><span class="t">Fotos</span><span class="s">en mil apps</span></div></div>
+        <div class="chip" style="--x:190px;--y:-8px;--c:#1DB954"><i></i><div class="ct"><span class="t">Playlist</span><span class="s">otra app más</span></div></div>
+        <div class="chip" style="--x:-150px;--y:122px;--c:#c77dff"><i></i><div class="ct"><span class="t">Mesa de regalos</span><span class="s">sitio externo</span></div></div>
+        <div class="chip" style="--x:158px;--y:124px;--c:#2a9d8f"><i></i><div class="ct"><span class="t">Pagos</span><span class="s">en Excel</span></div></div>
+        <div class="chip" style="--x:-8px;--y:-176px;--c:#e08a3c"><i></i><div class="ct"><span class="t">Presupuesto</span><span class="s">en Excel</span></div></div>
+        <div class="chip" style="--x:8px;--y:178px;--c:#48C9B0"><i></i><div class="ct"><span class="t">Proveedores</span><span class="s">en notas</span></div></div>
+      </div>
+      <div class="hint">una herramienta para cada cosa…</div>
+    </div>
+  </section>
+
+  <div class="react">
+    <span class="q">¿Así (isotipo al fusionar + hover/clic)?</span>
+    <button onclick="toggleSelect && toggleSelect(this)">Sí, quedó</button>
+    <button onclick="toggleSelect && toggleSelect(this)">Ajustar chips / textos</button>
+    <button onclick="toggleSelect && toggleSelect(this)">Ajustar velocidad</button>
+    <button onclick="toggleSelect && toggleSelect(this)">Otro detalle</button>
+  </div>
+
+<script>
+  const stage=document.getElementById('stage');
+  let on=false;
+  function loop(){ on=!on; stage.classList.toggle('on', on); setTimeout(loop, on?2600:2800); }
+  setTimeout(loop, 1600);
+  stage.addEventListener('click', ()=> stage.classList.toggle('locked'));
+</script>
+</body>
+</html>

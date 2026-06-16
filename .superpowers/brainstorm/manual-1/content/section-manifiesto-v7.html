@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Anfiora — Sección 2 v7 (flor)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Josefin+Sans:wght@600;700&display=swap" rel="stylesheet">
+<link href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700,900&f[]=general-sans@300,400,500,600,700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#fbfaf7; --cream:#f6f1e9; --surface:#ffffff;
+    --ink:#1D1E20; --ink2:#555657; --muted:#8c8d8f; --faint:#b9b6b0;
+    --red-bg:#fdf1f1; --red-bd:#f6d6d6; --red-tx:#b14a4a;
+    --teal:#48C9B0; --teal-d:#0F6E56; --teal-soft:#e3f6f0;
+    --line:#ece8e0; --line2:#e0e0e0;
+    --display:'Satoshi',sans-serif; --body:'General Sans',sans-serif;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:var(--bg); color:var(--ink); font-family:var(--body); overflow-x:hidden; -webkit-font-smoothing:antialiased}
+
+  .sec{max-width:1180px; margin:0 auto; padding:78px 40px 60px}
+  .head{text-align:center; max-width:680px; margin:0 auto 40px}
+  h2{font-family:var(--display); font-weight:700; font-size:clamp(30px,4vw,46px); line-height:1.12; letter-spacing:-.02em; color:var(--ink)}
+  .head p{font-size:16px; color:var(--muted); margin-top:12px}
+
+  .grid{display:grid; grid-template-columns:1fr 1fr; gap:46px; align-items:center}
+
+  /* ---------- LEFT: chaos -> flower ---------- */
+  .viz{position:relative; width:100%; max-width:440px; margin:0 auto; cursor:pointer; user-select:none}
+  svg{width:100%; height:auto; display:block; overflow:visible}
+  svg *{transform-box:view-box}
+
+  .tchaos line{stroke:#cfcabf; stroke-width:1.2; transition:opacity .7s}
+  .tflower line{stroke:#cfe9e1; stroke-width:1.4; opacity:0; transition:opacity .7s .15s}
+  .bloom .tchaos line{opacity:0}
+  .bloom .tflower line{opacity:1}
+
+  .petal{transform-origin:200px 200px; transform:rotate(var(--a)) scale(.05); opacity:0;
+    transition:transform .85s cubic-bezier(.16,1,.3,1), opacity .7s}
+  .bloom .petal{transform:rotate(var(--a)) scale(1); opacity:.42}
+
+  .node{transform-origin:center; transform:translate(var(--cx),var(--cy));
+    transition:transform .9s cubic-bezier(.5,0,.2,1)}
+  .bloom .node{transform:translate(var(--fx),var(--fy))}
+  .node circle{transition:r .3s, stroke-width .3s}
+  .node .lbl{font-family:var(--body); font-size:11px; fill:var(--ink2); text-anchor:middle; opacity:0; transition:opacity .5s .25s}
+  .bloom .node .lbl{opacity:1}
+  .node.hot circle{r:13; stroke-width:3}
+  .node.hot .lbl{opacity:1; fill:var(--ink); font-weight:600}
+
+  .knot{fill:#d8d3c8; transition:opacity .5s}
+  .bloom .knot{opacity:0}
+  .coreC{fill:#fff; stroke:var(--line); stroke-width:1; opacity:0; transition:opacity .5s .1s}
+  .bloom .coreC{opacity:1}
+  .coreImg{opacity:0; transform-origin:200px 200px; transform:scale(.5); transition:opacity .5s .2s, transform .6s .2s cubic-bezier(.16,1,.3,1)}
+  .bloom .coreImg{opacity:1; transform:scale(1)}
+  .coreGlow{fill:var(--teal); opacity:0; transition:opacity .6s}
+  .bloom .coreGlow{opacity:.16}
+
+  .vizhint{display:inline-flex; align-items:center; gap:7px; margin-top:8px; font-size:11.5px;
+    color:var(--teal-d); background:var(--teal-soft); border:1px solid #cdeee5; padding:6px 13px; border-radius:100px}
+  .vizwrap{display:flex; flex-direction:column; align-items:center}
+
+  /* ---------- RIGHT ---------- */
+  .tabs{display:flex; flex-wrap:wrap; gap:8px; margin-bottom:16px}
+  .tab{cursor:pointer; background:var(--surface); border:1px solid var(--line2); color:var(--ink2);
+    padding:8px 14px; border-radius:100px; font-size:13px; font-family:inherit; font-weight:500; transition:.25s}
+  .tab:hover{border-color:var(--teal)}
+  .tab.active{background:var(--ink); color:#fff; border-color:var(--ink)}
+
+  .panel{background:var(--surface); border:1px solid var(--line); border-radius:18px; padding:26px;
+    box-shadow:0 14px 40px rgba(27,28,30,.06); min-height:158px; display:flex; flex-direction:column; justify-content:center}
+  .ph{font-family:var(--display); font-size:21px; font-weight:600; color:var(--ink); margin-bottom:10px}
+  .pd{font-size:15.5px; line-height:1.55; color:var(--ink2)}
+  .price{align-self:flex-start; margin-top:16px; font-size:12px; font-weight:600;
+    color:var(--red-tx); background:var(--red-bg); border:1px solid var(--red-bd); padding:4px 12px; border-radius:100px}
+  .price.free{color:var(--muted); background:var(--cream); border-color:var(--line2)}
+
+  .cta-row{display:flex; gap:12px; flex-wrap:wrap; margin-top:22px}
+  .btn-primary{cursor:pointer; border:none; background:var(--teal); color:#fff; font-weight:600; font-size:15px;
+    font-family:var(--body); padding:13px 26px; border-radius:12px; box-shadow:0 4px 16px rgba(72,201,176,.35); transition:background .3s}
+  .btn-primary:hover{background:#3ab89f}
+  .btn-secondary{cursor:pointer; background:var(--surface); border:1px solid var(--line2); color:var(--ink2);
+    font-size:15px; font-family:var(--body); padding:13px 26px; border-radius:12px; transition:.3s}
+  .btn-secondary:hover{border-color:var(--teal); color:var(--teal)}
+
+  .react{max-width:1180px; margin:0 auto; padding:18px 40px 44px; display:flex; align-items:center; gap:14px; flex-wrap:wrap}
+  .react .q{font-size:13px; color:var(--muted); margin-right:6px}
+  .react button.rb{cursor:pointer; background:var(--surface); border:1px solid var(--line2); color:var(--ink2);
+    padding:9px 16px; border-radius:10px; font-size:13px; font-family:inherit; transition:.3s}
+  .react button.rb:hover{border-color:var(--teal); color:var(--teal)}
+
+  @media(max-width:900px){
+    .sec{padding:54px 24px 40px}
+    .grid{grid-template-columns:1fr; gap:26px}
+    .viz{order:1; max-width:360px}
+    .right{order:2}
+    .react{padding:18px 24px 40px; justify-content:center}
+  }
+</style>
+</head>
+<body>
+  <section class="sec">
+    <div class="head">
+      <h2>Por qué Anfiora</h2>
+      <p>Así se organiza un evento hoy.</p>
+    </div>
+
+    <div class="grid">
+      <!-- LEFT: chaos -> flower -->
+      <div class="vizwrap">
+        <div class="viz" id="viz" title="Haz clic">
+          <svg viewBox="0 0 400 400" class="stage" id="stage">
+            <!-- tangled threads (chaos) -->
+            <g class="tchaos">
+              <line x1="150" y1="78" x2="268" y2="300"/>
+              <line x1="312" y1="116" x2="96"  y2="286"/>
+              <line x1="332" y1="186" x2="120" y2="118"/>
+              <line x1="206" y1="338" x2="78"  y2="168"/>
+              <line x1="150" y1="78" x2="332" y2="186"/>
+              <line x1="268" y1="300" x2="78" y2="168"/>
+              <line x1="312" y1="116" x2="206" y2="338"/>
+              <line x1="96" y1="286" x2="120" y2="118"/>
+              <line x1="332" y1="186" x2="206" y2="338"/>
+              <line x1="150" y1="78" x2="78" y2="168"/>
+            </g>
+            <!-- radial threads (flower) -->
+            <g class="tflower">
+              <line x1="200" y1="200" x2="200" y2="74"/>
+              <line x1="200" y1="200" x2="289" y2="111"/>
+              <line x1="200" y1="200" x2="326" y2="200"/>
+              <line x1="200" y1="200" x2="289" y2="289"/>
+              <line x1="200" y1="200" x2="200" y2="326"/>
+              <line x1="200" y1="200" x2="111" y2="289"/>
+              <line x1="200" y1="200" x2="74"  y2="200"/>
+              <line x1="200" y1="200" x2="111" y2="111"/>
+            </g>
+            <!-- petals -->
+            <g class="petals">
+              <g class="petal" style="--a:0deg"><ellipse cx="200" cy="128" rx="24" ry="64" fill="#e06b6b"/></g>
+              <g class="petal" style="--a:45deg"><ellipse cx="200" cy="128" rx="24" ry="64" fill="#6b8be0"/></g>
+              <g class="petal" style="--a:90deg"><ellipse cx="200" cy="128" rx="24" ry="64" fill="#c77dff"/></g>
+              <g class="petal" style="--a:135deg"><ellipse cx="200" cy="128" rx="24" ry="64" fill="#1DB954"/></g>
+              <g class="petal" style="--a:180deg"><ellipse cx="200" cy="128" rx="24" ry="64" fill="#d4a853"/></g>
+              <g class="petal" style="--a:225deg"><ellipse cx="200" cy="128" rx="24" ry="64" fill="#e08a3c"/></g>
+              <g class="petal" style="--a:270deg"><ellipse cx="200" cy="128" rx="24" ry="64" fill="#2a9d8f"/></g>
+              <g class="petal" style="--a:315deg"><ellipse cx="200" cy="128" rx="24" ry="64" fill="#48C9B0"/></g>
+            </g>
+            <!-- core -->
+            <circle class="coreGlow" cx="200" cy="200" r="70"/>
+            <circle class="knot" cx="200" cy="200" r="9"/>
+            <circle class="coreC" cx="200" cy="200" r="40"/>
+            <image class="coreImg" href="isotipo.svg" x="170" y="170" width="60" height="60"/>
+            <!-- nodes -->
+            <g class="node" data-i="0" style="--cx:-50px;--cy:-122px;--fx:0px;--fy:-126px">
+              <circle cx="200" cy="200" r="9" fill="#fff" stroke="#e06b6b" stroke-width="2.4"/><text class="lbl" x="200" y="225">Invitaciones</text></g>
+            <g class="node" data-i="1" style="--cx:112px;--cy:-84px;--fx:89px;--fy:-89px">
+              <circle cx="200" cy="200" r="9" fill="#fff" stroke="#6b8be0" stroke-width="2.4"/><text class="lbl" x="200" y="225">Galería</text></g>
+            <g class="node" data-i="2" style="--cx:132px;--cy:-14px;--fx:126px;--fy:0px">
+              <circle cx="200" cy="200" r="9" fill="#fff" stroke="#c77dff" stroke-width="2.4"/><text class="lbl" x="200" y="225">Mesa de regalos</text></g>
+            <g class="node" data-i="3" style="--cx:68px;--cy:100px;--fx:89px;--fy:89px">
+              <circle cx="200" cy="200" r="9" fill="#fff" stroke="#1DB954" stroke-width="2.4"/><text class="lbl" x="200" y="225">Playlist</text></g>
+            <g class="node" data-i="4" style="--cx:6px;--cy:138px;--fx:0px;--fy:126px">
+              <circle cx="200" cy="200" r="9" fill="#fff" stroke="#d4a853" stroke-width="2.4"/><text class="lbl" x="200" y="225">Mesas</text></g>
+            <g class="node" data-i="5" style="--cx:-104px;--cy:86px;--fx:-89px;--fy:89px">
+              <circle cx="200" cy="200" r="9" fill="#fff" stroke="#e08a3c" stroke-width="2.4"/><text class="lbl" x="200" y="225">Presupuesto</text></g>
+            <g class="node" data-i="6" style="--cx:-122px;--cy:-32px;--fx:-126px;--fy:0px">
+              <circle cx="200" cy="200" r="9" fill="#fff" stroke="#2a9d8f" stroke-width="2.4"/><text class="lbl" x="200" y="225">Pagos</text></g>
+            <g class="node" data-i="7" style="--cx:-80px;--cy:-82px;--fx:-89px;--fy:-89px">
+              <circle cx="200" cy="200" r="9" fill="#fff" stroke="#48C9B0" stroke-width="2.4"/><text class="lbl" x="200" y="225">Proveedores</text></g>
+          </svg>
+        </div>
+        <div class="vizhint" id="vizhint">Haz clic: del caos a la flor</div>
+      </div>
+
+      <!-- RIGHT -->
+      <div class="right">
+        <div class="tabs" id="tabs"></div>
+        <div class="panel">
+          <div class="ph" id="pHead">—</div>
+          <div class="pd" id="pDesc">—</div>
+          <span class="price" id="pPrice">—</span>
+        </div>
+        <div class="cta-row">
+          <button class="btn-primary" onclick="toggleSelect && toggleSelect(this)">Ver planes</button>
+          <button class="btn-secondary">Iniciar</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="react">
+    <span class="q">¿Te late el caos → flor + features que resaltan pétalos?</span>
+    <button class="rb" onclick="toggleSelect && toggleSelect(this)">Sí, esto era</button>
+    <button class="rb" onclick="toggleSelect && toggleSelect(this)">Ajustar la flor</button>
+    <button class="rb" onclick="toggleSelect && toggleSelect(this)">Ajustar textos</button>
+    <button class="rb" onclick="toggleSelect && toggleSelect(this)">Otro detalle</button>
+  </div>
+
+<script>
+  const MODULES=[
+    {name:'Invitaciones', price:'hasta $1,200', free:false,
+      head:'Diseñar y confirmar, por tu cuenta',
+      desc:'Pagas el diseño de la invitación y, además, a alguien para que confirme a cada invitado.'},
+    {name:'Galería de fotos', price:'hasta $2,000', free:false,
+      head:'Una galería que nadie usa',
+      desc:'Contratas una galería costosa y, al final, las fotos quedan dispersas en decenas de celulares.'},
+    {name:'Mesa de regalos', price:'hasta $7,000', free:false,
+      head:'Comisión por cada regalo',
+      desc:'Las plataformas externas cobran comisión por cada regalo, y aun así se repiten.'},
+    {name:'Playlist', price:'horas de tu tiempo', free:true,
+      head:'Canciones pedidas por WhatsApp',
+      desc:'Reúnes las canciones una por una por WhatsApp o con un formulario interminable.'},
+    {name:'Acomodo de mesas', price:'Excel y papel', free:true,
+      head:'Mesas que acomodas a mano',
+      desc:'Mueves los nombres en papel o en Excel, y empiezas de nuevo cada vez que alguien cancela.'},
+    {name:'Presupuesto', price:'Excel a mano', free:true,
+      head:'Un Excel que se rompe solo',
+      desc:'Lo mantienes a mano y, entre tantas versiones, nadie sabe cuál es la correcta.'},
+    {name:'Pagos', price:'Excel a mano', free:true,
+      head:'¿Quién pagó qué?',
+      desc:'Anotas abonos y saldos en otra hoja que, si no actualizas, pierdes de vista.'},
+    {name:'Proveedores', price:'correo y notas', free:true,
+      head:'Información regada en todos lados',
+      desc:'Guardas cotizaciones en el correo, contratos en WhatsApp y teléfonos en notas sueltas.'},
+  ];
+  // node index order matches petal order (0..7): inv, galeria, regalos, playlist, mesas, presupuesto, pagos, proveedores
+  const NODE_FOR_MODULE=[0,1,2,3,4,5,6,7];
+
+  const viz=document.getElementById('viz');
+  const stage=document.getElementById('stage');
+  const vizhint=document.getElementById('vizhint');
+  const nodes=[...document.querySelectorAll('.node')];
+  viz.addEventListener('click', ()=>{
+    stage.classList.toggle('bloom');
+    vizhint.textContent = stage.classList.contains('bloom') ? 'Todo reunido en Anfiora' : 'Haz clic: del caos a la flor';
+  });
+
+  const tabsEl=document.getElementById('tabs');
+  const pHead=document.getElementById('pHead'), pDesc=document.getElementById('pDesc'), pPrice=document.getElementById('pPrice');
+  let active=0;
+  function render(){
+    MODULES.forEach((m,i)=>{
+      const t=document.createElement('button');
+      t.className='tab'+(i===active?' active':''); t.textContent=m.name;
+      t.onclick=()=>{active=i; paint(); pulse(i);};
+      tabsEl.appendChild(t);
+    });
+  }
+  function pulse(i){
+    const n=nodes[NODE_FOR_MODULE[i]];
+    nodes.forEach(x=>x.classList.remove('hot'));
+    void n.offsetWidth; n.classList.add('hot');
+  }
+  function paint(){
+    [...tabsEl.children].forEach((t,i)=>t.classList.toggle('active', i===active));
+    const m=MODULES[active];
+    pHead.textContent=m.head; pDesc.textContent=m.desc;
+    pPrice.textContent=m.free?m.price:('Cuesta '+m.price);
+    pPrice.className='price'+(m.free?' free':'');
+  }
+  render(); paint();
+</script>
+</body>
+</html>
