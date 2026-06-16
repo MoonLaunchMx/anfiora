@@ -32,9 +32,9 @@ export default function LandingNav({ t, lang, setLang, onLogin, onRegister }: Pr
         <button
           onClick={() => setLang(lang === 'es' ? 'en' : 'es')}
           title={lang === 'es' ? 'Switch to English' : 'Cambiar a Español'}
-          className="rounded-[10px] border border-[#e0e0e0] bg-white px-3 py-2 text-lg leading-none transition hover:border-[#48C9B0]"
+          className="rounded-[10px] border border-[#e0e0e0] bg-white px-3 py-2 text-sm leading-none transition hover:border-[#48C9B0]"
         >
-          {lang === 'es' ? '🇬🇧' : '🇲🇽'}
+          {lang === 'es' ? 'EN' : 'ES'}
         </button>
         <button
           onClick={onLogin}

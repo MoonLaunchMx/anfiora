@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { FaWhatsapp, FaInstagram, FaFacebookMessenger, FaTelegramPlane } from 'react-icons/fa'
 import { landingCopy, type Lang } from './i18n'
 import styles from './Hero.module.css'
 
@@ -9,7 +10,7 @@ type Props = {
   onRegister: () => void
 }
 
-const CHANNEL_GLYPHS = ['💬', '📷', '✉️', '✈️']
+const CHANNEL_ICONS = [FaWhatsapp, FaInstagram, FaFacebookMessenger, FaTelegramPlane]
 
 export default function Hero({ t, onRegister }: Props) {
   const h = t.hero
@@ -146,15 +147,18 @@ export default function Hero({ t, onRegister }: Props) {
             </div>
           </div>
           <div className={styles.chips}>
-            {h.channels.map((channel, idx) => (
-              <div
-                key={channel}
-                className={`${styles.chip} ${idx === activeChannel ? styles.chipActive : ''}`}
-                title={channel}
-              >
-                {CHANNEL_GLYPHS[idx]}
-              </div>
-            ))}
+            {h.channels.map((channel, idx) => {
+              const IconComponent = CHANNEL_ICONS[idx]
+              return (
+                <div
+                  key={channel}
+                  className={`${styles.chip} ${idx === activeChannel ? styles.chipActive : ''}`}
+                  title={channel}
+                >
+                  <IconComponent size={14} />
+                </div>
+              )
+            })}
           </div>
           <div
             className={`${styles.bubble} ${styles.bubbleMe}`}
