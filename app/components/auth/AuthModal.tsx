@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Eye, EyeOff, Mail, Lock, User, Phone, ArrowLeft, CheckCircle } from 'lucide-react'
 import Image from 'next/image'
 import { supabase } from '@/lib/supabase'
+import { getAttribution } from '@/lib/attribution'
 
 interface AuthModalProps {
   isOpen: boolean
@@ -169,8 +170,23 @@ export default function AuthModal({ isOpen, onClose, defaultTab = 'login', lang 
     if (error) {
       setError(t.error_register)
     } else {
-      if (phone && data.user) {
-        await supabase.from('users').update({ phone, full_name: name }).eq('id', data.user.id)
+      if (data.user) {
+        if (phone) {
+          await supabase.from('users').update({ phone, full_name: name }).eq('id', data.user.id)
+        }
+        const attr = getAttribution()
+        if (attr) {
+          await supabase.from('users').update({
+            acquisition_source: attr.acquisition_source,
+            utm_source:         attr.utm_source,
+            utm_medium:         attr.utm_medium,
+            utm_campaign:       attr.utm_campaign,
+            utm_content:        attr.utm_content,
+            referrer_domain:    attr.referrer_domain,
+            device_type:        attr.device_type,
+            acquired_at:        attr.acquired_at,
+          }).eq('id', data.user.id)
+        }
       }
       if (data.session) {
         await fetch('/api/legal/accept', {

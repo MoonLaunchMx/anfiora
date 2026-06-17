@@ -23,6 +23,16 @@ export interface AdminUser {
   terms_version: string | null
   terms_accepted_at: string | null
   terms_history: { version: string; accepted_at: string; ip_address: string | null }[]
+  role: string | null
+  event_focus: string[] | null
+  acquisition_source: string | null
+  utm_source: string | null
+  utm_medium: string | null
+  utm_campaign: string | null
+  utm_content: string | null
+  referrer_domain: string | null
+  device_type: string | null
+  acquired_at: string | null
 }
 
 export interface GlobalStats {

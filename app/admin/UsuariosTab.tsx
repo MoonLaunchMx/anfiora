@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, Fragment } from 'react'
 import { ChevronDown, ChevronUp, Mail, Ban, Trash2, CheckCircle } from 'lucide-react'
 import { AdminUser, GlobalStats } from './lib/types'
 import { formatDate, formatDateTime, timeAgo, PLAN_STYLES } from './lib/format'
@@ -144,8 +144,8 @@ export default function UsuariosTab({ users, stats, actionLoading, onChangePlan,
               {filtered.length === 0 ? (
                 <tr><td colSpan={9} className="px-4 py-8 text-center text-sm text-[#888]">Sin resultados</td></tr>
               ) : filtered.map(u => (
-                <>
-                  <tr key={u.id}
+                <Fragment key={u.id}>
+                  <tr
                     className={'border-b border-[#f8f8f8] transition hover:bg-[#fafafa] cursor-pointer' + (u.banned ? ' opacity-50' : '')}
                     onClick={() => setExpandedId(expandedId === u.id ? null : u.id)}
                   >
@@ -257,7 +257,7 @@ export default function UsuariosTab({ users, stats, actionLoading, onChangePlan,
                       </td>
                     </tr>
                   )}
-                </>
+                </Fragment>
               ))}
             </tbody>
           </table>

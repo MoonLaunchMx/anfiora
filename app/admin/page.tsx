@@ -2,16 +2,17 @@
 
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { LayoutDashboard, Users, CreditCard, Activity } from 'lucide-react'
+import { LayoutDashboard, Users, CreditCard, Activity, Megaphone } from 'lucide-react'
 import { AdminUser, GlobalStats, AuditEntry, EventOption } from './lib/types'
 import ResumenTab from './ResumenTab'
 import UsuariosTab from './UsuariosTab'
 import PagosTab from './PagosTab'
 import ActividadTab from './ActividadTab'
+import MarketingTab from './MarketingTab'
 
 const ADMIN_EMAIL = 'diego.garza@moonlaunch.mx'
 
-type Tab = 'resumen' | 'users' | 'pagos' | 'activity'
+type Tab = 'resumen' | 'marketing' | 'users' | 'pagos' | 'activity'
 
 interface ApiUser {
   id: string
@@ -24,6 +25,16 @@ interface ApiUser {
   terms_version: string | null
   terms_accepted_at: string | null
   terms_history: { version: string; accepted_at: string; ip_address: string | null }[]
+  role: string | null
+  event_focus: string[] | null
+  acquisition_source: string | null
+  utm_source: string | null
+  utm_medium: string | null
+  utm_campaign: string | null
+  utm_content: string | null
+  referrer_domain: string | null
+  device_type: string | null
+  acquired_at: string | null
 }
 
 export default function AdminPage() {
@@ -204,6 +215,7 @@ export default function AdminPage() {
 
   const TABS: { key: Tab; label: string; icon: typeof Users }[] = [
     { key: 'resumen',  label: 'Resumen',   icon: LayoutDashboard },
+    { key: 'marketing', label: 'Marketing', icon: Megaphone },
     { key: 'users',    label: 'Usuarios',  icon: Users },
     { key: 'pagos',    label: 'Pagos',     icon: CreditCard },
     { key: 'activity', label: 'Actividad', icon: Activity },
@@ -264,6 +276,7 @@ export default function AdminPage() {
 
       <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
         {activeTab === 'resumen'  && <ResumenTab users={users} />}
+        {activeTab === 'marketing' && <MarketingTab users={users} />}
         {activeTab === 'users'    && (
           <UsuariosTab
             users={users}

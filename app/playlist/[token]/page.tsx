@@ -272,14 +272,20 @@ export default function PlaylistPublicPage() {
 
   if (notFound) return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-[#FBF7F0] px-6 text-center">
+      <a href="/" className="mb-10 text-2xl font-bold tracking-tight text-[#1D1E20]" style={josefin}>
+        Anfiora
+      </a>
       <Music size={32} className="mb-3 text-[#bbb]" />
       <h1 className="text-lg font-semibold text-[#1D1E20]">Playlist no encontrada</h1>
       <p className="mt-1 text-sm text-[#888]">
         Es posible que este link haya expirado o no sea válido.
       </p>
-      <p className="mt-10 text-[11px] uppercase tracking-[0.16em] text-[#ccc]" style={josefin}>
-        Anfiora
-      </p>
+      <a
+        href="/"
+        className="mt-8 rounded-full bg-[#48C9B0] px-5 py-2.5 text-sm font-semibold text-white transition hover:opacity-90"
+      >
+        Ir a Anfiora
+      </a>
     </div>
   )
 

@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
 
   // Datos de las tablas (solo lectura)
   const [usersRes, eventsRes, guestsRes, partyRes, termsRes] = await Promise.all([
-    supabaseAdmin.from('users').select('id, email, full_name, plan, created_at').order('created_at', { ascending: false }),
+    supabaseAdmin.from('users').select('id, email, full_name, plan, created_at, role, event_focus, acquisition_source, utm_source, utm_medium, utm_campaign, utm_content, referrer_domain, device_type, acquired_at').order('created_at', { ascending: false }),
     supabaseAdmin.from('events').select('id, user_id, name, created_at'),
     supabaseAdmin.from('guests').select('id, event_id, rsvp_status'),
     supabaseAdmin.from('party_members').select('id, event_id'),
