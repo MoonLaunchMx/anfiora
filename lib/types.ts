@@ -170,6 +170,7 @@ export type Guest = {
   wa_opt_out_at?: string | null
   wa_needs_human?: boolean
   wa_needs_human_reason?: string | null
+  agent_memory?: string | null
 }
 
 // ─── MESSAGES ────────────────────────────────────────────────────────────────

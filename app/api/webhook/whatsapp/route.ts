@@ -4,7 +4,7 @@ import { validateRequest } from 'twilio'
 import { getAgentConfig } from '@/lib/whatsapp/config'
 import { isDuplicate, detectOptOut, applyOptOut, claimInboundForReply, enqueueOutbound } from '@/lib/whatsapp/reliability'
 import { runAgentPipeline } from '@/lib/whatsapp/agent'
-import type { MessageHistory } from '@/lib/ai-rsvp'
+import { distillGuestMemory, type MessageHistory } from '@/lib/ai-rsvp'
 
 const TWIML_EMPTY = '<Response/>'
 
@@ -104,6 +104,20 @@ export async function POST(request: NextRequest) {
       await enqueueOutbound(supabase, { to: from, body: outcome.message, guestId: guest.id, eventId: guest.event_id, author: 'ia' })
       if (outcome.escalate) {
         await supabase.from('guests').update({ wa_needs_human: true, wa_needs_human_reason: outcome.reason }).eq('id', guest.id)
+      }
+    }
+
+    // Memoria episodica: destila notas blandas tras un intercambio real (reply/draft).
+    // Fallo silencioso: nunca rompe el webhook (igual que el audit log).
+    if (outcome.action === 'reply' || outcome.action === 'draft') {
+      try {
+        const { data: g } = await supabase
+          .from('guests').select('agent_memory').eq('id', guest.id).maybeSingle()
+        const turn: MessageHistory[] = [...history, { direction: 'sent', content: outcome.text }]
+        const memory = await distillGuestMemory(g?.agent_memory ?? null, turn, guest.name)
+        if (memory) await supabase.from('guests').update({ agent_memory: memory }).eq('id', guest.id)
+      } catch (e) {
+        console.error('[WA] destilacion de memoria fallo:', e instanceof Error ? e.message : e)
       }
     }
 

@@ -183,6 +183,7 @@ export async function generateGroundedReply(
   history: MessageHistory[],
   guestName: string,
   incomingMessage: string,
+  memory?: string | null,
 ): Promise<{ answer: string; deferred: boolean }> {
   const tono = tone === 'formal'
     ? 'Tono FORMAL: trato cortes y profesional, hablando de usted. Si es el inicio de la conversacion, saluda por su nombre de forma respetuosa. Sobrio y atento, sin familiaridad excesiva.'
@@ -190,11 +191,19 @@ export async function generateGroundedReply(
 
   const firma = signature?.trim() ? `Cuando cierres, puedes firmar como: ${signature.trim()}.` : ''
 
+  // Memoria episodica: contexto blando para el TRATO, jamas fuente de hechos.
+  // No forma parte del CONTEXTO citable (el self-check no la ve), por eso aqui se
+  // marca explicitamente que no autoriza a afirmar datos.
+  const notas = memory?.trim()
+    ? `\n\nNOTAS BLANDAS SOBRE EL INVITADO (solo para personalizar el trato; NO son datos oficiales del evento; NUNCA afirmes un hecho ni respondas una pregunta basandote unicamente en estas notas):\n${memory.trim()}`
+    : ''
+
   const system = `Eres el asistente de WhatsApp de un evento, respondiendo en nombre de los anfitriones. Respondes SOLO con la informacion del CONTEXTO.
 
 REGLAS ESTRICTAS:
 - Si la respuesta NO esta explicita en el CONTEXTO, responde EXACTAMENTE con el texto: ${NO_SE}
 - Nunca inventes datos (horarios, direcciones, dress code, reglas, numero de acompañantes) que no esten en el CONTEXTO.
+- Las NOTAS BLANDAS solo ajustan el tono y la cercania; nunca las uses para afirmar un dato. Si una pregunta solo se podria responder con esas notas, responde ${NO_SE}.
 - Responde en espanol, estilo WhatsApp, de 2 a 4 oraciones.
 - ${tono}
 - No repitas el saludo si la conversacion ya viene en curso (revisa el Historial).
@@ -202,7 +211,7 @@ REGLAS ESTRICTAS:
 - Sin emojis, sin asteriscos. ${firma}
 
 CONTEXTO:
-${contextText}`
+${contextText}${notas}`
 
   const hist = history.length
     ? history.map(m => `${m.direction === 'sent' ? 'Agente' : guestName}: ${m.content}`).join('\n')
@@ -241,5 +250,51 @@ Ante la duda, responde "true". Responde unicamente "true" o "false".`
     return block.text.trim().toLowerCase().startsWith('true')
   } catch {
     return false  // conservador: si el verificador falla, no enviamos
+  }
+}
+
+const MEMORY_MAX = 300
+const MEMORY_NONE = 'VACIO'
+
+// Memoria episodica (CoALA): destila notas blandas y duraderas del invitado a
+// partir del ultimo intercambio. Conservadora a proposito: solo contexto social
+// para el trato, nunca datos operativos (RSVP/alergias/+1 ya se registran aparte).
+// Devuelve la ficha actualizada (<=300 car.) o null si no hay nada que guardar.
+export async function distillGuestMemory(
+  prevMemory: string | null,
+  history: MessageHistory[],
+  guestName: string,
+): Promise<string | null> {
+  const system = `Mantienes una ficha breve de NOTAS BLANDAS sobre un invitado a un evento, para que el anfitrion lo trate de forma calida y personal.
+
+Devuelve SOLO la ficha actualizada, integrando la nota previa con lo nuevo del intercambio. Reglas:
+- Maximo ${MEMORY_MAX} caracteres. Frases cortas separadas por "; ". Sin viñetas, sin saludos, sin explicaciones.
+- INCLUYE solo hechos sociales blandos y duraderos utiles para el trato: de donde viene, relacion con los anfitriones, si esta indeciso, su animo, sus preocupaciones, preferencias o contexto personal que el mismo invitado menciono.
+- PROHIBIDO escribir si el invitado confirmo, declino o si va o no va a asistir. PROHIBIDO escribir alergias, restricciones alimentarias o numero de acompañantes. Todo eso se guarda en otro lado; NUNCA lo pongas en la ficha aunque el invitado lo diga.
+  Ejemplo: si el invitado dice "venimos desde Monterrey y ahi estaremos sin falta", la ficha guarda "Viene de Monterrey" y NO "ya confirmo su asistencia".
+- No inventes ni especules. Si el invitado no aporto nada nuevo que valga la pena recordar, devuelve la nota previa tal cual.
+- Si no hay ninguna nota util (ni previa ni nueva), responde EXACTAMENTE: ${MEMORY_NONE}`
+
+  const hist = history.length
+    ? history.map(m => `${m.direction === 'sent' ? 'Agente' : guestName}: ${m.content}`).join('\n')
+    : 'Sin mensajes.'
+
+  try {
+    const response = await client.messages.create({
+      model: 'claude-haiku-4-5',
+      max_tokens: 150,
+      system: [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }],
+      messages: [{
+        role: 'user',
+        content: `Nota previa sobre ${guestName}: ${prevMemory?.trim() || '(ninguna)'}\n\nIntercambio reciente:\n${hist}\n\nFicha actualizada (o ${MEMORY_NONE}):`,
+      }],
+    })
+    const block = response.content[0]
+    if (block.type !== 'text') return null
+    const text = block.text.trim()
+    if (!text || text.toUpperCase() === MEMORY_NONE) return null
+    return text.slice(0, MEMORY_MAX)
+  } catch {
+    return null  // fallo silencioso: la memoria nunca rompe el flujo
   }
 }

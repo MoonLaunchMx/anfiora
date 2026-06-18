@@ -38,6 +38,7 @@ interface Guest {
   allergies: string[] | null
   event_id: string
   wa_needs_human?: boolean | null
+  agent_memory?: string | null
 }
 
 interface WaMessage {
@@ -672,6 +673,14 @@ function PanelDetalles({ conv, mesa, cargandoMesa, onClose }: PanelDetallesProps
             </div>
           </div>
         )}
+        {g.agent_memory && g.agent_memory.trim() && (
+          <div className="py-3">
+            <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-[#9ca3af]">Notas del agente</p>
+            <p className="rounded-lg bg-[#f8f8f8] px-3 py-2 text-[13px] leading-relaxed text-[#555]">
+              {g.agent_memory}
+            </p>
+          </div>
+        )}
         <div className="py-3">
           <div className="flex items-start gap-2.5 rounded-xl border border-[#48C9B0]/20 bg-[#48C9B0]/8 p-3">
             <Sparkles size={14} className="mt-0.5 shrink-0 text-[#48C9B0]" />
@@ -742,7 +751,7 @@ export default function MensajesPage() {
     const guestIds = [...new Set(mensajes.map((m: WaMessage) => m.guest_id))]
     const { data: guests } = await supabase
       .from('guests')
-      .select('id, name, phone, rsvp_status, side, tags, allergies, event_id, wa_needs_human')
+      .select('id, name, phone, rsvp_status, side, tags, allergies, event_id, wa_needs_human, agent_memory')
       .in('id', guestIds)
 
     if (!guests) { setCargando(false); return }

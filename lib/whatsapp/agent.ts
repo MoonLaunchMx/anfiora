@@ -44,8 +44,9 @@ export async function runPipelineOnPack(
 
   const contextText = renderContextPackText(pack)
 
-  // Candado 2-3: generacion grounded (mundo cerrado)
-  const gen = await generateGroundedReply(contextText, config.tone, config.signature, history, pack.guestName, incomingText)
+  // Candado 2-3: generacion grounded (mundo cerrado). La memoria episodica entra
+  // como notas blandas para el trato, NO al contextText que ve el self-check.
+  const gen = await generateGroundedReply(contextText, config.tone, config.signature, history, pack.guestName, incomingText, pack.memory)
   if (gen.deferred) {
     if (config.escalate.cambios_invitados && isCompanionRequest(incomingText)) {
       return { action: 'handoff', message: config.holdingMessage, reason: 'cambios_invitados', escalate: true, rsvp }

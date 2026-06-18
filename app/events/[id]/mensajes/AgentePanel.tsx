@@ -20,8 +20,9 @@ export default function AgentePanel({ eventId }: { eventId: string }) {
   const [savedAt, setSavedAt] = useState<number | null>(null)
 
   const [testMsg, setTestMsg] = useState('')
+  const [testMemory, setTestMemory] = useState('')
   const [testing, setTesting] = useState(false)
-  const [testResult, setTestResult] = useState<{ kind: string; text: string; reason?: string } | null>(null)
+  const [testResult, setTestResult] = useState<{ kind: string; text: string; reason?: string; distilledMemory?: string | null } | null>(null)
 
   const [gaps, setGaps] = useState<{ guestId: string; question: string }[]>([])
 
@@ -69,7 +70,7 @@ export default function AgentePanel({ eventId }: { eventId: string }) {
     try {
       const res = await fetch('/api/whatsapp/agent/preview', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ eventId, message: testMsg.trim(), config }),
+        body: JSON.stringify({ eventId, message: testMsg.trim(), config, memory: testMemory.trim() || undefined }),
       })
       setTestResult(await res.json())
     } catch { setTestResult({ kind: 'error', text: 'No se pudo probar' }) }
@@ -229,6 +230,15 @@ export default function AgentePanel({ eventId }: { eventId: string }) {
           {/* Sandbox */}
           <div className="shrink-0 rounded-xl border border-[#48C9B0]/30 bg-[#f0fdfb]/40 p-3">
             <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-[#1D9E75]">Prueba tu agente</p>
+            <div className="mb-2">
+              <label className="mb-1 block text-[11px] font-medium text-[#555]">Memoria de prueba (opcional)</label>
+              <input value={testMemory} onChange={e => setTestMemory(e.target.value)}
+                placeholder="Ej: Viene de Monterrey; es primo de la novia"
+                className="w-full rounded-lg border border-[#e8e8e8] bg-white px-3 py-1.5 text-sm focus:border-[#48C9B0] focus:outline-none" />
+              <p className="mt-1 text-[10px] leading-relaxed text-[#9ca3af]">
+                Simula lo que el agente ya recordaria del invitado. Ajusta el trato, pero nunca sirve para inventar datos.
+              </p>
+            </div>
             <div className="flex items-end gap-2">
               <textarea value={testMsg} onChange={e => setTestMsg(e.target.value)} rows={1}
                 onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); runTest() } }}
@@ -240,10 +250,18 @@ export default function AgentePanel({ eventId }: { eventId: string }) {
               </button>
             </div>
             {testResult && (
-              <div className={`mt-2 rounded-lg p-2.5 text-sm ${testResult.kind === 'handoff' ? 'bg-amber-50 text-amber-800' : 'bg-white text-[#1D1E20]'}`}>
-                {testResult.kind === 'handoff' && <p className="mb-1 flex items-center gap-1 text-[11px] font-semibold text-amber-700"><AlertCircle size={11} /> Escala a humano ({testResult.reason})</p>}
-                {testResult.text}
-              </div>
+              <>
+                <div className={`mt-2 rounded-lg p-2.5 text-sm ${testResult.kind === 'handoff' ? 'bg-amber-50 text-amber-800' : 'bg-white text-[#1D1E20]'}`}>
+                  {testResult.kind === 'handoff' && <p className="mb-1 flex items-center gap-1 text-[11px] font-semibold text-amber-700"><AlertCircle size={11} /> Escala a humano ({testResult.reason})</p>}
+                  {testResult.text}
+                </div>
+                {testResult.distilledMemory && (
+                  <div className="mt-2 rounded-lg border border-[#e8e8e8] bg-white p-2.5">
+                    <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-[#9ca3af]">Nota que recordaria</p>
+                    <p className="text-[13px] leading-relaxed text-[#555]">{testResult.distilledMemory}</p>
+                  </div>
+                )}
+              </>
             )}
           </div>
 

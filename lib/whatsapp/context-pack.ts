@@ -16,6 +16,9 @@ export type ContextPack = {
   table: string | null
   allergies: string[]
   faq: FaqEntry[]
+  // Notas blandas del invitado (memoria episodica). Se inyecta SOLO al prompt de
+  // generacion, nunca al render citable / self-check. No es dato oficial del evento.
+  memory: string | null
 }
 
 function hostsOf(event: any): string | null {
@@ -30,7 +33,7 @@ export async function buildContextPack(
 ): Promise<ContextPack | null> {
   const { data: guest } = await supabase
     .from('guests')
-    .select('id, name, event_id, rsvp_status, party_size, allergies')
+    .select('id, name, event_id, rsvp_status, party_size, allergies, agent_memory')
     .eq('id', guestId)
     .maybeSingle()
   if (!guest) return null
@@ -70,6 +73,7 @@ export async function buildContextPack(
     table,
     allergies: Array.isArray(guest.allergies) ? guest.allergies : [],
     faq: config.faq ?? [],
+    memory: typeof guest.agent_memory === 'string' && guest.agent_memory.trim() ? guest.agent_memory.trim() : null,
   }
 }
 
@@ -99,6 +103,7 @@ export async function buildPreviewPack(
     table: null,
     allergies: [],
     faq: config.faq ?? [],
+    memory: null,
   }
 }
 
