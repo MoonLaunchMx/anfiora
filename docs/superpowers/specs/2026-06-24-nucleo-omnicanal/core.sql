@@ -21,7 +21,10 @@
 -- una misma cuenta sirve a muchos eventos.
 create table channel_accounts (
   id                  uuid primary key default gen_random_uuid(),
-  workspace_id        uuid not null,                  -- FK -> users, se agrega en anfiora.sql
+  workspace_id        uuid,                           -- FK -> users (anfiora.sql). NULLABLE: un canal
+                                                      -- COMPARTIDO (Anfiora hoy) no tiene planner dueno.
+                                                      -- Con ANF-048 (numero dedicado) se setea al planner.
+                                                      -- Las conversaciones SI llevan workspace_id NOT NULL.
   channel             text not null,                  -- enum ABIERTO: 'whatsapp'|'instagram'|'facebook'|'telegram'|'tiktok'|...
   external_account_id text,                           -- phone_number_id (WA), page id (FB), ig id, bot id
   display_label       text,
@@ -45,7 +48,11 @@ create table channel_participants (
   profile             jsonb not null default '{}',    -- avatar, locale, metadata de la plataforma
   created_at          timestamptz not null default now(),
   updated_at          timestamptz not null default now(),
-  unique (channel_account_id, external_id)
+  -- workspace_id en la llave = AISLAMIENTO LOGICO desde el dia uno: con numero
+  -- COMPARTIDO, el mismo telefono genera un participante (y un hilo) POR PLANNER.
+  -- Cuando ANF-048 ponga numero DEDICADO por planner, workspace_id en la llave
+  -- queda redundante e inofensivo -> flip trivial, sin reescribir el nucleo.
+  unique (channel_account_id, workspace_id, external_id)
 );
 
 -- conversations: un hilo por (cuenta de canal + participante). UNO solo: se

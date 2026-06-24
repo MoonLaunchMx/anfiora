@@ -108,12 +108,27 @@ integridad referencial, y permite copiar `core.sql` a la app de ventas tal cual.
 El inbox por evento que ya te gusta no desaparece: se vuelve una **vista filtrada**
 del general. El chat nunca estuvo duplicado.
 
-### Router de tenant (regla A)
+### Router de tenant (regla A) y numero compartido
 
-Cuando llega un mensaje de un numero que es invitado en >1 evento del mismo planner,
-se asigna al **evento activo mas proximo en fecha**. Es solo una **sugerencia**: el
-inbox general es la red de seguridad y el hilo es **reasignable** a otro evento desde
-la UI. Si no matchea ningun invitado, queda **sin clasificar** en el general.
+**Realidad de transporte (verificada en codigo):** hoy WhatsApp usa UN numero Twilio
+COMPARTIDO (`env TWILIO_WHATSAPP_FROM`); el webhook ignora `To` y rutea por el
+telefono del remitente (`From`). No hay senal por-planner en el transporte hasta que
+ANF-048 (numeros dedicados, hoy pausado) aterrice — ahi `To` pasa a desambiguar.
+
+**Aislamiento desde el dia uno:** `channel_participants` lleva `workspace_id` en su
+llave unica (`UNIQUE(channel_account_id, workspace_id, external_id)`), asi el mismo
+telefono en el numero compartido genera **un participante y un hilo por planner**. El
+`channel_account` es global de Anfiora hoy; cuando ANF-048 lo vuelva por-planner, el
+`workspace_id` de la llave queda redundante: flip trivial, nucleo intacto.
+
+**Ruteo del inbound:**
+1. **Continuidad de sesion:** si el telefono ya tiene una conversacion activa, el
+   mensaje sigue en ESE workspace/evento (su ultima conversacion activa).
+2. **Primer contacto (sin sesion):** se busca al invitado por telefono; si matchea en
+   >1 evento (incluso de planners distintos), se elige el **evento activo mas proximo
+   en fecha** (regla A). Es una **sugerencia**: reasignable desde la UI.
+3. **Sin match:** queda **sin clasificar** en el inbox general del workspace que mejor
+   aplique (o como prospecto si no hay ninguno).
 
 ### Seguridad de dos niveles (RLS)
 
