@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 import { validateRequest } from 'twilio'
 import { getAgentConfig } from '@/lib/whatsapp/config'
 import { isDuplicate, detectOptOut, applyOptOut, claimInboundForReply, enqueueOutbound } from '@/lib/whatsapp/reliability'
+import { mirrorInbound, mirrorOutbound } from '@/lib/whatsapp/canonical-mirror'
 import { runAgentPipeline } from '@/lib/whatsapp/agent'
 import { distillGuestMemory, type MessageHistory } from '@/lib/ai-rsvp'
 
@@ -53,11 +54,13 @@ export async function POST(request: NextRequest) {
 
     // Opt-out entrante
     if (detectOptOut(text)) {
+      const optIso = new Date().toISOString()
       await applyOptOut(supabase, guest.id)
       await supabase.from('wa_messages').insert({
         guest_id: guest.id, event_id: guest.event_id, direction: 'received',
-        content: text, twilio_sid: sid, created_at: new Date().toISOString(),
+        content: text, twilio_sid: sid, created_at: optIso,
       })
+      await mirrorInbound(supabase, { guest, phone, text, sid, createdAt: optIso })
       return twiml()
     }
 
@@ -67,6 +70,7 @@ export async function POST(request: NextRequest) {
       guest_id: guest.id, event_id: guest.event_id, direction: 'received',
       content: text, twilio_sid: sid, created_at: nowIso,
     })
+    await mirrorInbound(supabase, { guest, phone, text, sid, createdAt: nowIso })
 
     const config = await getAgentConfig(supabase, guest.event_id)
 
@@ -95,9 +99,14 @@ export async function POST(request: NextRequest) {
     if (outcome.action === 'reply') {
       await enqueueOutbound(supabase, { to: from, body: outcome.text, guestId: guest.id, eventId: guest.event_id, author: 'ia' })
     } else if (outcome.action === 'draft') {
+      const draftIso = new Date().toISOString()
       await supabase.from('wa_messages').insert({
         guest_id: guest.id, event_id: guest.event_id, direction: 'sent',
-        content: outcome.text, author: 'ia', status: 'draft', created_at: new Date().toISOString(),
+        content: outcome.text, author: 'ia', status: 'draft', created_at: draftIso,
+      })
+      await mirrorOutbound(supabase, {
+        to: from, guestId: guest.id, eventId: guest.event_id, text: outcome.text,
+        author: 'ia', status: 'draft', sid: null, createdAt: draftIso,
       })
       await supabase.from('guests').update({ wa_needs_human: true, wa_needs_human_reason: 'copiloto' }).eq('id', guest.id)
     } else if (outcome.action === 'handoff') {
@@ -108,7 +117,6 @@ export async function POST(request: NextRequest) {
     }
 
     // Memoria episodica: destila notas blandas tras un intercambio real (reply/draft).
-    // Fallo silencioso: nunca rompe el webhook (igual que el audit log).
     if (outcome.action === 'reply' || outcome.action === 'draft') {
       try {
         const { data: g } = await supabase

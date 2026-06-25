@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { DEBOUNCE_MS, OPT_OUT_KEYWORDS } from './config'
+import { mirrorOutbound } from './canonical-mirror'
 
 // ── Idempotencia (Twilio reintenta el webhook) ──────────────────────────────
 export async function isDuplicate(supabase: SupabaseClient, twilioSid: string | null): Promise<boolean> {
@@ -47,8 +48,6 @@ export async function applyOptOut(supabase: SupabaseClient, guestId: string): Pr
 }
 
 // ── Debounce "esperar-y-verificar" ──────────────────────────────────────────
-// Espera DEBOUNCE_MS y devuelve true si este entrante sigue siendo el mas nuevo
-// para el invitado (=> soy quien debe responder). Si llego uno mas nuevo, false.
 export async function claimInboundForReply(
   supabase: SupabaseClient,
   guestId: string,
@@ -113,6 +112,7 @@ export async function enqueueOutbound(supabase: SupabaseClient, p: OutboundPaylo
     console.error('[WA] Twilio fetch fallo:', err)
   }
 
+  const nowIso = new Date().toISOString()
   await supabase.from('wa_messages').insert({
     guest_id: p.guestId,
     event_id: p.eventId,
@@ -121,7 +121,13 @@ export async function enqueueOutbound(supabase: SupabaseClient, p: OutboundPaylo
     author: p.author,
     status,
     twilio_sid: sid,
-    created_at: new Date().toISOString(),
+    created_at: nowIso,
   })
+
+  await mirrorOutbound(supabase, {
+    to: p.to, guestId: p.guestId, eventId: p.eventId, text: p.body,
+    author: p.author, status, sid, createdAt: nowIso,
+  })
+
   return { ok: status === 'sent', status }
 }
