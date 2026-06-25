@@ -1,0 +1,375 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Anfiora · Inbox omnicanal (prototipo)</title>
+<style>
+  :root{
+    --bg:#ffffff; --surface:#f8f8f8; --surface-alt:#f2f2f2; --hover:#eeeeee;
+    --border:#e8e8e8; --border-strong:#e0e0e0;
+    --text:#0a0a0a; --text-sec:#666666; --text-muted:#999999; --text-dim:#bbbbbb;
+    --accent:#d4a853; --accent-dim:#c49a3a; --accent-bg:#fffbf0; --nav-active:#f0f0f0;
+    --teal:#48C9B0; --error-text:#cc3333; --success-text:#2a7a50; --success-bg:#f0fff6;
+    --wa:#25D366; --ig:#E1306C; --fb:#0084FF; --tg:#229ED9; --tt:#111111;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{
+    font-family:'General Sans',system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    color:var(--text); background:var(--surface-alt); font-size:14px; line-height:1.45;
+  }
+  .app{display:flex;flex-direction:column;height:100vh}
+
+  /* Topbar */
+  .topbar{display:flex;align-items:center;gap:16px;padding:12px 20px;background:var(--bg);
+    border-bottom:1px solid var(--border)}
+  .tb-left{display:flex;align-items:center;gap:14px;flex:1;min-width:0}
+  .tb-right{flex:1}
+  .topbar h1{font-size:18px;font-weight:650;margin:0;letter-spacing:-.01em}
+  .scope{display:flex;align-items:center;gap:6px;border:1px solid var(--border-strong);
+    border-radius:9px;padding:6px 10px;background:var(--bg);font-weight:550;cursor:pointer}
+  .scope small{color:var(--text-muted);font-weight:450}
+  .chips{display:flex;gap:6px;justify-content:center;flex-wrap:wrap}
+  .chip{display:flex;align-items:center;gap:6px;border:1px solid var(--border-strong);
+    background:var(--bg);border-radius:999px;padding:5px 11px;font-size:12.5px;color:var(--text-sec);cursor:pointer}
+  .chip.active{background:var(--text);color:#fff;border-color:var(--text)}
+
+  /* Layout 3 paneles */
+  .panes{display:grid;grid-template-columns:320px 1fr 312px;flex:1;min-height:0}
+  .col{min-height:0;overflow:auto;background:var(--bg)}
+  .col.list{border-right:1px solid var(--border)}
+  .col.detail{border-left:1px solid var(--border)}
+  .col.chatcol{overflow:hidden;display:flex;flex-direction:column}
+  .col.chatcol > #chats{flex:1;min-height:0;display:flex;flex-direction:column}
+
+  /* Buscador */
+  .search{position:sticky;top:0;background:var(--bg);padding:12px;border-bottom:1px solid var(--border);z-index:2}
+  .search input{width:100%;border:1px solid var(--border-strong);border-radius:9px;
+    padding:9px 12px;font:inherit;background:var(--surface)}
+
+  /* Lista de conversaciones */
+  .conv{display:flex;gap:11px;padding:12px 14px;border-bottom:1px solid var(--border);cursor:pointer;position:relative}
+  .conv:hover{background:var(--surface)}
+  .conv.active{background:var(--accent-bg)}
+  .conv.active:before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--accent)}
+  .avatar{width:40px;height:40px;border-radius:50%;flex:none;background:var(--surface-alt);
+    display:flex;align-items:center;justify-content:center;font-weight:600;color:var(--text-sec);position:relative}
+  .badge-ch{position:absolute;right:-3px;bottom:-3px;width:18px;height:18px;border-radius:50%;
+    border:2px solid var(--bg);display:flex;align-items:center;justify-content:center}
+  .conv-main{min-width:0;flex:1}
+  .conv-top{display:flex;align-items:center;gap:7px}
+  .conv-name{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .conv-time{margin-left:auto;color:var(--text-muted);font-size:11.5px;flex:none}
+  .conv-prev{color:var(--text-sec);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
+  .conv-ctx{font-size:11px;margin-top:4px;display:inline-flex;align-items:center;gap:5px;color:var(--text-muted)}
+  .tag{font-size:10.5px;padding:1.5px 7px;border-radius:999px;font-weight:600;letter-spacing:.02em}
+  .tag.event{background:var(--surface-alt);color:var(--text-sec)}
+  .tag.prov{background:#eef4ff;color:#2b66c9}
+  .tag.unclass{background:#fff3e8;color:#b5631a}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--teal);flex:none}
+  .dot.off{background:var(--border-strong)}
+
+  /* Chat */
+  .chat{display:flex;flex-direction:column;flex:1;min-height:0}
+  .chat-head{display:flex;align-items:center;gap:10px;padding:13px 18px;border-bottom:1px solid var(--border);background:var(--bg);flex:none;position:relative}
+  .win-head{position:absolute;left:50%;transform:translateX(-50%);display:inline-flex;align-items:center;gap:6px;
+    font-size:11.5px;font-weight:600;border-radius:999px;padding:4px 12px;border:1px solid}
+  .win-head.ok{color:var(--success-text);background:var(--success-bg);border-color:#bfe6cf}
+  .win-head.closed{color:var(--error-text);background:#fff0f0;border-color:#ffc9c9}
+  .chat-head .nm{font-weight:650}
+  .chat-head .sub{color:var(--text-muted);font-size:12px}
+  .ch-pill{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border-strong);
+    border-radius:999px;padding:3px 9px 3px 4px;font-size:11.5px;color:var(--text-sec);margin-left:auto}
+  .stream{flex:1;min-height:0;overflow:auto;padding:20px 18px;display:flex;flex-direction:column;gap:4px;background:var(--surface)}
+  .msg{max-width:74%;padding:9px 13px;border-radius:14px;margin-top:8px;position:relative}
+  .msg.in{align-self:flex-start;background:var(--bg);border:1px solid var(--border)}
+  .msg.out{align-self:flex-end;background:#e7f8f3;border:1px solid #cdeee5}
+  .meta{font-size:10.5px;color:var(--text-muted);margin-top:3px}
+  .msg.out .meta{text-align:right}
+  .ia{display:inline-flex;align-items:center;gap:4px;font-size:9.5px;font-weight:700;letter-spacing:.04em;
+    color:var(--accent-dim);background:var(--accent-bg);border:1px solid #f0e3c0;border-radius:5px;padding:0 5px;margin-left:6px}
+  .sysline{align-self:center;color:var(--text-muted);font-size:11.5px;margin:14px 0 4px;
+    display:flex;align-items:center;gap:8px}
+  .sysline:before,.sysline:after{content:"";height:1px;width:34px;background:var(--border-strong)}
+
+  /* Composer */
+  .composer{border-top:1px solid var(--border);background:var(--bg);padding:11px 14px;flex:none}
+  .composer .row{display:flex;gap:9px;align-items:center}
+  .tmpl{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border-strong);
+    background:var(--bg);border-radius:8px;padding:6px 11px;font:inherit;font-size:12.5px;color:var(--text-sec);cursor:pointer}
+  .tmpl:hover{background:var(--surface)}
+  .clip{border:none;background:none;cursor:pointer;color:var(--text-muted);padding:6px;display:flex;align-items:center;flex:none}
+  .clip:hover{color:var(--text)}
+  .quickbar{display:flex;align-items:center;gap:7px;overflow-x:auto;margin-bottom:9px;padding-bottom:2px}
+  .qlabel{display:inline-flex;align-items:center;gap:6px;font-size:11px;color:var(--text-muted);white-space:nowrap;flex:none}
+  .qchip{border:1px solid var(--border-strong);background:var(--surface);border-radius:999px;
+    padding:5px 11px;font:inherit;font-size:12px;color:var(--text-sec);white-space:nowrap;cursor:pointer;flex:none}
+  .qchip:hover{background:var(--hover)}
+  .composer textarea{flex:1;resize:none;border:1px solid var(--border-strong);border-radius:10px;
+    padding:10px 12px;font:inherit;height:42px;background:var(--surface)}
+  .send{background:var(--teal);color:#fff;border:none;border-radius:10px;padding:0 16px;height:42px;font-weight:600;cursor:pointer}
+  .ctrls{display:flex;align-items:center;gap:14px;margin-top:9px;color:var(--text-sec);font-size:12px}
+  .toggle{display:inline-flex;align-items:center;gap:7px}
+  .switch{width:38px;height:21px;border-radius:999px;background:var(--teal);position:relative;cursor:pointer;transition:.15s}
+  .switch.off{background:var(--border-strong)}
+  .switch:after{content:"";position:absolute;top:2px;left:19px;width:17px;height:17px;border-radius:50%;background:#fff;transition:.15s}
+  .switch.off:after{left:2px}
+
+  /* Detalle */
+  .detail .d-head{padding:18px 16px 14px;text-align:center;border-bottom:1px solid var(--border)}
+  .d-av{width:58px;height:58px;border-radius:50%;background:var(--surface-alt);margin:0 auto 9px;
+    display:flex;align-items:center;justify-content:center;font-weight:650;font-size:20px;color:var(--text-sec);position:relative}
+  .d-name{font-weight:650;font-size:16px}
+  .d-ch{color:var(--text-muted);font-size:12px;margin-top:3px;display:flex;align-items:center;justify-content:center;gap:6px}
+  .sec{padding:14px 16px;border-bottom:1px solid var(--border)}
+  .sec h4{margin:0 0 9px;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted);font-weight:650}
+  .kv{display:flex;justify-content:space-between;gap:10px;padding:4px 0}
+  .kv span:first-child{color:var(--text-sec)}
+  .kv span:last-child{font-weight:550;text-align:right}
+  .pill{display:inline-block;font-size:11.5px;padding:2px 9px;border-radius:999px;background:var(--surface-alt);color:var(--text-sec);margin:0 5px 5px 0}
+  .pill.ok{background:var(--success-bg);color:var(--success-text)}
+  .pill.warn{background:#fff0f0;color:var(--error-text)}
+  .reassign{display:flex;align-items:center;justify-content:space-between;border:1px solid var(--border-strong);
+    border-radius:9px;padding:9px 11px;cursor:pointer;background:var(--bg)}
+  .actions a{display:block;padding:7px 0;color:var(--text);text-decoration:none;border-bottom:1px solid var(--border)}
+  .actions a:last-child{border:none}
+  .actions a:hover{color:var(--accent-dim)}
+  .muted{color:var(--text-muted)}
+  .hidden{display:none}
+  .note{padding:9px 12px;background:var(--accent-bg);border-bottom:1px solid #f0e3c0;color:#8a6d2a;font-size:12px}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- Topbar -->
+  <div class="topbar">
+    <div class="tb-left">
+      <h1>Mensajes</h1>
+      <div class="scope">General <small>todos los eventos</small> <span class="muted">&#9662;</span></div>
+    </div>
+    <div class="chips">
+      <div class="chip active">Todos</div>
+      <div class="chip"><span id="c-wa"></span> WhatsApp</div>
+      <div class="chip"><span id="c-ig"></span> Instagram</div>
+      <div class="chip"><span id="c-fb"></span> Facebook</div>
+      <div class="chip"><span id="c-tg"></span> Telegram</div>
+      <div class="chip"><span id="c-tt"></span> TikTok</div>
+    </div>
+    <div class="tb-right"></div>
+  </div>
+
+  <div class="panes">
+
+    <!-- LISTA -->
+    <div class="col list">
+      <div class="search"><input placeholder="Buscar conversacion..." /></div>
+      <div id="convs"></div>
+    </div>
+
+    <!-- CHAT -->
+    <div class="col chatcol">
+      <div id="chats"></div>
+    </div>
+
+    <!-- DETALLE -->
+    <div class="col detail">
+      <div id="details"></div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ---- Logos de canal (SVG inline, glifo blanco sobre circulo de marca) -------
+function chLogo(ch, size){
+  size = size || 18;
+  const c = {wa:'#25D366', ig:'#E1306C', fb:'#0084FF', tg:'#229ED9', tt:'#111111'}[ch];
+  const glyph = {
+    wa:'<path fill="#fff" d="M12 4a8 8 0 00-6.9 12l-1 3.6 3.7-1A8 8 0 1012 4zm0 1.6a6.4 6.4 0 11-3.3 11.9l-.3-.2-2 .5.6-1.9-.2-.3A6.4 6.4 0 0112 5.6zm-2.1 3c-.2 0-.5.1-.6.3-.3.3-.7.8-.7 1.7s.7 1.9.8 2c.1.2 1.4 2.3 3.5 3.1 1.7.7 2 .6 2.4.5.4 0 1.1-.4 1.2-.9.2-.4.2-.8.1-.9 0-.1-.2-.2-.5-.3l-1-.5c-.2 0-.3-.1-.4.1l-.5.6c-.1.2-.2.2-.4.1-.3-.1-1-.4-1.7-1-.6-.6-1-1.2-1.2-1.5-.1-.2 0-.3.1-.4l.3-.4.2-.4v-.3l-.5-1.2c-.1-.3-.2-.3-.4-.3z"/>',
+    ig:'<rect x="6.5" y="6.5" width="11" height="11" rx="3.4" fill="none" stroke="#fff" stroke-width="1.5"/><circle cx="12" cy="12" r="2.6" fill="none" stroke="#fff" stroke-width="1.5"/><circle cx="15.4" cy="8.6" r="1" fill="#fff"/>',
+    fb:'<path fill="#fff" d="M12 5c-3.9 0-7 2.9-7 6.6 0 2 1 3.9 2.6 5.1V20l2.4-1.3c.6.2 1.3.3 2 .3 3.9 0 7-2.9 7-6.6S15.9 5 12 5zm.7 8.9l-1.8-1.9-3.5 1.9 3.8-4 1.8 1.9 3.5-1.9-3.8 4z"/>',
+    tg:'<path fill="#fff" d="M17.8 7.3l-2.2 10.3c-.1.6-.5.8-1 .5l-2.8-2.1-1.4 1.3c-.1.1-.3.3-.6.3l.2-2.9 5.2-4.7c.2-.2 0-.3-.3-.1L8.6 13 5.8 12c-.6-.2-.6-.6.1-.9l11-4.2c.5-.2 1 .1.9.4z"/>',
+    tt:'<path fill="#fff" d="M14 5c.2 1.6 1.2 2.9 2.8 3.1v2c-1 0-2-.3-2.8-.8v4.4c0 2.4-1.9 4.3-4.2 4.3S5.6 20.1 5.6 17.7c0-2.2 1.7-4 3.9-4.2v2.1c-1 .2-1.8 1-1.8 2.1 0 1.2.9 2.1 2 2.1s2-.9 2-2.1V5h2.3z"/>'
+  }[ch];
+  return '<svg viewBox="0 0 24 24" width="'+size+'" height="'+size+'" style="display:block">'
+       + '<circle cx="12" cy="12" r="12" fill="'+c+'"/>'+glyph+'</svg>';
+}
+['wa','ig','fb','tg','tt'].forEach(k=>{document.getElementById('c-'+k).innerHTML=chLogo(k,14)});
+
+function clipIcon(){
+  return '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>';
+}
+// Barra de mensajes rapidos (plantillas usadas) — especifica de WhatsApp
+function quickBar(){
+  const items=['Confirmar asistencia','Compartir ubicacion','Recordatorio del evento','Menu y alergias','Mesa asignada'];
+  return `<div class="quickbar"><span class="qlabel">${chLogo('wa',14)} Mensajes rapidos</span>`
+    + items.map(i=>`<button class="qchip">${i}</button>`).join('') + `</div>`;
+}
+// Indicador de ventana 24h, centrado en el header (solo WhatsApp/IG/FB)
+function winHead(c){
+  if(!['wa','ig','fb'].includes(c.ch)) return '';
+  return c.win===false
+    ? `<span class="win-head closed">Fuera de ventana 24h &middot; solo plantilla aprobada</span>`
+    : `<span class="win-head ok">Dentro de ventana 24h &middot; texto libre</span>`;
+}
+
+// ---- Datos de ejemplo --------------------------------------------------------
+const DATA = [
+  {
+    id:'ana', ch:'wa', name:'Ana Torres', initials:'AT', time:'2m', unread:true,
+    prev:'Y hay menu vegetariano?', ctx:{type:'event', label:'Boda Ana & Luis'},
+    ai:false, assignee:'Diego', win:true,
+    msgs:[
+      {d:'in', t:'Hola, puedo llevar +1?', m:'09:14'},
+      {d:'out', t:'Claro! Te anoto con un acompanante.', m:'09:14 · entregado', ia:true},
+      {d:'in', t:'Y hay menu vegetariano?', m:'09:20'},
+    ],
+    sys:'IA en pausa · Diego esta atendiendo',
+    detail:{kind:'guest', sub:'WhatsApp · +52 81 1234 5678',
+      kv:[['Tipo','Invitado'],['Evento','Boda Ana & Luis'],['RSVP','Confirmado'],['Acompanantes','2'],['Lado','Novia']],
+      allergies:['Mariscos'], tags:['Familia','VIP']}
+  },
+  {
+    id:'carlos', ch:'ig', name:'Carlos Ramirez', initials:'CR', time:'1h', unread:true,
+    prev:'Me encanto la idea del album', ctx:{type:'event', label:'Boda Ana & Luis'},
+    ai:true, assignee:null, win:true,
+    msgs:[
+      {d:'in', t:'Hola! Vi la invitacion, confirmo asistencia', m:'08:02'},
+      {d:'out', t:'Genial Carlos, quedas confirmado. Te comparto el album colaborativo del evento.', m:'08:02 · leido', ia:true},
+      {d:'in', t:'Me encanto la idea del album', m:'08:05'},
+    ],
+    sys:'IA activa · responde sola',
+    detail:{kind:'guest', sub:'Instagram · @carlosram',
+      kv:[['Tipo','Invitado'],['Evento','Boda Ana & Luis'],['RSVP','Confirmado'],['Acompanantes','1'],['Lado','Novio']],
+      allergies:[], tags:['Amigos']}
+  },
+  {
+    id:'foto', ch:'wa', name:'Foto Brava', initials:'FB', time:'3h', unread:false,
+    prev:'Te paso la cotizacion actualizada', ctx:{type:'prov', label:'PROVEEDOR · 2 eventos'},
+    ai:false, assignee:'Diego', win:false,
+    msgs:[
+      {d:'out', t:'Hola, me pasas la cotizacion para la boda de junio?', m:'ayer 17:40', ia:false, human:true},
+      {d:'in', t:'Claro! Te paso la cotizacion actualizada', m:'14:10'},
+    ],
+    sys:'Proveedor · hilo unico, visible en sus 2 eventos',
+    detail:{kind:'supplier', sub:'WhatsApp · +52 33 9988 7766',
+      kv:[['Tipo','Proveedor'],['Categoria','Imagen'],['Estado','Cotizado'],['Eventos','Boda Ana & Luis, Boda Sofia'],['Cotizado','$ 28,000']],
+      allergies:null, tags:[]}
+  },
+  {
+    id:'prospecto', ch:'tg', name:'+52 33 1234 5678', initials:'?', time:'5h', unread:false,
+    prev:'Hola, vi su perfil, dan servicio en GDL?', ctx:{type:'unclass', label:'SIN CLASIFICAR'},
+    ai:false, assignee:null,
+    msgs:[
+      {d:'in', t:'Hola, vi su perfil, dan servicio en GDL?', m:'10:30'},
+    ],
+    sys:'Sin clasificar · no coincide con ningun invitado',
+    detail:{kind:'unknown', sub:'Telegram · chat 884412',
+      kv:[['Tipo','Sin clasificar'],['Evento','—']],
+      allergies:null, tags:[]}
+  },
+];
+
+const chName = {wa:'WhatsApp', ig:'Instagram', fb:'Facebook', tg:'Telegram', tt:'TikTok'};
+
+// ---- Render lista ------------------------------------------------------------
+const convsEl = document.getElementById('convs');
+convsEl.innerHTML = DATA.map((c,i)=>{
+  const tagClass = c.ctx.type==='event'?'event':(c.ctx.type==='prov'?'prov':'unclass');
+  return `<div class="conv${i===0?' active':''}" data-id="${c.id}" onclick="select('${c.id}')">
+    <div class="avatar">${c.initials}<span class="badge-ch">${chLogo(c.ch,14)}</span></div>
+    <div class="conv-main">
+      <div class="conv-top">
+        <div class="dot${c.unread?'':' off'}"></div>
+        <div class="conv-name">${c.name}</div>
+        <div class="conv-time">${c.time}</div>
+      </div>
+      <div class="conv-prev">${c.prev}</div>
+      <div class="conv-ctx"><span class="tag ${tagClass}">${c.ctx.label}</span></div>
+    </div>
+  </div>`;
+}).join('');
+
+// ---- Render chat -------------------------------------------------------------
+function renderChat(c){
+  const stream = c.msgs.map(m=>`
+    <div class="msg ${m.d}">
+      <div>${m.t}</div>
+      <div class="meta">${m.m}${m.ia?'<span class="ia">IA</span>':''}${m.human?' · tu':''}</div>
+    </div>`).join('');
+  return `<div class="chat">
+    <div class="chat-head">
+      <div class="avatar" style="width:34px;height:34px;font-size:12px">${c.initials}<span class="badge-ch">${chLogo(c.ch,13)}</span></div>
+      <div><div class="nm">${c.name}</div><div class="sub">${c.ctx.label}</div></div>
+      ${winHead(c)}
+      <div class="ch-pill">${chLogo(c.ch,16)} ${chName[c.ch]}</div>
+    </div>
+    <div class="stream">
+      ${stream}
+      <div class="sysline">${c.sys}</div>
+    </div>
+    <div class="composer">
+      ${c.ch==='wa' ? quickBar() : ''}
+      <div class="row">
+        <button class="clip" title="Adjuntar">${clipIcon()}</button>
+        <textarea placeholder="Escribe un mensaje..."></textarea>
+        <button class="send">Enviar</button>
+      </div>
+      <div class="ctrls">
+        <button class="tmpl">${chLogo(c.ch,14)} Plantillas</button>
+        <span class="toggle">IA <span class="switch ${c.ai?'':'off'}"></span></span>
+        <span>Asignado a: <b>${c.assignee||'sin asignar'}</b></span>
+      </div>
+    </div>
+  </div>`;
+}
+
+// ---- Render detalle ----------------------------------------------------------
+function renderDetail(c){
+  const d=c.detail;
+  const kv = d.kv.map(r=>`<div class="kv"><span>${r[0]}</span><span>${r[1]}</span></div>`).join('');
+  let allergies='';
+  if(d.allergies && d.allergies.length) allergies = d.allergies.map(a=>`<span class="pill warn">${a}</span>`).join('');
+  else if(d.allergies && d.allergies.length===0) allergies='<span class="muted">Ninguna registrada</span>';
+  const tags = (d.tags&&d.tags.length)?d.tags.map(t=>`<span class="pill">${t}</span>`).join(''):'<span class="muted">—</span>';
+
+  const isContact = d.kind==='guest';
+  const isSupplier = d.kind==='supplier';
+  const isUnknown = d.kind==='unknown';
+
+  return `<div class="detail">
+    <div class="d-head">
+      <div class="d-av">${c.initials}<span class="badge-ch" style="width:20px;height:20px;right:-2px;bottom:-2px">${chLogo(c.ch,16)}</span></div>
+      <div class="d-name">${c.name}</div>
+      <div class="d-ch">${d.sub}</div>
+    </div>
+    <div class="sec"><h4>Datos</h4>${kv}</div>
+    ${isContact?`<div class="sec"><h4>Alergias</h4>${allergies}</div>
+    <div class="sec"><h4>Tags</h4>${tags}</div>`:''}
+    ${isSupplier?`<div class="sec"><h4>Comercial</h4><div class="muted" style="font-size:12.5px">Hilo unico del proveedor. Aparece en el inbox de cada evento que lo tiene contratado.</div></div>`:''}
+    <div class="sec"><h4>Evento</h4>
+      <div class="reassign"><span>${isUnknown?'Sin asignar':d.kv.find(r=>r[0]==='Evento')?.[1]||'—'}</span><span class="muted">&#9662;</span></div>
+      <div class="muted" style="font-size:11.5px;margin-top:6px">Reasignar a otro evento</div>
+    </div>
+    <div class="sec actions"><h4>Acciones</h4>
+      ${isContact?'<a href="#">Ver ficha del invitado</a>':''}
+      ${isSupplier?'<a href="#">Ver ficha del proveedor</a>':''}
+      ${isUnknown?'<a href="#">Vincular a invitado o proveedor</a><a href="#">Marcar como prospecto</a>':''}
+      <a href="#">Cerrar conversacion</a>
+    </div>
+  </div>`;
+}
+
+// ---- Seleccion ---------------------------------------------------------------
+function select(id){
+  const c = DATA.find(x=>x.id===id);
+  document.querySelectorAll('.conv').forEach(el=>el.classList.toggle('active', el.dataset.id===id));
+  document.getElementById('chats').innerHTML = renderChat(c);
+  document.getElementById('details').innerHTML = renderDetail(c);
+}
+select('ana');
+</script>
+</body>
+</html>

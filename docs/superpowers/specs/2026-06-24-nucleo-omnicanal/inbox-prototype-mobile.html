@@ -1,0 +1,302 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<title>Anfiora · Inbox omnicanal (mobile)</title>
+<style>
+  :root{
+    --bg:#ffffff; --surface:#f8f8f8; --surface-alt:#f2f2f2; --hover:#eeeeee;
+    --border:#e8e8e8; --border-strong:#e0e0e0;
+    --text:#0a0a0a; --text-sec:#666666; --text-muted:#999999; --text-dim:#bbbbbb;
+    --accent:#d4a853; --accent-dim:#c49a3a; --accent-bg:#fffbf0; --nav-active:#f0f0f0;
+    --teal:#48C9B0; --error-text:#cc3333; --success-text:#2a7a50; --success-bg:#f0fff6;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{font-family:'General Sans',system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    color:var(--text);background:#e9e9ec;font-size:14px;line-height:1.45;
+    display:flex;align-items:center;justify-content:center;min-height:100vh;padding:16px}
+
+  /* Marco de telefono (en celular real ocupa toda la pantalla) */
+  .phone{width:390px;height:780px;max-height:96vh;background:var(--bg);border-radius:34px;
+    box-shadow:0 18px 60px rgba(0,0,0,.22);overflow:hidden;position:relative;
+    display:flex;flex-direction:column;border:1px solid #d8d8dc}
+  @media (max-width:430px){
+    body{padding:0}
+    .phone{width:100vw;height:100vh;max-height:none;border-radius:0;border:none;box-shadow:none}
+  }
+  .notch{height:30px;flex:none;display:flex;align-items:center;justify-content:center;background:var(--bg)}
+  .notch:after{content:"";width:120px;height:7px;border-radius:999px;background:#e2e2e6}
+
+  .screen{flex:1;min-height:0;display:flex;flex-direction:column}
+  .hidden{display:none !important}
+
+  /* Header */
+  .hd{display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid var(--border);flex:none}
+  .hd h1{font-size:17px;font-weight:650;margin:0}
+  .hd .back{border:none;background:none;font-size:20px;cursor:pointer;color:var(--text);padding:0 2px}
+  .hd .ico{margin-left:auto;border:none;background:none;cursor:pointer;color:var(--text-sec);font-size:13px}
+
+  /* Scope + chips */
+  .scope{display:flex;align-items:center;gap:6px;border:1px solid var(--border-strong);
+    border-radius:9px;padding:6px 10px;background:var(--bg);font-weight:550;font-size:13px;margin-left:auto}
+  .scope small{color:var(--text-muted);font-weight:450}
+  .chips{display:flex;gap:6px;padding:10px 12px;overflow-x:auto;border-top:1px solid var(--border);flex:none;background:var(--bg)}
+  .chip{display:flex;align-items:center;gap:6px;border:1px solid var(--border-strong);background:var(--bg);
+    border-radius:999px;padding:5px 11px;font-size:12.5px;color:var(--text-sec);white-space:nowrap;cursor:pointer}
+  .chip.active{background:var(--text);color:#fff;border-color:var(--text)}
+
+  /* Lista */
+  .list{flex:1;min-height:0;overflow:auto}
+  .conv{display:flex;gap:11px;padding:13px 14px;border-bottom:1px solid var(--border);cursor:pointer;position:relative}
+  .conv:active{background:var(--surface)}
+  .avatar{width:44px;height:44px;border-radius:50%;flex:none;background:var(--surface-alt);
+    display:flex;align-items:center;justify-content:center;font-weight:600;color:var(--text-sec);position:relative}
+  .badge-ch{position:absolute;right:-3px;bottom:-3px;width:19px;height:19px;border-radius:50%;
+    border:2px solid var(--bg);display:flex;align-items:center;justify-content:center}
+  .cmain{min-width:0;flex:1}
+  .ctop{display:flex;align-items:center;gap:7px}
+  .cname{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .ctime{margin-left:auto;color:var(--text-muted);font-size:11.5px;flex:none}
+  .cprev{color:var(--text-sec);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
+  .cctx{margin-top:5px}
+  .tag{font-size:10.5px;padding:2px 8px;border-radius:999px;font-weight:600}
+  .tag.event{background:var(--surface-alt);color:var(--text-sec)}
+  .tag.prov{background:#eef4ff;color:#2b66c9}
+  .tag.unclass{background:#fff3e8;color:#b5631a}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--teal);flex:none}
+  .dot.off{background:var(--border-strong)}
+
+  /* Chat */
+  .chsub{display:flex;flex-direction:column;line-height:1.2}
+  .chsub .nm{font-weight:650;font-size:15px}
+  .chsub .sb{color:var(--text-muted);font-size:11.5px;display:flex;align-items:center;gap:5px}
+  .stream{flex:1;min-height:0;overflow:auto;padding:16px 14px;display:flex;flex-direction:column;gap:4px;background:var(--surface)}
+  .msg{max-width:80%;padding:9px 12px;border-radius:14px;margin-top:8px}
+  .msg.in{align-self:flex-start;background:var(--bg);border:1px solid var(--border)}
+  .msg.out{align-self:flex-end;background:#e7f8f3;border:1px solid #cdeee5}
+  .meta{font-size:10.5px;color:var(--text-muted);margin-top:3px}
+  .msg.out .meta{text-align:right}
+  .ia{display:inline-flex;align-items:center;gap:4px;font-size:9.5px;font-weight:700;letter-spacing:.04em;
+    color:var(--accent-dim);background:var(--accent-bg);border:1px solid #f0e3c0;border-radius:5px;padding:0 5px;margin-left:6px}
+  .sysline{align-self:center;color:var(--text-muted);font-size:11px;margin:12px 0 2px}
+
+  /* Composer fijo abajo */
+  .composer{border-top:1px solid var(--border);background:var(--bg);padding:9px 12px;flex:none}
+  .tools{display:flex;align-items:center;gap:8px;margin-bottom:8px;overflow-x:auto}
+  .tmpl{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border-strong);background:var(--bg);
+    border-radius:8px;padding:6px 11px;font:inherit;font-size:12px;color:var(--text-sec);white-space:nowrap;cursor:pointer}
+  .win{font-size:11px;white-space:nowrap}
+  .win.ok{color:var(--success-text)} .win.closed{color:var(--error-text)}
+  .crow{display:flex;gap:8px;align-items:flex-end}
+  .crow textarea{flex:1;resize:none;border:1px solid var(--border-strong);border-radius:20px;
+    padding:10px 14px;font:inherit;height:42px;background:var(--surface)}
+  .send{background:var(--teal);color:#fff;border:none;border-radius:50%;width:42px;height:42px;font-weight:700;cursor:pointer;flex:none}
+  .cctrl{display:flex;align-items:center;gap:12px;margin-top:8px;color:var(--text-sec);font-size:12px}
+  .switch{width:36px;height:20px;border-radius:999px;background:var(--teal);position:relative;cursor:pointer}
+  .switch.off{background:var(--border-strong)}
+  .switch:after{content:"";position:absolute;top:2px;left:18px;width:16px;height:16px;border-radius:50%;background:#fff;transition:.15s}
+  .switch.off:after{left:2px}
+  .handoff{font-size:11.5px;color:var(--text-muted);margin-bottom:8px}
+  .clip{border:none;background:none;cursor:pointer;color:var(--text-muted);padding:4px;display:flex;align-items:center;flex:none}
+  .winbar{text-align:center;font-size:11.5px;font-weight:600;padding:6px;border-bottom:1px solid var(--border);flex:none}
+  .winbar.ok{color:var(--success-text);background:var(--success-bg)}
+  .winbar.closed{color:var(--error-text);background:#fff0f0}
+  .qlabel{display:inline-flex;align-items:center;gap:6px;font-size:11px;color:var(--text-muted);white-space:nowrap;flex:none}
+  .qchip{border:1px solid var(--border-strong);background:var(--surface);border-radius:999px;
+    padding:5px 11px;font:inherit;font-size:12px;color:var(--text-sec);white-space:nowrap;cursor:pointer;flex:none}
+
+  /* Detalle (sheet) */
+  .dwrap{flex:1;min-height:0;overflow:auto}
+  .dhead{padding:20px 16px 16px;text-align:center;border-bottom:1px solid var(--border)}
+  .dav{width:64px;height:64px;border-radius:50%;background:var(--surface-alt);margin:0 auto 10px;
+    display:flex;align-items:center;justify-content:center;font-weight:650;font-size:22px;color:var(--text-sec);position:relative}
+  .dname{font-weight:650;font-size:17px}
+  .dch{color:var(--text-muted);font-size:12px;margin-top:3px}
+  .sec{padding:14px 16px;border-bottom:1px solid var(--border)}
+  .sec h4{margin:0 0 9px;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted);font-weight:650}
+  .kv{display:flex;justify-content:space-between;gap:10px;padding:4px 0}
+  .kv span:first-child{color:var(--text-sec)}
+  .kv span:last-child{font-weight:550;text-align:right}
+  .pill{display:inline-block;font-size:11.5px;padding:2px 9px;border-radius:999px;background:var(--surface-alt);color:var(--text-sec);margin:0 5px 5px 0}
+  .pill.warn{background:#fff0f0;color:var(--error-text)}
+  .reassign{display:flex;align-items:center;justify-content:space-between;border:1px solid var(--border-strong);
+    border-radius:9px;padding:10px 12px;background:var(--bg)}
+  .actions a{display:block;padding:9px 0;color:var(--text);text-decoration:none;border-bottom:1px solid var(--border)}
+  .actions a:last-child{border:none}
+  .muted{color:var(--text-muted)}
+</style>
+</head>
+<body>
+<div class="phone">
+  <div class="notch"></div>
+
+  <!-- SCREEN: LISTA -->
+  <div class="screen" id="s-list">
+    <div class="hd">
+      <h1>Mensajes</h1>
+      <div class="scope">General <small>todos</small> <span class="muted">&#9662;</span></div>
+    </div>
+    <div class="list" id="convs"></div>
+    <div class="chips">
+      <div class="chip active">Todos</div>
+      <div class="chip"><span data-ch="wa"></span> WhatsApp</div>
+      <div class="chip"><span data-ch="ig"></span> Instagram</div>
+      <div class="chip"><span data-ch="fb"></span> Facebook</div>
+      <div class="chip"><span data-ch="tg"></span> Telegram</div>
+      <div class="chip"><span data-ch="tt"></span> TikTok</div>
+    </div>
+  </div>
+
+  <!-- SCREEN: CHAT -->
+  <div class="screen hidden" id="s-chat">
+    <div class="hd">
+      <button class="back" onclick="show('list')">&#8249;</button>
+      <div class="chsub" id="chat-head"></div>
+      <button class="ico" onclick="show('detail')">Info</button>
+    </div>
+    <div id="chat-win"></div>
+    <div class="stream" id="chat-stream"></div>
+    <div class="composer" id="chat-composer"></div>
+  </div>
+
+  <!-- SCREEN: DETALLE -->
+  <div class="screen hidden" id="s-detail">
+    <div class="hd">
+      <button class="back" onclick="show('chat')">&#8249;</button>
+      <h1>Contacto</h1>
+    </div>
+    <div class="dwrap" id="detail-body"></div>
+  </div>
+</div>
+
+<script>
+function chLogo(ch, size){
+  size = size || 18;
+  const c = {wa:'#25D366', ig:'#E1306C', fb:'#0084FF', tg:'#229ED9', tt:'#111111'}[ch];
+  const glyph = {
+    wa:'<path fill="#fff" d="M12 4a8 8 0 00-6.9 12l-1 3.6 3.7-1A8 8 0 1012 4zm0 1.6a6.4 6.4 0 11-3.3 11.9l-.3-.2-2 .5.6-1.9-.2-.3A6.4 6.4 0 0112 5.6zm-2.1 3c-.2 0-.5.1-.6.3-.3.3-.7.8-.7 1.7s.7 1.9.8 2c.1.2 1.4 2.3 3.5 3.1 1.7.7 2 .6 2.4.5.4 0 1.1-.4 1.2-.9.2-.4.2-.8.1-.9 0-.1-.2-.2-.5-.3l-1-.5c-.2 0-.3-.1-.4.1l-.5.6c-.1.2-.2.2-.4.1-.3-.1-1-.4-1.7-1-.6-.6-1-1.2-1.2-1.5-.1-.2 0-.3.1-.4l.3-.4.2-.4v-.3l-.5-1.2c-.1-.3-.2-.3-.4-.3z"/>',
+    ig:'<rect x="6.5" y="6.5" width="11" height="11" rx="3.4" fill="none" stroke="#fff" stroke-width="1.5"/><circle cx="12" cy="12" r="2.6" fill="none" stroke="#fff" stroke-width="1.5"/><circle cx="15.4" cy="8.6" r="1" fill="#fff"/>',
+    fb:'<path fill="#fff" d="M12 5c-3.9 0-7 2.9-7 6.6 0 2 1 3.9 2.6 5.1V20l2.4-1.3c.6.2 1.3.3 2 .3 3.9 0 7-2.9 7-6.6S15.9 5 12 5zm.7 8.9l-1.8-1.9-3.5 1.9 3.8-4 1.8 1.9 3.5-1.9-3.8 4z"/>',
+    tg:'<path fill="#fff" d="M17.8 7.3l-2.2 10.3c-.1.6-.5.8-1 .5l-2.8-2.1-1.4 1.3c-.1.1-.3.3-.6.3l.2-2.9 5.2-4.7c.2-.2 0-.3-.3-.1L8.6 13 5.8 12c-.6-.2-.6-.6.1-.9l11-4.2c.5-.2 1 .1.9.4z"/>',
+    tt:'<path fill="#fff" d="M14 5c.2 1.6 1.2 2.9 2.8 3.1v2c-1 0-2-.3-2.8-.8v4.4c0 2.4-1.9 4.3-4.2 4.3S5.6 20.1 5.6 17.7c0-2.2 1.7-4 3.9-4.2v2.1c-1 .2-1.8 1-1.8 2.1 0 1.2.9 2.1 2 2.1s2-.9 2-2.1V5h2.3z"/>'
+  }[ch];
+  return '<svg viewBox="0 0 24 24" width="'+size+'" height="'+size+'" style="display:block"><circle cx="12" cy="12" r="12" fill="'+c+'"/>'+glyph+'</svg>';
+}
+document.querySelectorAll('[data-ch]').forEach(el=>el.innerHTML=chLogo(el.dataset.ch,14));
+const chName = {wa:'WhatsApp', ig:'Instagram', fb:'Facebook', tg:'Telegram', tt:'TikTok'};
+
+function clipIcon(){
+  return '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>';
+}
+function quickBar(){
+  const items=['Confirmar asistencia','Compartir ubicacion','Recordatorio','Menu y alergias'];
+  return `<div class="tools"><span class="qlabel">${chLogo('wa',13)} Rapidos</span>`
+    + items.map(i=>`<button class="qchip">${i}</button>`).join('') + `</div>`;
+}
+
+const DATA = [
+  { id:'ana', ch:'wa', name:'Ana Torres', initials:'AT', time:'2m', unread:true, win:true,
+    prev:'Y hay menu vegetariano?', ctx:{type:'event', label:'Boda Ana & Luis'}, ai:false, assignee:'Diego',
+    msgs:[{d:'in',t:'Hola, puedo llevar +1?',m:'09:14'},
+          {d:'out',t:'Claro! Te anoto con un acompanante.',m:'09:14 · entregado',ia:true},
+          {d:'in',t:'Y hay menu vegetariano?',m:'09:20'}],
+    sys:'IA en pausa · Diego esta atendiendo',
+    detail:{kind:'guest', sub:'WhatsApp · +52 81 1234 5678',
+      kv:[['Tipo','Invitado'],['Evento','Boda Ana & Luis'],['RSVP','Confirmado'],['Acompanantes','2'],['Lado','Novia']],
+      allergies:['Mariscos'], tags:['Familia','VIP']}},
+  { id:'carlos', ch:'ig', name:'Carlos Ramirez', initials:'CR', time:'1h', unread:true, win:true,
+    prev:'Me encanto la idea del album', ctx:{type:'event', label:'Boda Ana & Luis'}, ai:true, assignee:null,
+    msgs:[{d:'in',t:'Hola! Vi la invitacion, confirmo asistencia',m:'08:02'},
+          {d:'out',t:'Genial Carlos, quedas confirmado. Te comparto el album del evento.',m:'08:02 · leido',ia:true},
+          {d:'in',t:'Me encanto la idea del album',m:'08:05'}],
+    sys:'IA activa · responde sola',
+    detail:{kind:'guest', sub:'Instagram · @carlosram',
+      kv:[['Tipo','Invitado'],['Evento','Boda Ana & Luis'],['RSVP','Confirmado'],['Acompanantes','1'],['Lado','Novio']],
+      allergies:[], tags:['Amigos']}},
+  { id:'foto', ch:'wa', name:'Foto Brava', initials:'FB', time:'3h', unread:false, win:false,
+    prev:'Te paso la cotizacion actualizada', ctx:{type:'prov', label:'PROVEEDOR · 2 eventos'}, ai:false, assignee:'Diego',
+    msgs:[{d:'out',t:'Hola, me pasas la cotizacion para junio?',m:'ayer 17:40',human:true},
+          {d:'in',t:'Claro! Te paso la cotizacion actualizada',m:'14:10'}],
+    sys:'Proveedor · hilo unico, visible en sus 2 eventos',
+    detail:{kind:'supplier', sub:'WhatsApp · +52 33 9988 7766',
+      kv:[['Tipo','Proveedor'],['Categoria','Imagen'],['Estado','Cotizado'],['Cotizado','$ 28,000']],
+      allergies:null, tags:[]}},
+  { id:'prospecto', ch:'tg', name:'+52 33 1234 5678', initials:'?', time:'5h', unread:false, win:null,
+    prev:'Hola, vi su perfil, dan servicio en GDL?', ctx:{type:'unclass', label:'SIN CLASIFICAR'}, ai:false, assignee:null,
+    msgs:[{d:'in',t:'Hola, vi su perfil, dan servicio en GDL?',m:'10:30'}],
+    sys:'Sin clasificar · no coincide con ningun invitado',
+    detail:{kind:'unknown', sub:'Telegram · chat 884412', kv:[['Tipo','Sin clasificar'],['Evento','—']], allergies:null, tags:[]}},
+];
+
+// Lista
+document.getElementById('convs').innerHTML = DATA.map(c=>{
+  const tc = c.ctx.type==='event'?'event':(c.ctx.type==='prov'?'prov':'unclass');
+  return `<div class="conv" onclick="open_('${c.id}')">
+    <div class="avatar">${c.initials}<span class="badge-ch">${chLogo(c.ch,14)}</span></div>
+    <div class="cmain">
+      <div class="ctop"><div class="dot${c.unread?'':' off'}"></div><div class="cname">${c.name}</div><div class="ctime">${c.time}</div></div>
+      <div class="cprev">${c.prev}</div>
+      <div class="cctx"><span class="tag ${tc}">${c.ctx.label}</span></div>
+    </div></div>`;
+}).join('');
+
+let current = null;
+function open_(id){
+  current = DATA.find(x=>x.id===id);
+  const c = current;
+  document.getElementById('chat-head').innerHTML =
+    `<div class="nm">${c.name}</div><div class="sb">${chLogo(c.ch,13)} ${chName[c.ch]} · ${c.ctx.label}</div>`;
+  document.getElementById('chat-stream').innerHTML =
+    c.msgs.map(m=>`<div class="msg ${m.d}"><div>${m.t}</div><div class="meta">${m.m}${m.ia?'<span class="ia">IA</span>':''}${m.human?' · tu':''}</div></div>`).join('')
+    + `<div class="sysline">${c.sys}</div>`;
+  const winEl = document.getElementById('chat-win');
+  if(['wa','ig','fb'].includes(c.ch)){
+    winEl.className = 'winbar ' + (c.win===false ? 'closed' : 'ok');
+    winEl.innerHTML = c.win===false ? 'Fuera de ventana 24h &middot; solo plantilla aprobada' : 'Dentro de ventana 24h &middot; texto libre';
+  } else { winEl.className=''; winEl.innerHTML=''; }
+  document.getElementById('chat-composer').innerHTML = `
+    ${c.ai===false && c.assignee?`<div class="handoff">IA en pausa · humano activo</div>`:''}
+    ${c.ch==='wa'?quickBar():''}
+    <div class="crow"><button class="clip" title="Adjuntar">${clipIcon()}</button><textarea placeholder="Escribe un mensaje..."></textarea><button class="send">&#8593;</button></div>
+    <div class="cctrl"><button class="tmpl">${chLogo(c.ch,13)} Plantillas</button><span>IA <span class="switch ${c.ai?'':'off'}"></span></span><span>Asignado: <b>${c.assignee||'sin asignar'}</b></span></div>`;
+  renderDetail(c);
+  show('chat');
+}
+
+function renderDetail(c){
+  const d=c.detail;
+  const kv=d.kv.map(r=>`<div class="kv"><span>${r[0]}</span><span>${r[1]}</span></div>`).join('');
+  let allergies='';
+  if(d.allergies&&d.allergies.length) allergies=d.allergies.map(a=>`<span class="pill warn">${a}</span>`).join('');
+  else if(d.allergies&&d.allergies.length===0) allergies='<span class="muted">Ninguna registrada</span>';
+  const tags=(d.tags&&d.tags.length)?d.tags.map(t=>`<span class="pill">${t}</span>`).join(''):'<span class="muted">—</span>';
+  const isC=d.kind==='guest', isS=d.kind==='supplier', isU=d.kind==='unknown';
+  document.getElementById('detail-body').innerHTML = `
+    <div class="dhead">
+      <div class="dav">${c.initials}<span class="badge-ch" style="width:22px;height:22px">${chLogo(c.ch,17)}</span></div>
+      <div class="dname">${c.name}</div><div class="dch">${d.sub}</div>
+    </div>
+    <div class="sec"><h4>Datos</h4>${kv}</div>
+    ${isC?`<div class="sec"><h4>Alergias</h4>${allergies}</div><div class="sec"><h4>Tags</h4>${tags}</div>`:''}
+    ${isS?`<div class="sec"><h4>Comercial</h4><div class="muted" style="font-size:12.5px">Hilo unico del proveedor. Aparece en el inbox de cada evento que lo tiene contratado.</div></div>`:''}
+    <div class="sec"><h4>Evento</h4>
+      <div class="reassign"><span>${isU?'Sin asignar':(d.kv.find(r=>r[0]==='Evento')||['','—'])[1]}</span><span class="muted">&#9662;</span></div>
+      <div class="muted" style="font-size:11.5px;margin-top:6px">Reasignar a otro evento</div></div>
+    <div class="sec actions"><h4>Acciones</h4>
+      ${isC?'<a href="#">Ver ficha del invitado</a>':''}
+      ${isS?'<a href="#">Ver ficha del proveedor</a>':''}
+      ${isU?'<a href="#">Vincular a invitado o proveedor</a><a href="#">Marcar como prospecto</a>':''}
+      <a href="#">Cerrar conversacion</a></div>`;
+}
+
+function show(s){
+  document.getElementById('s-list').classList.toggle('hidden', s!=='list');
+  document.getElementById('s-chat').classList.toggle('hidden', s!=='chat');
+  document.getElementById('s-detail').classList.toggle('hidden', s!=='detail');
+}
+show('list');
+</script>
+</body>
+</html>
