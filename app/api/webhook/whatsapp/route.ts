@@ -56,21 +56,21 @@ export async function POST(request: NextRequest) {
     if (detectOptOut(text)) {
       const optIso = new Date().toISOString()
       await applyOptOut(supabase, guest.id)
-      await supabase.from('wa_messages').insert({
+      const { data: optRow } = await supabase.from('wa_messages').insert({
         guest_id: guest.id, event_id: guest.event_id, direction: 'received',
         content: text, twilio_sid: sid, created_at: optIso,
-      })
-      await mirrorInbound(supabase, { guest, phone, text, sid, createdAt: optIso })
+      }).select('id').maybeSingle()
+      await mirrorInbound(supabase, { guest, phone, text, sid, waMessageId: optRow?.id ?? '', createdAt: optIso })
       return twiml()
     }
 
     // Guardar entrante
     const nowIso = new Date().toISOString()
-    await supabase.from('wa_messages').insert({
+    const { data: inRow } = await supabase.from('wa_messages').insert({
       guest_id: guest.id, event_id: guest.event_id, direction: 'received',
       content: text, twilio_sid: sid, created_at: nowIso,
-    })
-    await mirrorInbound(supabase, { guest, phone, text, sid, createdAt: nowIso })
+    }).select('id').maybeSingle()
+    await mirrorInbound(supabase, { guest, phone, text, sid, waMessageId: inRow?.id ?? '', createdAt: nowIso })
 
     const config = await getAgentConfig(supabase, guest.event_id)
 
@@ -100,13 +100,13 @@ export async function POST(request: NextRequest) {
       await enqueueOutbound(supabase, { to: from, body: outcome.text, guestId: guest.id, eventId: guest.event_id, author: 'ia' })
     } else if (outcome.action === 'draft') {
       const draftIso = new Date().toISOString()
-      await supabase.from('wa_messages').insert({
+      const { data: draftRow } = await supabase.from('wa_messages').insert({
         guest_id: guest.id, event_id: guest.event_id, direction: 'sent',
         content: outcome.text, author: 'ia', status: 'draft', created_at: draftIso,
-      })
+      }).select('id').maybeSingle()
       await mirrorOutbound(supabase, {
         to: from, guestId: guest.id, eventId: guest.event_id, text: outcome.text,
-        author: 'ia', status: 'draft', sid: null, createdAt: draftIso,
+        author: 'ia', status: 'draft', sid: null, waMessageId: draftRow?.id ?? '', createdAt: draftIso,
       })
       await supabase.from('guests').update({ wa_needs_human: true, wa_needs_human_reason: 'copiloto' }).eq('id', guest.id)
     } else if (outcome.action === 'handoff') {

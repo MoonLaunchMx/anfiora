@@ -117,9 +117,10 @@ async function insertCanonicalMessage(
 
 export async function mirrorInbound(
   supabase: SupabaseClient,
-  p: { guest: { id: string; name: string | null; event_id: string }; phone: string; text: string; sid: string | null; createdAt: string },
+  p: { guest: { id: string; name: string | null; event_id: string }; phone: string; text: string; sid: string | null; waMessageId: string; createdAt: string },
 ): Promise<void> {
   try {
+    if (!p.sid && !p.waMessageId) return
     const workspaceId = await eventOwner(supabase, p.guest.event_id)
     if (!workspaceId) return
     const accountId = await ensureChannelAccount(supabase)
@@ -132,7 +133,7 @@ export async function mirrorInbound(
       workspaceId, conversationId, channelAccountId: accountId,
       direction: 'inbound', authorType: 'contact',
       contentText: p.text, status: null,
-      providerMessageId: p.sid ?? `wa:in:${p.phone}:${p.createdAt}`,
+      providerMessageId: p.sid ?? `wa:${p.waMessageId}`,
       providerTimestamp: p.createdAt, receivedAt: p.createdAt,
     })
   } catch (e) {
@@ -142,10 +143,11 @@ export async function mirrorInbound(
 
 export async function mirrorOutbound(
   supabase: SupabaseClient,
-  p: { to: string; guestId: string; eventId: string; text: string; author: 'ia' | 'human'; status: string; sid: string | null; createdAt: string },
+  p: { to: string; guestId: string; eventId: string; text: string; author: 'ia' | 'human'; status: string; sid: string | null; waMessageId: string; createdAt: string },
 ): Promise<void> {
   try {
     const phone = p.to.replace(/^whatsapp:/i, '')
+    if (!p.sid && !p.waMessageId) return
     const workspaceId = await eventOwner(supabase, p.eventId)
     if (!workspaceId) return
     const accountId = await ensureChannelAccount(supabase)
@@ -158,7 +160,7 @@ export async function mirrorOutbound(
       workspaceId, conversationId, channelAccountId: accountId,
       direction: 'outbound', authorType: p.author === 'human' ? 'human' : 'ai',
       contentText: p.text, status: p.status,
-      providerMessageId: p.sid ?? `wa:out:${phone}:${p.createdAt}`,
+      providerMessageId: p.sid ?? `wa:${p.waMessageId}`,
       providerTimestamp: p.createdAt, receivedAt: p.createdAt,
     })
   } catch (e) {

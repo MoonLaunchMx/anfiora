@@ -33,18 +33,16 @@ export async function POST(request: NextRequest) {
       const eventId = r.event_id ?? guest.event_id
       const ts = r.created_at ?? r.sent_at ?? new Date(0).toISOString()
       const textContent = (r.content ?? r.body ?? '').toString()
-      const syntheticSid = r.twilio_sid ?? `wa:${r.id}`
-
       if (r.direction === 'received') {
         await mirrorInbound(supabase, {
           guest: { id: guest.id, name: guest.name, event_id: eventId },
-          phone: guest.phone, text: textContent, sid: syntheticSid, createdAt: ts,
+          phone: guest.phone, text: textContent, sid: r.twilio_sid ?? null, waMessageId: r.id, createdAt: ts,
         })
       } else {
         const author = r.author === 'human' ? 'human' : 'ia'
         await mirrorOutbound(supabase, {
           to: `whatsapp:${guest.phone}`, guestId: guest.id, eventId, text: textContent,
-          author, status: r.status ?? 'sent', sid: syntheticSid, createdAt: ts,
+          author, status: r.status ?? 'sent', sid: r.twilio_sid ?? null, waMessageId: r.id, createdAt: ts,
         })
       }
       processed++

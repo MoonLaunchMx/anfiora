@@ -113,7 +113,7 @@ export async function enqueueOutbound(supabase: SupabaseClient, p: OutboundPaylo
   }
 
   const nowIso = new Date().toISOString()
-  await supabase.from('wa_messages').insert({
+  const { data: outRow } = await supabase.from('wa_messages').insert({
     guest_id: p.guestId,
     event_id: p.eventId,
     direction: 'sent',
@@ -122,11 +122,11 @@ export async function enqueueOutbound(supabase: SupabaseClient, p: OutboundPaylo
     status,
     twilio_sid: sid,
     created_at: nowIso,
-  })
+  }).select('id').maybeSingle()
 
   await mirrorOutbound(supabase, {
     to: p.to, guestId: p.guestId, eventId: p.eventId, text: p.body,
-    author: p.author, status, sid, createdAt: nowIso,
+    author: p.author, status, sid, waMessageId: outRow?.id ?? '', createdAt: nowIso,
   })
 
   return { ok: status === 'sent', status }
