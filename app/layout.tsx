@@ -13,6 +13,19 @@ export const metadata: Metadata = {
   alternates: {
     canonical: 'https://anfiora.com',
   },
+  manifest: '/manifest.webmanifest',
+  icons: {
+    icon: [
+      { url: '/icons/icon-192x192.png', sizes: '192x192', type: 'image/png' },
+      { url: '/icons/icon-512x512.png', sizes: '512x512', type: 'image/png' },
+    ],
+    apple: '/icons/apple-touch-icon.png',
+  },
+  appleWebApp: {
+    capable: true,
+    title: 'Anfiora',
+    statusBarStyle: 'default',
+  },
   openGraph: {
     title: 'Anfiora — Gestión de invitados para eventos',
     description: 'La plataforma para wedding planners y organizadores de eventos en LATAM. Gestiona listas de invitados y automatiza confirmaciones por WhatsApp.',
