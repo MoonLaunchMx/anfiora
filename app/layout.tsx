@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import Script from 'next/script'
 // @ts-ignore
 import './globals.css'
 import { PostHogProvider } from './components/PostHogProvider'
@@ -62,6 +63,11 @@ export default function RootLayout({
         <AttributionCapture />
         <FeedbackWidget />
         <LegalGate />
+        <Script id="sw-register" strategy="afterInteractive">{`
+          if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js'));
+          }
+        `}</Script>
       </body>
     </html>
   )
