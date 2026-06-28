@@ -6,6 +6,7 @@ import { PostHogProvider } from './components/PostHogProvider'
 import FeedbackWidget from "@/app/components/FeedbackWidget";
 import LegalGate from './components/LegalGate'
 import AttributionCapture from './components/AttributionCapture'
+import InstallPrompt from './components/InstallPrompt'
 
 export const metadata: Metadata = {
   title: 'Anfiora — Gestión de invitados para eventos',
@@ -63,6 +64,7 @@ export default function RootLayout({
         <AttributionCapture />
         <FeedbackWidget />
         <LegalGate />
+        <InstallPrompt />
         <Script id="sw-register" strategy="afterInteractive">{`
           if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js'));
