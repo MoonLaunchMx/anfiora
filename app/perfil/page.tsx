@@ -4,7 +4,7 @@ import { useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { supabase } from '@/lib/supabase'
-import { User, Phone, Lock, Eye, EyeOff, CheckCircle, AlertCircle, ArrowLeft, ChevronDown } from 'lucide-react'
+import { User, Phone, Lock, Eye, EyeOff, CheckCircle, AlertCircle, ArrowLeft, ChevronDown, Bell } from 'lucide-react'
 import { ROLES, getRole, Role } from '@/lib/roles'
 
 type PlanInfo = {
@@ -18,6 +18,16 @@ const PLAN_STYLES: Record<string, PlanInfo> = {
   free:   { label: 'Free',   color: '#888',    bg: '#f8f8f8',  border: '#e0e0e0' },
   pro:    { label: 'Pro',    color: '#1a9e88', bg: '#f0fdfb',  border: '#a0e0d0' },
   agency: { label: 'Agency', color: '#7c3aed', bg: '#f5f3ff',  border: '#c4b5fd' },
+}
+
+function urlBase64ToUint8Array(base64String: string): Uint8Array<ArrayBuffer> {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/')
+  const raw = atob(base64)
+  const buffer = new ArrayBuffer(raw.length)
+  const output = new Uint8Array(buffer)
+  for (let i = 0; i < raw.length; i++) output[i] = raw.charCodeAt(i)
+  return output
 }
 
 function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
@@ -108,6 +118,13 @@ export default function PerfilPage() {
   const [savingPass, setSavingPass]     = useState(false)
   const [passMsg, setPassMsg]           = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
+  // Notificaciones push
+  const [pushSupported, setPushSupported]   = useState(true)
+  const [pushEnabled, setPushEnabled]       = useState(false)
+  const [pushPermission, setPushPermission] = useState<NotificationPermission>('default')
+  const [pushBusy, setPushBusy]             = useState(false)
+  const [pushMsg, setPushMsg]               = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+
   useEffect(() => {
     const load = async () => {
       const { data: { user } } = await supabase.auth.getUser()
@@ -134,6 +151,26 @@ export default function PerfilPage() {
     }
     load()
   }, [router])
+
+  useEffect(() => {
+    const supported =
+      typeof window !== 'undefined' &&
+      'serviceWorker' in navigator &&
+      'PushManager' in window &&
+      'Notification' in window
+
+    if (!supported) {
+      setPushSupported(false)
+      return
+    }
+
+    setPushPermission(Notification.permission)
+
+    navigator.serviceWorker.ready
+      .then((reg) => reg.pushManager.getSubscription())
+      .then((sub) => setPushEnabled(!!sub))
+      .catch(() => setPushEnabled(false))
+  }, [])
 
   const handleChangeRole = async (newRole: Role) => {
     setSavingRole(true)
@@ -209,6 +246,95 @@ export default function PerfilPage() {
       setCurrentPass(''); setNewPass(''); setConfirmPass('')
     }
     setSavingPass(false)
+  }
+
+  const enablePush = async () => {
+    setPushMsg(null)
+    setPushBusy(true)
+    try {
+      const permission = await Notification.requestPermission()
+      setPushPermission(permission)
+      if (permission !== 'granted') {
+        setPushMsg({ type: 'error', text: 'Permiso de notificaciones bloqueado. Actívalo desde los ajustes del navegador.' })
+        setPushBusy(false)
+        return
+      }
+
+      const reg = await navigator.serviceWorker.ready
+      const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
+      if (!vapidKey) {
+        setPushMsg({ type: 'error', text: 'Falta configuración del servidor. Intenta más tarde.' })
+        setPushBusy(false)
+        return
+      }
+
+      const sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(vapidKey),
+      })
+
+      const { data: { session } } = await supabase.auth.getSession()
+      const res = await fetch('/api/push/subscribe', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session?.access_token ?? ''}`,
+        },
+        body: JSON.stringify({ subscription: sub.toJSON(), userAgent: navigator.userAgent }),
+      })
+
+      if (!res.ok) throw new Error('subscribe failed')
+
+      setPushEnabled(true)
+      setPushMsg({ type: 'success', text: 'Notificaciones activadas en este dispositivo' })
+    } catch {
+      setPushMsg({ type: 'error', text: 'No se pudieron activar las notificaciones. Intenta de nuevo.' })
+    }
+    setPushBusy(false)
+  }
+
+  const disablePush = async () => {
+    setPushMsg(null)
+    setPushBusy(true)
+    try {
+      const reg = await navigator.serviceWorker.ready
+      const sub = await reg.pushManager.getSubscription()
+      if (sub) {
+        const endpoint = sub.endpoint
+        await sub.unsubscribe()
+        const { data: { session } } = await supabase.auth.getSession()
+        await fetch('/api/push/subscribe', {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${session?.access_token ?? ''}`,
+          },
+          body: JSON.stringify({ endpoint }),
+        })
+      }
+      setPushEnabled(false)
+      setPushMsg({ type: 'success', text: 'Notificaciones desactivadas en este dispositivo' })
+    } catch {
+      setPushMsg({ type: 'error', text: 'No se pudieron desactivar. Intenta de nuevo.' })
+    }
+    setPushBusy(false)
+  }
+
+  const sendTestPush = async () => {
+    setPushMsg(null)
+    setPushBusy(true)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const res = await fetch('/api/push/test', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session?.access_token ?? ''}` },
+      })
+      if (!res.ok) throw new Error('test failed')
+      setPushMsg({ type: 'success', text: 'Enviamos una notificación de prueba a este dispositivo.' })
+    } catch {
+      setPushMsg({ type: 'error', text: 'No se pudo enviar la prueba. Intenta de nuevo.' })
+    }
+    setPushBusy(false)
   }
 
   const planStyle = PLAN_STYLES[plan] || PLAN_STYLES.free
@@ -341,6 +467,69 @@ export default function PerfilPage() {
                 </span>
               )}
             </div>
+          </section>
+
+          {/* ── Notificaciones ── */}
+          <section className="rounded-2xl border border-[#e8e8e8] bg-white p-5 sm:p-6">
+            <div className="flex items-center gap-2">
+              <Bell size={16} className="text-[#48C9B0]" />
+              <h2 className="text-sm font-semibold text-[#1D1E20]">Notificaciones</h2>
+            </div>
+            <p className="mt-1 text-[12px] text-[#aaa]">
+              Recibe avisos en este dispositivo cuando pase algo importante en tus eventos.
+            </p>
+
+            {!pushSupported ? (
+              <p className="mt-4 text-xs text-[#888]">
+                Este navegador no admite notificaciones. En iPhone o iPad necesitas instalar Anfiora como app desde Safari para activarlas.
+              </p>
+            ) : (
+              <div className="mt-4 flex items-center justify-between gap-4">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-[#1D1E20]">Activar en este dispositivo</p>
+                  <p className="text-[11px] text-[#aaa]">
+                    {pushPermission === 'denied'
+                      ? 'Permiso bloqueado. Habilítalo desde los ajustes del navegador.'
+                      : pushEnabled
+                        ? 'Estás recibiendo notificaciones aquí.'
+                        : 'Las notificaciones están desactivadas aquí.'}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={pushEnabled}
+                  disabled={pushBusy || pushPermission === 'denied'}
+                  onClick={() => (pushEnabled ? disablePush() : enablePush())}
+                  className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors
+                    ${pushEnabled ? 'bg-[#48C9B0]' : 'bg-[#d8d8d8]'}
+                    ${pushBusy || pushPermission === 'denied' ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}
+                >
+                  <span
+                    className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform
+                      ${pushEnabled ? 'translate-x-5' : 'translate-x-1'}`}
+                  />
+                </button>
+              </div>
+            )}
+
+            {pushSupported && pushEnabled && (
+              <button
+                type="button"
+                onClick={sendTestPush}
+                disabled={pushBusy}
+                className={`mt-4 rounded-[10px] border border-[#e0e0e0] bg-white px-4 py-2 text-xs font-semibold text-[#555] transition
+                  ${pushBusy ? 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:border-[#48C9B0] hover:text-[#48C9B0]'}`}
+              >
+                Enviar notificación de prueba
+              </button>
+            )}
+
+            {pushMsg && (
+              <div className="mt-4">
+                <Toast type={pushMsg.type} message={pushMsg.text} />
+              </div>
+            )}
           </section>
 
           {/* ── Información personal ── */}

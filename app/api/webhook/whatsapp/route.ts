@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { validateRequest } from 'twilio'
 import { interpretRSVPMessage, generateAgentReply } from '@/lib/ai-rsvp'
+import { sendPushToUsers, resolveEventRecipients } from '@/lib/push'
 
 const TWIML_EMPTY = '<Response/>'
 
@@ -115,6 +116,22 @@ export async function POST(request: NextRequest) {
       console.log('[DB] Insert outbound:', insertOutboundError ? JSON.stringify(insertOutboundError) : 'OK')
 
       await sendWhatsAppReply(from, replyText)
+
+      try {
+        const recipients = await resolveEventRecipients(guest.event_id)
+        const statusLabel =
+          interpretation.intent === 'confirmed' ? 'confirmó asistencia'
+          : interpretation.intent === 'declined' ? 'no podrá asistir'
+          : 'respondió por WhatsApp'
+        await sendPushToUsers(recipients, {
+          title: eventContext.name,
+          body: `${guestName} ${statusLabel}.`,
+          url: `/events/${guest.event_id}/mensajes`,
+          tag: `wa-${guest.id}`,
+        })
+      } catch (pushErr: any) {
+        console.error('[Webhook] push fallido', pushErr?.message ?? pushErr)
+      }
     }
 
     return twimlResponse()
