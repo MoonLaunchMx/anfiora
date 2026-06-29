@@ -14,7 +14,11 @@ function ensureConfigured(): boolean {
     console.warn('[push] VAPID keys ausentes - push deshabilitado')
     return false
   }
-  webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC, VAPID_PRIVATE)
+  const subject =
+    VAPID_SUBJECT.startsWith('mailto:') || VAPID_SUBJECT.startsWith('http')
+      ? VAPID_SUBJECT
+      : `mailto:${VAPID_SUBJECT}`
+  webpush.setVapidDetails(subject, VAPID_PUBLIC, VAPID_PRIVATE)
   configured = true
   return true
 }
