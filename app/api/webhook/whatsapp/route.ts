@@ -3,6 +3,8 @@ import { createClient } from '@supabase/supabase-js'
 import { validateRequest } from 'twilio'
 import { interpretRSVPMessage, generateAgentReply } from '@/lib/ai-rsvp'
 import { sendPushToUsers, resolveEventRecipients } from '@/lib/push'
+import { after } from 'next/server'
+import { mirrorInbound, mirrorOutbound } from '@/lib/whatsapp/canonical-mirror'
 
 const TWIML_EMPTY = '<Response/>'
 
@@ -75,14 +77,32 @@ export async function POST(request: NextRequest) {
 
     const history = (historial ?? []).reverse() as { direction: 'sent' | 'received'; content: string }[]
 
-    const { error: insertInboundError } = await supabase.from('wa_messages').insert({
-      guest_id:   guest.id,
-      event_id:   guest.event_id,
-      direction:  'received',
-      content:    text,
-      created_at: new Date().toISOString(),
-    })
+    const inboundAt = new Date().toISOString()
+    const { data: inboundRow, error: insertInboundError } = await supabase
+      .from('wa_messages')
+      .insert({
+        guest_id:   guest.id,
+        event_id:   guest.event_id,
+        direction:  'received',
+        content:    text,
+        created_at: inboundAt,
+      })
+      .select('id')
+      .maybeSingle()
     console.log('[DB] Insert inbound:', insertInboundError ? JSON.stringify(insertInboundError) : 'OK')
+
+    if (inboundRow?.id) {
+      after(() =>
+        mirrorInbound(supabase, {
+          guest: { id: guest.id, name: guestName, event_id: guest.event_id },
+          phone,
+          text,
+          sid: null,
+          waMessageId: inboundRow.id,
+          createdAt: inboundAt,
+        })
+      )
+    }
 
     const interpretation = await interpretRSVPMessage(text, guestName, eventContext.name)
     console.log(`[AI] ${guestName}: "${text}" -> ${interpretation.intent} (${interpretation.confidence})`)
@@ -106,14 +126,35 @@ export async function POST(request: NextRequest) {
 
       console.log(`[AI Reply] ${guestName}: "${replyText}"`)
 
-      const { error: insertOutboundError } = await supabase.from('wa_messages').insert({
-        guest_id:   guest.id,
-        event_id:   guest.event_id,
-        direction:  'sent',
-        content:    replyText,
-        created_at: new Date().toISOString(),
-      })
+      const outboundAt = new Date().toISOString()
+      const { data: outboundRow, error: insertOutboundError } = await supabase
+        .from('wa_messages')
+        .insert({
+          guest_id:   guest.id,
+          event_id:   guest.event_id,
+          direction:  'sent',
+          content:    replyText,
+          created_at: outboundAt,
+        })
+        .select('id')
+        .maybeSingle()
       console.log('[DB] Insert outbound:', insertOutboundError ? JSON.stringify(insertOutboundError) : 'OK')
+
+      if (outboundRow?.id) {
+        after(() =>
+          mirrorOutbound(supabase, {
+            to: from,
+            guestId: guest.id,
+            eventId: guest.event_id,
+            text: replyText,
+            author: 'ia',
+            status: 'sent',
+            sid: null,
+            waMessageId: outboundRow.id,
+            createdAt: outboundAt,
+          })
+        )
+      }
 
       await sendWhatsAppReply(from, replyText)
 
