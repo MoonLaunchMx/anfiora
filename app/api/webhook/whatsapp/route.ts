@@ -119,15 +119,36 @@ export async function POST(request: NextRequest) {
 
       try {
         const recipients = await resolveEventRecipients(guest.event_id)
+
+        const WINDOW_MS = 2 * 60 * 60 * 1000
+        const since = new Date(Date.now() - WINDOW_MS).toISOString()
+        const { data: recent } = await supabase
+          .from('wa_messages')
+          .select('guest_id')
+          .eq('event_id', guest.event_id)
+          .eq('direction', 'received')
+          .gte('created_at', since)
+
+        const distinctGuests = new Set((recent ?? []).map((r) => r.guest_id))
+        distinctGuests.add(guest.id)
+        const count = distinctGuests.size
+
         const statusLabel =
           interpretation.intent === 'confirmed' ? 'confirmó asistencia'
           : interpretation.intent === 'declined' ? 'no podrá asistir'
           : 'respondió por WhatsApp'
+
+        const body =
+          count > 1
+            ? `${guestName} y ${count - 1} más respondieron.`
+            : `${guestName} ${statusLabel}.`
+
         await sendPushToUsers(recipients, {
           title: eventContext.name,
-          body: `${guestName} ${statusLabel}.`,
+          body,
           url: `/events/${guest.event_id}/mensajes`,
-          tag: `wa-${guest.id}`,
+          tag: `wa-event-${guest.event_id}`,
+          renotify: true,
         })
       } catch (pushErr: any) {
         console.error('[Webhook] push fallido', pushErr?.message ?? pushErr)
