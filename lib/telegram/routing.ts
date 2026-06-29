@@ -37,6 +37,8 @@ export async function resolveByChat(
   supabase: SupabaseClient,
   a: { channelAccountId: string; chatId: string },
 ): Promise<TelegramRoute | null> {
+  // Bot compartido: ruteamos por chat_id ignorando workspace_id y tomamos la mas
+  // reciente. Con varios planners para el mismo chat habria que desambiguar (deferido).
   const { data: participant } = await supabase
     .from('channel_participants').select('id')
     .eq('channel_account_id', a.channelAccountId)

@@ -134,6 +134,7 @@ async function processTelegramUpdate(
         .from('messages')
         .select('direction, content_text')
         .eq('conversation_id', conversationId)
+        .neq('provider_message_id', update.providerMessageId)
         .order('provider_timestamp', { ascending: false })
         .limit(10)
       history = (hist ?? [])
