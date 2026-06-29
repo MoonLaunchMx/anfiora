@@ -20,6 +20,7 @@ self.addEventListener('push', (event) => {
       badge: '/icons/icon-192x192.png',
       data: { url: data.url || '/dashboard' },
       tag: data.tag,
+      renotify: data.renotify || false,
     })
   );
 });

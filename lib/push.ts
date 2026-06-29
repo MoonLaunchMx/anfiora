@@ -35,6 +35,7 @@ export type PushPayload = {
   body: string
   url: string
   tag?: string
+  renotify?: boolean
 }
 
 export async function sendPushToUsers(userIds: string[], payload: PushPayload): Promise<void> {
