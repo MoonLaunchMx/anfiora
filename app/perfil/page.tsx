@@ -320,6 +320,23 @@ export default function PerfilPage() {
     setPushBusy(false)
   }
 
+  const sendTestPush = async () => {
+    setPushMsg(null)
+    setPushBusy(true)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const res = await fetch('/api/push/test', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session?.access_token ?? ''}` },
+      })
+      if (!res.ok) throw new Error('test failed')
+      setPushMsg({ type: 'success', text: 'Enviamos una notificación de prueba a este dispositivo.' })
+    } catch {
+      setPushMsg({ type: 'error', text: 'No se pudo enviar la prueba. Intenta de nuevo.' })
+    }
+    setPushBusy(false)
+  }
+
   const planStyle = PLAN_STYLES[plan] || PLAN_STYLES.free
   const currentRole = getRole(role)
   const CurrentIcon = currentRole?.icon
@@ -494,6 +511,18 @@ export default function PerfilPage() {
                   />
                 </button>
               </div>
+            )}
+
+            {pushSupported && pushEnabled && (
+              <button
+                type="button"
+                onClick={sendTestPush}
+                disabled={pushBusy}
+                className={`mt-4 rounded-[10px] border border-[#e0e0e0] bg-white px-4 py-2 text-xs font-semibold text-[#555] transition
+                  ${pushBusy ? 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:border-[#48C9B0] hover:text-[#48C9B0]'}`}
+              >
+                Enviar notificación de prueba
+              </button>
             )}
 
             {pushMsg && (
