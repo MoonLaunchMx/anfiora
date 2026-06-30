@@ -227,7 +227,7 @@ const TRASH_ICON = (
   </>
 )
 
-type EditMember = { id?: string; name: string; phone: string; rsvp_status: RsvpStatus }
+type EditMember = { id?: string; name: string; phone: string; rsvp_status: RsvpStatus; allergies: string[]; tags: string[]; notes: string }
 type GuestTableInfo = { tableNumber: number; tableName: string | null }
 
 function normalizePhone(phone: string): string { return phone.replace(/\D/g, '') }
@@ -325,9 +325,10 @@ const ALLERGY_OPTIONS = ['Gluten', 'Lácteos', 'Mariscos', 'Nueces', 'Huevo', 'S
 
 function MembersEditor({ value, onChange }: { value: EditMember[]; onChange: (v: EditMember[]) => void }) {
   const MAX = 15
-  const add = () => { if (value.length < MAX) onChange([...value, { name: '', phone: '', rsvp_status: 'pending' }]) }
+  const add = () => { if (value.length < MAX) onChange([...value, { name: '', phone: '', rsvp_status: 'pending', allergies: [], tags: [], notes: '' }]) }
   const remove = (i: number) => onChange(value.filter((_, idx) => idx !== i))
-  const update = (i: number, field: keyof EditMember, val: string) => onChange(value.map((m, idx) => idx === i ? { ...m, [field]: val } : m))
+  const update = (i: number, field: 'name' | 'phone' | 'rsvp_status' | 'notes', val: string) => onChange(value.map((m, idx) => idx === i ? { ...m, [field]: val } : m))
+  const updateAllergies = (i: number, val: string[]) => onChange(value.map((m, idx) => idx === i ? { ...m, allergies: val } : m))
   return (
     <div>
       <div className="mb-2 flex items-center justify-between">
@@ -342,7 +343,7 @@ function MembersEditor({ value, onChange }: { value: EditMember[]; onChange: (v:
             <div className="flex flex-col gap-2">
               <input type="text" value={m.name} onChange={e => update(i, 'name', e.target.value)} placeholder="Nombre (opcional)" style={{ ...inp, fontSize: '13px', padding: '8px 12px' }} />
               <input type="tel" value={m.phone} onChange={e => update(i, 'phone', e.target.value)} placeholder="WhatsApp (opcional)" style={{ ...inp, fontSize: '13px', padding: '8px 12px' }} />
-              <select value={m.rsvp_status} onChange={e => update(i, 'rsvp_status', e.target.value)} style={{ ...inp, fontSize: '13px', padding: '8px 12px', cursor: 'pointer' }}>
+              <select value={m.rsvp_status} onChange={e => update(i, 'rsvp_status', e.target.value as RsvpStatus)} style={{ ...inp, fontSize: '13px', padding: '8px 12px', cursor: 'pointer' }}>
                 <option value="mensaje_enviado">Mensaje enviado</option>
                 <option value="pending">Pendiente</option>
                 <option value="respondio">Respondió</option>
@@ -350,6 +351,20 @@ function MembersEditor({ value, onChange }: { value: EditMember[]; onChange: (v:
                 <option value="confirmed">Confirmado</option>
                 <option value="declined">Declinado</option>
               </select>
+              <input
+                type="text"
+                value={(m.allergies || []).join(', ')}
+                onChange={e => updateAllergies(i, e.target.value.split(',').map(s => s.trim()).filter(Boolean))}
+                placeholder="Alergias (separadas por coma)"
+                style={{ ...inp, fontSize: '13px', padding: '8px 12px' }}
+              />
+              <input
+                type="text"
+                value={m.notes || ''}
+                onChange={e => update(i, 'notes', e.target.value)}
+                placeholder="Notas"
+                style={{ ...inp, fontSize: '13px', padding: '8px 12px' }}
+              />
               <button type="button" onClick={() => remove(i)} className="mt-1 w-full rounded-lg border border-[#ffe0e0] bg-[#fff5f5] py-1.5 text-xs font-semibold text-[#cc3333] transition hover:bg-[#ffe8e8]">Eliminar acompañante</button>
             </div>
           </div>
@@ -732,7 +747,7 @@ export default function EventPage() {
     setEditEmail(guest.email || ''); setEditNotes(guest.notes || '')
     setEditTags(guest.tags || []); setEditError('')
     setEditSide(guest.side || ''); setEditAllergies(guest.allergies || [])
-    setEditMembers(guest.party_members.map(m => ({ id: m.id, name: m.name, phone: m.phone || '', rsvp_status: m.rsvp_status })))
+    setEditMembers(guest.party_members.map(m => ({ id: m.id, name: m.name, phone: m.phone || '', rsvp_status: m.rsvp_status, allergies: m.allergies || [], tags: m.tags || [], notes: m.notes || '' })))
   }
 
   const handleHeaderClick = (field: 'name' | 'phone' | 'notes' | 'status') => {
@@ -762,9 +777,9 @@ export default function EventPage() {
     const keepIds = editMembers.filter(m => m.id).map(m => m.id as string)
     const toDelete = existingIds.filter(id => !keepIds.includes(id))
     if (toDelete.length > 0) await supabase.from('party_members').delete().in('id', toDelete)
-    for (const m of editMembers.filter(m => m.id)) await supabase.from('party_members').update({ name: m.name, phone: m.phone || null, rsvp_status: m.rsvp_status }).eq('id', m.id!)
+    for (const m of editMembers.filter(m => m.id)) await supabase.from('party_members').update({ name: m.name, phone: m.phone || null, rsvp_status: m.rsvp_status, allergies: m.allergies.length ? m.allergies : null, tags: m.tags.length ? m.tags : null, notes: m.notes || null }).eq('id', m.id!)
     const toInsert = editMembers.filter(m => !m.id)
-    if (toInsert.length > 0) await supabase.from('party_members').insert(toInsert.map(m => ({ guest_id: editGuest.id, event_id: id as string, name: m.name, phone: m.phone || null, rsvp_status: m.rsvp_status })))
+    if (toInsert.length > 0) await supabase.from('party_members').insert(toInsert.map(m => ({ guest_id: editGuest.id, event_id: id as string, name: m.name, phone: m.phone || null, rsvp_status: m.rsvp_status, allergies: m.allergies.length ? m.allergies : null, tags: m.tags.length ? m.tags : null, notes: m.notes || null })))
     await loadGuests(); setEditGuest(null); setEditSaving(false)
   }
 
