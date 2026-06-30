@@ -5,6 +5,7 @@ import { interpretRSVPMessage, generateAgentReply } from '@/lib/ai-rsvp'
 import { after } from 'next/server'
 import { mirrorInbound, mirrorOutbound } from '@/lib/whatsapp/canonical-mirror'
 import { notifyInboundRsvp } from '@/lib/omnichannel/notify'
+import { resolveRsvpAndAttention } from '@/lib/agent/attention'
 
 const TWIML_EMPTY = '<Response/>'
 
@@ -113,12 +114,14 @@ export async function POST(request: NextRequest) {
     console.log(`[AI] ${guestName}: "${text}" -> ${interpretation.intent} (${interpretation.confidence})`)
 
     if (interpretation.intent !== 'ambiguous' && interpretation.confidence !== 'low') {
-      if (guest.rsvp_status !== interpretation.intent) {
-        await supabase
-          .from('guests')
-          .update({ rsvp_status: interpretation.intent })
-          .eq('id', guest.id)
-        console.log(`[RSVP] ${guestName}: ${guest.rsvp_status} -> ${interpretation.intent}`)
+      const res = resolveRsvpAndAttention(interpretation.intent, text)
+      const updates: Record<string, unknown> = {}
+      if (res.rsvp && guest.rsvp_status !== res.rsvp) updates.rsvp_status = res.rsvp
+      if (res.needsAttention) { updates.needs_attention = true; updates.attention_reason = res.attentionReason }
+      if (Object.keys(updates).length > 0) {
+        const { error: updErr } = await supabase.from('guests').update(updates).eq('id', guest.id)
+        if (updErr) console.error(`[RSVP] update fallo ${guestName}:`, JSON.stringify(updErr))
+        else console.log(`[RSVP] ${guestName}:`, JSON.stringify(updates))
       }
 
       const replyText = await generateAgentReply(

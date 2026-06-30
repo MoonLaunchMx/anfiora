@@ -270,6 +270,8 @@ export type EventCollaborator = {
 
 // ─── GUESTS ──────────────────────────────────────────────────────────────────
 
+export type AttentionReason = 'alergia' | 'peticion' | 'queja' | 'duda' | 'otro'
+
 export type PartyMember = {
   id: string
   guest_id: string
@@ -278,6 +280,9 @@ export type PartyMember = {
   phone?: string | null
   rsvp_status: RsvpStatus
   created_at?: string
+  allergies?: string[]
+  tags?: string[]
+  notes?: string | null
 }
 
 export type Guest = {
@@ -293,6 +298,8 @@ export type Guest = {
   party_members: PartyMember[]
   side?: string
   allergies?: string[]
+  needs_attention?: boolean
+  attention_reason?: AttentionReason | null
 }
 
 // ─── MESSAGES ────────────────────────────────────────────────────────────────

@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom'
 import { useParams } from 'next/navigation'
 import { motion, AnimatePresence, useMotionValue, useTransform, animate } from 'framer-motion'
 import type { PanInfo } from 'framer-motion'
-import { Trash2, Send, Clock, MessageSquare, AlertCircle, CheckCircle, XCircle, Download, Upload, Columns3, Search, UserPlus, Plus, Check, X, Filter, Loader2, FileSpreadsheet, FileText } from 'lucide-react'
+import { Trash2, Send, Clock, MessageSquare, AlertCircle, CheckCircle, XCircle, Download, Upload, Columns3, Search, UserPlus, Plus, Check, X, Filter, Loader2, FileSpreadsheet, FileText, AlertTriangle } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { PartyMember, Guest, Event, EventSettings, EventStatus, RsvpStatus } from '@/lib/types'
 import StatsCollapse, { StatsToggleButton, useStatsToggle } from '@/app/components/ui/StatsCollapse'
@@ -24,6 +24,14 @@ const STATUS_LABEL: Record<string, { label: string; color: string; bg: string; b
 }
 
 const STATUS_ORDER: RsvpStatus[] = ['pending', 'mensaje_enviado', 'respondio', 'accion_necesaria', 'confirmed', 'declined']
+
+const ATTENTION_LABEL: Record<string, string> = {
+  alergia: 'Alergia o restricción',
+  peticion: 'Petición de acompañantes',
+  queja: 'Queja',
+  duda: 'Duda',
+  otro: 'Requiere atención',
+}
 
 type ColumnKey = 'tags' | 'mesa' | 'lado' | 'notas' | 'telefono' | 'estatus'
 
@@ -219,7 +227,7 @@ const TRASH_ICON = (
   </>
 )
 
-type EditMember = { id?: string; name: string; phone: string; rsvp_status: RsvpStatus }
+type EditMember = { id?: string; name: string; phone: string; rsvp_status: RsvpStatus; allergies: string[]; tags: string[]; notes: string }
 type GuestTableInfo = { tableNumber: number; tableName: string | null }
 
 function normalizePhone(phone: string): string { return phone.replace(/\D/g, '') }
@@ -317,9 +325,10 @@ const ALLERGY_OPTIONS = ['Gluten', 'Lácteos', 'Mariscos', 'Nueces', 'Huevo', 'S
 
 function MembersEditor({ value, onChange }: { value: EditMember[]; onChange: (v: EditMember[]) => void }) {
   const MAX = 15
-  const add = () => { if (value.length < MAX) onChange([...value, { name: '', phone: '', rsvp_status: 'pending' }]) }
+  const add = () => { if (value.length < MAX) onChange([...value, { name: '', phone: '', rsvp_status: 'pending', allergies: [], tags: [], notes: '' }]) }
   const remove = (i: number) => onChange(value.filter((_, idx) => idx !== i))
-  const update = (i: number, field: keyof EditMember, val: string) => onChange(value.map((m, idx) => idx === i ? { ...m, [field]: val } : m))
+  const update = (i: number, field: 'name' | 'phone' | 'rsvp_status' | 'notes', val: string) => onChange(value.map((m, idx) => idx === i ? { ...m, [field]: val } : m))
+  const updateAllergies = (i: number, val: string[]) => onChange(value.map((m, idx) => idx === i ? { ...m, allergies: val } : m))
   return (
     <div>
       <div className="mb-2 flex items-center justify-between">
@@ -334,7 +343,7 @@ function MembersEditor({ value, onChange }: { value: EditMember[]; onChange: (v:
             <div className="flex flex-col gap-2">
               <input type="text" value={m.name} onChange={e => update(i, 'name', e.target.value)} placeholder="Nombre (opcional)" style={{ ...inp, fontSize: '13px', padding: '8px 12px' }} />
               <input type="tel" value={m.phone} onChange={e => update(i, 'phone', e.target.value)} placeholder="WhatsApp (opcional)" style={{ ...inp, fontSize: '13px', padding: '8px 12px' }} />
-              <select value={m.rsvp_status} onChange={e => update(i, 'rsvp_status', e.target.value)} style={{ ...inp, fontSize: '13px', padding: '8px 12px', cursor: 'pointer' }}>
+              <select value={m.rsvp_status} onChange={e => update(i, 'rsvp_status', e.target.value as RsvpStatus)} style={{ ...inp, fontSize: '13px', padding: '8px 12px', cursor: 'pointer' }}>
                 <option value="mensaje_enviado">Mensaje enviado</option>
                 <option value="pending">Pendiente</option>
                 <option value="respondio">Respondió</option>
@@ -342,6 +351,20 @@ function MembersEditor({ value, onChange }: { value: EditMember[]; onChange: (v:
                 <option value="confirmed">Confirmado</option>
                 <option value="declined">Declinado</option>
               </select>
+              <input
+                type="text"
+                value={(m.allergies || []).join(', ')}
+                onChange={e => updateAllergies(i, e.target.value.split(',').map(s => s.trim()).filter(Boolean))}
+                placeholder="Alergias (separadas por coma)"
+                style={{ ...inp, fontSize: '13px', padding: '8px 12px' }}
+              />
+              <input
+                type="text"
+                value={m.notes || ''}
+                onChange={e => update(i, 'notes', e.target.value)}
+                placeholder="Notas"
+                style={{ ...inp, fontSize: '13px', padding: '8px 12px' }}
+              />
               <button type="button" onClick={() => remove(i)} className="mt-1 w-full rounded-lg border border-[#ffe0e0] bg-[#fff5f5] py-1.5 text-xs font-semibold text-[#cc3333] transition hover:bg-[#ffe8e8]">Eliminar acompañante</button>
             </div>
           </div>
@@ -399,6 +422,16 @@ function SwipeableGuestCard({ guest, groupColor, isSelected, guestTags, availabl
               {guest.party_members.length > 0 && <span className="ml-1 text-xs font-normal" style={{ color: groupColor || '#aaa' }}>+{guest.party_members.length}</span>}
             </p>
             <div className="mt-0.5 flex flex-wrap items-center gap-1">
+              {guest.needs_attention && (
+                <span
+                  className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium"
+                  style={{ background: 'var(--error-bg)', color: 'var(--error-text)', border: '1px solid var(--error-border)' }}
+                  title={ATTENTION_LABEL[guest.attention_reason || 'otro']}
+                >
+                  <AlertTriangle size={12} />
+                  {ATTENTION_LABEL[guest.attention_reason || 'otro']}
+                </span>
+              )}
               {guestTags.map(tag => {
                 const tagIdx = availableTags.indexOf(tag)
                 const col = getTagColor(tagIdx >= 0 ? tagIdx : 0)
@@ -687,6 +720,12 @@ export default function EventPage() {
     await supabase.from('party_members').update({ rsvp_status: status }).eq('id', memberId)
   }
 
+  const resolveAttention = async (guestId: string) => {
+    setGuests(prev => prev.map(g => g.id === guestId ? { ...g, needs_attention: false, attention_reason: null } : g))
+    setEditGuest(prev => prev ? { ...prev, needs_attention: false, attention_reason: null } : null)
+    await supabase.from('guests').update({ needs_attention: false, attention_reason: null }).eq('id', guestId)
+  }
+
   const deleteGuest = async (guestId: string) => {
     if (!confirm('¿Eliminar este invitado?')) return
     await supabase.from('guests').delete().eq('id', guestId)
@@ -708,7 +747,7 @@ export default function EventPage() {
     setEditEmail(guest.email || ''); setEditNotes(guest.notes || '')
     setEditTags(guest.tags || []); setEditError('')
     setEditSide(guest.side || ''); setEditAllergies(guest.allergies || [])
-    setEditMembers(guest.party_members.map(m => ({ id: m.id, name: m.name, phone: m.phone || '', rsvp_status: m.rsvp_status })))
+    setEditMembers(guest.party_members.map(m => ({ id: m.id, name: m.name, phone: m.phone || '', rsvp_status: m.rsvp_status, allergies: m.allergies || [], tags: m.tags || [], notes: m.notes || '' })))
   }
 
   const handleHeaderClick = (field: 'name' | 'phone' | 'notes' | 'status') => {
@@ -738,9 +777,9 @@ export default function EventPage() {
     const keepIds = editMembers.filter(m => m.id).map(m => m.id as string)
     const toDelete = existingIds.filter(id => !keepIds.includes(id))
     if (toDelete.length > 0) await supabase.from('party_members').delete().in('id', toDelete)
-    for (const m of editMembers.filter(m => m.id)) await supabase.from('party_members').update({ name: m.name, phone: m.phone || null, rsvp_status: m.rsvp_status }).eq('id', m.id!)
+    for (const m of editMembers.filter(m => m.id)) await supabase.from('party_members').update({ name: m.name, phone: m.phone || null, rsvp_status: m.rsvp_status, allergies: m.allergies.length ? m.allergies : null, tags: m.tags.length ? m.tags : null, notes: m.notes || null }).eq('id', m.id!)
     const toInsert = editMembers.filter(m => !m.id)
-    if (toInsert.length > 0) await supabase.from('party_members').insert(toInsert.map(m => ({ guest_id: editGuest.id, event_id: id as string, name: m.name, phone: m.phone || null, rsvp_status: m.rsvp_status })))
+    if (toInsert.length > 0) await supabase.from('party_members').insert(toInsert.map(m => ({ guest_id: editGuest.id, event_id: id as string, name: m.name, phone: m.phone || null, rsvp_status: m.rsvp_status, allergies: m.allergies.length ? m.allergies : null, tags: m.tags.length ? m.tags : null, notes: m.notes || null })))
     await loadGuests(); setEditGuest(null); setEditSaving(false)
   }
 
@@ -1460,10 +1499,20 @@ export default function EventPage() {
                       <input type="checkbox" checked={selected.has(guest.id)}
                         onChange={e => toggleSelect(guest.id, gIdx, e.nativeEvent instanceof MouseEvent ? (e.nativeEvent as MouseEvent).shiftKey : false)}
                         onClick={e => e.stopPropagation()} style={{ cursor: 'pointer', accentColor: '#48C9B0' }} />
-                      <div onClick={() => openEdit(guest)} className="flex cursor-pointer items-center gap-1.5">
+                      <div onClick={() => openEdit(guest)} className="flex cursor-pointer items-center gap-1.5 flex-wrap">
                         {groupColor && <div className="mr-1 h-5 w-[3px] shrink-0 rounded-full" style={{ background: groupColor }} />}
                         <span className="text-sm font-semibold text-[#1D1E20]">{guest.name}</span>
                         {hasMembers && <span className="text-xs font-semibold" style={{ color: groupColor || '#aaa' }}>+{guest.party_members.length}</span>}
+                        {guest.needs_attention && (
+                          <span
+                            className="ml-2 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium"
+                            style={{ background: 'var(--error-bg)', color: 'var(--error-text)', border: '1px solid var(--error-border)' }}
+                            title={ATTENTION_LABEL[guest.attention_reason || 'otro']}
+                          >
+                            <AlertTriangle size={12} />
+                            {ATTENTION_LABEL[guest.attention_reason || 'otro']}
+                          </span>
+                        )}
                       </div>
                       {visibleCols.has('tags') && (
                         <div onClick={() => openEdit(guest)} className="flex flex-wrap gap-1 cursor-pointer">
@@ -1602,6 +1651,21 @@ export default function EventPage() {
               <div className="sm:col-span-2 border-t border-[#f0f0f0] pt-4"><MembersEditor value={editMembers} onChange={setEditMembers} /></div>
             </div>
             {editError && <div className="mt-3 rounded-lg border border-[#ffc0c0] bg-[#fff0f0] p-2.5 text-xs text-[#cc3333]">{editError}</div>}
+            {editGuest?.needs_attention && (
+              <div className="mt-4 flex items-center gap-2 rounded-lg border p-3" style={{ background: 'var(--error-bg)', borderColor: 'var(--error-border)' }}>
+                <AlertTriangle size={14} style={{ color: 'var(--error-text)', flexShrink: 0 }} />
+                <span className="flex-1 text-xs" style={{ color: 'var(--error-text)' }}>
+                  {ATTENTION_LABEL[editGuest.attention_reason || 'otro']}
+                </span>
+                <button
+                  onClick={() => resolveAttention(editGuest.id)}
+                  className="text-xs font-semibold"
+                  style={{ color: '#48C9B0' }}
+                >
+                  Marcar atención como resuelta
+                </button>
+              </div>
+            )}
             <div className="mt-6 flex gap-2.5">
               <button onClick={() => setEditGuest(null)} className="flex-1 rounded-lg border border-[#e0e0e0] py-3 text-sm text-[#888]">Cancelar</button>
               <button onClick={handleEditSave} disabled={editSaving} className="flex-[2] rounded-lg bg-[#48C9B0] py-3 text-sm font-semibold text-white disabled:opacity-60">{editSaving ? 'Guardando...' : 'Guardar cambios'}</button>
