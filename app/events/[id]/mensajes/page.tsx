@@ -32,6 +32,12 @@ interface DetalleInvitado {
   allergies: string[] | null
 }
 
+interface Acompanante {
+  id: string
+  name: string
+  rsvp_status: string | null
+}
+
 // ─── Constantes RSVP ─────────────────────────────────────────────────────────
 
 const RSVP_CONFIG: Record<RsvpStatus, { label: string; bg: string; text: string; icon: React.ReactNode }> = {
@@ -417,7 +423,7 @@ function PanelLista({
                   <div className="mb-0.5 flex items-center justify-between gap-2">
                     <span className="flex min-w-0 items-center gap-1.5">
                       <CanalBadge channel={conv.channel} size={11} />
-                      <span className="truncate text-sm font-medium text-[#1D1E20]">{nombreConv(conv)}</span>
+                      <span className="truncate text-[15px] font-medium text-[#1D1E20]">{nombreConv(conv)}</span>
                     </span>
                     <span className="shrink-0 text-[10px] text-[#9ca3af]">{tiempoRelativo(conv.lastMessageAt)}</span>
                   </div>
@@ -440,12 +446,12 @@ function PanelLista({
 function Burbuja({ m }: { m: InboxMessage }) {
   if (m.authorType === 'contact') {
     return (
-      <div className="mb-2 flex justify-start">
-        <div className="max-w-[75%] rounded-2xl rounded-tl-sm border border-[#e8e8e8] bg-white px-3.5 py-2.5 shadow-sm">
-          <p className="text-sm leading-relaxed text-[#1D1E20] break-words">{m.contentText}</p>
+      <div className="mb-2.5 flex justify-start">
+        <div className="max-w-[78%] rounded-2xl rounded-tl-sm border border-[#e8e8e8] bg-white px-4 py-2.5 shadow-sm">
+          <p className="text-[15px] leading-relaxed text-[#1D1E20] break-words">{m.contentText}</p>
           <div className="mt-1 flex items-center gap-1">
-            <Clock size={10} className="text-[#9ca3af]" />
-            <span className="text-[10px] text-[#9ca3af]">{formatHora(m.providerTimestamp)}</span>
+            <Clock size={11} className="text-[#9ca3af]" />
+            <span className="text-[11px] text-[#9ca3af]">{formatHora(m.providerTimestamp)}</span>
           </div>
         </div>
       </div>
@@ -453,16 +459,23 @@ function Burbuja({ m }: { m: InboxMessage }) {
   }
   const esIA = m.authorType === 'ai'
   return (
-    <div className="mb-2 flex justify-end">
-      <div className="max-w-[75%]">
-        <div className="mb-0.5 flex items-center justify-end gap-1">
-          {esIA ? <Sparkles size={10} className="text-[#48C9B0]" /> : null}
-          <span className={`text-[9px] font-medium ${esIA ? 'text-[#48C9B0]' : 'text-[#9ca3af]'}`}>{esIA ? 'IA' : 'Tú'}</span>
+    <div className="mb-2.5 flex justify-end">
+      <div className="max-w-[78%]">
+        <div className="mb-1 flex items-center justify-end gap-1">
+          {esIA ? <Sparkles size={11} className="text-[#1D9E75]" /> : null}
+          <span className={`text-[10px] font-semibold ${esIA ? 'text-[#1D9E75]' : 'text-[#9ca3af]'}`}>{esIA ? 'IA' : 'Tú'}</span>
         </div>
-        <div className={`rounded-2xl rounded-tr-sm px-3.5 py-2.5 ${esIA ? 'bg-[#48C9B0]' : 'bg-[#1D1E20]'}`}>
-          <p className="text-sm leading-relaxed text-white break-words">{m.contentText}</p>
-          <span className="mt-1 block text-right text-[10px] text-white/60">{formatHora(m.providerTimestamp)}</span>
-        </div>
+        {esIA ? (
+          <div className="rounded-2xl rounded-tr-sm border border-[#cdefe6] bg-[#eafaf5] px-4 py-2.5">
+            <p className="text-[15px] leading-relaxed text-[#1D1E20] break-words">{m.contentText}</p>
+            <span className="mt-1 block text-right text-[11px] text-[#6f9f91]">{formatHora(m.providerTimestamp)}</span>
+          </div>
+        ) : (
+          <div className="rounded-2xl rounded-tr-sm bg-[#1D1E20] px-4 py-2.5">
+            <p className="text-[15px] leading-relaxed text-white break-words">{m.contentText}</p>
+            <span className="mt-1 block text-right text-[11px] text-white/55">{formatHora(m.providerTimestamp)}</span>
+          </div>
+        )}
       </div>
     </div>
   )
@@ -504,7 +517,7 @@ function PanelChat({
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <CanalBadge channel={conv.channel} size={13} />
-            <span className="truncate text-sm font-semibold text-[#1D1E20]">{nombreConv(conv)}</span>
+            <span className="truncate text-[15px] font-semibold text-[#1D1E20]">{nombreConv(conv)}</span>
             {conv.rsvpStatus && <RsvpBadge status={conv.rsvpStatus as RsvpStatus} />}
           </div>
         </div>
@@ -557,7 +570,7 @@ function PanelChat({
             onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); onEnviar() } }}
             placeholder="Escribe un mensaje..."
             rows={1}
-            className="flex-1 resize-none rounded-xl border border-[#e8e8e8] bg-[#fafafa] px-3.5 py-2.5 text-sm text-[#1D1E20] placeholder:text-[#bbb] focus:border-[#48C9B0] focus:outline-none"
+            className="flex-1 resize-none rounded-xl border border-[#e8e8e8] bg-[#fafafa] px-3.5 py-2.5 text-[15px] text-[#1D1E20] placeholder:text-[#bbb] focus:border-[#48C9B0] focus:outline-none"
             style={{ maxHeight: '120px' }}
           />
           <button
@@ -584,10 +597,12 @@ interface PanelDetallesProps {
   mesa: TableAssignment | null
   cargandoMesa: boolean
   detalle: DetalleInvitado | null
+  acompanantes: Acompanante[]
+  onToggleAgente: () => void
   onClose: () => void
 }
 
-function PanelDetalles({ conv, mesa, cargandoMesa, detalle, onClose }: PanelDetallesProps) {
+function PanelDetalles({ conv, mesa, cargandoMesa, detalle, acompanantes, onToggleAgente, onClose }: PanelDetallesProps) {
   return (
     <div className="flex h-full flex-col overflow-y-auto">
       <div className="flex shrink-0 items-center justify-between border-b border-[#e8e8e8] px-4 py-3">
@@ -603,17 +618,41 @@ function PanelDetalles({ conv, mesa, cargandoMesa, detalle, onClose }: PanelDeta
         <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-[#48C9B0] text-lg font-semibold text-white">
           {iniciales(nombreConv(conv))}
         </div>
-        <p className="mb-1.5 flex items-center gap-1.5 text-sm font-semibold text-[#1D1E20]">
-          <CanalBadge channel={conv.channel} size={13} />
+        <p className="mb-1.5 flex items-center gap-1.5 text-[15px] font-semibold text-[#1D1E20]">
+          <CanalBadge channel={conv.channel} size={14} />
           {nombreConv(conv)}
         </p>
         {conv.rsvpStatus && <RsvpBadge status={conv.rsvpStatus as RsvpStatus} size="md" />}
       </div>
+
+      {/* Control del agente */}
+      <div className="border-b border-[#f3f4f6] px-4 py-3.5">
+        <button
+          onClick={onToggleAgente}
+          className="flex w-full items-center justify-between gap-3 rounded-xl border border-[#e8e8e8] px-3.5 py-3 text-left transition hover:border-[#48C9B0]/60"
+        >
+          <span className="flex items-center gap-2.5">
+            {conv.aiEnabled
+              ? <Sparkles size={17} className="shrink-0 text-[#1D9E75]" />
+              : <UserRound size={17} className="shrink-0 text-[#888]" />}
+            <span>
+              <span className="block text-[15px] font-medium text-[#1D1E20]">Agente IA</span>
+              <span className="block text-[12px] text-[#9ca3af]">
+                {conv.aiEnabled ? 'Responde automáticamente' : 'Tú respondes'}
+              </span>
+            </span>
+          </span>
+          <span className={`relative h-5 w-9 shrink-0 rounded-full transition ${conv.aiEnabled ? 'bg-[#48C9B0]' : 'bg-[#d4d4d4]'}`}>
+            <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all ${conv.aiEnabled ? 'left-[18px]' : 'left-0.5'}`} />
+          </span>
+        </button>
+      </div>
+
       <div className="flex-1 space-y-0 divide-y divide-[#f3f4f6] px-4">
         {detalle?.side && (
           <div className="py-3">
             <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-[#9ca3af]">Lado</p>
-            <p className="text-sm text-[#1D1E20]">{SIDE_LABEL[detalle.side] ?? detalle.side}</p>
+            <p className="text-[15px] text-[#1D1E20]">{SIDE_LABEL[detalle.side] ?? detalle.side}</p>
           </div>
         )}
         <div className="py-3">
@@ -621,17 +660,32 @@ function PanelDetalles({ conv, mesa, cargandoMesa, detalle, onClose }: PanelDeta
           {cargandoMesa ? (
             <div className="h-4 w-16 animate-pulse rounded bg-[#f0f0f0]" />
           ) : mesa ? (
-            <p className="text-sm font-medium text-[#1D1E20]">{mesa.table_name ?? `Mesa ${mesa.table_number}`}</p>
+            <p className="text-[15px] font-medium text-[#1D1E20]">{mesa.table_name ?? `Mesa ${mesa.table_number}`}</p>
           ) : (
-            <p className="text-sm text-[#bbb]">Sin asignar</p>
+            <p className="text-[15px] text-[#bbb]">Sin asignar</p>
           )}
         </div>
+        {acompanantes.length > 0 && (
+          <div className="py-3">
+            <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-[#9ca3af]">
+              Acompañantes ({acompanantes.length})
+            </p>
+            <div className="space-y-1.5">
+              {acompanantes.map(a => (
+                <div key={a.id} className="flex items-center justify-between gap-2">
+                  <span className="text-[15px] text-[#1D1E20]">{a.name}</span>
+                  {a.rsvp_status && <RsvpBadge status={a.rsvp_status as RsvpStatus} />}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
         {detalle?.tags && detalle.tags.length > 0 && (
           <div className="py-3">
             <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-[#9ca3af]">Tags</p>
             <div className="flex flex-wrap gap-1.5">
               {detalle.tags.map(tag => (
-                <span key={tag} className="rounded-full border border-[#e8e8e8] bg-[#f8f8f8] px-2.5 py-0.5 text-[11px] text-[#555]">
+                <span key={tag} className="rounded-full border border-[#e8e8e8] bg-[#f8f8f8] px-2.5 py-0.5 text-[13px] text-[#555]">
                   {tag}
                 </span>
               ))}
@@ -643,31 +697,13 @@ function PanelDetalles({ conv, mesa, cargandoMesa, detalle, onClose }: PanelDeta
             <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-[#9ca3af]">Alergias</p>
             <div className="flex flex-wrap gap-1.5">
               {detalle.allergies.map(a => (
-                <span key={a} className="rounded-full border border-orange-200 bg-orange-50 px-2.5 py-0.5 text-[11px] font-medium text-orange-700">
+                <span key={a} className="rounded-full border border-orange-200 bg-orange-50 px-2.5 py-0.5 text-[13px] font-medium text-orange-700">
                   {a}
                 </span>
               ))}
             </div>
           </div>
         )}
-        <div className="py-3">
-          <div className={`flex items-start gap-2.5 rounded-xl border p-3
-            ${conv.aiEnabled ? 'border-[#48C9B0]/20 bg-[#48C9B0]/8' : 'border-[#e8e8e8] bg-[#f8f8f8]'}`}>
-            {conv.aiEnabled
-              ? <Sparkles size={14} className="mt-0.5 shrink-0 text-[#48C9B0]" />
-              : <UserRound size={14} className="mt-0.5 shrink-0 text-[#888]" />}
-            <div>
-              <p className={`text-[11px] font-semibold ${conv.aiEnabled ? 'text-[#1D9E75]' : 'text-[#666]'}`}>
-                {conv.aiEnabled ? 'Agente IA activo' : 'Agente en pausa'}
-              </p>
-              <p className="text-[11px] leading-relaxed text-[#6b7280]">
-                {conv.aiEnabled
-                  ? 'Respondiendo automáticamente a esta conversación.'
-                  : 'Tú estás respondiendo esta conversación.'}
-              </p>
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   )
@@ -699,6 +735,7 @@ export default function MensajesPage() {
   const [mesa, setMesa]                     = useState<TableAssignment | null>(null)
   const [cargandoMesa, setCargandoMesa]     = useState(false)
   const [detalle, setDetalle]               = useState<DetalleInvitado | null>(null)
+  const [acompanantes, setAcompanantes]     = useState<Acompanante[]>([])
   const [detallesOpen, setDetallesOpen]     = useState(false)
   const [mensaje, setMensaje]               = useState('')
   const [enviando, setEnviando]             = useState(false)
@@ -739,7 +776,7 @@ export default function MensajesPage() {
   }, [seleccionadaId, mensajes.length])
 
   useEffect(() => {
-    if (!seleccionada?.guestId) { setMesa(null); setDetalle(null); return }
+    if (!seleccionada?.guestId) { setMesa(null); setDetalle(null); setAcompanantes([]); return }
     const guestId = seleccionada.guestId
     setCargandoMesa(true)
     supabase
@@ -763,6 +800,14 @@ export default function MensajesPage() {
       .maybeSingle()
       .then(({ data }) => {
         setDetalle(data ? { side: data.side ?? null, tags: data.tags ?? null, allergies: data.allergies ?? null } : null)
+      })
+    supabase
+      .from('party_members')
+      .select('id, name, rsvp_status')
+      .eq('guest_id', guestId)
+      .order('created_at', { ascending: true })
+      .then(({ data }) => {
+        setAcompanantes((data ?? []).map(a => ({ id: a.id, name: a.name, rsvp_status: a.rsvp_status ?? null })))
       })
   }, [seleccionada?.guestId])
 
@@ -873,6 +918,8 @@ export default function MensajesPage() {
               mesa={mesa}
               cargandoMesa={cargandoMesa}
               detalle={detalle}
+              acompanantes={acompanantes}
+              onToggleAgente={toggleAgente}
               onClose={() => setDetallesOpen(false)}
             />
           </div>
