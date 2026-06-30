@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { after } from 'next/server'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
-import { interpretRSVPMessage, generateAgentReply, type EventContext, type MessageHistory } from '@/lib/ai-rsvp'
+import { interpretRSVPMessage, distillGuestMemory, type EventContext, type MessageHistory } from '@/lib/ai-rsvp'
 import { ingestInbound, ingestOutbound, ensureBinding } from '@/lib/omnichannel/store'
 import { notifyInboundRsvp } from '@/lib/omnichannel/notify'
 import {
@@ -14,6 +14,9 @@ import {
 } from '@/lib/telegram/adapter'
 import { resolveStart, resolveByChat, type TelegramRoute } from '@/lib/telegram/routing'
 import { resolveRsvpAndAttention } from '@/lib/agent/attention'
+import { getAgentConfig } from '@/lib/agent/config'
+import { buildContextPack } from '@/lib/agent/context-pack'
+import { runPipelineOnPack } from '@/lib/agent/pipeline'
 
 export async function POST(request: NextRequest) {
   const secret = request.headers.get('x-telegram-bot-api-secret-token') ?? ''
@@ -161,6 +164,9 @@ async function processTelegramUpdate(
 
     const interpretation = await interpretRSVPMessage(update.text, route.guestName, eventContext.name)
 
+    const config = await getAgentConfig(supabase, route.eventId)
+
+    // Escritura de asistencia/atencion (resolver de A, sin cambios de modelo)
     if (interpretation.intent !== 'ambiguous' && interpretation.confidence !== 'low') {
       const { data: guestRow } = await supabase
         .from('guests').select('rsvp_status').eq('id', route.guestId).maybeSingle()
@@ -172,39 +178,47 @@ async function processTelegramUpdate(
         const { error: updErr } = await supabase.from('guests').update(updates).eq('id', route.guestId)
         if (updErr) console.error('[Telegram RSVP] update fallo:', JSON.stringify(updErr))
       }
+    }
 
-      const replyText = await generateAgentReply(
-        interpretation.intent,
-        route.guestName,
-        eventContext,
-        history,
-        update.text,
-      )
-
-      const sent = await sendTelegramMessage(update.chatId, replyText)
-      if (sent.ok && sent.messageId) {
-        await ingestOutbound(supabase, {
-          channel: TG_CHANNEL,
-          externalAccountId,
-          participantExternalId: update.chatId,
-          contentText: replyText,
-          authorType: 'ai',
-          providerMessageId: `${update.chatId}:${sent.messageId}`,
-          providerTimestamp: sent.date,
-          status: 'sent',
-          workspaceId: route.workspaceId,
-          tenantId: route.eventId,
-          contactGuestId: route.guestId,
-        })
+    // Cerebro: respuesta grounded con self-check
+    const pack = await buildContextPack(supabase, route.guestId, config)
+    if (pack) {
+      const outcome = await runPipelineOnPack(pack, update.text, interpretation, config, history)
+      let replyText: string | null = null
+      if (outcome.action === 'reply') {
+        replyText = outcome.text
+      } else if (outcome.action === 'handoff') {
+        replyText = outcome.message
+        const { data: g2 } = await supabase.from('guests').select('needs_attention').eq('id', route.guestId).maybeSingle()
+        if (!g2?.needs_attention) {
+          await supabase.from('guests').update({ needs_attention: true, attention_reason: 'duda' }).eq('id', route.guestId)
+        }
+      } else {
+        // draft (copiloto) fuera de alcance en Fase 1: se trata como atencion, no se envia
+        await supabase.from('guests').update({ needs_attention: true, attention_reason: 'duda' }).eq('id', route.guestId)
       }
 
-      await notifyInboundRsvp(supabase, {
-        eventId: route.eventId,
-        guestId: route.guestId,
-        guestName: route.guestName,
-        eventName: eventContext.name,
-        intent: interpretation.intent,
-      })
+      if (replyText) {
+        const sent = await sendTelegramMessage(update.chatId, replyText)
+        if (sent.ok && sent.messageId) {
+          await ingestOutbound(supabase, {
+            channel: TG_CHANNEL, externalAccountId, participantExternalId: update.chatId,
+            contentText: replyText, authorType: 'ai', providerMessageId: `${update.chatId}:${sent.messageId}`,
+            providerTimestamp: sent.date, status: 'sent', workspaceId: route.workspaceId,
+            tenantId: route.eventId, contactGuestId: route.guestId,
+          })
+        }
+        await notifyInboundRsvp(supabase, {
+          eventId: route.eventId, guestId: route.guestId, guestName: route.guestName,
+          eventName: eventContext.name, intent: interpretation.intent,
+        })
+
+        // Memoria episodica
+        const turn: MessageHistory[] = [...history, { direction: 'received', content: update.text }, { direction: 'sent', content: replyText }]
+        const { data: gm } = await supabase.from('guests').select('agent_memory').eq('id', route.guestId).maybeSingle()
+        const memory = await distillGuestMemory(gm?.agent_memory ?? null, turn, route.guestName)
+        if (memory) await supabase.from('guests').update({ agent_memory: memory }).eq('id', route.guestId)
+      }
     }
 
     return await markProcessed(supabase, webhookEventId)
