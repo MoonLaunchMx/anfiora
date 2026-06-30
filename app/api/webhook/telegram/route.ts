@@ -13,6 +13,7 @@ import {
   type TelegramUpdate,
 } from '@/lib/telegram/adapter'
 import { resolveStart, resolveByChat, type TelegramRoute } from '@/lib/telegram/routing'
+import { resolveRsvpAndAttention } from '@/lib/agent/attention'
 
 export async function POST(request: NextRequest) {
   const secret = request.headers.get('x-telegram-bot-api-secret-token') ?? ''
@@ -163,8 +164,13 @@ async function processTelegramUpdate(
     if (interpretation.intent !== 'ambiguous' && interpretation.confidence !== 'low') {
       const { data: guestRow } = await supabase
         .from('guests').select('rsvp_status').eq('id', route.guestId).maybeSingle()
-      if (guestRow && guestRow.rsvp_status !== interpretation.intent) {
-        await supabase.from('guests').update({ rsvp_status: interpretation.intent }).eq('id', route.guestId)
+      const res = resolveRsvpAndAttention(interpretation.intent, update.text)
+      const updates: Record<string, unknown> = {}
+      if (res.rsvp && guestRow && guestRow.rsvp_status !== res.rsvp) updates.rsvp_status = res.rsvp
+      if (res.needsAttention) { updates.needs_attention = true; updates.attention_reason = res.attentionReason }
+      if (Object.keys(updates).length > 0) {
+        const { error: updErr } = await supabase.from('guests').update(updates).eq('id', route.guestId)
+        if (updErr) console.error('[Telegram RSVP] update fallo:', JSON.stringify(updErr))
       }
 
       const replyText = await generateAgentReply(
