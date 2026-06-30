@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom'
 import { useParams } from 'next/navigation'
 import { motion, AnimatePresence, useMotionValue, useTransform, animate } from 'framer-motion'
 import type { PanInfo } from 'framer-motion'
-import { Trash2, Send, Clock, MessageSquare, AlertCircle, CheckCircle, XCircle, Download, Upload, Columns3, Search, UserPlus, Plus, Check, X, Filter, Loader2, FileSpreadsheet, FileText } from 'lucide-react'
+import { Trash2, Send, Clock, MessageSquare, AlertCircle, CheckCircle, XCircle, Download, Upload, Columns3, Search, UserPlus, Plus, Check, X, Filter, Loader2, FileSpreadsheet, FileText, AlertTriangle } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { PartyMember, Guest, Event, EventSettings, EventStatus, RsvpStatus } from '@/lib/types'
 import StatsCollapse, { StatsToggleButton, useStatsToggle } from '@/app/components/ui/StatsCollapse'
@@ -24,6 +24,14 @@ const STATUS_LABEL: Record<string, { label: string; color: string; bg: string; b
 }
 
 const STATUS_ORDER: RsvpStatus[] = ['pending', 'mensaje_enviado', 'respondio', 'accion_necesaria', 'confirmed', 'declined']
+
+const ATTENTION_LABEL: Record<string, string> = {
+  alergia: 'Alergia o restricción',
+  peticion: 'Petición de acompañantes',
+  queja: 'Queja',
+  duda: 'Duda',
+  otro: 'Requiere atención',
+}
 
 type ColumnKey = 'tags' | 'mesa' | 'lado' | 'notas' | 'telefono' | 'estatus'
 
@@ -399,6 +407,16 @@ function SwipeableGuestCard({ guest, groupColor, isSelected, guestTags, availabl
               {guest.party_members.length > 0 && <span className="ml-1 text-xs font-normal" style={{ color: groupColor || '#aaa' }}>+{guest.party_members.length}</span>}
             </p>
             <div className="mt-0.5 flex flex-wrap items-center gap-1">
+              {guest.needs_attention && (
+                <span
+                  className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium"
+                  style={{ background: 'var(--error-bg)', color: 'var(--error-text)', border: '1px solid var(--error-border)' }}
+                  title={ATTENTION_LABEL[guest.attention_reason || 'otro']}
+                >
+                  <AlertTriangle size={12} />
+                  {ATTENTION_LABEL[guest.attention_reason || 'otro']}
+                </span>
+              )}
               {guestTags.map(tag => {
                 const tagIdx = availableTags.indexOf(tag)
                 const col = getTagColor(tagIdx >= 0 ? tagIdx : 0)
@@ -685,6 +703,12 @@ export default function EventPage() {
   const updatePartyMemberStatus = async (memberId: string, guestId: string, status: RsvpStatus) => {
     setGuests(prev => prev.map(g => g.id === guestId ? { ...g, party_members: g.party_members.map(m => m.id === memberId ? { ...m, rsvp_status: status } : m) } : g))
     await supabase.from('party_members').update({ rsvp_status: status }).eq('id', memberId)
+  }
+
+  const resolveAttention = async (guestId: string) => {
+    setGuests(prev => prev.map(g => g.id === guestId ? { ...g, needs_attention: false, attention_reason: null } : g))
+    setEditGuest(prev => prev ? { ...prev, needs_attention: false, attention_reason: null } : null)
+    await supabase.from('guests').update({ needs_attention: false, attention_reason: null }).eq('id', guestId)
   }
 
   const deleteGuest = async (guestId: string) => {
@@ -1460,10 +1484,20 @@ export default function EventPage() {
                       <input type="checkbox" checked={selected.has(guest.id)}
                         onChange={e => toggleSelect(guest.id, gIdx, e.nativeEvent instanceof MouseEvent ? (e.nativeEvent as MouseEvent).shiftKey : false)}
                         onClick={e => e.stopPropagation()} style={{ cursor: 'pointer', accentColor: '#48C9B0' }} />
-                      <div onClick={() => openEdit(guest)} className="flex cursor-pointer items-center gap-1.5">
+                      <div onClick={() => openEdit(guest)} className="flex cursor-pointer items-center gap-1.5 flex-wrap">
                         {groupColor && <div className="mr-1 h-5 w-[3px] shrink-0 rounded-full" style={{ background: groupColor }} />}
                         <span className="text-sm font-semibold text-[#1D1E20]">{guest.name}</span>
                         {hasMembers && <span className="text-xs font-semibold" style={{ color: groupColor || '#aaa' }}>+{guest.party_members.length}</span>}
+                        {guest.needs_attention && (
+                          <span
+                            className="ml-2 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium"
+                            style={{ background: 'var(--error-bg)', color: 'var(--error-text)', border: '1px solid var(--error-border)' }}
+                            title={ATTENTION_LABEL[guest.attention_reason || 'otro']}
+                          >
+                            <AlertTriangle size={12} />
+                            {ATTENTION_LABEL[guest.attention_reason || 'otro']}
+                          </span>
+                        )}
                       </div>
                       {visibleCols.has('tags') && (
                         <div onClick={() => openEdit(guest)} className="flex flex-wrap gap-1 cursor-pointer">
@@ -1602,6 +1636,21 @@ export default function EventPage() {
               <div className="sm:col-span-2 border-t border-[#f0f0f0] pt-4"><MembersEditor value={editMembers} onChange={setEditMembers} /></div>
             </div>
             {editError && <div className="mt-3 rounded-lg border border-[#ffc0c0] bg-[#fff0f0] p-2.5 text-xs text-[#cc3333]">{editError}</div>}
+            {editGuest?.needs_attention && (
+              <div className="mt-4 flex items-center gap-2 rounded-lg border p-3" style={{ background: 'var(--error-bg)', borderColor: 'var(--error-border)' }}>
+                <AlertTriangle size={14} style={{ color: 'var(--error-text)', flexShrink: 0 }} />
+                <span className="flex-1 text-xs" style={{ color: 'var(--error-text)' }}>
+                  {ATTENTION_LABEL[editGuest.attention_reason || 'otro']}
+                </span>
+                <button
+                  onClick={() => resolveAttention(editGuest.id)}
+                  className="text-xs font-semibold"
+                  style={{ color: '#48C9B0' }}
+                >
+                  Marcar atención como resuelta
+                </button>
+              </div>
+            )}
             <div className="mt-6 flex gap-2.5">
               <button onClick={() => setEditGuest(null)} className="flex-1 rounded-lg border border-[#e0e0e0] py-3 text-sm text-[#888]">Cancelar</button>
               <button onClick={handleEditSave} disabled={editSaving} className="flex-[2] rounded-lg bg-[#48C9B0] py-3 text-sm font-semibold text-white disabled:opacity-60">{editSaving ? 'Guardando...' : 'Guardar cambios'}</button>
