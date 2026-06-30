@@ -268,10 +268,12 @@ export default function PerfilPage() {
         return
       }
 
-      const sub = await reg.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(vapidKey),
-      })
+      const sub =
+        (await reg.pushManager.getSubscription()) ??
+        (await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(vapidKey),
+        }))
 
       const { data: { session } } = await supabase.auth.getSession()
       const res = await fetch('/api/push/subscribe', {

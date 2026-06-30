@@ -25,6 +25,31 @@ self.addEventListener('push', (event) => {
   );
 });
 
+self.addEventListener('pushsubscriptionchange', (event) => {
+  event.waitUntil(
+    (async () => {
+      const oldSub = event.oldSubscription;
+      let newSub = event.newSubscription;
+      if (!newSub) {
+        const appServerKey = oldSub && oldSub.options && oldSub.options.applicationServerKey;
+        if (!appServerKey) return;
+        newSub = await self.registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: appServerKey,
+        });
+      }
+      if (!newSub || !oldSub) return;
+      try {
+        await fetch('/api/push/subscribe', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ oldEndpoint: oldSub.endpoint, subscription: newSub.toJSON() }),
+        });
+      } catch {}
+    })()
+  );
+});
+
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   const url = (event.notification.data && event.notification.data.url) || '/dashboard';

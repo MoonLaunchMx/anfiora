@@ -3,6 +3,7 @@ import { after } from 'next/server'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { interpretRSVPMessage, generateAgentReply, type EventContext, type MessageHistory } from '@/lib/ai-rsvp'
 import { ingestInbound, ingestOutbound, ensureBinding } from '@/lib/omnichannel/store'
+import { notifyInboundRsvp } from '@/lib/omnichannel/notify'
 import {
   TG_CHANNEL,
   parseTelegramUpdate,
@@ -67,6 +68,10 @@ async function processTelegramUpdate(
         : await resolveByChat(supabase, { channelAccountId: accountId, chatId: update.chatId })
 
     if (!route) return await markProcessed(supabase, webhookEventId, 'sin clasificar')
+
+    if (route.eventStatus === 'cancelled' || route.eventStatus === 'completed') {
+      return await markProcessed(supabase, webhookEventId, `evento ${route.eventStatus}`)
+    }
 
     const externalAccountId = telegramExternalAccountId()
 
@@ -178,6 +183,14 @@ async function processTelegramUpdate(
           contactGuestId: route.guestId,
         })
       }
+
+      await notifyInboundRsvp(supabase, {
+        eventId: route.eventId,
+        guestId: route.guestId,
+        guestName: route.guestName,
+        eventName: eventContext.name,
+        intent: interpretation.intent,
+      })
     }
 
     return await markProcessed(supabase, webhookEventId)
