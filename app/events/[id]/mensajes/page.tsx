@@ -6,8 +6,10 @@ import { supabase } from '@/lib/supabase'
 import {
   MessageCircle, Clock, Send, Sparkles, Info,
   AlertCircle, CheckCircle, XCircle,
-  Megaphone, X, ChevronLeft, ChevronRight,
+  Megaphone, X, ChevronLeft, ChevronRight, UserRound,
 } from 'lucide-react'
+import { FaWhatsapp, FaTelegram } from 'react-icons/fa'
+import type { InboxConversation, InboxMessage } from '@/lib/omnichannel/inbox-view'
 
 // ─── Tipos ───────────────────────────────────────────────────────────────────
 
@@ -19,35 +21,15 @@ type RsvpStatus =
   | 'respondio'
   | 'accion_necesaria'
 
-interface Guest {
-  id: string
-  name: string
-  phone: string
-  rsvp_status: RsvpStatus
-  side: string | null
-  tags: string[] | null
-  allergies: string[] | null
-  event_id: string
-}
-
-interface WaMessage {
-  id: string
-  guest_id: string
-  event_id: string
-  direction: 'sent' | 'received'
-  content: string
-  created_at: string
-}
-
 interface TableAssignment {
   table_name: string | null
   table_number: number | null
 }
 
-interface Conversation {
-  guest: Guest
-  lastMessage: WaMessage
-  messages: WaMessage[]
+interface DetalleInvitado {
+  side: string | null
+  tags: string[] | null
+  allergies: string[] | null
 }
 
 // ─── Constantes RSVP ─────────────────────────────────────────────────────────
@@ -63,9 +45,21 @@ const RSVP_CONFIG: Record<RsvpStatus, { label: string; bg: string; text: string;
 
 const SIDE_LABEL: Record<string, string> = { novia: 'Novia', novio: 'Novio' }
 
+// ─── Config de canal ───────────────────────────────────────────────────────────
+
+const CHANNEL_CONFIG: Record<string, {
+  label: string
+  Icon: React.ComponentType<{ size?: number; className?: string; style?: React.CSSProperties }>
+  color: string
+}> = {
+  whatsapp: { label: 'WhatsApp', Icon: FaWhatsapp, color: '#25D366' },
+  telegram: { label: 'Telegram', Icon: FaTelegram, color: '#229ED9' },
+}
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function tiempoRelativo(fecha: string): string {
+function tiempoRelativo(fecha: string | null): string {
+  if (!fecha) return ''
   const diff = Math.floor((Date.now() - new Date(fecha).getTime()) / 1000)
   if (diff < 60)     return 'ahora'
   if (diff < 3600)   return `${Math.floor(diff / 60)} min`
@@ -93,7 +87,11 @@ function iniciales(name: string): string {
   return parts[0]?.[0]?.toUpperCase() || '?'
 }
 
-// ─── Badge RSVP ──────────────────────────────────────────────────────────────
+function nombreConv(c: InboxConversation): string {
+  return c.guestName ?? c.participantName ?? 'Sin nombre'
+}
+
+// ─── Badges ──────────────────────────────────────────────────────────────────
 
 function RsvpBadge({ status, size = 'sm' }: { status: RsvpStatus; size?: 'sm' | 'md' }) {
   const cfg = RSVP_CONFIG[status] ?? RSVP_CONFIG.pending
@@ -108,6 +106,17 @@ function RsvpBadge({ status, size = 'sm' }: { status: RsvpStatus; size?: 'sm' | 
   )
 }
 
+function CanalBadge({ channel, size = 12 }: { channel: string; size?: number }) {
+  const cfg = CHANNEL_CONFIG[channel]
+  if (!cfg) return null
+  const { Icon, color, label } = cfg
+  return (
+    <span title={label} className="inline-flex items-center">
+      <Icon size={size} style={{ color }} />
+    </span>
+  )
+}
+
 // ─── MODAL PRÓXIMAMENTE ───────────────────────────────────────────────────────
 
 const DEMOS = [
@@ -116,7 +125,6 @@ const DEMOS = [
   '/images/wa-demo-3.png',
 ]
 
-// ─── Regex validación email básica ───────────────────────────────────────────
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 function ModalProximamente({ onClose }: { onClose: () => void }) {
@@ -127,7 +135,6 @@ function ModalProximamente({ onClose }: { onClose: () => void }) {
   const [errorEmail, setErrorEmail] = useState('')
 
   async function notificar() {
-    // ── Validar formato antes de hacer nada ──
     if (!correo.trim()) return
     if (!EMAIL_REGEX.test(correo.trim())) {
       setErrorEmail('Ingresa un correo válido, por ejemplo: nombre@dominio.com')
@@ -154,7 +161,6 @@ function ModalProximamente({ onClose }: { onClose: () => void }) {
         onClick={e => e.stopPropagation()}
       >
 
-        {/* ── CARRUSEL — solo desktop, columna izquierda ── */}
         <div className="hidden md:flex md:w-[52%] flex-col bg-[#f8f5f0] shrink-0">
           <div className="flex flex-1 items-center justify-center overflow-hidden p-6">
             <img
@@ -194,10 +200,8 @@ function ModalProximamente({ onClose }: { onClose: () => void }) {
           </div>
         </div>
 
-        {/* ── CONTENIDO — columna única mobile, columna derecha desktop ── */}
         <div className="flex flex-1 flex-col md:border-l border-[#f0f0f0] overflow-hidden">
 
-          {/* Header */}
           <div className="flex shrink-0 items-center justify-between border-b border-[#f0f0f0] px-6 py-4">
             <img src="/images/logo.svg" alt="Anfiora" className="h-20" />
             <button
@@ -208,10 +212,8 @@ function ModalProximamente({ onClose }: { onClose: () => void }) {
             </button>
           </div>
 
-          {/* Contenido scrolleable */}
           <div className="flex flex-1 flex-col overflow-y-auto px-6 py-5 gap-4">
 
-            {/* Título y descripción */}
             <div>
               <span className="inline-flex rounded-full bg-[#48C9B0]/15 px-3 py-0.5 text-[11px] font-semibold text-[#1D9E75]">
                 Próximamente
@@ -224,7 +226,6 @@ function ModalProximamente({ onClose }: { onClose: () => void }) {
               </p>
             </div>
 
-            {/* Features */}
             <div className="space-y-1.5">
               {[
                 'Envío masivo con plantillas personalizadas',
@@ -239,7 +240,6 @@ function ModalProximamente({ onClose }: { onClose: () => void }) {
               ))}
             </div>
 
-            {/* Tabla comparación */}
             <div>
               <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-[#9ca3af]">
                 Lo que cobran otros por hacer esto manual
@@ -271,7 +271,6 @@ function ModalProximamente({ onClose }: { onClose: () => void }) {
               </p>
             </div>
 
-            {/* CTA — input + botón en columna, validación de email ── */}
             <div className="pb-2">
               {enviado ? (
                 <div className="flex items-center justify-center gap-2 rounded-xl bg-[#f0fdfb] py-3 text-sm font-semibold text-[#1D9E75]">
@@ -289,7 +288,6 @@ function ModalProximamente({ onClose }: { onClose: () => void }) {
                     className={`w-full rounded-xl border bg-[#fafafa] px-3.5 py-2.5 text-sm text-[#1D1E20] placeholder:text-[#bbb] focus:outline-none transition
                       ${errorEmail ? 'border-red-400 focus:border-red-400' : 'border-[#e8e8e8] focus:border-[#48C9B0]'}`}
                   />
-                  {/* ── Error de validación ── */}
                   {errorEmail && (
                     <div className="flex items-center gap-1.5 text-[11px] text-red-500">
                       <AlertCircle size={11} className="shrink-0" />
@@ -318,18 +316,24 @@ function ModalProximamente({ onClose }: { onClose: () => void }) {
 
 interface PanelListaProps {
   cargando: boolean
-  convsFiltradas: Conversation[]
-  seleccionada: Conversation | null
+  convsFiltradas: InboxConversation[]
+  seleccionadaId: string | null
   busqueda: string
-  totalEnviados: number
-  onSelect: (conv: Conversation) => void
+  canalFiltro: 'todos' | 'whatsapp' | 'telegram'
+  onSelect: (conv: InboxConversation) => void
   onBusqueda: (v: string) => void
+  onCanal: (v: 'todos' | 'whatsapp' | 'telegram') => void
   onBroadcast: () => void
 }
 
 function PanelLista({
-  cargando, convsFiltradas, seleccionada, busqueda, totalEnviados, onSelect, onBusqueda, onBroadcast
+  cargando, convsFiltradas, seleccionadaId, busqueda, canalFiltro, onSelect, onBusqueda, onCanal, onBroadcast
 }: PanelListaProps) {
+  const filtros: { key: 'todos' | 'whatsapp' | 'telegram'; label: string }[] = [
+    { key: 'todos', label: 'Todos' },
+    { key: 'whatsapp', label: 'WhatsApp' },
+    { key: 'telegram', label: 'Telegram' },
+  ]
   return (
     <div className="flex h-full flex-col">
       <div className="shrink-0 border-b border-[#e8e8e8] px-4 pb-3 pt-4 space-y-3">
@@ -349,6 +353,20 @@ function PanelLista({
             className="w-full rounded-lg border border-[#e8e8e8] bg-[#fafafa] py-2 pl-8 pr-3 text-sm text-[#1D1E20] placeholder:text-[#bbb] focus:border-[#48C9B0] focus:outline-none"
           />
         </div>
+        <div className="flex items-center gap-1.5">
+          {filtros.map(f => (
+            <button
+              key={f.key}
+              onClick={() => onCanal(f.key)}
+              className={`rounded-full px-3 py-1 text-[11px] font-medium transition
+                ${canalFiltro === f.key
+                  ? 'bg-[#48C9B0]/15 text-[#1D9E75]'
+                  : 'bg-[#f5f5f5] text-[#9ca3af] hover:bg-[#eee]'}`}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
         <button
           onClick={onBroadcast}
           className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#1D1E20] py-2 text-xs font-semibold text-white transition hover:bg-[#333]"
@@ -356,20 +374,6 @@ function PanelLista({
           <Megaphone size={13} />
           Enviar campaña masiva
         </button>
-        <div className="space-y-1.5 pt-1">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] text-[#9ca3af]">Mensajes enviados</span>
-            <span className="text-[11px] font-semibold text-[#1D1E20]">
-              {totalEnviados.toLocaleString('es-MX')}
-            </span>
-          </div>
-          <div className="h-1.5 w-full overflow-hidden rounded-full bg-[#f0f0f0]">
-            <div
-              className="h-full rounded-full bg-[#48C9B0] transition-all duration-500"
-              style={{ width: `${Math.min((totalEnviados / 5000) * 100, 100)}%` }}
-            />
-          </div>
-        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto">
@@ -390,41 +394,37 @@ function PanelLista({
             </div>
             <p className="mb-1 font-semibold text-[#1D1E20]">Sin conversaciones</p>
             <p className="text-xs leading-relaxed text-[#9ca3af]">
-              Aquí aparecerán los chats cuando envíes tu primera campaña de WhatsApp.
+              Aquí aparecerán los chats de WhatsApp y Telegram de este evento.
             </p>
           </div>
         ) : (
           convsFiltradas.map(conv => {
-            const activa  = seleccionada?.guest.id === conv.guest.id
-            const preview = conv.lastMessage.direction === 'sent'
-              ? `Tú: ${conv.lastMessage.content}`
-              : conv.lastMessage.content
+            const activa  = seleccionadaId === conv.id
+            const prefijo = conv.lastAuthorType === 'ai' ? 'IA: ' : conv.lastAuthorType === 'human' ? 'Tú: ' : ''
+            const preview = `${prefijo}${conv.lastMessageText ?? ''}`
             return (
               <button
-                key={conv.guest.id}
+                key={conv.id}
                 onClick={() => onSelect(conv)}
                 className={`flex w-full items-center gap-3 border-b border-[#f3f4f6] px-4 py-3.5 text-left transition
                   ${activa ? 'bg-[#f0fdfb]' : 'hover:bg-[#fafafa]'}`}
               >
                 <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold
                   ${activa ? 'bg-[#48C9B0] text-white' : 'bg-[#48C9B0]/15 text-[#1D9E75]'}`}>
-                  {iniciales(conv.guest.name)}
+                  {iniciales(nombreConv(conv))}
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="mb-0.5 flex items-center justify-between gap-2">
-                    <span className="truncate text-sm font-medium text-[#1D1E20]">{conv.guest.name}</span>
-                    <span className="shrink-0 text-[10px] text-[#9ca3af]">{tiempoRelativo(conv.lastMessage.created_at)}</span>
+                    <span className="flex min-w-0 items-center gap-1.5">
+                      <CanalBadge channel={conv.channel} size={11} />
+                      <span className="truncate text-sm font-medium text-[#1D1E20]">{nombreConv(conv)}</span>
+                    </span>
+                    <span className="shrink-0 text-[10px] text-[#9ca3af]">{tiempoRelativo(conv.lastMessageAt)}</span>
                   </div>
                   <div className="flex items-center justify-between gap-2">
                     <span className="truncate text-xs text-[#9ca3af]">{preview}</span>
-                    <RsvpBadge status={conv.guest.rsvp_status} />
+                    {conv.rsvpStatus && <RsvpBadge status={conv.rsvpStatus as RsvpStatus} />}
                   </div>
-                  {conv.lastMessage.direction === 'sent' && (
-                    <span className="mt-0.5 flex items-center gap-1 text-[10px] text-[#48C9B0]">
-                      <Sparkles size={9} />
-                      IA
-                    </span>
-                  )}
                 </div>
               </button>
             )
@@ -435,10 +435,44 @@ function PanelLista({
   )
 }
 
+// ─── BURBUJA ──────────────────────────────────────────────────────────────────
+
+function Burbuja({ m }: { m: InboxMessage }) {
+  if (m.authorType === 'contact') {
+    return (
+      <div className="mb-2 flex justify-start">
+        <div className="max-w-[75%] rounded-2xl rounded-tl-sm border border-[#e8e8e8] bg-white px-3.5 py-2.5 shadow-sm">
+          <p className="text-sm leading-relaxed text-[#1D1E20] break-words">{m.contentText}</p>
+          <div className="mt-1 flex items-center gap-1">
+            <Clock size={10} className="text-[#9ca3af]" />
+            <span className="text-[10px] text-[#9ca3af]">{formatHora(m.providerTimestamp)}</span>
+          </div>
+        </div>
+      </div>
+    )
+  }
+  const esIA = m.authorType === 'ai'
+  return (
+    <div className="mb-2 flex justify-end">
+      <div className="max-w-[75%]">
+        <div className="mb-0.5 flex items-center justify-end gap-1">
+          {esIA ? <Sparkles size={10} className="text-[#48C9B0]" /> : null}
+          <span className={`text-[9px] font-medium ${esIA ? 'text-[#48C9B0]' : 'text-[#9ca3af]'}`}>{esIA ? 'IA' : 'Tú'}</span>
+        </div>
+        <div className={`rounded-2xl rounded-tr-sm px-3.5 py-2.5 ${esIA ? 'bg-[#48C9B0]' : 'bg-[#1D1E20]'}`}>
+          <p className="text-sm leading-relaxed text-white break-words">{m.contentText}</p>
+          <span className="mt-1 block text-right text-[10px] text-white/60">{formatHora(m.providerTimestamp)}</span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── PANEL CHAT ───────────────────────────────────────────────────────────────
 
 interface PanelChatProps {
-  conv: Conversation
+  conv: InboxConversation
+  mensajes: InboxMessage[]
   mensaje: string
   enviando: boolean
   errorEnvio: string | null
@@ -446,36 +480,48 @@ interface PanelChatProps {
   onMensajeChange: (v: string) => void
   onEnviar: () => void
   onToggleDetalles: () => void
+  onToggleAgente: () => void
 }
 
 function PanelChat({
-  conv, mensaje, enviando, errorEnvio, chatBottomRef,
-  onMensajeChange, onEnviar, onToggleDetalles
+  conv, mensajes, mensaje, enviando, errorEnvio, chatBottomRef,
+  onMensajeChange, onEnviar, onToggleDetalles, onToggleAgente
 }: PanelChatProps) {
-  const porFecha: { fecha: string; msgs: WaMessage[] }[] = []
-  conv.messages.forEach(msg => {
-    const fecha = new Date(msg.created_at).toDateString()
+  const porFecha: { fecha: string; msgs: InboxMessage[] }[] = []
+  mensajes.forEach(m => {
+    const fecha = new Date(m.providerTimestamp).toDateString()
     const grupo = porFecha.find(g => g.fecha === fecha)
-    if (grupo) grupo.msgs.push(msg)
-    else porFecha.push({ fecha, msgs: [msg] })
+    if (grupo) grupo.msgs.push(m)
+    else porFecha.push({ fecha, msgs: [m] })
   })
 
   return (
     <div className="flex h-full flex-col">
       <div className="flex shrink-0 items-center gap-3 border-b border-[#e8e8e8] bg-white px-4 py-3">
         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#48C9B0] text-sm font-semibold text-white">
-          {iniciales(conv.guest.name)}
+          {iniciales(nombreConv(conv))}
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <span className="truncate text-sm font-semibold text-[#1D1E20]">{conv.guest.name}</span>
-            <RsvpBadge status={conv.guest.rsvp_status} />
+            <CanalBadge channel={conv.channel} size={13} />
+            <span className="truncate text-sm font-semibold text-[#1D1E20]">{nombreConv(conv)}</span>
+            {conv.rsvpStatus && <RsvpBadge status={conv.rsvpStatus as RsvpStatus} />}
           </div>
-          <p className="text-xs text-[#9ca3af]">{conv.guest.phone}</p>
         </div>
         <button
+          onClick={onToggleAgente}
+          className={`flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-semibold transition
+            ${conv.aiEnabled
+              ? 'bg-[#48C9B0]/15 text-[#1D9E75] hover:bg-[#48C9B0]/25'
+              : 'bg-[#f0f0f0] text-[#666] hover:bg-[#e8e8e8]'}`}
+          title={conv.aiEnabled ? 'El agente responde automáticamente' : 'Tú respondes esta conversación'}
+        >
+          {conv.aiEnabled ? <Sparkles size={13} /> : <UserRound size={13} />}
+          {conv.aiEnabled ? 'Agente activo' : 'Yo respondo'}
+        </button>
+        <button
           onClick={onToggleDetalles}
-          className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#e8e8e8] text-[#888] transition hover:border-[#48C9B0] hover:text-[#48C9B0] xl:hidden"
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[#e8e8e8] text-[#888] transition hover:border-[#48C9B0] hover:text-[#48C9B0] xl:hidden"
         >
           <Info size={15} />
         </button>
@@ -487,36 +533,11 @@ function PanelChat({
             <div className="my-4 flex items-center gap-3">
               <div className="flex-1 h-px bg-[#e8e8e8]" />
               <span className="shrink-0 rounded-full bg-[#f0f0f0] px-3 py-0.5 text-[10px] font-medium text-[#9ca3af]">
-                {formatFechaChat(msgs[0].created_at)}
+                {formatFechaChat(msgs[0].providerTimestamp)}
               </span>
               <div className="flex-1 h-px bg-[#e8e8e8]" />
             </div>
-            {msgs.map(msg => (
-              <div key={msg.id} className={`mb-2 flex ${msg.direction === 'sent' ? 'justify-end' : 'justify-start'}`}>
-                {msg.direction === 'sent' ? (
-                  <div className="max-w-[75%]">
-                    <div className="mb-0.5 flex items-center justify-end gap-1">
-                      <Sparkles size={10} className="text-[#48C9B0]" />
-                      <span className="text-[9px] font-medium text-[#48C9B0]">IA</span>
-                    </div>
-                    <div className="rounded-2xl rounded-tr-sm bg-[#48C9B0] px-3.5 py-2.5">
-                      <p className="text-sm leading-relaxed text-white break-words">{msg.content}</p>
-                      <div className="mt-1 flex justify-end">
-                        <span className="text-[10px] text-white/60">{formatHora(msg.created_at)}</span>
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="max-w-[75%] rounded-2xl rounded-tl-sm border border-[#e8e8e8] bg-white px-3.5 py-2.5 shadow-sm">
-                    <p className="text-sm leading-relaxed text-[#1D1E20] break-words">{msg.content}</p>
-                    <div className="mt-1 flex items-center gap-1">
-                      <Clock size={10} className="text-[#9ca3af]" />
-                      <span className="text-[10px] text-[#9ca3af]">{formatHora(msg.created_at)}</span>
-                    </div>
-                  </div>
-                )}
-              </div>
-            ))}
+            {msgs.map(m => <Burbuja key={m.id} m={m} />)}
           </div>
         ))}
         <div ref={chatBottomRef} />
@@ -559,14 +580,14 @@ function PanelChat({
 // ─── PANEL DETALLES ───────────────────────────────────────────────────────────
 
 interface PanelDetallesProps {
-  conv: Conversation
+  conv: InboxConversation
   mesa: TableAssignment | null
   cargandoMesa: boolean
+  detalle: DetalleInvitado | null
   onClose: () => void
 }
 
-function PanelDetalles({ conv, mesa, cargandoMesa, onClose }: PanelDetallesProps) {
-  const g = conv.guest
+function PanelDetalles({ conv, mesa, cargandoMesa, detalle, onClose }: PanelDetallesProps) {
   return (
     <div className="flex h-full flex-col overflow-y-auto">
       <div className="flex shrink-0 items-center justify-between border-b border-[#e8e8e8] px-4 py-3">
@@ -580,16 +601,19 @@ function PanelDetalles({ conv, mesa, cargandoMesa, onClose }: PanelDetallesProps
       </div>
       <div className="flex flex-col items-center border-b border-[#f3f4f6] px-4 py-5">
         <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-[#48C9B0] text-lg font-semibold text-white">
-          {iniciales(g.name)}
+          {iniciales(nombreConv(conv))}
         </div>
-        <p className="mb-1.5 text-sm font-semibold text-[#1D1E20]">{g.name}</p>
-        <RsvpBadge status={g.rsvp_status} size="md" />
+        <p className="mb-1.5 flex items-center gap-1.5 text-sm font-semibold text-[#1D1E20]">
+          <CanalBadge channel={conv.channel} size={13} />
+          {nombreConv(conv)}
+        </p>
+        {conv.rsvpStatus && <RsvpBadge status={conv.rsvpStatus as RsvpStatus} size="md" />}
       </div>
       <div className="flex-1 space-y-0 divide-y divide-[#f3f4f6] px-4">
-        {g.side && (
+        {detalle?.side && (
           <div className="py-3">
             <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-[#9ca3af]">Lado</p>
-            <p className="text-sm text-[#1D1E20]">{SIDE_LABEL[g.side] ?? g.side}</p>
+            <p className="text-sm text-[#1D1E20]">{SIDE_LABEL[detalle.side] ?? detalle.side}</p>
           </div>
         )}
         <div className="py-3">
@@ -602,11 +626,11 @@ function PanelDetalles({ conv, mesa, cargandoMesa, onClose }: PanelDetallesProps
             <p className="text-sm text-[#bbb]">Sin asignar</p>
           )}
         </div>
-        {g.tags && g.tags.length > 0 && (
+        {detalle?.tags && detalle.tags.length > 0 && (
           <div className="py-3">
             <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-[#9ca3af]">Tags</p>
             <div className="flex flex-wrap gap-1.5">
-              {g.tags.map(tag => (
+              {detalle.tags.map(tag => (
                 <span key={tag} className="rounded-full border border-[#e8e8e8] bg-[#f8f8f8] px-2.5 py-0.5 text-[11px] text-[#555]">
                   {tag}
                 </span>
@@ -614,11 +638,11 @@ function PanelDetalles({ conv, mesa, cargandoMesa, onClose }: PanelDetallesProps
             </div>
           </div>
         )}
-        {g.allergies && g.allergies.length > 0 && (
+        {detalle?.allergies && detalle.allergies.length > 0 && (
           <div className="py-3">
             <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-[#9ca3af]">Alergias</p>
             <div className="flex flex-wrap gap-1.5">
-              {g.allergies.map(a => (
+              {detalle.allergies.map(a => (
                 <span key={a} className="rounded-full border border-orange-200 bg-orange-50 px-2.5 py-0.5 text-[11px] font-medium text-orange-700">
                   {a}
                 </span>
@@ -627,12 +651,19 @@ function PanelDetalles({ conv, mesa, cargandoMesa, onClose }: PanelDetallesProps
           </div>
         )}
         <div className="py-3">
-          <div className="flex items-start gap-2.5 rounded-xl border border-[#48C9B0]/20 bg-[#48C9B0]/8 p-3">
-            <Sparkles size={14} className="mt-0.5 shrink-0 text-[#48C9B0]" />
+          <div className={`flex items-start gap-2.5 rounded-xl border p-3
+            ${conv.aiEnabled ? 'border-[#48C9B0]/20 bg-[#48C9B0]/8' : 'border-[#e8e8e8] bg-[#f8f8f8]'}`}>
+            {conv.aiEnabled
+              ? <Sparkles size={14} className="mt-0.5 shrink-0 text-[#48C9B0]" />
+              : <UserRound size={14} className="mt-0.5 shrink-0 text-[#888]" />}
             <div>
-              <p className="text-[11px] font-semibold text-[#1D9E75]">Agente IA activo</p>
+              <p className={`text-[11px] font-semibold ${conv.aiEnabled ? 'text-[#1D9E75]' : 'text-[#666]'}`}>
+                {conv.aiEnabled ? 'Agente IA activo' : 'Agente en pausa'}
+              </p>
               <p className="text-[11px] leading-relaxed text-[#6b7280]">
-                Respondiendo automáticamente via webhook de Twilio.
+                {conv.aiEnabled
+                  ? 'Respondiendo automáticamente a esta conversación.'
+                  : 'Tú estás respondiendo esta conversación.'}
               </p>
             </div>
           </div>
@@ -661,76 +692,60 @@ function EmptyChat() {
 export default function MensajesPage() {
   const { id: eventId } = useParams<{ id: string }>()
 
-  const [conversaciones, setConversaciones] = useState<Conversation[]>([])
-  const [seleccionada, setSeleccionada]     = useState<Conversation | null>(null)
+  const [conversaciones, setConversaciones] = useState<InboxConversation[]>([])
+  const [seleccionadaId, setSeleccionadaId] = useState<string | null>(null)
+  const [mensajes, setMensajes]             = useState<InboxMessage[]>([])
   const [cargando, setCargando]             = useState(true)
   const [mesa, setMesa]                     = useState<TableAssignment | null>(null)
   const [cargandoMesa, setCargandoMesa]     = useState(false)
+  const [detalle, setDetalle]               = useState<DetalleInvitado | null>(null)
   const [detallesOpen, setDetallesOpen]     = useState(false)
   const [mensaje, setMensaje]               = useState('')
   const [enviando, setEnviando]             = useState(false)
   const [errorEnvio, setErrorEnvio]         = useState<string | null>(null)
   const [busqueda, setBusqueda]             = useState('')
+  const [canalFiltro, setCanalFiltro]       = useState<'todos' | 'whatsapp' | 'telegram'>('todos')
   const [modalProximo, setModalProximo]     = useState(false)
 
   const chatBottomRef = useRef<HTMLDivElement>(null)
 
+  const seleccionada = conversaciones.find(c => c.id === seleccionadaId) ?? null
+
+  const fetchInbox = useCallback(async (convId?: string) => {
+    const { data: { session } } = await supabase.auth.getSession()
+    const token = session?.access_token
+    if (!token) { setCargando(false); return }
+    const qs = new URLSearchParams({ eventId })
+    if (convId) qs.set('conversationId', convId)
+    const res = await fetch(`/api/omnichannel/inbox?${qs}`, { headers: { Authorization: `Bearer ${token}` } })
+    if (res.ok) {
+      const json = await res.json()
+      setConversaciones(json.conversations ?? [])
+      if (convId && json.messages) setMensajes(json.messages)
+    }
+    setCargando(false)
+  }, [eventId])
+
   useEffect(() => {
-    if (seleccionada) {
+    fetchInbox(seleccionadaId ?? undefined)
+    const t = setInterval(() => fetchInbox(seleccionadaId ?? undefined), 4000)
+    return () => clearInterval(t)
+  }, [fetchInbox, seleccionadaId])
+
+  useEffect(() => {
+    if (seleccionadaId) {
       setTimeout(() => chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 80)
     }
-  }, [seleccionada?.guest.id, seleccionada?.messages.length])
-
-  const cargar = useCallback(async () => {
-    setCargando(true)
-    const { data: mensajes } = await supabase
-      .from('wa_messages')
-      .select('*')
-      .eq('event_id', eventId)
-      .order('created_at', { ascending: true })
-
-    if (!mensajes || mensajes.length === 0) { setCargando(false); return }
-
-    const guestIds = [...new Set(mensajes.map((m: WaMessage) => m.guest_id))]
-    const { data: guests } = await supabase
-      .from('guests')
-      .select('id, name, phone, rsvp_status, side, tags, allergies, event_id')
-      .in('id', guestIds)
-
-    if (!guests) { setCargando(false); return }
-
-    const convs: Conversation[] = guestIds
-      .map((gid) => {
-        const guest = guests.find((g: Guest) => g.id === gid)
-        if (!guest) return null
-        const msgs = mensajes.filter((m: WaMessage) => m.guest_id === gid)
-        return { guest, lastMessage: msgs[msgs.length - 1], messages: msgs }
-      })
-      .filter(Boolean) as Conversation[]
-
-    convs.sort((a, b) =>
-      new Date(b.lastMessage.created_at).getTime() - new Date(a.lastMessage.created_at).getTime()
-    )
-
-    setConversaciones(convs)
-
-    if (seleccionada) {
-      const actualizada = convs.find(c => c.guest.id === seleccionada.guest.id)
-      if (actualizada) setSeleccionada(actualizada)
-    }
-
-    setCargando(false)
-  }, [eventId, seleccionada?.guest.id])
-
-  useEffect(() => { cargar() }, [eventId])
+  }, [seleccionadaId, mensajes.length])
 
   useEffect(() => {
-    if (!seleccionada) { setMesa(null); return }
+    if (!seleccionada?.guestId) { setMesa(null); setDetalle(null); return }
+    const guestId = seleccionada.guestId
     setCargandoMesa(true)
     supabase
       .from('table_seats')
       .select('tables(name, number)')
-      .eq('guest_id', seleccionada.guest.id)
+      .eq('guest_id', guestId)
       .maybeSingle()
       .then(({ data }) => {
         if (data?.tables) {
@@ -741,29 +756,47 @@ export default function MensajesPage() {
         }
         setCargandoMesa(false)
       })
-  }, [seleccionada?.guest.id])
+    supabase
+      .from('guests')
+      .select('side, tags, allergies')
+      .eq('id', guestId)
+      .maybeSingle()
+      .then(({ data }) => {
+        setDetalle(data ? { side: data.side ?? null, tags: data.tags ?? null, allergies: data.allergies ?? null } : null)
+      })
+  }, [seleccionada?.guestId])
 
-  async function enviarMensaje() {
-    if (!mensaje.trim() || !seleccionada || enviando) return
+  async function seleccionar(conv: InboxConversation) {
+    setSeleccionadaId(conv.id)
+    setDetallesOpen(false)
+    setMensajes([])
+    await fetchInbox(conv.id)
+  }
+
+  async function toggleAgente() {
+    if (!seleccionada) return
+    const nuevo = !seleccionada.aiEnabled
+    setConversaciones(prev => prev.map(c => c.id === seleccionada.id ? { ...c, aiEnabled: nuevo } : c))
+    await supabase.from('conversations').update({ ai_enabled: nuevo }).eq('id', seleccionada.id)
+  }
+
+  async function enviar() {
+    if (!mensaje.trim() || !seleccionadaId || enviando) return
     setEnviando(true)
     setErrorEnvio(null)
     try {
-      const res = await fetch('/api/whatsapp/send', {
+      const { data: { session } } = await supabase.auth.getSession()
+      const res = await fetch('/api/omnichannel/send', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          guestId: seleccionada.guest.id,
-          eventId,
-          phone:   seleccionada.guest.phone,
-          message: mensaje.trim(),
-        }),
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token}` },
+        body: JSON.stringify({ conversationId: seleccionadaId, text: mensaje.trim() }),
       })
       if (!res.ok) {
         const err = await res.json().catch(() => ({}))
         throw new Error(err?.error ?? 'Error al enviar')
       }
       setMensaje('')
-      await cargar()
+      await fetchInbox(seleccionadaId)
     } catch (err: any) {
       setErrorEnvio(err?.message ?? 'No se pudo enviar el mensaje')
     } finally {
@@ -772,12 +805,8 @@ export default function MensajesPage() {
   }
 
   const convsFiltradas = conversaciones.filter(c =>
-    c.guest.name.toLowerCase().includes(busqueda.toLowerCase()) ||
-    c.guest.phone.includes(busqueda)
-  )
-
-  const totalEnviados = conversaciones.reduce(
-    (acc, c) => acc + c.messages.filter(m => m.direction === 'sent').length, 0
+    (canalFiltro === 'todos' || c.channel === canalFiltro) &&
+    nombreConv(c).toLowerCase().includes(busqueda.toLowerCase())
   )
 
   return (
@@ -792,11 +821,12 @@ export default function MensajesPage() {
         <PanelLista
           cargando={cargando}
           convsFiltradas={convsFiltradas}
-          seleccionada={seleccionada}
+          seleccionadaId={seleccionadaId}
           busqueda={busqueda}
-          totalEnviados={totalEnviados}
-          onSelect={(conv) => { setSeleccionada(conv); setDetallesOpen(false) }}
+          canalFiltro={canalFiltro}
+          onSelect={seleccionar}
           onBusqueda={setBusqueda}
+          onCanal={setCanalFiltro}
           onBroadcast={() => setModalProximo(true)}
         />
       </div>
@@ -806,13 +836,15 @@ export default function MensajesPage() {
         {seleccionada ? (
           <PanelChat
             conv={seleccionada}
+            mensajes={mensajes}
             mensaje={mensaje}
             enviando={enviando}
             errorEnvio={errorEnvio}
             chatBottomRef={chatBottomRef}
             onMensajeChange={setMensaje}
-            onEnviar={enviarMensaje}
+            onEnviar={enviar}
             onToggleDetalles={() => setDetallesOpen(p => !p)}
+            onToggleAgente={toggleAgente}
           />
         ) : (
           <EmptyChat />
@@ -840,13 +872,14 @@ export default function MensajesPage() {
               conv={seleccionada}
               mesa={mesa}
               cargandoMesa={cargandoMesa}
+              detalle={detalle}
               onClose={() => setDetallesOpen(false)}
             />
           </div>
         </>
       )}
 
-      {/* Modal — absolute inset-0, click fuera cierra, click dentro no */}
+      {/* Modal */}
       {modalProximo && (
         <ModalProximamente onClose={() => setModalProximo(false)} />
       )}
