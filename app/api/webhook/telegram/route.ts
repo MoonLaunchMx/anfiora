@@ -118,6 +118,14 @@ async function processTelegramUpdate(
       contactGuestId: route.guestId,
     })
 
+    if (conversationId) {
+      const { data: conv } = await supabase
+        .from('conversations').select('ai_enabled').eq('id', conversationId).maybeSingle()
+      if (conv && conv.ai_enabled === false) {
+        return await markProcessed(supabase, webhookEventId)
+      }
+    }
+
     const { data: eventRow } = await supabase
       .from('events')
       .select('name, event_date, event_time, venue, address, event_type')
