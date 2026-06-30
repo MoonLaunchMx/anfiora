@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { validateRequest } from 'twilio'
 import { interpretRSVPMessage, generateAgentReply } from '@/lib/ai-rsvp'
-import { sendPushToUsers, resolveEventRecipients } from '@/lib/push'
 import { after } from 'next/server'
 import { mirrorInbound, mirrorOutbound } from '@/lib/whatsapp/canonical-mirror'
+import { notifyInboundRsvp } from '@/lib/omnichannel/notify'
 
 const TWIML_EMPTY = '<Response/>'
 
@@ -55,9 +55,14 @@ export async function POST(request: NextRequest) {
 
     const { data: event } = await supabase
       .from('events')
-      .select('name, event_date, event_time, venue, address, event_type')
+      .select('name, event_date, event_time, venue, address, event_type, event_status')
       .eq('id', guest.event_id)
       .single()
+
+    if (event?.event_status === 'cancelled' || event?.event_status === 'completed') {
+      console.log('[Webhook] Evento no activo, se ignora:', guest.event_id, event.event_status)
+      return twimlResponse()
+    }
 
     const eventContext = {
       name:       event?.name       ?? 'tu evento',
@@ -158,47 +163,20 @@ export async function POST(request: NextRequest) {
 
       await sendWhatsAppReply(from, replyText)
 
-      try {
-        const recipients = await resolveEventRecipients(guest.event_id)
-
-        const WINDOW_MS = 2 * 60 * 60 * 1000
-        const since = new Date(Date.now() - WINDOW_MS).toISOString()
-        const { data: recent } = await supabase
-          .from('wa_messages')
-          .select('guest_id')
-          .eq('event_id', guest.event_id)
-          .eq('direction', 'received')
-          .gte('created_at', since)
-
-        const distinctGuests = new Set((recent ?? []).map((r) => r.guest_id))
-        distinctGuests.add(guest.id)
-        const count = distinctGuests.size
-
-        const statusLabel =
-          interpretation.intent === 'confirmed' ? 'confirmó asistencia'
-          : interpretation.intent === 'declined' ? 'no podrá asistir'
-          : 'respondió por WhatsApp'
-
-        const body =
-          count > 1
-            ? `${guestName} y ${count - 1} más respondieron.`
-            : `${guestName} ${statusLabel}.`
-
-        await sendPushToUsers(recipients, {
-          title: eventContext.name,
-          body,
-          url: `/events/${guest.event_id}/mensajes`,
-          tag: `wa-event-${guest.event_id}`,
-          renotify: true,
+      after(() =>
+        notifyInboundRsvp(supabase, {
+          eventId: guest.event_id,
+          guestId: guest.id,
+          guestName,
+          eventName: eventContext.name,
+          intent: interpretation.intent,
         })
-      } catch (pushErr: any) {
-        console.error('[Webhook] push fallido', pushErr?.message ?? pushErr)
-      }
+      )
     }
 
     return twimlResponse()
-  } catch (err: any) {
-    console.error('[Webhook Error]', err?.message ?? err)
+  } catch (err) {
+    console.error('[Webhook Error]', err instanceof Error ? err.message : err)
     return twimlResponse()
   }
 }

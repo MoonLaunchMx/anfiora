@@ -10,6 +10,7 @@ export type TelegramRoute = {
   guestId: string
   guestName: string
   eventName: string
+  eventStatus: string | null
 }
 
 // Primer contacto: el deep-link `/start <guest_id>` trae la identidad.
@@ -21,7 +22,7 @@ export async function resolveStart(
     .from('guests').select('id, name, event_id').eq('id', guestId).maybeSingle()
   if (!guest) return null
   const { data: event } = await supabase
-    .from('events').select('user_id, name').eq('id', guest.event_id).maybeSingle()
+    .from('events').select('user_id, name, event_status').eq('id', guest.event_id).maybeSingle()
   if (!event?.user_id) return null
   return {
     workspaceId: event.user_id,
@@ -29,6 +30,7 @@ export async function resolveStart(
     guestId: guest.id,
     guestName: guest.name?.trim() || 'Invitado',
     eventName: event.name ?? 'tu evento',
+    eventStatus: event.event_status ?? null,
   }
 }
 
@@ -57,7 +59,7 @@ export async function resolveByChat(
   const { data: guest } = await supabase
     .from('guests').select('name').eq('id', conversation.contact_guest_id).maybeSingle()
   const { data: event } = await supabase
-    .from('events').select('name').eq('id', conversation.tenant_id).maybeSingle()
+    .from('events').select('name, event_status').eq('id', conversation.tenant_id).maybeSingle()
 
   return {
     workspaceId: conversation.workspace_id,
@@ -65,5 +67,6 @@ export async function resolveByChat(
     guestId: conversation.contact_guest_id,
     guestName: guest?.name?.trim() || 'Invitado',
     eventName: event?.name ?? 'tu evento',
+    eventStatus: event?.event_status ?? null,
   }
 }
