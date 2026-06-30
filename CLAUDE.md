@@ -8,9 +8,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 npm run dev      # Start development server on http://localhost:3000
 npm run build    # Production build
 npm run lint     # Run ESLint
+npm test         # Vitest (tests de logica pura)
 ```
 
-No test suite is configured.
+**Testing:** Vitest para logica pura, extraida a funciones testeables (Claude las corre con `npm test`). La UI y los endpoints con I/O (Twilio/Telegram/Supabase) se verifican manualmente por el flujo **local (localhost:3000) -> preview (Vercel) -> main (produccion)**. Anfiora esta en produccion, ya no es un MVP.
 
 ## Architecture Overview
 
@@ -541,8 +542,8 @@ Spanish (`es`) and English (`en`) supported on landing page and auth modal via l
 1. **Código completo** — nunca fragmentos, siempre el archivo entero listo para pegar
 2. **Un paso a la vez** — terminar y confirmar antes de proponer el siguiente
 3. **Full file replacement** — nunca edits parciales
-4. **Sin tablas nuevas** en Supabase durante MVP (ya hay 17; evitar crecer más)
-5. **Sin OAuth, sin Stripe, sin tests** durante MVP
+4. **Sin tablas nuevas** en Supabase salvo necesidad real (ya hay 17; evitar crecer más)
+5. **Tests con Vitest** para lógica pura; UI y endpoints con I/O se verifican manual (local → preview → main)
 6. **Sin comentarios** salvo cuando el WHY es no-obvio
 
 ## Reglas para Claude Code (terminal)
