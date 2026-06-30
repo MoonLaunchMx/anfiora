@@ -1,5 +1,7 @@
 # Agente robusto — Sub-proyecto B (extraccion estructurada) Implementation Plan
 
+> **OBSOLETO (30-jun).** Reemplazado por la spec `2026-06-30-agente-unificado-design.md`. La extraccion estructurada de este plan (applyExtraction + reglas) se conserva, pero se integra DENTRO del cerebro unificado (fase 2). No ejecutar este plan tal cual.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Que el agente confirme acompanantes y capture alergias en la persona correcta cuando es inequivoco, y escale (bandera) cuando es ambiguo, sin adivinar datos del corazon.

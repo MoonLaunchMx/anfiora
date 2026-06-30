@@ -1,7 +1,9 @@
 # Agente robusto — Sub-proyecto B: extracción estructurada (acompañantes + alergias)
 
+> **OBSOLETO (30-jun).** Reemplazado por `2026-06-30-agente-unificado-design.md`. Este sub-proyecto describía un tercer cerebro en paralelo; su valor único (confirmar acompañantes + capturar alergias) se conserva, pero ahora vive DENTRO del cerebro unificado (fase 2), no como módulo aparte. No construir desde este documento.
+
 Fecha: 2026-06-30
-Estado: spec en revisión
+Estado: OBSOLETO — ver agente unificado
 Depende de: Sub-proyecto A (PR #6, `feat/agente-robusto-A`) — B se ramifica desde A.
 Relacionado: `docs/superpowers/specs/2026-06-30-agente-robusto-A-modelo-datos-design.md`, rama diferida `feature/whatsapp-ia` (pipeline anti-alucinación = sub-proyecto C).
 
