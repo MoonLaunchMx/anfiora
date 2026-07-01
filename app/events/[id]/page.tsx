@@ -323,7 +323,13 @@ function TagInput({ availableTags, selectedTags, onChangeSelected, onCreateTag, 
 
 const ALLERGY_OPTIONS = ['Gluten', 'Lácteos', 'Mariscos', 'Nueces', 'Huevo', 'Soya', 'Cerdo']
 
-function MembersEditor({ value, onChange }: { value: EditMember[]; onChange: (v: EditMember[]) => void }) {
+function MembersEditor({ value, onChange, allergyPool, onCreateAllergy, onDeleteAllergy }: {
+  value: EditMember[]
+  onChange: (v: EditMember[]) => void
+  allergyPool: string[]
+  onCreateAllergy: (t: string) => void
+  onDeleteAllergy: (t: string) => void
+}) {
   const MAX = 15
   const add = () => { if (value.length < MAX) onChange([...value, { name: '', phone: '', rsvp_status: 'pending', allergies: [], tags: [], notes: '' }]) }
   const remove = (i: number) => onChange(value.filter((_, idx) => idx !== i))
@@ -351,13 +357,9 @@ function MembersEditor({ value, onChange }: { value: EditMember[]; onChange: (v:
                 <option value="confirmed">Confirmado</option>
                 <option value="declined">Declinado</option>
               </select>
-              <input
-                type="text"
-                value={(m.allergies || []).join(', ')}
-                onChange={e => updateAllergies(i, e.target.value.split(',').map(s => s.trim()).filter(Boolean))}
-                placeholder="Alergias (separadas por coma)"
-                style={{ ...inp, fontSize: '13px', padding: '8px 12px' }}
-              />
+              <div>
+                <TagInput availableTags={allergyPool} selectedTags={m.allergies || []} onChangeSelected={(v) => updateAllergies(i, v)} onCreateTag={onCreateAllergy} onDeleteTag={onDeleteAllergy} label="Alergia" />
+              </div>
               <input
                 type="text"
                 value={m.notes || ''}
@@ -1634,6 +1636,21 @@ export default function EventPage() {
               <h2 className="text-lg font-bold text-[#1D1E20] sm:text-xl">Editar invitado</h2>
               <button onClick={() => setEditGuest(null)} className="text-xl text-[#aaa]">✕</button>
             </div>
+            {editGuest?.needs_attention && (
+              <div className="mb-4 flex items-center gap-2 rounded-lg border p-3" style={{ background: 'var(--error-bg)', borderColor: 'var(--error-border)' }}>
+                <AlertTriangle size={14} style={{ color: 'var(--error-text)', flexShrink: 0 }} />
+                <span className="flex-1 text-xs" style={{ color: 'var(--error-text)' }}>
+                  {ATTENTION_LABEL[editGuest.attention_reason || 'otro']}
+                </span>
+                <button
+                  onClick={() => resolveAttention(editGuest.id)}
+                  className="text-xs font-semibold"
+                  style={{ color: '#48C9B0' }}
+                >
+                  Marcar atención como resuelta
+                </button>
+              </div>
+            )}
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div><label className="mb-1.5 block text-xs font-medium text-[#555]">Nombre *</label><input type="text" value={editName} onChange={e => setEditName(e.target.value)} style={inp} /></div>
               <div><label className="mb-1.5 block text-xs font-medium text-[#555]">WhatsApp</label><input type="tel" value={editPhone} onChange={e => setEditPhone(e.target.value)} placeholder="+52 81 1234 5678" style={inp} /></div>
@@ -1648,24 +1665,9 @@ export default function EventPage() {
                 <TagInput availableTags={allergyPool} selectedTags={editAllergies} onChangeSelected={setEditAllergies} onCreateTag={createAllergy} onDeleteTag={deleteAllergy} label="Alergia" />
               </div>
               <div className="sm:col-span-2"><label className="mb-1.5 block text-xs font-medium text-[#555]">Notas</label><textarea value={editNotes} onChange={e => setEditNotes(e.target.value)} placeholder="Mesa preferida, restricciones..." rows={2} style={{ ...inp, resize: 'vertical' }} /></div>
-              <div className="sm:col-span-2 border-t border-[#f0f0f0] pt-4"><MembersEditor value={editMembers} onChange={setEditMembers} /></div>
+              <div className="sm:col-span-2 border-t border-[#f0f0f0] pt-4"><MembersEditor value={editMembers} onChange={setEditMembers} allergyPool={allergyPool} onCreateAllergy={createAllergy} onDeleteAllergy={deleteAllergy} /></div>
             </div>
             {editError && <div className="mt-3 rounded-lg border border-[#ffc0c0] bg-[#fff0f0] p-2.5 text-xs text-[#cc3333]">{editError}</div>}
-            {editGuest?.needs_attention && (
-              <div className="mt-4 flex items-center gap-2 rounded-lg border p-3" style={{ background: 'var(--error-bg)', borderColor: 'var(--error-border)' }}>
-                <AlertTriangle size={14} style={{ color: 'var(--error-text)', flexShrink: 0 }} />
-                <span className="flex-1 text-xs" style={{ color: 'var(--error-text)' }}>
-                  {ATTENTION_LABEL[editGuest.attention_reason || 'otro']}
-                </span>
-                <button
-                  onClick={() => resolveAttention(editGuest.id)}
-                  className="text-xs font-semibold"
-                  style={{ color: '#48C9B0' }}
-                >
-                  Marcar atención como resuelta
-                </button>
-              </div>
-            )}
             <div className="mt-6 flex gap-2.5">
               <button onClick={() => setEditGuest(null)} className="flex-1 rounded-lg border border-[#e0e0e0] py-3 text-sm text-[#888]">Cancelar</button>
               <button onClick={handleEditSave} disabled={editSaving} className="flex-[2] rounded-lg bg-[#48C9B0] py-3 text-sm font-semibold text-white disabled:opacity-60">{editSaving ? 'Guardando...' : 'Guardar cambios'}</button>
@@ -1699,7 +1701,7 @@ export default function EventPage() {
                 <TagInput availableTags={allergyPool} selectedTags={newAllergies} onChangeSelected={setNewAllergies} onCreateTag={createAllergy} onDeleteTag={deleteAllergy} label="Alergia" />
               </div>
               <div className="sm:col-span-2"><label className="mb-1.5 block text-xs font-medium text-[#555]">Notas <span className="font-normal text-[#ccc]">(opcional)</span></label><textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Mesa preferida, restricciones..." rows={2} style={{ ...inp, resize: 'vertical' }} /></div>
-              <div className="sm:col-span-2 border-t border-[#f0f0f0] pt-4"><MembersEditor value={newMembers} onChange={setNewMembers} /></div>
+              <div className="sm:col-span-2 border-t border-[#f0f0f0] pt-4"><MembersEditor value={newMembers} onChange={setNewMembers} allergyPool={allergyPool} onCreateAllergy={createAllergy} onDeleteAllergy={deleteAllergy} /></div>
             </div>
             {formError && <div className="mt-3 rounded-lg border border-[#ffc0c0] bg-[#fff0f0] p-2.5 text-xs text-[#cc3333]">{formError}</div>}
             <div className="mt-6 flex gap-2.5">
