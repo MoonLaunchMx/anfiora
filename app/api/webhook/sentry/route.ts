@@ -44,10 +44,9 @@ export async function POST(req: Request) {
   try {
     await sendTelegramMessage(formatTelegramMessage(alert), { token, chatId });
   } catch (e) {
-    return NextResponse.json(
-      { error: e instanceof Error ? e.message : "telegram fallo" },
-      { status: 502 }
-    );
+    const msg = e instanceof Error ? e.message : "telegram fallo";
+    console.error("[sentry-webhook] telegram error:", msg);
+    return NextResponse.json({ error: msg }, { status: 502 });
   }
   return NextResponse.json({ received: true });
 }
