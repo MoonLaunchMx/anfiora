@@ -88,18 +88,14 @@ export function applyExtraction(result: ExtractionResult, guest: ApplyGuest, mem
   switch (result.companions.action) {
     case 'all':
       for (const m of members) ensure(m.id).rsvp_status = 'confirmed'
-      summary.confirmedCompanions = members.length
       break
     case 'none':
       break
     case 'named':
       for (const nm of result.companions.names) {
         const found = findMember(nm, members)
-        if (found) {
-          const isNew = !memberUpdates.has(found.id)
-          ensure(found.id).rsvp_status = 'confirmed'
-          if (isNew) summary.confirmedCompanions++
-        } else escalations.push('peticion')
+        if (found) ensure(found.id).rsvp_status = 'confirmed'
+        else escalations.push('peticion')
       }
       break
     case 'partial_ambiguous':
@@ -110,11 +106,13 @@ export function applyExtraction(result: ExtractionResult, guest: ApplyGuest, mem
   // Acompanantes: declinar (nombres explicitos)
   for (const nm of result.companions.decliningNames) {
     const found = findMember(nm, members)
-    if (found) {
-      const isNew = !memberUpdates.has(found.id)
-      ensure(found.id).rsvp_status = 'declined'
-      if (isNew) summary.declinedCompanions++
-    } else escalations.push('peticion')
+    if (found) ensure(found.id).rsvp_status = 'declined'
+    else escalations.push('peticion')
+  }
+
+  for (const u of memberUpdates.values()) {
+    if (u.rsvp_status === 'confirmed') summary.confirmedCompanions++
+    else if (u.rsvp_status === 'declined') summary.declinedCompanions++
   }
 
   // Exclusividad: no infiere declinaciones, solo marca

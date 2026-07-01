@@ -184,3 +184,20 @@ describe('renderAppliedActions — Fase 2.1', () => {
     expect(s).toContain('ajuste sobre una alergia')
   })
 })
+
+describe('applyExtraction — conteo honesto confirmar+declinar (Fase 2.1 fix)', () => {
+  const members = [member('m1', 'Olivia'), member('m2', 'Alejandro')]
+  it('vamos todos menos Olivia: cuenta 1 confirmado y 1 declinado', () => {
+    const p = applyExtraction({ ...base, attendance: 'confirmed', companions: { action: 'all', names: [], decliningNames: ['Olivia'], impliesOthersNotComing: false } }, guest(), members)
+    const byId = Object.fromEntries(p.partyMemberUpdates.map(u => [u.id, u.rsvp_status]))
+    expect(byId).toEqual({ m1: 'declined', m2: 'confirmed' })
+    expect(p.appliedSummary.confirmedCompanions).toBe(1)
+    expect(p.appliedSummary.declinedCompanions).toBe(1)
+  })
+  it('nombre en names Y decliningNames: gana declined y el conteo lo refleja', () => {
+    const p = applyExtraction({ ...base, companions: { action: 'named', names: ['Ana'], decliningNames: ['Ana'], impliesOthersNotComing: false } }, guest(), [member('m1', 'Ana')])
+    expect(p.partyMemberUpdates).toEqual([{ id: 'm1', rsvp_status: 'declined' }])
+    expect(p.appliedSummary.confirmedCompanions).toBe(0)
+    expect(p.appliedSummary.declinedCompanions).toBe(1)
+  })
+})
