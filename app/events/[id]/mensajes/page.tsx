@@ -36,6 +36,7 @@ interface Acompanante {
   id: string
   name: string
   rsvp_status: string | null
+  allergies: string[] | null
 }
 
 // ─── Constantes RSVP ─────────────────────────────────────────────────────────
@@ -623,6 +624,18 @@ function PanelDetalles({ conv, mesa, cargandoMesa, detalle, acompanantes, onTogg
           {nombreConv(conv)}
         </p>
         {conv.rsvpStatus && <RsvpBadge status={conv.rsvpStatus as RsvpStatus} size="md" />}
+        {detalle?.allergies && detalle.allergies.length > 0 && (
+          <div className="mt-3 w-full">
+            <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-[#9ca3af]">Alergias</p>
+            <div className="flex flex-wrap gap-1.5">
+              {detalle.allergies.map(a => (
+                <span key={a} className="rounded-full border border-orange-200 bg-orange-50 px-2 py-0.5 text-[12px] font-medium text-orange-700">
+                  {a}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Control del agente */}
@@ -670,11 +683,22 @@ function PanelDetalles({ conv, mesa, cargandoMesa, detalle, acompanantes, onTogg
             <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-[#9ca3af]">
               Acompañantes ({acompanantes.length})
             </p>
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               {acompanantes.map(a => (
-                <div key={a.id} className="flex items-center justify-between gap-2">
-                  <span className="text-[15px] text-[#1D1E20]">{a.name}</span>
-                  {a.rsvp_status && <RsvpBadge status={a.rsvp_status as RsvpStatus} />}
+                <div key={a.id}>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[15px] text-[#1D1E20]">{a.name}</span>
+                    {a.rsvp_status && <RsvpBadge status={a.rsvp_status as RsvpStatus} />}
+                  </div>
+                  {a.allergies && a.allergies.length > 0 && (
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      {a.allergies.map(al => (
+                        <span key={al} className="rounded-full border border-orange-200 bg-orange-50 px-2 py-0.5 text-[12px] font-medium text-orange-700">
+                          {al}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -687,18 +711,6 @@ function PanelDetalles({ conv, mesa, cargandoMesa, detalle, acompanantes, onTogg
               {detalle.tags.map(tag => (
                 <span key={tag} className="rounded-full border border-[#e8e8e8] bg-[#f8f8f8] px-2.5 py-0.5 text-[13px] text-[#555]">
                   {tag}
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
-        {detalle?.allergies && detalle.allergies.length > 0 && (
-          <div className="py-3">
-            <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-[#9ca3af]">Alergias</p>
-            <div className="flex flex-wrap gap-1.5">
-              {detalle.allergies.map(a => (
-                <span key={a} className="rounded-full border border-orange-200 bg-orange-50 px-2.5 py-0.5 text-[13px] font-medium text-orange-700">
-                  {a}
                 </span>
               ))}
             </div>
@@ -775,6 +787,24 @@ export default function MensajesPage() {
     }
   }, [seleccionadaId, mensajes.length])
 
+  const cargarDetalle = useCallback(async (guestId: string) => {
+    const [guestRes, partyRes] = await Promise.all([
+      supabase.from('guests').select('side, tags, allergies').eq('id', guestId).maybeSingle(),
+      supabase.from('party_members').select('id, name, rsvp_status, allergies').eq('guest_id', guestId).order('created_at', { ascending: true }),
+    ])
+    if (guestRes.data) {
+      setDetalle({ side: guestRes.data.side ?? null, tags: guestRes.data.tags ?? null, allergies: (guestRes.data.allergies as string[] | null) ?? null })
+    } else {
+      setDetalle(null)
+    }
+    setAcompanantes((partyRes.data ?? []).map(a => ({
+      id: a.id,
+      name: a.name,
+      rsvp_status: a.rsvp_status ?? null,
+      allergies: (a.allergies as string[] | null) ?? null,
+    })))
+  }, [])
+
   useEffect(() => {
     if (!seleccionada?.guestId) { setMesa(null); setDetalle(null); setAcompanantes([]); return }
     const guestId = seleccionada.guestId
@@ -793,23 +823,10 @@ export default function MensajesPage() {
         }
         setCargandoMesa(false)
       })
-    supabase
-      .from('guests')
-      .select('side, tags, allergies')
-      .eq('id', guestId)
-      .maybeSingle()
-      .then(({ data }) => {
-        setDetalle(data ? { side: data.side ?? null, tags: data.tags ?? null, allergies: data.allergies ?? null } : null)
-      })
-    supabase
-      .from('party_members')
-      .select('id, name, rsvp_status')
-      .eq('guest_id', guestId)
-      .order('created_at', { ascending: true })
-      .then(({ data }) => {
-        setAcompanantes((data ?? []).map(a => ({ id: a.id, name: a.name, rsvp_status: a.rsvp_status ?? null })))
-      })
-  }, [seleccionada?.guestId])
+    cargarDetalle(guestId)
+    const t = setInterval(() => cargarDetalle(guestId), 4000)
+    return () => clearInterval(t)
+  }, [seleccionada?.guestId, cargarDetalle])
 
   async function seleccionar(conv: InboxConversation) {
     setSeleccionadaId(conv.id)
