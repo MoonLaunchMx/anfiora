@@ -62,6 +62,13 @@ export function parseSentryWebhook(body: unknown): SentryAlert | null {
   };
 }
 
+// Solo notificamos errores de produccion. Fail-open: si el evento no trae
+// environment (algunos payloads de issue no lo incluyen), avisamos igual para
+// no tragarnos un error real de prod. Si viene 'preview'/otro, lo ignoramos.
+export function isProductionEnv(environment: string | undefined): boolean {
+  return !environment || environment === "production";
+}
+
 const escapeHtml = (s: string): string =>
   s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 

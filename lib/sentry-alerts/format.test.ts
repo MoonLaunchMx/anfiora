@@ -5,7 +5,17 @@ import {
   shouldNotify,
   parseSentryWebhook,
   formatTelegramMessage,
+  isProductionEnv,
 } from "./format";
+
+describe("isProductionEnv", () => {
+  it("solo produccion o sin etiqueta (fail-open)", () => {
+    expect(isProductionEnv("production")).toBe(true);
+    expect(isProductionEnv(undefined)).toBe(true);
+    expect(isProductionEnv("preview")).toBe(false);
+    expect(isProductionEnv("development")).toBe(false);
+  });
+});
 
 describe("verifySentrySignature", () => {
   const secret = "s3cr3t";
