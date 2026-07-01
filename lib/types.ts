@@ -682,3 +682,20 @@ export type CategoryBudgetStatus = {
   is_within_budget: boolean
   remaining: number
 }
+
+// ─── AGENT ───────────────────────────────────────────────────────────────────
+
+export type AgentMode = 'autonomo' | 'copiloto'
+export type AgentTone = 'calido' | 'formal'
+export type FaqEntry = { q: string; a: string }
+
+export type AgentConfig = {
+  enabled: boolean
+  mode: AgentMode
+  tone: AgentTone
+  signature: string
+  holdingMessage: string
+  deflectMessage: string
+  escalate: { alergias: boolean; quejas: boolean; cambios_invitados: boolean; fuera_de_info: boolean }
+  faq: FaqEntry[]
+}
