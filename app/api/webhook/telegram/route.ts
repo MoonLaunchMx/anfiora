@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { after } from 'next/server'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
-import { interpretRSVPMessage, distillGuestMemory, type EventContext, type MessageHistory } from '@/lib/ai-rsvp'
+import { distillGuestMemory, type EventContext, type MessageHistory } from '@/lib/ai-rsvp'
 import { ingestInbound, ingestOutbound, ensureBinding } from '@/lib/omnichannel/store'
 import { notifyInboundRsvp } from '@/lib/omnichannel/notify'
 import {
@@ -13,7 +13,8 @@ import {
   type TelegramUpdate,
 } from '@/lib/telegram/adapter'
 import { resolveStart, resolveByChat, type TelegramRoute } from '@/lib/telegram/routing'
-import { resolveRsvpAndAttention } from '@/lib/agent/attention'
+import { applyExtraction } from '@/lib/agent/apply'
+import { extractFromMessage, executeWritePlan } from '@/lib/agent/extraction'
 import { getAgentConfig } from '@/lib/agent/config'
 import { buildContextPack } from '@/lib/agent/context-pack'
 import { runPipelineOnPack } from '@/lib/agent/pipeline'
@@ -162,28 +163,42 @@ async function processTelegramUpdate(
         })) as MessageHistory[]
     }
 
-    const interpretation = await interpretRSVPMessage(update.text, route.guestName, eventContext.name)
-
     const config = await getAgentConfig(supabase, route.eventId)
 
-    // Escritura de asistencia/atencion (resolver de A, sin cambios de modelo)
-    if (interpretation.intent !== 'ambiguous' && interpretation.confidence !== 'low') {
-      const { data: guestRow } = await supabase
-        .from('guests').select('rsvp_status').eq('id', route.guestId).maybeSingle()
-      const res = resolveRsvpAndAttention(interpretation.intent, update.text)
-      const updates: Record<string, unknown> = {}
-      if (res.rsvp && guestRow && guestRow.rsvp_status !== res.rsvp) updates.rsvp_status = res.rsvp
-      if (res.needsAttention) { updates.needs_attention = true; updates.attention_reason = res.attentionReason }
-      if (Object.keys(updates).length > 0) {
-        const { error: updErr } = await supabase.from('guests').update(updates).eq('id', route.guestId)
-        if (updErr) console.error('[Telegram RSVP] update fallo:', JSON.stringify(updErr))
-      }
+    const { data: guestRow } = await supabase
+      .from('guests').select('rsvp_status, allergies').eq('id', route.guestId).maybeSingle()
+    const { data: partyMembers } = await supabase
+      .from('party_members')
+      .select('id, guest_id, event_id, name, rsvp_status, allergies')
+      .eq('guest_id', route.guestId)
+
+    const extraction = await extractFromMessage(update.text, {
+      guestName: route.guestName,
+      eventName: eventContext.name,
+      partyMembers: (partyMembers ?? []).map((m) => m.name),
+    })
+    console.log(`[Agent] ${route.guestName}: conf ${extraction.confidence}`)
+
+    const plan = applyExtraction(
+      extraction,
+      { rsvp_status: guestRow?.rsvp_status ?? 'pending', allergies: guestRow?.allergies },
+      partyMembers ?? [],
+    )
+    await executeWritePlan(supabase, plan, route.guestId)
+
+    const escalate: 'queja' | null = extraction.complaint && config.escalate.quejas ? 'queja' : null
+    const intentForPipeline = {
+      intent: extraction.attendance === 'none' ? 'respondio' : extraction.attendance,
+      confidence: extraction.confidence,
     }
 
     // Cerebro: respuesta grounded con self-check
     const pack = await buildContextPack(supabase, route.guestId, config)
     if (pack) {
-      const outcome = await runPipelineOnPack(pack, update.text, interpretation, config, history)
+      const outcome = await runPipelineOnPack(pack, update.text, intentForPipeline, config, history, {
+        applied: plan.appliedSummary,
+        escalate,
+      })
       let replyText: string | null = null
       if (outcome.action === 'reply') {
         replyText = outcome.text
@@ -209,7 +224,7 @@ async function processTelegramUpdate(
           })
           await notifyInboundRsvp(supabase, {
             eventId: route.eventId, guestId: route.guestId, guestName: route.guestName,
-            eventName: eventContext.name, intent: interpretation.intent,
+            eventName: eventContext.name, intent: intentForPipeline.intent,
           })
 
           // Memoria episodica
