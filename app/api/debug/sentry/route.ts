@@ -21,5 +21,10 @@ export async function GET(req: NextRequest) {
     ok: true,
     eventId,
     environment: process.env.VERCEL_ENV ?? process.env.NODE_ENV,
+    alertConfig: {
+      hasWebhookSecret: Boolean(process.env.SENTRY_WEBHOOK_SECRET),
+      hasAlertBotToken: Boolean(process.env.TELEGRAM_ALERT_BOT_TOKEN),
+      hasAlertChatId: Boolean(process.env.TELEGRAM_ALERT_CHAT_ID),
+    },
   });
 }
