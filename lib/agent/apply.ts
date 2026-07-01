@@ -31,14 +31,17 @@ function normalize(s: string): string {
   return s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim()
 }
 
+function tokens(s: string): string[] {
+  return normalize(s).split(/\s+/).filter(Boolean)
+}
+
 function findMember(name: string, members: PartyMember[]): PartyMember | null {
   const n = normalize(name)
   if (!n) return null
-  return (
-    members.find((m) => normalize(m.name) === n) ??
-    members.find((m) => normalize(m.name).includes(n) || n.includes(normalize(m.name))) ??
-    null
-  )
+  const exact = members.find((m) => normalize(m.name) === n)
+  if (exact) return exact
+  const nt = new Set(tokens(name))
+  return members.find((m) => tokens(m.name).some((t) => nt.has(t))) ?? null
 }
 
 export function applyExtraction(result: ExtractionResult, guest: ApplyGuest, members: PartyMember[]): WritePlan {
@@ -82,8 +85,11 @@ export function applyExtraction(result: ExtractionResult, guest: ApplyGuest, mem
     case 'named':
       for (const nm of result.companions.names) {
         const found = findMember(nm, members)
-        if (found) { ensure(found.id).rsvp_status = 'confirmed'; summary.confirmedCompanions++ }
-        else escalations.push('peticion')
+        if (found) {
+          const isNew = !memberUpdates.has(found.id)
+          ensure(found.id).rsvp_status = 'confirmed'
+          if (isNew) summary.confirmedCompanions++
+        } else escalations.push('peticion')
       }
       break
     case 'partial_ambiguous':
@@ -112,7 +118,7 @@ export function applyExtraction(result: ExtractionResult, guest: ApplyGuest, mem
   }
 
   const reason: AttentionReason | null =
-    result.allergies.length > 0 ? 'alergia'
+    (summary.capturedAllergies > 0 || escalations.includes('alergia')) ? 'alergia'
     : result.complaint ? 'queja'
     : escalations.includes('peticion') ? 'peticion'
     : null

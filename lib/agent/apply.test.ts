@@ -101,6 +101,27 @@ describe('applyExtraction — confianza y prioridad', () => {
   })
 })
 
+describe('applyExtraction — regresion findMember y conteo', () => {
+  it('no escribe alergia a un nombre que solo coincide por subcadena (Ana vs Mariana)', () => {
+    const p = applyExtraction({ ...base, allergies: [{ who: 'companion', name: 'Ana', text: 'gluten' }] }, guest(), [member('m1', 'Mariana')])
+    expect(p.partyMemberUpdates).toEqual([])
+    expect(p.guestUpdate?.attention_reason).toBe('alergia')
+  })
+  it('named con nombre duplicado no doble-cuenta acompanantes', () => {
+    const p = applyExtraction({ ...base, attendance: 'confirmed', companions: { action: 'named', names: ['Ana', 'Ana'] } }, guest(), [member('m1', 'Ana')])
+    expect(p.partyMemberUpdates).toEqual([{ id: 'm1', rsvp_status: 'confirmed' }])
+    expect(p.appliedSummary.confirmedCompanions).toBe(1)
+  })
+  it('named confirma a un acompanante por token parcial (Ana -> Ana Garcia)', () => {
+    const p = applyExtraction({ ...base, attendance: 'confirmed', companions: { action: 'named', names: ['Ana'] } }, guest(), [member('m1', 'Ana Garcia')])
+    expect(p.partyMemberUpdates).toEqual([{ id: 'm1', rsvp_status: 'confirmed' }])
+  })
+  it('allergy con text vacio no levanta bandera de alergia', () => {
+    const p = applyExtraction({ ...base, allergies: [{ who: 'titular', name: '', text: '   ' }] }, guest(), [])
+    expect(p.guestUpdate).toBeNull()
+  })
+})
+
 describe('renderAppliedActions', () => {
   it('vacio cuando no hay acciones', () => {
     expect(renderAppliedActions(null)).toBe('')
