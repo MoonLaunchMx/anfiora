@@ -16,8 +16,10 @@ const EXTRACTION_TOOL: Anthropic.Tool = {
         properties: {
           action: { type: 'string', enum: ['all', 'none', 'named', 'partial_ambiguous'], description: "all si van todos; none si solo va el titular o no menciona acompanantes; named si nombra a quienes van; partial_ambiguous si da un numero parcial sin decir quienes (ej: 'vamos 2' de 3)." },
           names: { type: 'array', items: { type: 'string' }, description: 'Nombres mencionados, solo si action=named.' },
+          decliningNames: { type: 'array', items: { type: 'string' }, description: 'Nombres de acompanantes que el invitado dice que NO van (ej: "mi esposa Olivia no va"). Vacio si no aplica.' },
+          impliesOthersNotComing: { type: 'boolean', description: 'true si el mensaje implica exclusividad ("solo va X", "nada mas va Y") sin nombrar a los que no van.' },
         },
-        required: ['action', 'names'],
+        required: ['action', 'names', 'decliningNames', 'impliesOthersNotComing'],
       },
       allergies: {
         type: 'array',
@@ -31,10 +33,11 @@ const EXTRACTION_TOOL: Anthropic.Tool = {
           required: ['who', 'name', 'text'],
         },
       },
+      allergyCorrection: { type: 'boolean', description: 'true si el mensaje CORRIGE, NIEGA o REASIGNA una alergia ya mencionada ("no es nueces es gluten", "el de las nueces es mi hijo no mi esposa", "quita esa alergia"). En ese caso NO llenes allergies con la correccion.' },
       complaint: { type: 'boolean', description: 'true si el mensaje contiene una queja o molestia.' },
       confidence: { type: 'string', enum: ['high', 'medium', 'low'], description: 'low si el mensaje es ambiguo, ininteligible o no estas seguro de la lectura.' },
     },
-    required: ['attendance', 'companions', 'allergies', 'complaint', 'confidence'],
+    required: ['attendance', 'companions', 'allergies', 'allergyCorrection', 'complaint', 'confidence'],
   },
 }
 
@@ -46,10 +49,13 @@ Reglas:
 - companions.action='all' solo si dice claramente que van todos sus acompanantes.
 - Si menciona una alergia sin dejar claro de quien es, who='unknown'.
 - Si dudas de la lectura, confidence='low'.
+- Si dice que un acompanante NO va (ej: "mi esposa Olivia no va"), pon su nombre en companions.decliningNames.
+- Si dice que SOLO van ciertas personas sin nombrar a los demas (ej: "solo va mi hijo"), pon companions.impliesOthersNotComing=true y NO adivines quien no va.
+- Si el mensaje corrige, niega o reasigna una alergia ya dicha, pon allergyCorrection=true y deja allergies vacio (no metas la correccion como alergia nueva).
 - Siempre responde llamando a la herramienta, nunca con texto libre.`
 
 const FALLBACK: ExtractionResult = {
-  attendance: 'none', companions: { action: 'none', names: [] }, allergies: [], complaint: false, confidence: 'low',
+  attendance: 'none', companions: { action: 'none', names: [], decliningNames: [], impliesOthersNotComing: false }, allergies: [], allergyCorrection: false, complaint: false, confidence: 'low',
 }
 
 export async function extractFromMessage(
