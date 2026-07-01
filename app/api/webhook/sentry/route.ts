@@ -4,6 +4,7 @@ import {
   parseSentryWebhook,
   shouldNotify,
   formatTelegramMessage,
+  isProductionEnv,
 } from "@/lib/sentry-alerts/format";
 import { sendTelegramMessage } from "@/lib/sentry-alerts/send";
 
@@ -39,6 +40,10 @@ export async function POST(req: Request) {
   const alert = parseSentryWebhook(body);
   if (!alert) {
     return NextResponse.json({ received: true, ignored: "sin datos" });
+  }
+
+  if (!isProductionEnv(alert.environment)) {
+    return NextResponse.json({ received: true, ignored: `env:${alert.environment}` });
   }
 
   try {
