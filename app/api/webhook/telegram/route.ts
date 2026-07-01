@@ -207,17 +207,17 @@ async function processTelegramUpdate(
             providerTimestamp: sent.date, status: 'sent', workspaceId: route.workspaceId,
             tenantId: route.eventId, contactGuestId: route.guestId,
           })
-        }
-        await notifyInboundRsvp(supabase, {
-          eventId: route.eventId, guestId: route.guestId, guestName: route.guestName,
-          eventName: eventContext.name, intent: interpretation.intent,
-        })
+          await notifyInboundRsvp(supabase, {
+            eventId: route.eventId, guestId: route.guestId, guestName: route.guestName,
+            eventName: eventContext.name, intent: interpretation.intent,
+          })
 
-        // Memoria episodica
-        const turn: MessageHistory[] = [...history, { direction: 'received', content: update.text }, { direction: 'sent', content: replyText }]
-        const { data: gm } = await supabase.from('guests').select('agent_memory').eq('id', route.guestId).maybeSingle()
-        const memory = await distillGuestMemory(gm?.agent_memory ?? null, turn, route.guestName)
-        if (memory) await supabase.from('guests').update({ agent_memory: memory }).eq('id', route.guestId)
+          // Memoria episodica
+          const turn: MessageHistory[] = [...history, { direction: 'received', content: update.text }, { direction: 'sent', content: replyText }]
+          const { data: gm } = await supabase.from('guests').select('agent_memory').eq('id', route.guestId).maybeSingle()
+          const memory = await distillGuestMemory(gm?.agent_memory ?? null, turn, route.guestName)
+          if (memory) await supabase.from('guests').update({ agent_memory: memory }).eq('id', route.guestId)
+        }
       }
     }
 
