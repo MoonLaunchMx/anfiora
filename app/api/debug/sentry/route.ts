@@ -9,14 +9,17 @@ export async function GET(req: NextRequest) {
     return new NextResponse("Not found", { status: 404 });
   }
 
-  const eventId = Sentry.captureException(
-    new Error("Sentry smoke test — verificacion en produccion")
-  );
+  const stamp = new Date().toISOString();
+  let eventId = "";
+  Sentry.withScope((scope) => {
+    scope.setFingerprint(["sentry-smoke-test", stamp]);
+    eventId = Sentry.captureException(new Error(`Sentry smoke test ${stamp}`));
+  });
   await Sentry.flush(2000);
 
   return NextResponse.json({
     ok: true,
     eventId,
-    environment: process.env.NODE_ENV,
+    environment: process.env.VERCEL_ENV ?? process.env.NODE_ENV,
   });
 }
