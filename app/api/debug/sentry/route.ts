@@ -1,0 +1,22 @@
+import { NextRequest, NextResponse } from "next/server";
+import * as Sentry from "@sentry/nextjs";
+
+export const runtime = "nodejs";
+
+export async function GET(req: NextRequest) {
+  const expected = process.env.SENTRY_TEST_KEY;
+  if (!expected || req.nextUrl.searchParams.get("key") !== expected) {
+    return new NextResponse("Not found", { status: 404 });
+  }
+
+  const eventId = Sentry.captureException(
+    new Error("Sentry smoke test — verificacion en produccion")
+  );
+  await Sentry.flush(2000);
+
+  return NextResponse.json({
+    ok: true,
+    eventId,
+    environment: process.env.NODE_ENV,
+  });
+}
