@@ -11,7 +11,7 @@ export const runtime = "nodejs";
 
 export async function POST(req: Request) {
   const secret = process.env.SENTRY_WEBHOOK_SECRET;
-  const token = process.env.TELEGRAM_BOT_TOKEN;
+  const token = process.env.TELEGRAM_ALERT_BOT_TOKEN;
   const chatId = process.env.TELEGRAM_ALERT_CHAT_ID;
   if (!secret || !token || !chatId) {
     return NextResponse.json({ error: "no configurado" }, { status: 503 });
