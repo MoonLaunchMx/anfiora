@@ -61,9 +61,13 @@ Reglas deterministas, validando contra los `party_members` reales del invitado:
 
 ## Honestidad de la respuesta — opción (a)
 
-El `appliedSummary` se le pasa a `generateGroundedReply` como una sección de "acciones realizadas". El agente teje con naturalidad lo que de verdad ocurrió ("ya confirmé tu lugar y el de tus 2 acompañantes") **solo si está en el resumen**. El self-check sigue vigente: no puede inventar más allá del contexto. La honestidad está garantizada por construcción — solo se le da lo que el guardia escribió.
+El resumen de acciones (`appliedSummary`) se **agrega al `contextText`** como una sección "Acciones ya realizadas en este turno". El agente teje con naturalidad lo que de verdad ocurrió ("ya confirmé tu lugar y el de tus 2 acompañantes") **solo si está en el resumen**. Como esas acciones **son verdaderas**, van al contexto que **también ve el self-check** (a diferencia de la memoria episódica, que es nota blanda no citable): así el self-check acepta la respuesta en vez de rechazarla como invención. La honestidad está garantizada por construcción — solo se le da lo que el guardia escribió.
 
-Cambio de plomería: `generateGroundedReply` gana un parámetro opcional `applied?: AppliedSummary`, que se inyecta al prompt de generación como notas de acciones (no al `contextText` que ve el self-check, para no confundir la verificación de mundo cerrado).
+Cambio de plomería: `runPipelineOnPack` gana `opts?: { applied?; escalate? }`; arma `contextText + renderAppliedActions(applied)` y lo usa tanto para generar como para el self-check. `generateGroundedReply`/`selfCheckReply` no cambian de firma.
+
+## Escalamiento en Fase 2: alergia reconoce, queja escala
+
+El guardia ahora **captura** alergias y confirma acompañantes, así que el pipeline **deja de escalar a mensaje de espera** en esos casos — el agente reconoce con calidez ("tomé nota de tu alergia") y actúa. **Las quejas SÍ siguen escalando** a humano (el agente no debe intentar resolver una queja). La decisión de escalar queja la toma el guardia/extracción (`extraction.complaint` + `config.escalate.quejas`) y se pasa al pipeline como `opts.escalate='queja'`; se elimina la detección por regex `isSensitive` del pipeline (fin del regex "sensible" duplicado que marcó el review de Fase 1).
 
 ## Alcance: Telegram
 
