@@ -108,7 +108,10 @@ const TAG_COLORS = [
   { bg: '#fff5f0', border: '#f09595', text: '#A32D2D' },
 ]
 
-function getTagColor(tagIndex: number) { return TAG_COLORS[tagIndex % TAG_COLORS.length] }
+function getTagColor(tagIndex: number) {
+  const i = ((tagIndex % TAG_COLORS.length) + TAG_COLORS.length) % TAG_COLORS.length
+  return TAG_COLORS[i]
+}
 
 function loadImageData(src: string): Promise<{ dataUrl: string; w: number; h: number }> {
   return new Promise((resolve, reject) => {
@@ -708,7 +711,7 @@ export default function EventPage() {
     setGuestTableMap(seatMap)
     setGuests(guestsData.map(g => ({ ...g, tags: g.tags || [], party_members: membersByGuest.get(g.id) || [] })))
     setGroupPool(Array.from(new Set(guestsData.map(g => g.side).filter((s): s is string => !!s))))
-    setAllergyPool(Array.from(new Set([...ALLERGY_OPTIONS, ...guestsData.flatMap(g => g.allergies || [])])))
+    setAllergyPool(Array.from(new Set([...ALLERGY_OPTIONS, ...guestsData.flatMap(g => g.allergies || []), ...membersData.flatMap(m => m.allergies || [])])))
     setLoading(false)
   }
 
