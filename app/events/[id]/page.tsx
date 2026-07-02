@@ -7,6 +7,7 @@ import { motion, AnimatePresence, useMotionValue, useTransform, animate } from '
 import type { PanInfo } from 'framer-motion'
 import { Trash2, Send, Clock, MessageSquare, AlertCircle, CheckCircle, XCircle, Download, Upload, Columns3, Search, UserPlus, Plus, Check, X, Filter, Loader2, FileSpreadsheet, FileText, AlertTriangle } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { buildGuestDeletionOps, executeGuestDeletion, guestConversationIds } from '@/lib/guests/delete'
 import { PartyMember, Guest, Event, EventSettings, EventStatus, RsvpStatus } from '@/lib/types'
 import StatsCollapse, { StatsToggleButton, useStatsToggle } from '@/app/components/ui/StatsCollapse'
 import { ImportStepsModal } from '@/app/components/ui/ImportStepsModal'
@@ -529,6 +530,7 @@ export default function EventPage() {
   const [csvImporting, setCsvImporting] = useState(false)
 
   const [editGuest, setEditGuest] = useState<Guest | null>(null)
+  const [deleteChatModal, setDeleteChatModal] = useState<{ guestId: string; conversationIds: string[] } | null>(null)
   const [editName, setEditName] = useState('')
   const [editPhone, setEditPhone] = useState('')
   const [editEmail, setEditEmail] = useState('')
@@ -731,14 +733,32 @@ export default function EventPage() {
     await supabase.from('guests').update({ needs_attention: false, attention_reason: null }).eq('id', guestId)
   }
 
-  const deleteGuest = async (guestId: string) => {
-    if (!confirm('¿Eliminar este invitado?')) return
-    await supabase.from('guests').delete().eq('id', guestId)
-    await supabase.from('party_members').delete().eq('guest_id', guestId)
+  const performDeleteGuest = async (guestId: string, conversationIds: string[], mode: 'unlink' | 'purge') => {
+    const ops = buildGuestDeletionOps(guestId, conversationIds, mode)
+    const { ok, error } = await executeGuestDeletion(supabase, ops)
+    if (!ok) {
+      alert('No se pudo eliminar el invitado. Intenta de nuevo.' + (error ? ' (' + error + ')' : ''))
+      return
+    }
     await supabase.rpc('decrement_guests', { event_id_input: id })
     setGuests(prev => prev.filter(g => g.id !== guestId))
     setEvent(prev => prev ? { ...prev, total_guests: Math.max(0, prev.total_guests - 1) } : prev)
     setSelected(prev => { const n = new Set(prev); n.delete(guestId); return n })
+  }
+
+  const deleteGuest = async (guestId: string) => {
+    const conversationIds = await guestConversationIds(supabase, guestId)
+    let hasChat = false
+    if (conversationIds.length > 0) {
+      const { count } = await supabase.from('messages').select('id', { count: 'exact', head: true }).in('conversation_id', conversationIds)
+      hasChat = (count ?? 0) > 0
+    }
+    if (hasChat) {
+      setDeleteChatModal({ guestId, conversationIds })
+      return
+    }
+    if (!confirm('¿Eliminar este invitado?')) return
+    await performDeleteGuest(guestId, conversationIds, 'unlink')
   }
 
   const deletePartyMember = async (memberId: string, guestId: string) => {
@@ -839,20 +859,28 @@ export default function EventPage() {
     const deletedGuestSet = new Set(guestIds)
     const looseMemberIds = Array.from(selectedMembers).filter(mid => { const g = guests.find(gg => gg.party_members.some(m => m.id === mid)); return g && !deletedGuestSet.has(g.id) })
     if (guestIds.length + looseMemberIds.length === 0) return
-    if (!confirm('¿Eliminar ' + guestIds.length + ' invitado(s)' + (guestIds.length ? ' con sus acompañantes' : '') + (looseMemberIds.length ? ' y ' + looseMemberIds.length + ' acompañante(s) más' : '') + '?')) return
-    const memberIdsToDelete = new Set<string>(looseMemberIds)
-    for (const g of guests) if (deletedGuestSet.has(g.id)) g.party_members.forEach(m => memberIdsToDelete.add(m.id))
-    if (guestIds.length > 0) {
-      await supabase.from('guests').delete().in('id', guestIds)
-      await supabase.rpc('increment_guests_by', { event_id_input: id, amount: -guestIds.length })
+    let conChat = 0
+    for (const gid of guestIds) { if ((await guestConversationIds(supabase, gid)).length > 0) conChat++ }
+    const chatNota = conChat > 0 ? ' (' + conChat + ' con conversación; sus chats se conservarán sin invitado)' : ''
+    if (!confirm('¿Eliminar ' + guestIds.length + ' invitado(s)' + (guestIds.length ? ' con sus acompañantes' : '') + (looseMemberIds.length ? ' y ' + looseMemberIds.length + ' acompañante(s) más' : '') + chatNota + '?')) return
+    let anyFailed = false
+    for (const gid of guestIds) {
+      const convIds = await guestConversationIds(supabase, gid)
+      const ops = buildGuestDeletionOps(gid, convIds, 'unlink')
+      const { ok } = await executeGuestDeletion(supabase, ops)
+      if (!ok) { anyFailed = true; deletedGuestSet.delete(gid) }
     }
-    const memberArr = Array.from(memberIdsToDelete)
-    for (let i = 0; i < memberArr.length; i += 200) await supabase.from('party_members').delete().in('id', memberArr.slice(i, i + 200))
+    const okGuestCount = guestIds.filter(g => deletedGuestSet.has(g)).length
+    if (okGuestCount > 0) await supabase.rpc('increment_guests_by', { event_id_input: id, amount: -okGuestCount })
+    const looseArr = Array.from(new Set(looseMemberIds))
+    for (let i = 0; i < looseArr.length; i += 200) await supabase.from('party_members').delete().in('id', looseArr.slice(i, i + 200))
+    if (anyFailed) alert('Algunos invitados no se pudieron eliminar y se conservaron en la lista.')
+    const looseSet = new Set(looseArr)
     setGuests(prev => prev.filter(g => !deletedGuestSet.has(g.id)).map(g => {
-      const removing = g.party_members.filter(m => memberIdsToDelete.has(m.id))
-      return removing.length === 0 ? g : { ...g, party_size: Math.max(1, g.party_size - removing.length), party_members: g.party_members.filter(m => !memberIdsToDelete.has(m.id)) }
+      const removing = g.party_members.filter(m => looseSet.has(m.id))
+      return removing.length === 0 ? g : { ...g, party_size: Math.max(1, g.party_size - removing.length), party_members: g.party_members.filter(m => !looseSet.has(m.id)) }
     }))
-    setEvent(prev => prev ? { ...prev, total_guests: Math.max(0, prev.total_guests - guestIds.length) } : prev)
+    setEvent(prev => prev ? { ...prev, total_guests: Math.max(0, prev.total_guests - okGuestCount) } : prev)
     setSelected(new Set()); setSelectedMembers(new Set()); setShowBulkMenu(false); setShowMobileBulkSheet(false)
   }
 
@@ -1679,6 +1707,31 @@ export default function EventPage() {
               className="mt-2 w-full rounded-lg border border-[#ffe0e0] bg-[#fff5f5] py-3 text-sm font-semibold text-[#cc3333] transition hover:bg-[#ffe8e8] sm:hidden">
               Eliminar invitado
             </button>
+          </div>
+        </div>
+      )}
+
+      {deleteChatModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setDeleteChatModal(null)}>
+          <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl" onClick={e => e.stopPropagation()}>
+            <h3 className="text-base font-bold text-[#1D1E20]">Este invitado tiene una conversación</h3>
+            <p className="mt-1.5 text-sm text-[#666]">¿Qué quieres hacer con el chat?</p>
+            <div className="mt-4 flex flex-col gap-2">
+              <button
+                onClick={async () => { const m = deleteChatModal; setDeleteChatModal(null); await performDeleteGuest(m.guestId, m.conversationIds, 'unlink') }}
+                className="rounded-lg border border-[#e0e0e0] py-2.5 text-sm font-semibold text-[#1D1E20] transition hover:border-[#48C9B0]"
+              >
+                Conservar el chat
+                <span className="mt-0.5 block text-xs font-normal text-[#999]">Se guarda el historial; el hilo queda sin invitado</span>
+              </button>
+              <button
+                onClick={async () => { const m = deleteChatModal; setDeleteChatModal(null); await performDeleteGuest(m.guestId, m.conversationIds, 'purge') }}
+                className="rounded-lg bg-[#cc3333] py-2.5 text-sm font-semibold text-white transition hover:bg-[#b82e2e]"
+              >
+                Eliminar también el chat
+              </button>
+              <button onClick={() => setDeleteChatModal(null)} className="py-1.5 text-xs font-medium text-[#999]">Cancelar</button>
+            </div>
           </div>
         </div>
       )}
