@@ -859,20 +859,28 @@ export default function EventPage() {
     const deletedGuestSet = new Set(guestIds)
     const looseMemberIds = Array.from(selectedMembers).filter(mid => { const g = guests.find(gg => gg.party_members.some(m => m.id === mid)); return g && !deletedGuestSet.has(g.id) })
     if (guestIds.length + looseMemberIds.length === 0) return
-    if (!confirm('¿Eliminar ' + guestIds.length + ' invitado(s)' + (guestIds.length ? ' con sus acompañantes' : '') + (looseMemberIds.length ? ' y ' + looseMemberIds.length + ' acompañante(s) más' : '') + '?')) return
-    const memberIdsToDelete = new Set<string>(looseMemberIds)
-    for (const g of guests) if (deletedGuestSet.has(g.id)) g.party_members.forEach(m => memberIdsToDelete.add(m.id))
-    if (guestIds.length > 0) {
-      await supabase.from('guests').delete().in('id', guestIds)
-      await supabase.rpc('increment_guests_by', { event_id_input: id, amount: -guestIds.length })
+    let conChat = 0
+    for (const gid of guestIds) { if ((await guestConversationIds(supabase, gid)).length > 0) conChat++ }
+    const chatNota = conChat > 0 ? ' (' + conChat + ' con conversación; sus chats se conservarán sin invitado)' : ''
+    if (!confirm('¿Eliminar ' + guestIds.length + ' invitado(s)' + (guestIds.length ? ' con sus acompañantes' : '') + (looseMemberIds.length ? ' y ' + looseMemberIds.length + ' acompañante(s) más' : '') + chatNota + '?')) return
+    let anyFailed = false
+    for (const gid of guestIds) {
+      const convIds = await guestConversationIds(supabase, gid)
+      const ops = buildGuestDeletionOps(gid, convIds, 'unlink')
+      const { ok } = await executeGuestDeletion(supabase, ops)
+      if (!ok) { anyFailed = true; deletedGuestSet.delete(gid) }
     }
-    const memberArr = Array.from(memberIdsToDelete)
-    for (let i = 0; i < memberArr.length; i += 200) await supabase.from('party_members').delete().in('id', memberArr.slice(i, i + 200))
+    const okGuestCount = guestIds.filter(g => deletedGuestSet.has(g)).length
+    if (okGuestCount > 0) await supabase.rpc('increment_guests_by', { event_id_input: id, amount: -okGuestCount })
+    const looseArr = Array.from(new Set(looseMemberIds))
+    for (let i = 0; i < looseArr.length; i += 200) await supabase.from('party_members').delete().in('id', looseArr.slice(i, i + 200))
+    if (anyFailed) alert('Algunos invitados no se pudieron eliminar y se conservaron en la lista.')
+    const looseSet = new Set(looseArr)
     setGuests(prev => prev.filter(g => !deletedGuestSet.has(g.id)).map(g => {
-      const removing = g.party_members.filter(m => memberIdsToDelete.has(m.id))
-      return removing.length === 0 ? g : { ...g, party_size: Math.max(1, g.party_size - removing.length), party_members: g.party_members.filter(m => !memberIdsToDelete.has(m.id)) }
+      const removing = g.party_members.filter(m => looseSet.has(m.id))
+      return removing.length === 0 ? g : { ...g, party_size: Math.max(1, g.party_size - removing.length), party_members: g.party_members.filter(m => !looseSet.has(m.id)) }
     }))
-    setEvent(prev => prev ? { ...prev, total_guests: Math.max(0, prev.total_guests - guestIds.length) } : prev)
+    setEvent(prev => prev ? { ...prev, total_guests: Math.max(0, prev.total_guests - okGuestCount) } : prev)
     setSelected(new Set()); setSelectedMembers(new Set()); setShowBulkMenu(false); setShowMobileBulkSheet(false)
   }
 
