@@ -2,8 +2,14 @@ import type { AttentionReason, PartyMember } from '@/lib/types'
 
 export type ExtractionResult = {
   attendance: 'confirmed' | 'declined' | 'none'
-  companions: { action: 'all' | 'none' | 'named' | 'partial_ambiguous'; names: string[] }
+  companions: {
+    action: 'all' | 'none' | 'named' | 'partial_ambiguous'
+    names: string[]
+    decliningNames: string[]
+    impliesOthersNotComing: boolean
+  }
   allergies: Array<{ who: 'titular' | 'companion' | 'unknown'; name: string; text: string }>
+  allergyCorrection: boolean
   complaint: boolean
   confidence: 'high' | 'medium' | 'low'
 }
@@ -12,7 +18,9 @@ export type AppliedSummary = {
   confirmedGuest: boolean
   declinedGuest: boolean
   confirmedCompanions: number
+  declinedCompanions: number
   capturedAllergies: number
+  allergyCorrectionFlagged: boolean
   flagged: AttentionReason | null
 }
 
@@ -20,7 +28,7 @@ export type WritePlan = {
   guestUpdate:
     | { rsvp_status?: 'confirmed' | 'declined'; needs_attention?: boolean; attention_reason?: AttentionReason; allergies?: string[] }
     | null
-  partyMemberUpdates: Array<{ id: string; rsvp_status?: 'confirmed'; allergies?: string[] }>
+  partyMemberUpdates: Array<{ id: string; rsvp_status?: 'confirmed' | 'declined'; allergies?: string[] }>
   escalations: string[]
   appliedSummary: AppliedSummary
 }
@@ -49,7 +57,8 @@ export function applyExtraction(result: ExtractionResult, guest: ApplyGuest, mem
   const guestUpdate: NonNullable<WritePlan['guestUpdate']> = {}
   const memberUpdates = new Map<string, WritePlan['partyMemberUpdates'][number]>()
   const summary: AppliedSummary = {
-    confirmedGuest: false, declinedGuest: false, confirmedCompanions: 0, capturedAllergies: 0, flagged: null,
+    confirmedGuest: false, declinedGuest: false, confirmedCompanions: 0, declinedCompanions: 0,
+    capturedAllergies: 0, allergyCorrectionFlagged: false, flagged: null,
   }
   const ensure = (id: string) => {
     const cur = memberUpdates.get(id)
@@ -75,21 +84,18 @@ export function applyExtraction(result: ExtractionResult, guest: ApplyGuest, mem
     summary.declinedGuest = true
   }
 
+  // Acompanantes: confirmar
   switch (result.companions.action) {
     case 'all':
       for (const m of members) ensure(m.id).rsvp_status = 'confirmed'
-      summary.confirmedCompanions = members.length
       break
     case 'none':
       break
     case 'named':
       for (const nm of result.companions.names) {
         const found = findMember(nm, members)
-        if (found) {
-          const isNew = !memberUpdates.has(found.id)
-          ensure(found.id).rsvp_status = 'confirmed'
-          if (isNew) summary.confirmedCompanions++
-        } else escalations.push('peticion')
+        if (found) ensure(found.id).rsvp_status = 'confirmed'
+        else escalations.push('peticion')
       }
       break
     case 'partial_ambiguous':
@@ -97,30 +103,52 @@ export function applyExtraction(result: ExtractionResult, guest: ApplyGuest, mem
       break
   }
 
-  for (const a of result.allergies) {
-    const text = a.text.trim()
-    if (!text) continue
-    if (a.who === 'titular') {
-      const set = new Set<string>(Array.isArray(guest.allergies) ? guest.allergies : [])
-      set.add(text)
-      guestUpdate.allergies = Array.from(set)
-      summary.capturedAllergies++
-    } else if (a.who === 'companion' && a.name.trim()) {
-      const found = findMember(a.name, members)
-      if (found) {
-        const slot = ensure(found.id)
-        const set = new Set<string>(slot.allergies ?? (Array.isArray(found.allergies) ? found.allergies : []))
+  // Acompanantes: declinar (nombres explicitos)
+  for (const nm of result.companions.decliningNames) {
+    const found = findMember(nm, members)
+    if (found) ensure(found.id).rsvp_status = 'declined'
+    else escalations.push('peticion')
+  }
+
+  for (const u of memberUpdates.values()) {
+    if (u.rsvp_status === 'confirmed') summary.confirmedCompanions++
+    else if (u.rsvp_status === 'declined') summary.declinedCompanions++
+  }
+
+  // Exclusividad: no infiere declinaciones, solo marca
+  if (result.companions.impliesOthersNotComing) escalations.push('exclusividad')
+
+  // Alergias
+  if (result.allergyCorrection) {
+    escalations.push('correccion_alergia')
+    summary.allergyCorrectionFlagged = true
+  } else {
+    for (const a of result.allergies) {
+      const text = a.text.trim()
+      if (!text) continue
+      if (a.who === 'titular') {
+        const set = new Set<string>(Array.isArray(guest.allergies) ? guest.allergies : [])
         set.add(text)
-        slot.allergies = Array.from(set)
+        guestUpdate.allergies = Array.from(set)
         summary.capturedAllergies++
+      } else if (a.who === 'companion' && a.name.trim()) {
+        const found = findMember(a.name, members)
+        if (found) {
+          const slot = ensure(found.id)
+          const set = new Set<string>(slot.allergies ?? (Array.isArray(found.allergies) ? found.allergies : []))
+          set.add(text)
+          slot.allergies = Array.from(set)
+          summary.capturedAllergies++
+        } else escalations.push('alergia')
       } else escalations.push('alergia')
-    } else escalations.push('alergia')
+    }
   }
 
   const reason: AttentionReason | null =
-    (summary.capturedAllergies > 0 || escalations.includes('alergia')) ? 'alergia'
+    (summary.capturedAllergies > 0 || escalations.includes('alergia') || result.allergyCorrection) ? 'alergia'
     : result.complaint ? 'queja'
     : escalations.includes('peticion') ? 'peticion'
+    : escalations.includes('exclusividad') ? 'duda'
     : null
   if (reason) {
     guestUpdate.needs_attention = true
@@ -142,7 +170,9 @@ export function renderAppliedActions(applied?: AppliedSummary | null): string {
   if (applied.confirmedGuest) lines.push('- Se confirmo la asistencia del invitado titular.')
   if (applied.declinedGuest) lines.push('- Se registro que el invitado titular no podra asistir.')
   if (applied.confirmedCompanions > 0) lines.push(`- Se confirmo la asistencia de ${applied.confirmedCompanions} acompanante(s).`)
+  if (applied.declinedCompanions > 0) lines.push(`- Se registro que ${applied.declinedCompanions} acompanante(s) ya no asistira(n).`)
   if (applied.capturedAllergies > 0) lines.push('- Se tomo nota de una alergia o restriccion alimentaria; el organizador la tendra presente.')
+  if (applied.allergyCorrectionFlagged) lines.push('- Hay un ajuste sobre una alergia que el organizador revisara.')
   if (!lines.length) return ''
   return `\n--- Acciones ya realizadas en este turno (son verdaderas; puedes mencionarlas con naturalidad al invitado) ---\n${lines.join('\n')}`
 }
