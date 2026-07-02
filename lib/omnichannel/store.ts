@@ -50,15 +50,35 @@ async function ensureParticipant(
   return data?.id ?? null
 }
 
+// Decide si una conversacion existente debe re-ligarse a un invitado (deep-link
+// /start sobre un hilo desligado o de otro invitado). Nunca desliga: sin guest
+// entrante no hay patch.
+export function conversationRelinkPatch(
+  existing: { contact_guest_id: string | null; tenant_id: string | null; workspace_id: string },
+  incoming: { contactGuestId: string | null; tenantId: string | null; workspaceId: string },
+): { contact_guest_id: string; tenant_id: string | null; workspace_id: string } | null {
+  if (!incoming.contactGuestId) return null
+  if (
+    existing.contact_guest_id === incoming.contactGuestId &&
+    existing.tenant_id === incoming.tenantId &&
+    existing.workspace_id === incoming.workspaceId
+  ) return null
+  return { contact_guest_id: incoming.contactGuestId, tenant_id: incoming.tenantId, workspace_id: incoming.workspaceId }
+}
+
 async function ensureConversation(
   supabase: SupabaseClient,
   a: { channelAccountId: string; participantId: string; workspaceId: string; tenantId: string | null; contactGuestId: string | null },
 ): Promise<string | null> {
   const { data: existing } = await supabase
-    .from('conversations').select('id')
+    .from('conversations').select('id, contact_guest_id, tenant_id, workspace_id')
     .eq('channel_account_id', a.channelAccountId)
     .eq('participant_id', a.participantId).maybeSingle()
-  if (existing?.id) return existing.id
+  if (existing?.id) {
+    const patch = conversationRelinkPatch(existing, a)
+    if (patch) await supabase.from('conversations').update(patch).eq('id', existing.id)
+    return existing.id
+  }
   const { data, error } = await supabase
     .from('conversations')
     .insert({
