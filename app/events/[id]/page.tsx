@@ -509,6 +509,155 @@ type FilterField = 'tag' | 'allergy' | 'side' | 'rsvp_status' | 'table'
 type FilterCondition = { field: FilterField; value: string }
 const FILTER_LABEL: Record<FilterField, string> = { tag: 'Tag', allergy: 'Alergia', side: 'Grupo', rsvp_status: 'Estatus', table: 'Mesa' }
 
+// Los modales de invitado son componentes con estado propio: teclear en sus
+// campos no debe re-renderizar la pagina completa (la lista de invitados).
+type GuestFormValues = { name: string; phone: string; email: string; notes: string; tags: string[]; side: string; allergies: string[]; members: EditMember[] }
+
+type GuestModalShared = {
+  availableTags: string[]
+  groupPool: string[]
+  allergyPool: string[]
+  onCreateTag: (t: string) => void
+  onDeleteTag: (t: string) => void
+  onCreateGroup: (g: string) => void
+  onDeleteGroup: (g: string) => void
+  onCreateAllergy: (a: string) => void
+  onDeleteAllergy: (a: string) => void
+  onSubmit: (v: GuestFormValues) => Promise<string | null>
+  onClose: () => void
+}
+
+function AddGuestModal({ availableTags, groupPool, allergyPool, onCreateTag, onDeleteTag, onCreateGroup, onDeleteGroup, onCreateAllergy, onDeleteAllergy, onSubmit, onClose }: GuestModalShared) {
+  const [name, setName] = useState('')
+  const [phone, setPhone] = useState('')
+  const [email, setEmail] = useState('')
+  const [notes, setNotes] = useState('')
+  const [tags, setTags] = useState<string[]>([])
+  const [members, setMembers] = useState<EditMember[]>([])
+  const [side, setSide] = useState('')
+  const [allergies, setAllergies] = useState<string[]>([])
+  const [saving, setSaving] = useState(false)
+  const [formError, setFormError] = useState('')
+
+  // Al borrar del pool, tambien quitar la seleccion local del formulario
+  const handleDeleteTag = (t: string) => { setTags(prev => prev.filter(x => x !== t)); onDeleteTag(t) }
+  const handleDeleteGroup = (g: string) => { setSide(prev => (prev === g ? '' : prev)); onDeleteGroup(g) }
+  const handleDeleteAllergy = (a: string) => { setAllergies(prev => prev.filter(x => x !== a)); onDeleteAllergy(a) }
+
+  const submit = async () => {
+    setSaving(true); setFormError('')
+    const err = await onSubmit({ name, phone, email, notes, tags, side, allergies, members })
+    if (err) { setFormError(err); setSaving(false) }
+  }
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 p-4">
+      <div className="w-full max-w-2xl overflow-y-auto rounded-2xl border border-[#e8e8e8] bg-white p-6 shadow-xl sm:p-8" style={{ maxHeight: '90vh' }}>
+        <div className="mb-6 flex items-center justify-between">
+          <h2 className="text-lg font-bold text-[#1D1E20] sm:text-xl">Agregar invitado</h2>
+          <button onClick={onClose} className="text-xl text-[#aaa]">✕</button>
+        </div>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div><label className="mb-1.5 block text-xs font-medium text-[#555]">Nombre *</label><input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Ana García" style={inp} /></div>
+          <div><label className="mb-1.5 block text-xs font-medium text-[#555]">WhatsApp <span className="font-normal text-[#ccc]">(opcional)</span></label><input type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="+52 81 1234 5678" style={inp} /></div>
+          <div><label className="mb-1.5 block text-xs font-medium text-[#555]">Email <span className="font-normal text-[#ccc]">(opcional)</span></label><input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="ana@ejemplo.com" style={inp} /></div>
+          <div>
+            <label className="mb-1.5 block text-xs font-medium text-[#555]">Grupo <span className="font-normal text-[#ccc]">(opcional)</span></label>
+            <GroupInput availableGroups={groupPool} selectedGroup={side} onChange={setSide} onCreateGroup={onCreateGroup} onDeleteGroup={handleDeleteGroup} />
+          </div>
+          <div className="sm:col-span-2"><label className="mb-1.5 block text-xs font-medium text-[#555]">Tags <span className="font-normal text-[#ccc]">(opcional)</span></label><TagInput availableTags={availableTags} selectedTags={tags} onChangeSelected={setTags} onCreateTag={onCreateTag} onDeleteTag={handleDeleteTag} /></div>
+          <div className="sm:col-span-2">
+            <label className="mb-1.5 block text-xs font-medium text-[#555]">Alergias <span className="font-normal text-[#ccc]">(opcional)</span></label>
+            <TagInput availableTags={allergyPool} selectedTags={allergies} onChangeSelected={setAllergies} onCreateTag={onCreateAllergy} onDeleteTag={handleDeleteAllergy} label="Alergia" />
+          </div>
+          <div className="sm:col-span-2"><label className="mb-1.5 block text-xs font-medium text-[#555]">Notas <span className="font-normal text-[#ccc]">(opcional)</span></label><textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Mesa preferida, restricciones..." rows={2} style={{ ...inp, resize: 'vertical' }} /></div>
+          <div className="sm:col-span-2 border-t border-[#f0f0f0] pt-4"><MembersEditor value={members} onChange={setMembers} allergyPool={allergyPool} onCreateAllergy={onCreateAllergy} onDeleteAllergy={handleDeleteAllergy} /></div>
+        </div>
+        {formError && <div className="mt-3 rounded-lg border border-[#ffc0c0] bg-[#fff0f0] p-2.5 text-xs text-[#cc3333]">{formError}</div>}
+        <div className="mt-6 flex gap-2.5">
+          <button onClick={onClose} className="flex-1 rounded-lg border border-[#e0e0e0] py-3 text-sm text-[#888]">Cancelar</button>
+          <button onClick={submit} disabled={saving} className="flex-[2] rounded-lg bg-[#48C9B0] py-3 text-sm font-semibold text-white disabled:opacity-60">{saving ? 'Guardando...' : 'Agregar invitado'}</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function EditGuestModal({ guest, availableTags, groupPool, allergyPool, onCreateTag, onDeleteTag, onCreateGroup, onDeleteGroup, onCreateAllergy, onDeleteAllergy, onSubmit, onClose, onDelete, onResolveAttention }: GuestModalShared & {
+  guest: Guest
+  onDelete: () => void
+  onResolveAttention: () => void
+}) {
+  const [name, setName] = useState(guest.name)
+  const [phone, setPhone] = useState(guest.phone || '')
+  const [email, setEmail] = useState(guest.email || '')
+  const [notes, setNotes] = useState(guest.notes || '')
+  const [tags, setTags] = useState<string[]>(guest.tags || [])
+  const [side, setSide] = useState(guest.side || '')
+  const [allergies, setAllergies] = useState<string[]>(guest.allergies || [])
+  const [members, setMembers] = useState<EditMember[]>(guest.party_members.map(m => ({ id: m.id, name: m.name, phone: m.phone || '', rsvp_status: m.rsvp_status, allergies: m.allergies || [], tags: m.tags || [], notes: m.notes || '' })))
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+
+  // Al borrar del pool, tambien quitar la seleccion local del formulario
+  const handleDeleteTag = (t: string) => { setTags(prev => prev.filter(x => x !== t)); onDeleteTag(t) }
+  const handleDeleteGroup = (g: string) => { setSide(prev => (prev === g ? '' : prev)); onDeleteGroup(g) }
+  const handleDeleteAllergy = (a: string) => { setAllergies(prev => prev.filter(x => x !== a)); onDeleteAllergy(a) }
+
+  const submit = async () => {
+    setSaving(true); setError('')
+    const err = await onSubmit({ name, phone, email, notes, tags, side, allergies, members })
+    if (err) { setError(err); setSaving(false) }
+  }
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 p-4">
+      <div className="w-full max-w-2xl overflow-y-auto rounded-2xl border border-[#e8e8e8] bg-white p-6 shadow-xl sm:p-8" style={{ maxHeight: '90vh' }}>
+        <div className="mb-6 flex items-center justify-between">
+          <h2 className="text-lg font-bold text-[#1D1E20] sm:text-xl">Editar invitado</h2>
+          <button onClick={onClose} className="text-xl text-[#aaa]">✕</button>
+        </div>
+        {guest.needs_attention && (
+          <div className="mb-4 flex items-center gap-2 rounded-lg border p-3" style={{ background: 'var(--error-bg)', borderColor: 'var(--error-border)' }}>
+            <AlertTriangle size={14} style={{ color: 'var(--error-text)', flexShrink: 0 }} />
+            <span className="flex-1 text-xs" style={{ color: 'var(--error-text)' }}>
+              {ATTENTION_LABEL[guest.attention_reason || 'otro']}
+            </span>
+            <button onClick={onResolveAttention} className="text-xs font-semibold" style={{ color: '#48C9B0' }}>
+              Marcar atención como resuelta
+            </button>
+          </div>
+        )}
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div><label className="mb-1.5 block text-xs font-medium text-[#555]">Nombre *</label><input type="text" value={name} onChange={e => setName(e.target.value)} style={inp} /></div>
+          <div><label className="mb-1.5 block text-xs font-medium text-[#555]">WhatsApp</label><input type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="+52 81 1234 5678" style={inp} /></div>
+          <div><label className="mb-1.5 block text-xs font-medium text-[#555]">Email</label><input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="ana@ejemplo.com" style={inp} /></div>
+          <div>
+            <label className="mb-1.5 block text-xs font-medium text-[#555]">Grupo <span className="font-normal text-[#ccc]">(opcional)</span></label>
+            <GroupInput availableGroups={groupPool} selectedGroup={side} onChange={setSide} onCreateGroup={onCreateGroup} onDeleteGroup={handleDeleteGroup} />
+          </div>
+          <div className="sm:col-span-2"><label className="mb-1.5 block text-xs font-medium text-[#555]">Tags</label><TagInput availableTags={availableTags} selectedTags={tags} onChangeSelected={setTags} onCreateTag={onCreateTag} onDeleteTag={handleDeleteTag} /></div>
+          <div className="sm:col-span-2">
+            <label className="mb-1.5 block text-xs font-medium text-[#555]">Alergias <span className="font-normal text-[#ccc]">(opcional)</span></label>
+            <TagInput availableTags={allergyPool} selectedTags={allergies} onChangeSelected={setAllergies} onCreateTag={onCreateAllergy} onDeleteTag={handleDeleteAllergy} label="Alergia" />
+          </div>
+          <div className="sm:col-span-2"><label className="mb-1.5 block text-xs font-medium text-[#555]">Notas</label><textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Mesa preferida, restricciones..." rows={2} style={{ ...inp, resize: 'vertical' }} /></div>
+          <div className="sm:col-span-2 border-t border-[#f0f0f0] pt-4"><MembersEditor value={members} onChange={setMembers} allergyPool={allergyPool} onCreateAllergy={onCreateAllergy} onDeleteAllergy={handleDeleteAllergy} /></div>
+        </div>
+        {error && <div className="mt-3 rounded-lg border border-[#ffc0c0] bg-[#fff0f0] p-2.5 text-xs text-[#cc3333]">{error}</div>}
+        <div className="mt-6 flex gap-2.5">
+          <button onClick={onClose} className="flex-1 rounded-lg border border-[#e0e0e0] py-3 text-sm text-[#888]">Cancelar</button>
+          <button onClick={submit} disabled={saving} className="flex-[2] rounded-lg bg-[#48C9B0] py-3 text-sm font-semibold text-white disabled:opacity-60">{saving ? 'Guardando...' : 'Guardar cambios'}</button>
+        </div>
+        <button onClick={onDelete}
+          className="mt-2 w-full rounded-lg border border-[#ffe0e0] bg-[#fff5f5] py-3 text-sm font-semibold text-[#cc3333] transition hover:bg-[#ffe8e8] sm:hidden">
+          Eliminar invitado
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export default function EventPage() {
   const { id } = useParams()
 
@@ -545,16 +694,6 @@ export default function EventPage() {
 
   const [editGuest, setEditGuest] = useState<Guest | null>(null)
   const [deleteChatModal, setDeleteChatModal] = useState<{ guestId: string; conversationIds: string[] } | null>(null)
-  const [editName, setEditName] = useState('')
-  const [editPhone, setEditPhone] = useState('')
-  const [editEmail, setEditEmail] = useState('')
-  const [editNotes, setEditNotes] = useState('')
-  const [editTags, setEditTags] = useState<string[]>([])
-  const [editMembers, setEditMembers] = useState<EditMember[]>([])
-  const [editSaving, setEditSaving] = useState(false)
-  const [editError, setEditError] = useState('')
-  const [editSide, setEditSide] = useState('')
-  const [editAllergies, setEditAllergies] = useState<string[]>([])
 
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [selectedMembers, setSelectedMembers] = useState<Set<string>>(new Set())
@@ -572,17 +711,6 @@ export default function EventPage() {
   const [showWaSheet, setShowWaSheet] = useState<Guest | null>(null)
   const waLongPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const waWindowRef = useRef<Window | null>(null)
-
-  const [name, setName] = useState('')
-  const [phone, setPhone] = useState('')
-  const [email, setEmail] = useState('')
-  const [notes, setNotes] = useState('')
-  const [newTags, setNewTags] = useState<string[]>([])
-  const [newMembers, setNewMembers] = useState<EditMember[]>([])
-  const [newSide, setNewSide] = useState('')
-  const [newAllergies, setNewAllergies] = useState<string[]>([])
-  const [saving, setSaving] = useState(false)
-  const [formError, setFormError] = useState('')
 
   const [sortField, setSortField] = useState<'name' | 'phone' | 'notes' | 'status' | null>('name')
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
@@ -785,13 +913,7 @@ export default function EventPage() {
     setGuests(prev => prev.map(g => g.id === guestId ? { ...g, party_size: g.party_size - 1, party_members: g.party_members.filter(m => m.id !== memberId) } : g))
   }
 
-  const openEdit = (guest: Guest) => {
-    setEditGuest(guest); setEditName(guest.name); setEditPhone(guest.phone || '')
-    setEditEmail(guest.email || ''); setEditNotes(guest.notes || '')
-    setEditTags(guest.tags || []); setEditError('')
-    setEditSide(guest.side || ''); setEditAllergies(guest.allergies || [])
-    setEditMembers(guest.party_members.map(m => ({ id: m.id, name: m.name, phone: m.phone || '', rsvp_status: m.rsvp_status, allergies: m.allergies || [], tags: m.tags || [], notes: m.notes || '' })))
-  }
+  const openEdit = (guest: Guest) => setEditGuest(guest)
 
   const handleHeaderClick = (field: 'name' | 'phone' | 'notes' | 'status') => {
     if (sortField === field) setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
@@ -803,27 +925,26 @@ export default function EventPage() {
     return sortDirection === 'asc' ? ' ▲' : ' ▼'
   }
 
-  const handleEditSave = async () => {
-    if (!editGuest) return
-    if (!editName) { setEditError('El nombre es obligatorio'); return }
-    if (editPhone) {
-      const normalizedEdit = normalizePhone(editPhone)
+  const submitEditGuest = async (guest: Guest, f: GuestFormValues): Promise<string | null> => {
+    if (!f.name) return 'El nombre es obligatorio'
+    if (f.phone) {
+      const normalizedEdit = normalizePhone(f.phone)
       if (normalizedEdit.length > 0) {
-        const duplicate = guests.find(g => g.id !== editGuest.id && g.phone && normalizePhone(g.phone) === normalizedEdit)
-        if (duplicate) { setEditError(`Este WhatsApp ya está registrado para "${duplicate.name}"`); return }
+        const duplicate = guests.find(g => g.id !== guest.id && g.phone && normalizePhone(g.phone) === normalizedEdit)
+        if (duplicate) return `Este WhatsApp ya está registrado para "${duplicate.name}"`
       }
     }
-    setEditSaving(true); setEditError('')
-    const { error } = await supabase.from('guests').update({ name: editName, phone: editPhone || null, email: editEmail || null, party_size: 1 + editMembers.length, notes: editNotes || null, tags: editTags, side: editSide || null, allergies: editAllergies.length > 0 ? editAllergies : null }).eq('id', editGuest.id)
-    if (error) { setEditError('Error: ' + error.message); setEditSaving(false); return }
-    const existingIds = editGuest.party_members.map(m => m.id)
-    const keepIds = editMembers.filter(m => m.id).map(m => m.id as string)
+    const { error } = await supabase.from('guests').update({ name: f.name, phone: f.phone || null, email: f.email || null, party_size: 1 + f.members.length, notes: f.notes || null, tags: f.tags, side: f.side || null, allergies: f.allergies.length > 0 ? f.allergies : null }).eq('id', guest.id)
+    if (error) return 'Error: ' + error.message
+    const existingIds = guest.party_members.map(m => m.id)
+    const keepIds = f.members.filter(m => m.id).map(m => m.id as string)
     const toDelete = existingIds.filter(id => !keepIds.includes(id))
     if (toDelete.length > 0) await supabase.from('party_members').delete().in('id', toDelete)
-    for (const m of editMembers.filter(m => m.id)) await supabase.from('party_members').update({ name: m.name, phone: m.phone || null, rsvp_status: m.rsvp_status, allergies: m.allergies.length ? m.allergies : null, tags: m.tags.length ? m.tags : null, notes: m.notes || null }).eq('id', m.id!)
-    const toInsert = editMembers.filter(m => !m.id)
-    if (toInsert.length > 0) await supabase.from('party_members').insert(toInsert.map(m => ({ guest_id: editGuest.id, event_id: id as string, name: m.name, phone: m.phone || null, rsvp_status: m.rsvp_status, allergies: m.allergies.length ? m.allergies : null, tags: m.tags.length ? m.tags : null, notes: m.notes || null })))
-    await loadGuests(); setEditGuest(null); setEditSaving(false)
+    for (const m of f.members.filter(m => m.id)) await supabase.from('party_members').update({ name: m.name, phone: m.phone || null, rsvp_status: m.rsvp_status, allergies: m.allergies.length ? m.allergies : null, tags: m.tags.length ? m.tags : null, notes: m.notes || null }).eq('id', m.id!)
+    const toInsert = f.members.filter(m => !m.id)
+    if (toInsert.length > 0) await supabase.from('party_members').insert(toInsert.map(m => ({ guest_id: guest.id, event_id: id as string, name: m.name, phone: m.phone || null, rsvp_status: m.rsvp_status, allergies: m.allergies.length ? m.allergies : null, tags: m.tags.length ? m.tags : null, notes: m.notes || null })))
+    await loadGuests(); setEditGuest(null)
+    return null
   }
 
   const toggleSelect = (guestId: string, idx: number, shiftKey: boolean) => {
@@ -983,24 +1104,22 @@ export default function EventPage() {
     }
   }
 
-  const resetForm = () => { setName(''); setPhone(''); setEmail(''); setNotes(''); setNewTags([]); setNewMembers([]); setNewSide(''); setNewAllergies([]); setFormError('') }
-
-  const handleAddGuest = async () => {
-    if (!name) { setFormError('El nombre es obligatorio'); return }
-    if (phone) {
-      const normalizedNew = normalizePhone(phone)
+  const submitAddGuest = async (f: GuestFormValues): Promise<string | null> => {
+    if (!f.name) return 'El nombre es obligatorio'
+    if (f.phone) {
+      const normalizedNew = normalizePhone(f.phone)
       if (normalizedNew.length > 0) {
         const duplicate = guests.find(g => g.phone && normalizePhone(g.phone) === normalizedNew)
-        if (duplicate) { setFormError(`Este WhatsApp ya está registrado para "${duplicate.name}"`); return }
+        if (duplicate) return `Este WhatsApp ya está registrado para "${duplicate.name}"`
       }
     }
-    setSaving(true); setFormError('')
-    const { data: guestData, error } = await supabase.from('guests').insert({ event_id: id, name, phone: phone || null, email: email || null, party_size: 1 + newMembers.length, notes: notes || null, tags: newTags, rsvp_status: 'pending', side: newSide || null, allergies: newAllergies.length > 0 ? newAllergies : null }).select().single()
-    if (error || !guestData) { setFormError('Error: ' + error?.message); setSaving(false); return }
-    if (newMembers.length > 0) await supabase.from('party_members').insert(newMembers.map(m => ({ guest_id: guestData.id, event_id: id, name: m.name, phone: m.phone || null, rsvp_status: m.rsvp_status })))
+    const { data: guestData, error } = await supabase.from('guests').insert({ event_id: id, name: f.name, phone: f.phone || null, email: f.email || null, party_size: 1 + f.members.length, notes: f.notes || null, tags: f.tags, rsvp_status: 'pending', side: f.side || null, allergies: f.allergies.length > 0 ? f.allergies : null }).select().single()
+    if (error || !guestData) return 'Error: ' + error?.message
+    if (f.members.length > 0) await supabase.from('party_members').insert(f.members.map(m => ({ guest_id: guestData.id, event_id: id, name: m.name, phone: m.phone || null, rsvp_status: m.rsvp_status })))
     await supabase.rpc('increment_guests', { event_id_input: id })
     setEvent(prev => prev ? { ...prev, total_guests: prev.total_guests + 1 } : prev)
-    await loadGuests(); resetForm(); setShowModal(false); setSaving(false)
+    await loadGuests(); setShowModal(false)
+    return null
   }
 
   const handleCSV = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1247,8 +1366,6 @@ export default function EventPage() {
   const deleteEventTag = async (tag: string) => {
     const next = availableTags.filter(t => t !== tag)
     setEvent(prev => prev ? { ...prev, guest_tags: next } : prev)
-    setNewTags(prev => prev.filter(t => t !== tag))
-    setEditTags(prev => prev.filter(t => t !== tag))
     await supabase.from('events').update({ guest_tags: next }).eq('id', id)
     const affected = guests.filter(g => (g.tags || []).includes(tag))
     if (affected.length > 0) {
@@ -1259,8 +1376,6 @@ export default function EventPage() {
   const createGroup = (group: string) => setGroupPool(prev => prev.includes(group) ? prev : [...prev, group])
   const deleteGroup = async (group: string) => {
     setGroupPool(prev => prev.filter(g => g !== group))
-    setNewSide(prev => prev === group ? '' : prev)
-    setEditSide(prev => prev === group ? '' : prev)
     const affected = guests.filter(g => g.side === group)
     if (affected.length > 0) {
       await Promise.all(affected.map(g => supabase.from('guests').update({ side: null }).eq('id', g.id)))
@@ -1270,8 +1385,6 @@ export default function EventPage() {
   const createAllergy = (a: string) => setAllergyPool(prev => prev.includes(a) ? prev : [...prev, a])
   const deleteAllergy = async (a: string) => {
     setAllergyPool(prev => prev.filter(x => x !== a))
-    setNewAllergies(prev => prev.filter(x => x !== a))
-    setEditAllergies(prev => prev.filter(x => x !== a))
     const affected = guests.filter(g => (g.allergies || []).includes(a))
     if (affected.length > 0) {
       await Promise.all(affected.map(g => {
@@ -1453,7 +1566,7 @@ export default function EventPage() {
           <button onClick={() => { setCsvError(''); setCsvSuccess(''); setCsvPreview(null); setShowCsvModal(true) }} className="hidden items-center gap-1.5 whitespace-nowrap rounded-lg border border-[#e0e0e0] px-3 py-2 text-xs text-[#666] transition hover:border-[#48C9B0] hover:text-[#48C9B0] sm:flex">
             <Upload size={13} />Importar
           </button>
-          <button onClick={() => { resetForm(); setShowModal(true) }}
+          <button onClick={() => setShowModal(true)}
             className="shrink-0 whitespace-nowrap rounded-lg bg-[#48C9B0] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#3ab89f] sm:px-4 sm:text-sm">
             + Agregar
           </button>
@@ -1679,54 +1792,16 @@ export default function EventPage() {
       </div>
 
       {editGuest && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-2xl overflow-y-auto rounded-2xl border border-[#e8e8e8] bg-white p-6 shadow-xl sm:p-8" style={{ maxHeight: '90vh' }}>
-            <div className="mb-6 flex items-center justify-between">
-              <h2 className="text-lg font-bold text-[#1D1E20] sm:text-xl">Editar invitado</h2>
-              <button onClick={() => setEditGuest(null)} className="text-xl text-[#aaa]">✕</button>
-            </div>
-            {editGuest?.needs_attention && (
-              <div className="mb-4 flex items-center gap-2 rounded-lg border p-3" style={{ background: 'var(--error-bg)', borderColor: 'var(--error-border)' }}>
-                <AlertTriangle size={14} style={{ color: 'var(--error-text)', flexShrink: 0 }} />
-                <span className="flex-1 text-xs" style={{ color: 'var(--error-text)' }}>
-                  {ATTENTION_LABEL[editGuest.attention_reason || 'otro']}
-                </span>
-                <button
-                  onClick={() => resolveAttention(editGuest.id)}
-                  className="text-xs font-semibold"
-                  style={{ color: '#48C9B0' }}
-                >
-                  Marcar atención como resuelta
-                </button>
-              </div>
-            )}
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div><label className="mb-1.5 block text-xs font-medium text-[#555]">Nombre *</label><input type="text" value={editName} onChange={e => setEditName(e.target.value)} style={inp} /></div>
-              <div><label className="mb-1.5 block text-xs font-medium text-[#555]">WhatsApp</label><input type="tel" value={editPhone} onChange={e => setEditPhone(e.target.value)} placeholder="+52 81 1234 5678" style={inp} /></div>
-              <div><label className="mb-1.5 block text-xs font-medium text-[#555]">Email</label><input type="email" value={editEmail} onChange={e => setEditEmail(e.target.value)} placeholder="ana@ejemplo.com" style={inp} /></div>
-              <div>
-                <label className="mb-1.5 block text-xs font-medium text-[#555]">Grupo <span className="font-normal text-[#ccc]">(opcional)</span></label>
-                <GroupInput availableGroups={groupPool} selectedGroup={editSide} onChange={setEditSide} onCreateGroup={createGroup} onDeleteGroup={deleteGroup} />
-              </div>
-              <div className="sm:col-span-2"><label className="mb-1.5 block text-xs font-medium text-[#555]">Tags</label><TagInput availableTags={availableTags} selectedTags={editTags} onChangeSelected={setEditTags} onCreateTag={createEventTag} onDeleteTag={deleteEventTag} /></div>
-              <div className="sm:col-span-2">
-                <label className="mb-1.5 block text-xs font-medium text-[#555]">Alergias <span className="font-normal text-[#ccc]">(opcional)</span></label>
-                <TagInput availableTags={allergyPool} selectedTags={editAllergies} onChangeSelected={setEditAllergies} onCreateTag={createAllergy} onDeleteTag={deleteAllergy} label="Alergia" />
-              </div>
-              <div className="sm:col-span-2"><label className="mb-1.5 block text-xs font-medium text-[#555]">Notas</label><textarea value={editNotes} onChange={e => setEditNotes(e.target.value)} placeholder="Mesa preferida, restricciones..." rows={2} style={{ ...inp, resize: 'vertical' }} /></div>
-              <div className="sm:col-span-2 border-t border-[#f0f0f0] pt-4"><MembersEditor value={editMembers} onChange={setEditMembers} allergyPool={allergyPool} onCreateAllergy={createAllergy} onDeleteAllergy={deleteAllergy} /></div>
-            </div>
-            {editError && <div className="mt-3 rounded-lg border border-[#ffc0c0] bg-[#fff0f0] p-2.5 text-xs text-[#cc3333]">{editError}</div>}
-            <div className="mt-6 flex gap-2.5">
-              <button onClick={() => setEditGuest(null)} className="flex-1 rounded-lg border border-[#e0e0e0] py-3 text-sm text-[#888]">Cancelar</button>
-              <button onClick={handleEditSave} disabled={editSaving} className="flex-[2] rounded-lg bg-[#48C9B0] py-3 text-sm font-semibold text-white disabled:opacity-60">{editSaving ? 'Guardando...' : 'Guardar cambios'}</button>
-            </div>
-            <button onClick={() => { const gid = editGuest!.id; setEditGuest(null); setTimeout(() => deleteGuest(gid), 0) }}
-              className="mt-2 w-full rounded-lg border border-[#ffe0e0] bg-[#fff5f5] py-3 text-sm font-semibold text-[#cc3333] transition hover:bg-[#ffe8e8] sm:hidden">
-              Eliminar invitado
-            </button>
-          </div>
-        </div>
+        <EditGuestModal key={editGuest.id} guest={editGuest}
+          availableTags={availableTags} groupPool={groupPool} allergyPool={allergyPool}
+          onCreateTag={createEventTag} onDeleteTag={deleteEventTag}
+          onCreateGroup={createGroup} onDeleteGroup={deleteGroup}
+          onCreateAllergy={createAllergy} onDeleteAllergy={deleteAllergy}
+          onSubmit={f => submitEditGuest(editGuest, f)}
+          onClose={() => setEditGuest(null)}
+          onDelete={() => { const gid = editGuest.id; setEditGuest(null); setTimeout(() => deleteGuest(gid), 0) }}
+          onResolveAttention={() => resolveAttention(editGuest.id)}
+        />
       )}
 
       {deleteChatModal && (
@@ -1755,35 +1830,14 @@ export default function EventPage() {
       )}
 
       {showModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-2xl overflow-y-auto rounded-2xl border border-[#e8e8e8] bg-white p-6 shadow-xl sm:p-8" style={{ maxHeight: '90vh' }}>
-            <div className="mb-6 flex items-center justify-between">
-              <h2 className="text-lg font-bold text-[#1D1E20] sm:text-xl">Agregar invitado</h2>
-              <button onClick={() => setShowModal(false)} className="text-xl text-[#aaa]">✕</button>
-            </div>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div><label className="mb-1.5 block text-xs font-medium text-[#555]">Nombre *</label><input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Ana García" style={inp} /></div>
-              <div><label className="mb-1.5 block text-xs font-medium text-[#555]">WhatsApp <span className="font-normal text-[#ccc]">(opcional)</span></label><input type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="+52 81 1234 5678" style={inp} /></div>
-              <div><label className="mb-1.5 block text-xs font-medium text-[#555]">Email <span className="font-normal text-[#ccc]">(opcional)</span></label><input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="ana@ejemplo.com" style={inp} /></div>
-              <div>
-                <label className="mb-1.5 block text-xs font-medium text-[#555]">Grupo <span className="font-normal text-[#ccc]">(opcional)</span></label>
-                <GroupInput availableGroups={groupPool} selectedGroup={newSide} onChange={setNewSide} onCreateGroup={createGroup} onDeleteGroup={deleteGroup} />
-              </div>
-              <div className="sm:col-span-2"><label className="mb-1.5 block text-xs font-medium text-[#555]">Tags <span className="font-normal text-[#ccc]">(opcional)</span></label><TagInput availableTags={availableTags} selectedTags={newTags} onChangeSelected={setNewTags} onCreateTag={createEventTag} onDeleteTag={deleteEventTag} /></div>
-              <div className="sm:col-span-2">
-                <label className="mb-1.5 block text-xs font-medium text-[#555]">Alergias <span className="font-normal text-[#ccc]">(opcional)</span></label>
-                <TagInput availableTags={allergyPool} selectedTags={newAllergies} onChangeSelected={setNewAllergies} onCreateTag={createAllergy} onDeleteTag={deleteAllergy} label="Alergia" />
-              </div>
-              <div className="sm:col-span-2"><label className="mb-1.5 block text-xs font-medium text-[#555]">Notas <span className="font-normal text-[#ccc]">(opcional)</span></label><textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Mesa preferida, restricciones..." rows={2} style={{ ...inp, resize: 'vertical' }} /></div>
-              <div className="sm:col-span-2 border-t border-[#f0f0f0] pt-4"><MembersEditor value={newMembers} onChange={setNewMembers} allergyPool={allergyPool} onCreateAllergy={createAllergy} onDeleteAllergy={deleteAllergy} /></div>
-            </div>
-            {formError && <div className="mt-3 rounded-lg border border-[#ffc0c0] bg-[#fff0f0] p-2.5 text-xs text-[#cc3333]">{formError}</div>}
-            <div className="mt-6 flex gap-2.5">
-              <button onClick={() => setShowModal(false)} className="flex-1 rounded-lg border border-[#e0e0e0] py-3 text-sm text-[#888]">Cancelar</button>
-              <button onClick={handleAddGuest} disabled={saving} className="flex-[2] rounded-lg bg-[#48C9B0] py-3 text-sm font-semibold text-white disabled:opacity-60">{saving ? 'Guardando...' : 'Agregar invitado'}</button>
-            </div>
-          </div>
-        </div>
+        <AddGuestModal
+          availableTags={availableTags} groupPool={groupPool} allergyPool={allergyPool}
+          onCreateTag={createEventTag} onDeleteTag={deleteEventTag}
+          onCreateGroup={createGroup} onDeleteGroup={deleteGroup}
+          onCreateAllergy={createAllergy} onDeleteAllergy={deleteAllergy}
+          onSubmit={submitAddGuest}
+          onClose={() => setShowModal(false)}
+        />
       )}
 
       {/* input oculto para importar CSV */}
