@@ -717,8 +717,9 @@ export default function EventPage() {
 
   const [isMobile, setIsMobile] = useState(false)
   useEffect(() => {
-    const mq = window.matchMedia('(max-width: 639px)')
-    const update = () => setIsMobile(mq.matches)
+    // Complemento exacto del breakpoint sm de Tailwind: evita anchos fraccionales sin lista
+    const mq = window.matchMedia('(min-width: 640px)')
+    const update = () => setIsMobile(!mq.matches)
     update()
     mq.addEventListener('change', update)
     return () => mq.removeEventListener('change', update)
@@ -1115,7 +1116,7 @@ export default function EventPage() {
     }
     const { data: guestData, error } = await supabase.from('guests').insert({ event_id: id, name: f.name, phone: f.phone || null, email: f.email || null, party_size: 1 + f.members.length, notes: f.notes || null, tags: f.tags, rsvp_status: 'pending', side: f.side || null, allergies: f.allergies.length > 0 ? f.allergies : null }).select().single()
     if (error || !guestData) return 'Error: ' + error?.message
-    if (f.members.length > 0) await supabase.from('party_members').insert(f.members.map(m => ({ guest_id: guestData.id, event_id: id, name: m.name, phone: m.phone || null, rsvp_status: m.rsvp_status })))
+    if (f.members.length > 0) await supabase.from('party_members').insert(f.members.map(m => ({ guest_id: guestData.id, event_id: id, name: m.name, phone: m.phone || null, rsvp_status: m.rsvp_status, allergies: m.allergies.length ? m.allergies : null, tags: m.tags.length ? m.tags : null, notes: m.notes || null })))
     await supabase.rpc('increment_guests', { event_id_input: id })
     setEvent(prev => prev ? { ...prev, total_guests: prev.total_guests + 1 } : prev)
     await loadGuests(); setShowModal(false)
