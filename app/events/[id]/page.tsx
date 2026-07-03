@@ -56,6 +56,21 @@ function loadSavedColumns(): Set<ColumnKey> {
   return new Set(ALL_COLUMNS.map(c => c.key))
 }
 
+function SearchBox({ onDebounced }: { onDebounced: (v: string) => void }) {
+  const [value, setValue] = useState('')
+  useEffect(() => {
+    const t = setTimeout(() => onDebounced(value), 180)
+    return () => clearTimeout(t)
+  }, [value])
+  return (
+    <div className="relative min-w-0 flex-1 sm:w-72 sm:flex-none lg:w-80">
+      <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#aaa] pointer-events-none" />
+      <input type="text" value={value} onChange={e => setValue(e.target.value)} placeholder="Buscar..."
+        className="w-full rounded-lg border border-[#e0e0e0] bg-[#f8f8f8] pl-8 pr-3 py-2 text-sm text-[#1D1E20] outline-none" />
+    </div>
+  )
+}
+
 function StatusDot({ value, onChange }: { value: RsvpStatus; onChange: (s: RsvpStatus) => void }) {
   const [open, setOpen] = useState(false)
   const [mounted, setMounted] = useState(false)
@@ -507,7 +522,6 @@ export default function EventPage() {
   const [groupPool, setGroupPool] = useState<string[]>([])
   const [allergyPool, setAllergyPool] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
-  const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [filter, setFilter] = useState<'all' | RsvpStatus>('all')
   const [filters, setFilters] = useState<FilterCondition[]>([])
@@ -573,6 +587,15 @@ export default function EventPage() {
   const [sortField, setSortField] = useState<'name' | 'phone' | 'notes' | 'status' | null>('name')
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
 
+  const [isMobile, setIsMobile] = useState(false)
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 639px)')
+    const update = () => setIsMobile(mq.matches)
+    update()
+    mq.addEventListener('change', update)
+    return () => mq.removeEventListener('change', update)
+  }, [])
+
   useEffect(() => {
     const init = async () => {
       const { data: { session } } = await supabase.auth.getSession()
@@ -585,11 +608,6 @@ export default function EventPage() {
   }, [])
 
   const setWaTargetPref = (t: 'web' | 'app') => { setWaTarget(t); try { localStorage.setItem('anfiora_wa_target', t) } catch {} }
-
-  useEffect(() => {
-    const t = setTimeout(() => setDebouncedSearch(search), 180)
-    return () => clearTimeout(t)
-  }, [search])
 
   const addFilter = (field: FilterField, value: string) => setFilters(prev => prev.some(f => f.field === field && f.value === value) ? prev : [...prev, { field, value }])
   const removeFilter = (field: FilterField, value: string) => setFilters(prev => prev.filter(f => !(f.field === field && f.value === value)))
@@ -1326,11 +1344,7 @@ export default function EventPage() {
         </StatsCollapse>
 
         <div className="mb-3 flex items-center gap-2">
-          <div className="relative min-w-0 flex-1 sm:w-72 sm:flex-none lg:w-80">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#aaa] pointer-events-none" />
-            <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar..."
-              className="w-full rounded-lg border border-[#e0e0e0] bg-[#f8f8f8] pl-8 pr-3 py-2 text-sm text-[#1D1E20] outline-none" />
-          </div>
+          <SearchBox onDebounced={setDebouncedSearch} />
           <select value={filter} onChange={e => setFilter(e.target.value as typeof filter)}
             className="min-w-0 flex-1 cursor-pointer rounded-lg border-none bg-[#1D1E20] px-3 py-2 text-xs font-semibold text-white outline-none sm:flex-none sm:w-48">
             <option value="all">Todos ({totalPersonas})</option>
@@ -1471,6 +1485,7 @@ export default function EventPage() {
           </div>
         ) : (
           <>
+            {isMobile && (
             <div className="mt-3 flex flex-col gap-2 sm:hidden">
               {filtered.map((guest, gIdx) => {
                 const groupColor = guest.party_members.length > 0 ? GROUP_COLORS[gIdx % GROUP_COLORS.length] : null
@@ -1504,7 +1519,9 @@ export default function EventPage() {
                 )
               })}
             </div>
+            )}
 
+            {!isMobile && (
             <div className="mt-3 hidden rounded-xl border border-[#e8e8e8] sm:block">
               <div className="sticky top-0 z-10 items-center rounded-t-xl border-b border-[#e8e8e8] bg-[#f8f8f8] px-4 py-2" style={{ display: 'grid', gridTemplateColumns: gridCols }}>
                 <input type="checkbox" checked={allSelected} onChange={toggleSelectAll} className="cursor-pointer accent-[#48C9B0]" />
@@ -1656,6 +1673,7 @@ export default function EventPage() {
                 )
               })}
             </div>
+            )}
           </>
         )}
       </div>
