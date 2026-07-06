@@ -92,6 +92,14 @@ export default function DressCodePreview({ dc, eventName }: { dc: DressCode; eve
                 )}
               </div>
             )}
+
+            {dc.fotos_ejemplo.length > 0 && (
+              <div className="mt-3 flex justify-center gap-2">
+                {dc.fotos_ejemplo.map((url, i) => (
+                  <img key={i} src={url} alt="" className="h-16 w-16 rounded-lg border border-[#e8e8e8] object-cover" />
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>

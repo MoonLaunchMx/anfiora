@@ -1,7 +1,9 @@
 'use client'
 
 import { useState } from 'react'
-import { X, Plus } from 'lucide-react'
+import { useParams } from 'next/navigation'
+import { X, Plus, ImagePlus } from 'lucide-react'
+import { supabase } from '@/lib/supabase'
 import { NIVELES, RECOMENDACIONES_SUGERIDAS, type DressCode, type DressCodeColor } from '@/lib/dresscode'
 
 function Section({ label, children }: { label: string; children: React.ReactNode }) {
@@ -63,8 +65,22 @@ function ColorRow({
 export default function DressCodeEditor({
   dc, onChange,
 }: { dc: DressCode; onChange: (next: DressCode) => void }) {
+  const { id } = useParams()
   const [nuevaRec, setNuevaRec] = useState('')
+  const [uploading, setUploading] = useState(false)
   const patch = (p: Partial<DressCode>) => onChange({ ...dc, ...p })
+
+  const uploadFoto = async (file: File) => {
+    if (dc.fotos_ejemplo.length >= 3) return
+    setUploading(true)
+    const path = `dress-code/${id}/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`
+    const { error } = await supabase.storage.from('event-media').upload(path, file, { upsert: false })
+    if (!error) {
+      const { data } = supabase.storage.from('event-media').getPublicUrl(path)
+      patch({ fotos_ejemplo: [...dc.fotos_ejemplo, data.publicUrl] })
+    }
+    setUploading(false)
+  }
 
   const toggleRec = (rec: string) => {
     patch({
@@ -176,6 +192,35 @@ export default function DressCodeEditor({
             placeholder="Para ellos..."
             className="w-full resize-y rounded-lg border border-[#e8e8e8] px-3 py-2 text-sm focus:border-[#48C9B0] focus:outline-none"
           />
+        </div>
+      </Section>
+
+      <Section label="Fotos de ejemplo (opcional)">
+        <div className="flex flex-wrap gap-3">
+          {dc.fotos_ejemplo.map((url, i) => (
+            <div key={i} className="relative h-20 w-20 overflow-hidden rounded-lg border border-[#e8e8e8]">
+              <img src={url} alt="" className="h-full w-full object-cover" />
+              <button
+                onClick={() => patch({ fotos_ejemplo: dc.fotos_ejemplo.filter((_, idx) => idx !== i) })}
+                className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-white/90 text-[#999] hover:text-[#cc3333]"
+              >
+                <X size={12} />
+              </button>
+            </div>
+          ))}
+          {dc.fotos_ejemplo.length < 3 && (
+            <label className="flex h-20 w-20 cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed border-[#e0e0e0] text-[#bbb] hover:border-[#48C9B0] hover:text-[#48C9B0]">
+              <ImagePlus size={18} />
+              <span className="text-[10px]">{uploading ? 'Subiendo...' : 'Subir'}</span>
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                disabled={uploading}
+                onChange={e => { const f = e.target.files?.[0]; if (f) uploadFoto(f); e.target.value = '' }}
+              />
+            </label>
+          )}
         </div>
       </Section>
     </div>
