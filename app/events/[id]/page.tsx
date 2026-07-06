@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom'
 import { useParams } from 'next/navigation'
 import { motion, AnimatePresence, useMotionValue, useTransform, animate } from 'framer-motion'
 import type { PanInfo } from 'framer-motion'
-import { Trash2, Send, Clock, MessageSquare, AlertCircle, CheckCircle, XCircle, Download, Upload, Columns3, Search, UserPlus, Plus, Check, X, Filter, Loader2, FileSpreadsheet, FileText, AlertTriangle } from 'lucide-react'
+import { Trash2, Send, Clock, MessageSquare, AlertCircle, CheckCircle, XCircle, Download, Upload, Columns3, Search, UserPlus, Plus, Check, X, Filter, Loader2, FileSpreadsheet, FileText, AlertTriangle, ChevronDown } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { buildGuestDeletionOps, executeGuestDeletion, guestConversationIds } from '@/lib/guests/delete'
 import { PartyMember, Guest, Event, EventSettings, EventStatus, RsvpStatus } from '@/lib/types'
@@ -350,18 +350,24 @@ function MembersEditor({ value, onChange, allergyPool, onCreateAllergy, onDelete
   onDeleteAllergy: (t: string) => void
 }) {
   const MAX = 15
-  const add = () => { if (value.length < MAX) onChange([...value, { name: '', phone: '', rsvp_status: 'pending', allergies: [], tags: [], notes: '' }]) }
+  const [open, setOpen] = useState(value.length > 0)
+  const add = () => { if (value.length < MAX) { onChange([...value, { name: '', phone: '', rsvp_status: 'pending', allergies: [], tags: [], notes: '' }]); setOpen(true) } }
   const remove = (i: number) => onChange(value.filter((_, idx) => idx !== i))
   const update = (i: number, field: 'name' | 'phone' | 'rsvp_status' | 'notes', val: string) => onChange(value.map((m, idx) => idx === i ? { ...m, [field]: val } : m))
   const updateAllergies = (i: number, val: string[]) => onChange(value.map((m, idx) => idx === i ? { ...m, allergies: val } : m))
   return (
     <div>
-      <div className="mb-2 flex items-center justify-between">
-        <label className="text-xs font-medium text-[#555]">Acompañantes <span className="font-normal text-[#ccc]">(máx. {MAX})</span></label>
-        {value.length < MAX && <button type="button" onClick={add} className="text-xs font-semibold text-[#48C9B0] hover:underline">+ Agregar</button>}
+      <div className="flex items-center justify-between gap-2">
+        <button type="button" onClick={() => setOpen(o => !o)} className="flex flex-1 items-center gap-1.5 text-left">
+          <ChevronDown size={14} className={'text-[#aaa] transition-transform ' + (open ? '' : '-rotate-90')} />
+          <span className="text-xs font-medium text-[#555]">Acompañantes</span>
+          {value.length > 0 && <span className="rounded-full bg-[#f0fdfb] px-1.5 py-0.5 text-[10px] font-semibold text-[#48C9B0]">{value.length}</span>}
+        </button>
+        {value.length < MAX && <button type="button" onClick={add} className="shrink-0 text-xs font-semibold text-[#48C9B0] hover:underline">+ Agregar</button>}
       </div>
-      {value.length === 0 && <p className="text-xs text-[#bbb]">Sin acompañantes — haz clic en "Agregar" para incluir uno.</p>}
-      <div className="flex flex-col gap-2">
+      {open && (<>
+      {value.length === 0 && <p className="mt-2 text-xs text-[#bbb]">Sin acompañantes — haz clic en "Agregar" para incluir uno.</p>}
+      <div className="mt-2 flex flex-col gap-2">
         {value.map((m, i) => (
           <div key={i} className="rounded-lg border border-[#e8e8e8] bg-[#f8f8f8] p-3">
             <div className="mb-2"><span className="text-[11px] font-semibold text-[#aaa]">+{i + 1}</span></div>
@@ -391,6 +397,7 @@ function MembersEditor({ value, onChange, allergyPool, onCreateAllergy, onDelete
           </div>
         ))}
       </div>
+      </>)}
     </div>
   )
 }
@@ -552,12 +559,12 @@ function AddGuestModal({ availableTags, groupPool, allergyPool, onCreateTag, onD
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-2xl overflow-y-auto rounded-2xl border border-[#e8e8e8] bg-white p-6 shadow-xl sm:p-8" style={{ maxHeight: '90vh' }}>
-        <div className="mb-6 flex items-center justify-between">
+      <div className="flex w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-[#e8e8e8] bg-white shadow-xl" style={{ maxHeight: '90vh' }}>
+        <div className="flex shrink-0 items-center justify-between border-b border-[#f0f0f0] px-6 py-4 sm:px-8">
           <h2 className="text-lg font-bold text-[#1D1E20] sm:text-xl">Agregar invitado</h2>
           <button onClick={onClose} className="text-xl text-[#aaa]">✕</button>
         </div>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 overflow-y-auto px-6 py-6 sm:grid-cols-2 sm:px-8">
           <div><label className="mb-1.5 block text-xs font-medium text-[#555]">Nombre *</label><input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Ana García" style={inp} /></div>
           <div><label className="mb-1.5 block text-xs font-medium text-[#555]">WhatsApp <span className="font-normal text-[#ccc]">(opcional)</span></label><input type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="+52 81 1234 5678" style={inp} /></div>
           <div><label className="mb-1.5 block text-xs font-medium text-[#555]">Email <span className="font-normal text-[#ccc]">(opcional)</span></label><input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="ana@ejemplo.com" style={inp} /></div>
@@ -565,18 +572,20 @@ function AddGuestModal({ availableTags, groupPool, allergyPool, onCreateTag, onD
             <label className="mb-1.5 block text-xs font-medium text-[#555]">Grupo <span className="font-normal text-[#ccc]">(opcional)</span></label>
             <GroupInput availableGroups={groupPool} selectedGroup={side} onChange={setSide} onCreateGroup={onCreateGroup} onDeleteGroup={handleDeleteGroup} />
           </div>
-          <div className="sm:col-span-2"><label className="mb-1.5 block text-xs font-medium text-[#555]">Tags <span className="font-normal text-[#ccc]">(opcional)</span></label><TagInput availableTags={availableTags} selectedTags={tags} onChangeSelected={setTags} onCreateTag={onCreateTag} onDeleteTag={handleDeleteTag} /></div>
-          <div className="sm:col-span-2">
+          <div><label className="mb-1.5 block text-xs font-medium text-[#555]">Tags <span className="font-normal text-[#ccc]">(opcional)</span></label><TagInput availableTags={availableTags} selectedTags={tags} onChangeSelected={setTags} onCreateTag={onCreateTag} onDeleteTag={handleDeleteTag} /></div>
+          <div>
             <label className="mb-1.5 block text-xs font-medium text-[#555]">Alergias <span className="font-normal text-[#ccc]">(opcional)</span></label>
             <TagInput availableTags={allergyPool} selectedTags={allergies} onChangeSelected={setAllergies} onCreateTag={onCreateAllergy} onDeleteTag={handleDeleteAllergy} label="Alergia" />
           </div>
           <div className="sm:col-span-2"><label className="mb-1.5 block text-xs font-medium text-[#555]">Notas <span className="font-normal text-[#ccc]">(opcional)</span></label><textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Mesa preferida, restricciones..." rows={2} style={{ ...inp, resize: 'vertical' }} /></div>
           <div className="sm:col-span-2 border-t border-[#f0f0f0] pt-4"><MembersEditor value={members} onChange={setMembers} allergyPool={allergyPool} onCreateAllergy={onCreateAllergy} onDeleteAllergy={handleDeleteAllergy} /></div>
         </div>
-        {formError && <div className="mt-3 rounded-lg border border-[#ffc0c0] bg-[#fff0f0] p-2.5 text-xs text-[#cc3333]">{formError}</div>}
-        <div className="mt-6 flex gap-2.5">
-          <button onClick={onClose} className="flex-1 rounded-lg border border-[#e0e0e0] py-3 text-sm text-[#888]">Cancelar</button>
-          <button onClick={submit} disabled={saving} className="flex-[2] rounded-lg bg-[#48C9B0] py-3 text-sm font-semibold text-white disabled:opacity-60">{saving ? 'Guardando...' : 'Agregar invitado'}</button>
+        <div className="shrink-0 border-t border-[#f0f0f0] px-6 py-4 sm:px-8">
+          {formError && <div className="mb-3 rounded-lg border border-[#ffc0c0] bg-[#fff0f0] p-2.5 text-xs text-[#cc3333]">{formError}</div>}
+          <div className="flex gap-2.5">
+            <button onClick={onClose} className="flex-1 rounded-lg border border-[#e0e0e0] py-3 text-sm text-[#888]">Cancelar</button>
+            <button onClick={submit} disabled={saving} className="flex-[2] rounded-lg bg-[#48C9B0] py-3 text-sm font-semibold text-white disabled:opacity-60">{saving ? 'Guardando...' : 'Agregar invitado'}</button>
+          </div>
         </div>
       </div>
     </div>
@@ -612,11 +621,12 @@ function EditGuestModal({ guest, availableTags, groupPool, allergyPool, onCreate
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-2xl overflow-y-auto rounded-2xl border border-[#e8e8e8] bg-white p-6 shadow-xl sm:p-8" style={{ maxHeight: '90vh' }}>
-        <div className="mb-6 flex items-center justify-between">
+      <div className="flex w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-[#e8e8e8] bg-white shadow-xl" style={{ maxHeight: '90vh' }}>
+        <div className="flex shrink-0 items-center justify-between border-b border-[#f0f0f0] px-6 py-4 sm:px-8">
           <h2 className="text-lg font-bold text-[#1D1E20] sm:text-xl">Editar invitado</h2>
           <button onClick={onClose} className="text-xl text-[#aaa]">✕</button>
         </div>
+        <div className="overflow-y-auto px-6 py-6 sm:px-8">
         {guest.needs_attention && (
           <div className="mb-4 flex items-center gap-2 rounded-lg border p-3" style={{ background: 'var(--error-bg)', borderColor: 'var(--error-border)' }}>
             <AlertTriangle size={14} style={{ color: 'var(--error-text)', flexShrink: 0 }} />
@@ -636,23 +646,26 @@ function EditGuestModal({ guest, availableTags, groupPool, allergyPool, onCreate
             <label className="mb-1.5 block text-xs font-medium text-[#555]">Grupo <span className="font-normal text-[#ccc]">(opcional)</span></label>
             <GroupInput availableGroups={groupPool} selectedGroup={side} onChange={setSide} onCreateGroup={onCreateGroup} onDeleteGroup={handleDeleteGroup} />
           </div>
-          <div className="sm:col-span-2"><label className="mb-1.5 block text-xs font-medium text-[#555]">Tags</label><TagInput availableTags={availableTags} selectedTags={tags} onChangeSelected={setTags} onCreateTag={onCreateTag} onDeleteTag={handleDeleteTag} /></div>
-          <div className="sm:col-span-2">
+          <div><label className="mb-1.5 block text-xs font-medium text-[#555]">Tags</label><TagInput availableTags={availableTags} selectedTags={tags} onChangeSelected={setTags} onCreateTag={onCreateTag} onDeleteTag={handleDeleteTag} /></div>
+          <div>
             <label className="mb-1.5 block text-xs font-medium text-[#555]">Alergias <span className="font-normal text-[#ccc]">(opcional)</span></label>
             <TagInput availableTags={allergyPool} selectedTags={allergies} onChangeSelected={setAllergies} onCreateTag={onCreateAllergy} onDeleteTag={handleDeleteAllergy} label="Alergia" />
           </div>
           <div className="sm:col-span-2"><label className="mb-1.5 block text-xs font-medium text-[#555]">Notas</label><textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Mesa preferida, restricciones..." rows={2} style={{ ...inp, resize: 'vertical' }} /></div>
           <div className="sm:col-span-2 border-t border-[#f0f0f0] pt-4"><MembersEditor value={members} onChange={setMembers} allergyPool={allergyPool} onCreateAllergy={onCreateAllergy} onDeleteAllergy={handleDeleteAllergy} /></div>
         </div>
-        {error && <div className="mt-3 rounded-lg border border-[#ffc0c0] bg-[#fff0f0] p-2.5 text-xs text-[#cc3333]">{error}</div>}
-        <div className="mt-6 flex gap-2.5">
-          <button onClick={onClose} className="flex-1 rounded-lg border border-[#e0e0e0] py-3 text-sm text-[#888]">Cancelar</button>
-          <button onClick={submit} disabled={saving} className="flex-[2] rounded-lg bg-[#48C9B0] py-3 text-sm font-semibold text-white disabled:opacity-60">{saving ? 'Guardando...' : 'Guardar cambios'}</button>
-        </div>
         <button onClick={onDelete}
-          className="mt-2 w-full rounded-lg border border-[#ffe0e0] bg-[#fff5f5] py-3 text-sm font-semibold text-[#cc3333] transition hover:bg-[#ffe8e8] sm:hidden">
+          className="mt-4 w-full rounded-lg border border-[#ffe0e0] bg-[#fff5f5] py-3 text-sm font-semibold text-[#cc3333] transition hover:bg-[#ffe8e8] sm:hidden">
           Eliminar invitado
         </button>
+        </div>
+        <div className="shrink-0 border-t border-[#f0f0f0] px-6 py-4 sm:px-8">
+          {error && <div className="mb-3 rounded-lg border border-[#ffc0c0] bg-[#fff0f0] p-2.5 text-xs text-[#cc3333]">{error}</div>}
+          <div className="flex gap-2.5">
+            <button onClick={onClose} className="flex-1 rounded-lg border border-[#e0e0e0] py-3 text-sm text-[#888]">Cancelar</button>
+            <button onClick={submit} disabled={saving} className="flex-[2] rounded-lg bg-[#48C9B0] py-3 text-sm font-semibold text-white disabled:opacity-60">{saving ? 'Guardando...' : 'Guardar cambios'}</button>
+          </div>
+        </div>
       </div>
     </div>
   )
