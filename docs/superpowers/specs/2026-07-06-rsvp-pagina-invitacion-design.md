@@ -77,7 +77,7 @@ Nueva entrada de nav del evento: **"Invitación"** (`item`, no group). Una sola 
   ```
 
 ### Datos que se leen de otros agentes (render-if-present; dependencias externas)
-- **Código de vestimenta:** `events.dress_code TEXT` (o donde lo deje el agente responsable). La invitación lo pinta si viene con valor.
+- **Código de vestimenta / mood board:** otro agente lo construye como **mood board** (probablemente imágenes/paleta, no solo texto). Ubicación y forma a coordinar. La invitación renderiza esa sección de forma flexible según lo que ese agente guarde (texto o mood board de imágenes); si no hay dato, no aparece.
 - **Itinerario del día:** producido y configurado desde el feature de **Timeline** por otro agente. Forma esperada a coordinar: array ordenado de `{ hora, titulo, subtitulo? }` (p. ej. `event_settings.day_itinerary JSONB`). La invitación solo lo lee.
 
 ### Datos existentes que se consumen (sin cambios)
@@ -132,10 +132,13 @@ La UI y los endpoints con I/O se verifican manual. **Nada toca Supabase hasta qu
 3. Aplicar SQL aditivo en Supabase (después del push): `guests.rsvp_token`, `event_settings.invite_config`.
 4. Preview (Vercel) → main.
 
-## 12. Dependencias externas (otros agentes)
-- **Código de vestimenta:** otro agente crea/gestiona `events.dress_code`. Esta feature solo lo lee. Coordinar nombre exacto del campo.
+## 12. Dependencias externas (otros agentes trabajando en paralelo)
+- **Código de vestimenta / mood board:** otro agente lo construye como mood board. Esta feature solo lo lee. Coordinar ubicación y forma del dato (texto vs imágenes/paleta).
 - **Itinerario del día:** otro agente lo construye y lo configura dentro de **Timeline**. Esta feature solo lo lee. Coordinar ubicación y forma del dato (`{ hora, titulo, subtitulo? }[]`).
+
 Mientras esos datos no existan, las secciones correspondientes simplemente no se renderizan.
+
+**Riesgo de colisión de archivos:** los tres agentes tocan el mismo repo. Esta feature limita sus ediciones en archivos compartidos a lo mínimo: `app/events/[id]/layout.tsx` (una NavItem) y `lib/types.ts` (tipos aditivos). Todo lo demás vive en archivos propios (`app/invitacion/**`, `app/api/invitacion/**`, `app/events/[id]/invitacion/**`, `lib/invite.ts`).
 
 ## 13. Mapa de archivos afectados
 ```
