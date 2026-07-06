@@ -40,3 +40,7 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 .env.local
+
+# tooling local (Claude Code / superpowers)
+/.superpowers/
+/.claude/worktrees/
