@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { useParams, usePathname, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { Users, Images, Music2, Settings, LayoutGrid, PanelLeftClose, PanelLeftOpen, CalendarDays, House, User, LogOut, Wallet, Briefcase, Heart, MessageCircle, Receipt, Gift, UtensilsCrossed } from 'lucide-react'
+import { Users, Images, Music2, Settings, LayoutGrid, PanelLeftClose, PanelLeftOpen, CalendarDays, House, User, LogOut, Wallet, Briefcase, Heart, MessageCircle, Receipt, Gift, UtensilsCrossed, Shirt, Palette } from 'lucide-react'
 import { LEGACY_FEATURES, type FeatureKey } from '@/lib/features'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Event } from '@/lib/types'
@@ -132,6 +132,20 @@ const NAV_ITEMS: NavEntry[] = [
         label: 'Playlist', path: '/playlist',
         iconOutline: <Music2 width={18} height={18} strokeWidth={1.5} />,
         iconFilled:  <Music2 width={18} height={18} strokeWidth={2.5} />,
+      },
+    ],
+  },
+  {
+    type: 'group',
+    label: 'Estilo', labelMobile: 'Estilo',
+    defaultPath: '/vestimenta',
+    iconOutline: <Palette width={18} height={18} strokeWidth={1.5} />,
+    iconFilled:  <Palette width={18} height={18} strokeWidth={2.5} />,
+    children: [
+      {
+        label: 'Codigo de vestimenta', labelMobile: 'Vestimenta', path: '/vestimenta',
+        iconOutline: <Shirt width={18} height={18} strokeWidth={1.5} />,
+        iconFilled:  <Shirt width={18} height={18} strokeWidth={2.5} />,
       },
     ],
   },

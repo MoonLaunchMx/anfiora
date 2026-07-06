@@ -92,6 +92,7 @@ export type EventSettings = {
   registry_payment_info: RegistryPaymentInfo | null
   registry_external_links: RegistryExternalLink[] | null
   enabled_features: Partial<Record<'mesas' | 'regalos' | 'album' | 'playlist' | 'comida', boolean>> | null
+  dress_code: import('./dresscode').DressCode | null
   created_at: string
   updated_at: string
 }
