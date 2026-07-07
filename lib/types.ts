@@ -104,6 +104,8 @@ export function resolveMaxSongs(value: number | null | undefined): number {
   return value
 }
 
+export type { InviteConfig } from './invite'
+
 export type RegistryExternalLink = {
   id: string
   store: string
@@ -301,6 +303,7 @@ export type Guest = {
   allergies?: string[]
   needs_attention?: boolean
   attention_reason?: AttentionReason | null
+  rsvp_token?: string | null
 }
 
 // ─── MESSAGES ────────────────────────────────────────────────────────────────
