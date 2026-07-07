@@ -15,6 +15,11 @@ export const metadata: Metadata = {
   alternates: {
     canonical: 'https://anfiora.com',
   },
+  verification: {
+    other: {
+      'facebook-domain-verification': 'xjstzkeuvm63s52vzl0g0923w5xdh4',
+    },
+  },
   manifest: '/manifest.webmanifest',
   icons: {
     icon: [
