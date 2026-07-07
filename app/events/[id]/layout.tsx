@@ -143,7 +143,7 @@ const NAV_ITEMS: NavEntry[] = [
     iconFilled:  <Palette width={18} height={18} strokeWidth={2.5} />,
     children: [
       {
-        label: 'Codigo de vestimenta', labelMobile: 'Vestimenta', path: '/vestimenta',
+        label: 'Dress code', labelMobile: 'Dress code', path: '/vestimenta',
         iconOutline: <Shirt width={18} height={18} strokeWidth={1.5} />,
         iconFilled:  <Shirt width={18} height={18} strokeWidth={2.5} />,
       },
@@ -163,6 +163,7 @@ const FEATURE_BY_PATH: Record<string, FeatureKey> = {
   '/album':        'album',
   '/playlist':     'playlist',
   '/comida':       'comida',
+  '/vestimenta':   'vestimenta',
 }
 
 function filterNavByFeatures(entries: NavEntry[], features: Record<FeatureKey, boolean> | null): NavEntry[] {

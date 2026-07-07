@@ -15,7 +15,8 @@ describe('defaultDressCode', () => {
     expect(dc.colores_sugeridos).toEqual([])
     expect(dc.recomendaciones).toEqual([])
     expect(dc.nota_libre).toBe('')
-    expect(dc.fotos_ejemplo).toEqual([])
+    expect(dc.fotos_ellas).toEqual([])
+    expect(dc.fotos_ellos).toEqual([])
   })
 })
 
@@ -47,9 +48,19 @@ describe('parseDressCode', () => {
     expect(dc.colores_sugeridos.map(c => c.hex)).toEqual(['#3A5A40', '#FFF'])
   })
 
-  it('recorta fotos_ejemplo a 3', () => {
-    const dc = parseDressCode({ fotos_ejemplo: ['a', 'b', 'c', 'd', 'e'] })
-    expect(dc.fotos_ejemplo).toHaveLength(3)
+  it('recorta cada arreglo de fotos a 3', () => {
+    const dc = parseDressCode({
+      fotos_ellas: ['a', 'b', 'c', 'd', 'e'],
+      fotos_ellos: ['f', 'g', 'h', 'i'],
+    })
+    expect(dc.fotos_ellas).toHaveLength(3)
+    expect(dc.fotos_ellos).toHaveLength(3)
+  })
+
+  it('migra fotos_ejemplo viejo a fotos_ellas', () => {
+    const dc = parseDressCode({ fotos_ejemplo: ['a', 'b'] })
+    expect(dc.fotos_ellas).toEqual(['a', 'b'])
+    expect(dc.fotos_ellos).toEqual([])
   })
 })
 

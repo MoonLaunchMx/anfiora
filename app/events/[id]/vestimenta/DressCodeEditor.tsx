@@ -4,11 +4,13 @@ import { useState } from 'react'
 import { useParams } from 'next/navigation'
 import { X, Plus, ImagePlus } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
-import { NIVELES, RECOMENDACIONES_SUGERIDAS, type DressCode, type DressCodeColor } from '@/lib/dresscode'
+import { NIVELES, getRecomendacionesSugeridas, type DressCode, type DressCodeColor } from '@/lib/dresscode'
+
+type FotoField = 'fotos_ellas' | 'fotos_ellos'
 
 function Section({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="mb-6 last:mb-0">
+    <div className="mb-5 last:mb-0">
       <p className="mb-2.5 text-[11px] font-bold uppercase tracking-wider text-[#999]">{label}</p>
       {children}
     </div>
@@ -42,7 +44,7 @@ function ColorRow({
             value={c.nombre}
             onChange={e => update(i, { nombre: e.target.value })}
             placeholder="Nombre"
-            className="mt-1 w-16 rounded border border-[#e8e8e8] px-1 py-0.5 text-[10px] text-[#666] focus:border-[#48C9B0] focus:outline-none"
+            className="mt-1.5 w-20 rounded border border-[#e8e8e8] px-2 py-1 text-xs text-[#666] focus:border-[#48C9B0] focus:outline-none"
           />
           <button
             onClick={() => remove(i)}
@@ -63,24 +65,30 @@ function ColorRow({
 }
 
 export default function DressCodeEditor({
-  dc, onChange,
-}: { dc: DressCode; onChange: (next: DressCode) => void }) {
+  dc, onChange, eventType,
+}: { dc: DressCode; onChange: (next: DressCode) => void; eventType: string | null }) {
   const { id } = useParams()
   const [nuevaRec, setNuevaRec] = useState('')
-  const [uploading, setUploading] = useState(false)
+  const [uploading, setUploading] = useState<FotoField | null>(null)
   const patch = (p: Partial<DressCode>) => onChange({ ...dc, ...p })
 
-  const uploadFoto = async (file: File) => {
-    if (dc.fotos_ejemplo.length >= 3) return
-    setUploading(true)
-    const path = `dress-code/${id}/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`
-    const { error } = await supabase.storage.from('event-media').upload(path, file, { upsert: false })
-    if (!error) {
-      const { data } = supabase.storage.from('event-media').getPublicUrl(path)
-      patch({ fotos_ejemplo: [...dc.fotos_ejemplo, data.publicUrl] })
+  const uploadFotos = async (files: File[], field: FotoField) => {
+    const slots = 3 - dc[field].length
+    if (slots <= 0) return
+    setUploading(field)
+    const urls: string[] = []
+    for (const file of files.slice(0, slots)) {
+      const safe = file.name.replace(/[^a-zA-Z0-9.-]/g, '_')
+      const path = `dress-code/${id}/${Date.now()}-${Math.random().toString(36).slice(2, 7)}-${safe}`
+      const { error } = await supabase.storage.from('event-media').upload(path, file, { upsert: false })
+      if (!error) urls.push(supabase.storage.from('event-media').getPublicUrl(path).data.publicUrl)
     }
-    setUploading(false)
+    if (urls.length) patch({ [field]: [...dc[field], ...urls] } as Partial<DressCode>)
+    setUploading(null)
   }
+
+  const removeFoto = (field: FotoField, i: number) =>
+    patch({ [field]: dc[field].filter((_, idx) => idx !== i) } as Partial<DressCode>)
 
   const toggleRec = (rec: string) => {
     patch({
@@ -95,7 +103,7 @@ export default function DressCodeEditor({
     setNuevaRec('')
   }
 
-  const chips = Array.from(new Set([...RECOMENDACIONES_SUGERIDAS, ...dc.recomendaciones]))
+  const chips = Array.from(new Set([...getRecomendacionesSugeridas(eventType), ...dc.recomendaciones]))
 
   return (
     <div>
@@ -108,7 +116,7 @@ export default function DressCodeEditor({
                 key={n.id}
                 onClick={() => patch({ nivel: on ? null : n.id })}
                 className={`rounded-xl border px-3 py-2.5 text-left transition ${
-                  on ? 'border-[#d4a853] bg-[#fffbf0]' : 'border-[#e8e8e8] hover:border-[#d4a853]/60'
+                  on ? 'border-[#48C9B0] bg-[#f0fdfb]' : 'border-[#e8e8e8] hover:border-[#48C9B0]/60'
                 }`}
               >
                 <p className="text-[13px] font-bold text-[#1D1E20]">{n.label}</p>
@@ -127,13 +135,14 @@ export default function DressCodeEditor({
         )}
       </Section>
 
-      <Section label="Colores sugeridos">
-        <ColorRow colors={dc.colores_sugeridos} onChange={c => patch({ colores_sugeridos: c })} />
-      </Section>
-
-      <Section label="Colores a evitar">
-        <ColorRow colors={dc.colores_evitar} onChange={c => patch({ colores_evitar: c })} avoid />
-      </Section>
+      <div className="grid gap-5 sm:grid-cols-2">
+        <Section label="Colores sugeridos">
+          <ColorRow colors={dc.colores_sugeridos} onChange={c => patch({ colores_sugeridos: c })} />
+        </Section>
+        <Section label="Colores a evitar">
+          <ColorRow colors={dc.colores_evitar} onChange={c => patch({ colores_evitar: c })} avoid />
+        </Section>
+      </div>
 
       <Section label="Recomendaciones rápidas">
         <div className="flex flex-wrap gap-2">
@@ -170,7 +179,7 @@ export default function DressCodeEditor({
         <textarea
           value={dc.nota_libre}
           onChange={e => patch({ nota_libre: e.target.value })}
-          rows={3}
+          rows={2}
           placeholder="Ej. El jardín es de pasto natural, considera el tipo de zapato."
           className="w-full resize-y rounded-lg border border-[#e8e8e8] px-3 py-2 text-sm focus:border-[#48C9B0] focus:outline-none"
         />
@@ -196,31 +205,39 @@ export default function DressCodeEditor({
       </Section>
 
       <Section label="Fotos de ejemplo (opcional)">
-        <div className="flex flex-wrap gap-3">
-          {dc.fotos_ejemplo.map((url, i) => (
-            <div key={i} className="relative h-20 w-20 overflow-hidden rounded-lg border border-[#e8e8e8]">
-              <img src={url} alt="" className="h-full w-full object-cover" />
-              <button
-                onClick={() => patch({ fotos_ejemplo: dc.fotos_ejemplo.filter((_, idx) => idx !== i) })}
-                className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-white/90 text-[#999] hover:text-[#cc3333]"
-              >
-                <X size={12} />
-              </button>
+        <div className="grid gap-4 sm:grid-cols-2">
+          {([['fotos_ellas', 'Para ellas'], ['fotos_ellos', 'Para ellos']] as [FotoField, string][]).map(([field, titulo]) => (
+            <div key={field}>
+              <p className="mb-2 text-[11px] font-semibold text-[#888]">{titulo}</p>
+              <div className="flex flex-wrap gap-3">
+                {dc[field].map((url, i) => (
+                  <div key={i} className="relative h-20 w-20 overflow-hidden rounded-lg border border-[#e8e8e8]">
+                    <img src={url} alt="" className="h-full w-full object-cover" />
+                    <button
+                      onClick={() => removeFoto(field, i)}
+                      className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-white/90 text-[#999] hover:text-[#cc3333]"
+                    >
+                      <X size={12} />
+                    </button>
+                  </div>
+                ))}
+                {dc[field].length < 3 && (
+                  <label className="flex h-20 w-20 cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed border-[#e0e0e0] text-center text-[#bbb] hover:border-[#48C9B0] hover:text-[#48C9B0]">
+                    <ImagePlus size={18} />
+                    <span className="px-1 text-[10px] leading-tight">{uploading === field ? 'Subiendo...' : `Subir (${3 - dc[field].length})`}</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      className="hidden"
+                      disabled={uploading === field}
+                      onChange={e => { const fs = e.target.files ? Array.from(e.target.files) : []; if (fs.length) uploadFotos(fs, field); e.target.value = '' }}
+                    />
+                  </label>
+                )}
+              </div>
             </div>
           ))}
-          {dc.fotos_ejemplo.length < 3 && (
-            <label className="flex h-20 w-20 cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed border-[#e0e0e0] text-[#bbb] hover:border-[#48C9B0] hover:text-[#48C9B0]">
-              <ImagePlus size={18} />
-              <span className="text-[10px]">{uploading ? 'Subiendo...' : 'Subir'}</span>
-              <input
-                type="file"
-                accept="image/*"
-                className="hidden"
-                disabled={uploading}
-                onChange={e => { const f = e.target.files?.[0]; if (f) uploadFoto(f); e.target.value = '' }}
-              />
-            </label>
-          )}
         </div>
       </Section>
     </div>

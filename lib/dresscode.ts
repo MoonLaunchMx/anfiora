@@ -17,7 +17,8 @@ export type DressCode = {
   nota_libre: string
   guia_ellas: string | null
   guia_ellos: string | null
-  fotos_ejemplo: string[]
+  fotos_ellas: string[]
+  fotos_ellos: string[]
 }
 
 export const NIVELES: { id: DressCodeNivel; label: string; desc: string }[] = [
@@ -29,13 +30,34 @@ export const NIVELES: { id: DressCodeNivel; label: string; desc: string }[] = [
   { id: 'tematico',        label: 'Temático',        desc: 'Tú defines el código' },
 ]
 
-export const RECOMENDACIONES_SUGERIDAS: string[] = [
-  'Tacón bajo, es jardín',
+const RECOMENDACIONES_GENERICAS = [
+  'Zapato cómodo',
   'Lleva abrigo, refresca de noche',
   'Evita blanco',
-  'Ceremonia religiosa',
-  'Alberca o playa',
 ]
+
+const RECOMENDACIONES_POR_TIPO: Record<string, string[]> = {
+  boda:        ['Tacón bajo, es jardín', 'Evita blanco', 'Lleva abrigo, refresca de noche', 'Ceremonia religiosa'],
+  xv:          ['Evita blanco', 'Evita el color de la festejada', 'Tacón cómodo para bailar', 'Lleva abrigo, refresca de noche'],
+  cumpleanos:  ['Ropa cómoda para bailar', 'Lleva abrigo, refresca de noche', 'Alberca o playa'],
+  graduacion:  ['Formal pero cómodo', 'Zapato para caminar', 'Lleva abrigo'],
+  bautizo:     ['Ceremonia religiosa', 'Tonos claros', 'Evita negro total'],
+  fiesta:      ['Ropa cómoda para bailar', 'Alberca o playa', 'Lleva abrigo, refresca de noche'],
+  despedida:   ['Ropa cómoda para bailar', 'Alberca o playa'],
+  conferencia: ['Business casual', 'Gafete visible', 'Zapato cómodo para caminar'],
+  capacitacion:['Business casual', 'Ropa cómoda'],
+  teambuilding:['Ropa deportiva', 'Zapato para exterior', 'Lleva gorra y bloqueador'],
+  lanzamiento: ['Business casual', 'Colores de la marca'],
+  asamblea:    ['Formal de negocios'],
+  retiro:      ['Ropa cómoda', 'Zapato para exterior', 'Lleva abrigo'],
+  congreso:    ['Business casual', 'Gafete visible', 'Zapato cómodo para caminar'],
+  campamento:  ['Ropa de exterior', 'Zapato para caminar', 'Lleva abrigo e impermeable'],
+  caridad:     ['Business casual'],
+}
+
+export function getRecomendacionesSugeridas(eventType: string | null | undefined): string[] {
+  return (eventType && RECOMENDACIONES_POR_TIPO[eventType]) || RECOMENDACIONES_GENERICAS
+}
 
 const NIVEL_IDS = new Set(NIVELES.map(n => n.id))
 const HEX_RE = /^#([0-9a-fA-F]{6}|[0-9a-fA-F]{3})$/
@@ -50,7 +72,8 @@ export function defaultDressCode(): DressCode {
     nota_libre: '',
     guia_ellas: null,
     guia_ellos: null,
-    fotos_ejemplo: [],
+    fotos_ellas: [],
+    fotos_ellos: [],
   }
 }
 
@@ -76,6 +99,12 @@ export function parseDressCode(raw: unknown): DressCode {
   const nivel = typeof r.nivel === 'string' && NIVEL_IDS.has(r.nivel as DressCodeNivel)
     ? (r.nivel as DressCodeNivel)
     : null
+  let fotos_ellas = parseStrings(r.fotos_ellas).slice(0, 3)
+  const fotos_ellos = parseStrings(r.fotos_ellos).slice(0, 3)
+  // Migración de registros viejos que guardaban un solo arreglo `fotos_ejemplo`
+  if (!fotos_ellas.length && !fotos_ellos.length) {
+    fotos_ellas = parseStrings(r.fotos_ejemplo).slice(0, 3)
+  }
   return {
     nivel,
     nivel_custom: typeof r.nivel_custom === 'string' ? r.nivel_custom : null,
@@ -85,7 +114,8 @@ export function parseDressCode(raw: unknown): DressCode {
     nota_libre: typeof r.nota_libre === 'string' ? r.nota_libre : '',
     guia_ellas: typeof r.guia_ellas === 'string' ? r.guia_ellas : null,
     guia_ellos: typeof r.guia_ellos === 'string' ? r.guia_ellos : null,
-    fotos_ejemplo: parseStrings(r.fotos_ejemplo).slice(0, 3),
+    fotos_ellas,
+    fotos_ellos,
   }
 }
 
@@ -98,7 +128,8 @@ export function isDressCodeConfigured(dc: DressCode): boolean {
     dc.nota_libre.trim() ||
     (dc.guia_ellas && dc.guia_ellas.trim()) ||
     (dc.guia_ellos && dc.guia_ellos.trim()) ||
-    dc.fotos_ejemplo.length,
+    dc.fotos_ellas.length ||
+    dc.fotos_ellos.length,
   )
 }
 
@@ -119,7 +150,7 @@ function colorNames(colors: DressCodeColor[]): string {
 
 export function buildDressCodeText(dc: DressCode, opts: { eventName?: string } = {}): string {
   const lines: string[] = []
-  const header = opts.eventName ? `Código de vestimenta — ${opts.eventName}` : 'Código de vestimenta'
+  const header = opts.eventName ? `Dress code — ${opts.eventName}` : 'Dress code'
   lines.push(header)
   const label = resolveNivelLabel(dc)
   if (label) {
