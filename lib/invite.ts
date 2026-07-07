@@ -83,12 +83,11 @@ export function isInviteOpen(config: InviteConfig, todayISO: string): boolean {
 export type RsvpSubmission = {
   guestAttends: boolean
   guestAllergies: string[]
-  guestNotes: string | null
   companions: { id?: string; name: string; attends: boolean; allergies: string[] }[]
 }
 
 export type RsvpUpdate = {
-  guest: { rsvp_status: 'confirmed' | 'declined'; allergies: string[]; notes: string | null }
+  guest: { rsvp_status: 'confirmed' | 'declined'; allergies: string[] }
   companions: { id?: string; name: string; rsvp_status: 'confirmed' | 'declined'; allergies: string[] }[]
 }
 
@@ -98,7 +97,6 @@ export function buildRsvpUpdate(sub: RsvpSubmission, opts: { deadlinePassed: boo
     guest: {
       rsvp_status: sub.guestAttends ? 'confirmed' : 'declined',
       allergies: sub.guestAllergies,
-      notes: sub.guestNotes,
     },
     companions: sub.companions.map(c => ({
       id: c.id,

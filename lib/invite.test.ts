@@ -66,18 +66,18 @@ describe('isInviteOpen', () => {
 describe('buildRsvpUpdate', () => {
   it('confirma invitado y acompanantes', () => {
     const out = buildRsvpUpdate({
-      guestAttends: true, guestAllergies: ['Vegetariano'], guestNotes: 'Llegamos tarde',
+      guestAttends: true, guestAllergies: ['Vegetariano'],
       companions: [{ id: 'c1', name: 'Sofia', attends: true, allergies: [] }],
     }, { deadlinePassed: false })
-    expect(out.guest).toEqual({ rsvp_status: 'confirmed', allergies: ['Vegetariano'], notes: 'Llegamos tarde' })
+    expect(out.guest).toEqual({ rsvp_status: 'confirmed', allergies: ['Vegetariano'] })
     expect(out.companions[0]).toEqual({ id: 'c1', name: 'Sofia', rsvp_status: 'confirmed', allergies: [] })
   })
   it('declina', () => {
-    const out = buildRsvpUpdate({ guestAttends: false, guestAllergies: [], guestNotes: null, companions: [] }, { deadlinePassed: false })
+    const out = buildRsvpUpdate({ guestAttends: false, guestAllergies: [], companions: [] }, { deadlinePassed: false })
     expect(out.guest.rsvp_status).toBe('declined')
   })
   it('rechaza si la fecha limite paso', () => {
-    expect(() => buildRsvpUpdate({ guestAttends: true, guestAllergies: [], guestNotes: null, companions: [] }, { deadlinePassed: true }))
+    expect(() => buildRsvpUpdate({ guestAttends: true, guestAllergies: [], companions: [] }, { deadlinePassed: true }))
       .toThrow('deadline_passed')
   })
 })

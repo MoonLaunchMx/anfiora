@@ -25,7 +25,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
 
   const { data: guest } = await db
     .from('guests')
-    .select('id, event_id, name, party_size, rsvp_status, allergies, notes')
+    .select('id, event_id, name, party_size, rsvp_status, allergies')
     .eq('rsvp_token', token)
     .maybeSingle()
   if (!guest) return NextResponse.json({ error: 'not_found' }, { status: 404 })
@@ -45,7 +45,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
 
   return NextResponse.json({
     event,
-    guest: { id: guest.id, name: guest.name, party_size: guest.party_size, rsvp_status: guest.rsvp_status, allergies: guest.allergies || [], notes: guest.notes || null },
+    guest: { id: guest.id, name: guest.name, party_size: guest.party_size, rsvp_status: guest.rsvp_status, allergies: guest.allergies || [] },
     party_members: members || [],
     config: { mensaje_bienvenida: config.mensaje_bienvenida, fecha_limite: config.fecha_limite, mostrar_playlist: config.mostrar_playlist, mostrar_mesa: config.mostrar_mesa },
     open: isInviteOpen(config, todayISO()),
