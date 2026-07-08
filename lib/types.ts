@@ -91,7 +91,8 @@ export type EventSettings = {
   registry_token: string | null
   registry_payment_info: RegistryPaymentInfo | null
   registry_external_links: RegistryExternalLink[] | null
-  enabled_features: Partial<Record<'mesas' | 'regalos' | 'album' | 'playlist' | 'comida', boolean>> | null
+  enabled_features: import('./features').EnabledFeatures | null
+  dress_code: import('./dresscode').DressCode | null
   created_at: string
   updated_at: string
 }
@@ -102,6 +103,8 @@ export function resolveMaxSongs(value: number | null | undefined): number {
   if (!value || value < 0) return 3
   return value
 }
+
+export type { InviteDoc } from './invite/schema'
 
 export type RegistryExternalLink = {
   id: string
@@ -300,6 +303,7 @@ export type Guest = {
   allergies?: string[]
   needs_attention?: boolean
   attention_reason?: AttentionReason | null
+  rsvp_token?: string | null
 }
 
 // ─── MESSAGES ────────────────────────────────────────────────────────────────
