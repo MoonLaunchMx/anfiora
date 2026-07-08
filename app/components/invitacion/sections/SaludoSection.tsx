@@ -11,8 +11,8 @@ export default function SaludoSection({ content, ctx }: { content: Content; ctx:
     : 'Reservamos lugar para ti'
 
   return (
-    <section className="px-6 py-14 text-center">
-      <h2 className="text-2xl text-[#1D1E20]" style={{ fontFamily: "'Josefin Sans', sans-serif" }}>
+    <section className="px-6 py-8 text-center">
+      <h2 className="px-2 text-2xl font-semibold text-[#1D1E20]" style={{ fontFamily: "'Josefin Sans', sans-serif" }}>
         {content.titulo}, {ctx.guest.name}
       </h2>
       <p className="mx-auto mt-4 max-w-sm text-sm leading-relaxed text-[#666]">{content.mensaje}</p>

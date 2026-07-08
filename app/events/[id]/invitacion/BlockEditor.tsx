@@ -49,38 +49,27 @@ function SortableSectionRow({
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
-    opacity: isDragging ? 0.5 : 1,
+    opacity: isDragging ? 0.6 : 1,
+    boxShadow: isDragging ? '0 10px 26px rgba(0,0,0,0.14)' : undefined,
+    zIndex: isDragging ? 20 : undefined,
   }
 
   return (
     <div ref={setNodeRef} style={style} className="overflow-hidden rounded-xl border border-[#e8e8e8] bg-white">
-      <div className="flex items-center gap-1 px-2 py-2">
+      <div
+        {...attributes}
+        {...listeners}
+        onClick={onToggleExpand}
+        title="Arrastra para reordenar"
+        className="flex cursor-grab touch-none select-none items-center gap-2 px-3 py-2.5 active:cursor-grabbing"
+      >
+        <GripVertical size={16} className="shrink-0 text-[#ccc]" />
+        <span className="min-w-0 flex-1 truncate text-sm font-medium text-[#1D1E20]">{TYPE_LABELS[section.type]}</span>
+        <ChevronDown size={16} className={`shrink-0 text-[#aaa] transition-transform ${expanded ? 'rotate-180' : ''}`} />
         <button
           type="button"
-          {...attributes}
-          {...listeners}
-          className="flex h-7 w-7 shrink-0 cursor-grab items-center justify-center text-[#bbb] transition hover:text-[#888] active:cursor-grabbing"
-          title="Arrastrar para reordenar"
-        >
-          <GripVertical size={16} />
-        </button>
-        <button
-          type="button"
-          onClick={onToggleExpand}
-          className="flex min-w-0 flex-1 items-center gap-2 px-1 py-1 text-left"
-        >
-          <span className="truncate text-sm font-medium text-[#1D1E20]">{TYPE_LABELS[section.type]}</span>
-        </button>
-        <button
-          type="button"
-          onClick={onToggleExpand}
-          className="flex h-7 w-7 shrink-0 items-center justify-center text-[#aaa] transition hover:text-[#555]"
-        >
-          <ChevronDown size={16} className={`transition-transform ${expanded ? 'rotate-180' : ''}`} />
-        </button>
-        <button
-          type="button"
-          onClick={onRemove}
+          onClick={e => { e.stopPropagation(); onRemove() }}
+          onPointerDown={e => e.stopPropagation()}
           className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-[#bbb] transition hover:bg-[#fff0f0] hover:text-[#cc3333]"
           title="Quitar sección"
         >
@@ -120,7 +109,10 @@ export default function BlockEditor({
     return () => document.removeEventListener('mousedown', handler)
   }, [])
 
+  const handleDragStart = () => { document.body.style.cursor = 'grabbing' }
+
   const handleDragEnd = (event: DragEndEvent) => {
+    document.body.style.cursor = ''
     const { active, over } = event
     if (!over || active.id === over.id) return
     const newIndex = doc.sections.findIndex(s => s.id === over.id)
@@ -138,7 +130,7 @@ export default function BlockEditor({
           Sin secciones aún. Agrega la primera abajo.
         </div>
       ) : (
-        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd} onDragCancel={() => { document.body.style.cursor = '' }}>
           <SortableContext items={doc.sections.map(s => s.id)} strategy={verticalListSortingStrategy}>
             <div className="flex flex-col gap-2">
               {doc.sections.map(section => (

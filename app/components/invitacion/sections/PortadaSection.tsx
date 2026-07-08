@@ -13,10 +13,10 @@ export default function PortadaSection({ content, ctx }: { content: Content; ctx
   const fecha = formatFecha(ctx.event.event_date)
 
   return (
-    <section className="flex flex-col items-center justify-center gap-5 bg-[#FBF7F0] px-6 py-20 text-center">
+    <section className="flex flex-col items-center justify-center gap-5 bg-[#FBF7F0] px-6 py-12 text-center">
       <p className="text-xs font-semibold uppercase tracking-[0.25em] text-[#d4a853]">{kicker}</p>
       <h1
-        className="text-4xl leading-tight text-[#1D1E20] sm:text-5xl"
+        className="w-full break-words px-2 text-4xl font-semibold leading-tight text-[#1D1E20]"
         style={{ fontFamily: "'Josefin Sans', sans-serif" }}
       >
         {titulo}

@@ -143,7 +143,7 @@ export default function SectionForm({
       return (
         <div className="flex flex-col gap-3">
           <TextField label="Título" value={section.content.titulo} onChange={v => onPatch({ titulo: v })} />
-          <TextField label="Firma" value={section.content.firma} onChange={v => onPatch({ firma: v })} placeholder="Con cariño, Ana & Luis" />
+          <p className="text-xs text-[#999]">La firma usa los nombres del evento (los mismos de la portada).</p>
         </div>
       )
     default:

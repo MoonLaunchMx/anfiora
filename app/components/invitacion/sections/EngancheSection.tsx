@@ -6,21 +6,22 @@ import { Music2, Gift, ChevronRight } from 'lucide-react'
 type Content = Extract<Section, { type: 'enganche' }>['content']
 
 export default function EngancheSection({ content, ctx }: { content: Content; ctx: InviteCtx }) {
-  const showPlaylist = content.mostrar_playlist && Boolean(ctx.tokens.playlist)
-  const showMesa = content.mostrar_mesa && Boolean(ctx.tokens.registry)
+  const preview = ctx.mode === 'preview'
+  const showPlaylist = content.mostrar_playlist && (preview || Boolean(ctx.tokens.playlist))
+  const showMesa = content.mostrar_mesa && (preview || Boolean(ctx.tokens.registry))
 
   if (!showPlaylist && !showMesa) return null
 
   return (
-    <section className="px-6 py-14">
-      <h2 className="text-center text-xl text-[#1D1E20]" style={{ fontFamily: "'Josefin Sans', sans-serif" }}>
+    <section className="px-5 py-8">
+      <h2 className="px-2 text-center text-xl font-semibold text-[#1D1E20]" style={{ fontFamily: "'Josefin Sans', sans-serif" }}>
         {content.titulo}
       </h2>
 
-      <div className="mx-auto mt-7 flex max-w-sm flex-col gap-3">
+      <div className="mx-auto mt-5 flex max-w-sm flex-col gap-3">
         {showPlaylist && (
           <a
-            href={`/playlist/${ctx.tokens.playlist}`}
+            href={ctx.tokens.playlist ? `/playlist/${ctx.tokens.playlist}` : '#'}
             className="flex items-center gap-3 rounded-2xl border border-[#e8e8e8] bg-white px-5 py-4 transition hover:border-[#48C9B0]"
           >
             <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#fffbf0] text-[#d4a853]">
@@ -36,7 +37,7 @@ export default function EngancheSection({ content, ctx }: { content: Content; ct
 
         {showMesa && (
           <a
-            href={`/mesa/${ctx.tokens.registry}`}
+            href={ctx.tokens.registry ? `/mesa/${ctx.tokens.registry}` : '#'}
             className="flex items-center gap-3 rounded-2xl border border-[#e8e8e8] bg-white px-5 py-4 transition hover:border-[#48C9B0]"
           >
             <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#fffbf0] text-[#d4a853]">

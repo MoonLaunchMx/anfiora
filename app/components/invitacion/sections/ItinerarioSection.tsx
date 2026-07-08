@@ -9,7 +9,7 @@ export default function ItinerarioSection({ content, ctx }: { content: Content; 
   if (ctx.itinerary.length === 0) {
     if (ctx.mode !== 'preview') return null
     return (
-      <section className="px-6 py-10 text-center">
+      <section className="px-6 py-7 text-center">
         <p className="rounded-xl border border-dashed border-[#e0e0e0] bg-white px-4 py-6 text-xs text-[#bbb]">
           Se mostrará cuando configures el itinerario en Timeline
         </p>
@@ -18,8 +18,8 @@ export default function ItinerarioSection({ content, ctx }: { content: Content; 
   }
 
   return (
-    <section className="px-6 py-14">
-      <h2 className="text-center text-xl text-[#1D1E20]" style={{ fontFamily: "'Josefin Sans', sans-serif" }}>
+    <section className="px-6 py-8">
+      <h2 className="px-2 text-center text-xl font-semibold text-[#1D1E20]" style={{ fontFamily: "'Josefin Sans', sans-serif" }}>
         {content.titulo}
       </h2>
 

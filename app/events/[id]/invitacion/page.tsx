@@ -9,6 +9,7 @@ import type { InviteDoc } from '@/lib/invite/schema'
 import { randomToken } from '@/lib/invite'
 import { parseDressCode, type DressCode } from '@/lib/dresscode'
 import InvitacionRenderer from '@/app/components/invitacion/InvitacionRenderer'
+import PreviewBoundary from '@/app/components/invitacion/PreviewBoundary'
 import type { InviteCtx } from '@/app/components/invitacion/types'
 import DatePicker from '@/app/components/ui/DatePicker'
 import BlockEditor from './BlockEditor'
@@ -68,21 +69,23 @@ export default function InvitacionPage() {
       setPlaylistToken(inviteRow?.playlist_token ?? null)
       setRegistryToken(inviteRow?.registry_token ?? null)
       setDoc(resolveDoc(inviteRow?.invite_config, () => crypto.randomUUID()))
-      setLoading(false)
     }
-    load()
+    load().finally(() => setLoading(false))
   }, [eventId])
 
   useEffect(() => () => { if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current) }, [])
 
   const persist = useCallback(async (next: InviteDoc) => {
     setSaving(true)
-    await supabase
-      .from('event_settings')
-      .upsert({ event_id: eventId, invite_config: next, updated_at: new Date().toISOString() }, { onConflict: 'event_id' })
-    setSaving(false)
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2000)
+    try {
+      await supabase
+        .from('event_settings')
+        .upsert({ event_id: eventId, invite_config: next, updated_at: new Date().toISOString() }, { onConflict: 'event_id' })
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2000)
+    } finally {
+      setSaving(false)
+    }
   }, [eventId])
 
   const updateDoc = (next: InviteDoc) => {
@@ -97,8 +100,8 @@ export default function InvitacionPage() {
     setDoc(next)
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current)
     setPublishing(true)
-    await persist(next)
     try {
+      await persist(next)
       const { data: pending, error } = await supabase
         .from('guests')
         .select('id')
@@ -111,14 +114,23 @@ export default function InvitacionPage() {
       }
     } catch {
       // rsvp_token puede no existir aun si el SQL de la feature no se ha corrido; no bloquea publicar
+    } finally {
+      setPublishing(false)
     }
-    setPublishing(false)
   }
 
-  if (loading || !doc || !event) {
+  if (loading || !doc) {
     return (
       <div className="flex flex-1 items-center justify-center">
         <div className="h-7 w-7 animate-spin rounded-full border-2 border-[#e8e8e8] border-t-[#48C9B0]" />
+      </div>
+    )
+  }
+
+  if (!event) {
+    return (
+      <div className="flex flex-1 items-center justify-center px-6 text-center text-sm text-[#888]">
+        No se pudo cargar el evento. Recarga la página o vuelve al inicio.
       </div>
     )
   }
@@ -183,13 +195,18 @@ export default function InvitacionPage() {
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 pb-6 pt-5 sm:px-6 lg:px-10">
-        <div className="grid items-start gap-5 lg:grid-cols-[1fr_400px]">
+        <div className="grid items-start gap-6 sm:grid-cols-[1fr_360px] lg:gap-8">
           <BlockEditor doc={doc} onChange={updateDoc} makeId={() => crypto.randomUUID()} />
 
-          <div className="flex justify-center lg:sticky lg:top-0">
-            <div className="w-full max-w-[390px] overflow-hidden rounded-[2.5rem] border-[10px] border-[#1D1E20] bg-[#1D1E20] shadow-xl">
-              <div className="h-[720px] overflow-y-auto bg-[#FBF7F0]">
-                <InvitacionRenderer doc={doc} ctx={sampleCtx} />
+          <div className="sm:sticky sm:top-0">
+            <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-[#999]">Vista previa</p>
+            <div className="flex justify-center">
+              <div className="w-full max-w-[360px] overflow-hidden rounded-[2.5rem] border-[10px] border-[#1D1E20] bg-[#1D1E20] shadow-xl">
+                <div className="h-[720px] overflow-y-auto overflow-x-hidden bg-[#FBF7F0]">
+                  <PreviewBoundary>
+                    <InvitacionRenderer doc={doc} ctx={sampleCtx} />
+                  </PreviewBoundary>
+                </div>
               </div>
             </div>
           </div>

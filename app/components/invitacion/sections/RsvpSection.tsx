@@ -129,8 +129,8 @@ export default function RsvpSection({ content, ctx }: { content: Content; ctx: I
   }
 
   return (
-    <section className="px-6 py-14">
-      <h2 className="text-center text-xl text-[#1D1E20]" style={{ fontFamily: "'Josefin Sans', sans-serif" }}>
+    <section className="px-6 py-8">
+      <h2 className="px-2 text-center text-xl font-semibold text-[#1D1E20]" style={{ fontFamily: "'Josefin Sans', sans-serif" }}>
         {content.titulo}
       </h2>
       <p className="mx-auto mt-2 max-w-sm text-center text-sm text-[#666]">{content.texto}</p>
@@ -150,7 +150,7 @@ export default function RsvpSection({ content, ctx }: { content: Content; ctx: I
                     : 'border-[#e8e8e8] text-[#666]'
                 }`}
               >
-                <Check size={14} /> Asisto
+                <Check size={14} /> Sí
               </button>
               <button
                 type="button"
@@ -162,7 +162,7 @@ export default function RsvpSection({ content, ctx }: { content: Content; ctx: I
                     : 'border-[#e8e8e8] text-[#666]'
                 }`}
               >
-                <X size={14} /> No podré
+                <X size={14} /> No
               </button>
             </div>
 
