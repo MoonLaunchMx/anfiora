@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useParams } from 'next/navigation'
-import { Send, Check } from 'lucide-react'
+import { Send, Check, LayoutGrid } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { resolveDoc, setMeta } from '@/lib/invite/doc'
 import type { InviteDoc } from '@/lib/invite/schema'
@@ -161,17 +161,36 @@ export default function InvitacionPage() {
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <div className="shrink-0 border-b border-[#e8e8e8] bg-white px-4 pt-4 pb-4 sm:px-6 sm:pt-5 lg:px-10 lg:pt-6">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="min-w-0 flex-1">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
             <h1 className="text-xl font-bold text-[#1D1E20]">Invitación</h1>
-            <p className="mt-0.5 text-xs text-[#888] sm:text-sm">Arma la invitación digital que verán tus invitados.</p>
-          </div>
-          <div className="flex shrink-0 flex-wrap items-end gap-2.5">
-            <span className={`shrink-0 rounded-full border px-3 py-1.5 text-xs font-semibold ${badgeClass}`}>
+            <span className={`flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${badgeClass}`}>
+              <span className={`h-1.5 w-1.5 rounded-full ${doc.meta.publicada ? 'bg-[#48C9B0]' : 'bg-[#bbb]'}`} />
               {doc.meta.publicada ? 'Publicada' : 'Borrador'}
             </span>
-            <div className="w-40">
-              <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-[#aaa]">Fecha límite</label>
+          </div>
+          <p className="mt-0.5 text-xs text-[#888] sm:text-sm">Arma la invitación digital que verán tus invitados.</p>
+        </div>
+
+        <div className="mt-3 flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+          <div className="flex w-full overflow-hidden rounded-lg border border-[#e0e0e0] sm:w-auto">
+            <button
+              onClick={() => setActiveTab('diseno')}
+              className={['flex flex-1 items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium transition sm:flex-none sm:py-1.5', activeTab === 'diseno' ? 'bg-[#1D1E20] text-white' : 'text-[#888] hover:bg-[#f5f5f5]'].join(' ')}
+            >
+              <LayoutGrid width={13} height={13} /><span>Diseño</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('enviar')}
+              className={['flex flex-1 items-center justify-center gap-1.5 border-l border-[#e0e0e0] px-3 py-2 text-xs font-medium transition sm:flex-none sm:py-1.5', activeTab === 'enviar' ? 'bg-[#1D1E20] text-white' : 'text-[#888] hover:bg-[#f5f5f5]'].join(' ')}
+            >
+              <Send width={13} height={13} /><span>Enviar</span>
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2.5">
+            <span className="hidden shrink-0 text-xs text-[#888] sm:inline">Fecha límite</span>
+            <div className="flex-1 sm:w-36 sm:flex-none">
               <DatePicker
                 value={doc.meta.fecha_limite ?? ''}
                 onChange={v => updateDoc(setMeta(doc, { fecha_limite: v || null }))}
@@ -191,31 +210,10 @@ export default function InvitacionPage() {
                 <><Send size={14} /> Publicar</>
               )}
             </button>
-            <span className="w-16 shrink-0 text-right text-xs text-[#aaa]">
+            <span className="hidden w-14 shrink-0 text-right text-xs text-[#aaa] sm:inline">
               {saved ? 'Guardado' : saving ? 'Guardando...' : ''}
             </span>
           </div>
-        </div>
-      </div>
-
-      <div className="shrink-0 border-b border-[#e8e8e8] bg-white px-4 sm:px-6 lg:px-10">
-        <div className="flex gap-6">
-          {([
-            { key: 'diseno', label: 'Diseño' },
-            { key: 'enviar', label: 'Enviar' },
-          ] as const).map(tab => (
-            <button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
-              className={`border-b-2 px-1 py-3 text-sm font-semibold transition ${
-                activeTab === tab.key
-                  ? 'border-[#48C9B0] text-[#1D1E20]'
-                  : 'border-transparent text-[#999] hover:text-[#1D1E20]'
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
         </div>
       </div>
 
@@ -225,10 +223,10 @@ export default function InvitacionPage() {
             <BlockEditor doc={doc} onChange={updateDoc} makeId={() => crypto.randomUUID()} />
 
             <div className="sm:sticky sm:top-0">
-              <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-[#999]">Vista previa</p>
+              <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wider text-[#999]">Vista previa</p>
               <div className="flex justify-center">
                 <div className="w-full max-w-[360px] overflow-hidden rounded-[2.5rem] border-[10px] border-[#1D1E20] bg-[#1D1E20] shadow-xl">
-                  <div className="h-[720px] overflow-y-auto overflow-x-hidden bg-[#FBF7F0]">
+                  <div className="h-[calc(100dvh-18rem)] max-h-[720px] min-h-[420px] overflow-y-auto overflow-x-hidden bg-[#FBF7F0]">
                     <PreviewBoundary>
                       <InvitacionRenderer doc={doc} ctx={sampleCtx} />
                     </PreviewBoundary>
