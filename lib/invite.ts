@@ -1,34 +1,3 @@
-export type InviteConfig = {
-  publicada: boolean
-  mensaje_bienvenida: string
-  fecha_limite: string | null
-  mostrar_playlist: boolean
-  mostrar_mesa: boolean
-}
-
-export function defaultInviteConfig(): InviteConfig {
-  return {
-    publicada: false,
-    mensaje_bienvenida: 'Nos encantaría que nos acompañes en este día tan especial.',
-    fecha_limite: null,
-    mostrar_playlist: true,
-    mostrar_mesa: true,
-  }
-}
-
-export function mergeInviteConfig(raw: unknown): InviteConfig {
-  const d = defaultInviteConfig()
-  if (!raw || typeof raw !== 'object') return d
-  const r = raw as Record<string, unknown>
-  return {
-    publicada: typeof r.publicada === 'boolean' ? r.publicada : d.publicada,
-    mensaje_bienvenida: typeof r.mensaje_bienvenida === 'string' ? r.mensaje_bienvenida : d.mensaje_bienvenida,
-    fecha_limite: typeof r.fecha_limite === 'string' && r.fecha_limite ? r.fecha_limite : d.fecha_limite,
-    mostrar_playlist: typeof r.mostrar_playlist === 'boolean' ? r.mostrar_playlist : d.mostrar_playlist,
-    mostrar_mesa: typeof r.mostrar_mesa === 'boolean' ? r.mostrar_mesa : d.mostrar_mesa,
-  }
-}
-
 const TOKEN_ALPHABET = '23456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz'
 
 export function randomToken(len = 10, rand: () => number = Math.random): string {
@@ -74,7 +43,7 @@ export function resolveEventKicker(eventType: string | null | undefined): string
   return 'Te invitamos'
 }
 
-export function isInviteOpen(config: InviteConfig, todayISO: string): boolean {
+export function isInviteOpen(config: { publicada: boolean; fecha_limite: string | null }, todayISO: string): boolean {
   if (!config.publicada) return false
   if (!config.fecha_limite) return true
   return todayISO <= config.fecha_limite

@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { useParams, usePathname, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { Users, Images, Music2, Settings, LayoutGrid, PanelLeftClose, PanelLeftOpen, CalendarDays, House, User, LogOut, Wallet, Briefcase, Heart, MessageCircle, Receipt, Gift, UtensilsCrossed, Shirt, Palette } from 'lucide-react'
+import { Users, Images, Music2, Settings, LayoutGrid, PanelLeftClose, PanelLeftOpen, CalendarDays, House, User, LogOut, Wallet, Briefcase, Heart, MessageCircle, Receipt, Gift, UtensilsCrossed, Shirt, Palette, MailOpen } from 'lucide-react'
 import { LEGACY_FEATURES, type FeatureKey } from '@/lib/features'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Event } from '@/lib/types'
@@ -61,6 +61,12 @@ const NAV_ITEMS: NavEntry[] = [
     label: 'Invitados', labelMobile: 'Invitados', path: '', adminOnly: false,
     iconOutline: <Users         width={18} height={18} strokeWidth={1.5} />,
     iconFilled:  <Users         width={18} height={18} strokeWidth={2.5} />,
+  },
+  {
+    type: 'item',
+    label: 'Invitación', labelMobile: 'Invitación', path: '/invitacion', adminOnly: false,
+    iconOutline: <MailOpen      width={18} height={18} strokeWidth={1.5} />,
+    iconFilled:  <MailOpen      width={18} height={18} strokeWidth={2.5} />,
   },
   {
     type: 'item',
@@ -164,6 +170,7 @@ const FEATURE_BY_PATH: Record<string, FeatureKey> = {
   '/playlist':     'playlist',
   '/comida':       'comida',
   '/vestimenta':   'vestimenta',
+  '/invitacion':   'invitacion',
 }
 
 function filterNavByFeatures(entries: NavEntry[], features: Record<FeatureKey, boolean> | null): NavEntry[] {

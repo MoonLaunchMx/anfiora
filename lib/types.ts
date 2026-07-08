@@ -104,7 +104,7 @@ export function resolveMaxSongs(value: number | null | undefined): number {
   return value
 }
 
-export type { InviteConfig } from './invite'
+export type { InviteDoc } from './invite/schema'
 
 export type RegistryExternalLink = {
   id: string

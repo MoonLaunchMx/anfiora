@@ -23,12 +23,6 @@ function todayISO(): string {
   return new Date().toISOString().slice(0, 10)
 }
 
-// isInviteOpen sigue tipado sobre InviteConfig (config plana vieja); el doc de bloques
-// solo trae publicada+fecha_limite en meta, que es justo lo que la funcion usa.
-function metaIsOpen(meta: { publicada: boolean; fecha_limite: string | null }): boolean {
-  return isInviteOpen({ ...meta, mensaje_bienvenida: '', mostrar_playlist: true, mostrar_mesa: true }, todayISO())
-}
-
 export default function InvitacionClient({ token }: { token: string }) {
   const [data, setData] = useState<ApiData | null>(null)
   const [loading, setLoading] = useState(true)
@@ -95,7 +89,7 @@ export default function InvitacionClient({ token }: { token: string }) {
     tokens: data.tokens,
     mode: 'public',
     onSubmit: handleSubmit,
-    deadlinePassed: !metaIsOpen(data.doc.meta),
+    deadlinePassed: !isInviteOpen(data.doc.meta, todayISO()),
   }
 
   return (

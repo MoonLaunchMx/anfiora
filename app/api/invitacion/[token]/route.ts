@@ -12,12 +12,6 @@ function todayISO(): string {
   return new Date().toISOString().slice(0, 10)
 }
 
-// isInviteOpen sigue tipado sobre InviteConfig (config plana vieja); el doc de bloques
-// solo trae publicada+fecha_limite en meta, que es justo lo que la funcion usa.
-function metaIsOpen(meta: { publicada: boolean; fecha_limite: string | null }, today: string): boolean {
-  return isInviteOpen({ ...meta, mensaje_bienvenida: '', mostrar_playlist: true, mostrar_mesa: true }, today)
-}
-
 // Lectura best-effort: si la columna/tabla aun no existe (otro agente/SQL pendiente), regresa null/[] sin romper.
 async function safeSingle<T>(p: PromiseLike<{ data: T | null; error: unknown }>): Promise<T | null> {
   try { const { data, error } = await p; return error ? null : data } catch { return null }
@@ -107,7 +101,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
   if (!found || !found.doc.meta.publicada) return NextResponse.json({ error: 'not_found' }, { status: 404 })
   const { guest, doc } = found
 
-  const deadlinePassed = !metaIsOpen(doc.meta, todayISO())
+  const deadlinePassed = !isInviteOpen(doc.meta, todayISO())
   const rawBody = await req.json().catch(() => null)
   if (!rawBody || typeof rawBody !== 'object') {
     return NextResponse.json({ error: 'bad_request' }, { status: 400 })

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  defaultInviteConfig, mergeInviteConfig, randomToken, slugifyEvent,
+  randomToken, slugifyEvent,
   resolveInviteHeading, resolveEventKicker, isInviteOpen, buildRsvpUpdate,
 } from './invite'
 
@@ -42,21 +42,8 @@ describe('resolveEventKicker', () => {
   it('default neutral', () => { expect(resolveEventKicker(null)).toBe('Te invitamos') })
 })
 
-describe('mergeInviteConfig', () => {
-  it('rellena defaults desde objeto vacio', () => {
-    expect(mergeInviteConfig({})).toEqual(defaultInviteConfig())
-  })
-  it('respeta valores dados y descarta basura', () => {
-    const c = mergeInviteConfig({ publicada: true, fecha_limite: '2026-02-28', mostrar_playlist: false, extra: 1 })
-    expect(c.publicada).toBe(true)
-    expect(c.fecha_limite).toBe('2026-02-28')
-    expect(c.mostrar_playlist).toBe(false)
-    expect(c.mostrar_mesa).toBe(true)
-  })
-})
-
 describe('isInviteOpen', () => {
-  const base = { ...defaultInviteConfig(), publicada: true }
+  const base = { publicada: true, fecha_limite: null as string | null }
   it('borrador cerrado', () => { expect(isInviteOpen({ ...base, publicada: false }, '2026-01-01')).toBe(false) })
   it('sin fecha limite -> abierto', () => { expect(isInviteOpen({ ...base, fecha_limite: null }, '2026-01-01')).toBe(true) })
   it('antes de la fecha -> abierto', () => { expect(isInviteOpen({ ...base, fecha_limite: '2026-02-28' }, '2026-02-01')).toBe(true) })

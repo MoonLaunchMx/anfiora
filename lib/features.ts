@@ -1,8 +1,8 @@
 import type React from 'react'
-import { LayoutGrid, Gift, Images, Music2, UtensilsCrossed, Shirt } from 'lucide-react'
+import { LayoutGrid, Gift, Images, Music2, UtensilsCrossed, Shirt, MailOpen } from 'lucide-react'
 import { EVENT_TYPES } from './event-types'
 
-export type FeatureKey = 'mesas' | 'regalos' | 'album' | 'playlist' | 'comida' | 'vestimenta'
+export type FeatureKey = 'mesas' | 'regalos' | 'album' | 'playlist' | 'comida' | 'vestimenta' | 'invitacion'
 
 export type EnabledFeatures = Partial<Record<FeatureKey, boolean>>
 
@@ -21,13 +21,14 @@ export const FEATURES: FeatureConfig[] = [
   { key: 'playlist', label: 'Playlist',               description: 'Playlist colaborativa con sugerencias de los invitados',      icon: Music2,          navPaths: ['/playlist'] },
   { key: 'comida',   label: 'Planificador de comida', description: 'Planea menú y compras por persona y por día',                 icon: UtensilsCrossed, navPaths: ['/comida'] },
   { key: 'vestimenta', label: 'Dress code',           description: 'Comparte qué ponerse: nivel, colores y recomendaciones',      icon: Shirt,           navPaths: ['/vestimenta'] },
+  { key: 'invitacion', label: 'Invitación',           description: 'Invitación digital por invitado con confirmación de asistencia', icon: MailOpen,      navPaths: ['/invitacion'] },
 ]
 
 export const ALWAYS_ON_FEATURES = ['Invitados', 'Mensajes', 'Timeline', 'Finanzas'] as const
 
 // Eventos existentes (columna null): exactamente el nav actual — comida oculta
 export const LEGACY_FEATURES: Record<FeatureKey, boolean> = {
-  mesas: true, regalos: true, album: true, playlist: true, comida: false, vestimenta: true,
+  mesas: true, regalos: true, album: true, playlist: true, comida: false, vestimenta: true, invitacion: true,
 }
 
 export function getDefaultFeatures(eventTypeValue: string | null): Record<FeatureKey, boolean> {
@@ -42,6 +43,7 @@ export function getDefaultFeatures(eventTypeValue: string | null): Record<Featur
     playlist: defaults.includes('playlist'),
     comida:   defaults.includes('comida'),
     vestimenta: defaults.includes('vestimenta'),
+    invitacion: defaults.includes('invitacion'),
   }
 }
 
@@ -58,5 +60,6 @@ export function resolveFeatures(
     playlist: enabled.playlist ?? defaults.playlist,
     comida:   enabled.comida   ?? defaults.comida,
     vestimenta: enabled.vestimenta ?? defaults.vestimenta,
+    invitacion: enabled.invitacion ?? defaults.invitacion,
   }
 }
