@@ -1,10 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { isInviteOpen, buildRsvpUpdate, type RsvpSubmission } from '@/lib/invite'
 import { resolveDoc } from '@/lib/invite/doc'
 import { parseDressCode } from '@/lib/dresscode'
+import { logAction } from '@/lib/audit'
 
 const admin = () =>
   createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+
+function todayISO(): string {
+  return new Date().toISOString().slice(0, 10)
+}
+
+// isInviteOpen sigue tipado sobre InviteConfig (config plana vieja); el doc de bloques
+// solo trae publicada+fecha_limite en meta, que es justo lo que la funcion usa.
+function metaIsOpen(meta: { publicada: boolean; fecha_limite: string | null }, today: string): boolean {
+  return isInviteOpen({ ...meta, mensaje_bienvenida: '', mostrar_playlist: true, mostrar_mesa: true }, today)
+}
 
 // Lectura best-effort: si la columna/tabla aun no existe (otro agente/SQL pendiente), regresa null/[] sin romper.
 async function safeSingle<T>(p: PromiseLike<{ data: T | null; error: unknown }>): Promise<T | null> {
@@ -65,5 +77,97 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
     dressCode: parseDressCode(dressRow?.dress_code),
     itinerary: itin,
     tokens: { playlist: settings?.playlist_token ?? null, registry: settings?.registry_token ?? null },
+  })
+}
+
+function parseSubmission(body: unknown): RsvpSubmission {
+  const b = (body && typeof body === 'object' ? body : {}) as Record<string, unknown>
+  const companionsRaw = Array.isArray(b.companions) ? b.companions : []
+  return {
+    guestAttends: Boolean(b.guestAttends),
+    guestAllergies: Array.isArray(b.guestAllergies) ? b.guestAllergies.filter((x): x is string => typeof x === 'string') : [],
+    companions: companionsRaw.map(c => {
+      const cc = (c && typeof c === 'object' ? c : {}) as Record<string, unknown>
+      return {
+        id: typeof cc.id === 'string' ? cc.id : undefined,
+        name: typeof cc.name === 'string' ? cc.name : '',
+        attends: Boolean(cc.attends),
+        allergies: Array.isArray(cc.allergies) ? cc.allergies.filter((x): x is string => typeof x === 'string') : [],
+      }
+    }),
+  }
+}
+
+export async function POST(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
+  const { token } = await params
+  if (!token) return NextResponse.json({ error: 'not_found' }, { status: 404 })
+  const db = admin()
+
+  const found = await fetchGuestAndDoc(db, token)
+  if (!found || !found.doc.meta.publicada) return NextResponse.json({ error: 'not_found' }, { status: 404 })
+  const { guest, doc } = found
+
+  const deadlinePassed = !metaIsOpen(doc.meta, todayISO())
+  const sub = parseSubmission(await req.json().catch(() => null))
+
+  let update
+  try {
+    update = buildRsvpUpdate(sub, { deadlinePassed })
+  } catch {
+    return NextResponse.json({ error: 'closed' }, { status: 410 })
+  }
+
+  await db.from('guests').update({ rsvp_status: update.guest.rsvp_status, allergies: update.guest.allergies }).eq('id', guest.id)
+
+  const existingUpdates = update.companions.filter(c => c.id)
+  const newInserts = update.companions.filter(c => !c.id)
+
+  await Promise.all(
+    existingUpdates.map(c =>
+      db.from('party_members')
+        .update({ rsvp_status: c.rsvp_status, allergies: c.allergies })
+        .eq('id', c.id as string)
+        .eq('guest_id', guest.id),
+    ),
+  )
+
+  let insertedIds: string[] = []
+  if (newInserts.length > 0) {
+    const { data: inserted } = await db
+      .from('party_members')
+      .insert(newInserts.map(c => ({
+        event_id: guest.event_id,
+        guest_id: guest.id,
+        name: c.name,
+        rsvp_status: c.rsvp_status,
+        allergies: c.allergies,
+      })))
+      .select('id')
+    insertedIds = (inserted || []).map((r: { id: string }) => r.id)
+  }
+
+  let insertIdx = 0
+  const companionsResponse = update.companions.map(c => ({
+    id: c.id ?? insertedIds[insertIdx++],
+    name: c.name,
+    rsvp_status: c.rsvp_status,
+    allergies: c.allergies,
+  }))
+
+  try {
+    await logAction({
+      eventId: guest.event_id,
+      action: 'guest.rsvp_updated',
+      entityType: 'guest',
+      entityId: guest.id,
+      entityLabel: guest.name,
+    })
+  } catch {
+    // silent fail — nunca debe romper la confirmacion del invitado
+  }
+
+  return NextResponse.json({
+    guest: { rsvp_status: update.guest.rsvp_status, allergies: update.guest.allergies },
+    companions: companionsResponse,
   })
 }
