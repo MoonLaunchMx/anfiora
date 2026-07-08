@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { resolveInviteHeading } from '@/lib/invite'
+import { resolveDoc } from '@/lib/invite/doc'
 import { formatFecha } from '@/app/components/invitacion/format'
 import InvitacionClient from './InvitacionClient'
 
@@ -7,7 +8,7 @@ const admin = () =>
   createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
 const FALLBACK_METADATA = {
-  title: 'Invitación | Anfiora',
+  title: 'Invitación',
   description: 'Estás invitado a un evento especial.',
 }
 
@@ -17,6 +18,14 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     const db = admin()
     const { data: guest } = await db.from('guests').select('event_id').eq('rsvp_token', token).maybeSingle()
     if (!guest) return FALLBACK_METADATA
+
+    const { data: settings } = await db
+      .from('event_settings')
+      .select('invite_config')
+      .eq('event_id', guest.event_id)
+      .maybeSingle()
+    const doc = resolveDoc(settings?.invite_config, () => crypto.randomUUID())
+    if (!doc.meta.publicada) return FALLBACK_METADATA
 
     const { data: event } = await db
       .from('events')

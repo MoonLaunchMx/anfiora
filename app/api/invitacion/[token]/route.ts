@@ -108,6 +108,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
   }
   const sub = parseSubmission(rawBody)
 
+  const existingMembers = await safeList<{ id: string }>(
+    db.from('party_members').select('id').eq('guest_id', guest.id),
+  )
+  const existingIds = new Set(existingMembers.map(m => m.id))
+  sub.companions = sub.companions.filter(c => c.id && existingIds.has(c.id))
+
   let update
   try {
     update = buildRsvpUpdate(sub, { deadlinePassed })
@@ -123,11 +129,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
     return NextResponse.json({ error: 'server_error' }, { status: 500 })
   }
 
-  const existingUpdates = update.companions.filter(c => c.id)
-  const newInserts = update.companions.filter(c => !c.id)
-
   await Promise.all(
-    existingUpdates.map(c =>
+    update.companions.map(c =>
       db.from('party_members')
         .update({ rsvp_status: c.rsvp_status, allergies: c.allergies })
         .eq('id', c.id as string)
@@ -135,24 +138,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
     ),
   )
 
-  let insertedIds: string[] = []
-  if (newInserts.length > 0) {
-    const { data: inserted } = await db
-      .from('party_members')
-      .insert(newInserts.map(c => ({
-        event_id: guest.event_id,
-        guest_id: guest.id,
-        name: c.name,
-        rsvp_status: c.rsvp_status,
-        allergies: c.allergies,
-      })))
-      .select('id')
-    insertedIds = (inserted || []).map((r: { id: string }) => r.id)
-  }
-
-  let insertIdx = 0
   const companionsResponse = update.companions.map(c => ({
-    id: c.id ?? insertedIds[insertIdx++],
+    id: c.id as string,
     name: c.name,
     rsvp_status: c.rsvp_status,
     allergies: c.allergies,
