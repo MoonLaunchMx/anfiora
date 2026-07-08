@@ -13,6 +13,9 @@ import PreviewBoundary from '@/app/components/invitacion/PreviewBoundary'
 import type { InviteCtx } from '@/app/components/invitacion/types'
 import DatePicker from '@/app/components/ui/DatePicker'
 import BlockEditor from './BlockEditor'
+import RepartoLinks from './RepartoLinks'
+
+type TabKey = 'diseno' | 'enviar'
 
 type EventInfo = {
   name: string
@@ -47,6 +50,7 @@ export default function InvitacionPage() {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [publishing, setPublishing] = useState(false)
+  const [activeTab, setActiveTab] = useState<TabKey>('diseno')
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   useEffect(() => {
@@ -194,23 +198,48 @@ export default function InvitacionPage() {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-4 pb-6 pt-5 sm:px-6 lg:px-10">
-        <div className="grid items-start gap-6 sm:grid-cols-[1fr_360px] lg:gap-8">
-          <BlockEditor doc={doc} onChange={updateDoc} makeId={() => crypto.randomUUID()} />
+      <div className="shrink-0 border-b border-[#e8e8e8] bg-white px-4 sm:px-6 lg:px-10">
+        <div className="flex gap-6">
+          {([
+            { key: 'diseno', label: 'Diseño' },
+            { key: 'enviar', label: 'Enviar' },
+          ] as const).map(tab => (
+            <button
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key)}
+              className={`border-b-2 px-1 py-3 text-sm font-semibold transition ${
+                activeTab === tab.key
+                  ? 'border-[#48C9B0] text-[#1D1E20]'
+                  : 'border-transparent text-[#999] hover:text-[#1D1E20]'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      </div>
 
-          <div className="sm:sticky sm:top-0">
-            <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-[#999]">Vista previa</p>
-            <div className="flex justify-center">
-              <div className="w-full max-w-[360px] overflow-hidden rounded-[2.5rem] border-[10px] border-[#1D1E20] bg-[#1D1E20] shadow-xl">
-                <div className="h-[720px] overflow-y-auto overflow-x-hidden bg-[#FBF7F0]">
-                  <PreviewBoundary>
-                    <InvitacionRenderer doc={doc} ctx={sampleCtx} />
-                  </PreviewBoundary>
+      <div className="flex-1 overflow-y-auto px-4 pb-6 pt-5 sm:px-6 lg:px-10">
+        {activeTab === 'diseno' ? (
+          <div className="grid items-start gap-6 sm:grid-cols-[1fr_360px] lg:gap-8">
+            <BlockEditor doc={doc} onChange={updateDoc} makeId={() => crypto.randomUUID()} />
+
+            <div className="sm:sticky sm:top-0">
+              <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-[#999]">Vista previa</p>
+              <div className="flex justify-center">
+                <div className="w-full max-w-[360px] overflow-hidden rounded-[2.5rem] border-[10px] border-[#1D1E20] bg-[#1D1E20] shadow-xl">
+                  <div className="h-[720px] overflow-y-auto overflow-x-hidden bg-[#FBF7F0]">
+                    <PreviewBoundary>
+                      <InvitacionRenderer doc={doc} ctx={sampleCtx} />
+                    </PreviewBoundary>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
+        ) : (
+          <RepartoLinks eventId={eventId} event={event} />
+        )}
       </div>
     </div>
   )
