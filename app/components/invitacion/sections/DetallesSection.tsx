@@ -2,16 +2,9 @@
 import type { Section } from '@/lib/invite/schema'
 import type { InviteCtx } from '../types'
 import { Calendar, Clock, MapPin } from 'lucide-react'
+import { formatFecha } from '../format'
 
 type Content = Extract<Section, { type: 'detalles' }>['content']
-
-function formatFecha(iso: string | null): string {
-  if (!iso) return ''
-  const [y, m, d] = iso.split('T')[0].split('-').map(Number)
-  return new Date(y, m - 1, d).toLocaleDateString('es-MX', {
-    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
-  })
-}
 
 export default function DetallesSection({ content, ctx }: { content: Content; ctx: InviteCtx }) {
   const fecha = formatFecha(ctx.event.event_date)

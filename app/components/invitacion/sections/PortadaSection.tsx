@@ -2,17 +2,10 @@
 import type { Section } from '@/lib/invite/schema'
 import type { InviteCtx } from '../types'
 import { resolveInviteHeading, resolveEventKicker } from '@/lib/invite'
+import { formatFecha } from '../format'
 import { Calendar, MapPin } from 'lucide-react'
 
 type Content = Extract<Section, { type: 'portada' }>['content']
-
-function formatFecha(iso: string | null): string {
-  if (!iso) return ''
-  const [y, m, d] = iso.split('T')[0].split('-').map(Number)
-  return new Date(y, m - 1, d).toLocaleDateString('es-MX', {
-    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
-  })
-}
 
 export default function PortadaSection({ content, ctx }: { content: Content; ctx: InviteCtx }) {
   const titulo = content.titulo || resolveInviteHeading(ctx.event)

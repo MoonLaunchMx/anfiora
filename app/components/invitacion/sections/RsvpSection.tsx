@@ -178,11 +178,11 @@ export default function RsvpSection({ content, ctx }: { content: Content; ctx: I
       {note && <p className="mt-5 text-center text-xs text-[#999]">{note}</p>}
       {error && <p className="mt-3 text-center text-xs text-[#cc3333]">{error}</p>}
 
-      {!disabled && !submitted && (
+      {!submitted && (
         <button
           type="button"
           onClick={handleSubmit}
-          disabled={!allChosen || submitting}
+          disabled={disabled || !allChosen || submitting}
           className="mx-auto mt-6 block w-full max-w-sm rounded-full bg-[#48C9B0] py-3 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-50"
         >
           {submitting ? 'Enviando…' : 'Confirmar asistencia'}
