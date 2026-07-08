@@ -69,3 +69,43 @@ describe('resolveDoc', () => {
     expect(d.sections.length).toBe(1)
   })
 })
+
+const base = () => defaultDoc(makeId)
+
+describe('ops de array', () => {
+  it('addSection agrega al final sin mutar', () => {
+    const d0 = base()
+    const len = d0.sections.length
+    const d1 = addSection(d0, 'texto', makeId)
+    expect(d1.sections.length).toBe(len + 1)
+    expect(d1.sections.at(-1)!.type).toBe('texto')
+    expect(d0.sections.length).toBe(len) // no mutado
+  })
+  it('removeSection quita por id', () => {
+    const d0 = base()
+    const id = d0.sections[0].id
+    const d1 = removeSection(d0, id)
+    expect(d1.sections.find(s => s.id === id)).toBeUndefined()
+  })
+  it('moveSection reubica por indice y hace clamp', () => {
+    const d0 = base()
+    const id = d0.sections[0].id
+    const d1 = moveSection(d0, id, 3)
+    expect(d1.sections[3].id).toBe(id)
+    const d2 = moveSection(d0, id, 999)
+    expect(d2.sections.at(-1)!.id).toBe(id)
+  })
+  it('updateSectionContent hace merge del patch', () => {
+    const d0 = base()
+    const s = d0.sections.find(x => x.type === 'saludo')!
+    const d1 = updateSectionContent(d0, s.id, { mensaje: 'Nuevo' })
+    const s1 = d1.sections.find(x => x.id === s.id)!
+    expect((s1.content as any).mensaje).toBe('Nuevo')
+    expect((s1.content as any).titulo).toBeDefined()
+  })
+  it('setMeta hace merge', () => {
+    const d1 = setMeta(base(), { publicada: true })
+    expect(d1.meta.publicada).toBe(true)
+    expect(d1.meta.fecha_limite).toBeNull()
+  })
+})

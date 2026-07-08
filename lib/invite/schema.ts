@@ -72,7 +72,7 @@ export const MetaSchema = z.object({
 
 export const InviteDocSchema = z.object({
   v: z.literal(1).default(1),
-  meta: MetaSchema.default({}),
+  meta: MetaSchema.default(() => MetaSchema.parse({})),
   sections: z.array(SectionSchema).default([]),
 })
 
