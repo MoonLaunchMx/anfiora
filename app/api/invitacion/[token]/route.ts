@@ -108,7 +108,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
   const { guest, doc } = found
 
   const deadlinePassed = !metaIsOpen(doc.meta, todayISO())
-  const sub = parseSubmission(await req.json().catch(() => null))
+  const rawBody = await req.json().catch(() => null)
+  if (!rawBody || typeof rawBody !== 'object') {
+    return NextResponse.json({ error: 'bad_request' }, { status: 400 })
+  }
+  const sub = parseSubmission(rawBody)
 
   let update
   try {
@@ -117,7 +121,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
     return NextResponse.json({ error: 'closed' }, { status: 410 })
   }
 
-  await db.from('guests').update({ rsvp_status: update.guest.rsvp_status, allergies: update.guest.allergies }).eq('id', guest.id)
+  const { error: guestUpdateError } = await db
+    .from('guests')
+    .update({ rsvp_status: update.guest.rsvp_status, allergies: update.guest.allergies })
+    .eq('id', guest.id)
+  if (guestUpdateError) {
+    return NextResponse.json({ error: 'server_error' }, { status: 500 })
+  }
 
   const existingUpdates = update.companions.filter(c => c.id)
   const newInserts = update.companions.filter(c => !c.id)
