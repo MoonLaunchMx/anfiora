@@ -65,17 +65,17 @@ export default function DressCodeSection({ content, ctx }: { content: Content; c
       )}
 
       {dc.recomendaciones.length > 0 && (
-        <p className="mx-auto mt-6 max-w-md rounded-xl border border-[#f0e2bf] bg-[#fffbf0] px-4 py-3 text-left text-xs leading-relaxed text-[#1D1E20]">
+        <p className="mx-auto mt-6 max-w-md rounded-xl border border-[#f0e2bf] bg-[#fffbf0] px-4 py-3 text-center text-xs leading-relaxed text-[#1D1E20]">
           {dc.recomendaciones.join('. ')}.
         </p>
       )}
 
       {dc.nota_libre.trim() && (
-        <p className="mx-auto mt-3 max-w-md text-left text-xs leading-relaxed text-[#666]">{dc.nota_libre}</p>
+        <p className="mx-auto mt-3 max-w-md text-center text-xs leading-relaxed text-[#666]">{dc.nota_libre}</p>
       )}
 
       {(dc.guia_ellas?.trim() || dc.guia_ellos?.trim()) && (
-        <div className="mx-auto mt-5 grid max-w-md gap-2 text-left sm:grid-cols-2">
+        <div className="mx-auto mt-5 grid max-w-md gap-2 text-center sm:grid-cols-2">
           {dc.guia_ellas?.trim() && (
             <div className="rounded-xl bg-white px-3 py-2.5">
               <p className="text-[10px] font-bold uppercase tracking-wider text-[#999]">Ellas</p>
