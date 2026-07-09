@@ -13,9 +13,9 @@ export function ItineraryToolbar({ itin }: { itin: ItineraryController }) {
       {canEdit && !guestPreview && eventInfo?.event_date && (
         <button
           onClick={() => setShowGenerate(true)}
-          className="hidden sm:flex items-center gap-1.5 rounded-lg border border-[#e0e0e0] px-3 py-1.5 text-xs font-medium text-[#666] transition hover:border-[#d4a853] hover:text-[#c49a3a]"
+          className="flex items-center gap-1.5 rounded-lg border border-[#e0e0e0] px-3 py-1.5 text-xs font-medium text-[#666] transition hover:border-[#d4a853] hover:text-[#c49a3a]"
         >
-          <Sparkles width={13} height={13} />Autogenerar
+          <Sparkles width={13} height={13} /><span className="hidden sm:inline">Autogenerar</span>
         </button>
       )}
 
@@ -33,7 +33,7 @@ export function ItineraryToolbar({ itin }: { itin: ItineraryController }) {
           onClick={openNew}
           className="flex items-center gap-1.5 rounded-lg bg-[#48C9B0] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#3ab89f] sm:px-4 sm:text-sm"
         >
-          <Plus width={14} height={14} />Momento
+          <Plus width={14} height={14} /><span className="hidden sm:inline">Momento</span>
         </button>
       )}
     </div>
