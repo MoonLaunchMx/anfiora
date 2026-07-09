@@ -358,7 +358,7 @@ export default function PerfilPage() {
       <header className="sticky top-0 z-10 border-b border-[#e8e8e8] bg-white">
         <div className="mx-auto flex h-14 max-w-3xl items-center justify-between px-4 sm:h-16 sm:px-6">
           <button onClick={() => { window.location.href = '/dashboard' }} className="shrink-0">
-            <Image src="/images/Logo-010526newest.svg" alt="Anfiora" width={110} height={45} priority className="object-contain" />
+            <Image src="/images/Logo-010526newest.svg" alt="Anfiora" width={110} height={45} priority className="h-8 w-auto object-contain" />
           </button>
           <button
             onClick={() => { window.location.href = '/dashboard' }}
