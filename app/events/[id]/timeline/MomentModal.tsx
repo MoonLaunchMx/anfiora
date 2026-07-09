@@ -19,7 +19,6 @@ export interface MomentDraft {
 
 interface MomentModalProps {
   editMoment: ItineraryMoment | null
-  eventId: string
   suppliers: { id: string; name: string }[]
   onClose: () => void
   onSave: (data: MomentDraft) => void

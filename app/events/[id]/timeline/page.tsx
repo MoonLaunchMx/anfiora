@@ -14,6 +14,8 @@ import { TaskCard, CategoryIcon, CalendarTaskIcon, getUrgency, formatDateFull } 
 import { TaskModal } from './TaskModal'
 import { buildTimelineTasks } from './lib/templates'
 import { ItineraryView } from './ItineraryView'
+import { ItineraryToolbar } from './ItineraryToolbar'
+import { useItinerary } from './useItinerary'
 
 // ─── CONSTANTS ───────────────────────────────────────────────────────────────
 
@@ -192,6 +194,12 @@ export default function TimelinePage() {
   const [showFilters, setShowFilters] = useState(false)
   const [eventInfo, setEventInfo]     = useState<{ event_date: string | null; event_type: string | null; event_category: string | null } | null>(null)
   const [generating, setGenerating]   = useState(false)
+
+  const itinEventInfo = useMemo(
+    () => eventInfo ? { ...eventInfo, venue: null } : null,
+    [eventInfo],
+  )
+  const itinerary = useItinerary(eventId, itinEventInfo, view === 'itinerario')
 
   const hasActiveFilters = search.trim() !== '' || filterCat !== ''
 
@@ -560,6 +568,7 @@ export default function TimelinePage() {
             </button>
           </div>
           </>}
+          {view === 'itinerario' && <ItineraryToolbar itin={itinerary} />}
         </div>
       </div>
 
@@ -572,10 +581,7 @@ export default function TimelinePage() {
             </div>
           </div>
         ) : view === 'itinerario' ? (
-          <ItineraryView
-            eventId={eventId}
-            eventInfo={eventInfo ? { ...eventInfo, venue: null } : null}
-          />
+          <ItineraryView itin={itinerary} />
         ) : view === 'lista' ? <ListView /> : <CalendarView />}
       </div>
 
