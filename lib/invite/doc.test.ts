@@ -20,20 +20,35 @@ describe('emptySection', () => {
 })
 
 describe('defaultDoc', () => {
-  it('trae los 8 bloques por defecto en orden', () => {
+  it('trae los 9 bloques por defecto en orden', () => {
     const d = defaultDoc(makeId)
     expect(d.v).toBe(1)
     expect(d.meta).toEqual({ publicada: false, fecha_limite: null })
     expect(d.sections.map(s => s.type)).toEqual(
-      ['portada', 'saludo', 'detalles', 'itinerario', 'dress_code', 'rsvp', 'enganche', 'cierre'],
+      ['portada', 'saludo', 'detalles', 'itinerario', 'dress_code', 'rsvp', 'playlist', 'mesa', 'cierre'],
     )
   })
 })
 
 describe('resolveDoc', () => {
   it('null/basura -> doc por defecto', () => {
-    expect(resolveDoc(null, makeId).sections.length).toBe(8)
-    expect(resolveDoc('x', makeId).sections.length).toBe(8)
+    expect(resolveDoc(null, makeId).sections.length).toBe(9)
+    expect(resolveDoc('x', makeId).sections.length).toBe(9)
+  })
+  it('migra bloque enganche viejo a playlist + mesa segun toggles', () => {
+    const raw = {
+      sections: [
+        { id: 'a', type: 'portada', content: {} },
+        { id: 'b', type: 'enganche', content: { mostrar_playlist: true, mostrar_mesa: true } },
+        { id: 'c', type: 'cierre', content: {} },
+      ],
+    }
+    expect(resolveDoc(raw, makeId).sections.map(s => s.type)).toEqual(['portada', 'playlist', 'mesa', 'cierre'])
+
+    const soloPlaylist = {
+      sections: [{ id: 'b', type: 'enganche', content: { mostrar_playlist: true, mostrar_mesa: false } }],
+    }
+    expect(resolveDoc(soloPlaylist, makeId).sections.map(s => s.type)).toEqual(['playlist'])
   })
   it('descarta secciones invalidas en silencio', () => {
     const raw = {

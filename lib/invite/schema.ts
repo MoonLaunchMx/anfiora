@@ -28,6 +28,14 @@ const EngancheContent = z.object({
   mostrar_playlist: z.boolean().default(true),
   mostrar_mesa: z.boolean().default(true),
 })
+const PlaylistContent = z.object({
+  titulo: z.string().default('Arma la playlist'),
+  descripcion: z.string().default('Sugiere las canciones que no pueden faltar'),
+})
+const MesaContent = z.object({
+  titulo: z.string().default('Mesa de regalos'),
+  descripcion: z.string().default('Consulta las opciones para tu regalo'),
+})
 const TextoContent = z.object({
   eyebrow: z.string().default(''),
   titulo: z.string().default(''),
@@ -46,6 +54,8 @@ export const CONTENT_BY_TYPE = {
   itinerario: ItinerarioContent,
   rsvp: RsvpContent,
   enganche: EngancheContent,
+  playlist: PlaylistContent,
+  mesa: MesaContent,
   texto: TextoContent,
   cierre: CierreContent,
 } as const
@@ -61,6 +71,8 @@ export const SectionSchema = z.discriminatedUnion('type', [
   z.object({ id: z.string(), type: z.literal('itinerario'), content: ItinerarioContent }),
   z.object({ id: z.string(), type: z.literal('rsvp'),       content: RsvpContent }),
   z.object({ id: z.string(), type: z.literal('enganche'),   content: EngancheContent }),
+  z.object({ id: z.string(), type: z.literal('playlist'),   content: PlaylistContent }),
+  z.object({ id: z.string(), type: z.literal('mesa'),       content: MesaContent }),
   z.object({ id: z.string(), type: z.literal('texto'),      content: TextoContent }),
   z.object({ id: z.string(), type: z.literal('cierre'),     content: CierreContent }),
 ])

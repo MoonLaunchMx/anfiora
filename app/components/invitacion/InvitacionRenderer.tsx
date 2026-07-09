@@ -8,6 +8,8 @@ import DressCodeSection from './sections/DressCodeSection'
 import ItinerarioSection from './sections/ItinerarioSection'
 import RsvpSection from './sections/RsvpSection'
 import EngancheSection from './sections/EngancheSection'
+import PlaylistSection from './sections/PlaylistSection'
+import MesaSection from './sections/MesaSection'
 import TextoSection from './sections/TextoSection'
 import CierreSection from './sections/CierreSection'
 
@@ -23,6 +25,8 @@ export default function InvitacionRenderer({ doc, ctx }: { doc: InviteDoc; ctx: 
           case 'itinerario': return <ItinerarioSection key={s.id} content={s.content} ctx={ctx} />
           case 'rsvp':       return <RsvpSection       key={s.id} content={s.content} ctx={ctx} />
           case 'enganche':   return <EngancheSection   key={s.id} content={s.content} ctx={ctx} />
+          case 'playlist':   return <PlaylistSection   key={s.id} content={s.content} ctx={ctx} />
+          case 'mesa':       return <MesaSection       key={s.id} content={s.content} ctx={ctx} />
           case 'texto':      return <TextoSection      key={s.id} content={s.content} ctx={ctx} />
           case 'cierre':     return <CierreSection     key={s.id} content={s.content} ctx={ctx} />
           default:           return <div key={(s as any).id} className="px-6 py-3 text-center text-xs text-[#bbb]">Sección no disponible</div>

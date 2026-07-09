@@ -131,6 +131,22 @@ export default function SectionForm({
           <ToggleField label="Mostrar mesa de regalos" value={section.content.mostrar_mesa} onChange={v => onPatch({ mostrar_mesa: v })} />
         </div>
       )
+    case 'playlist':
+      return (
+        <div className="flex flex-col gap-3">
+          <TextField label="Título" value={section.content.titulo} onChange={v => onPatch({ titulo: v })} />
+          <TextField label="Descripción" value={section.content.descripcion} onChange={v => onPatch({ descripcion: v })} />
+          <p className="text-xs text-[#999]">Se muestra cuando el evento tiene playlist activa.</p>
+        </div>
+      )
+    case 'mesa':
+      return (
+        <div className="flex flex-col gap-3">
+          <TextField label="Título" value={section.content.titulo} onChange={v => onPatch({ titulo: v })} />
+          <TextField label="Descripción" value={section.content.descripcion} onChange={v => onPatch({ descripcion: v })} />
+          <p className="text-xs text-[#999]">Se muestra cuando el evento tiene mesa de regalos activa.</p>
+        </div>
+      )
     case 'texto':
       return (
         <div className="flex flex-col gap-3">

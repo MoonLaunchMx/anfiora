@@ -30,11 +30,15 @@ const TYPE_LABELS: Record<SectionType, string> = {
   itinerario: 'Itinerario',
   rsvp: 'Confirmación',
   enganche: 'Playlist y regalos',
+  playlist: 'Playlist',
+  mesa: 'Mesa de regalos',
   texto: 'Texto libre',
   cierre: 'Cierre',
 }
 
-const SINGLETON_TYPES = new Set<SectionType>(['dress_code', 'itinerario'])
+const SINGLETON_TYPES = new Set<SectionType>(['dress_code', 'itinerario', 'playlist', 'mesa'])
+// 'enganche' se separo en playlist + mesa; se conserva para no romper docs viejos pero no se ofrece agregarlo.
+const HIDDEN_TYPES = new Set<SectionType>(['enganche'])
 
 function SortableSectionRow({
   section, expanded, onToggleExpand, onRemove, onPatch,
@@ -121,7 +125,7 @@ export default function BlockEditor({
   }
 
   const usedTypes = new Set(doc.sections.map(s => s.type))
-  const availableTypes = SECTION_TYPES.filter(t => !(SINGLETON_TYPES.has(t) && usedTypes.has(t)))
+  const availableTypes = SECTION_TYPES.filter(t => !HIDDEN_TYPES.has(t) && !(SINGLETON_TYPES.has(t) && usedTypes.has(t)))
 
   return (
     <div className="flex flex-col gap-4">
