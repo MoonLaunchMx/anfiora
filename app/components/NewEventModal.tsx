@@ -34,6 +34,7 @@ export function NewEventModal({ open, onClose, onCreated }: NewEventModalProps) 
   const [hostName2, setHostName2]         = useState('')
   const [organization, setOrganization]   = useState('')
   const [date, setDate]                   = useState('')
+  const [endDate, setEndDate]             = useState('')
   const [time, setTime]                   = useState('')
   const [venue, setVenue]                 = useState('')
 
@@ -61,7 +62,7 @@ export function NewEventModal({ open, onClose, onCreated }: NewEventModalProps) 
     setCategory('social')
     setEventType(null)
     setName(''); setHostName(''); setHostName2(''); setOrganization('')
-    setDate(''); setTime(''); setVenue('')
+    setDate(''); setEndDate(''); setTime(''); setVenue('')
     setFeatures(getDefaultFeatures('otro'))
     setError('')
     setLoading(false)
@@ -110,6 +111,7 @@ export function NewEventModal({ open, onClose, onCreated }: NewEventModalProps) 
         event_type:     eventType.value,
         event_category: eventType.category,
         event_date:     date,
+        event_end_date: endDate || null,
         event_time:     time || null,
         venue:          venue.trim() || null,
         host_name:      hostName.trim() || null,
@@ -288,7 +290,14 @@ export function NewEventModal({ open, onClose, onCreated }: NewEventModalProps) 
         {/* Fecha */}
         <div>
           <label className="mb-1.5 block text-xs font-medium text-[#555]">Fecha *</label>
-          <DatePicker value={date} onChange={setDate} placeholder="Seleccionar fecha" />
+          <DatePicker
+            mode="range"
+            startValue={date}
+            endValue={endDate}
+            onRangeChange={(start, end) => { setDate(start); setEndDate(end) }}
+            placeholder="Seleccionar fecha"
+          />
+          <p className="mt-1 text-[11px] text-[#aaa]">Elige un día, o un rango para eventos de varios días.</p>
         </div>
 
         {/* Hora */}
