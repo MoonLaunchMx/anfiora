@@ -6,21 +6,39 @@ import {
 } from './itinerary-ai'
 
 describe('buildItineraryPrompt', () => {
-  it('incluye tipo de evento y horas ancla dadas', () => {
+  it('incluye tipo de evento y anclas etiquetadas', () => {
     const p = buildItineraryPrompt({
       eventType: 'boda', eventCategory: 'social',
-      ceremonyTime: '17:00', dinnerTime: '20:00', endTime: '02:00', venue: 'Hacienda San Miguel',
+      anchors: [
+        { label: 'Ceremonia', time: '17:00' },
+        { label: 'Cena', time: '20:00' },
+        { label: 'Cierre', time: '02:00' },
+      ],
+      venue: 'Hacienda San Miguel',
     })
     expect(p).toContain('boda')
-    expect(p).toContain('17:00')
-    expect(p).toContain('20:00')
-    expect(p).toContain('02:00')
+    expect(p).toContain('Ceremonia: 17:00')
+    expect(p).toContain('Cena: 20:00')
+    expect(p).toContain('Cierre: 02:00')
     expect(p).toContain('Hacienda San Miguel')
   })
-  it('omite horas ausentes sin romper', () => {
-    const p = buildItineraryPrompt({ eventType: 'boda', eventCategory: 'social' })
+  it('adapta las etiquetas de ancla al tipo (fiesta usa Inicio, no Ceremonia)', () => {
+    const p = buildItineraryPrompt({
+      eventType: 'fiesta', eventCategory: 'social',
+      anchors: [{ label: 'Inicio', time: '21:00' }, { label: 'Cierre', time: '03:00' }],
+    })
+    expect(p).toContain('fiesta')
+    expect(p).toContain('Inicio: 21:00')
+    expect(p).not.toContain('Ceremonia')
+  })
+  it('omite anclas vacias o ausentes sin romper', () => {
+    const p = buildItineraryPrompt({
+      eventType: 'boda', eventCategory: 'social',
+      anchors: [{ label: 'Ceremonia', time: '' }],
+    })
     expect(typeof p).toBe('string')
     expect(p).toContain('boda')
+    expect(p).not.toContain('Ceremonia:')
   })
   it('el system prompt fija las fases validas', () => {
     expect(ITINERARY_SYSTEM_PROMPT).toContain('ceremonia')

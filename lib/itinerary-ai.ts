@@ -1,12 +1,15 @@
 import type { ItineraryPhase } from './types'
 import { parseTimeToMinutes, formatMinutesToHHMM, ITINERARY_PHASES } from './itinerary'
 
+export interface ItineraryAnchor {
+  label: string
+  time: string
+}
+
 export interface GenerateItineraryInput {
   eventType: string | null
   eventCategory: string | null
-  ceremonyTime?: string | null
-  dinnerTime?: string | null
-  endTime?: string | null
+  anchors?: ItineraryAnchor[]
   venue?: string | null
 }
 
@@ -34,12 +37,11 @@ REGLAS:
 - No inventes datos del venue si no se dan; deja "location" en null cuando no aplique.`
 
 export function buildItineraryPrompt(input: GenerateItineraryInput): string {
-  const anchors = [
-    input.ceremonyTime ? `Hora de ceremonia: ${input.ceremonyTime}` : null,
-    input.dinnerTime ? `Hora de cena/comida: ${input.dinnerTime}` : null,
-    input.endTime ? `Hora de cierre: ${input.endTime}` : null,
-    input.venue ? `Venue: ${input.venue}` : null,
-  ].filter(Boolean).join('\n')
+  const anchorLines = (input.anchors || [])
+    .filter(a => a.time && a.time.trim())
+    .map(a => `${a.label}: ${a.time}`)
+  if (input.venue) anchorLines.push(`Venue: ${input.venue}`)
+  const anchors = anchorLines.join('\n')
 
   return [
     `Tipo de evento: ${input.eventType || 'evento social'}`,

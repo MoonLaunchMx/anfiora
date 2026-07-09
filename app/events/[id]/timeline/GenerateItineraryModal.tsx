@@ -1,8 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { X, Sparkles } from 'lucide-react'
-import type { GeneratedMoment } from '@/lib/itinerary-ai'
+import type { GeneratedMoment, ItineraryAnchor } from '@/lib/itinerary-ai'
 
 interface GenerateItineraryModalProps {
   eventType: string | null
@@ -12,25 +12,50 @@ interface GenerateItineraryModalProps {
   onGenerated: (moments: GeneratedMoment[]) => void
 }
 
+// Tipos que tienen una ceremonia formal como ancla principal.
+const CEREMONY_TYPES = new Set(['boda', 'xv', 'bautizo', 'graduacion'])
+
+// Las horas ancla se adaptan al tipo de evento: una boda pide Ceremonia,
+// una fiesta pide Inicio, un evento corporativo pide Comida.
+function anchorFieldsFor(eventType: string | null, eventCategory: string | null): { key: string; label: string }[] {
+  if (eventType && CEREMONY_TYPES.has(eventType)) {
+    return [
+      { key: 'ceremonia', label: 'Ceremonia' },
+      { key: 'cena', label: 'Cena' },
+      { key: 'cierre', label: 'Cierre' },
+    ]
+  }
+  if (eventCategory === 'corporativo' || eventCategory === 'impacto') {
+    return [
+      { key: 'inicio', label: 'Inicio' },
+      { key: 'comida', label: 'Comida' },
+      { key: 'cierre', label: 'Cierre' },
+    ]
+  }
+  // Social sin ceremonia (fiesta, cumpleaños, despedida, otro).
+  return [
+    { key: 'inicio', label: 'Inicio' },
+    { key: 'cena', label: 'Cena' },
+    { key: 'cierre', label: 'Cierre' },
+  ]
+}
+
 export function GenerateItineraryModal({ eventType, eventCategory, venue, onClose, onGenerated }: GenerateItineraryModalProps) {
-  const [ceremonyTime, setCeremonyTime] = useState('')
-  const [dinnerTime, setDinnerTime]     = useState('')
-  const [endTime, setEndTime]           = useState('')
-  const [loading, setLoading]           = useState(false)
-  const [error, setError]               = useState('')
+  const fields = useMemo(() => anchorFieldsFor(eventType, eventCategory), [eventType, eventCategory])
+  const [times, setTimes]   = useState<Record<string, string>>({})
+  const [loading, setLoading] = useState(false)
+  const [error, setError]     = useState('')
 
   const handleGenerate = async () => {
     setLoading(true); setError('')
+    const anchors: ItineraryAnchor[] = fields
+      .filter(f => times[f.key])
+      .map(f => ({ label: f.label, time: times[f.key] }))
     try {
       const res = await fetch('/api/itinerary/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          eventType, eventCategory, venue,
-          ceremonyTime: ceremonyTime || null,
-          dinnerTime: dinnerTime || null,
-          endTime: endTime || null,
-        }),
+        body: JSON.stringify({ eventType, eventCategory, venue, anchors }),
       })
       if (!res.ok) throw new Error('fallo')
       const data = await res.json() as { moments?: GeneratedMoment[] }
@@ -62,23 +87,19 @@ export function GenerateItineraryModal({ eventType, eventCategory, venue, onClos
             Te proponemos un run-of-show para tu {eventType || 'evento'} a partir de las horas ancla. Podras editar cada momento antes de guardar.
           </p>
           <div className="grid grid-cols-3 gap-3">
-            <div>
-              <label className="text-xs font-medium text-[#555] mb-1 block">Ceremonia</label>
-              <input type="time" value={ceremonyTime} onChange={e => setCeremonyTime(e.target.value)}
-                className="w-full border border-[#e0e0e0] rounded-xl px-2 py-2 text-sm focus:outline-none focus:border-[#d4a853] bg-[#f8f8f8]" />
-            </div>
-            <div>
-              <label className="text-xs font-medium text-[#555] mb-1 block">Cena</label>
-              <input type="time" value={dinnerTime} onChange={e => setDinnerTime(e.target.value)}
-                className="w-full border border-[#e0e0e0] rounded-xl px-2 py-2 text-sm focus:outline-none focus:border-[#d4a853] bg-[#f8f8f8]" />
-            </div>
-            <div>
-              <label className="text-xs font-medium text-[#555] mb-1 block">Cierre</label>
-              <input type="time" value={endTime} onChange={e => setEndTime(e.target.value)}
-                className="w-full border border-[#e0e0e0] rounded-xl px-2 py-2 text-sm focus:outline-none focus:border-[#d4a853] bg-[#f8f8f8]" />
-            </div>
+            {fields.map(f => (
+              <div key={f.key}>
+                <label className="text-xs font-medium text-[#555] mb-1 block">{f.label}</label>
+                <input
+                  type="time"
+                  value={times[f.key] || ''}
+                  onChange={e => setTimes(prev => ({ ...prev, [f.key]: e.target.value }))}
+                  className="w-full border border-[#e0e0e0] rounded-xl px-2 py-2 text-sm focus:outline-none focus:border-[#d4a853] bg-[#f8f8f8]"
+                />
+              </div>
+            ))}
           </div>
-          <p className="text-[11px] text-[#bbb]">Las tres son opcionales. Si las dejas vacias, Claude usa horarios tipicos.</p>
+          <p className="text-[11px] text-[#bbb]">Todas son opcionales. Si las dejas vacias, usamos horarios tipicos para el tipo de evento.</p>
           {error && (
             <div className="rounded-lg border border-[#ffc0c0] bg-[#fff0f0] px-3 py-2.5 text-xs text-[#cc3333]">{error}</div>
           )}
