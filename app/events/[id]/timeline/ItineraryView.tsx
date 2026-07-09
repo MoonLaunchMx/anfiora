@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import { ItineraryMoment } from '@/lib/types'
 import { sortMoments } from '@/lib/itinerary'
@@ -36,48 +36,72 @@ export function ItineraryView({ eventId, eventInfo }: ItineraryViewProps) {
       })
   }, [eventId])
 
+  const fetchMoments = useCallback(async () => {
+    const { data } = await supabase
+      .from('event_itinerary_moments')
+      .select('*, event_supplier:event_supplier_id(id, supplier:supplier_id(id, name))')
+      .eq('event_id', eventId)
+      .order('position', { ascending: true })
+    setMoments((data || []) as ItineraryMoment[])
+  }, [eventId])
+
+  useEffect(() => { fetchMoments() }, [fetchMoments])
+
   const sorted = useMemo(() => sortMoments(moments), [moments])
   const visibleCount = moments.filter(m => m.visible_to_guests).length
   const shareOn = visibleCount > 0
 
-  // ── Operaciones de datos (en memoria; Task 7 las conecta a Supabase) ────────
-  const createMoment = (data: MomentDraft) => {
-    const supplierName = data.event_supplier_id ? suppliers.find(s => s.id === data.event_supplier_id)?.name || null : null
-    const nueva: ItineraryMoment = {
-      id: crypto.randomUUID(),
+  // ── Operaciones de datos (persistencia en event_itinerary_moments) ──────────
+  const createMoment = async (data: MomentDraft) => {
+    await supabase.from('event_itinerary_moments').insert({
       event_id: eventId,
-      ...data,
+      title: data.title,
+      start_time: data.start_time,
+      duration_min: data.duration_min,
+      location: data.location,
+      phase: data.phase,
+      event_supplier_id: data.event_supplier_id,
+      assigned_to_name: data.assigned_to_name,
+      notes: data.notes,
+      visible_to_guests: data.visible_to_guests,
       position: moments.length,
-      created_at: new Date().toISOString(),
-      event_supplier: data.event_supplier_id ? { id: data.event_supplier_id, supplier: supplierName ? { id: data.event_supplier_id, name: supplierName } : null } : null,
-    }
-    setMoments(prev => [...prev, nueva])
+    })
+    await fetchMoments()
   }
 
-  const updateMoment = (id: string, data: MomentDraft) => {
-    const supplierName = data.event_supplier_id ? suppliers.find(s => s.id === data.event_supplier_id)?.name || null : null
-    setMoments(prev => prev.map(m => m.id === id ? {
-      ...m, ...data,
-      event_supplier: data.event_supplier_id ? { id: data.event_supplier_id, supplier: supplierName ? { id: data.event_supplier_id, name: supplierName } : null } : null,
-    } : m))
+  const updateMoment = async (id: string, data: MomentDraft) => {
+    await supabase.from('event_itinerary_moments').update({
+      title: data.title,
+      start_time: data.start_time,
+      duration_min: data.duration_min,
+      location: data.location,
+      phase: data.phase,
+      event_supplier_id: data.event_supplier_id,
+      assigned_to_name: data.assigned_to_name,
+      notes: data.notes,
+      visible_to_guests: data.visible_to_guests,
+    }).eq('id', id)
+    await fetchMoments()
   }
 
-  const deleteMoment = (id: string) => {
-    setMoments(prev => prev.filter(m => m.id !== id))
+  const deleteMoment = async (id: string) => {
+    await supabase.from('event_itinerary_moments').delete().eq('id', id)
+    await fetchMoments()
   }
 
-  const toggleVisible = (m: ItineraryMoment) => {
+  const toggleVisible = async (m: ItineraryMoment) => {
     setMoments(prev => prev.map(x => x.id === m.id ? { ...x, visible_to_guests: !x.visible_to_guests } : x))
+    await supabase.from('event_itinerary_moments').update({ visible_to_guests: !m.visible_to_guests }).eq('id', m.id)
   }
 
-  const setShareAll = (on: boolean) => {
+  const setShareAll = async (on: boolean) => {
     setMoments(prev => prev.map(m => ({ ...m, visible_to_guests: on })))
+    await supabase.from('event_itinerary_moments').update({ visible_to_guests: on }).eq('event_id', eventId)
   }
 
-  const applyGenerated = (gen: GeneratedMoment[]) => {
+  const applyGenerated = async (gen: GeneratedMoment[]) => {
     const base = moments.length
-    const nuevos: ItineraryMoment[] = gen.map((g, i) => ({
-      id: crypto.randomUUID(),
+    const rows = gen.map((g, i) => ({
       event_id: eventId,
       title: g.title,
       start_time: g.start_time,
@@ -89,23 +113,22 @@ export function ItineraryView({ eventId, eventInfo }: ItineraryViewProps) {
       notes: g.notes,
       visible_to_guests: g.visible_to_guests,
       position: base + i,
-      created_at: new Date().toISOString(),
-      event_supplier: null,
     }))
-    setMoments(prev => [...prev, ...nuevos])
+    if (rows.length > 0) await supabase.from('event_itinerary_moments').insert(rows)
     setShowGenerate(false)
+    await fetchMoments()
   }
 
   // ── Handlers UI ─────────────────────────────────────────────────────────────
   const openNew  = () => { setEditMoment(null); setShowModal(true) }
   const openEdit = (m: ItineraryMoment) => { setEditMoment(m); setShowModal(true) }
-  const handleSave = (data: MomentDraft) => {
-    if (editMoment) updateMoment(editMoment.id, data)
-    else createMoment(data)
+  const handleSave = async (data: MomentDraft) => {
+    if (editMoment) await updateMoment(editMoment.id, data)
+    else await createMoment(data)
     setShowModal(false); setEditMoment(null)
   }
-  const handleDelete = (m: ItineraryMoment) => {
-    deleteMoment(m.id)
+  const handleDelete = async (m: ItineraryMoment) => {
+    await deleteMoment(m.id)
     setShowModal(false); setEditMoment(null)
   }
   const handleShareToggle = () => {
