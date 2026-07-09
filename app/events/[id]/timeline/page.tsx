@@ -506,15 +506,15 @@ export default function TimelinePage() {
           <div className="flex overflow-hidden rounded-lg border border-[#e0e0e0]">
             <button onClick={() => setView('lista')}
               className={['flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition', view === 'lista' ? 'bg-[#1D1E20] text-white' : 'text-[#888] hover:bg-[#f5f5f5]'].join(' ')}>
-              <LayoutList width={13} height={13} /><span>Tareas</span>
+              <LayoutList width={13} height={13} /><span className="hidden sm:inline">Tareas</span>
             </button>
             <button onClick={() => setView('calendario')}
               className={['flex items-center gap-1.5 border-l border-[#e0e0e0] px-3 py-1.5 text-xs font-medium transition', view === 'calendario' ? 'bg-[#1D1E20] text-white' : 'text-[#888] hover:bg-[#f5f5f5]'].join(' ')}>
-              <CalendarDays width={13} height={13} /><span>Calendario</span>
+              <CalendarDays width={13} height={13} /><span className="hidden sm:inline">Calendario</span>
             </button>
             <button onClick={() => setView('itinerario')}
               className={['flex items-center gap-1.5 border-l border-[#e0e0e0] px-3 py-1.5 text-xs font-medium transition', view === 'itinerario' ? 'bg-[#1D1E20] text-white' : 'text-[#888] hover:bg-[#f5f5f5]'].join(' ')}>
-              <Clock width={13} height={13} /><span>Itinerario</span>
+              <Clock width={13} height={13} /><span className="hidden sm:inline">Itinerario</span>
             </button>
           </div>
 

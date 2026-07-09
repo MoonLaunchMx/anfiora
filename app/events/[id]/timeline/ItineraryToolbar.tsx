@@ -24,7 +24,7 @@ export function ItineraryToolbar({ itin }: { itin: ItineraryController }) {
           onClick={() => setGuestPreview(p => !p)}
           className={['flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition', guestPreview ? 'border-[#d4a853] bg-[#fffbf0] text-[#c49a3a]' : 'border-[#e0e0e0] text-[#888] hover:bg-[#f5f5f5]'].join(' ')}
         >
-          <Eye width={13} height={13} />{guestPreview ? 'Vista organizador' : 'Ver como invitado'}
+          <Eye width={13} height={13} /><span className="hidden sm:inline">{guestPreview ? 'Vista organizador' : 'Ver como invitado'}</span>
         </button>
       )}
 
