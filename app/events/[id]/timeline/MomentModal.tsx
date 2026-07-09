@@ -140,7 +140,7 @@ export function MomentModal({ editMoment, suppliers, onClose, onSave, onDelete }
                 <select
                   value={form.phase}
                   onChange={e => setForm(f => ({ ...f, phase: e.target.value as ItineraryPhase }))}
-                  className="w-full border border-[#e0e0e0] rounded-xl px-3 py-2 text-sm appearance-none focus:outline-none focus:border-[#d4a853] bg-[#f8f8f8]"
+                  className="w-full border border-[#e0e0e0] rounded-xl px-3 py-2 text-sm appearance-none focus:outline-none focus:border-[#d4a853] bg-[#f8f8f8] cursor-pointer"
                 >
                   {ITINERARY_PHASES.map(p => <option key={p} value={p}>{PHASE_LABEL[p]}</option>)}
                 </select>
@@ -170,7 +170,7 @@ export function MomentModal({ editMoment, suppliers, onClose, onSave, onDelete }
               <select
                 value={form.event_supplier_id}
                 onChange={e => setForm(f => ({ ...f, event_supplier_id: e.target.value }))}
-                className="w-full border border-[#e0e0e0] rounded-xl px-3 py-2 text-sm appearance-none focus:outline-none focus:border-[#d4a853] bg-[#f8f8f8]"
+                className="w-full border border-[#e0e0e0] rounded-xl px-3 py-2 text-sm appearance-none focus:outline-none focus:border-[#d4a853] bg-[#f8f8f8] cursor-pointer"
               >
                 <option value="">Sin proveedor</option>
                 {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}

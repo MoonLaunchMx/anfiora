@@ -80,7 +80,7 @@ export function GenerateItineraryModal({ eventType, eventCategory, venue, onClos
           {LABEL_SUGGESTIONS.map(l => <option key={l} value={l} />)}
         </datalist>
 
-        <div className="px-5 py-4 flex flex-col gap-3 overflow-y-auto">
+        <div className="px-5 py-4 flex flex-col gap-3 flex-1 min-h-0 overflow-y-auto">
           <p className="text-xs text-[#888]">
             Marca las horas clave de tu {eventType || 'evento'} (desayuno, comida, cena, after, lo que aplique). Con eso te proponemos un run-of-show que podras editar antes de guardar.
           </p>
