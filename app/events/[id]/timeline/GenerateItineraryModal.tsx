@@ -80,48 +80,46 @@ export function GenerateItineraryModal({ eventType, eventCategory, venue, onClos
           {LABEL_SUGGESTIONS.map(l => <option key={l} value={l} />)}
         </datalist>
 
-        <div className="px-5 py-4 flex flex-col gap-3 flex-1 min-h-0 overflow-y-auto">
-          <p className="text-xs text-[#888]">
-            Marca las horas clave de tu {eventType || 'evento'} (desayuno, comida, cena, after, lo que aplique). Con eso te proponemos un run-of-show que podras editar antes de guardar.
-          </p>
+        <p className="px-5 pt-4 pb-2 text-xs text-[#888] shrink-0">
+          Marca las horas clave de tu {eventType || 'evento'} (desayuno, comida, cena, after, lo que aplique). Con eso te proponemos un run-of-show que podras editar antes de guardar.
+        </p>
 
-          <div className="flex flex-col gap-2">
-            {rows.map(row => (
-              <div key={row.id} className="flex items-center gap-2">
-                <input
-                  type="text"
-                  list="anchor-labels"
-                  placeholder="Momento (ej. Brunch)"
-                  value={row.label}
-                  onChange={e => updateRow(row.id, { label: e.target.value })}
-                  className="flex-1 min-w-0 border border-[#e0e0e0] rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#d4a853] bg-[#f8f8f8]"
-                />
-                <input
-                  type="time"
-                  value={row.time}
-                  onChange={e => updateRow(row.id, { time: e.target.value })}
-                  className="w-[108px] shrink-0 border border-[#e0e0e0] rounded-xl px-2 py-2 text-sm focus:outline-none focus:border-[#d4a853] bg-[#f8f8f8]"
-                />
-                <button
-                  onClick={() => removeRow(row.id)}
-                  disabled={rows.length <= 1}
-                  className="shrink-0 flex h-8 w-8 items-center justify-center rounded-lg text-[#bbb] transition hover:bg-[#fff0f0] hover:text-[#cc3333] disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-[#bbb]"
-                  aria-label="Quitar hora clave"
-                >
-                  <Trash2 size={14} />
-                </button>
-              </div>
-            ))}
-          </div>
+        <div className="px-5 flex flex-col gap-2 flex-1 min-h-0 overflow-y-auto">
+          {rows.map(row => (
+            <div key={row.id} className="flex items-center gap-2">
+              <input
+                type="text"
+                list="anchor-labels"
+                placeholder="Momento (ej. Brunch)"
+                value={row.label}
+                onChange={e => updateRow(row.id, { label: e.target.value })}
+                className="flex-1 min-w-0 border border-[#e0e0e0] rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#d4a853] bg-[#f8f8f8]"
+              />
+              <input
+                type="time"
+                value={row.time}
+                onChange={e => updateRow(row.id, { time: e.target.value })}
+                className="w-[108px] shrink-0 border border-[#e0e0e0] rounded-xl px-2 py-2 text-sm focus:outline-none focus:border-[#d4a853] bg-[#f8f8f8]"
+              />
+              <button
+                onClick={() => removeRow(row.id)}
+                disabled={rows.length <= 1}
+                className="shrink-0 flex h-8 w-8 items-center justify-center rounded-lg text-[#bbb] transition hover:bg-[#fff0f0] hover:text-[#cc3333] disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-[#bbb]"
+                aria-label="Quitar hora clave"
+              >
+                <Trash2 size={14} />
+              </button>
+            </div>
+          ))}
+        </div>
 
+        <div className="px-5 pt-3 shrink-0 flex flex-col gap-2">
           <button
             onClick={addRow}
             className="flex items-center justify-center gap-1.5 w-full py-2 text-sm font-medium text-[#c49a3a] border border-dashed border-[#ecdcb8] rounded-xl hover:bg-[#fffbf0] transition-colors"
           >
             <Plus size={14} />Agregar hora clave
           </button>
-
-          <p className="text-[11px] text-[#bbb]">Todas son opcionales. Si las dejas vacias, usamos horarios tipicos para el tipo de evento.</p>
           {error && (
             <div className="rounded-lg border border-[#ffc0c0] bg-[#fff0f0] px-3 py-2.5 text-xs text-[#cc3333]">{error}</div>
           )}
