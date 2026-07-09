@@ -54,6 +54,8 @@ export default function DressCodeSection({ content, ctx }: { content: Content; c
   const label = resolveNivelLabel(dc)
   const desc = resolveNivelDesc(dc)
   const ellasCount = dc.fotos_ellas.length
+  const guiaCount = [dc.guia_ellas?.trim(), dc.guia_ellos?.trim()].filter(Boolean).length
+  const fotosGrupos = [dc.fotos_ellas.length > 0, dc.fotos_ellos.length > 0].filter(Boolean).length
 
   return (
     <SectionShell variant="band" className="text-center">
@@ -107,16 +109,16 @@ export default function DressCodeSection({ content, ctx }: { content: Content; c
       )}
 
       {(dc.guia_ellas?.trim() || dc.guia_ellos?.trim()) && (
-        <div className="mx-auto mt-5 grid max-w-md gap-2 text-center sm:grid-cols-2">
+        <div className={`mx-auto mt-5 grid max-w-md gap-2 text-center ${guiaCount === 2 ? 'sm:grid-cols-2' : ''}`}>
           {dc.guia_ellas?.trim() && (
             <div className="rounded-xl bg-white px-3 py-2.5">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-[#999]">Ellas</p>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-[#999]">{dc.label_ellas}</p>
               <p className="mt-0.5 text-xs text-[#666]">{dc.guia_ellas}</p>
             </div>
           )}
           {dc.guia_ellos?.trim() && (
             <div className="rounded-xl bg-white px-3 py-2.5">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-[#999]">Ellos</p>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-[#999]">{dc.label_ellos}</p>
               <p className="mt-0.5 text-xs text-[#666]">{dc.guia_ellos}</p>
             </div>
           )}
@@ -124,8 +126,8 @@ export default function DressCodeSection({ content, ctx }: { content: Content; c
       )}
 
       {total > 0 && (
-        <div className="mx-auto mt-6 grid max-w-md grid-cols-2 gap-4">
-          {([['fotos_ellas', 'Ellas', 0], ['fotos_ellos', 'Ellos', ellasCount]] as const).map(([field, titulo, base]) =>
+        <div className={`mx-auto mt-6 grid max-w-md gap-4 ${fotosGrupos === 2 ? 'grid-cols-2' : 'grid-cols-1'}`}>
+          {([['fotos_ellas', dc.label_ellas, 0], ['fotos_ellos', dc.label_ellos, ellasCount]] as ['fotos_ellas' | 'fotos_ellos', string, number][]).map(([field, titulo, base]) =>
             dc[field].length > 0 ? (
               <div key={field}>
                 <p className="text-[10px] font-bold uppercase tracking-wider text-[#999]">{titulo}</p>
