@@ -203,7 +203,7 @@ export default function InvitacionPage() {
               rel="noreferrer"
               className="hidden shrink-0 items-center gap-1.5 rounded-lg border border-[#e0e0e0] px-3 py-2 text-sm font-medium text-[#666] transition hover:bg-[#f5f5f5] sm:flex"
             >
-              <ExternalLink size={14} /> Vista completa
+              <ExternalLink size={14} /> Vista web
             </a>
             <button
               onClick={handlePublish}

@@ -15,7 +15,7 @@ export default function EngancheSection({ content, ctx }: { content: Content; ct
 
   return (
     <SectionShell variant="band">
-      <h2 className="px-2 text-center text-xl font-semibold text-[#1D1E20] sm:text-2xl" style={{ fontFamily: "'Josefin Sans', sans-serif" }}>
+      <h2 className="px-2 text-center text-xl font-semibold text-[#1D1E20] lg:text-2xl" style={{ fontFamily: "'Josefin Sans', sans-serif" }}>
         {content.titulo}
       </h2>
 

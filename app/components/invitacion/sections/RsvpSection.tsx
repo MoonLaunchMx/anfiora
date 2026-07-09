@@ -131,7 +131,7 @@ export default function RsvpSection({ content, ctx }: { content: Content; ctx: I
 
   return (
     <SectionShell variant="form">
-      <h2 className="px-2 text-center text-xl font-semibold text-[#1D1E20] sm:text-2xl" style={{ fontFamily: "'Josefin Sans', sans-serif" }}>
+      <h2 className="px-2 text-center text-xl font-semibold text-[#1D1E20] lg:text-2xl" style={{ fontFamily: "'Josefin Sans', sans-serif" }}>
         {content.titulo}
       </h2>
       <p className="mx-auto mt-2 max-w-md text-center text-sm text-[#666]">{content.texto}</p>

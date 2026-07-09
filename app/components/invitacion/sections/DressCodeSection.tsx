@@ -25,7 +25,7 @@ export default function DressCodeSection({ content, ctx }: { content: Content; c
 
   return (
     <SectionShell variant="band" className="text-center">
-      <h2 className="px-2 text-xl font-semibold text-[#1D1E20] sm:text-2xl" style={{ fontFamily: "'Josefin Sans', sans-serif" }}>
+      <h2 className="px-2 text-xl font-semibold text-[#1D1E20] lg:text-2xl" style={{ fontFamily: "'Josefin Sans', sans-serif" }}>
         {content.titulo}
       </h2>
 

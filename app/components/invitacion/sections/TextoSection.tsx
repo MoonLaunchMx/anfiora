@@ -15,7 +15,7 @@ export default function TextoSection({ content }: { content: Content; ctx: Invit
       )}
       {content.titulo.trim() && (
         <h2
-          className="mt-2 px-2 text-xl font-semibold text-[#1D1E20] sm:text-2xl"
+          className="mt-2 px-2 text-xl font-semibold text-[#1D1E20] lg:text-2xl"
           style={{ fontFamily: "'Josefin Sans', sans-serif" }}
         >
           {content.titulo}
