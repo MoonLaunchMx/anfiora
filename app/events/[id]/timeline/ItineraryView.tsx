@@ -129,7 +129,7 @@ export function ItineraryView({ eventId, eventInfo }: ItineraryViewProps) {
             <div className="mt-4 flex flex-col items-center gap-3">
               <button onClick={() => setShowGenerate(true)}
                 className="flex items-center gap-1.5 rounded-lg bg-[#48C9B0] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#3ab89f]">
-                <Sparkles size={14} />Auto-generar con Claude
+                <Sparkles size={14} />Autogenerar
               </button>
               <button onClick={openNew} className="text-sm text-[#888] hover:text-[#d4a853]">o agrega un momento manual</button>
             </div>

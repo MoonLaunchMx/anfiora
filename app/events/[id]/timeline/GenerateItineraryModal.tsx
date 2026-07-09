@@ -52,14 +52,14 @@ export function GenerateItineraryModal({ eventType, eventCategory, venue, onClos
         <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-[#f0f0f0]">
           <div className="flex items-center gap-2">
             <Sparkles size={16} className="text-[#d4a853]" />
-            <h2 className="text-base font-semibold text-[#1D1E20]">Auto-generar itinerario</h2>
+            <h2 className="text-base font-semibold text-[#1D1E20]">Autogenerar itinerario</h2>
           </div>
           <button onClick={onClose} className="text-[#aaa] hover:text-[#555]"><X size={18} /></button>
         </div>
 
         <div className="px-5 py-4 flex flex-col gap-3.5">
           <p className="text-xs text-[#888]">
-            Claude propone un run-of-show para tu {eventType || 'evento'} a partir de las horas ancla. Podras editar cada momento antes de guardar.
+            Te proponemos un run-of-show para tu {eventType || 'evento'} a partir de las horas ancla. Podras editar cada momento antes de guardar.
           </p>
           <div className="grid grid-cols-3 gap-3">
             <div>
@@ -91,7 +91,7 @@ export function GenerateItineraryModal({ eventType, eventCategory, venue, onClos
           </button>
           <button onClick={handleGenerate} disabled={loading}
             className="flex-[2] py-2.5 text-sm bg-[#48C9B0] text-white rounded-xl font-semibold hover:bg-[#3ab89f] disabled:opacity-60">
-            {loading ? 'Generando...' : 'Generar con Claude'}
+            {loading ? 'Generando...' : 'Autogenerar'}
           </button>
         </div>
       </div>
