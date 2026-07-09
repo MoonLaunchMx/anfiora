@@ -703,3 +703,31 @@ export type AgentConfig = {
   escalate: { alergias: boolean; quejas: boolean; cambios_invitados: boolean; fuera_de_info: boolean }
   faq: FaqEntry[]
 }
+
+// ─── Itinerario del día ────────────────────────────────────────────────────────
+
+export type ItineraryPhase =
+  | 'montaje' | 'ceremonia' | 'social' | 'cena' | 'fiesta' | 'otro'
+
+export interface ItineraryMoment {
+  id: string
+  event_id: string
+  title: string
+  start_time: string            // 'HH:MM' o 'HH:MM:SS'
+  duration_min: number | null   // null = "hasta cierre"
+  location: string | null
+  phase: ItineraryPhase
+  event_supplier_id: string | null
+  assigned_to_name: string | null
+  notes: string | null
+  visible_to_guests: boolean
+  position: number
+  created_at: string
+  event_supplier?: { id: string; supplier?: { id: string; name: string } | null } | null
+}
+
+export interface GuestItineraryItem {
+  start_time: string
+  title: string
+  location: string | null
+}
