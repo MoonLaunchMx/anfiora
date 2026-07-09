@@ -54,6 +54,45 @@ export function formatCurrency(amount: number, currency: Currency): string {
   return `${symbol}${formatted}${suffix}`
 }
 
+function parseYMD(str: string): Date | null {
+  const clean = str.split('T')[0]
+  const [y, m, d] = clean.split('-').map(Number)
+  if (!y || !m || !d) return null
+  return new Date(y, m - 1, d)
+}
+
+export function formatEventDate(start: string | null | undefined, end?: string | null): string {
+  if (!start) return ''
+  const from = parseYMD(start)
+  if (!from) return ''
+
+  const to = end ? parseYMD(end) : null
+  const singleDay = !to || to.getTime() <= from.getTime()
+
+  if (singleDay) {
+    return from.toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' })
+  }
+
+  const sameYear = from.getFullYear() === to!.getFullYear()
+  const sameMonth = sameYear && from.getMonth() === to!.getMonth()
+
+  if (sameMonth) {
+    const monthYear = from.toLocaleDateString('es-MX', { month: 'long', year: 'numeric' })
+    return `${from.getDate()} – ${to!.getDate()} de ${monthYear}`
+  }
+
+  if (sameYear) {
+    const left = from.toLocaleDateString('es-MX', { day: 'numeric', month: 'long' })
+    const right = to!.toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' })
+    return `${left} – ${right}`
+  }
+
+  const opts: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short', year: 'numeric' }
+  const left = from.toLocaleDateString('es-MX', opts).replace(/\./g, '')
+  const right = to!.toLocaleDateString('es-MX', opts).replace(/\./g, '')
+  return `${left} – ${right}`
+}
+
 // ─── EVENT ───────────────────────────────────────────────────────────────────
 
 export type EventStatus = 'active' | 'paused' | 'cancelled' | 'completed'
