@@ -5,23 +5,26 @@ import { ChevronDown, ChevronUp, Mail, Ban, Trash2, CheckCircle } from 'lucide-r
 import { AdminUser, GlobalStats } from './lib/types'
 import { formatDate, formatDateTime, timeAgo, PLAN_STYLES } from './lib/format'
 import { CURRENT_LEGAL_VERSION } from '@/lib/legal'
+import DeleteUserModal from './DeleteUserModal'
 
 interface Props {
   users: AdminUser[]
   stats: GlobalStats | null
   actionLoading: string | null
   onChangePlan: (userId: string, plan: string) => void
-  onAdminAction: (userId: string, action: 'delete' | 'ban' | 'unban') => void
-  onConfirmDelete: (u: AdminUser) => void
+  onAdminAction: (userId: string, action: 'delete' | 'ban' | 'unban', emailConfirm?: string) => void
 }
 
 type SortBy = 'created_at' | 'event_count' | 'guest_count' | 'last_sign_in'
 
-export default function UsuariosTab({ users, stats, actionLoading, onChangePlan, onAdminAction, onConfirmDelete }: Props) {
+const isProtectedPlan = (plan: string) => plan === 'pro' || plan === 'agency'
+
+export default function UsuariosTab({ users, stats, actionLoading, onChangePlan, onAdminAction }: Props) {
   const [search, setSearch]         = useState('')
   const [planFilter, setPlanFilter] = useState<string>('all')
   const [sortBy, setSortBy]         = useState<SortBy>('created_at')
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<AdminUser | null>(null)
 
   const filtered = users
     .filter(u => {
@@ -208,8 +211,11 @@ export default function UsuariosTab({ users, stats, actionLoading, onChangePlan,
                             <Ban size={14} />
                           </button>
                         )}
-                        <button title="Eliminar usuario" disabled={!!actionLoading} onClick={() => onConfirmDelete(u)}
-                          className="rounded-lg p-1.5 text-[#ef4444] transition hover:bg-[#fee2e2]">
+                        <button
+                          title={isProtectedPlan(u.plan) ? 'Bajalo a plan free para poder eliminarlo' : 'Eliminar usuario'}
+                          disabled={!!actionLoading || isProtectedPlan(u.plan)}
+                          onClick={() => setDeleteTarget(u)}
+                          className="rounded-lg p-1.5 text-[#ef4444] transition hover:bg-[#fee2e2] disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent">
                           <Trash2 size={14} />
                         </button>
                       </div>
@@ -337,7 +343,11 @@ export default function UsuariosTab({ users, stats, actionLoading, onChangePlan,
                     ) : (
                       <button onClick={() => onAdminAction(u.id, 'ban')} className="rounded-lg border border-[#e0e0e0] p-1.5 text-[#f59e0b]"><Ban size={14} /></button>
                     )}
-                    <button onClick={() => onConfirmDelete(u)} className="rounded-lg border border-[#e0e0e0] p-1.5 text-[#ef4444]"><Trash2 size={14} /></button>
+                    <button
+                      title={isProtectedPlan(u.plan) ? 'Bajalo a plan free para poder eliminarlo' : 'Eliminar usuario'}
+                      disabled={!!actionLoading || isProtectedPlan(u.plan)}
+                      onClick={() => setDeleteTarget(u)}
+                      className="rounded-lg border border-[#e0e0e0] p-1.5 text-[#ef4444] disabled:cursor-not-allowed disabled:opacity-30"><Trash2 size={14} /></button>
                   </div>
                 </div>
               )}
@@ -345,6 +355,18 @@ export default function UsuariosTab({ users, stats, actionLoading, onChangePlan,
           ))}
         </div>
       </div>
+
+      {deleteTarget && (
+        <DeleteUserModal
+          user={deleteTarget}
+          loading={actionLoading === deleteTarget.id + 'delete'}
+          onCancel={() => setDeleteTarget(null)}
+          onConfirm={(emailConfirm) => {
+            onAdminAction(deleteTarget.id, 'delete', emailConfirm)
+            setDeleteTarget(null)
+          }}
+        />
+      )}
     </>
   )
 }

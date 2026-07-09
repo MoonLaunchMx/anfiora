@@ -167,7 +167,7 @@ export default function AdminPage() {
     setUsers(prev => prev.map(u => u.id === userId ? { ...u, plan: newPlan } : u))
   }
 
-  async function callAdminAction(userId: string, action: 'delete' | 'ban' | 'unban') {
+  async function callAdminAction(userId: string, action: 'delete' | 'ban' | 'unban', emailConfirm?: string) {
     const token = sessionToken
     if (!token) return
     setActionLoading(userId + action)
@@ -175,7 +175,7 @@ export default function AdminPage() {
       const res = await fetch('/api/admin/delete-user', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-        body: JSON.stringify({ userId, action })
+        body: JSON.stringify({ userId, action, emailConfirm })
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
@@ -193,12 +193,6 @@ export default function AdminPage() {
       showToast(e instanceof Error ? e.message : 'Error desconocido', false)
     } finally {
       setActionLoading(null)
-    }
-  }
-
-  function confirmDelete(u: AdminUser) {
-    if (window.confirm('Eliminar a ' + (u.full_name || u.email) + '?\n\nEsto borra su cuenta y todos sus datos. No se puede deshacer.')) {
-      callAdminAction(u.id, 'delete')
     }
   }
 
@@ -284,7 +278,6 @@ export default function AdminPage() {
             actionLoading={actionLoading}
             onChangePlan={changePlan}
             onAdminAction={callAdminAction}
-            onConfirmDelete={confirmDelete}
           />
         )}
         {activeTab === 'pagos'    && <PagosTab users={users} />}
