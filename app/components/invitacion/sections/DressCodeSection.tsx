@@ -2,6 +2,7 @@
 import type { Section } from '@/lib/invite/schema'
 import type { InviteCtx } from '../types'
 import { isDressCodeConfigured, resolveNivelLabel, resolveNivelDesc } from '@/lib/dresscode'
+import SectionShell from '../SectionShell'
 
 type Content = Extract<Section, { type: 'dress_code' }>['content']
 
@@ -11,11 +12,11 @@ export default function DressCodeSection({ content, ctx }: { content: Content; c
   if (!dc || !isDressCodeConfigured(dc)) {
     if (ctx.mode !== 'preview') return null
     return (
-      <section className="px-6 py-7 text-center">
+      <SectionShell variant="band" className="text-center">
         <p className="rounded-xl border border-dashed border-[#e0e0e0] bg-white px-4 py-6 text-xs text-[#bbb]">
           Configúralo en Estilo → Dress code
         </p>
-      </section>
+      </SectionShell>
     )
   }
 
@@ -23,8 +24,8 @@ export default function DressCodeSection({ content, ctx }: { content: Content; c
   const desc = resolveNivelDesc(dc)
 
   return (
-    <section className="px-6 py-8 text-center">
-      <h2 className="px-2 text-xl font-semibold text-[#1D1E20]" style={{ fontFamily: "'Josefin Sans', sans-serif" }}>
+    <SectionShell variant="band" className="text-center">
+      <h2 className="px-2 text-xl font-semibold text-[#1D1E20] sm:text-2xl" style={{ fontFamily: "'Josefin Sans', sans-serif" }}>
         {content.titulo}
       </h2>
 
@@ -64,17 +65,17 @@ export default function DressCodeSection({ content, ctx }: { content: Content; c
       )}
 
       {dc.recomendaciones.length > 0 && (
-        <p className="mx-auto mt-6 max-w-sm rounded-xl border border-[#f0e2bf] bg-[#fffbf0] px-4 py-3 text-left text-xs leading-relaxed text-[#1D1E20]">
+        <p className="mx-auto mt-6 max-w-md rounded-xl border border-[#f0e2bf] bg-[#fffbf0] px-4 py-3 text-left text-xs leading-relaxed text-[#1D1E20]">
           {dc.recomendaciones.join('. ')}.
         </p>
       )}
 
       {dc.nota_libre.trim() && (
-        <p className="mx-auto mt-3 max-w-sm text-left text-xs leading-relaxed text-[#666]">{dc.nota_libre}</p>
+        <p className="mx-auto mt-3 max-w-md text-left text-xs leading-relaxed text-[#666]">{dc.nota_libre}</p>
       )}
 
       {(dc.guia_ellas?.trim() || dc.guia_ellos?.trim()) && (
-        <div className="mx-auto mt-5 grid max-w-sm gap-2 text-left">
+        <div className="mx-auto mt-5 grid max-w-md gap-2 text-left sm:grid-cols-2">
           {dc.guia_ellas?.trim() && (
             <div className="rounded-xl bg-white px-3 py-2.5">
               <p className="text-[10px] font-bold uppercase tracking-wider text-[#999]">Ellas</p>
@@ -91,7 +92,7 @@ export default function DressCodeSection({ content, ctx }: { content: Content; c
       )}
 
       {(dc.fotos_ellas.length > 0 || dc.fotos_ellos.length > 0) && (
-        <div className="mx-auto mt-6 grid max-w-sm grid-cols-2 gap-4">
+        <div className="mx-auto mt-6 grid max-w-md grid-cols-2 gap-4">
           {([['fotos_ellas', 'Ellas'], ['fotos_ellos', 'Ellos']] as const).map(([field, titulo]) =>
             dc[field].length > 0 ? (
               <div key={field}>
@@ -106,6 +107,6 @@ export default function DressCodeSection({ content, ctx }: { content: Content; c
           )}
         </div>
       )}
-    </section>
+    </SectionShell>
   )
 }

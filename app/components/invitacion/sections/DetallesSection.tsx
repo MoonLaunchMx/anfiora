@@ -3,6 +3,7 @@ import type { Section } from '@/lib/invite/schema'
 import type { InviteCtx } from '../types'
 import { Calendar, Clock, MapPin } from 'lucide-react'
 import { formatFecha } from '../format'
+import SectionShell from '../SectionShell'
 
 type Content = Extract<Section, { type: 'detalles' }>['content']
 
@@ -16,12 +17,12 @@ export default function DetallesSection({ content, ctx }: { content: Content; ct
   if (!fecha && !event_time && !venue && !address) return null
 
   return (
-    <section className="px-6 py-8">
-      <h2 className="px-2 text-center text-xl font-semibold text-[#1D1E20]" style={{ fontFamily: "'Josefin Sans', sans-serif" }}>
+    <SectionShell variant="band">
+      <h2 className="px-2 text-center text-xl font-semibold text-[#1D1E20] sm:text-2xl" style={{ fontFamily: "'Josefin Sans', sans-serif" }}>
         {content.titulo}
       </h2>
 
-      <div className="mx-auto mt-8 flex max-w-sm flex-col gap-4">
+      <div className="mt-8 grid gap-4 sm:grid-cols-2">
         {(fecha || event_time) && (
           <div className="rounded-2xl border border-[#e8e8e8] bg-white px-5 py-4">
             <p className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-[#999]">
@@ -56,6 +57,6 @@ export default function DetallesSection({ content, ctx }: { content: Content; ct
           </div>
         )}
       </div>
-    </section>
+    </SectionShell>
   )
 }

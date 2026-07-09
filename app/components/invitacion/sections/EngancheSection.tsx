@@ -2,6 +2,7 @@
 import type { Section } from '@/lib/invite/schema'
 import type { InviteCtx } from '../types'
 import { Music2, Gift, ChevronRight } from 'lucide-react'
+import SectionShell from '../SectionShell'
 
 type Content = Extract<Section, { type: 'enganche' }>['content']
 
@@ -13,12 +14,12 @@ export default function EngancheSection({ content, ctx }: { content: Content; ct
   if (!showPlaylist && !showMesa) return null
 
   return (
-    <section className="px-5 py-8">
-      <h2 className="px-2 text-center text-xl font-semibold text-[#1D1E20]" style={{ fontFamily: "'Josefin Sans', sans-serif" }}>
+    <SectionShell variant="band">
+      <h2 className="px-2 text-center text-xl font-semibold text-[#1D1E20] sm:text-2xl" style={{ fontFamily: "'Josefin Sans', sans-serif" }}>
         {content.titulo}
       </h2>
 
-      <div className="mx-auto mt-5 flex max-w-sm flex-col gap-3">
+      <div className="mt-5 grid gap-3 sm:grid-cols-2">
         {showPlaylist && (
           <a
             href={ctx.tokens.playlist ? `/playlist/${ctx.tokens.playlist}` : '#'}
@@ -51,6 +52,6 @@ export default function EngancheSection({ content, ctx }: { content: Content; ct
           </a>
         )}
       </div>
-    </section>
+    </SectionShell>
   )
 }
