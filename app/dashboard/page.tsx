@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { Event, EventStatus } from '@/lib/types'
+import { Event, EventStatus, formatEventDate } from '@/lib/types'
 import { Bell } from 'lucide-react'
 import { WhatsNewModal } from '@/app/components/WhatsNewModal'
 import { NewEventModal } from '@/app/components/NewEventModal'
@@ -293,13 +293,6 @@ export default function Dashboard() {
     return base
   }
 
-  const formatDate = (dateStr: string | null) => {
-    if (!dateStr) return ''
-    const [year, month, day] = dateStr.split('T')[0].split('-').map(Number)
-    return new Date(year, month - 1, day).toLocaleDateString('es-MX', {
-      day: 'numeric', month: 'long', year: 'numeric',
-    })
-  }
 
   const formatTime = (time: string | null) => {
     if (!time) return ''
@@ -464,7 +457,7 @@ export default function Dashboard() {
               )}
             </div>
             <p className="mt-0.5 text-xs text-[#888]">
-              {formatDate(event.event_date)}
+              {formatEventDate(event.event_date, event.event_end_date)}
               {event.event_time && ' · ' + formatTime(event.event_time)}
               {event.venue && ' · ' + event.venue}
             </p>
@@ -655,7 +648,7 @@ export default function Dashboard() {
                   </div>
                   <h2 className="truncate text-sm font-bold text-[#1D1E20] sm:text-base">{nextEvent.name}</h2>
                   <p className="mt-0.5 text-xs text-[#888]">
-                    {formatDate(nextEvent.event_date)}
+                    {formatEventDate(nextEvent.event_date, nextEvent.event_end_date)}
                     {nextEvent.event_time && ' · ' + formatTime(nextEvent.event_time)}
                     {nextEvent.venue && ' · ' + nextEvent.venue}
                   </p>

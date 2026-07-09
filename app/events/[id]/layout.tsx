@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabase'
 import { Users, Images, Music2, Settings, LayoutGrid, PanelLeftClose, PanelLeftOpen, CalendarDays, House, User, LogOut, Wallet, Briefcase, Heart, MessageCircle, Receipt, Gift, UtensilsCrossed, Shirt, Palette, MailOpen } from 'lucide-react'
 import { LEGACY_FEATURES, type FeatureKey } from '@/lib/features'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Event } from '@/lib/types'
+import { Event, formatEventDate } from '@/lib/types'
 import { EventAccessProvider, useEventAccess } from '@/lib/event-access-context'
 
 const EVENT_TYPE_LABELS: Record<string, string> = {
@@ -360,12 +360,6 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
     loadEvent()
   }, [id, authChecked])
 
-  const formatDate = (d: string) => {
-    const [year, month, day] = d.split('T')[0].split('-').map(Number)
-    return new Date(year, month - 1, day).toLocaleDateString('es-MX', {
-      day: 'numeric', month: 'long', year: 'numeric'
-    })
-  }
 
   const getDisplayStatus = (): 'active' | 'paused' | 'cancelled' | 'completed' => {
     const es = event?.event_status || 'active'
@@ -574,7 +568,7 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
             )}
             {event.event_date && (
               <span className="hidden text-xs text-[#aaa] lg:block">
-                {formatDate(event.event_date)}
+                {formatEventDate(event.event_date, event.event_end_date)}
               </span>
             )}
           </div>
@@ -700,7 +694,7 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
                 )}
                 <p className="text-sm font-bold leading-snug text-[#1D1E20]">{event?.name || '...'}</p>
                 {event?.event_date && (
-                  <p className="mt-1 text-[11px] text-[#999]">{formatDate(event.event_date)}</p>
+                  <p className="mt-1 text-[11px] text-[#999]">{formatEventDate(event.event_date, event.event_end_date)}</p>
                 )}
                 {event?.venue && (
                   <p className="mt-0.5 text-[11px] text-[#aaa]">{event.venue}</p>
