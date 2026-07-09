@@ -84,7 +84,7 @@ export function GenerateItineraryModal({ eventType, eventCategory, venue, onClos
           Marca las horas clave de tu {eventType || 'evento'} (desayuno, comida, cena, after, lo que aplique). Con eso te proponemos un run-of-show que podras editar antes de guardar.
         </p>
 
-        <div className="px-5 flex flex-col gap-2 flex-1 min-h-0 overflow-y-auto">
+        <div className="px-5 flex flex-col gap-2 max-h-[268px] overflow-y-auto">
           {rows.map(row => (
             <div key={row.id} className="flex items-center gap-2">
               <input
