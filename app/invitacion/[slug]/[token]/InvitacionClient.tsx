@@ -94,11 +94,9 @@ export default function InvitacionClient({ token }: { token: string }) {
 
   return (
     <div className="min-h-screen bg-[#FBF7F0]">
-      <div className="mx-auto max-w-[480px]">
-        <PreviewBoundary>
-          <InvitacionRenderer doc={data.doc} ctx={ctx} />
-        </PreviewBoundary>
-      </div>
+      <PreviewBoundary>
+        <InvitacionRenderer doc={data.doc} ctx={ctx} />
+      </PreviewBoundary>
     </div>
   )
 }
