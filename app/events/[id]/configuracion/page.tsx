@@ -245,6 +245,7 @@ export default function ConfiguracionPage() {
   const [typeCategory, setTypeCategory] = useState('social')
   const autoSaveTimeoutRef      = useRef<NodeJS.Timeout | null>(null)
   const hasChangesRef           = useRef(false)
+  const handleSaveRef           = useRef<(autoSave?: boolean) => void>(() => {})
 
   // Datos del evento
   const [name, setName]               = useState('')
@@ -410,11 +411,13 @@ export default function ConfiguracionPage() {
     }
   }
 
+  handleSaveRef.current = handleSave
+
   const scheduleAutoSave = () => {
     hasChangesRef.current = true
     if (autoSaveTimeoutRef.current) clearTimeout(autoSaveTimeoutRef.current)
     autoSaveTimeoutRef.current = setTimeout(() => {
-      if (hasChangesRef.current && name) handleSave(true)
+      if (hasChangesRef.current) handleSaveRef.current(true)
     }, 2000)
   }
 
