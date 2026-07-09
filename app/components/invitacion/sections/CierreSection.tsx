@@ -6,8 +6,8 @@ import SectionShell from '../SectionShell'
 
 type Content = Extract<Section, { type: 'cierre' }>['content']
 
-export default function CierreSection({ content, ctx }: { content: Content; ctx: InviteCtx }) {
-  const firma = resolveInviteHeading(ctx.event)
+export default function CierreSection({ content, ctx, portadaTitulo }: { content: Content; ctx: InviteCtx; portadaTitulo?: string }) {
+  const firma = portadaTitulo?.trim() || resolveInviteHeading(ctx.event)
 
   return (
     <SectionShell variant="hero" className="bg-[#FBF7F0] text-center" innerClassName="flex flex-col items-center gap-4">
@@ -18,7 +18,14 @@ export default function CierreSection({ content, ctx }: { content: Content; ctx:
       <p className="px-2 text-sm font-semibold text-[#666] lg:text-base" style={{ fontFamily: "'Josefin Sans', sans-serif" }}>
         {firma}
       </p>
-      <p className="mt-6 text-[11px] uppercase tracking-wider text-[#bbb]">Hecho con Anfiora</p>
+      <a
+        href="/?utm_source=invitacion"
+        target="_blank"
+        rel="noreferrer"
+        className="mt-6 text-[11px] uppercase tracking-wider text-[#bbb] transition hover:text-[#d4a853]"
+      >
+        Hecho con Anfiora
+      </a>
     </SectionShell>
   )
 }
