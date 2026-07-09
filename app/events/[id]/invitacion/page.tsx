@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useParams } from 'next/navigation'
-import { Send, Check, LayoutGrid } from 'lucide-react'
+import { Send, Check, LayoutGrid, ExternalLink } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { resolveDoc, setMeta } from '@/lib/invite/doc'
 import type { InviteDoc } from '@/lib/invite/schema'
@@ -197,6 +197,14 @@ export default function InvitacionPage() {
                 placeholder="Sin límite"
               />
             </div>
+            <a
+              href={`/invitacion/preview/${eventId}`}
+              target="_blank"
+              rel="noreferrer"
+              className="hidden shrink-0 items-center gap-1.5 rounded-lg border border-[#e0e0e0] px-3 py-2 text-sm font-medium text-[#666] transition hover:bg-[#f5f5f5] sm:flex"
+            >
+              <ExternalLink size={14} /> Vista completa
+            </a>
             <button
               onClick={handlePublish}
               disabled={publishing}
