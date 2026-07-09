@@ -83,12 +83,17 @@ ancho lo decide cada sección vía Shell.
 
 ### 4. Botón "Abrir vista completa" (extra)
 
-- Ruta nueva de preview del dueño: `app/events/[id]/invitacion/preview/page.tsx`.
-  Client component, auth por página como el resto (`supabase.auth.getUser()`,
-  restringida al dueño/colaborador del evento). Carga el `invite_config` guardado
-  + contexto del evento (mismo dato que el editor arma como `sampleCtx`) y
-  renderiza `<InvitacionRenderer>` dentro del **mismo contenedor de página
-  responsive** que la ruta pública. Sin frame de teléfono. No requiere publicar.
+- Ruta nueva de preview del dueño: `app/invitacion/preview/[id]/page.tsx` — vive
+  **fuera** del layout de `events/[id]` a propósito, para renderizar sin el nav
+  del sidebar (chrome-free). Client component, auth por página como el resto
+  (`supabase.auth.getUser()`; el acceso al evento lo restringe RLS: si la query
+  devuelve `null` se niega). Carga el `invite_config` guardado + contexto del
+  evento (mismo dato que el editor arma como `sampleCtx`) y renderiza
+  `<InvitacionRenderer>` dentro del **mismo contenedor de página responsive** que
+  la ruta pública. Sin frame de teléfono. No requiere publicar.
+- Nota de routing: `/invitacion/preview/[id]` no colisiona con
+  `/invitacion/[slug]/[token]` porque el segmento estático `preview` tiene
+  prioridad sobre el dinámico `[slug]` en Next.js. Verificar en la implementación.
 - Botón en el toolbar del editor (`app/events/[id]/invitacion/page.tsx`) que abre
   esa ruta en pestaña nueva (`target="_blank"`).
 - El preview del editor con frame de teléfono (`page.tsx:228`) **no se toca**: es
