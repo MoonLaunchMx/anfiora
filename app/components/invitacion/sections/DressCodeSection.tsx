@@ -1,4 +1,7 @@
 'use client'
+import { useState, useEffect } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { ChevronLeft, ChevronRight, X } from 'lucide-react'
 import type { Section } from '@/lib/invite/schema'
 import type { InviteCtx } from '../types'
 import { isDressCodeConfigured, resolveNivelLabel, resolveNivelDesc } from '@/lib/dresscode'
@@ -8,6 +11,34 @@ type Content = Extract<Section, { type: 'dress_code' }>['content']
 
 export default function DressCodeSection({ content, ctx }: { content: Content; ctx: InviteCtx }) {
   const dc = ctx.dressCode
+  const fotos = dc && isDressCodeConfigured(dc)
+    ? [
+        ...dc.fotos_ellas.map((url, i) => ({ id: `dcfoto-fotos_ellas-${i}`, url })),
+        ...dc.fotos_ellos.map((url, i) => ({ id: `dcfoto-fotos_ellos-${i}`, url })),
+      ]
+    : []
+  const total = fotos.length
+
+  const [zoom, setZoom] = useState<number | null>(null)
+
+  const go = (dir: 1 | -1) =>
+    setZoom(v => (v === null || total === 0 ? v : (v + dir + total) % total))
+
+  useEffect(() => {
+    document.body.style.overflow = zoom !== null ? 'hidden' : ''
+    return () => { document.body.style.overflow = '' }
+  }, [zoom])
+
+  useEffect(() => {
+    if (zoom === null) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setZoom(null)
+      else if (e.key === 'ArrowRight') setZoom(v => (v === null || total === 0 ? v : (v + 1) % total))
+      else if (e.key === 'ArrowLeft') setZoom(v => (v === null || total === 0 ? v : (v - 1 + total) % total))
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [zoom, total])
 
   if (!dc || !isDressCodeConfigured(dc)) {
     if (ctx.mode !== 'preview') return null
@@ -22,6 +53,7 @@ export default function DressCodeSection({ content, ctx }: { content: Content; c
 
   const label = resolveNivelLabel(dc)
   const desc = resolveNivelDesc(dc)
+  const ellasCount = dc.fotos_ellas.length
 
   return (
     <SectionShell variant="band" className="text-center">
@@ -91,15 +123,23 @@ export default function DressCodeSection({ content, ctx }: { content: Content; c
         </div>
       )}
 
-      {(dc.fotos_ellas.length > 0 || dc.fotos_ellos.length > 0) && (
+      {total > 0 && (
         <div className="mx-auto mt-6 grid max-w-md grid-cols-2 gap-4">
-          {([['fotos_ellas', 'Ellas'], ['fotos_ellos', 'Ellos']] as const).map(([field, titulo]) =>
+          {([['fotos_ellas', 'Ellas', 0], ['fotos_ellos', 'Ellos', ellasCount]] as const).map(([field, titulo, base]) =>
             dc[field].length > 0 ? (
               <div key={field}>
                 <p className="text-[10px] font-bold uppercase tracking-wider text-[#999]">{titulo}</p>
                 <div className="mt-2 flex flex-wrap justify-center gap-2">
                   {dc[field].map((url, i) => (
-                    <img key={i} src={url} alt="" className="h-20 w-20 rounded-lg border border-[#e8e8e8] object-cover" />
+                    <motion.img
+                      key={i}
+                      layoutId={`dcfoto-${field}-${i}`}
+                      src={url}
+                      alt=""
+                      onClick={() => setZoom(base + i)}
+                      whileTap={{ scale: 0.94 }}
+                      className="h-20 w-20 cursor-pointer rounded-lg border border-[#e8e8e8] object-cover transition hover:brightness-95"
+                    />
                   ))}
                 </div>
               </div>
@@ -107,6 +147,77 @@ export default function DressCodeSection({ content, ctx }: { content: Content; c
           )}
         </div>
       )}
+
+      <AnimatePresence>
+        {zoom !== null && fotos[zoom] && (
+          <motion.div
+            className="fixed inset-0 z-[200] flex items-center justify-center p-6"
+            onClick={() => setZoom(null)}
+          >
+            <motion.div
+              className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+            />
+
+            <button
+              type="button"
+              onClick={e => { e.stopPropagation(); setZoom(null) }}
+              className="absolute right-4 top-4 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-white/15 text-white transition hover:bg-white/25"
+              aria-label="Cerrar"
+            >
+              <X size={18} />
+            </button>
+
+            <div className="relative z-10 w-fit">
+              {total > 1 && (
+                <>
+                  <button
+                    type="button"
+                    onClick={e => { e.stopPropagation(); go(-1) }}
+                    className="absolute left-2 top-1/2 z-10 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-black/40 text-white transition hover:bg-black/60"
+                    aria-label="Anterior"
+                  >
+                    <ChevronLeft size={20} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={e => { e.stopPropagation(); go(1) }}
+                    className="absolute right-2 top-1/2 z-10 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-black/40 text-white transition hover:bg-black/60"
+                    aria-label="Siguiente"
+                  >
+                    <ChevronRight size={20} />
+                  </button>
+                </>
+              )}
+
+              <motion.img
+                key={fotos[zoom].id}
+                layoutId={fotos[zoom].id}
+                src={fotos[zoom].url}
+                alt=""
+                drag={total > 1 ? 'x' : false}
+                dragConstraints={{ left: 0, right: 0 }}
+                dragElastic={0.2}
+                onClick={e => { e.stopPropagation(); if (total > 1) go(1) }}
+                onDragEnd={(_e, info) => {
+                  if (info.offset.x < -60) go(1)
+                  else if (info.offset.x > 60) go(-1)
+                }}
+                className="block max-h-[85vh] max-w-[90vw] cursor-pointer rounded-2xl object-contain shadow-2xl"
+                transition={{ type: 'spring', stiffness: 280, damping: 30 }}
+              />
+            </div>
+
+            {total > 1 && (
+              <p className="absolute bottom-5 left-1/2 -translate-x-1/2 text-xs font-medium text-white/70">
+                {zoom + 1} / {total}
+              </p>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </SectionShell>
   )
 }
