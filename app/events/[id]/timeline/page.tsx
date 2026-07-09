@@ -7,12 +7,13 @@ import { TimelineTask } from '@/lib/types'
 import {
   CalendarDays, CheckCircle2, Circle, Plus,
   ChevronDown, ChevronLeft, ChevronRight,
-  LayoutList, Search, SlidersHorizontal, X, AlertTriangle,
+  LayoutList, Search, SlidersHorizontal, X, AlertTriangle, Clock,
 } from 'lucide-react'
 import StatsCollapse, { StatsToggleButton, useStatsToggle } from '@/app/components/ui/StatsCollapse'
 import { TaskCard, CategoryIcon, CalendarTaskIcon, getUrgency, formatDateFull } from './TaskCard'
 import { TaskModal } from './TaskModal'
 import { buildTimelineTasks } from './lib/templates'
+import { ItineraryView } from './ItineraryView'
 
 // ─── CONSTANTS ───────────────────────────────────────────────────────────────
 
@@ -177,7 +178,7 @@ export default function TimelinePage() {
 
   const [tasks, setTasks]             = useState<TimelineTask[]>([])
   const [loading, setLoading]         = useState(true)
-  const [view, setView]               = useState<'lista' | 'calendario'>('lista')
+  const [view, setView]               = useState<'lista' | 'calendario' | 'itinerario'>('lista')
   const [showModal, setShowModal]     = useState(false)
   const [editTask, setEditTask]       = useState<TimelineTask | null>(null)
   const [prefillDate, setPrefillDate] = useState<string | null>(null)
@@ -503,8 +504,13 @@ export default function TimelinePage() {
               className={['flex items-center gap-1.5 border-l border-[#e0e0e0] px-3 py-1.5 text-xs font-medium transition', view === 'calendario' ? 'bg-[#1D1E20] text-white' : 'text-[#888] hover:bg-[#f5f5f5]'].join(' ')}>
               <CalendarDays width={13} height={13} /><span>Calendario</span>
             </button>
+            <button onClick={() => setView('itinerario')}
+              className={['flex items-center gap-1.5 border-l border-[#e0e0e0] px-3 py-1.5 text-xs font-medium transition', view === 'itinerario' ? 'bg-[#c99a3f] text-white' : 'text-[#888] hover:bg-[#f5f5f5]'].join(' ')}>
+              <Clock width={13} height={13} /><span>Itinerario</span>
+            </button>
           </div>
 
+          {view !== 'itinerario' && <>
           <div className="hidden sm:flex items-center gap-2 flex-1">
             <div className="relative flex-1 max-w-xs">
               <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#bbb]" />
@@ -553,6 +559,7 @@ export default function TimelinePage() {
               <Plus width={14} height={14} />Agregar
             </button>
           </div>
+          </>}
         </div>
       </div>
 
@@ -564,6 +571,11 @@ export default function TimelinePage() {
               <p className="text-sm text-[#999]">Cargando...</p>
             </div>
           </div>
+        ) : view === 'itinerario' ? (
+          <ItineraryView
+            eventId={eventId}
+            eventInfo={eventInfo ? { ...eventInfo, venue: null } : null}
+          />
         ) : view === 'lista' ? <ListView /> : <CalendarView />}
       </div>
 
