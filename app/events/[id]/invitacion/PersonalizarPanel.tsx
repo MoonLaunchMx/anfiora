@@ -45,8 +45,6 @@ export default function PersonalizarPanel({ doc, onChange }: { doc: InviteDoc; o
 
   return (
     <div className="flex flex-col gap-5 rounded-xl border border-[#e8e8e8] bg-[#fafafa] p-4">
-      <p className="text-[11px] font-bold uppercase tracking-wider text-[#999]">Personalizar</p>
-
       <div className="flex flex-col gap-2.5">
         <p className="text-xs font-semibold text-[#1D1E20]">Colores</p>
         <ColorRow label="Fondo" value={t.colores.fondo} onChange={v => set({ colores: { fondo: v } })} />
