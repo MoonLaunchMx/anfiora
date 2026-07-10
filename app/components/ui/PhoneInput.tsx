@@ -137,25 +137,25 @@ export default function PhoneInput({
       </div>
 
       {open && (
-        <div className="absolute left-0 top-[calc(100%+4px)] z-[100] w-64 overflow-hidden rounded-lg border border-[#2a2b2e] bg-[#1D1E20] shadow-2xl">
-          <div className="flex items-center gap-2 border-b border-[#333] px-3 py-2">
-            <Search size={13} className="shrink-0 text-[#888]" />
+        <div className="absolute left-0 top-[calc(100%+4px)] z-[100] w-64 overflow-hidden rounded-lg border border-[#e0e0e0] bg-white shadow-xl">
+          <div className="flex items-center gap-2 border-b border-[#eee] px-3 py-2">
+            <Search size={13} className="shrink-0 text-[#999]" />
             <input
               autoFocus
               value={filter}
               onChange={e => setFilter(e.target.value)}
               placeholder="Buscar país"
-              className="w-full bg-transparent text-sm text-white outline-none placeholder:text-[#777]"
+              className="w-full bg-transparent text-sm text-[#1D1E20] outline-none placeholder:text-[#c0c0c0]"
             />
             {filter && (
-              <button type="button" onClick={() => setFilter('')} className="text-[#777] transition hover:text-white">
+              <button type="button" onClick={() => setFilter('')} className="text-[#999] transition hover:text-[#1D1E20]">
                 <X size={13} />
               </button>
             )}
           </div>
           <div className="max-h-56 overflow-y-auto py-1">
             {filteredCountries.length === 0 && (
-              <p className="px-3 py-2 text-sm text-[#777]">Sin resultados</p>
+              <p className="px-3 py-2 text-sm text-[#999]">Sin resultados</p>
             )}
             {filteredCountries.map(c => (
               <button
@@ -163,7 +163,7 @@ export default function PhoneInput({
                 type="button"
                 onClick={() => handleSelectCountry(c.iso)}
                 className={`flex w-full items-center justify-between px-3 py-2 text-left text-sm transition ${
-                  c.iso === country ? 'bg-[#2a2b2e] text-white' : 'text-[#ddd] hover:bg-[#2a2b2e]'
+                  c.iso === country ? 'bg-[#f0f0f0] text-[#1D1E20]' : 'text-[#333] hover:bg-[#f8f8f8]'
                 }`}
               >
                 <span className="truncate">{c.name}</span>
