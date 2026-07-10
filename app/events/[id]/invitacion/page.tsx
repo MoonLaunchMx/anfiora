@@ -269,47 +269,22 @@ export default function InvitacionPage() {
             <div className="hidden sm:sticky sm:top-0 sm:block">
               <div className="mb-2 flex items-center justify-between">
                 <p className="text-[11px] font-bold uppercase tracking-wider text-[#999]">Vista previa</p>
-                <div className="flex overflow-hidden rounded-lg border border-[#e0e0e0]">
-                  <button
-                    onClick={() => setPreviewMode('movil')}
-                    className={['px-3 py-1 text-[11px] font-medium transition', previewMode === 'movil' ? 'bg-[#48C9B0] text-white' : 'text-[#888] hover:bg-[#f5f5f5]'].join(' ')}
-                  >
-                    Móvil
-                  </button>
-                  <button
-                    onClick={() => setPreviewMode('escritorio')}
-                    className={['border-l border-[#e0e0e0] px-3 py-1 text-[11px] font-medium transition', previewMode === 'escritorio' ? 'bg-[#48C9B0] text-white' : 'text-[#888] hover:bg-[#f5f5f5]'].join(' ')}
-                  >
-                    Escritorio
-                  </button>
+                <div className="flex items-center gap-2 text-[11px]">
+                  <span className="text-[#bbb]">Abrir:</span>
+                  <button onClick={() => { setPreviewMode('movil'); setShowPreview(true) }} className="font-medium text-[#888] transition hover:text-[#48C9B0]">Móvil</button>
+                  <span className="text-[#ddd]">·</span>
+                  <button onClick={() => { setPreviewMode('escritorio'); setShowPreview(true) }} className="font-medium text-[#888] transition hover:text-[#48C9B0]">Escritorio</button>
                 </div>
               </div>
-              {previewMode === 'movil' ? (
-                <div className="flex justify-center">
-                  <div className="w-full max-w-[360px] overflow-hidden rounded-[2.5rem] border-[10px] border-[#1D1E20] bg-[#1D1E20] shadow-xl">
-                    <div className="h-[calc(100dvh-18rem)] max-h-[720px] min-h-[420px] overflow-y-auto overflow-x-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                      <PreviewBoundary>
-                        <InvitacionRenderer doc={doc} ctx={sampleCtx} />
-                      </PreviewBoundary>
-                    </div>
+              <div className="flex justify-center">
+                <div className="w-full max-w-[360px] overflow-hidden rounded-[2.5rem] border-[10px] border-[#1D1E20] bg-[#1D1E20] shadow-xl">
+                  <div className="h-[calc(100dvh-18rem)] max-h-[720px] min-h-[420px] overflow-y-auto overflow-x-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                    <PreviewBoundary>
+                      <InvitacionRenderer doc={doc} ctx={sampleCtx} />
+                    </PreviewBoundary>
                   </div>
                 </div>
-              ) : (
-                <div className="overflow-hidden rounded-xl border border-[#e0e0e0] bg-white shadow-xl">
-                  <div className="flex items-center gap-1.5 border-b border-[#eee] bg-[#f6f6f6] px-3 py-1.5">
-                    <span className="h-2 w-2 rounded-full bg-[#e0a0a0]" />
-                    <span className="h-2 w-2 rounded-full bg-[#e8ca90]" />
-                    <span className="h-2 w-2 rounded-full bg-[#a0d0a0]" />
-                  </div>
-                  <div className="h-[calc(100dvh-19rem)] max-h-[680px] min-h-[420px] overflow-y-auto overflow-x-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                    <div style={{ width: '1100px', ['zoom' as string]: 0.33 } as React.CSSProperties}>
-                      <PreviewBoundary>
-                        <InvitacionRenderer doc={doc} ctx={sampleCtx} />
-                      </PreviewBoundary>
-                    </div>
-                  </div>
-                </div>
-              )}
+              </div>
             </div>
           </div>
         ) : (
@@ -319,7 +294,7 @@ export default function InvitacionPage() {
 
       {activeTab === 'diseno' && (
         <button
-          onClick={() => setShowPreview(true)}
+          onClick={() => { setPreviewMode('movil'); setShowPreview(true) }}
           className="fixed bottom-20 right-4 z-40 flex items-center gap-2 rounded-full bg-[#1D1E20] px-4 py-3 text-sm font-semibold text-white shadow-lg sm:hidden"
         >
           <Eye size={16} /> Vista previa
@@ -344,9 +319,11 @@ export default function InvitacionPage() {
               <X size={18} />
             </button>
             <div className="h-full overflow-y-auto overflow-x-hidden overscroll-contain">
-              <PreviewBoundary>
-                <InvitacionRenderer doc={doc} ctx={sampleCtx} />
-              </PreviewBoundary>
+              <div className={previewMode === 'movil' ? 'mx-auto min-h-full w-full max-w-[420px] shadow-2xl' : 'min-h-full w-full'}>
+                <PreviewBoundary>
+                  <InvitacionRenderer doc={doc} ctx={sampleCtx} />
+                </PreviewBoundary>
+              </div>
             </div>
           </motion.div>
         )}
