@@ -12,6 +12,7 @@ export interface ItineraryEventInfo {
   event_date: string | null
   event_type: string | null
   event_category: string | null
+  event_time?: string | null
   venue?: string | null
 }
 

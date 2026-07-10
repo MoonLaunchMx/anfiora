@@ -7,6 +7,7 @@ import type { GeneratedMoment, ItineraryAnchor } from '@/lib/itinerary-ai'
 interface GenerateItineraryModalProps {
   eventType: string | null
   eventCategory: string | null
+  eventTime: string | null
   venue: string | null
   onClose: () => void
   onGenerated: (moments: GeneratedMoment[]) => void
@@ -28,9 +29,15 @@ function defaultAnchorLabels(eventType: string | null, eventCategory: string | n
 
 interface AnchorRow { id: string; label: string; time: string }
 
-export function GenerateItineraryModal({ eventType, eventCategory, venue, onClose, onGenerated }: GenerateItineraryModalProps) {
+export function GenerateItineraryModal({ eventType, eventCategory, eventTime, venue, onClose, onGenerated }: GenerateItineraryModalProps) {
+  // La primera ancla se precarga con la hora de inicio configurada del evento
+  // (event_time), para que la IA respete esa hora en vez de inventarla.
   const [rows, setRows] = useState<AnchorRow[]>(() =>
-    defaultAnchorLabels(eventType, eventCategory).map(label => ({ id: crypto.randomUUID(), label, time: '' })),
+    defaultAnchorLabels(eventType, eventCategory).map((label, i) => ({
+      id: crypto.randomUUID(),
+      label,
+      time: i === 0 && eventTime ? eventTime.slice(0, 5) : '',
+    })),
   )
   const [loading, setLoading] = useState(false)
   const [error, setError]     = useState('')
