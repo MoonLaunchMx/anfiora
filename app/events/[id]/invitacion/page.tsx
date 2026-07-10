@@ -18,6 +18,7 @@ import type { InviteCtx } from '@/app/components/invitacion/types'
 import DatePicker from '@/app/components/ui/DatePicker'
 import BlockEditor from './BlockEditor'
 import RepartoLinks from './RepartoLinks'
+import EstiloPanel from './EstiloPanel'
 
 type TabKey = 'diseno' | 'enviar'
 
@@ -57,6 +58,7 @@ export default function InvitacionPage() {
   const [saved, setSaved] = useState(false)
   const [publishing, setPublishing] = useState(false)
   const [activeTab, setActiveTab] = useState<TabKey>('diseno')
+  const [disenoSub, setDisenoSub] = useState<'estilo' | 'contenido'>('estilo')
   const [showPreview, setShowPreview] = useState(false)
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
@@ -247,7 +249,27 @@ export default function InvitacionPage() {
       <div className="flex-1 overflow-y-auto px-4 pb-6 pt-5 sm:px-6 lg:px-10">
         {activeTab === 'diseno' ? (
           <div className="grid items-start gap-6 sm:grid-cols-[1fr_360px] lg:gap-8">
-            <BlockEditor doc={doc} onChange={updateDoc} makeId={() => crypto.randomUUID()} />
+            <div className="min-w-0">
+              <div className="mb-4 inline-flex overflow-hidden rounded-lg border border-[#e0e0e0]">
+                <button
+                  onClick={() => setDisenoSub('estilo')}
+                  className={['px-4 py-1.5 text-xs font-medium transition', disenoSub === 'estilo' ? 'bg-[#1D1E20] text-white' : 'text-[#888] hover:bg-[#f5f5f5]'].join(' ')}
+                >
+                  Estilo
+                </button>
+                <button
+                  onClick={() => setDisenoSub('contenido')}
+                  className={['border-l border-[#e0e0e0] px-4 py-1.5 text-xs font-medium transition', disenoSub === 'contenido' ? 'bg-[#1D1E20] text-white' : 'text-[#888] hover:bg-[#f5f5f5]'].join(' ')}
+                >
+                  Contenido
+                </button>
+              </div>
+              {disenoSub === 'estilo' ? (
+                <EstiloPanel doc={doc} onChange={updateDoc} />
+              ) : (
+                <BlockEditor doc={doc} onChange={updateDoc} makeId={() => crypto.randomUUID()} />
+              )}
+            </div>
 
             <div className="hidden sm:sticky sm:top-0 sm:block">
               <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wider text-[#999]">Vista previa</p>
