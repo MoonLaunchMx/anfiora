@@ -8,6 +8,8 @@ import {
 } from '@/lib/types'
 import { FiInstagram, FiGlobe, FiFacebook } from 'react-icons/fi'
 import { FaWhatsapp } from 'react-icons/fa'
+import PhoneInput from '@/app/components/ui/PhoneInput'
+import { detectCountry, COUNTRIES } from '@/lib/phone'
 
 type Props = {
   isOpen: boolean
@@ -27,14 +29,11 @@ type Props = {
   }) => Promise<void>
 }
 
-const COUNTRY_CODES = ['+52', '+1', '+34', '+57', '+54', '+55', '+56', '+51']
-
 export default function SupplierModal({ isOpen, onClose, currency, budgets, onSubmit }: Props) {
   const [name, setName]                   = useState('')
   const [category, setCategory]           = useState<BudgetCategory>('Venue')
   const [eventBudgetId, setEventBudgetId] = useState('')
   const [phone, setPhone]                 = useState('')
-  const [phoneCode, setPhoneCode]         = useState('+52')
   const [instagram, setInstagram]         = useState('')
   const [facebook, setFacebook]           = useState('')
   const [submitting, setSubmitting]       = useState(false)
@@ -42,7 +41,7 @@ export default function SupplierModal({ isOpen, onClose, currency, budgets, onSu
   useEffect(() => {
     if (isOpen) {
       setName(''); setCategory('Venue'); setEventBudgetId('')
-      setPhone(''); setPhoneCode('+52'); setInstagram(''); setFacebook('')
+      setPhone(''); setInstagram(''); setFacebook('')
       setSubmitting(false)
     }
   }, [isOpen])
@@ -64,12 +63,14 @@ export default function SupplierModal({ isOpen, onClose, currency, budgets, onSu
     if (err) { alert(err); return }
     setSubmitting(true)
     try {
+      const cc = detectCountry(phone)
+      const dial = COUNTRIES.find(c => c.iso === cc)?.dial ?? null
       await onSubmit({
         name:               name.trim(),
         category,
         subcategory:        selectedBudget?.subcategory || null,
         phone:              phone.trim() || null,
-        phone_country_code: phone.trim() ? phoneCode : null,
+        phone_country_code: phone.trim() ? dial : null,
         instagram:          instagram.trim().replace(/^@/, '') || null,
         facebook:           facebook.trim().replace(/^@/, '') || null,
         quoted_amount:      null,
@@ -180,23 +181,7 @@ export default function SupplierModal({ isOpen, onClose, currency, budgets, onSu
                   <FaWhatsapp size={12} />
                   WhatsApp
                 </label>
-                <div className="flex gap-2">
-                  <select
-                    value={phoneCode}
-                    onChange={e => setPhoneCode(e.target.value)}
-                    className="rounded-lg border border-[#e0e0e0] bg-white px-2 py-2 text-sm outline-none transition focus:border-[#48C9B0]"
-                  >
-                    {COUNTRY_CODES.map(c => <option key={c} value={c}>{c}</option>)}
-                  </select>
-                  <input
-                    type="tel"
-                    inputMode="tel"
-                    value={phone}
-                    onChange={e => setPhone(e.target.value.replace(/[^0-9]/g, ''))}
-                    placeholder="5512345678"
-                    className="flex-1 rounded-lg border border-[#e0e0e0] bg-white px-3 py-2 text-sm tabular-nums text-[#1D1E20] outline-none transition focus:border-[#48C9B0]"
-                  />
-                </div>
+                <PhoneInput value={phone} onChange={setPhone} placeholder="55 1234 5678" />
               </div>
 
               {/* Instagram */}
