@@ -26,7 +26,7 @@ export type AppliedSummary = {
 
 export type WritePlan = {
   guestUpdate:
-    | { rsvp_status?: 'confirmed' | 'declined'; needs_attention?: boolean; attention_reason?: AttentionReason; allergies?: string[] }
+    | { rsvp_status?: 'confirmed' | 'declined'; needs_attention?: boolean; attention_reason?: AttentionReason; allergies?: string[]; attention_detail?: string }
     | null
   partyMemberUpdates: Array<{ id: string; rsvp_status?: 'confirmed' | 'declined'; allergies?: string[] }>
   escalations: string[]
@@ -34,6 +34,8 @@ export type WritePlan = {
 }
 
 type ApplyGuest = { rsvp_status: string; allergies?: string[] | null }
+
+const MAX_ATTENTION_DETAIL = 500
 
 function normalize(s: string): string {
   return s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim()
@@ -52,7 +54,8 @@ function findMember(name: string, members: PartyMember[]): PartyMember | null {
   return members.find((m) => tokens(m.name).some((t) => nt.has(t))) ?? null
 }
 
-export function applyExtraction(result: ExtractionResult, guest: ApplyGuest, members: PartyMember[]): WritePlan {
+export function applyExtraction(result: ExtractionResult, guest: ApplyGuest, members: PartyMember[], incomingMessage?: string): WritePlan {
+  const detail = incomingMessage?.trim().slice(0, MAX_ATTENTION_DETAIL) || ''
   const escalations: string[] = []
   const guestUpdate: NonNullable<WritePlan['guestUpdate']> = {}
   const memberUpdates = new Map<string, WritePlan['partyMemberUpdates'][number]>()
@@ -72,6 +75,7 @@ export function applyExtraction(result: ExtractionResult, guest: ApplyGuest, mem
     escalations.push('baja_confianza')
     guestUpdate.needs_attention = true
     guestUpdate.attention_reason = 'duda'
+    if (detail) guestUpdate.attention_detail = detail
     summary.flagged = 'duda'
     return { guestUpdate, partyMemberUpdates: [], escalations, appliedSummary: summary }
   }
@@ -153,6 +157,7 @@ export function applyExtraction(result: ExtractionResult, guest: ApplyGuest, mem
   if (reason) {
     guestUpdate.needs_attention = true
     guestUpdate.attention_reason = reason
+    if (detail) guestUpdate.attention_detail = detail
     summary.flagged = reason
   }
 

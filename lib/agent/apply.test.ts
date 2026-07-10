@@ -242,3 +242,59 @@ describe('applyExtraction — conteo honesto confirmar+declinar (Fase 2.1 fix)',
     expect(p.appliedSummary.declinedCompanions).toBe(1)
   })
 })
+
+describe('applyExtraction — attention_detail (Camino B)', () => {
+  const members = [member('m1', 'Esposa'), member('m2', 'Hijo')]
+  const MSG = 'Hola, oye siempre si va mi esposa'
+
+  it('guarda el mensaje literal cuando marca atencion (peticion)', () => {
+    const p = applyExtraction(
+      { ...base, companions: { action: 'partial_ambiguous', names: [], decliningNames: [], impliesOthersNotComing: false } },
+      guest({ rsvp_status: 'confirmed' }), members, MSG,
+    )
+    expect(p.guestUpdate?.needs_attention).toBe(true)
+    expect(p.guestUpdate?.attention_detail).toBe(MSG)
+  })
+
+  it('guarda el mensaje tambien en atencion por baja confianza', () => {
+    const p = applyExtraction({ ...base, confidence: 'low' }, guest(), members, MSG)
+    expect(p.guestUpdate?.attention_reason).toBe('duda')
+    expect(p.guestUpdate?.attention_detail).toBe(MSG)
+  })
+
+  it('NO setea detalle en un turno limpio (sin atencion)', () => {
+    const p = applyExtraction(
+      { ...base, companions: { action: 'named', names: ['Esposa'], decliningNames: [], impliesOthersNotComing: false } },
+      guest({ rsvp_status: 'confirmed' }), members, MSG,
+    )
+    expect(p.guestUpdate?.needs_attention).toBeUndefined()
+    expect(p.guestUpdate?.attention_detail).toBeUndefined()
+  })
+
+  it('con mensaje vacio no setea detalle aunque marque atencion', () => {
+    const p = applyExtraction(
+      { ...base, companions: { action: 'partial_ambiguous', names: [], decliningNames: [], impliesOthersNotComing: false } },
+      guest({ rsvp_status: 'confirmed' }), members, '   ',
+    )
+    expect(p.guestUpdate?.needs_attention).toBe(true)
+    expect(p.guestUpdate?.attention_detail).toBeUndefined()
+  })
+
+  it('recorta mensajes largos a 500 chars', () => {
+    const long = 'a'.repeat(800)
+    const p = applyExtraction(
+      { ...base, companions: { action: 'partial_ambiguous', names: [], decliningNames: [], impliesOthersNotComing: false } },
+      guest({ rsvp_status: 'confirmed' }), members, long,
+    )
+    expect(p.guestUpdate?.attention_detail?.length).toBe(500)
+  })
+
+  it('sin el 4to argumento sigue funcionando (retrocompatible)', () => {
+    const p = applyExtraction(
+      { ...base, companions: { action: 'partial_ambiguous', names: [], decliningNames: [], impliesOthersNotComing: false } },
+      guest({ rsvp_status: 'confirmed' }), members,
+    )
+    expect(p.guestUpdate?.needs_attention).toBe(true)
+    expect(p.guestUpdate?.attention_detail).toBeUndefined()
+  })
+})
