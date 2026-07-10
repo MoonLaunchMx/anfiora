@@ -3,14 +3,17 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { toE164 } from '@/lib/phone'
 
 const PAGE = 500
-const SAMPLE = 8
+const SAMPLE = 60
 
 type TableName = 'guests' | 'party_members' | 'users' | 'suppliers'
 
 // Sin apply=true corre en seco: cuenta y muestra ejemplos antes->despues sin escribir.
+// Separa los que ya traian lada (pais confiable) de los "pelones" a los que se les
+// asume MX (grupo de riesgo si alguno fuera extranjero) y lista esos pelones para revision.
 async function normalizeTable(supabase: SupabaseClient, table: TableName, apply: boolean) {
   let from = 0, total = 0, toUpdate = 0, updated = 0, skipped = 0, alreadyOk = 0
-  const samples: Array<{ id: string; before: string; after: string }> = []
+  let withCode = 0, assumedMx = 0
+  const assumedSamples: Array<{ id: string; before: string; after: string }> = []
   for (;;) {
     const cols = table === 'suppliers' ? 'id, phone, phone_country_code' : 'id, phone'
     const { data: rows, error } = await supabase.from(table).select(cols).range(from, from + PAGE - 1)
@@ -19,6 +22,10 @@ async function normalizeTable(supabase: SupabaseClient, table: TableName, apply:
     for (const r of rows as unknown as Array<{ id: string; phone: string | null; phone_country_code?: string | null }>) {
       if (!r.phone) continue
       total++
+      // Un numero se considera de "pais confiable" si trae lada explicita: el propio
+      // telefono empieza con '+', o (en proveedores) hay phone_country_code guardado.
+      const hasExplicitCode = r.phone.trim().startsWith('+') ||
+        (table === 'suppliers' && !!r.phone_country_code)
       const raw = table === 'suppliers'
         ? `${r.phone_country_code ?? '+52'} ${r.phone}`
         : r.phone
@@ -26,7 +33,12 @@ async function normalizeTable(supabase: SupabaseClient, table: TableName, apply:
       if (!e164) { skipped++; continue }
       if (e164 === r.phone) { alreadyOk++; continue }
       toUpdate++
-      if (samples.length < SAMPLE) samples.push({ id: r.id, before: r.phone, after: e164 })
+      if (hasExplicitCode) {
+        withCode++
+      } else {
+        assumedMx++
+        if (assumedSamples.length < SAMPLE) assumedSamples.push({ id: r.id, before: r.phone, after: e164 })
+      }
       if (apply) {
         const { error: upErr } = await supabase.from(table).update({ phone: e164 }).eq('id', r.id)
         if (upErr) throw new Error(`${table} update ${r.id}: ${upErr.message}`)
@@ -36,7 +48,7 @@ async function normalizeTable(supabase: SupabaseClient, table: TableName, apply:
     from += PAGE
     if (rows.length < PAGE) break
   }
-  return { table, total, toUpdate, updated, skipped, alreadyOk, samples }
+  return { table, total, toUpdate, withCode, assumedMx, updated, skipped, alreadyOk, assumedSamples }
 }
 
 export async function POST(request: NextRequest) {
