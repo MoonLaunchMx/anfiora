@@ -2,12 +2,15 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useParams } from 'next/navigation'
-import { Send, Check, LayoutGrid, ExternalLink } from 'lucide-react'
+import { AnimatePresence, motion } from 'framer-motion'
+import { Send, Check, LayoutGrid, Eye, X } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { resolveDoc, setMeta } from '@/lib/invite/doc'
 import type { InviteDoc } from '@/lib/invite/schema'
 import { randomToken } from '@/lib/invite'
 import { parseDressCode, type DressCode } from '@/lib/dresscode'
+import { getGuestItinerary } from '@/lib/guest-itinerary'
+import type { GuestItineraryItem } from '@/lib/types'
 import InvitacionRenderer from '@/app/components/invitacion/InvitacionRenderer'
 import PreviewBoundary from '@/app/components/invitacion/PreviewBoundary'
 import type { InviteCtx } from '@/app/components/invitacion/types'
@@ -37,6 +40,7 @@ async function safeSingle<T>(p: PromiseLike<{ data: T | null; error: unknown }>)
   }
 }
 
+
 export default function InvitacionPage() {
   const { id } = useParams()
   const eventId = id as string
@@ -46,16 +50,18 @@ export default function InvitacionPage() {
   const [dressCode, setDressCode] = useState<DressCode | null>(null)
   const [playlistToken, setPlaylistToken] = useState<string | null>(null)
   const [registryToken, setRegistryToken] = useState<string | null>(null)
+  const [itinerary, setItinerary] = useState<GuestItineraryItem[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [publishing, setPublishing] = useState(false)
   const [activeTab, setActiveTab] = useState<TabKey>('diseno')
+  const [showPreview, setShowPreview] = useState(false)
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   useEffect(() => {
     const load = async () => {
-      const [ev, inviteRow, dressRow] = await Promise.all([
+      const [ev, inviteRow, dressRow, itinRows] = await Promise.all([
         supabase
           .from('events')
           .select('name, event_type, event_date, event_time, venue, address, host_name, host_name_2')
@@ -67,17 +73,30 @@ export default function InvitacionPage() {
         safeSingle<{ dress_code: unknown }>(
           supabase.from('event_settings').select('dress_code').eq('event_id', eventId).maybeSingle(),
         ),
+        getGuestItinerary(eventId),
       ])
       if (ev.data) setEvent(ev.data)
       setDressCode(parseDressCode(dressRow?.dress_code))
       setPlaylistToken(inviteRow?.playlist_token ?? null)
       setRegistryToken(inviteRow?.registry_token ?? null)
+      setItinerary(itinRows)
       setDoc(resolveDoc(inviteRow?.invite_config, () => crypto.randomUUID()))
     }
     load().finally(() => setLoading(false))
   }, [eventId])
 
   useEffect(() => () => { if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current) }, [])
+
+  useEffect(() => {
+    if (!showPreview) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setShowPreview(false) }
+    document.addEventListener('keydown', onKey)
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      document.body.style.overflow = ''
+    }
+  }, [showPreview])
 
   const persist = useCallback(async (next: InviteDoc) => {
     setSaving(true)
@@ -147,7 +166,7 @@ export default function InvitacionPage() {
       { name: 'Acompañante 2', rsvp_status: 'pending', allergies: [] },
     ],
     dressCode,
-    itinerary: [],
+    itinerary,
     tokens: { playlist: playlistToken, registry: registryToken },
     mode: 'preview',
     onSubmit: undefined,
@@ -181,6 +200,12 @@ export default function InvitacionPage() {
               <LayoutGrid width={13} height={13} /><span>Diseño</span>
             </button>
             <button
+              onClick={() => setShowPreview(true)}
+              className="flex flex-1 items-center justify-center gap-1.5 border-l border-[#e0e0e0] px-3 py-2 text-xs font-medium text-[#888] transition hover:bg-[#f5f5f5] sm:flex-none sm:py-1.5"
+            >
+              <Eye width={13} height={13} /><span>Vista previa</span>
+            </button>
+            <button
               onClick={() => setActiveTab('enviar')}
               className={['flex flex-1 items-center justify-center gap-1.5 border-l border-[#e0e0e0] px-3 py-2 text-xs font-medium transition sm:flex-none sm:py-1.5', activeTab === 'enviar' ? 'bg-[#1D1E20] text-white' : 'text-[#888] hover:bg-[#f5f5f5]'].join(' ')}
             >
@@ -197,14 +222,6 @@ export default function InvitacionPage() {
                 placeholder="Sin límite"
               />
             </div>
-            <a
-              href={`/invitacion/preview/${eventId}`}
-              target="_blank"
-              rel="noreferrer"
-              className="hidden shrink-0 items-center gap-1.5 rounded-lg border border-[#e0e0e0] px-3 py-2 text-xs font-medium text-[#666] transition hover:bg-[#f5f5f5] sm:flex sm:px-4 sm:text-sm"
-            >
-              <ExternalLink size={14} /> Vista web
-            </a>
             <button
               onClick={handlePublish}
               disabled={publishing}
@@ -230,7 +247,7 @@ export default function InvitacionPage() {
           <div className="grid items-start gap-6 sm:grid-cols-[1fr_360px] lg:gap-8">
             <BlockEditor doc={doc} onChange={updateDoc} makeId={() => crypto.randomUUID()} />
 
-            <div className="sm:sticky sm:top-0">
+            <div className="hidden sm:sticky sm:top-0 sm:block">
               <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wider text-[#999]">Vista previa</p>
               <div className="flex justify-center">
                 <div className="w-full max-w-[360px] overflow-hidden rounded-[2.5rem] border-[10px] border-[#1D1E20] bg-[#1D1E20] shadow-xl">
@@ -247,6 +264,32 @@ export default function InvitacionPage() {
           <RepartoLinks eventId={eventId} event={event} />
         )}
       </div>
+
+      <AnimatePresence>
+        {showPreview && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 z-50 bg-[#FBF7F0]"
+          >
+            <button
+              onClick={() => setShowPreview(false)}
+              aria-label="Cerrar vista previa"
+              className="fixed right-4 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-[#1D1E20]/85 text-white shadow-lg backdrop-blur transition hover:bg-[#1D1E20]"
+              style={{ top: 'max(1rem, env(safe-area-inset-top))' }}
+            >
+              <X size={18} />
+            </button>
+            <div className="h-full overflow-y-auto overflow-x-hidden overscroll-contain">
+              <PreviewBoundary>
+                <InvitacionRenderer doc={doc} ctx={sampleCtx} />
+              </PreviewBoundary>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }

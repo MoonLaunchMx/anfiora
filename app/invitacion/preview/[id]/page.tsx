@@ -6,6 +6,8 @@ import { Heart } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { resolveDoc } from '@/lib/invite/doc'
 import { parseDressCode, type DressCode } from '@/lib/dresscode'
+import { getGuestItinerary } from '@/lib/guest-itinerary'
+import type { GuestItineraryItem } from '@/lib/types'
 import type { InviteDoc } from '@/lib/invite/schema'
 import type { InviteCtx } from '@/app/components/invitacion/types'
 import InvitacionRenderer from '@/app/components/invitacion/InvitacionRenderer'
@@ -31,6 +33,7 @@ export default function InvitacionPreviewPage() {
   const [dressCode, setDressCode] = useState<DressCode | null>(null)
   const [playlistToken, setPlaylistToken] = useState<string | null>(null)
   const [registryToken, setRegistryToken] = useState<string | null>(null)
+  const [itinerary, setItinerary] = useState<GuestItineraryItem[]>([])
   const [loading, setLoading] = useState(true)
   const [denied, setDenied] = useState(false)
 
@@ -43,7 +46,7 @@ export default function InvitacionPreviewPage() {
         return
       }
 
-      const [ev, inviteRow, dressRow] = await Promise.all([
+      const [ev, inviteRow, dressRow, itinRows] = await Promise.all([
         supabase
           .from('events')
           .select('name, event_type, event_date, event_time, venue, address, host_name, host_name_2')
@@ -55,6 +58,7 @@ export default function InvitacionPreviewPage() {
         safeSingle<{ dress_code: unknown }>(
           supabase.from('event_settings').select('dress_code').eq('event_id', eventId).maybeSingle(),
         ),
+        getGuestItinerary(eventId),
       ])
       if (!ev.data) {
         setDenied(true)
@@ -65,6 +69,7 @@ export default function InvitacionPreviewPage() {
       setDressCode(parseDressCode(dressRow?.dress_code))
       setPlaylistToken(inviteRow?.playlist_token ?? null)
       setRegistryToken(inviteRow?.registry_token ?? null)
+      setItinerary(itinRows)
       setDoc(resolveDoc(inviteRow?.invite_config, () => crypto.randomUUID()))
       setLoading(false)
     }
@@ -97,7 +102,7 @@ export default function InvitacionPreviewPage() {
       { name: 'Acompañante 2', rsvp_status: 'pending', allergies: [] },
     ],
     dressCode,
-    itinerary: [],
+    itinerary,
     tokens: { playlist: playlistToken, registry: registryToken },
     mode: 'preview',
     onSubmit: undefined,
