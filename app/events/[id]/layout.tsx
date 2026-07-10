@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { useParams, usePathname, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { Users, Images, Music2, Settings, LayoutGrid, PanelLeftClose, PanelLeftOpen, CalendarDays, House, User, LogOut, Wallet, Briefcase, Heart, MessageCircle, Receipt, Gift, UtensilsCrossed, Shirt, Palette, MailOpen } from 'lucide-react'
+import { Users, Images, Music2, Settings, LayoutGrid, PanelLeftClose, PanelLeftOpen, CalendarDays, House, User, LogOut, Wallet, Briefcase, Heart, MessageCircle, Receipt, Gift, UtensilsCrossed, Shirt, Palette, MailOpen, MessageSquarePlus } from 'lucide-react'
 import { LEGACY_FEATURES, type FeatureKey } from '@/lib/features'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Event, formatEventDate } from '@/lib/types'
@@ -435,6 +435,13 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
         Mi perfil
       </button>
       <button
+        onClick={() => { setAvatarOpen(false); window.dispatchEvent(new CustomEvent('anfiora:open-feedback')) }}
+        className="flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-xs text-[#555] transition hover:bg-[#f8f8f8]"
+      >
+        <MessageSquarePlus size={14} className="text-[#aaa]" />
+        Enviar feedback
+      </button>
+      <button
         onClick={handleLogout}
         className="flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-xs text-[#cc3333] transition hover:bg-[#fff0f0]"
       >
@@ -531,6 +538,13 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
               >
                 <User size={14} className="text-[#aaa]" />
                 Mi perfil
+              </button>
+              <button
+                onClick={() => { setAvatarOpen(false); window.dispatchEvent(new CustomEvent('anfiora:open-feedback')) }}
+                className="flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-xs text-[#555] transition hover:bg-[#f8f8f8]"
+              >
+                <MessageSquarePlus size={14} className="text-[#aaa]" />
+                Enviar feedback
               </button>
               <button
                 onClick={handleLogout}
