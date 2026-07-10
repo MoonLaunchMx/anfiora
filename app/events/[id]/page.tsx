@@ -469,6 +469,11 @@ function SwipeableGuestCard({ guest, groupColor, isSelected, guestTags, availabl
                 return <span key={tag} className="rounded-full border px-1.5 py-0.5 text-[10px] font-medium" style={{ background: col.bg, borderColor: col.border, color: col.text }}>{tag}</span>
               })}
             </div>
+            {guest.needs_attention && guest.attention_detail && (
+              <p className="mt-0.5 truncate text-[11px] text-[#888]" title={guest.attention_detail}>
+                {guest.attention_detail}
+              </p>
+            )}
           </div>
           <StatusDot value={guest.rsvp_status} onChange={onStatusChange} />
         </div>
@@ -631,14 +636,21 @@ function EditGuestModal({ guest, availableTags, groupPool, allergyPool, onCreate
         </div>
         <div className="overflow-y-auto px-6 py-6 sm:px-8">
         {guest.needs_attention && (
-          <div className="mb-4 flex items-center gap-2 rounded-lg border p-3" style={{ background: 'var(--error-bg)', borderColor: 'var(--error-border)' }}>
-            <AlertTriangle size={14} style={{ color: 'var(--error-text)', flexShrink: 0 }} />
-            <span className="flex-1 text-xs" style={{ color: 'var(--error-text)' }}>
-              {ATTENTION_LABEL[guest.attention_reason || 'otro']}
-            </span>
-            <button onClick={onResolveAttention} className="text-xs font-semibold" style={{ color: '#48C9B0' }}>
-              Marcar atención como resuelta
-            </button>
+          <div className="mb-4 rounded-lg border p-3" style={{ background: 'var(--error-bg)', borderColor: 'var(--error-border)' }}>
+            <div className="flex items-center gap-2">
+              <AlertTriangle size={14} style={{ color: 'var(--error-text)', flexShrink: 0 }} />
+              <span className="flex-1 text-xs font-semibold" style={{ color: 'var(--error-text)' }}>
+                {ATTENTION_LABEL[guest.attention_reason || 'otro']}
+              </span>
+              <button onClick={onResolveAttention} className="text-xs font-semibold" style={{ color: '#48C9B0' }}>
+                Marcar atención como resuelta
+              </button>
+            </div>
+            {guest.attention_detail && (
+              <p className="mt-2 line-clamp-3 text-xs" style={{ color: 'var(--text-sec)' }}>
+                “{guest.attention_detail}”
+              </p>
+            )}
           </div>
         )}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -893,9 +905,9 @@ export default function EventPage() {
   }
 
   const resolveAttention = async (guestId: string) => {
-    setGuests(prev => prev.map(g => g.id === guestId ? { ...g, needs_attention: false, attention_reason: null } : g))
-    setEditGuest(prev => prev ? { ...prev, needs_attention: false, attention_reason: null } : null)
-    await supabase.from('guests').update({ needs_attention: false, attention_reason: null }).eq('id', guestId)
+    setGuests(prev => prev.map(g => g.id === guestId ? { ...g, needs_attention: false, attention_reason: null, attention_detail: null } : g))
+    setEditGuest(prev => prev ? { ...prev, needs_attention: false, attention_reason: null, attention_detail: null } : null)
+    await supabase.from('guests').update({ needs_attention: false, attention_reason: null, attention_detail: null }).eq('id', guestId)
   }
 
   const performDeleteGuest = async (guestId: string, conversationIds: string[], mode: 'unlink' | 'purge') => {
@@ -1698,6 +1710,11 @@ export default function EventPage() {
                             <AlertTriangle size={12} />
                             {ATTENTION_LABEL[guest.attention_reason || 'otro']}
                           </button>
+                        )}
+                        {guest.needs_attention && guest.attention_detail && (
+                          <p className="w-full min-w-0 truncate text-[11px] text-[#888]" title={guest.attention_detail}>
+                            {guest.attention_detail}
+                          </p>
                         )}
                       </div>
                       {visibleCols.has('tags') && (
