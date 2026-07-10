@@ -277,7 +277,7 @@ export default function InvitacionPage() {
                 <div className="w-full max-w-[360px] overflow-hidden rounded-[2.5rem] border-[10px] border-[#1D1E20] bg-[#1D1E20] shadow-xl">
                   <div className="h-[calc(100dvh-18rem)] max-h-[720px] min-h-[420px] overflow-y-auto overflow-x-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                     <PreviewBoundary>
-                      <InvitacionRenderer doc={doc} ctx={sampleCtx} />
+                      <InvitacionRenderer doc={doc} ctx={{ ...sampleCtx, forceMobile: true }} />
                     </PreviewBoundary>
                   </div>
                 </div>
@@ -318,7 +318,7 @@ export default function InvitacionPage() {
             <div className="h-full overflow-y-auto overflow-x-hidden overscroll-contain">
               <div className={previewMode === 'movil' ? 'mx-auto min-h-full w-full max-w-[420px] shadow-2xl' : 'min-h-full w-full'}>
                 <PreviewBoundary>
-                  <InvitacionRenderer doc={doc} ctx={sampleCtx} />
+                  <InvitacionRenderer doc={doc} ctx={{ ...sampleCtx, forceMobile: previewMode === 'movil' }} />
                 </PreviewBoundary>
               </div>
             </div>
