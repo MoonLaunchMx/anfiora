@@ -1,13 +1,8 @@
 'use client'
 import type { InviteDoc } from '@/lib/invite/schema'
 import { setTheme } from '@/lib/invite/doc'
-import { BUTTON_FORMAS, BUTTON_ESTILOS } from '@/lib/invite/theme'
 import FontMenu from './FontMenu'
-
-const FORMA_LABEL: Record<string, string> = { pill: 'Pastilla', redondo: 'Redondo', recto: 'Recto' }
-const ESTILO_LABEL: Record<string, string> = {
-  relleno: 'Relleno', contorno: 'Contorno', degradado: 'Degradado', elevado: 'Elevado', retro3d: 'Retro 3D', neon: 'Neón', cromo: 'Cromo',
-}
+import ButtonStylePicker from './ButtonStylePicker'
 
 function isHex(v: string): boolean {
   return /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(v)
@@ -61,26 +56,11 @@ export default function PersonalizarPanel({ doc, onChange }: { doc: InviteDoc; o
 
       <div className="flex flex-col gap-2.5">
         <p className="text-xs font-semibold text-[#1D1E20]">Botón</p>
-        <label className="flex items-center justify-between gap-3">
-          <span className="text-xs text-[#666]">Forma</span>
-          <select
-            value={t.boton.forma}
-            onChange={e => set({ boton: { forma: e.target.value as typeof t.boton.forma } })}
-            className="w-40 rounded-lg border border-[#e0e0e0] bg-white px-2 py-1 text-xs text-[#1D1E20] outline-none focus:border-[#48C9B0]"
-          >
-            {BUTTON_FORMAS.map(f => <option key={f} value={f}>{FORMA_LABEL[f]}</option>)}
-          </select>
-        </label>
-        <label className="flex items-center justify-between gap-3">
-          <span className="text-xs text-[#666]">Estilo</span>
-          <select
-            value={t.boton.estilo}
-            onChange={e => set({ boton: { estilo: e.target.value as typeof t.boton.estilo } })}
-            className="w-40 rounded-lg border border-[#e0e0e0] bg-white px-2 py-1 text-xs text-[#1D1E20] outline-none focus:border-[#48C9B0]"
-          >
-            {BUTTON_ESTILOS.map(s => <option key={s} value={s}>{ESTILO_LABEL[s]}</option>)}
-          </select>
-        </label>
+        <ButtonStylePicker
+          theme={t}
+          onForma={f => set({ boton: { forma: f } })}
+          onEstilo={e => set({ boton: { estilo: e } })}
+        />
       </div>
     </div>
   )
