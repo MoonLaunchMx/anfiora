@@ -22,7 +22,7 @@ describe('emptySection', () => {
 describe('defaultDoc', () => {
   it('trae los 9 bloques por defecto en orden', () => {
     const d = defaultDoc(makeId)
-    expect(d.v).toBe(1)
+    expect(d.v).toBe(2)
     expect(d.meta).toEqual({ publicada: false, fecha_limite: null })
     expect(d.sections.map(s => s.type)).toEqual(
       ['portada', 'saludo', 'detalles', 'itinerario', 'dress_code', 'rsvp', 'playlist', 'mesa', 'cierre'],
@@ -86,6 +86,36 @@ describe('resolveDoc', () => {
 })
 
 const base = () => defaultDoc(makeId)
+
+describe('resolveDoc theme migration', () => {
+  let n = 0
+  const makeId = () => `id-${n++}`
+
+  it('defaultDoc includes the default theme and v2', () => {
+    const d = defaultDoc(makeId)
+    expect(d.v).toBe(2)
+    expect(d.theme.vibeId).toBe('anfiora-claro')
+  })
+
+  it('a v1 doc without theme resolves to the default theme, keeping sections', () => {
+    const v1 = { v: 1, meta: { publicada: true, fecha_limite: null }, sections: [
+      { id: 'a', type: 'portada', content: { kicker: '', titulo: 'Ana', subtitulo: '' } },
+    ] }
+    const d = resolveDoc(v1, makeId)
+    expect(d.theme.vibeId).toBe('anfiora-claro')
+    expect(d.sections.find(s => s.type === 'portada')).toBeTruthy()
+    expect(d.meta.publicada).toBe(true)
+  })
+
+  it('preserves a valid custom theme', () => {
+    const doc = { v: 2, meta: { publicada: false, fecha_limite: null }, theme: { vibeId: 'fiesta', colores: { fondo: '#000000', texto: '#fff', acento: '#ffe600', botonBg: '#ffe600', botonTexto: '#000' }, boton: { forma: 'pill', estilo: 'elevado' } }, sections: [
+      { id: 'a', type: 'portada', content: { kicker: '', titulo: 'X', subtitulo: '' } },
+    ] }
+    const d = resolveDoc(doc, makeId)
+    expect(d.theme.vibeId).toBe('fiesta')
+    expect(d.theme.colores.fondo).toBe('#000000')
+  })
+})
 
 describe('ops de array', () => {
   it('addSection agrega al final sin mutar', () => {

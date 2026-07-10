@@ -1,5 +1,6 @@
 import { CONTENT_BY_TYPE, SectionSchema, MetaSchema } from './schema'
 import type { InviteDoc, InviteMeta, Section, SectionType } from './schema'
+import { ThemeSchema, DEFAULT_THEME } from './theme'
 
 const DEFAULT_ORDER: SectionType[] = [
   'portada', 'saludo', 'detalles', 'itinerario', 'dress_code', 'rsvp', 'playlist', 'mesa', 'cierre',
@@ -26,8 +27,9 @@ export function emptySection(type: SectionType, id: string): Section {
 
 export function defaultDoc(makeId: () => string): InviteDoc {
   return {
-    v: 1,
+    v: 2,
     meta: MetaSchema.parse({}),
+    theme: DEFAULT_THEME,
     sections: DEFAULT_ORDER.map(t => emptySection(t, makeId())),
   }
 }
@@ -49,7 +51,9 @@ export function resolveDoc(raw: unknown, makeId: () => string): InviteDoc {
   const sections = migrateEngancheSections(parsedSections, makeId)
   const metaParsed = MetaSchema.safeParse(r.meta)
   const meta: InviteMeta = metaParsed.success ? metaParsed.data : MetaSchema.parse({})
-  return { v: 1, meta, sections }
+  const themeParsed = ThemeSchema.safeParse(r.theme)
+  const theme = themeParsed.success ? themeParsed.data : DEFAULT_THEME
+  return { v: 2, meta, theme, sections }
 }
 
 export function addSection(doc: InviteDoc, type: SectionType, makeId: () => string): InviteDoc {

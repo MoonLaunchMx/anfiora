@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { ThemeSchema } from './theme'
 
 const PortadaContent = z.object({
   kicker: z.string().default(''),
@@ -83,8 +84,9 @@ export const MetaSchema = z.object({
 })
 
 export const InviteDocSchema = z.object({
-  v: z.literal(1).default(1),
+  v: z.literal(2).default(2),
   meta: MetaSchema.default(() => MetaSchema.parse({})),
+  theme: ThemeSchema.default(() => ThemeSchema.parse({})),
   sections: z.array(SectionSchema).default([]),
 })
 
