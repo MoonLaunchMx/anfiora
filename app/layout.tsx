@@ -3,7 +3,7 @@ import Script from 'next/script'
 // @ts-ignore
 import './globals.css'
 import { PostHogProvider } from './components/PostHogProvider'
-import FeedbackWidget from "@/app/components/FeedbackWidget";
+import FeedbackModal from "@/app/components/FeedbackModal";
 import LegalGate from './components/LegalGate'
 import AttributionCapture from './components/AttributionCapture'
 import InstallPrompt from './components/InstallPrompt'
@@ -67,7 +67,7 @@ export default function RootLayout({
       <body>
         <PostHogProvider>{children}</PostHogProvider>
         <AttributionCapture />
-        <FeedbackWidget />
+        <FeedbackModal />
         <LegalGate />
         <InstallPrompt />
         <Script id="sw-register" strategy="afterInteractive">{`
