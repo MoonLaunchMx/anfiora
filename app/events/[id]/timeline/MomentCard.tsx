@@ -44,14 +44,14 @@ export function MomentCard({ moment, canEdit, guestPreview, onEdit, onToggleVisi
           hidden && !guestPreview ? 'border-dashed border-[#e0e0e0] bg-[#fbfbfb] opacity-70' : 'border-[#e8e8e8] bg-white',
         ].join(' ')}
       >
-        <div className="flex items-start justify-between gap-2">
+        <div className="flex items-center justify-between gap-2">
           <p className="text-sm font-semibold text-[#1D1E20]">{moment.title}</p>
           {!guestPreview && (
             <button
               onClick={e => { e.stopPropagation(); if (canEdit) onToggleVisible(moment) }}
               disabled={!canEdit}
               className={[
-                'flex flex-shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium transition',
+                'flex flex-shrink-0 items-center gap-1 rounded-full border px-2.5 py-1.5 sm:px-2 sm:py-0.5 text-[10px] font-medium transition',
                 moment.visible_to_guests
                   ? 'border-[#c8ede7] bg-[#f0fdfb] text-[#0F6E56]'
                   : 'border-[#e0e0e0] bg-white text-[#999]',
