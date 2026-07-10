@@ -59,11 +59,11 @@ export default function DressCodeSection({ content, ctx }: { content: Content; c
 
   return (
     <SectionShell variant="band" className="text-center">
-      <h2 className="px-2 text-xl font-semibold text-[#1D1E20] lg:text-2xl" style={{ fontFamily: "'Josefin Sans', sans-serif" }}>
+      <h2 className="px-2 text-xl font-semibold lg:text-2xl" style={{ color: 'var(--inv-texto)', fontFamily: 'var(--inv-font-titulo)' }}>
         {content.titulo}
       </h2>
 
-      {label && <p className="mt-5 text-2xl font-semibold tracking-tight text-[#1D1E20]">{label}</p>}
+      {label && <p className="mt-5 text-2xl font-semibold tracking-tight" style={{ color: 'var(--inv-texto)' }}>{label}</p>}
       {desc && <p className="text-xs text-[#999]">{desc}</p>}
 
       {dc.colores_sugeridos.length > 0 && (
@@ -99,13 +99,13 @@ export default function DressCodeSection({ content, ctx }: { content: Content; c
       )}
 
       {dc.recomendaciones.length > 0 && (
-        <p className="mx-auto mt-6 max-w-md rounded-xl border border-[#f0e2bf] bg-[#fffbf0] px-4 py-3 text-center text-xs leading-relaxed text-[#1D1E20]">
+        <p className="mx-auto mt-6 max-w-md rounded-xl border border-[#f0e2bf] bg-[#fffbf0] px-4 py-3 text-center text-xs leading-relaxed" style={{ color: 'var(--inv-texto)' }}>
           {dc.recomendaciones.join('. ')}.
         </p>
       )}
 
       {dc.nota_libre.trim() && (
-        <p className="mx-auto mt-3 max-w-md text-center text-xs leading-relaxed text-[#666]">{dc.nota_libre}</p>
+        <p className="mx-auto mt-3 max-w-md text-center text-xs leading-relaxed opacity-70" style={{ color: 'var(--inv-texto)' }}>{dc.nota_libre}</p>
       )}
 
       {(dc.guia_ellas?.trim() || dc.guia_ellos?.trim()) && (
@@ -113,13 +113,13 @@ export default function DressCodeSection({ content, ctx }: { content: Content; c
           {dc.guia_ellas?.trim() && (
             <div className="rounded-xl bg-white px-3 py-2.5">
               <p className="text-[10px] font-bold uppercase tracking-wider text-[#999]">{dc.label_ellas}</p>
-              <p className="mt-0.5 text-xs text-[#666]">{dc.guia_ellas}</p>
+              <p className="mt-0.5 text-xs opacity-70" style={{ color: 'var(--inv-texto)' }}>{dc.guia_ellas}</p>
             </div>
           )}
           {dc.guia_ellos?.trim() && (
             <div className="rounded-xl bg-white px-3 py-2.5">
               <p className="text-[10px] font-bold uppercase tracking-wider text-[#999]">{dc.label_ellos}</p>
-              <p className="mt-0.5 text-xs text-[#666]">{dc.guia_ellos}</p>
+              <p className="mt-0.5 text-xs opacity-70" style={{ color: 'var(--inv-texto)' }}>{dc.guia_ellos}</p>
             </div>
           )}
         </div>

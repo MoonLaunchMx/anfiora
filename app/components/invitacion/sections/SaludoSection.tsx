@@ -16,10 +16,10 @@ export default function SaludoSection({ content, ctx }: { content: Content; ctx:
 
   return (
     <SectionShell variant="band" className="text-center">
-      <h2 className="px-2 text-2xl font-semibold text-[#1D1E20] lg:text-3xl" style={{ fontFamily: "'Josefin Sans', sans-serif" }}>
+      <h2 className="px-2 text-2xl font-semibold lg:text-3xl" style={{ color: 'var(--inv-texto)', fontFamily: 'var(--inv-font-titulo)' }}>
         {saludo}
       </h2>
-      <p className="mx-auto mt-4 max-w-md text-sm leading-relaxed text-[#666] lg:text-base">{content.mensaje}</p>
+      <p className="mx-auto mt-4 max-w-md text-sm leading-relaxed opacity-70 lg:text-base" style={{ color: 'var(--inv-texto)' }}>{content.mensaje}</p>
       <span className="mt-6 inline-block rounded-full border border-[#f0e2bf] bg-[#fffbf0] px-4 py-2 text-xs font-medium text-[#8a6d2f]">
         {chip}
       </span>

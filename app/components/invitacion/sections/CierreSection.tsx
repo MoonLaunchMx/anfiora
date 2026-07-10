@@ -10,19 +10,19 @@ export default function CierreSection({ content, ctx, portadaTitulo }: { content
   const firma = portadaTitulo?.trim() || resolveInviteHeading(ctx.event)
 
   return (
-    <SectionShell variant="hero" className="bg-[#FBF7F0] text-center" innerClassName="flex flex-col items-center gap-4">
-      <h2 className="px-2 text-2xl font-semibold text-[#1D1E20] lg:text-3xl" style={{ fontFamily: "'Josefin Sans', sans-serif" }}>
+    <SectionShell variant="hero" className="text-center" innerClassName="flex flex-col items-center gap-4">
+      <h2 className="px-2 text-2xl font-semibold lg:text-3xl" style={{ color: 'var(--inv-texto)', fontFamily: 'var(--inv-font-titulo)' }}>
         {content.titulo}
       </h2>
-      <div className="h-px w-10 bg-[#d4a853]" />
-      <p className="px-2 text-sm font-semibold text-[#666] lg:text-base" style={{ fontFamily: "'Josefin Sans', sans-serif" }}>
+      <div className="h-px w-10" style={{ background: 'var(--inv-acento)' }} />
+      <p className="px-2 text-sm font-semibold opacity-70 lg:text-base" style={{ color: 'var(--inv-texto)', fontFamily: 'var(--inv-font-titulo)' }}>
         {firma}
       </p>
       <a
         href="/?utm_source=invitacion"
         target="_blank"
         rel="noreferrer"
-        className="mt-6 text-[11px] uppercase tracking-wider text-[#bbb] transition hover:text-[#d4a853]"
+        className="mt-6 text-[11px] uppercase tracking-wider text-[#bbb] opacity-60 transition hover:opacity-100"
       >
         Hecho con Anfiora
       </a>

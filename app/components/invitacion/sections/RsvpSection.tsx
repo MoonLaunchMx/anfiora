@@ -75,7 +75,8 @@ function AllergyChips({ value, onChange, disabled }: { value: string[]; onChange
           }}
           onBlur={commit}
           placeholder="Alergia o restricción + Enter"
-          className="w-full rounded-lg border border-[#e8e8e8] px-3 py-2 text-xs text-[#1D1E20] outline-none focus:border-[#48C9B0]"
+          className="w-full rounded-lg border border-[#e8e8e8] px-3 py-2 text-xs outline-none focus:border-[var(--inv-acento)]"
+          style={{ color: 'var(--inv-texto)' }}
         />
       )}
     </div>
@@ -131,15 +132,15 @@ export default function RsvpSection({ content, ctx }: { content: Content; ctx: I
 
   return (
     <SectionShell variant="form">
-      <h2 className="px-2 text-center text-xl font-semibold text-[#1D1E20] lg:text-2xl" style={{ fontFamily: "'Josefin Sans', sans-serif" }}>
+      <h2 className="px-2 text-center text-xl font-semibold lg:text-2xl" style={{ color: 'var(--inv-texto)', fontFamily: 'var(--inv-font-titulo)' }}>
         {content.titulo}
       </h2>
-      <p className="mx-auto mt-2 max-w-md text-center text-sm text-[#666]">{content.texto}</p>
+      <p className="mx-auto mt-2 max-w-md text-center text-sm opacity-70" style={{ color: 'var(--inv-texto)' }}>{content.texto}</p>
 
       <div className="mt-8 flex flex-col gap-4">
         {rows.map(row => (
           <div key={row.key} className="rounded-2xl border border-[#e8e8e8] bg-white px-5 py-4">
-            <p className="text-sm font-medium text-[#1D1E20]">{row.name}</p>
+            <p className="text-sm font-medium" style={{ color: 'var(--inv-texto)' }}>{row.name}</p>
             <div className="mt-3 flex gap-2">
               <button
                 type="button"
@@ -147,7 +148,7 @@ export default function RsvpSection({ content, ctx }: { content: Content; ctx: I
                 onClick={() => setAttends(row.key, true)}
                 className={`flex flex-1 items-center justify-center gap-1.5 rounded-full border px-3 py-2 text-xs font-medium transition disabled:cursor-not-allowed disabled:opacity-60 ${
                   row.attends === true
-                    ? 'border-[#48C9B0] bg-[#48C9B0]/10 text-[#2a7a50]'
+                    ? 'border-[var(--inv-acento)] bg-[var(--inv-acento)]/10 text-[#2a7a50]'
                     : 'border-[#e8e8e8] text-[#666]'
                 }`}
               >
@@ -184,7 +185,7 @@ export default function RsvpSection({ content, ctx }: { content: Content; ctx: I
           type="button"
           onClick={handleSubmit}
           disabled={disabled || !allChosen || submitting}
-          className="mt-6 block w-full rounded-full bg-[#48C9B0] py-3 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-50"
+          className={`${ctx.botonClassName ?? 'inv-btn inv-btn-elevado'} mt-6 block w-full px-6 py-3 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50`}
         >
           {submitting ? 'Enviando…' : 'Confirmar asistencia'}
         </button>

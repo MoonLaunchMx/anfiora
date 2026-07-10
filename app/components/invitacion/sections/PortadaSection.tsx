@@ -14,28 +14,28 @@ export default function PortadaSection({ content, ctx }: { content: Content; ctx
   const fecha = formatFecha(ctx.event.event_date)
 
   return (
-    <SectionShell variant="hero" className="bg-[#FBF7F0] text-center" innerClassName="flex flex-col items-center gap-5">
-      <p className="text-xs font-semibold uppercase tracking-[0.25em] text-[#d4a853]">{kicker}</p>
+    <SectionShell variant="hero" className="text-center" innerClassName="flex flex-col items-center gap-5">
+      <p className="text-xs font-semibold uppercase tracking-[0.25em]" style={{ color: 'var(--inv-acento)' }}>{kicker}</p>
       <h1
-        className="w-full break-words px-2 text-4xl font-semibold leading-tight text-[#1D1E20] lg:text-5xl"
-        style={{ fontFamily: "'Josefin Sans', sans-serif" }}
+        className="w-full break-words px-2 text-4xl font-semibold leading-tight lg:text-5xl"
+        style={{ color: 'var(--inv-texto)', fontFamily: 'var(--inv-font-titulo)' }}
       >
         {titulo}
       </h1>
       {content.subtitulo && (
-        <p className="max-w-xs text-sm leading-relaxed text-[#666] lg:max-w-md lg:text-base">{content.subtitulo}</p>
+        <p className="max-w-xs text-sm leading-relaxed opacity-70 lg:max-w-md lg:text-base" style={{ color: 'var(--inv-texto)' }}>{content.subtitulo}</p>
       )}
-      <div className="mt-2 h-px w-12 bg-[#d4a853]" />
-      <div className="flex flex-col items-center gap-2 text-sm text-[#666] lg:text-base">
+      <div className="mt-2 h-px w-12" style={{ background: 'var(--inv-acento)' }} />
+      <div className="flex flex-col items-center gap-2 text-sm opacity-80 lg:text-base" style={{ color: 'var(--inv-texto)' }}>
         {fecha && (
           <span className="flex items-center gap-2">
-            <Calendar size={15} className="text-[#d4a853]" />
+            <Calendar size={15} style={{ color: 'var(--inv-acento)' }} />
             {fecha}
           </span>
         )}
         {ctx.event.venue && (
           <span className="flex items-center gap-2">
-            <MapPin size={15} className="text-[#d4a853]" />
+            <MapPin size={15} style={{ color: 'var(--inv-acento)' }} />
             {ctx.event.venue}
           </span>
         )}
