@@ -82,7 +82,9 @@ export function sortMoments<T extends { start_time: string; position: number }>(
   })
 }
 
-export function curateForGuests(moments: ItineraryMoment[]): GuestItineraryItem[] {
+type CurateInput = Pick<ItineraryMoment, 'start_time' | 'title' | 'location' | 'visible_to_guests' | 'position'>
+
+export function curateForGuests(moments: CurateInput[]): GuestItineraryItem[] {
   return sortMoments(moments.filter(m => m.visible_to_guests)).map(m => {
     const mins = parseTimeToMinutes(m.start_time)
     return {

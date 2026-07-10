@@ -4,12 +4,12 @@ import { MomentCard } from './MomentCard'
 import { MomentModal } from './MomentModal'
 import { GenerateItineraryModal } from './GenerateItineraryModal'
 import type { ItineraryController } from './useItinerary'
-import { Sparkles, Clock, Eye } from 'lucide-react'
+import { Sparkles, Clock } from 'lucide-react'
 
 export function ItineraryView({ itin }: { itin: ItineraryController }) {
   const {
     eventInfo, canEdit, moments, sorted, suppliers, visibleCount,
-    guestPreview, setGuestPreview, showModal, editMoment, showGenerate, setShowGenerate,
+    guestPreview, showModal, editMoment, showGenerate, setShowGenerate,
     openNew, openEdit, closeModal, handleSave, handleDelete, toggleVisible,
     applyGenerated,
   } = itin
@@ -64,21 +64,13 @@ export function ItineraryView({ itin }: { itin: ItineraryController }) {
   // ── Vista con momentos ──────────────────────────────────────────────────────
   return (
     <div className="mt-2">
-      {/* Info: cuantos momentos ven los invitados + previsualizar */}
-      <div className="mb-4 flex flex-col gap-3 rounded-xl border border-[#ecdcb8] bg-[#fffdf7] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="min-w-0">
-          <p className="text-sm font-medium text-[#1D1E20]">Visible en la invitacion RSVP</p>
-          <p className="text-[11px] text-[#999]">
-            Los invitados ven {visibleCount} de {moments.length} momentos{canEdit && !guestPreview ? '. Toca el ojo de cada uno para mostrarlo u ocultarlo.' : ''}
-          </p>
-        </div>
-        <button
-          onClick={() => setGuestPreview(p => !p)}
-          className={['shrink-0 flex items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium transition', guestPreview ? 'border-[#d4a853] bg-[#fffbf0] text-[#c49a3a]' : 'border-[#e0e0e0] text-[#888] hover:bg-[#f8f8f8]'].join(' ')}
-        >
-          <Eye size={13} />{guestPreview ? 'Vista organizador' : 'Ver como invitado'}
-        </button>
-      </div>
+      {canEdit && (
+        <p className="mb-4 text-xs text-[#999]">
+          {guestPreview
+            ? 'Estás viendo la invitación como la ve un invitado.'
+            : <>Los invitados ven <span className="font-medium text-[#666]">{visibleCount} de {moments.length}</span> momentos en la invitación. Toca el ojo de cada tarjeta para mostrar u ocultar.</>}
+        </p>
+      )}
 
       {/* Hilo del dia */}
       {guestPreview && visibleCount === 0 ? (

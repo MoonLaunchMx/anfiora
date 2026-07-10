@@ -114,7 +114,7 @@ export function MomentModal({ editMoment, suppliers, onClose, onSave, onDelete }
             </div>
             <div>
               <label className="text-xs font-medium text-[#555] mb-1 block">
-                Duracion (min) <span className="font-normal text-[#ccc]">— vacio = hasta cierre</span>
+                Duración (min) <span className="font-normal text-[#ccc]">(opcional)</span>
               </label>
               <input
                 type="number"

@@ -24,9 +24,11 @@ export function MomentCard({ moment, canEdit, guestPreview, onEdit, onToggleVisi
         <p className="text-sm font-semibold text-[#1D1E20] tabular-nums leading-tight">
           {formatMomentRange(moment.start_time, moment.duration_min)}
         </p>
-        <span className="mt-1 inline-block rounded-full bg-[#f8f8f8] px-2 py-0.5 text-[10px] font-medium text-[#999]">
-          {formatDuration(moment.duration_min)}
-        </span>
+        {moment.duration_min !== null && (
+          <span className="mt-1 inline-block rounded-full bg-[#f8f8f8] px-2 py-0.5 text-[10px] font-medium text-[#999]">
+            {formatDuration(moment.duration_min)}
+          </span>
+        )}
       </div>
 
       {/* Nodo + hilo dorado */}
