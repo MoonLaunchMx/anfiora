@@ -164,6 +164,7 @@ describe('theme editing helpers', () => {
     const base = defaultDoc(makeId)
     const next = applyVibe(base, 'fiesta')
     expect(next.theme.vibeId).toBe('fiesta')
+    expect(next.theme.colores.fondo).toBe(getVibe('fiesta').theme.colores.fondo)
     expect(next.sections).toBe(base.sections) // sections untouched (same ref)
     expect(next.meta).toEqual(base.meta)
   })
