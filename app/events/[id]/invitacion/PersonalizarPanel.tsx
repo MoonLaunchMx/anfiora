@@ -1,10 +1,9 @@
 'use client'
 import type { InviteDoc } from '@/lib/invite/schema'
 import { setTheme } from '@/lib/invite/doc'
-import { FONTS } from '@/lib/invite/fonts'
 import { BUTTON_FORMAS, BUTTON_ESTILOS } from '@/lib/invite/theme'
+import FontMenu from './FontMenu'
 
-const FONT_IDS = Object.keys(FONTS)
 const FORMA_LABEL: Record<string, string> = { pill: 'Pastilla', redondo: 'Redondo', recto: 'Recto' }
 const ESTILO_LABEL: Record<string, string> = {
   relleno: 'Relleno', contorno: 'Contorno', degradado: 'Degradado', elevado: 'Elevado', retro3d: 'Retro 3D', neon: 'Neón', cromo: 'Cromo',
@@ -56,26 +55,8 @@ export default function PersonalizarPanel({ doc, onChange }: { doc: InviteDoc; o
 
       <div className="flex flex-col gap-2.5">
         <p className="text-xs font-semibold text-[#1D1E20]">Tipografía</p>
-        <label className="flex items-center justify-between gap-3">
-          <span className="text-xs text-[#666]">Títulos</span>
-          <select
-            value={t.fonts.titulo}
-            onChange={e => set({ fonts: { titulo: e.target.value } })}
-            className="w-40 rounded-lg border border-[#e0e0e0] bg-white px-2 py-1 text-xs text-[#1D1E20] outline-none focus:border-[#48C9B0]"
-          >
-            {FONT_IDS.map(id => <option key={id} value={id}>{FONTS[id].family}</option>)}
-          </select>
-        </label>
-        <label className="flex items-center justify-between gap-3">
-          <span className="text-xs text-[#666]">Cuerpo</span>
-          <select
-            value={t.fonts.cuerpo}
-            onChange={e => set({ fonts: { cuerpo: e.target.value } })}
-            className="w-40 rounded-lg border border-[#e0e0e0] bg-white px-2 py-1 text-xs text-[#1D1E20] outline-none focus:border-[#48C9B0]"
-          >
-            {FONT_IDS.map(id => <option key={id} value={id}>{FONTS[id].family}</option>)}
-          </select>
-        </label>
+        <FontMenu label="Títulos" value={t.fonts.titulo} onChange={v => set({ fonts: { titulo: v } })} />
+        <FontMenu label="Cuerpo" value={t.fonts.cuerpo} onChange={v => set({ fonts: { cuerpo: v } })} />
       </div>
 
       <div className="flex flex-col gap-2.5">
