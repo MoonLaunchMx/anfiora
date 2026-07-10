@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { DayPicker, type DateRange } from 'react-day-picker'
 import { es } from 'react-day-picker/locale'
-import { CalendarDays, X } from 'lucide-react'
+import { CalendarDays, ChevronLeft, ChevronRight, X } from 'lucide-react'
 import { formatEventDate } from '@/lib/types'
 import 'react-day-picker/style.css'
 
@@ -46,13 +46,10 @@ function formatDisplay(str: string): string {
 }
 
 const dayPickerClassNames = {
-  root:            'p-4',
+  root:            'p-4 pt-2',
   month:           'w-full',
-  month_caption:   'flex items-center justify-between px-1 pb-3',
+  month_caption:   'flex items-center justify-center px-1 pb-3',
   caption_label:   'text-sm font-semibold text-[#1D1E20] capitalize',
-  nav:             'flex items-center gap-1',
-  button_previous: 'flex h-8 w-8 items-center justify-center rounded-lg border border-[#e0e0e0] text-[#888] transition hover:border-[#48C9B0] hover:text-[#48C9B0]',
-  button_next:     'flex h-8 w-8 items-center justify-center rounded-lg border border-[#e0e0e0] text-[#888] transition hover:border-[#48C9B0] hover:text-[#48C9B0]',
   weeks:           'w-full',
   weekdays:        'flex mb-1',
   weekday:         'flex-1 text-center text-[11px] font-medium text-[#bbb] uppercase pb-1',
@@ -62,7 +59,7 @@ const dayPickerClassNames = {
   selected:        'bg-[#48C9B0] text-white rounded-lg hover:bg-[#3ab89f]',
   range_start:     'bg-[#48C9B0] text-white rounded-lg hover:bg-[#3ab89f]',
   range_end:       'bg-[#48C9B0] text-white rounded-lg hover:bg-[#3ab89f]',
-  range_middle:    'bg-[#f0fdfb] text-[#1a9e88] rounded-none',
+  range_middle:    'bg-[#d0f5ec] text-[#0F6E56] rounded-none',
   today:           'font-bold text-[#48C9B0]',
   outside:         'text-[#ddd]',
   disabled:        'text-[#e0e0e0] cursor-not-allowed',
@@ -73,6 +70,7 @@ const accentStyle = { '--rdp-accent-color': '#48C9B0', '--rdp-accent-background-
 
 export default function DatePicker(props: DatePickerProps) {
   const [open, setOpen] = useState(false)
+  const [month, setMonth] = useState<Date>(new Date())
   const disabled = props.disabled
   const placeholder = props.placeholder ?? 'Seleccionar fecha'
   const minDate = props.minDate
@@ -80,6 +78,16 @@ export default function DatePicker(props: DatePickerProps) {
   useEffect(() => {
     document.body.style.overflow = open ? 'hidden' : ''
     return () => { document.body.style.overflow = '' }
+  }, [open])
+
+  useEffect(() => {
+    if (!open) return
+    const init =
+      (props.mode === 'range' ? parseLocal(props.startValue) : parseLocal(props.value)) ||
+      (minDate ? parseLocal(minDate) : undefined) ||
+      new Date()
+    setMonth(init)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open])
 
   const fromDate = minDate ? parseLocal(minDate) : undefined
@@ -113,8 +121,11 @@ export default function DatePicker(props: DatePickerProps) {
   const selectedRange: DateRange | undefined = props.mode === 'range'
     ? { from: parseLocal(props.startValue), to: parseLocal(props.endValue) }
     : undefined
-  const defaultMonth =
-    (props.mode === 'range' ? parseLocal(props.startValue) : parseLocal(props.value)) || fromDate || undefined
+
+  const goPrevMonth = () => setMonth(m => new Date(m.getFullYear(), m.getMonth() - 1, 1))
+  const goNextMonth = () => setMonth(m => new Date(m.getFullYear(), m.getMonth() + 1, 1))
+
+  const navButtonClass = 'flex h-7 w-7 items-center justify-center rounded-lg border border-[#e0e0e0] text-[#888] transition hover:border-[#48C9B0] hover:text-[#48C9B0]'
 
   return (
     <>
@@ -143,30 +154,22 @@ export default function DatePicker(props: DatePickerProps) {
         <div className="fixed inset-0 z-[200] flex items-center justify-center p-4" onClick={() => setOpen(false)}>
           <div className="absolute inset-0 bg-black/40" />
           <div className="relative overflow-hidden rounded-2xl bg-white shadow-2xl" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between border-b border-[#f0f0f0] px-4 py-3">
+            <div className="flex items-center justify-between gap-3 border-b border-[#f0f0f0] px-4 py-3">
               <p className="text-sm font-semibold text-[#1D1E20]">
                 {isRange ? 'Seleccionar fechas' : 'Seleccionar fecha'}
               </p>
-              <div className="flex items-center gap-2">
-                {isRange && (
-                  <button
-                    onClick={() => setOpen(false)}
-                    className="rounded-lg bg-[#48C9B0] px-3 py-1 text-xs font-semibold text-white transition hover:bg-[#3ab89f]"
-                  >
-                    Listo
-                  </button>
-                )}
-                <button onClick={() => setOpen(false)} className="text-[#aaa] transition hover:text-[#555]">
+              <div className="flex items-center gap-1">
+                <button type="button" onClick={goPrevMonth} className={navButtonClass}>
+                  <ChevronLeft size={15} />
+                </button>
+                <button type="button" onClick={goNextMonth} className={navButtonClass}>
+                  <ChevronRight size={15} />
+                </button>
+                <button onClick={() => setOpen(false)} className="ml-1 text-[#aaa] transition hover:text-[#555]">
                   <X size={16} />
                 </button>
               </div>
             </div>
-
-            {props.mode === 'range' && props.startValue && (
-              <div className="border-b border-[#f0f0f0] px-4 py-2 text-center text-xs text-[#888]">
-                {formatEventDate(props.startValue, props.endValue || null)}
-              </div>
-            )}
 
             {isRange ? (
               <DayPicker
@@ -174,8 +177,10 @@ export default function DatePicker(props: DatePickerProps) {
                 selected={selectedRange}
                 onSelect={handleSelectRange}
                 locale={es}
+                month={month}
+                onMonthChange={setMonth}
+                hideNavigation
                 disabled={fromDate ? { before: fromDate } : undefined}
-                defaultMonth={defaultMonth || new Date()}
                 style={accentStyle}
                 classNames={dayPickerClassNames}
               />
@@ -185,11 +190,27 @@ export default function DatePicker(props: DatePickerProps) {
                 selected={selectedSingle}
                 onSelect={handleSelectSingle}
                 locale={es}
+                month={month}
+                onMonthChange={setMonth}
+                hideNavigation
                 disabled={fromDate ? { before: fromDate } : undefined}
-                defaultMonth={defaultMonth || new Date()}
                 style={accentStyle}
                 classNames={dayPickerClassNames}
               />
+            )}
+
+            {props.mode === 'range' && (
+              <div className="flex items-center justify-between gap-3 border-t border-[#f0f0f0] px-4 py-3">
+                <span className="text-xs text-[#888]">
+                  {props.startValue ? formatEventDate(props.startValue, props.endValue || null) : 'Elige uno o dos días'}
+                </span>
+                <button
+                  onClick={() => setOpen(false)}
+                  className="rounded-lg bg-[#48C9B0] px-4 py-2 text-xs font-semibold text-white transition hover:bg-[#3ab89f]"
+                >
+                  Listo
+                </button>
+              </div>
             )}
           </div>
         </div>
