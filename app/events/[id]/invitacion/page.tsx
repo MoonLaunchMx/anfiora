@@ -19,6 +19,7 @@ import DatePicker from '@/app/components/ui/DatePicker'
 import BlockEditor from './BlockEditor'
 import RepartoLinks from './RepartoLinks'
 import EstiloPanel from './EstiloPanel'
+import PersonalizarPanel from './PersonalizarPanel'
 
 type TabKey = 'diseno' | 'enviar'
 
@@ -58,7 +59,7 @@ export default function InvitacionPage() {
   const [saved, setSaved] = useState(false)
   const [publishing, setPublishing] = useState(false)
   const [activeTab, setActiveTab] = useState<TabKey>('diseno')
-  const [disenoSub, setDisenoSub] = useState<'estilo' | 'contenido'>('estilo')
+  const [disenoSub, setDisenoSub] = useState<'estilo' | 'personalizar' | 'contenido'>('estilo')
   const [showPreview, setShowPreview] = useState(false)
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
@@ -251,24 +252,23 @@ export default function InvitacionPage() {
           <div className="grid items-start gap-6 sm:grid-cols-[1fr_360px] lg:gap-8">
             <div className="min-w-0">
               <div className="mb-5 flex gap-6 border-b border-[#eee]">
-                <button
-                  onClick={() => setDisenoSub('estilo')}
-                  className={['-mb-px border-b-2 pb-2.5 text-sm font-semibold transition', disenoSub === 'estilo' ? 'border-[#48C9B0] text-[#1D1E20]' : 'border-transparent text-[#999] hover:text-[#666]'].join(' ')}
-                >
-                  Estilo
-                </button>
-                <button
-                  onClick={() => setDisenoSub('contenido')}
-                  className={['-mb-px border-b-2 pb-2.5 text-sm font-semibold transition', disenoSub === 'contenido' ? 'border-[#48C9B0] text-[#1D1E20]' : 'border-transparent text-[#999] hover:text-[#666]'].join(' ')}
-                >
-                  Contenido
-                </button>
+                {([
+                  ['estilo', 'Estilo'],
+                  ['personalizar', 'Personalizar'],
+                  ['contenido', 'Contenido'],
+                ] as const).map(([key, label]) => (
+                  <button
+                    key={key}
+                    onClick={() => setDisenoSub(key)}
+                    className={['-mb-px border-b-2 pb-2.5 text-sm font-semibold transition', disenoSub === key ? 'border-[#48C9B0] text-[#1D1E20]' : 'border-transparent text-[#999] hover:text-[#666]'].join(' ')}
+                  >
+                    {label}
+                  </button>
+                ))}
               </div>
-              {disenoSub === 'estilo' ? (
-                <EstiloPanel doc={doc} onChange={updateDoc} />
-              ) : (
-                <BlockEditor doc={doc} onChange={updateDoc} makeId={() => crypto.randomUUID()} />
-              )}
+              {disenoSub === 'estilo' && <EstiloPanel doc={doc} onChange={updateDoc} />}
+              {disenoSub === 'personalizar' && <PersonalizarPanel doc={doc} onChange={updateDoc} />}
+              {disenoSub === 'contenido' && <BlockEditor doc={doc} onChange={updateDoc} makeId={() => crypto.randomUUID()} />}
             </div>
 
             <div className="hidden sm:sticky sm:top-0 sm:block">
