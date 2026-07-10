@@ -183,6 +183,7 @@ async function processTelegramUpdate(
       extraction,
       { rsvp_status: guestRow?.rsvp_status ?? 'pending', allergies: guestRow?.allergies },
       partyMembers ?? [],
+      update.text,
     )
     await executeWritePlan(supabase, plan, route.guestId)
 
