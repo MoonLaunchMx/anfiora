@@ -55,16 +55,20 @@ export async function POST(request: NextRequest) {
   if (request.headers.get('x-backfill-secret') !== process.env.SUPABASE_SERVICE_ROLE_KEY) {
     return NextResponse.json({ error: 'no autorizado' }, { status: 403 })
   }
-  const apply = new URL(request.url).searchParams.get('apply') === 'true'
+  const url = new URL(request.url)
+  const apply = url.searchParams.get('apply') === 'true'
+  // Sin ?tables corre las 4 (util para el dry-run completo). Con ?tables acota que
+  // tablas se procesan, p.ej. tables=guests,party_members,suppliers para no tocar users.
+  const ALL: TableName[] = ['guests', 'party_members', 'suppliers', 'users']
+  const tablesParam = url.searchParams.get('tables')
+  const selected = tablesParam
+    ? (tablesParam.split(',').map(s => s.trim()).filter(t => (ALL as string[]).includes(t)) as TableName[])
+    : ALL
   const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
   try {
-    const report = {
-      guests:        await normalizeTable(supabase, 'guests', apply),
-      party_members: await normalizeTable(supabase, 'party_members', apply),
-      suppliers:     await normalizeTable(supabase, 'suppliers', apply),
-      users:         await normalizeTable(supabase, 'users', apply),
-    }
-    return NextResponse.json({ ok: true, mode: apply ? 'apply' : 'dry-run', report })
+    const report: Record<string, unknown> = {}
+    for (const t of selected) report[t] = await normalizeTable(supabase, t, apply)
+    return NextResponse.json({ ok: true, mode: apply ? 'apply' : 'dry-run', tables: selected, report })
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 })
   }
