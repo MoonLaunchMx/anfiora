@@ -69,10 +69,10 @@ export const ThemeSchema = z.object({
 export type Theme = z.infer<typeof ThemeSchema>
 
 export const DEFAULT_THEME: Theme = ThemeSchema.parse({
-  vibeId: 'anfiora-claro',
-  colores: { fondo: '#ffffff', texto: '#1D1E20', acento: '#48C9B0', botonBg: '#48C9B0', botonTexto: '#ffffff' },
+  vibeId: 'clasico',
+  colores: { fondo: '#FBF7F0', texto: '#1D1E20', acento: '#d4a853', botonBg: '#48C9B0', botonTexto: '#ffffff' },
   fonts: { titulo: 'josefin-sans', cuerpo: 'general-sans' },
-  boton: { forma: 'redondo', estilo: 'elevado' },
+  boton: { forma: 'pill', estilo: 'relleno' },
   fondo: { tipo: 'solido', efectoId: 'none' },
   anim: { si: 'confeti', no: 'calido' },
 })

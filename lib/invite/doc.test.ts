@@ -94,7 +94,7 @@ describe('resolveDoc theme migration', () => {
   it('defaultDoc includes the default theme and v2', () => {
     const d = defaultDoc(makeId)
     expect(d.v).toBe(2)
-    expect(d.theme.vibeId).toBe('anfiora-claro')
+    expect(d.theme.vibeId).toBe('clasico')
   })
 
   it('a v1 doc without theme resolves to the default theme, keeping sections', () => {
@@ -102,7 +102,7 @@ describe('resolveDoc theme migration', () => {
       { id: 'a', type: 'portada', content: { kicker: '', titulo: 'Ana', subtitulo: '' } },
     ] }
     const d = resolveDoc(v1, makeId)
-    expect(d.theme.vibeId).toBe('anfiora-claro')
+    expect(d.theme.vibeId).toBe('clasico')
     expect(d.sections.find(s => s.type === 'portada')).toBeTruthy()
     expect(d.meta.publicada).toBe(true)
   })

@@ -16,6 +16,8 @@ export function themeCssVars(theme: Theme): Record<string, string> {
     '--inv-boton-radius': FORMA_RADIUS[theme.boton.forma],
     '--inv-font-titulo-id': theme.fonts.titulo,
     '--inv-font-cuerpo-id': theme.fonts.cuerpo,
+    '--inv-acento-bg': `color-mix(in srgb, ${theme.colores.acento} 12%, #ffffff)`,
+    '--inv-acento-borde': `color-mix(in srgb, ${theme.colores.acento} 32%, #ffffff)`,
   }
 }
 

@@ -4,9 +4,9 @@ import { ThemeSchema, DEFAULT_THEME } from './theme'
 describe('ThemeSchema', () => {
   it('parses the default theme unchanged', () => {
     const parsed = ThemeSchema.parse(DEFAULT_THEME)
-    expect(parsed.vibeId).toBe('anfiora-claro')
-    expect(parsed.colores.acento).toBe('#48C9B0')
-    expect(parsed.boton.forma).toBe('redondo')
+    expect(parsed.vibeId).toBe('clasico')
+    expect(parsed.colores.acento).toBe('#d4a853')
+    expect(parsed.boton.forma).toBe('pill')
   })
 
   it('fills defaults for a partial theme', () => {

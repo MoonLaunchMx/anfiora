@@ -24,6 +24,7 @@ function v(
 
 export const VIBES: Vibe[] = [
   // elegantes
+  v('clasico', 'Clásico', 'elegantes', { fondo: '#FBF7F0', texto: '#1D1E20', acento: '#d4a853', botonBg: '#48C9B0', botonTexto: '#ffffff', titulo: 'josefin-sans', forma: 'pill', estilo: 'relleno', si: 'confeti', no: 'calido' }),
   v('anfiora-claro', 'Anfiora Claro', 'elegantes', { fondo: '#ffffff', texto: '#1D1E20', acento: '#48C9B0', botonBg: '#48C9B0', botonTexto: '#ffffff', titulo: 'josefin-sans', forma: 'redondo', estilo: 'elevado', si: 'confeti', no: 'calido' }),
   v('anfiora-noche', 'Anfiora Noche', 'elegantes', { fondo: '#1D1E20', texto: '#f5f5f5', acento: '#F4C430', botonBg: '#48C9B0', botonTexto: '#1D1E20', titulo: 'josefin-sans', forma: 'redondo', estilo: 'elevado', fondoTipo: 'animado', efecto: 'estrellas', si: 'destellos', no: 'calido' }),
   v('romantico', 'Romántico', 'elegantes', { fondo: 'linear-gradient(160deg,#fbe9ec,#eabfce)', texto: '#8a4a5e', acento: '#c76b86', botonBg: '#c76b86', botonTexto: '#ffffff', titulo: 'playfair-display-italic', forma: 'pill', estilo: 'relleno', fondoTipo: 'gradiente', si: 'corazones', no: 'corazon-roto' }),
@@ -55,7 +56,7 @@ export const VIBE_IDS = VIBES.map(x => x.id)
 
 const BY_ID = new Map(VIBES.map(x => [x.id, x]))
 export function getVibe(id: string): Vibe {
-  return BY_ID.get(id) ?? BY_ID.get('anfiora-claro')!
+  return BY_ID.get(id) ?? BY_ID.get('clasico')!
 }
 
 export const VIBES_BY_CATEGORY = VIBES.reduce((acc, x) => {

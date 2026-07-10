@@ -139,6 +139,8 @@ body {
   --inv-boton-radius: 10px;
   --inv-font-titulo: 'Josefin Sans', sans-serif;
   --inv-font-cuerpo: 'General Sans', system-ui, sans-serif;
+  --inv-acento-bg: #fffbf0;
+  --inv-acento-borde: #f0e2bf;
 }
 .inv-btn {
   background: var(--inv-boton-bg);

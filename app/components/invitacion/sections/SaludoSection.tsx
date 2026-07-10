@@ -20,7 +20,10 @@ export default function SaludoSection({ content, ctx }: { content: Content; ctx:
         {saludo}
       </h2>
       <p className="mx-auto mt-4 max-w-md text-sm leading-relaxed opacity-70 lg:text-base" style={{ color: 'var(--inv-texto)' }}>{content.mensaje}</p>
-      <span className="mt-6 inline-block rounded-full border border-[#f0e2bf] bg-[#fffbf0] px-4 py-2 text-xs font-medium text-[#8a6d2f]">
+      <span
+        className="mt-6 inline-block rounded-full border px-4 py-2 text-xs font-medium"
+        style={{ background: 'var(--inv-acento-bg)', borderColor: 'var(--inv-acento-borde)', color: 'var(--inv-acento)' }}
+      >
         {chip}
       </span>
     </SectionShell>

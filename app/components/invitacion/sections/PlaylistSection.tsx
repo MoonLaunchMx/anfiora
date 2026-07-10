@@ -16,7 +16,7 @@ export default function PlaylistSection({ content, ctx }: { content: Content; ct
         href={ctx.tokens.playlist ? `/playlist/${ctx.tokens.playlist}` : '#'}
         className="flex items-center gap-3 rounded-2xl border border-[#e8e8e8] bg-white px-5 py-4 transition hover:border-[var(--inv-acento)]"
       >
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#fffbf0]" style={{ color: 'var(--inv-acento)' }}>
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full" style={{ color: 'var(--inv-acento)', background: 'var(--inv-acento-bg)' }}>
           <Music2 size={17} />
         </span>
         <span className="flex-1">

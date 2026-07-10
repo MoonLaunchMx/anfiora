@@ -28,7 +28,7 @@ export default function ItinerarioSection({ content, ctx }: { content: Content; 
         {ctx.itinerary.map((item, i) => (
           <li key={i} className="flex gap-4">
             <div className="flex flex-col items-center">
-              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#fffbf0]" style={{ color: 'var(--inv-acento)' }}>
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full" style={{ color: 'var(--inv-acento)', background: 'var(--inv-acento-bg)' }}>
                 <Clock size={13} />
               </span>
               {i < ctx.itinerary.length - 1 && <span className="my-1 w-px flex-1 bg-[#e8e8e8]" />}

@@ -99,7 +99,10 @@ export default function DressCodeSection({ content, ctx }: { content: Content; c
       )}
 
       {dc.recomendaciones.length > 0 && (
-        <p className="mx-auto mt-6 max-w-md rounded-xl border border-[#f0e2bf] bg-[#fffbf0] px-4 py-3 text-center text-xs leading-relaxed" style={{ color: 'var(--inv-texto)' }}>
+        <p
+          className="mx-auto mt-6 max-w-md rounded-xl border px-4 py-3 text-center text-xs leading-relaxed"
+          style={{ color: 'var(--inv-texto)', background: 'var(--inv-acento-bg)', borderColor: 'var(--inv-acento-borde)' }}
+        >
           {dc.recomendaciones.join('. ')}.
         </p>
       )}

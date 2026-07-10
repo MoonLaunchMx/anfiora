@@ -5,9 +5,11 @@ import { DEFAULT_THEME } from './theme'
 describe('theme-css', () => {
   it('maps colors and radius to CSS variables', () => {
     const vars = themeCssVars(DEFAULT_THEME)
-    expect(vars['--inv-fondo']).toBe('#ffffff')
-    expect(vars['--inv-acento']).toBe('#48C9B0')
-    expect(vars['--inv-boton-radius']).toBe('10px') // redondo
+    expect(vars['--inv-fondo']).toBe('#FBF7F0')
+    expect(vars['--inv-acento']).toBe('#d4a853')
+    expect(vars['--inv-boton-radius']).toBe('999px') // pill
+    expect(vars['--inv-acento-bg']).toContain('color-mix')
+    expect(vars['--inv-acento-bg']).toContain('#d4a853')
   })
 
   it('uses pill radius for pill buttons', () => {
@@ -16,6 +18,6 @@ describe('theme-css', () => {
   })
 
   it('botonClass includes the estilo modifier', () => {
-    expect(botonClass(DEFAULT_THEME)).toBe('inv-btn inv-btn-elevado')
+    expect(botonClass(DEFAULT_THEME)).toBe('inv-btn inv-btn-relleno')
   })
 })
