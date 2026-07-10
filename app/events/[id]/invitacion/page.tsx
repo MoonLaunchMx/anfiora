@@ -253,7 +253,7 @@ export default function InvitacionPage() {
             <div className="min-w-0">
               <div className="mb-5 flex gap-6 border-b border-[#eee]">
                 {([
-                  ['estilo', 'Estilo'],
+                  ['estilo', 'Plantillas'],
                   ['personalizar', 'Personalizar'],
                   ['contenido', 'Contenido'],
                 ] as const).map(([key, label]) => (
