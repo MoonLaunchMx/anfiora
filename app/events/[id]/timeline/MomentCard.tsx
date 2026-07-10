@@ -59,7 +59,7 @@ export function MomentCard({ moment, canEdit, guestPreview, onEdit, onToggleVisi
               ].join(' ')}
             >
               {moment.visible_to_guests ? <Eye size={11} /> : <EyeOff size={11} />}
-              {moment.visible_to_guests ? 'Visible' : 'Solo interno'}
+              <span className="hidden sm:inline">{moment.visible_to_guests ? 'Visible' : 'Solo interno'}</span>
             </button>
           )}
         </div>
