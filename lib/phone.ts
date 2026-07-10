@@ -88,3 +88,11 @@ export function toWhatsApp(raw: string, defaultCountry: CountryCode = DEFAULT_CO
 export function formatAsYouType(raw: string, country: CountryCode = DEFAULT_COUNTRY): string {
   return new AsYouType(country).input(raw)
 }
+
+// Digitos nacionales (sin lada) de un numero; para re-interpretar bajo otro pais.
+export function nationalNumber(raw: string): string {
+  if (!raw || !raw.trim()) return ''
+  const parsed = parsePhoneNumberFromString(raw.trim())
+  if (parsed) return parsed.nationalNumber
+  return raw.replace(/\D/g, '')
+}

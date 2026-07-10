@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { toE164, formatDisplay, isValidPhone, detectCountry, toWhatsApp } from './phone'
+import { toE164, formatDisplay, isValidPhone, detectCountry, toWhatsApp, nationalNumber } from './phone'
 
 describe('toE164', () => {
   it('MX local sin lada asume +52', () => {
@@ -74,5 +74,20 @@ describe('formatDisplay', () => {
   })
   it('entrada invalida devuelve el crudo sin reventar', () => {
     expect(formatDisplay('no-es-numero')).toBe('no-es-numero')
+  })
+})
+
+describe('nationalNumber', () => {
+  it('extrae digitos nacionales de un numero US', () => {
+    expect(nationalNumber('+15551234567')).toBe('5551234567')
+  })
+  it('extrae digitos nacionales de un numero MX', () => {
+    expect(nationalNumber('+528112345678')).toBe('8112345678')
+  })
+  it('numero local sin lada devuelve solo digitos', () => {
+    expect(nationalNumber('81 1234 5678')).toBe('8112345678')
+  })
+  it('vacio devuelve cadena vacia', () => {
+    expect(nationalNumber('')).toBe('')
   })
 })

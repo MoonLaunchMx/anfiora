@@ -9,6 +9,7 @@ import {
   formatAsYouType,
   detectCountry,
   isValidPhone,
+  nationalNumber,
   type CountryCode,
 } from '@/lib/phone'
 
@@ -25,7 +26,7 @@ export default function PhoneInput({
   value,
   onChange,
   defaultCountry = DEFAULT_COUNTRY,
-  placeholder = 'Numero de telefono',
+  placeholder = 'Número de teléfono',
   disabled,
   className = '',
 }: PhoneInputProps) {
@@ -83,8 +84,9 @@ export default function PhoneInput({
     setCountry(iso)
     setOpen(false)
     setFilter('')
-    setText(text ? formatAsYouType(text, iso) : '')
-    emit(text, iso)
+    const nat = nationalNumber(text)
+    setText(nat ? formatAsYouType(nat, iso) : '')
+    emit(nat, iso)
   }
 
   const current = COUNTRIES.find(c => c.iso === country)
@@ -142,7 +144,7 @@ export default function PhoneInput({
               autoFocus
               value={filter}
               onChange={e => setFilter(e.target.value)}
-              placeholder="Buscar pais"
+              placeholder="Buscar país"
               className="w-full bg-transparent text-sm text-white outline-none placeholder:text-[#777]"
             />
             {filter && (
