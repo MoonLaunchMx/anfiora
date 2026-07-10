@@ -2,6 +2,7 @@
 import type { InviteDoc } from '@/lib/invite/schema'
 import type { InviteCtx } from './types'
 import { resolveInviteHeading } from '@/lib/invite'
+import ThemeProvider from './ThemeProvider'
 import PortadaSection from './sections/PortadaSection'
 import SaludoSection from './sections/SaludoSection'
 import DetallesSection from './sections/DetallesSection'
@@ -21,23 +22,25 @@ export default function InvitacionRenderer({ doc, ctx }: { doc: InviteDoc; ctx: 
       ? portadaSection.content.titulo
       : resolveInviteHeading(ctx.event)
   return (
-    <div className="flex flex-col">
-      {doc.sections.map(s => {
-        switch (s.type) {
-          case 'portada':    return <PortadaSection    key={s.id} content={s.content} ctx={ctx} />
-          case 'saludo':     return <SaludoSection     key={s.id} content={s.content} ctx={ctx} />
-          case 'detalles':   return <DetallesSection   key={s.id} content={s.content} ctx={ctx} />
-          case 'dress_code': return <DressCodeSection  key={s.id} content={s.content} ctx={ctx} />
-          case 'itinerario': return <ItinerarioSection key={s.id} content={s.content} ctx={ctx} />
-          case 'rsvp':       return <RsvpSection       key={s.id} content={s.content} ctx={ctx} />
-          case 'enganche':   return <EngancheSection   key={s.id} content={s.content} ctx={ctx} />
-          case 'playlist':   return <PlaylistSection   key={s.id} content={s.content} ctx={ctx} />
-          case 'mesa':       return <MesaSection       key={s.id} content={s.content} ctx={ctx} />
-          case 'texto':      return <TextoSection      key={s.id} content={s.content} ctx={ctx} />
-          case 'cierre':     return <CierreSection     key={s.id} content={s.content} ctx={ctx} portadaTitulo={portadaTitulo} />
-          default:           return <div key={(s as any).id} className="px-6 py-3 text-center text-xs text-[#bbb]">Sección no disponible</div>
-        }
-      })}
-    </div>
+    <ThemeProvider theme={doc.theme}>
+      <div className="flex flex-col">
+        {doc.sections.map(s => {
+          switch (s.type) {
+            case 'portada':    return <PortadaSection    key={s.id} content={s.content} ctx={ctx} />
+            case 'saludo':     return <SaludoSection     key={s.id} content={s.content} ctx={ctx} />
+            case 'detalles':   return <DetallesSection   key={s.id} content={s.content} ctx={ctx} />
+            case 'dress_code': return <DressCodeSection  key={s.id} content={s.content} ctx={ctx} />
+            case 'itinerario': return <ItinerarioSection key={s.id} content={s.content} ctx={ctx} />
+            case 'rsvp':       return <RsvpSection       key={s.id} content={s.content} ctx={ctx} />
+            case 'enganche':   return <EngancheSection   key={s.id} content={s.content} ctx={ctx} />
+            case 'playlist':   return <PlaylistSection   key={s.id} content={s.content} ctx={ctx} />
+            case 'mesa':       return <MesaSection       key={s.id} content={s.content} ctx={ctx} />
+            case 'texto':      return <TextoSection      key={s.id} content={s.content} ctx={ctx} />
+            case 'cierre':     return <CierreSection     key={s.id} content={s.content} ctx={ctx} portadaTitulo={portadaTitulo} />
+            default:           return <div key={(s as any).id} className="px-6 py-3 text-center text-xs text-[#bbb]">Sección no disponible</div>
+          }
+        })}
+      </div>
+    </ThemeProvider>
   )
 }

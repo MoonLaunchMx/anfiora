@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { Heart } from 'lucide-react'
 import { isInviteOpen, type RsvpSubmission } from '@/lib/invite'
 import type { InviteDoc } from '@/lib/invite/schema'
+import { botonClass } from '@/lib/invite/theme-css'
 import type { DressCode } from '@/lib/dresscode'
 import type { InviteCtx, InviteGuest, InviteCompanion } from '@/app/components/invitacion/types'
 import InvitacionRenderer from '@/app/components/invitacion/InvitacionRenderer'
@@ -90,6 +91,7 @@ export default function InvitacionClient({ token }: { token: string }) {
     mode: 'public',
     onSubmit: handleSubmit,
     deadlinePassed: !isInviteOpen(data.doc.meta, todayISO()),
+    botonClassName: botonClass(data.doc.theme),
   }
 
   return (

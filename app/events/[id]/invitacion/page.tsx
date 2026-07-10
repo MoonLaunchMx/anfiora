@@ -8,6 +8,7 @@ import { supabase } from '@/lib/supabase'
 import { resolveDoc, setMeta } from '@/lib/invite/doc'
 import type { InviteDoc } from '@/lib/invite/schema'
 import { randomToken } from '@/lib/invite'
+import { botonClass } from '@/lib/invite/theme-css'
 import { parseDressCode, type DressCode } from '@/lib/dresscode'
 import { getGuestItinerary } from '@/lib/guest-itinerary'
 import type { GuestItineraryItem } from '@/lib/types'
@@ -171,6 +172,7 @@ export default function InvitacionPage() {
     mode: 'preview',
     onSubmit: undefined,
     deadlinePassed: false,
+    botonClassName: botonClass(doc.theme),
   }
 
   const badgeClass = doc.meta.publicada
