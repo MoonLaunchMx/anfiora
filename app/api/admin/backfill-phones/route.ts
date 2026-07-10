@@ -3,12 +3,14 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { toE164 } from '@/lib/phone'
 
 const PAGE = 500
+const SAMPLE = 8
 
-async function normalizeTable(
-  supabase: SupabaseClient,
-  table: 'guests' | 'party_members' | 'users' | 'suppliers',
-) {
-  let from = 0, updated = 0, skipped = 0
+type TableName = 'guests' | 'party_members' | 'users' | 'suppliers'
+
+// Sin apply=true corre en seco: cuenta y muestra ejemplos antes->despues sin escribir.
+async function normalizeTable(supabase: SupabaseClient, table: TableName, apply: boolean) {
+  let from = 0, total = 0, toUpdate = 0, updated = 0, skipped = 0, alreadyOk = 0
+  const samples: Array<{ id: string; before: string; after: string }> = []
   for (;;) {
     const cols = table === 'suppliers' ? 'id, phone, phone_country_code' : 'id, phone'
     const { data: rows, error } = await supabase.from(table).select(cols).range(from, from + PAGE - 1)
@@ -16,36 +18,41 @@ async function normalizeTable(
     if (!rows || rows.length === 0) break
     for (const r of rows as unknown as Array<{ id: string; phone: string | null; phone_country_code?: string | null }>) {
       if (!r.phone) continue
+      total++
       const raw = table === 'suppliers'
         ? `${r.phone_country_code ?? '+52'} ${r.phone}`
         : r.phone
       const e164 = toE164(raw, 'MX')
       if (!e164) { skipped++; continue }
-      if (e164 === r.phone) continue
-      const patch: Record<string, string> = { phone: e164 }
-      const { error: upErr } = await supabase.from(table).update(patch).eq('id', r.id)
-      if (upErr) throw new Error(`${table} update ${r.id}: ${upErr.message}`)
-      updated++
+      if (e164 === r.phone) { alreadyOk++; continue }
+      toUpdate++
+      if (samples.length < SAMPLE) samples.push({ id: r.id, before: r.phone, after: e164 })
+      if (apply) {
+        const { error: upErr } = await supabase.from(table).update({ phone: e164 }).eq('id', r.id)
+        if (upErr) throw new Error(`${table} update ${r.id}: ${upErr.message}`)
+        updated++
+      }
     }
     from += PAGE
     if (rows.length < PAGE) break
   }
-  return { updated, skipped }
+  return { table, total, toUpdate, updated, skipped, alreadyOk, samples }
 }
 
 export async function POST(request: NextRequest) {
   if (request.headers.get('x-backfill-secret') !== process.env.SUPABASE_SERVICE_ROLE_KEY) {
     return NextResponse.json({ error: 'no autorizado' }, { status: 403 })
   }
+  const apply = new URL(request.url).searchParams.get('apply') === 'true'
   const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
   try {
     const report = {
-      guests:        await normalizeTable(supabase, 'guests'),
-      party_members: await normalizeTable(supabase, 'party_members'),
-      suppliers:     await normalizeTable(supabase, 'suppliers'),
-      users:         await normalizeTable(supabase, 'users'),
+      guests:        await normalizeTable(supabase, 'guests', apply),
+      party_members: await normalizeTable(supabase, 'party_members', apply),
+      suppliers:     await normalizeTable(supabase, 'suppliers', apply),
+      users:         await normalizeTable(supabase, 'users', apply),
     }
-    return NextResponse.json({ ok: true, report })
+    return NextResponse.json({ ok: true, mode: apply ? 'apply' : 'dry-run', report })
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 })
   }
