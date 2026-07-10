@@ -128,3 +128,49 @@ body {
   color: var(--text);
   font-family: 'General Sans', system-ui, sans-serif;
 }
+
+/* ===== Invitacion: tema por CSS variables ===== */
+.inv-theme {
+  --inv-fondo: #ffffff;
+  --inv-texto: #1D1E20;
+  --inv-acento: #48C9B0;
+  --inv-boton-bg: #48C9B0;
+  --inv-boton-texto: #ffffff;
+  --inv-boton-radius: 10px;
+  --inv-font-titulo: 'Josefin Sans', sans-serif;
+  --inv-font-cuerpo: 'General Sans', system-ui, sans-serif;
+}
+.inv-btn {
+  background: var(--inv-boton-bg);
+  color: var(--inv-boton-texto);
+  border-radius: var(--inv-boton-radius);
+  border: none;
+  cursor: pointer;
+  font-weight: 600;
+  transition: transform .12s ease, box-shadow .12s ease, filter .12s ease;
+}
+.inv-btn:active { transform: scale(.97); }
+.inv-btn-relleno {}
+.inv-btn-degradado {}
+.inv-btn-contorno {
+  background: transparent;
+  color: var(--inv-acento);
+  border: 1px solid var(--inv-acento);
+}
+.inv-btn-elevado { box-shadow: 0 6px 16px color-mix(in srgb, var(--inv-boton-bg) 40%, transparent); }
+.inv-btn-retro3d {
+  border: 2px solid var(--inv-texto);
+  box-shadow: 4px 4px 0 var(--inv-texto);
+}
+.inv-btn-neon {
+  background: transparent;
+  color: var(--inv-acento);
+  border: 1.5px solid var(--inv-acento);
+  box-shadow: 0 0 14px var(--inv-acento), inset 0 0 8px color-mix(in srgb, var(--inv-acento) 30%, transparent);
+}
+.inv-btn-cromo {
+  background: linear-gradient(180deg, #ffffff, color-mix(in srgb, var(--inv-boton-bg) 35%, #c8c8e8));
+  color: var(--inv-boton-texto);
+  border: 1px solid #fff;
+  box-shadow: 0 4px 10px rgba(0,0,0,.2), inset 0 1px 2px #fff;
+}
