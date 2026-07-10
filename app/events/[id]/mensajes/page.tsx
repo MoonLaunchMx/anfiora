@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useRef, useCallback } from 'react'
-import { useParams } from 'next/navigation'
+import { useParams, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import {
   MessageCircle, Clock, Send, Sparkles, Info,
@@ -739,6 +739,8 @@ function EmptyChat() {
 
 export default function MensajesPage() {
   const { id: eventId } = useParams<{ id: string }>()
+  const searchParams = useSearchParams()
+  const guestParam = searchParams.get('guest')
 
   const [conversaciones, setConversaciones] = useState<InboxConversation[]>([])
   const [seleccionadaId, setSeleccionadaId] = useState<string | null>(null)
@@ -780,6 +782,13 @@ export default function MensajesPage() {
     const t = setInterval(() => fetchInbox(seleccionadaId ?? undefined), 4000)
     return () => clearInterval(t)
   }, [fetchInbox, seleccionadaId])
+
+  // Deep-link desde la lista de invitados: ?guest=<id> abre su conversacion
+  useEffect(() => {
+    if (!guestParam || seleccionadaId) return
+    const match = conversaciones.find(c => c.guestId === guestParam)
+    if (match) setSeleccionadaId(match.id)
+  }, [guestParam, conversaciones, seleccionadaId])
 
   useEffect(() => {
     if (seleccionadaId) {

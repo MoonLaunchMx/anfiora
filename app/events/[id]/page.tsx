@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef, useMemo } from 'react'
 import { createPortal } from 'react-dom'
-import { useParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import { motion, AnimatePresence, useMotionValue, useTransform, animate } from 'framer-motion'
 import type { PanInfo } from 'framer-motion'
 import { Trash2, Send, Clock, MessageSquare, AlertCircle, CheckCircle, XCircle, Download, Upload, Columns3, Search, UserPlus, Plus, Check, X, Filter, Loader2, FileSpreadsheet, FileText, AlertTriangle, ChevronDown } from 'lucide-react'
@@ -30,7 +30,7 @@ const STATUS_ORDER: RsvpStatus[] = ['pending', 'mensaje_enviado', 'respondio', '
 
 const ATTENTION_LABEL: Record<string, string> = {
   alergia: 'Alergia o restricción',
-  peticion: 'Petición de acompañantes',
+  peticion: 'Cambio solicitado',
   queja: 'Queja',
   duda: 'Duda',
   otro: 'Requiere atención',
@@ -411,10 +411,11 @@ type CsvDuplicateResult = {
   newAllergies: string[]
 }
 
-function SwipeableGuestCard({ guest, groupColor, isSelected, guestTags, availableTags, onSelect, onEdit, onDelete, onWaLongPressStart, onWaLongPressEnd, onWaTouchMove, onStatusChange }: {
+function SwipeableGuestCard({ guest, groupColor, isSelected, guestTags, availableTags, onSelect, onEdit, onDelete, onWaLongPressStart, onWaLongPressEnd, onWaTouchMove, onStatusChange, onOpenConversation }: {
   guest: Guest; groupColor: string | null; isSelected: boolean; guestTags: string[]; availableTags: string[]
   onSelect: () => void; onEdit: () => void; onDelete: () => void
   onWaLongPressStart: (g: Guest) => void; onWaLongPressEnd: (g: Guest) => void; onWaTouchMove: () => void; onStatusChange: (s: RsvpStatus) => void
+  onOpenConversation: (guestId: string) => void
 }) {
   const x = useMotionValue(0)
   const bgOpacity = useTransform(x, [-80, -20, 0], [1, 0.5, 0])
@@ -451,14 +452,16 @@ function SwipeableGuestCard({ guest, groupColor, isSelected, guestTags, availabl
             </p>
             <div className="mt-0.5 flex flex-wrap items-center gap-1">
               {guest.needs_attention && (
-                <span
-                  className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium"
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); onOpenConversation(guest.id) }}
+                  className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium transition hover:opacity-80"
                   style={{ background: 'var(--error-bg)', color: 'var(--error-text)', border: '1px solid var(--error-border)' }}
-                  title={ATTENTION_LABEL[guest.attention_reason || 'otro']}
+                  title={`${ATTENTION_LABEL[guest.attention_reason || 'otro']} — abrir conversación`}
                 >
                   <AlertTriangle size={12} />
                   {ATTENTION_LABEL[guest.attention_reason || 'otro']}
-                </span>
+                </button>
               )}
               {guestTags.map(tag => {
                 const tagIdx = availableTags.indexOf(tag)
@@ -673,6 +676,8 @@ function EditGuestModal({ guest, availableTags, groupPool, allergyPool, onCreate
 
 export default function EventPage() {
   const { id } = useParams()
+  const router = useRouter()
+  const openConversation = (guestId: string) => router.push(`/events/${id}/mensajes?guest=${guestId}`)
 
   const { visible: statsVisible, toggle: toggleStats } = useStatsToggle(id as string, 'guests')
 
@@ -1628,6 +1633,7 @@ export default function EventPage() {
                       onEdit={() => openEdit(guest)} onDelete={() => deleteGuest(guest.id)}
                       onWaLongPressStart={handleWaLongPressStart} onWaLongPressEnd={handleWaLongPressEnd}
                       onWaTouchMove={handleWaTouchMove} onStatusChange={(s) => updateStatus(guest.id, s)}
+                      onOpenConversation={openConversation}
                     />
                     {groupColor && guest.party_members.map((m, mi) => {
                       const isLast = mi === guest.party_members.length - 1
@@ -1682,14 +1688,16 @@ export default function EventPage() {
                         <span className="text-sm font-semibold text-[#1D1E20]">{guest.name}</span>
                         {hasMembers && <span className="text-xs font-semibold" style={{ color: groupColor || '#aaa' }}>+{guest.party_members.length}</span>}
                         {guest.needs_attention && (
-                          <span
-                            className="ml-2 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium"
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); openConversation(guest.id) }}
+                            className="ml-2 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium transition hover:opacity-80"
                             style={{ background: 'var(--error-bg)', color: 'var(--error-text)', border: '1px solid var(--error-border)' }}
-                            title={ATTENTION_LABEL[guest.attention_reason || 'otro']}
+                            title={`${ATTENTION_LABEL[guest.attention_reason || 'otro']} — abrir conversación`}
                           >
                             <AlertTriangle size={12} />
                             {ATTENTION_LABEL[guest.attention_reason || 'otro']}
-                          </span>
+                          </button>
                         )}
                       </div>
                       {visibleCols.has('tags') && (

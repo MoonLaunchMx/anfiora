@@ -16,11 +16,12 @@ export async function runPipelineOnPack(
   intent: { intent: string; confidence: string },
   config: AgentConfig,
   history: MessageHistory[],
-  opts?: { applied?: AppliedSummary | null; escalate?: 'queja' | null },
+  opts?: { applied?: AppliedSummary | null; escalate?: 'queja' | 'peticion' | null },
 ): Promise<AgentOutcome> {
   const rsvp = null // la asistencia la escribe el guardia; el pipeline ya no la decide
 
-  // Candado 1: solo se escala queja (decidido por el guardia/extraccion, no por regex)
+  // Candado 1: hold honesto cuando el guardia/extraccion pide escalar (queja) o
+  // cuando no se pudo cumplir una peticion de cambio (no inventar la confirmacion)
   if (opts?.escalate) {
     return { action: 'handoff', message: config.holdingMessage, reason: opts.escalate, escalate: true, rsvp }
   }

@@ -164,6 +164,20 @@ export function applyExtraction(result: ExtractionResult, guest: ApplyGuest, mem
   }
 }
 
+// Honestidad: decide si el agente debe dar una respuesta de espera (no afirmar
+// nada) porque no pudo cumplir lo que el invitado pidio. 'peticion' en el plan
+// significa que hubo una solicitud de cambio de acompanantes que NO se aplico
+// (nombre no encontrado o conteo ambiguo); en ese caso el reply libre no debe
+// inventar la confirmacion. La queja mantiene prioridad de escalamiento.
+export function resolveEscalation(
+  plan: WritePlan,
+  opts: { complaint: boolean; escalateQuejas: boolean },
+): 'queja' | 'peticion' | null {
+  if (opts.complaint && opts.escalateQuejas) return 'queja'
+  if (plan.escalations.includes('peticion')) return 'peticion'
+  return null
+}
+
 export function renderAppliedActions(applied?: AppliedSummary | null): string {
   if (!applied) return ''
   const lines: string[] = []

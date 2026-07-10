@@ -14,7 +14,7 @@ const EXTRACTION_TOOL: Anthropic.Tool = {
       companions: {
         type: 'object',
         properties: {
-          action: { type: 'string', enum: ['all', 'none', 'named', 'partial_ambiguous'], description: "all si van todos; none si solo va el titular o no menciona acompanantes; named si nombra a quienes van; partial_ambiguous si da un numero parcial sin decir quienes (ej: 'vamos 2' de 3)." },
+          action: { type: 'string', enum: ['all', 'none', 'named', 'partial_ambiguous'], description: "all si van todos; none si solo va el titular o no menciona acompanantes; named si identifica a quien(es) van, por nombre o por rol/parentesco (mi esposa, mi hijo, mi mama) que corresponda a un acompanante registrado; partial_ambiguous SOLO si da una cantidad sin ningun identificador (ej: 'vamos 2' de 3)." },
           names: { type: 'array', items: { type: 'string' }, description: 'Nombres mencionados, solo si action=named.' },
           decliningNames: { type: 'array', items: { type: 'string' }, description: 'Nombres de acompanantes que el invitado dice que NO van (ej: "mi esposa Olivia no va"). Vacio si no aplica.' },
           impliesOthersNotComing: { type: 'boolean', description: 'true si el mensaje implica exclusividad ("solo va X", "nada mas va Y") sin nombrar a los que no van.' },
@@ -47,6 +47,7 @@ Reglas:
 - Extrae SOLO lo que el mensaje dice explicitamente. No infieras ni inventes.
 - Si el invitado no menciona su asistencia, attendance='none'.
 - companions.action='all' solo si dice claramente que van todos sus acompanantes.
+- Si el invitado identifica a un acompanante por rol o parentesco (mi esposa, mi hijo, mi mama, mi pareja) y ese rol corresponde a un acompanante registrado, usa companions.action='named' y pon en names el NOMBRE REGISTRADO que mejor corresponda a ese rol. NO uses partial_ambiguous cuando ya identifico por rol o nombre a quien va; partial_ambiguous es solo para una cantidad sin ningun identificador.
 - Si menciona una alergia sin dejar claro de quien es, who='unknown'.
 - Si dudas de la lectura, confidence='low'.
 - Si dice que un acompanante NO va (ej: "mi esposa Olivia no va"), pon su nombre en companions.decliningNames.

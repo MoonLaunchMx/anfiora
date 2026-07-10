@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { applyExtraction, renderAppliedActions, type ExtractionResult } from './apply'
+import { applyExtraction, renderAppliedActions, resolveEscalation, type ExtractionResult } from './apply'
 import type { PartyMember } from '@/lib/types'
 
 const base: ExtractionResult = {
@@ -182,6 +182,47 @@ describe('renderAppliedActions — Fase 2.1', () => {
     const s = renderAppliedActions({ confirmedGuest: false, declinedGuest: false, confirmedCompanions: 0, declinedCompanions: 1, capturedAllergies: 0, allergyCorrectionFlagged: true, flagged: 'alergia' })
     expect(s).toContain('ya no asistira')
     expect(s).toContain('ajuste sobre una alergia')
+  })
+})
+
+describe('resolveEscalation — honestidad: no afirmar lo que no se hizo', () => {
+  const members = [member('m1', 'Esposa'), member('m2', 'Hijo')]
+  it('peticion no cumplida (partial_ambiguous) fuerza hold honesto', () => {
+    const plan = applyExtraction(
+      { ...base, companions: { action: 'partial_ambiguous', names: [], decliningNames: [], impliesOthersNotComing: false } },
+      guest({ rsvp_status: 'confirmed' }), members,
+    )
+    expect(plan.escalations).toContain('peticion') // precondicion del bug
+    expect(resolveEscalation(plan, { complaint: false, escalateQuejas: true })).toBe('peticion')
+  })
+  it('acompanante nombrado sin match fuerza hold honesto', () => {
+    const plan = applyExtraction(
+      { ...base, companions: { action: 'named', names: ['Suegra'], decliningNames: [], impliesOthersNotComing: false } },
+      guest({ rsvp_status: 'confirmed' }), members,
+    )
+    expect(resolveEscalation(plan, { complaint: false, escalateQuejas: true })).toBe('peticion')
+  })
+  it('acompanante confirmado limpio NO fuerza hold (deja responder normal)', () => {
+    const plan = applyExtraction(
+      { ...base, companions: { action: 'named', names: ['Esposa'], decliningNames: [], impliesOthersNotComing: false } },
+      guest({ rsvp_status: 'confirmed' }), members,
+    )
+    expect(plan.escalations).not.toContain('peticion')
+    expect(resolveEscalation(plan, { complaint: false, escalateQuejas: true })).toBeNull()
+  })
+  it('queja tiene prioridad sobre peticion', () => {
+    const plan = applyExtraction(
+      { ...base, complaint: true, companions: { action: 'partial_ambiguous', names: [], decliningNames: [], impliesOthersNotComing: false } },
+      guest({ rsvp_status: 'confirmed' }), members,
+    )
+    expect(resolveEscalation(plan, { complaint: true, escalateQuejas: true })).toBe('queja')
+  })
+  it('queja desactivada en config no escala queja pero si peticion pendiente', () => {
+    const plan = applyExtraction(
+      { ...base, complaint: true, companions: { action: 'partial_ambiguous', names: [], decliningNames: [], impliesOthersNotComing: false } },
+      guest({ rsvp_status: 'confirmed' }), members,
+    )
+    expect(resolveEscalation(plan, { complaint: true, escalateQuejas: false })).toBe('peticion')
   })
 })
 
