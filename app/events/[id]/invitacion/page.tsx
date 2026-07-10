@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useParams } from 'next/navigation'
-import { Send, Check, LayoutGrid } from 'lucide-react'
+import { Send, Check, LayoutGrid, ExternalLink } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { resolveDoc, setMeta } from '@/lib/invite/doc'
 import type { InviteDoc } from '@/lib/invite/schema'
@@ -197,10 +197,18 @@ export default function InvitacionPage() {
                 placeholder="Sin límite"
               />
             </div>
+            <a
+              href={`/invitacion/preview/${eventId}`}
+              target="_blank"
+              rel="noreferrer"
+              className="hidden shrink-0 items-center gap-1.5 rounded-lg border border-[#e0e0e0] px-3 py-2 text-xs font-medium text-[#666] transition hover:bg-[#f5f5f5] sm:flex sm:px-4 sm:text-sm"
+            >
+              <ExternalLink size={14} /> Vista web
+            </a>
             <button
               onClick={handlePublish}
               disabled={publishing}
-              className="flex shrink-0 items-center gap-1.5 rounded-lg bg-[#48C9B0] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#3ab89f] disabled:cursor-not-allowed disabled:opacity-60"
+              className="flex shrink-0 items-center gap-1.5 rounded-lg bg-[#48C9B0] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#3ab89f] disabled:cursor-not-allowed disabled:opacity-60 sm:px-4 sm:text-sm"
             >
               {publishing ? (
                 'Publicando...'

@@ -759,18 +759,16 @@ export default function ConfiguracionPage() {
                       </div>
                     )}
 
-                    {/* Fecha */}
-                    <div>
+                    {/* Fecha (inicio + fin) */}
+                    <div className="sm:col-span-2">
                       <label className="mb-1.5 block text-xs font-medium text-[#555]">Fecha</label>
-                      <DatePicker value={eventDate} onChange={v => { setEventDate(v); scheduleAutoSave() }} placeholder="Fecha" />
-                    </div>
-
-                    {/* Fecha fin */}
-                    <div>
-                      <label className="mb-1.5 block text-xs font-medium text-[#555]">
-                        Fin <span className="font-normal text-[#bbb]">(opc.)</span>
-                      </label>
-                      <DatePicker value={eventEndDate} onChange={v => { setEventEndDate(v); scheduleAutoSave() }} placeholder="Fecha fin" minDate={eventDate || undefined} />
+                      <DatePicker
+                        mode="range"
+                        startValue={eventDate}
+                        endValue={eventEndDate}
+                        onRangeChange={(start, end) => { setEventDate(start); setEventEndDate(end); scheduleAutoSave() }}
+                        placeholder="Fecha"
+                      />
                     </div>
 
                     {/* Hora */}

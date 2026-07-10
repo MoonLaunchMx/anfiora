@@ -4,6 +4,7 @@ import type { Section } from '@/lib/invite/schema'
 import type { InviteCtx } from '../types'
 import type { RsvpSubmission } from '@/lib/invite'
 import { Check, X } from 'lucide-react'
+import SectionShell from '../SectionShell'
 
 type Content = Extract<Section, { type: 'rsvp' }>['content']
 
@@ -129,13 +130,13 @@ export default function RsvpSection({ content, ctx }: { content: Content; ctx: I
   }
 
   return (
-    <section className="px-6 py-8">
-      <h2 className="px-2 text-center text-xl font-semibold text-[#1D1E20]" style={{ fontFamily: "'Josefin Sans', sans-serif" }}>
+    <SectionShell variant="form">
+      <h2 className="px-2 text-center text-xl font-semibold text-[#1D1E20] lg:text-2xl" style={{ fontFamily: "'Josefin Sans', sans-serif" }}>
         {content.titulo}
       </h2>
-      <p className="mx-auto mt-2 max-w-sm text-center text-sm text-[#666]">{content.texto}</p>
+      <p className="mx-auto mt-2 max-w-md text-center text-sm text-[#666]">{content.texto}</p>
 
-      <div className="mx-auto mt-8 flex max-w-sm flex-col gap-4">
+      <div className="mt-8 flex flex-col gap-4">
         {rows.map(row => (
           <div key={row.key} className="rounded-2xl border border-[#e8e8e8] bg-white px-5 py-4">
             <p className="text-sm font-medium text-[#1D1E20]">{row.name}</p>
@@ -183,7 +184,7 @@ export default function RsvpSection({ content, ctx }: { content: Content; ctx: I
           type="button"
           onClick={handleSubmit}
           disabled={disabled || !allChosen || submitting}
-          className="mx-auto mt-6 block w-full max-w-sm rounded-full bg-[#48C9B0] py-3 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-50"
+          className="mt-6 block w-full rounded-full bg-[#48C9B0] py-3 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-50"
         >
           {submitting ? 'Enviando…' : 'Confirmar asistencia'}
         </button>
@@ -192,6 +193,6 @@ export default function RsvpSection({ content, ctx }: { content: Content; ctx: I
       {submitted && (
         <p className="mt-6 text-center text-sm font-medium text-[#2a7a50]">¡Gracias por confirmar!</p>
       )}
-    </section>
+    </SectionShell>
   )
 }

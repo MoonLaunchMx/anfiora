@@ -185,28 +185,47 @@ export default function DressCodeEditor({
         />
       </Section>
 
-      <Section label="Guía por género (opcional)">
+      <Section label="Grupos y guía (opcional)">
+        <p className="mb-3 text-[11px] text-[#999]">Nombra los dos grupos (por defecto Ellas/Ellos). Se muestran en la invitación; cámbialos según tu tipo de evento.</p>
         <div className="grid gap-3 sm:grid-cols-2">
-          <textarea
-            value={dc.guia_ellas ?? ''}
-            onChange={e => patch({ guia_ellas: e.target.value || null })}
-            rows={2}
-            placeholder="Para ellas..."
-            className="w-full resize-y rounded-lg border border-[#e8e8e8] px-3 py-2 text-sm focus:border-[#48C9B0] focus:outline-none"
-          />
-          <textarea
-            value={dc.guia_ellos ?? ''}
-            onChange={e => patch({ guia_ellos: e.target.value || null })}
-            rows={2}
-            placeholder="Para ellos..."
-            className="w-full resize-y rounded-lg border border-[#e8e8e8] px-3 py-2 text-sm focus:border-[#48C9B0] focus:outline-none"
-          />
+          <div className="flex flex-col gap-2">
+            <input
+              type="text"
+              value={dc.label_ellas}
+              onChange={e => patch({ label_ellas: e.target.value })}
+              placeholder="Ellas"
+              className="w-full rounded-lg border border-[#e8e8e8] px-3 py-2 text-sm font-medium focus:border-[#48C9B0] focus:outline-none"
+            />
+            <textarea
+              value={dc.guia_ellas ?? ''}
+              onChange={e => patch({ guia_ellas: e.target.value || null })}
+              rows={2}
+              placeholder={`Guía para ${dc.label_ellas.trim() || 'ellas'}...`}
+              className="w-full resize-y rounded-lg border border-[#e8e8e8] px-3 py-2 text-sm focus:border-[#48C9B0] focus:outline-none"
+            />
+          </div>
+          <div className="flex flex-col gap-2">
+            <input
+              type="text"
+              value={dc.label_ellos}
+              onChange={e => patch({ label_ellos: e.target.value })}
+              placeholder="Ellos"
+              className="w-full rounded-lg border border-[#e8e8e8] px-3 py-2 text-sm font-medium focus:border-[#48C9B0] focus:outline-none"
+            />
+            <textarea
+              value={dc.guia_ellos ?? ''}
+              onChange={e => patch({ guia_ellos: e.target.value || null })}
+              rows={2}
+              placeholder={`Guía para ${dc.label_ellos.trim() || 'ellos'}...`}
+              className="w-full resize-y rounded-lg border border-[#e8e8e8] px-3 py-2 text-sm focus:border-[#48C9B0] focus:outline-none"
+            />
+          </div>
         </div>
       </Section>
 
       <Section label="Fotos de ejemplo (opcional)">
         <div className="grid gap-4 sm:grid-cols-2">
-          {([['fotos_ellas', 'Para ellas'], ['fotos_ellos', 'Para ellos']] as [FotoField, string][]).map(([field, titulo]) => (
+          {([['fotos_ellas', dc.label_ellas], ['fotos_ellos', dc.label_ellos]] as [FotoField, string][]).map(([field, titulo]) => (
             <div key={field}>
               <p className="mb-2 text-[11px] font-semibold text-[#888]">{titulo}</p>
               <div className="flex flex-wrap gap-3">

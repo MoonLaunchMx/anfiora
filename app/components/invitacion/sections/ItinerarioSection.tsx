@@ -2,6 +2,7 @@
 import type { Section } from '@/lib/invite/schema'
 import type { InviteCtx } from '../types'
 import { Clock, MapPin } from 'lucide-react'
+import SectionShell from '../SectionShell'
 
 type Content = Extract<Section, { type: 'itinerario' }>['content']
 
@@ -9,21 +10,21 @@ export default function ItinerarioSection({ content, ctx }: { content: Content; 
   if (ctx.itinerary.length === 0) {
     if (ctx.mode !== 'preview') return null
     return (
-      <section className="px-6 py-7 text-center">
+      <SectionShell variant="band" className="text-center">
         <p className="rounded-xl border border-dashed border-[#e0e0e0] bg-white px-4 py-6 text-xs text-[#bbb]">
           Se mostrará cuando configures el itinerario en Timeline
         </p>
-      </section>
+      </SectionShell>
     )
   }
 
   return (
-    <section className="px-6 py-8">
-      <h2 className="px-2 text-center text-xl font-semibold text-[#1D1E20]" style={{ fontFamily: "'Josefin Sans', sans-serif" }}>
+    <SectionShell variant="band">
+      <h2 className="px-2 text-center text-xl font-semibold text-[#1D1E20] lg:text-2xl" style={{ fontFamily: "'Josefin Sans', sans-serif" }}>
         {content.titulo}
       </h2>
 
-      <ol className="mx-auto mt-8 flex max-w-sm flex-col gap-0">
+      <ol className="mx-auto mt-8 flex max-w-md flex-col gap-0">
         {ctx.itinerary.map((item, i) => (
           <li key={i} className="flex gap-4">
             <div className="flex flex-col items-center">
@@ -44,6 +45,6 @@ export default function ItinerarioSection({ content, ctx }: { content: Content; 
           </li>
         ))}
       </ol>
-    </section>
+    </SectionShell>
   )
 }
