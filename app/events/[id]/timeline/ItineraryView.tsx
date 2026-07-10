@@ -8,10 +8,10 @@ import { Sparkles, Clock, Eye } from 'lucide-react'
 
 export function ItineraryView({ itin }: { itin: ItineraryController }) {
   const {
-    eventInfo, canEdit, moments, sorted, suppliers, visibleCount, shareOn,
+    eventInfo, canEdit, moments, sorted, suppliers, visibleCount,
     guestPreview, setGuestPreview, showModal, editMoment, showGenerate, setShowGenerate,
     openNew, openEdit, closeModal, handleSave, handleDelete, toggleVisible,
-    handleShareToggle, applyGenerated,
+    applyGenerated,
   } = itin
 
   const generateModal = showGenerate && (
@@ -64,22 +64,13 @@ export function ItineraryView({ itin }: { itin: ItineraryController }) {
   // ── Vista con momentos ──────────────────────────────────────────────────────
   return (
     <div className="mt-2">
-      {/* Barra de compartir (contextual: conteo N de M + previsualizar como invitado) */}
+      {/* Info: cuantos momentos ven los invitados + previsualizar */}
       <div className="mb-4 flex flex-col gap-3 rounded-xl border border-[#ecdcb8] bg-[#fffdf7] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-3 min-w-0">
-          {canEdit && !guestPreview && (
-            <button
-              onClick={handleShareToggle}
-              className={['relative h-6 w-11 flex-shrink-0 rounded-full transition', shareOn ? 'bg-[#48C9B0]' : 'bg-[#e0e0e0]'].join(' ')}
-              aria-label="Compartir en la invitacion"
-            >
-              <span className={['absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all', shareOn ? 'left-[22px]' : 'left-0.5'].join(' ')} />
-            </button>
-          )}
-          <div className="min-w-0">
-            <p className="text-sm font-medium text-[#1D1E20]">Compartir en la invitacion RSVP</p>
-            <p className="text-[11px] text-[#999]">Los invitados ven {visibleCount} de {moments.length} momentos</p>
-          </div>
+        <div className="min-w-0">
+          <p className="text-sm font-medium text-[#1D1E20]">Visible en la invitacion RSVP</p>
+          <p className="text-[11px] text-[#999]">
+            Los invitados ven {visibleCount} de {moments.length} momentos{canEdit && !guestPreview ? '. Toca el ojo de cada uno para mostrarlo u ocultarlo.' : ''}
+          </p>
         </div>
         <button
           onClick={() => setGuestPreview(p => !p)}

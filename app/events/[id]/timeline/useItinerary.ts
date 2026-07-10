@@ -52,7 +52,6 @@ export function useItinerary(eventId: string, eventInfo: ItineraryEventInfo | nu
 
   const sorted = useMemo(() => sortMoments(moments), [moments])
   const visibleCount = moments.filter(m => m.visible_to_guests).length
-  const shareOn = visibleCount > 0
 
   // ── Persistencia en event_itinerary_moments ────────────────────────────────
   const createMoment = async (data: MomentDraft) => {
@@ -97,11 +96,6 @@ export function useItinerary(eventId: string, eventInfo: ItineraryEventInfo | nu
     await supabase.from('event_itinerary_moments').update({ visible_to_guests: !m.visible_to_guests }).eq('id', m.id)
   }
 
-  const setShareAll = async (on: boolean) => {
-    setMoments(prev => prev.map(m => ({ ...m, visible_to_guests: on })))
-    await supabase.from('event_itinerary_moments').update({ visible_to_guests: on }).eq('event_id', eventId)
-  }
-
   const applyGenerated = async (gen: GeneratedMoment[]) => {
     const base = moments.length
     const rows = gen.map((g, i) => ({
@@ -136,14 +130,6 @@ export function useItinerary(eventId: string, eventInfo: ItineraryEventInfo | nu
     await deleteMoment(m.id)
     closeModal()
   }
-  const handleShareToggle = () => {
-    if (shareOn) {
-      if (window.confirm('Esto ocultara el itinerario completo de la invitacion. Podras volver a mostrarlo despues.')) setShareAll(false)
-    } else {
-      setShareAll(true)
-    }
-  }
-
   return {
     eventInfo,
     canEdit,
@@ -151,7 +137,6 @@ export function useItinerary(eventId: string, eventInfo: ItineraryEventInfo | nu
     sorted,
     suppliers,
     visibleCount,
-    shareOn,
     guestPreview,
     setGuestPreview,
     showModal,
@@ -164,7 +149,6 @@ export function useItinerary(eventId: string, eventInfo: ItineraryEventInfo | nu
     handleSave,
     handleDelete,
     toggleVisible,
-    handleShareToggle,
     applyGenerated,
   }
 }
