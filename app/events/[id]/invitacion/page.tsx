@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useParams } from 'next/navigation'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Send, Check, LayoutGrid, Eye, X } from 'lucide-react'
+import { Send, Check, LayoutGrid, Eye, X, Maximize2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { resolveDoc, setMeta } from '@/lib/invite/doc'
 import type { InviteDoc } from '@/lib/invite/schema'
@@ -269,10 +269,9 @@ export default function InvitacionPage() {
             <div className="hidden sm:sticky sm:top-0 sm:block">
               <div className="mb-2 flex items-center justify-between">
                 <p className="text-[11px] font-bold uppercase tracking-wider text-[#999]">Vista previa</p>
-                <div className="flex items-center gap-4">
-                  <button onClick={() => { setPreviewMode('movil'); setShowPreview(true) }} className="text-[11px] font-bold uppercase tracking-wider text-[#999] transition hover:text-[#48C9B0]">Móvil</button>
-                  <button onClick={() => { setPreviewMode('escritorio'); setShowPreview(true) }} className="text-[11px] font-bold uppercase tracking-wider text-[#999] transition hover:text-[#48C9B0]">Escritorio</button>
-                </div>
+                <button onClick={() => { setPreviewMode('escritorio'); setShowPreview(true) }} className="flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider text-[#999] transition hover:text-[#48C9B0]">
+                  <Maximize2 size={12} /> Escritorio
+                </button>
               </div>
               <div className="flex justify-center">
                 <div className="w-full max-w-[360px] overflow-hidden rounded-[2.5rem] border-[10px] border-[#1D1E20] bg-[#1D1E20] shadow-xl">
