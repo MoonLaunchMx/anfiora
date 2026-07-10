@@ -269,11 +269,9 @@ export default function InvitacionPage() {
             <div className="hidden sm:sticky sm:top-0 sm:block">
               <div className="mb-2 flex items-center justify-between">
                 <p className="text-[11px] font-bold uppercase tracking-wider text-[#999]">Vista previa</p>
-                <div className="flex items-center gap-2 text-[11px]">
-                  <span className="text-[#bbb]">Abrir:</span>
-                  <button onClick={() => { setPreviewMode('movil'); setShowPreview(true) }} className="font-medium text-[#888] transition hover:text-[#48C9B0]">Móvil</button>
-                  <span className="text-[#ddd]">·</span>
-                  <button onClick={() => { setPreviewMode('escritorio'); setShowPreview(true) }} className="font-medium text-[#888] transition hover:text-[#48C9B0]">Escritorio</button>
+                <div className="flex items-center gap-4">
+                  <button onClick={() => { setPreviewMode('movil'); setShowPreview(true) }} className="text-[11px] font-bold uppercase tracking-wider text-[#999] transition hover:text-[#48C9B0]">Móvil</button>
+                  <button onClick={() => { setPreviewMode('escritorio'); setShowPreview(true) }} className="text-[11px] font-bold uppercase tracking-wider text-[#999] transition hover:text-[#48C9B0]">Escritorio</button>
                 </div>
               </div>
               <div className="flex justify-center">
