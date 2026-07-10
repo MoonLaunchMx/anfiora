@@ -61,13 +61,20 @@ function SortableSectionRow({
   return (
     <div ref={setNodeRef} style={style} className="overflow-hidden rounded-xl border border-[#e8e8e8] bg-white">
       <div
-        {...attributes}
-        {...listeners}
         onClick={onToggleExpand}
-        title="Arrastra para reordenar"
-        className="flex cursor-grab touch-none select-none items-center gap-2 px-3 py-2.5 active:cursor-grabbing"
+        className="flex cursor-pointer select-none items-center gap-1 px-3 py-2.5"
       >
-        <GripVertical size={16} className="shrink-0 text-[#ccc]" />
+        <button
+          type="button"
+          {...attributes}
+          {...listeners}
+          onClick={e => e.stopPropagation()}
+          aria-label="Arrastra para reordenar"
+          title="Arrastra para reordenar"
+          className="-ml-1.5 flex h-8 w-8 shrink-0 cursor-grab touch-none items-center justify-center rounded-lg text-[#ccc] transition hover:bg-[#f5f5f5] hover:text-[#999] active:cursor-grabbing"
+        >
+          <GripVertical size={16} />
+        </button>
         <span className="min-w-0 flex-1 truncate text-sm font-medium text-[#1D1E20]">{TYPE_LABELS[section.type]}</span>
         <ChevronDown size={16} className={`shrink-0 text-[#aaa] transition-transform ${expanded ? 'rotate-180' : ''}`} />
         <button
