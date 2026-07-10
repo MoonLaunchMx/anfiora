@@ -16,21 +16,21 @@ export default function PortadaSection({ content, ctx }: { content: Content; ctx
   return (
     <SectionShell
       variant="hero"
-      className="text-center lg:flex lg:min-h-[90vh] lg:items-center lg:justify-center"
-      innerClassName="flex flex-col items-center gap-5 lg:gap-7"
+      className="text-center @[820px]:flex @[820px]:min-h-[90vh] @[820px]:items-center @[820px]:justify-center"
+      innerClassName="flex flex-col items-center gap-5 @[820px]:gap-7"
     >
-      <p className="text-xs font-semibold uppercase tracking-[0.25em] lg:text-sm lg:tracking-[0.35em]" style={{ color: 'var(--inv-acento)' }}>{kicker}</p>
+      <p className="text-xs font-semibold uppercase tracking-[0.25em] @[820px]:text-sm @[820px]:tracking-[0.35em]" style={{ color: 'var(--inv-acento)' }}>{kicker}</p>
       <h1
-        className="w-full break-words px-2 text-4xl font-semibold leading-tight lg:text-7xl lg:leading-[1.03]"
+        className="w-full break-words px-2 text-4xl font-semibold leading-tight @[820px]:text-7xl @[820px]:leading-[1.03]"
         style={{ color: 'var(--inv-texto)', fontFamily: 'var(--inv-font-titulo)' }}
       >
         {titulo}
       </h1>
       {content.subtitulo && (
-        <p className="max-w-xs text-sm leading-relaxed opacity-70 lg:max-w-xl lg:text-lg" style={{ color: 'var(--inv-texto)' }}>{content.subtitulo}</p>
+        <p className="max-w-xs text-sm leading-relaxed opacity-70 @[820px]:max-w-xl @[820px]:text-lg" style={{ color: 'var(--inv-texto)' }}>{content.subtitulo}</p>
       )}
-      <div className="mt-2 h-px w-12 lg:w-16" style={{ background: 'var(--inv-acento)' }} />
-      <div className="flex flex-col items-center gap-2 text-sm opacity-80 lg:flex-row lg:gap-6 lg:text-lg" style={{ color: 'var(--inv-texto)' }}>
+      <div className="mt-2 h-px w-12 @[820px]:w-16" style={{ background: 'var(--inv-acento)' }} />
+      <div className="flex flex-col items-center gap-2 text-sm opacity-80 @[820px]:flex-row @[820px]:gap-6 @[820px]:text-lg" style={{ color: 'var(--inv-texto)' }}>
         {fecha && (
           <span className="flex items-center gap-2">
             <Calendar size={15} style={{ color: 'var(--inv-acento)' }} />
