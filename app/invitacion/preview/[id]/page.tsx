@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation'
 import { Heart } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { resolveDoc } from '@/lib/invite/doc'
+import { botonClass } from '@/lib/invite/theme-css'
 import { parseDressCode, type DressCode } from '@/lib/dresscode'
 import { getGuestItinerary } from '@/lib/guest-itinerary'
 import type { GuestItineraryItem } from '@/lib/types'
@@ -105,6 +106,7 @@ export default function InvitacionPreviewPage() {
     itinerary,
     tokens: { playlist: playlistToken, registry: registryToken },
     mode: 'preview',
+    botonClassName: botonClass(doc.theme),
     onSubmit: undefined,
     deadlinePassed: false,
   }
