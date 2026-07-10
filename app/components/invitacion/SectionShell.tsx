@@ -27,10 +27,7 @@ export default function SectionShell({
   children: ReactNode
 }) {
   return (
-    <section
-      className={`w-full ${PAD[variant]} ${className}`}
-      style={{ background: 'var(--inv-fondo)', color: 'var(--inv-texto)' }}
-    >
+    <section className={`w-full ${PAD[variant]} ${className}`}>
       <div className={`mx-auto w-full ${INNER[variant]} ${innerClassName}`}>{children}</div>
     </section>
   )
