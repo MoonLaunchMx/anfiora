@@ -1,6 +1,7 @@
 import { CONTENT_BY_TYPE, SectionSchema, MetaSchema } from './schema'
 import type { InviteDoc, InviteMeta, Section, SectionType } from './schema'
-import { ThemeSchema, DEFAULT_THEME } from './theme'
+import { ThemeSchema, DEFAULT_THEME, type Theme } from './theme'
+import { getVibe } from './vibes'
 
 const DEFAULT_ORDER: SectionType[] = [
   'portada', 'saludo', 'detalles', 'itinerario', 'dress_code', 'rsvp', 'playlist', 'mesa', 'cierre',
@@ -85,4 +86,26 @@ export function updateSectionContent(doc: InviteDoc, id: string, patch: Record<s
 
 export function setMeta(doc: InviteDoc, patch: Partial<InviteMeta>): InviteDoc {
   return { ...doc, meta: { ...doc.meta, ...patch } }
+}
+
+type DeepPartial<T> = { [K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K] }
+
+export function applyVibe(doc: InviteDoc, vibeId: string): InviteDoc {
+  const theme = ThemeSchema.parse(getVibe(vibeId).theme)
+  return { ...doc, theme }
+}
+
+export function setTheme(doc: InviteDoc, patch: DeepPartial<Theme>): InviteDoc {
+  const t = doc.theme
+  const merged = {
+    ...t,
+    ...patch,
+    colores: { ...t.colores, ...(patch.colores ?? {}) },
+    fonts: { ...t.fonts, ...(patch.fonts ?? {}) },
+    boton: { ...t.boton, ...(patch.boton ?? {}) },
+    fondo: { ...t.fondo, ...(patch.fondo ?? {}) },
+    anim: { ...t.anim, ...(patch.anim ?? {}) },
+    copy: { ...t.copy, ...(patch.copy ?? {}) },
+  }
+  return { ...doc, theme: ThemeSchema.parse(merged) }
 }

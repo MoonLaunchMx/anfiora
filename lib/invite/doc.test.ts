@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import { emptySection, defaultDoc, resolveDoc, addSection, removeSection, moveSection, updateSectionContent, setMeta } from './doc'
+import { emptySection, defaultDoc, resolveDoc, addSection, removeSection, moveSection, updateSectionContent, setMeta, setTheme, applyVibe } from './doc'
 import { SECTION_TYPES } from './schema'
+import { getVibe } from './vibes'
 
 let n = 0
 const makeId = () => `id-${++n}`
@@ -152,5 +153,40 @@ describe('ops de array', () => {
     const d1 = setMeta(base(), { publicada: true })
     expect(d1.meta.publicada).toBe(true)
     expect(d1.meta.fecha_limite).toBeNull()
+  })
+})
+
+describe('theme editing helpers', () => {
+  let n = 0
+  const makeId = () => `id-${n++}`
+
+  it('applyVibe replaces the theme with the vibe theme, keeping sections and meta', () => {
+    const base = defaultDoc(makeId)
+    const next = applyVibe(base, 'fiesta')
+    expect(next.theme.vibeId).toBe('fiesta')
+    expect(next.sections).toBe(base.sections) // sections untouched (same ref)
+    expect(next.meta).toEqual(base.meta)
+  })
+
+  it('applyVibe with an unknown id falls back to the clasico theme', () => {
+    const base = defaultDoc(makeId)
+    const next = applyVibe(base, 'no-existe')
+    expect(next.theme.vibeId).toBe('clasico')
+  })
+
+  it('setTheme merges a color override without dropping other tokens', () => {
+    const base = applyVibe(defaultDoc(makeId), 'fiesta')
+    const next = setTheme(base, { colores: { acento: '#123456' } })
+    expect(next.theme.colores.acento).toBe('#123456')
+    expect(next.theme.colores.fondo).toBe(base.theme.colores.fondo) // otros colores intactos
+    expect(next.theme.fonts.titulo).toBe(base.theme.fonts.titulo)   // otras secciones intactas
+    expect(next.theme.vibeId).toBe('fiesta')
+  })
+
+  it('setTheme merges a boton override', () => {
+    const base = applyVibe(defaultDoc(makeId), 'clasico')
+    const next = setTheme(base, { boton: { forma: 'recto' } })
+    expect(next.theme.boton.forma).toBe('recto')
+    expect(next.theme.boton.estilo).toBe(base.theme.boton.estilo)
   })
 })
