@@ -24,7 +24,8 @@ type Props = {
 export default function SupplierCard({ item, budgets, currency, onClick }: Props) {
   const s = item.supplier
 
-  const waDigits = s.phone ? toWhatsApp(s.phone) : null
+  const waRaw    = s.phone ? (s.phone.startsWith('+') ? s.phone : `${s.phone_country_code ?? '+52'} ${s.phone}`) : null
+  const waDigits = waRaw ? toWhatsApp(waRaw) : null
   const waLink   = waDigits ? `https://wa.me/${waDigits}` : null
   const igLink   = s.instagram ? `https://instagram.com/${s.instagram.replace('@', '')}` : null
   const webLink  = s.website || null

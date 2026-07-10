@@ -257,7 +257,12 @@ export default function SupplierDetailModal({
     if (editingPaymentId === paymentId) resetPaymentForm()
   }
 
-  const openWhatsApp  = () => { const num = toWhatsApp(phone); if (!num) return; window.open(`https://wa.me/${num}`, '_blank', 'noopener,noreferrer') }
+  const openWhatsApp  = () => {
+    const raw = phone.startsWith('+') ? phone : `${item.supplier.phone_country_code ?? '+52'} ${phone}`
+    const num = toWhatsApp(raw)
+    if (!num) return
+    window.open(`https://wa.me/${num}`, '_blank', 'noopener,noreferrer')
+  }
   const openInstagram = () => { if (!instagram) return; window.open(`https://instagram.com/${instagram.replace('@', '').trim()}`, '_blank', 'noopener,noreferrer') }
   const openFacebook  = () => { if (!facebook) return; const h = facebook.replace(/^(https?:\/\/)?(www\.)?facebook\.com\//, '').replace(/^@/, '').trim(); window.open(`https://facebook.com/${h}`, '_blank', 'noopener,noreferrer') }
   const openWebsite   = () => { if (!website) return; window.open(website.startsWith('http') ? website : `https://${website}`, '_blank', 'noopener,noreferrer') }
