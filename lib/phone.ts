@@ -47,7 +47,15 @@ export const COUNTRIES: { iso: CountryCode; name: string; dial: string }[] =
 
 export function toE164(raw: string, defaultCountry: CountryCode = DEFAULT_COUNTRY): string | null {
   if (!raw || !raw.trim()) return null
-  const parsed = parsePhoneNumberFromString(raw.trim(), defaultCountry)
+  let parsed = parsePhoneNumberFromString(raw.trim(), defaultCountry)
+  if (!parsed || !parsed.isPossible()) {
+    // Mexico retiro el "1" troncal de moviles en 2019; libphonenumber ya no lo acepta.
+    // Muchos contactos viejos y exports de WhatsApp aun traen +521 + 10 digitos.
+    const digits = raw.replace(/\D/g, '')
+    if (/^521\d{10}$/.test(digits)) {
+      parsed = parsePhoneNumberFromString('+52' + digits.slice(3), defaultCountry)
+    }
+  }
   if (!parsed || !parsed.isPossible()) return null
   return parsed.number
 }

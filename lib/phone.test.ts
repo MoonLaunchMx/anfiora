@@ -8,8 +8,14 @@ describe('toE164', () => {
   it('MX con lada explicita', () => {
     expect(toE164('+52 81 1234 5678')).toBe('+528112345678')
   })
-  it('MX con el 1 extra viejo no es posible (libphonenumber-js no lo despoja)', () => {
-    expect(toE164('+521 81 1234 5678')).toBeNull()
+  it('MX legacy con el 1 troncal viejo se normaliza (espaciado)', () => {
+    expect(toE164('+521 81 1234 5678')).toBe('+528112345678')
+  })
+  it('MX legacy con el 1 troncal viejo se normaliza (pegado sin +)', () => {
+    expect(toE164('5218112345678')).toBe('+528112345678')
+  })
+  it('MX legacy con el 1 troncal viejo se normaliza (pegado con +)', () => {
+    expect(toE164('+5218112345678')).toBe('+528112345678')
   })
   it('acepta guiones y parentesis', () => {
     expect(toE164('(81) 1234-5678')).toBe('+528112345678')
@@ -38,6 +44,9 @@ describe('toWhatsApp', () => {
   })
   it('numero imposible devuelve null', () => {
     expect(toWhatsApp('123')).toBeNull()
+  })
+  it('normaliza el 1 troncal viejo MX igual que toE164', () => {
+    expect(toWhatsApp('+5218112345678')).toBe('528112345678')
   })
 })
 
