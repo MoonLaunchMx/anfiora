@@ -13,7 +13,7 @@ export default function ThemeProvider({ theme, children }: { theme: Theme; child
     ['--inv-font-cuerpo' as string]: fontStack(theme.fonts.cuerpo),
   } as React.CSSProperties
   return (
-    <div className="inv-theme" style={style}>
+    <div className="inv-theme min-h-full" style={{ ...style, background: 'var(--inv-fondo)' }}>
       {href && <link rel="stylesheet" href={href} />}
       {children}
     </div>

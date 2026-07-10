@@ -250,16 +250,16 @@ export default function InvitacionPage() {
         {activeTab === 'diseno' ? (
           <div className="grid items-start gap-6 sm:grid-cols-[1fr_360px] lg:gap-8">
             <div className="min-w-0">
-              <div className="mb-4 inline-flex overflow-hidden rounded-lg border border-[#e0e0e0]">
+              <div className="mb-5 flex gap-6 border-b border-[#eee]">
                 <button
                   onClick={() => setDisenoSub('estilo')}
-                  className={['px-4 py-1.5 text-xs font-medium transition', disenoSub === 'estilo' ? 'bg-[#1D1E20] text-white' : 'text-[#888] hover:bg-[#f5f5f5]'].join(' ')}
+                  className={['-mb-px border-b-2 pb-2.5 text-sm font-semibold transition', disenoSub === 'estilo' ? 'border-[#48C9B0] text-[#1D1E20]' : 'border-transparent text-[#999] hover:text-[#666]'].join(' ')}
                 >
                   Estilo
                 </button>
                 <button
                   onClick={() => setDisenoSub('contenido')}
-                  className={['border-l border-[#e0e0e0] px-4 py-1.5 text-xs font-medium transition', disenoSub === 'contenido' ? 'bg-[#1D1E20] text-white' : 'text-[#888] hover:bg-[#f5f5f5]'].join(' ')}
+                  className={['-mb-px border-b-2 pb-2.5 text-sm font-semibold transition', disenoSub === 'contenido' ? 'border-[#48C9B0] text-[#1D1E20]' : 'border-transparent text-[#999] hover:text-[#666]'].join(' ')}
                 >
                   Contenido
                 </button>
@@ -275,7 +275,7 @@ export default function InvitacionPage() {
               <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wider text-[#999]">Vista previa</p>
               <div className="flex justify-center">
                 <div className="w-full max-w-[360px] overflow-hidden rounded-[2.5rem] border-[10px] border-[#1D1E20] bg-[#1D1E20] shadow-xl">
-                  <div className="h-[calc(100dvh-18rem)] max-h-[720px] min-h-[420px] overflow-y-auto overflow-x-hidden bg-[#FBF7F0]">
+                  <div className="h-[calc(100dvh-18rem)] max-h-[720px] min-h-[420px] overflow-y-auto overflow-x-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                     <PreviewBoundary>
                       <InvitacionRenderer doc={doc} ctx={sampleCtx} />
                     </PreviewBoundary>
