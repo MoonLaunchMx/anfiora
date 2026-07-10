@@ -17,7 +17,7 @@ export default function PortadaSection({ content, ctx }: { content: Content; ctx
   return (
     <SectionShell
       variant="hero"
-      className={`text-center ${big ? 'lg:flex lg:min-h-[90vh] lg:items-center lg:justify-center' : ''}`}
+      className={`text-center ${big ? 'lg:flex lg:min-h-[62vh] lg:items-center lg:justify-center' : ''}`}
       innerClassName={`flex flex-col items-center gap-5 ${big ? 'lg:gap-7' : ''}`}
     >
       <p className={`text-xs font-semibold uppercase tracking-[0.25em] ${big ? 'lg:text-sm lg:tracking-[0.35em]' : ''}`} style={{ color: 'var(--inv-acento)' }}>{kicker}</p>
