@@ -91,7 +91,7 @@ export function MomentCard({ moment, canEdit, guestPreview, onEdit, onToggleVisi
         )}
 
         {!guestPreview && moment.notes && (
-          <p className="mt-2 text-xs text-[#888] whitespace-pre-line">{moment.notes}</p>
+          <p className="mt-2 hidden sm:block text-xs text-[#888] whitespace-pre-line">{moment.notes}</p>
         )}
       </div>
     </div>
