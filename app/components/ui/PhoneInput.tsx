@@ -10,6 +10,7 @@ import {
   detectCountry,
   isValidPhone,
   nationalNumber,
+  dialCode,
   type CountryCode,
 } from '@/lib/phone'
 
@@ -20,6 +21,7 @@ type PhoneInputProps = {
   placeholder?: string
   disabled?: boolean
   className?: string
+  compact?: boolean
 }
 
 export default function PhoneInput({
@@ -29,7 +31,10 @@ export default function PhoneInput({
   placeholder = 'Número de teléfono',
   disabled,
   className = '',
+  compact,
 }: PhoneInputProps) {
+  const padY = compact ? 'py-2' : 'py-2.5'
+  const txt = compact ? 'text-[13px]' : 'text-sm'
   const [country, setCountry] = useState<CountryCode>(defaultCountry)
   const [text, setText] = useState('')
   const [open, setOpen] = useState(false)
@@ -115,13 +120,13 @@ export default function PhoneInput({
           type="button"
           disabled={disabled}
           onClick={() => !disabled && setOpen(o => !o)}
-          className={`flex shrink-0 items-center gap-1 rounded-l-lg border-r px-2.5 py-2.5 text-sm font-medium transition ${
+          className={`flex shrink-0 items-center gap-1 rounded-l-lg border-r px-2.5 ${padY} ${txt} font-medium transition ${
             disabled
               ? 'cursor-not-allowed border-[#f0f0f0] text-[#ccc]'
               : 'border-[#e8e8e8] text-[#1D1E20] hover:bg-[#f8f8f8]'
           }`}
         >
-          <span>{current?.dial ?? ''}</span>
+          <span>{current?.dial ?? dialCode(country)}</span>
           <ChevronDown size={12} className="text-[#999]" />
         </button>
 
@@ -132,7 +137,7 @@ export default function PhoneInput({
           value={text}
           onChange={handleTextChange}
           placeholder={placeholder}
-          className="min-w-0 flex-1 rounded-r-lg bg-transparent px-3 py-2.5 text-sm text-[#1D1E20] outline-none placeholder:text-[#c0c0c0] disabled:cursor-not-allowed disabled:text-[#ccc]"
+          className={`min-w-0 flex-1 rounded-r-lg bg-transparent px-3 ${padY} ${txt} text-[#1D1E20] outline-none placeholder:text-[#c0c0c0] disabled:cursor-not-allowed disabled:text-[#ccc]`}
         />
       </div>
 

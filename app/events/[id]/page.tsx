@@ -373,7 +373,7 @@ function MembersEditor({ value, onChange, allergyPool, onCreateAllergy, onDelete
             <div className="mb-2"><span className="text-[11px] font-semibold text-[#aaa]">+{i + 1}</span></div>
             <div className="flex flex-col gap-2">
               <input type="text" value={m.name} onChange={e => update(i, 'name', e.target.value)} placeholder="Nombre (opcional)" style={{ ...inp, fontSize: '13px', padding: '8px 12px' }} />
-              <PhoneInput value={m.phone} onChange={val => update(i, 'phone', val)} placeholder="WhatsApp (opcional)" />
+              <PhoneInput value={m.phone} onChange={val => update(i, 'phone', val)} placeholder="WhatsApp (opcional)" compact />
               <select value={m.rsvp_status} onChange={e => update(i, 'rsvp_status', e.target.value as RsvpStatus)} style={{ ...inp, fontSize: '13px', padding: '8px 12px', cursor: 'pointer' }}>
                 <option value="mensaje_enviado">Mensaje enviado</option>
                 <option value="pending">Pendiente</option>

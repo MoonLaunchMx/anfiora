@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useParams } from 'next/navigation'
 import { X, Plus, ImagePlus } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import ColorPicker from '@/app/components/ui/ColorPicker'
 import { NIVELES, getRecomendacionesSugeridas, type DressCode, type DressCodeColor } from '@/lib/dresscode'
 
 type FotoField = 'fotos_ellas' | 'fotos_ellos'
@@ -20,6 +21,7 @@ function Section({ label, children }: { label: string; children: React.ReactNode
 function ColorRow({
   colors, onChange, avoid,
 }: { colors: DressCodeColor[]; onChange: (next: DressCodeColor[]) => void; avoid?: boolean }) {
+  const [openIdx, setOpenIdx] = useState<number | null>(null)
   const add = () => onChange([...colors, { hex: '#d4a853', nombre: '' }])
   const remove = (i: number) => onChange(colors.filter((_, idx) => idx !== i))
   const update = (i: number, patch: Partial<DressCodeColor>) =>
@@ -29,17 +31,12 @@ function ColorRow({
     <div className="flex flex-wrap items-start gap-3">
       {colors.map((c, i) => (
         <div key={i} className="relative">
-          <label
+          <button
+            type="button"
+            onClick={() => setOpenIdx(i)}
             className={`block h-11 w-11 cursor-pointer rounded-lg border ${avoid ? 'border-[#ffc0c0]' : 'border-black/10'}`}
             style={{ background: c.hex }}
-          >
-            <input
-              type="color"
-              value={/^#[0-9a-fA-F]{6}$/.test(c.hex) ? c.hex : '#d4a853'}
-              onChange={e => update(i, { hex: e.target.value })}
-              className="h-full w-full cursor-pointer opacity-0"
-            />
-          </label>
+          />
           <input
             value={c.nombre}
             onChange={e => update(i, { nombre: e.target.value })}
@@ -52,6 +49,13 @@ function ColorRow({
           >
             <X size={10} />
           </button>
+          {openIdx === i && (
+            <ColorPicker
+              value={c.hex}
+              onChange={hex => update(i, { hex })}
+              onClose={() => setOpenIdx(null)}
+            />
+          )}
         </div>
       ))}
       <button

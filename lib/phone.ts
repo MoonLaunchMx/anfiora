@@ -37,13 +37,19 @@ const COUNTRY_ISOS: { iso: CountryCode; name: string }[] = [
   { iso: 'IT', name: 'Italia' },
   { iso: 'PT', name: 'Portugal' },
   { iso: 'GB', name: 'Reino Unido' },
-  { iso: 'US', name: 'Estados Unidos' },
 ]
 
 export const COUNTRIES: { iso: CountryCode; name: string; dial: string }[] =
-  COUNTRY_ISOS
-    .filter((c, i, arr) => arr.findIndex(x => x.iso === c.iso) === i)
-    .map(c => ({ ...c, dial: `+${getCountryCallingCode(c.iso)}` }))
+  COUNTRY_ISOS.map(c => ({ ...c, dial: `+${getCountryCallingCode(c.iso)}` }))
+
+// Lada de cualquier pais (aunque no este en COUNTRIES); vacio si el ISO no es valido.
+export function dialCode(iso: CountryCode): string {
+  try {
+    return `+${getCountryCallingCode(iso)}`
+  } catch {
+    return ''
+  }
+}
 
 export function toE164(raw: string, defaultCountry: CountryCode = DEFAULT_COUNTRY): string | null {
   if (!raw || !raw.trim()) return null

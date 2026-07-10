@@ -9,7 +9,7 @@ import {
 import { FiInstagram, FiGlobe, FiFacebook } from 'react-icons/fi'
 import { FaWhatsapp } from 'react-icons/fa'
 import PhoneInput from '@/app/components/ui/PhoneInput'
-import { detectCountry, COUNTRIES } from '@/lib/phone'
+import { detectCountry, dialCode } from '@/lib/phone'
 
 type Props = {
   isOpen: boolean
@@ -64,7 +64,7 @@ export default function SupplierModal({ isOpen, onClose, currency, budgets, onSu
     setSubmitting(true)
     try {
       const cc = detectCountry(phone)
-      const dial = COUNTRIES.find(c => c.iso === cc)?.dial ?? null
+      const dial = cc ? dialCode(cc) || null : null
       await onSubmit({
         name:               name.trim(),
         category,

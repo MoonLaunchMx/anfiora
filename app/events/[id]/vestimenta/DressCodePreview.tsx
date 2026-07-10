@@ -67,13 +67,13 @@ export default function DressCodePreview({ dc, eventName }: { dc: DressCode; eve
             )}
 
             {dc.recomendaciones.length > 0 && (
-              <p className="mt-4 rounded-lg border border-[#f0e2bf] bg-[#fffbf0] px-3 py-2 text-left text-xs leading-relaxed text-[#1D1E20]">
+              <p className="mt-4 rounded-lg border border-[#f0e2bf] bg-[#fffbf0] px-3 py-2 text-center text-xs leading-relaxed text-[#1D1E20]">
                 {dc.recomendaciones.join('. ')}.
               </p>
             )}
 
             {dc.nota_libre.trim() && (
-              <p className="mt-2 text-left text-xs leading-relaxed text-[#666]">{dc.nota_libre}</p>
+              <p className="mt-2 text-center text-xs leading-relaxed text-[#666]">{dc.nota_libre}</p>
             )}
 
             {(dc.guia_ellas?.trim() || dc.guia_ellos?.trim()) && (
