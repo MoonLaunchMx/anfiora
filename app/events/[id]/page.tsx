@@ -11,6 +11,8 @@ import { buildGuestDeletionOps, executeGuestDeletion, guestConversationIds } fro
 import { PartyMember, Guest, Event, EventSettings, EventStatus, RsvpStatus } from '@/lib/types'
 import StatsCollapse, { StatsToggleButton, useStatsToggle } from '@/app/components/ui/StatsCollapse'
 import { ImportStepsModal } from '@/app/components/ui/ImportStepsModal'
+import PhoneInput from '@/app/components/ui/PhoneInput'
+import { toWhatsApp, toE164 } from '@/lib/phone'
 import * as XLSX from 'xlsx'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
@@ -249,8 +251,6 @@ const TRASH_ICON = (
 type EditMember = { id?: string; name: string; phone: string; rsvp_status: RsvpStatus; allergies: string[]; tags: string[]; notes: string }
 type GuestTableInfo = { tableNumber: number; tableName: string | null }
 
-function normalizePhone(phone: string): string { return phone.replace(/\D/g, '') }
-
 function TagInput({ availableTags, selectedTags, onChangeSelected, onCreateTag, onDeleteTag, label = 'Tag' }: {
   availableTags: string[]
   selectedTags: string[]
@@ -373,7 +373,7 @@ function MembersEditor({ value, onChange, allergyPool, onCreateAllergy, onDelete
             <div className="mb-2"><span className="text-[11px] font-semibold text-[#aaa]">+{i + 1}</span></div>
             <div className="flex flex-col gap-2">
               <input type="text" value={m.name} onChange={e => update(i, 'name', e.target.value)} placeholder="Nombre (opcional)" style={{ ...inp, fontSize: '13px', padding: '8px 12px' }} />
-              <input type="tel" value={m.phone} onChange={e => update(i, 'phone', e.target.value)} placeholder="WhatsApp (opcional)" style={{ ...inp, fontSize: '13px', padding: '8px 12px' }} />
+              <PhoneInput value={m.phone} onChange={val => update(i, 'phone', val)} placeholder="WhatsApp (opcional)" />
               <select value={m.rsvp_status} onChange={e => update(i, 'rsvp_status', e.target.value as RsvpStatus)} style={{ ...inp, fontSize: '13px', padding: '8px 12px', cursor: 'pointer' }}>
                 <option value="mensaje_enviado">Mensaje enviado</option>
                 <option value="pending">Pendiente</option>
@@ -566,7 +566,7 @@ function AddGuestModal({ availableTags, groupPool, allergyPool, onCreateTag, onD
         </div>
         <div className="grid grid-cols-1 gap-4 overflow-y-auto px-6 py-6 sm:grid-cols-2 sm:px-8">
           <div><label className="mb-1.5 block text-xs font-medium text-[#555]">Nombre *</label><input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Ana García" style={inp} /></div>
-          <div><label className="mb-1.5 block text-xs font-medium text-[#555]">WhatsApp <span className="font-normal text-[#ccc]">(opcional)</span></label><input type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="+52 81 1234 5678" style={inp} /></div>
+          <div><label className="mb-1.5 block text-xs font-medium text-[#555]">WhatsApp <span className="font-normal text-[#ccc]">(opcional)</span></label><PhoneInput value={phone} onChange={setPhone} placeholder="81 1234 5678" /></div>
           <div><label className="mb-1.5 block text-xs font-medium text-[#555]">Email <span className="font-normal text-[#ccc]">(opcional)</span></label><input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="ana@ejemplo.com" style={inp} /></div>
           <div>
             <label className="mb-1.5 block text-xs font-medium text-[#555]">Grupo <span className="font-normal text-[#ccc]">(opcional)</span></label>
@@ -640,7 +640,7 @@ function EditGuestModal({ guest, availableTags, groupPool, allergyPool, onCreate
         )}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div><label className="mb-1.5 block text-xs font-medium text-[#555]">Nombre *</label><input type="text" value={name} onChange={e => setName(e.target.value)} style={inp} /></div>
-          <div><label className="mb-1.5 block text-xs font-medium text-[#555]">WhatsApp</label><input type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="+52 81 1234 5678" style={inp} /></div>
+          <div><label className="mb-1.5 block text-xs font-medium text-[#555]">WhatsApp</label><PhoneInput value={phone} onChange={setPhone} placeholder="81 1234 5678" /></div>
           <div><label className="mb-1.5 block text-xs font-medium text-[#555]">Email</label><input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="ana@ejemplo.com" style={inp} /></div>
           <div>
             <label className="mb-1.5 block text-xs font-medium text-[#555]">Grupo <span className="font-normal text-[#ccc]">(opcional)</span></label>
@@ -942,9 +942,9 @@ export default function EventPage() {
   const submitEditGuest = async (guest: Guest, f: GuestFormValues): Promise<string | null> => {
     if (!f.name) return 'El nombre es obligatorio'
     if (f.phone) {
-      const normalizedEdit = normalizePhone(f.phone)
-      if (normalizedEdit.length > 0) {
-        const duplicate = guests.find(g => g.id !== guest.id && g.phone && normalizePhone(g.phone) === normalizedEdit)
+      const normalizedEdit = toE164(f.phone, 'MX')
+      if (normalizedEdit) {
+        const duplicate = guests.find(g => g.id !== guest.id && g.phone && toE164(g.phone, 'MX') === normalizedEdit)
         if (duplicate) return `Este WhatsApp ya está registrado para "${duplicate.name}"`
       }
     }
@@ -1094,7 +1094,8 @@ export default function EventPage() {
   // Abre WhatsApp reusando una sola pestana en desktop (web.whatsapp.com/send, sin la pagina
   // intermedia de wa.me). En mobile abre la app con wa.me. encodedText ya viene de buildWaText.
   const openWhatsApp = (phone: string, encodedText?: string) => {
-    const num = (phone || '').replace(/\D/g, '')
+    const num = toWhatsApp(phone)
+    if (!num) { alert('Este invitado no tiene un número de WhatsApp válido'); return }
     const isMobile = typeof navigator !== 'undefined' && /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)
     if (isMobile) {
       window.open('https://wa.me/' + num + (encodedText ? '?text=' + encodedText : ''), '_blank')
@@ -1121,9 +1122,9 @@ export default function EventPage() {
   const submitAddGuest = async (f: GuestFormValues): Promise<string | null> => {
     if (!f.name) return 'El nombre es obligatorio'
     if (f.phone) {
-      const normalizedNew = normalizePhone(f.phone)
-      if (normalizedNew.length > 0) {
-        const duplicate = guests.find(g => g.phone && normalizePhone(g.phone) === normalizedNew)
+      const normalizedNew = toE164(f.phone, 'MX')
+      if (normalizedNew) {
+        const duplicate = guests.find(g => g.phone && toE164(g.phone, 'MX') === normalizedNew)
         if (duplicate) return `Este WhatsApp ya está registrado para "${duplicate.name}"`
       }
     }
@@ -1169,15 +1170,15 @@ export default function EventPage() {
         const sideVal = grupoIdx >= 0 ? (cols[grupoIdx] || '').trim() || null : null
         const alergRaw = alergIdx >= 0 ? cols[alergIdx] || '' : ''
         const alergArr = alergRaw ? alergRaw.split(/[|]/).map((s: string) => s.trim()).filter(Boolean) : []
-        return { event_id: id as string, name: cols[nameIdx] || '', phone: phoneIdx >= 0 ? cols[phoneIdx] || null : null, email: emailIdx >= 0 ? cols[emailIdx] || null : null, party_size: 1 + _companions.length, rsvp_status: rsvpStatus, tags: parsedTags, notes: notesIdx >= 0 ? cols[notesIdx] || null : null, side: sideVal, allergies: alergArr.length > 0 ? alergArr : null, _companions }
+        return { event_id: id as string, name: cols[nameIdx] || '', phone: phoneIdx >= 0 ? (toE164(cols[phoneIdx] || '', 'MX') ?? (cols[phoneIdx] || null)) : null, email: emailIdx >= 0 ? cols[emailIdx] || null : null, party_size: 1 + _companions.length, rsvp_status: rsvpStatus, tags: parsedTags, notes: notesIdx >= 0 ? cols[notesIdx] || null : null, side: sideVal, allergies: alergArr.length > 0 ? alergArr : null, _companions }
       }).filter(r => r.name)
       if (!rows.length) { setCsvError('No se encontraron invitados válidos'); return }
       const duplicates: CsvDuplicateResult['duplicates'] = []
       const seenInFile = new Map<string, string>()
       rows.forEach((row, idx) => {
         if (!row.phone) return
-        const norm = normalizePhone(row.phone); if (!norm) return
-        const existingGuest = guests.find(g => g.phone && normalizePhone(g.phone) === norm)
+        const norm = toE164(row.phone, 'MX'); if (!norm) return
+        const existingGuest = guests.find(g => g.phone && toE164(g.phone, 'MX') === norm)
         if (existingGuest) { duplicates.push({ row: idx + 2, name: row.name, phone: row.phone, conflictWith: existingGuest.name + ' (ya registrado)' }); return }
         if (seenInFile.has(norm)) { duplicates.push({ row: idx + 2, name: row.name, phone: row.phone, conflictWith: seenInFile.get(norm)! + ' (misma importación)' }); return }
         seenInFile.set(norm, row.name)
