@@ -75,8 +75,7 @@ function AllergyChips({ value, onChange, disabled }: { value: string[]; onChange
           }}
           onBlur={commit}
           placeholder="Alergia o restricción + Enter"
-          className="w-full rounded-lg border border-[#e8e8e8] px-3 py-2 text-xs outline-none focus:border-[var(--inv-acento)]"
-          style={{ color: 'var(--inv-texto)' }}
+          className="w-full rounded-lg border border-[#e8e8e8] px-3 py-2 text-xs text-[#1D1E20] outline-none focus:border-[var(--inv-acento)]"
         />
       )}
     </div>
@@ -140,7 +139,7 @@ export default function RsvpSection({ content, ctx }: { content: Content; ctx: I
       <div className="mt-8 flex flex-col gap-4">
         {rows.map(row => (
           <div key={row.key} className="rounded-2xl border border-[#e8e8e8] bg-white px-5 py-4">
-            <p className="text-sm font-medium" style={{ color: 'var(--inv-texto)' }}>{row.name}</p>
+            <p className="text-sm font-medium text-[#1D1E20]">{row.name}</p>
             <div className="mt-3 flex gap-2">
               <button
                 type="button"
