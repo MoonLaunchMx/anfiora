@@ -1,5 +1,6 @@
 'use client'
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
+import { X } from 'lucide-react'
 
 type Colores = {
   fondo: string
@@ -33,80 +34,61 @@ export default function ColorControls({
   onColores: (patch: Partial<Colores>) => void
 }) {
   const [open, setOpen] = useState<ColorToken | null>(null)
-  const wrapperRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (!open) return
-    function handleClickOutside(e: MouseEvent) {
-      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
-        setOpen(null)
-      }
-    }
-    function handleKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape') setOpen(null)
-    }
-    document.addEventListener('mousedown', handleClickOutside)
-    document.addEventListener('keydown', handleKeyDown)
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside)
-      document.removeEventListener('keydown', handleKeyDown)
-    }
-  }, [open])
-
-  function apply(token: ColorToken, v: string) {
-    onColores({ [token]: v } as Partial<Colores>)
-  }
+  const apply = (token: ColorToken, v: string) => onColores({ [token]: v } as Partial<Colores>)
+  const openLabel = TOKENS.find(t => t.key === open)?.label
 
   return (
-    <div ref={wrapperRef} className="flex flex-col gap-2">
+    <div className="flex flex-col gap-3">
       <div className="flex flex-wrap gap-4">
-          {TOKENS.map(({ key, label }) => {
-            const value = colores[key]
-            const isOpen = open === key
-            return (
-              <div key={key} className="relative flex flex-col items-center gap-1">
-                <button
-                  type="button"
-                  onClick={() => setOpen(isOpen ? null : key)}
-                  className="h-10 w-10 rounded-full border border-[#e0e0e0] shadow-sm outline-none transition-transform hover:scale-105 focus:border-[#48C9B0]"
-                  style={{ background: value }}
-                  aria-label={label}
-                />
-                <span className="text-[10px] text-[#666]">{label}</span>
-
-                {isOpen && (
-                  <div className="absolute left-1/2 top-full z-50 mt-2 w-56 -translate-x-1/2 rounded-2xl border border-[#eee] bg-white p-3 shadow-xl">
-                    <input
-                      type="color"
-                      value={isHex(value) ? value : '#ffffff'}
-                      onChange={e => apply(key, e.target.value)}
-                      className="h-10 w-full cursor-pointer rounded-lg border border-[#e0e0e0]"
-                    />
-                    <input
-                      type="text"
-                      value={value}
-                      onChange={e => apply(key, e.target.value)}
-                      className="mt-2 w-full rounded-lg border border-[#e0e0e0] px-2 py-1 text-xs text-[#1D1E20] outline-none focus:border-[#48C9B0]"
-                      placeholder="#hex o gradient(...)"
-                    />
-                    <div className="mt-2 flex flex-wrap gap-1.5">
-                      {QUICK_SWATCHES.map(sw => (
-                        <button
-                          key={sw}
-                          type="button"
-                          onClick={() => apply(key, sw)}
-                          className="h-6 w-6 rounded-full border border-[#e0e0e0]"
-                          style={{ background: sw }}
-                          aria-label={sw}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )
-          })}
-        </div>
+        {TOKENS.map(({ key, label }) => (
+          <div key={key} className="flex flex-col items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setOpen(open === key ? null : key)}
+              className={`h-10 w-10 rounded-full shadow-sm outline-none transition-transform hover:scale-105 ${open === key ? 'border-2 border-[#48C9B0]' : 'border border-[#e0e0e0]'}`}
+              style={{ background: colores[key] }}
+              aria-label={label}
+            />
+            <span className="text-[10px] text-[#666]">{label}</span>
+          </div>
+        ))}
       </div>
+
+      {open && (
+        <div className="rounded-2xl border border-[#e8e8e8] bg-white p-3 shadow-sm">
+          <div className="mb-2 flex items-center justify-between">
+            <span className="text-xs font-semibold text-[#1D1E20]">{openLabel}</span>
+            <button type="button" onClick={() => setOpen(null)} className="text-[#bbb] transition hover:text-[#666]" aria-label="Cerrar">
+              <X size={14} />
+            </button>
+          </div>
+          <input
+            type="color"
+            value={isHex(colores[open]) ? colores[open] : '#ffffff'}
+            onChange={e => apply(open, e.target.value)}
+            className="h-10 w-full cursor-pointer rounded-lg border border-[#e0e0e0]"
+          />
+          <input
+            type="text"
+            value={colores[open]}
+            onChange={e => apply(open, e.target.value)}
+            className="mt-2 w-full rounded-lg border border-[#e0e0e0] px-2 py-1 text-xs text-[#1D1E20] outline-none focus:border-[#48C9B0]"
+            placeholder="#hex o gradient(...)"
+          />
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {QUICK_SWATCHES.map(sw => (
+              <button
+                key={sw}
+                type="button"
+                onClick={() => apply(open, sw)}
+                className="h-6 w-6 rounded-full border border-[#e0e0e0]"
+                style={{ background: sw }}
+                aria-label={sw}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
   )
 }
