@@ -162,6 +162,14 @@ export default function SectionForm({
           <p className="text-xs text-[#999]">La firma usa los nombres del evento (los mismos de la portada).</p>
         </div>
       )
+    case 'media':
+      return (
+        <div className="flex flex-col gap-3">
+          <TextField label="URL de la imagen o GIF" value={section.content.url} onChange={v => onPatch({ url: v })} placeholder="https://media.giphy.com/....gif" />
+          <TextField label="Texto opcional (pie)" value={section.content.caption} onChange={v => onPatch({ caption: v })} placeholder="Un pie de foto" />
+          <p className="text-xs text-[#999]">Pega el link de un GIF (Giphy/Tenor) o de una imagen. El buscador integrado llega despues.</p>
+        </div>
+      )
     default:
       return null
   }

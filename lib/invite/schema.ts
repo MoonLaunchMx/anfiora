@@ -46,6 +46,10 @@ const CierreContent = z.object({
   titulo: z.string().default('Te esperamos'),
   firma: z.string().default(''),
 })
+const MediaContent = z.object({
+  url: z.string().default(''),
+  caption: z.string().default(''),
+})
 
 export const CONTENT_BY_TYPE = {
   portada: PortadaContent,
@@ -59,6 +63,7 @@ export const CONTENT_BY_TYPE = {
   mesa: MesaContent,
   texto: TextoContent,
   cierre: CierreContent,
+  media: MediaContent,
 } as const
 
 export type SectionType = keyof typeof CONTENT_BY_TYPE
@@ -76,6 +81,7 @@ export const SectionSchema = z.discriminatedUnion('type', [
   z.object({ id: z.string(), type: z.literal('mesa'),       content: MesaContent }),
   z.object({ id: z.string(), type: z.literal('texto'),      content: TextoContent }),
   z.object({ id: z.string(), type: z.literal('cierre'),     content: CierreContent }),
+  z.object({ id: z.string(), type: z.literal('media'),      content: MediaContent }),
 ])
 
 export const MetaSchema = z.object({
