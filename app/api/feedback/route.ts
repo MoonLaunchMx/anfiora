@@ -7,13 +7,6 @@ export const runtime = 'nodejs'
 const MAX_LEN = 2000
 
 export async function POST(req: NextRequest) {
-  const token = process.env.TELEGRAM_SUPPORT_BOT_TOKEN
-  const chatId = process.env.TELEGRAM_SUPPORT_CHAT_ID
-  if (!token || !chatId) {
-    console.error('[feedback] faltan env vars TELEGRAM_SUPPORT_*')
-    return NextResponse.json({ ok: false, error: 'no configurado' }, { status: 500 })
-  }
-
   const authHeader = req.headers.get('authorization')
   if (!authHeader) return NextResponse.json({ ok: false, error: 'no autorizado' }, { status: 401 })
   const accessToken = authHeader.replace('Bearer ', '')
@@ -24,6 +17,13 @@ export async function POST(req: NextRequest) {
   )
   const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(accessToken)
   if (authError || !user) return NextResponse.json({ ok: false, error: 'no autorizado' }, { status: 401 })
+
+  const token = process.env.TELEGRAM_SUPPORT_BOT_TOKEN
+  const chatId = process.env.TELEGRAM_SUPPORT_CHAT_ID
+  if (!token || !chatId) {
+    console.error('[feedback] faltan env vars TELEGRAM_SUPPORT_*')
+    return NextResponse.json({ ok: false, error: 'no configurado' }, { status: 500 })
+  }
 
   let body: { type?: unknown; message?: unknown; page?: unknown }
   try {
@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: 'mensaje vacio' }, { status: 400 })
   }
   if (message.length > MAX_LEN) return NextResponse.json({ ok: false, error: 'mensaje muy largo' }, { status: 400 })
-  const pagePath = typeof page === 'string' ? page : ''
+  const pagePath = (typeof page === 'string' ? page : '').slice(0, 300)
 
   const { data: profile } = await supabaseAdmin
     .from('users')
