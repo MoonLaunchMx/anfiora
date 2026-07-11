@@ -52,7 +52,7 @@ export default function ColorEditor({
   }
 
   return (
-    <div className="rounded-2xl border border-[#e8e8e8] bg-white p-3 shadow-sm">
+    <div className="w-full max-w-[260px] rounded-2xl border border-[#e8e8e8] bg-white p-3 shadow-sm">
       <div className="mb-2 flex items-center justify-between">
         <span className="text-xs font-semibold text-[#1D1E20]">{label}</span>
         <button type="button" onClick={onClose} className="text-[#bbb] transition hover:text-[#666]" aria-label="Cerrar">
