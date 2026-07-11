@@ -2,8 +2,8 @@
 import type { Section } from '@/lib/invite/schema'
 import type { InviteCtx } from '../types'
 import { resolveInviteHeading, resolveEventKicker } from '@/lib/invite'
-import { formatFecha } from '../format'
-import { Calendar, MapPin } from 'lucide-react'
+import { formatFecha, formatHora } from '../format'
+import { Calendar, Clock, MapPin } from 'lucide-react'
 import SectionShell from '../SectionShell'
 
 type Content = Extract<Section, { type: 'portada' }>['content']
@@ -12,6 +12,7 @@ export default function PortadaSection({ content, ctx }: { content: Content; ctx
   const titulo = content.titulo || resolveInviteHeading(ctx.event)
   const kicker = content.kicker || resolveEventKicker(ctx.event.event_type)
   const fecha = formatFecha(ctx.event.event_date)
+  const hora = formatHora(ctx.event.event_time)
   const big = !ctx.forceMobile
 
   return (
@@ -36,6 +37,12 @@ export default function PortadaSection({ content, ctx }: { content: Content; ctx
           <span className="flex items-center gap-2">
             <Calendar size={15} style={{ color: 'var(--inv-acento)' }} />
             {fecha}
+          </span>
+        )}
+        {hora && (
+          <span className="flex items-center gap-2">
+            <Clock size={15} style={{ color: 'var(--inv-acento)' }} />
+            {hora}
           </span>
         )}
         {ctx.event.venue && (
