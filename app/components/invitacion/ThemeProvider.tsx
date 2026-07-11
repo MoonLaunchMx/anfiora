@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import type { Theme } from '@/lib/invite/theme'
 import { themeCssVars } from '@/lib/invite/theme-css'
 import { googleFontsHref, fontStack } from '@/lib/invite/fonts'
+import InvitacionFondo from './InvitacionFondo'
 
 export default function ThemeProvider({ theme, children }: { theme: Theme; children: ReactNode }) {
   const vars = themeCssVars(theme)
@@ -15,7 +16,8 @@ export default function ThemeProvider({ theme, children }: { theme: Theme; child
   return (
     <div className="inv-theme min-h-full" style={{ ...style, background: 'var(--inv-fondo)', color: 'var(--inv-texto)' }}>
       {href && <link rel="stylesheet" href={href} />}
-      {children}
+      <InvitacionFondo theme={theme} />
+      <div className="inv-content">{children}</div>
     </div>
   )
 }

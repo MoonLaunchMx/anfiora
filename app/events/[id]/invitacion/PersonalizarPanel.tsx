@@ -5,6 +5,7 @@ import { setTheme, applyVibe } from '@/lib/invite/doc'
 import FontMenu from './FontMenu'
 import ButtonStylePicker from './ButtonStylePicker'
 import ColorControls from './ColorControls'
+import FondoControls from './FondoControls'
 
 export default function PersonalizarPanel({ doc, onChange }: { doc: InviteDoc; onChange: (next: InviteDoc) => void }) {
   const t = doc.theme
@@ -38,6 +39,11 @@ export default function PersonalizarPanel({ doc, onChange }: { doc: InviteDoc; o
           onForma={f => set({ boton: { forma: f } })}
           onEstilo={e => set({ boton: { estilo: e } })}
         />
+      </div>
+
+      <div className="flex flex-col gap-2.5">
+        <p className="text-xs font-semibold text-[#1D1E20]">Fondo</p>
+        <FondoControls doc={doc} onChange={onChange} />
       </div>
     </div>
   )

@@ -15,6 +15,7 @@ export type FondoTipo = (typeof FONDO_TIPOS)[number]
 export const EFFECT_IDS = [
   'none', 'gradiente-vivo', 'confeti', 'grid-synthwave', 'estrellas', 'olas', 'bokeh',
   'petalos', 'hojas', 'papel-cuaderno', 'papel-cuadricula', 'aurora', 'halftone', 'papel-arrugado',
+  'bola-disco',
 ] as const
 export type EffectId = (typeof EFFECT_IDS)[number]
 
