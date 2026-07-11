@@ -1,7 +1,6 @@
 'use client'
 import { useState } from 'react'
-import { X } from 'lucide-react'
-import HsvColorPicker from './HsvColorPicker'
+import ColorEditor from './ColorEditor'
 
 type Colores = {
   fondo: string
@@ -12,8 +11,6 @@ type Colores = {
 }
 
 type ColorToken = keyof Colores
-
-const QUICK_SWATCHES = ['#ffffff', '#1D1E20', '#48C9B0', '#F4C430', '#d4a853', '#e11d1d', '#c76b86', '#6b8455', '#8b5cf6', '#0d5a6e']
 
 const TOKENS: { key: ColorToken; label: string }[] = [
   { key: 'fondo', label: 'Fondo' },
@@ -52,34 +49,12 @@ export default function ColorControls({
       </div>
 
       {open && (
-        <div className="rounded-2xl border border-[#e8e8e8] bg-white p-3 shadow-sm">
-          <div className="mb-2 flex items-center justify-between">
-            <span className="text-xs font-semibold text-[#1D1E20]">{openLabel}</span>
-            <button type="button" onClick={() => setOpen(null)} className="text-[#bbb] transition hover:text-[#666]" aria-label="Cerrar">
-              <X size={14} />
-            </button>
-          </div>
-          <HsvColorPicker value={colores[open]} onChange={v => apply(open, v)} />
-          <input
-            type="text"
-            value={colores[open]}
-            onChange={e => apply(open, e.target.value)}
-            className="mt-2 w-full rounded-lg border border-[#e0e0e0] px-2 py-1 text-xs text-[#1D1E20] outline-none focus:border-[#48C9B0]"
-            placeholder="#hex o gradient(...)"
-          />
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            {QUICK_SWATCHES.map(sw => (
-              <button
-                key={sw}
-                type="button"
-                onClick={() => apply(open, sw)}
-                className="h-6 w-6 rounded-full border border-[#e0e0e0]"
-                style={{ background: sw }}
-                aria-label={sw}
-              />
-            ))}
-          </div>
-        </div>
+        <ColorEditor
+          label={openLabel ?? ''}
+          value={colores[open]}
+          onChange={v => apply(open, v)}
+          onClose={() => setOpen(null)}
+        />
       )}
     </div>
   )
