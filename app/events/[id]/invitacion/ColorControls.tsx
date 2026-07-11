@@ -1,6 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { X } from 'lucide-react'
+import HsvColorPicker from './HsvColorPicker'
 
 type Colores = {
   fondo: string
@@ -21,10 +22,6 @@ const TOKENS: { key: ColorToken; label: string }[] = [
   { key: 'botonBg', label: 'Botón' },
   { key: 'botonTexto', label: 'Texto botón' },
 ]
-
-function isHex(v: string): boolean {
-  return /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(v)
-}
 
 export default function ColorControls({
   colores,
@@ -62,12 +59,7 @@ export default function ColorControls({
               <X size={14} />
             </button>
           </div>
-          <input
-            type="color"
-            value={isHex(colores[open]) ? colores[open] : '#ffffff'}
-            onChange={e => apply(open, e.target.value)}
-            className="h-10 w-full cursor-pointer rounded-lg border border-[#e0e0e0]"
-          />
+          <HsvColorPicker value={colores[open]} onChange={v => apply(open, v)} />
           <input
             type="text"
             value={colores[open]}
