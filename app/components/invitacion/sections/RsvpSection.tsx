@@ -148,7 +148,7 @@ export default function RsvpSection({ content, ctx, anim }: { content: Content; 
 
   return (
     <SectionShell variant="form">
-      <h2 className="px-2 text-center text-xl font-semibold lg:text-2xl" style={{ color: 'var(--inv-texto)', fontFamily: 'var(--inv-font-titulo)' }}>
+      <h2 className="px-2 text-center text-xl font-semibold lg:text-2xl" style={{ color: 'var(--inv-texto-titulo)', fontFamily: 'var(--inv-font-titulo)' }}>
         {content.titulo}
       </h2>
       <p className="mx-auto mt-2 max-w-md text-center text-sm opacity-70" style={{ color: 'var(--inv-texto)' }}>{content.texto}</p>

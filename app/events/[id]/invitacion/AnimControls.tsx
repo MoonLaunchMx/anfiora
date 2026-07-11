@@ -8,10 +8,21 @@ const SI_OPTS: { id: SiAnimId; label: string }[] = [
   { id: 'corazones', label: 'Corazones' },
   { id: 'fuegos', label: 'Fuegos' },
   { id: 'globos', label: 'Globos' },
+  { id: 'champan', label: 'Champán' },
+  { id: 'estrellas', label: 'Estrellas' },
+  { id: 'emojis', label: 'Emojis' },
+  { id: 'arcade', label: 'Arcade' },
+  { id: 'jackpot', label: 'Jackpot 777' },
+  { id: 'bola-disco', label: 'Bola disco' },
 ]
 const NO_OPTS: { id: NoAnimId; label: string }[] = [
   { id: 'calido', label: 'Cierre cálido' },
   { id: 'lluvia', label: 'Lluvia' },
+  { id: 'nevada', label: 'Nevada' },
+  { id: 'corazon-roto', label: 'Corazón roto' },
+  { id: 'matorral', label: 'Matorral' },
+  { id: 'luces-off', label: 'Luces off' },
+  { id: 'scratch', label: 'Scratch' },
 ]
 
 export default function AnimControls({ doc, onChange }: { doc: InviteDoc; onChange: (next: InviteDoc) => void }) {

@@ -59,7 +59,7 @@ export default function DressCodeSection({ content, ctx }: { content: Content; c
 
   return (
     <SectionShell variant="band" className="text-center">
-      <h2 className="px-2 text-xl font-semibold lg:text-2xl" style={{ color: 'var(--inv-texto)', fontFamily: 'var(--inv-font-titulo)' }}>
+      <h2 className="px-2 text-xl font-semibold lg:text-2xl" style={{ color: 'var(--inv-texto-titulo)', fontFamily: 'var(--inv-font-titulo)' }}>
         {content.titulo}
       </h2>
 

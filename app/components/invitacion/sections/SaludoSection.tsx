@@ -16,7 +16,7 @@ export default function SaludoSection({ content, ctx }: { content: Content; ctx:
 
   return (
     <SectionShell variant="band" className="text-center">
-      <h2 className="px-2 text-2xl font-semibold lg:text-3xl" style={{ color: 'var(--inv-texto)', fontFamily: 'var(--inv-font-titulo)' }}>
+      <h2 className="px-2 text-2xl font-semibold lg:text-3xl" style={{ color: 'var(--inv-texto-titulo)', fontFamily: 'var(--inv-font-titulo)' }}>
         {saludo}
       </h2>
       <p className="mx-auto mt-4 max-w-md text-sm leading-relaxed opacity-70 lg:text-base" style={{ color: 'var(--inv-texto)' }}>{content.mensaje}</p>

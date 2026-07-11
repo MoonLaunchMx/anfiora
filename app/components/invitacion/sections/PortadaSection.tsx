@@ -24,7 +24,7 @@ export default function PortadaSection({ content, ctx }: { content: Content; ctx
       <p className={`text-xs font-semibold uppercase tracking-[0.25em] ${big ? 'lg:text-sm lg:tracking-[0.35em]' : ''}`} style={{ color: 'var(--inv-acento)' }}>{kicker}</p>
       <h1
         className={`w-full break-words px-2 text-4xl font-semibold leading-tight ${big ? 'lg:text-7xl lg:leading-[1.03]' : ''}`}
-        style={{ color: 'var(--inv-texto)', fontFamily: 'var(--inv-font-titulo)' }}
+        style={{ color: 'var(--inv-texto-titulo)', fontFamily: 'var(--inv-font-titulo)' }}
       >
         {titulo}
       </h1>

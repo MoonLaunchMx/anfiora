@@ -134,6 +134,7 @@ body {
   position: relative;
   --inv-fondo: #ffffff;
   --inv-texto: #1D1E20;
+  --inv-texto-titulo: #1D1E20;
   --inv-acento: #48C9B0;
   --inv-boton-bg: #48C9B0;
   --inv-boton-texto: #ffffff;
@@ -600,14 +601,16 @@ body {
   margin: 0;
   max-width: 82vw;
   text-align: center;
-  padding: 12px 28px;
+  padding: 13px 30px;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--inv-fondo) 84%, transparent);
-  color: var(--inv-texto);
+  background: rgba(18, 18, 22, 0.82);
+  color: #ffffff;
+  border: 1.5px solid color-mix(in srgb, var(--inv-acento) 60%, #ffffff);
   font-size: clamp(20px, 6vw, 34px);
   font-weight: 700;
   line-height: 1.15;
-  box-shadow: 0 12px 44px rgba(0, 0, 0, 0.18);
+  box-shadow: 0 12px 44px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(2px);
   animation: inv-anim-msg-pop 0.6s cubic-bezier(0.18, 0.9, 0.3, 1.25) both;
 }
 @keyframes inv-anim-msg-pop {
@@ -740,6 +743,228 @@ body {
   0% { opacity: 0; transform: translate(-50%, -50%) scale(0.7); }
   40% { opacity: 0.85; }
   100% { opacity: 0; transform: translate(-50%, -50%) scale(1.12); }
+}
+
+/* champan (Si): burbujas que suben */
+.inv-anim-burbuja {
+  position: absolute;
+  bottom: -6vh;
+  width: calc(10px * var(--s, 1));
+  height: calc(10px * var(--s, 1));
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #fff, color-mix(in srgb, var(--inv-acento) 45%, #ffe9a8) 70%, transparent 72%);
+  opacity: 0;
+  animation-name: inv-anim-bubble;
+  animation-timing-function: ease-in;
+  animation-iteration-count: infinite;
+}
+@keyframes inv-anim-bubble {
+  0% { transform: translateY(0) translateX(0); opacity: 0; }
+  15% { opacity: 0.85; }
+  100% { transform: translateY(-116vh) translateX(14px); opacity: 0; }
+}
+
+/* estrellas (Si): lluvia de estrellas */
+.inv-anim-estrella {
+  position: absolute;
+  top: -6vh;
+  width: calc(18px * var(--s, 1));
+  height: calc(18px * var(--s, 1));
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%23ffd85e' d='M12 .6l3.7 7.4 8.2 1.2-5.9 5.8 1.4 8.2L12 18.9l-7.4 3.9 1.4-8.2L.1 9.2l8.2-1.2z'/%3E%3C/svg%3E");
+  background-size: contain;
+  background-repeat: no-repeat;
+  filter: drop-shadow(0 0 4px color-mix(in srgb, var(--inv-acento) 60%, #ffe08a));
+  opacity: 0;
+  animation-name: inv-anim-starfall;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+@keyframes inv-anim-starfall {
+  0% { transform: translateY(0) translateX(0) rotate(0deg); opacity: 0; }
+  10% { opacity: 1; }
+  100% { transform: translateY(112vh) translateX(-40px) rotate(220deg); opacity: 0.9; }
+}
+
+/* emojis (Si): explosion de emojis */
+.inv-anim-emoji {
+  position: absolute;
+  top: -6vh;
+  line-height: 1;
+  opacity: 0;
+  animation-name: inv-anim-emojifall;
+  animation-timing-function: ease-in;
+  animation-iteration-count: infinite;
+}
+@keyframes inv-anim-emojifall {
+  0% { transform: translateY(0) rotate(0deg); opacity: 0; }
+  10% { opacity: 1; }
+  100% { transform: translateY(112vh) rotate(200deg); opacity: 1; }
+}
+
+/* arcade (Si): pixeles retro */
+.inv-anim-pixel {
+  position: absolute;
+  top: -6vh;
+  width: 11px;
+  height: 11px;
+  opacity: 0;
+  animation-name: inv-anim-confeti-fall;
+  animation-timing-function: steps(18);
+  animation-iteration-count: infinite;
+}
+
+/* jackpot (Si): monedas 777 */
+.inv-anim-moneda {
+  position: absolute;
+  top: -6vh;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #fff6c0, #f4c430 55%, #b8891f);
+  box-shadow: 0 0 6px rgba(244, 196, 48, 0.6), inset 0 0 3px rgba(255, 255, 255, 0.5);
+  opacity: 0;
+  animation-name: inv-anim-coinfall;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+@keyframes inv-anim-coinfall {
+  0% { transform: translateY(0) rotateY(0deg); opacity: 0; }
+  10% { opacity: 1; }
+  100% { transform: translateY(112vh) rotateY(900deg); opacity: 1; }
+}
+
+/* bola-disco (Si): bola centrada + destellos (usa .inv-disco-dot) */
+.inv-anim-discoball {
+  position: absolute;
+  top: 14%;
+  left: 50%;
+  margin-left: -34px;
+  width: 68px;
+  height: 68px;
+  border-radius: 50%;
+  background-color: #aeb8d2;
+  background-image:
+    linear-gradient(rgba(255,255,255,.3) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,.3) 1px, transparent 1px),
+    radial-gradient(circle at 34% 28%, #ffffff, #c4cde3 44%, #79859f 100%);
+  background-size: 9px 9px, 9px 9px, 100% 100%;
+  box-shadow: 0 0 34px 10px color-mix(in srgb, var(--inv-acento) 55%, transparent),
+    inset -7px -7px 14px rgba(0,0,0,.42), inset 6px 6px 12px rgba(255,255,255,.55);
+  animation: inv-disco-shimmer 2.4s linear infinite;
+}
+
+/* nevada (No): copos que caen */
+.inv-anim-nieve {
+  position: absolute;
+  top: -6vh;
+  width: calc(8px * var(--s, 1));
+  height: calc(8px * var(--s, 1));
+  border-radius: 50%;
+  background: #eaf3fb;
+  box-shadow: 0 0 5px rgba(150, 190, 230, 0.9);
+  opacity: 0;
+  animation-name: inv-anim-snow;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+@keyframes inv-anim-snow {
+  0% { transform: translateY(0) translateX(0); opacity: 0; }
+  10% { opacity: 0.95; }
+  50% { transform: translateY(56vh) translateX(20px); }
+  100% { transform: translateY(112vh) translateX(-16px); opacity: 0.7; }
+}
+
+/* corazon-roto (No) */
+.inv-anim-roto {
+  position: absolute;
+  left: 50%;
+  top: 42%;
+  transform: translate(-50%, -50%);
+  font-size: clamp(70px, 22vw, 160px);
+  line-height: 1;
+  animation: inv-anim-heartbreak 2.6s ease-out both;
+}
+@keyframes inv-anim-heartbreak {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.4); }
+  25% { opacity: 1; transform: translate(-50%, -50%) scale(1.1) rotate(0deg); }
+  40% { transform: translate(-50%, -50%) scale(1) rotate(-5deg); }
+  55% { transform: translate(-50%, -50%) scale(1) rotate(5deg); }
+  100% { opacity: 0; transform: translate(-50%, -52%) scale(1.05); }
+}
+
+/* matorral (No): rodadora del desierto */
+.inv-anim-matorral {
+  position: absolute;
+  bottom: 12%;
+  left: 100%;
+  width: 0;
+  height: 0;
+  animation: inv-anim-tumble-move 3.4s linear;
+}
+.inv-anim-matorral-bola {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 40% 40%, #c9a24a, #8a6a2a 70%);
+  border: 3px dashed #6f531f;
+  box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.3);
+  opacity: 0.9;
+  animation: inv-anim-tumble-spin 0.5s linear infinite;
+}
+@keyframes inv-anim-tumble-move {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-130vw); }
+}
+@keyframes inv-anim-tumble-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(-360deg); }
+}
+
+/* luces-off (No): apagon */
+.inv-anim-apagon {
+  position: absolute;
+  inset: 0;
+  background: #000;
+  opacity: 0;
+  animation: inv-anim-blackout 2.8s ease-in-out both;
+}
+@keyframes inv-anim-blackout {
+  0% { opacity: 0; }
+  35% { opacity: 0.92; }
+  75% { opacity: 0.92; }
+  100% { opacity: 0; }
+}
+
+/* scratch (No): disco que rasga */
+.inv-anim-vinilo {
+  position: absolute;
+  left: 50%;
+  top: 42%;
+  transform: translate(-50%, -50%);
+  width: clamp(120px, 40vw, 240px);
+  height: clamp(120px, 40vw, 240px);
+  border-radius: 50%;
+  background: repeating-radial-gradient(circle, #1a1a1a 0 3px, #060606 3px 6px);
+  box-shadow: 0 0 30px rgba(0, 0, 0, 0.5);
+  animation: inv-anim-scratch 2.6s ease-out both;
+}
+.inv-anim-vinilo::after {
+  content: '';
+  position: absolute;
+  inset: 38%;
+  border-radius: 50%;
+  background: var(--inv-acento);
+}
+@keyframes inv-anim-scratch {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.7) rotate(0deg); }
+  15% { opacity: 1; transform: translate(-50%, -50%) scale(1) rotate(140deg); }
+  28% { transform: translate(-50%, -50%) scale(1) rotate(55deg); }
+  40% { transform: translate(-50%, -50%) scale(1) rotate(95deg); }
+  50% { transform: translate(-50%, -50%) scale(1) rotate(80deg); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1) rotate(80deg); }
 }
 
 @media (prefers-reduced-motion: reduce) {

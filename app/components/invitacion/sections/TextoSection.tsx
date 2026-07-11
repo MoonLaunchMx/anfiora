@@ -16,7 +16,7 @@ export default function TextoSection({ content }: { content: Content; ctx: Invit
       {content.titulo.trim() && (
         <h2
           className="mt-2 px-2 text-xl font-semibold lg:text-2xl"
-          style={{ color: 'var(--inv-texto)', fontFamily: 'var(--inv-font-titulo)' }}
+          style={{ color: 'var(--inv-texto-titulo)', fontFamily: 'var(--inv-font-titulo)' }}
         >
           {content.titulo}
         </h2>

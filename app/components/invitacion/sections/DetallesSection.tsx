@@ -18,7 +18,7 @@ export default function DetallesSection({ content, ctx }: { content: Content; ct
 
   return (
     <SectionShell variant="band">
-      <h2 className="px-2 text-center text-xl font-semibold lg:text-2xl" style={{ color: 'var(--inv-texto)', fontFamily: 'var(--inv-font-titulo)' }}>
+      <h2 className="px-2 text-center text-xl font-semibold lg:text-2xl" style={{ color: 'var(--inv-texto-titulo)', fontFamily: 'var(--inv-font-titulo)' }}>
         {content.titulo}
       </h2>
 

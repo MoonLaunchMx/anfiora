@@ -10,6 +10,7 @@ export function themeCssVars(theme: Theme): Record<string, string> {
   return {
     '--inv-fondo': theme.colores.fondo,
     '--inv-texto': theme.colores.texto,
+    '--inv-texto-titulo': theme.colores.titulo || theme.colores.texto,
     '--inv-acento': theme.colores.acento,
     '--inv-boton-bg': theme.colores.botonBg,
     '--inv-boton-texto': theme.colores.botonTexto,

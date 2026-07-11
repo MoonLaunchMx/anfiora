@@ -5,6 +5,7 @@ import ColorEditor from './ColorEditor'
 type Colores = {
   fondo: string
   texto: string
+  titulo?: string
   acento: string
   botonBg: string
   botonTexto: string
@@ -14,7 +15,8 @@ type ColorToken = keyof Colores
 
 const TOKENS: { key: ColorToken; label: string }[] = [
   { key: 'fondo', label: 'Fondo' },
-  { key: 'texto', label: 'Texto' },
+  { key: 'titulo', label: 'Título' },
+  { key: 'texto', label: 'Cuerpo' },
   { key: 'acento', label: 'Acento' },
   { key: 'botonBg', label: 'Botón' },
   { key: 'botonTexto', label: 'Texto botón' },
@@ -30,6 +32,7 @@ export default function ColorControls({
   const [open, setOpen] = useState<ColorToken | null>(null)
   const apply = (token: ColorToken, v: string) => onColores({ [token]: v } as Partial<Colores>)
   const openLabel = TOKENS.find(t => t.key === open)?.label
+  const valueOf = (key: ColorToken) => colores[key] ?? (key === 'titulo' ? colores.texto : '#000000')
 
   return (
     <div className="flex flex-col gap-3">
@@ -40,7 +43,7 @@ export default function ColorControls({
               type="button"
               onClick={() => setOpen(open === key ? null : key)}
               className={`h-10 w-10 rounded-full shadow-sm outline-none transition-transform hover:scale-105 ${open === key ? 'border-2 border-[#48C9B0]' : 'border border-[#e0e0e0]'}`}
-              style={{ background: colores[key] }}
+              style={{ background: valueOf(key) }}
               aria-label={label}
             />
             <span className="text-[10px] text-[#666]">{label}</span>
@@ -51,7 +54,7 @@ export default function ColorControls({
       {open && (
         <ColorEditor
           label={openLabel ?? ''}
-          value={colores[open]}
+          value={valueOf(open)}
           onChange={v => apply(open, v)}
           onClose={() => setOpen(null)}
         />
