@@ -1,6 +1,7 @@
 'use client'
 
 import type { Section } from '@/lib/invite/schema'
+import GifSearch from './GifSearch'
 
 function TextField({
   label, value, onChange, placeholder,
@@ -165,9 +166,14 @@ export default function SectionForm({
     case 'media':
       return (
         <div className="flex flex-col gap-3">
+          <GifSearch onSelect={url => onPatch({ url })} />
+          {section.content.url && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={section.content.url} alt="" className="max-h-32 w-full rounded-lg object-contain" />
+          )}
           <TextField label="URL de la imagen o GIF" value={section.content.url} onChange={v => onPatch({ url: v })} placeholder="https://media.giphy.com/....gif" />
           <TextField label="Texto opcional (pie)" value={section.content.caption} onChange={v => onPatch({ caption: v })} placeholder="Un pie de foto" />
-          <p className="text-xs text-[#999]">Pega el link de un GIF (Giphy/Tenor) o de una imagen. El buscador integrado llega despues.</p>
+          <p className="text-xs text-[#999]">Busca arriba o pega el link de un GIF/imagen.</p>
         </div>
       )
     default:
