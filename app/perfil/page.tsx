@@ -4,7 +4,7 @@ import { useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { supabase } from '@/lib/supabase'
-import { User, Phone, Lock, Eye, EyeOff, CheckCircle, AlertCircle, ArrowLeft, ChevronDown, Bell } from 'lucide-react'
+import { User, Phone, Lock, Eye, EyeOff, CheckCircle, AlertCircle, ArrowLeft, ChevronDown, Bell, MessageSquarePlus } from 'lucide-react'
 import { ROLES, getRole, Role } from '@/lib/roles'
 
 type PlanInfo = {
@@ -665,6 +665,24 @@ export default function PerfilPage() {
                 }`}
             >
               {savingPass ? 'Cambiando...' : 'Cambiar contraseña'}
+            </button>
+          </section>
+
+          {/* ── Ayuda y feedback ── */}
+          <section className="rounded-2xl border border-[#e8e8e8] bg-white p-5 sm:p-6">
+            <div className="flex items-center gap-2">
+              <MessageSquarePlus size={16} className="text-[#48C9B0]" />
+              <h2 className="text-sm font-semibold text-[#1D1E20]">Ayuda y feedback</h2>
+            </div>
+            <p className="mt-1 text-[12px] text-[#aaa]">
+              Cuéntanos una idea, reporta un error o mándanos una nota. Leemos todo.
+            </p>
+            <button
+              type="button"
+              onClick={() => window.dispatchEvent(new CustomEvent('anfiora:open-feedback'))}
+              className="mt-4 rounded-[10px] border border-[#e0e0e0] bg-white px-4 py-2 text-xs font-semibold text-[#555] transition hover:border-[#48C9B0] hover:text-[#48C9B0]"
+            >
+              Enviar feedback
             </button>
           </section>
 
