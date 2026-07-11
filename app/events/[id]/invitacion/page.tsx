@@ -165,10 +165,9 @@ export default function InvitacionPage() {
 
   const sampleCtx: InviteCtx = {
     event,
-    guest: { name: 'Invitado de ejemplo', party_size: 3, rsvp_status: 'pending', allergies: [] },
+    guest: { name: 'Invitado de ejemplo', party_size: 2, rsvp_status: 'pending', allergies: [] },
     companions: [
-      { name: 'Acompañante 1', rsvp_status: 'pending', allergies: [] },
-      { name: 'Acompañante 2', rsvp_status: 'pending', allergies: [] },
+      { name: 'Acompañante', rsvp_status: 'pending', allergies: [] },
     ],
     dressCode,
     itinerary,

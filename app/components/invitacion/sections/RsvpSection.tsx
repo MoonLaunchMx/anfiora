@@ -3,8 +3,13 @@ import { useState } from 'react'
 import type { Section } from '@/lib/invite/schema'
 import type { InviteCtx } from '../types'
 import type { RsvpSubmission } from '@/lib/invite'
+import type { Theme } from '@/lib/invite/theme'
 import { Check, X } from 'lucide-react'
 import SectionShell from '../SectionShell'
+import RsvpAnimation from '../RsvpAnimation'
+
+const SI_MSG = '¡Nos vemos ahí!'
+const NO_MSG = '¡Te vamos a extrañar!'
 
 type Content = Extract<Section, { type: 'rsvp' }>['content']
 
@@ -82,15 +87,19 @@ function AllergyChips({ value, onChange, disabled }: { value: string[]; onChange
   )
 }
 
-export default function RsvpSection({ content, ctx }: { content: Content; ctx: InviteCtx }) {
+export default function RsvpSection({ content, ctx, anim }: { content: Content; ctx: InviteCtx; anim: Theme['anim'] }) {
   const [rows, setRows] = useState<Row[]>(() => buildRows(ctx))
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [playing, setPlaying] = useState<'si' | 'no' | null>(null)
+  const [playKey, setPlayKey] = useState(0)
 
-  const disabled = ctx.mode === 'preview' || Boolean(ctx.deadlinePassed)
-  const note = ctx.mode === 'preview'
-    ? 'Vista previa — así confirmará tu invitado'
+  const isPreview = ctx.mode === 'preview'
+  const locked = Boolean(ctx.deadlinePassed)
+  const disabled = locked
+  const note = isPreview
+    ? 'Vista previa — toca Sí o No para ver la animación'
     : ctx.deadlinePassed
     ? 'Confirmaciones cerradas'
     : null
@@ -105,7 +114,15 @@ export default function RsvpSection({ content, ctx }: { content: Content; ctx: I
   }
 
   const handleSubmit = async () => {
-    if (!ctx.onSubmit || disabled || !allChosen || submitting) return
+    if (locked || !allChosen || submitting) return
+    const outcome: 'si' | 'no' = rows.some(r => r.attends === true) ? 'si' : 'no'
+    setPlayKey(k => k + 1)
+
+    if (isPreview || !ctx.onSubmit) {
+      setPlaying(outcome)
+      return
+    }
+
     const [guestRow, ...companionRows] = rows
     const payload: RsvpSubmission = {
       guestAttends: Boolean(guestRow.attends),
@@ -121,7 +138,7 @@ export default function RsvpSection({ content, ctx }: { content: Content; ctx: I
     setError(null)
     try {
       await ctx.onSubmit(payload)
-      setSubmitted(true)
+      setPlaying(outcome)
     } catch {
       setError('No pudimos guardar tu confirmación. Intenta de nuevo.')
     } finally {
@@ -192,6 +209,20 @@ export default function RsvpSection({ content, ctx }: { content: Content; ctx: I
 
       {submitted && (
         <p className="mt-6 text-center text-sm font-medium text-[#2a7a50]">¡Gracias por confirmar!</p>
+      )}
+
+      {playing && (
+        <RsvpAnimation
+          key={playKey}
+          open
+          kind={playing}
+          animId={playing === 'si' ? anim.si : anim.no}
+          message={playing === 'si' ? SI_MSG : NO_MSG}
+          onDone={() => {
+            setPlaying(null)
+            if (!isPreview) setSubmitted(true)
+          }}
+        />
       )}
     </SectionShell>
   )

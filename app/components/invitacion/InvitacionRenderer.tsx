@@ -32,7 +32,7 @@ export default function InvitacionRenderer({ doc, ctx }: { doc: InviteDoc; ctx: 
             case 'detalles':   return <DetallesSection   key={s.id} content={s.content} ctx={ctx} />
             case 'dress_code': return <DressCodeSection  key={s.id} content={s.content} ctx={ctx} />
             case 'itinerario': return <ItinerarioSection key={s.id} content={s.content} ctx={ctx} />
-            case 'rsvp':       return <RsvpSection       key={s.id} content={s.content} ctx={ctx} />
+            case 'rsvp':       return <RsvpSection       key={s.id} content={s.content} ctx={ctx} anim={doc.theme.anim} />
             case 'enganche':   return <EngancheSection   key={s.id} content={s.content} ctx={ctx} />
             case 'playlist':   return <PlaylistSection   key={s.id} content={s.content} ctx={ctx} />
             case 'mesa':       return <MesaSection       key={s.id} content={s.content} ctx={ctx} />
