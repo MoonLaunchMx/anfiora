@@ -1,11 +1,12 @@
 'use client'
 
-import { useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams } from 'next/navigation'
-import { Upload, X, CheckCircle2 } from 'lucide-react'
+import { Upload, X, CheckCircle2, Mic, Square } from 'lucide-react'
 import type { Section } from '@/lib/invite/schema'
 import { parseVideoUrl } from '@/lib/invite/video'
 import { parseDriveUrl } from '@/lib/invite/drive'
+import { pickAudioMime, extForMime, formatTimer } from '@/lib/invite/audio-recording'
 import { supabase } from '@/lib/supabase'
 import GifSearch from './GifSearch'
 
@@ -16,6 +17,177 @@ const PROVIDER_LABEL: Record<string, string> = {
   drive: 'Google Drive',
 }
 
+const MAX_RECORDING_SECONDS = 60
+
+type UploadResult = { url: string; error?: undefined } | { url?: undefined; error: string }
+
+async function uploadAudioToBucket(eventId: string, blob: Blob, filename: string): Promise<UploadResult> {
+  const safe = filename.replace(/[^a-zA-Z0-9.-]/g, '_')
+  const path = `audio/${eventId}/${Date.now()}-${Math.random().toString(36).slice(2, 7)}-${safe}`
+  const { error } = await supabase.storage.from('event-media').upload(path, blob, {
+    upsert: false,
+    contentType: blob.type || undefined,
+  })
+  if (error) return { error: 'No se pudo subir el audio. Intenta de nuevo.' }
+  return { url: supabase.storage.from('event-media').getPublicUrl(path).data.publicUrl }
+}
+
+function VoiceRecorder({ eventId, onUploaded }: { eventId: string; onUploaded: (url: string) => void }) {
+  const [phase, setPhase] = useState<'idle' | 'recording' | 'recorded'>('idle')
+  const [seconds, setSeconds] = useState(0)
+  const [localUrl, setLocalUrl] = useState<string | null>(null)
+  const [uploading, setUploading] = useState(false)
+  const [error, setError] = useState('')
+
+  const recorderRef = useRef<MediaRecorder | null>(null)
+  const streamRef = useRef<MediaStream | null>(null)
+  const chunksRef = useRef<Blob[]>([])
+  const blobRef = useRef<Blob | null>(null)
+  const mimeRef = useRef<string>('')
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  const supported =
+    typeof window !== 'undefined' &&
+    typeof MediaRecorder !== 'undefined' &&
+    !!navigator.mediaDevices?.getUserMedia
+
+  const clearTimer = () => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current)
+      timerRef.current = null
+    }
+  }
+
+  useEffect(() => () => {
+    clearTimer()
+    streamRef.current?.getTracks().forEach(t => t.stop())
+  }, [])
+
+  useEffect(() => () => { if (localUrl) URL.revokeObjectURL(localUrl) }, [localUrl])
+
+  const stop = useCallback(() => {
+    clearTimer()
+    const rec = recorderRef.current
+    if (rec && rec.state !== 'inactive') rec.stop()
+  }, [])
+
+  useEffect(() => {
+    if (phase === 'recording' && seconds >= MAX_RECORDING_SECONDS) stop()
+  }, [phase, seconds, stop])
+
+  const start = async () => {
+    setError('')
+    if (!supported) {
+      setError('Tu navegador no permite grabar audio. Usa subir clip o Google Drive.')
+      return
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      streamRef.current = stream
+      const mime = pickAudioMime(m => MediaRecorder.isTypeSupported(m))
+      mimeRef.current = mime
+      const rec = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream)
+      chunksRef.current = []
+      rec.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data) }
+      rec.onstop = () => {
+        const type = mimeRef.current || rec.mimeType || 'audio/webm'
+        const blob = new Blob(chunksRef.current, { type })
+        blobRef.current = blob
+        setLocalUrl(URL.createObjectURL(blob))
+        setPhase('recorded')
+        streamRef.current?.getTracks().forEach(t => t.stop())
+        streamRef.current = null
+      }
+      recorderRef.current = rec
+      rec.start()
+      setSeconds(0)
+      setPhase('recording')
+      timerRef.current = setInterval(() => setSeconds(s => s + 1), 1000)
+    } catch {
+      streamRef.current?.getTracks().forEach(t => t.stop())
+      streamRef.current = null
+      setError('No pudimos acceder al micrófono. Revisa los permisos del navegador.')
+      setPhase('idle')
+    }
+  }
+
+  const regrabar = () => {
+    setLocalUrl(null)
+    blobRef.current = null
+    setSeconds(0)
+    setError('')
+    setPhase('idle')
+  }
+
+  const confirm = async () => {
+    if (!blobRef.current) return
+    setUploading(true)
+    setError('')
+    const ext = extForMime(mimeRef.current || blobRef.current.type)
+    const res = await uploadAudioToBucket(eventId, blobRef.current, `voicenote.${ext}`)
+    setUploading(false)
+    if (res.error) { setError(res.error); return }
+    if (res.url) onUploaded(res.url)
+  }
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      {phase === 'idle' && (
+        <button
+          type="button"
+          onClick={start}
+          className="flex items-center justify-center gap-2 rounded-lg border border-dashed border-[#ccc] bg-white px-3 py-3 text-xs font-medium text-[#888] transition hover:border-[#48C9B0] hover:text-[#48C9B0]"
+        >
+          <Mic size={14} /> Grabar nota de voz
+        </button>
+      )}
+
+      {phase === 'recording' && (
+        <div className="flex items-center gap-3 rounded-lg border border-[#f0c8c8] bg-[#fff6f6] px-3 py-2.5">
+          <span className="h-2.5 w-2.5 shrink-0 animate-pulse rounded-full bg-[#e11d1d]" />
+          <span className="flex-1 text-xs font-medium text-[#cc3333]">Grabando… {formatTimer(seconds)}</span>
+          <button
+            type="button"
+            onClick={stop}
+            className="flex items-center gap-1.5 rounded-lg bg-[#cc3333] px-2.5 py-1.5 text-xs font-semibold text-white transition hover:bg-[#b82d2d]"
+          >
+            <Square size={12} fill="currentColor" /> Detener
+          </button>
+        </div>
+      )}
+
+      {phase === 'recorded' && localUrl && (
+        <div className="flex flex-col gap-2 rounded-lg border border-[#e0e0e0] bg-white p-2.5">
+          <audio key={localUrl} src={localUrl} controls className="w-full" />
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={regrabar}
+              disabled={uploading}
+              className="flex items-center gap-1 rounded-lg border border-[#e0e0e0] px-3 py-1.5 text-xs font-medium text-[#666] transition hover:border-[#48C9B0] hover:text-[#48C9B0] disabled:opacity-50"
+            >
+              <Mic size={12} /> Regrabar
+            </button>
+            <button
+              type="button"
+              onClick={confirm}
+              disabled={uploading}
+              className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-[#48C9B0] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#3ab89f] disabled:opacity-50"
+            >
+              {uploading ? 'Guardando…' : 'Usar esta grabación'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {phase === 'idle' && (
+        <p className="text-[11px] text-[#999]">Se detiene sola al minuto. Necesita permiso del micrófono.</p>
+      )}
+      {error && <p className="text-[11px] text-[#b8912f]">{error}</p>}
+    </div>
+  )
+}
+
 function AudioUploadField({
   url, onChange,
 }: {
@@ -23,6 +195,7 @@ function AudioUploadField({
   onChange: (v: string) => void
 }) {
   const { id } = useParams()
+  const eventId = String(id)
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState('')
 
@@ -33,15 +206,10 @@ function AudioUploadField({
       return
     }
     setUploading(true)
-    const safe = file.name.replace(/[^a-zA-Z0-9.-]/g, '_')
-    const path = `audio/${id}/${Date.now()}-${Math.random().toString(36).slice(2, 7)}-${safe}`
-    const { error: upErr } = await supabase.storage.from('event-media').upload(path, file, { upsert: false })
-    if (upErr) {
-      setError('No se pudo subir el audio. Intenta de nuevo.')
-    } else {
-      onChange(supabase.storage.from('event-media').getPublicUrl(path).data.publicUrl)
-    }
+    const res = await uploadAudioToBucket(eventId, file, file.name)
     setUploading(false)
+    if (res.error) setError(res.error)
+    else if (res.url) onChange(res.url)
   }
 
   return (
@@ -55,23 +223,26 @@ function AudioUploadField({
             onClick={() => onChange('')}
             className="flex items-center gap-1 self-start text-xs text-[#cc3333] transition hover:underline"
           >
-            <X size={12} /> Quitar clip
+            <X size={12} /> Quitar audio
           </button>
         </div>
       ) : (
-        <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-[#ccc] bg-white px-3 py-3 text-xs font-medium text-[#888] transition hover:border-[#48C9B0] hover:text-[#48C9B0]">
-          <Upload size={14} />
-          {uploading ? 'Subiendo...' : 'Subir clip de audio'}
-          <input
-            type="file"
-            accept="audio/*"
-            disabled={uploading}
-            onChange={e => { const f = e.target.files?.[0]; if (f) upload(f); e.target.value = '' }}
-            className="hidden"
-          />
-        </label>
+        <div className="flex flex-col gap-2">
+          <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-[#ccc] bg-white px-3 py-3 text-xs font-medium text-[#888] transition hover:border-[#48C9B0] hover:text-[#48C9B0]">
+            <Upload size={14} />
+            {uploading ? 'Subiendo...' : 'Subir clip de audio'}
+            <input
+              type="file"
+              accept="audio/*"
+              disabled={uploading}
+              onChange={e => { const f = e.target.files?.[0]; if (f) upload(f); e.target.value = '' }}
+              className="hidden"
+            />
+          </label>
+          <VoiceRecorder eventId={eventId} onUploaded={onChange} />
+          {error && <p className="text-[11px] text-[#cc3333]">{error}</p>}
+        </div>
       )}
-      {error && <p className="mt-1 text-[11px] text-[#cc3333]">{error}</p>}
     </div>
   )
 }
