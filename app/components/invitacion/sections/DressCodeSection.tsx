@@ -143,7 +143,7 @@ export default function DressCodeSection({ content, ctx }: { content: Content; c
                       alt=""
                       onClick={() => setZoom(base + i)}
                       whileTap={{ scale: 0.94 }}
-                      className="h-20 w-20 cursor-pointer rounded-lg border border-[#e8e8e8] object-cover transition hover:brightness-95"
+                      className="h-20 w-20 cursor-pointer rounded-lg object-cover transition hover:brightness-95"
                     />
                   ))}
                 </div>
