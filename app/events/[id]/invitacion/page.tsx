@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useParams } from 'next/navigation'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Send, Check, LayoutGrid, Eye, X, Maximize2 } from 'lucide-react'
+import { Send, Check, LayoutGrid, Eye, X, Maximize2, Plus } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { resolveDoc, setMeta } from '@/lib/invite/doc'
 import type { InviteDoc } from '@/lib/invite/schema'
@@ -60,6 +60,7 @@ export default function InvitacionPage() {
   const [publishing, setPublishing] = useState(false)
   const [activeTab, setActiveTab] = useState<TabKey>('diseno')
   const [disenoSub, setDisenoSub] = useState<'estilo' | 'personalizar' | 'contenido'>('estilo')
+  const [addSectionOpen, setAddSectionOpen] = useState(false)
   const [previewMode, setPreviewMode] = useState<'movil' | 'escritorio'>('movil')
   const [showPreview, setShowPreview] = useState(false)
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
@@ -91,6 +92,8 @@ export default function InvitacionPage() {
   }, [eventId])
 
   useEffect(() => () => { if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current) }, [])
+
+  useEffect(() => { if (disenoSub !== 'contenido') setAddSectionOpen(false) }, [disenoSub])
 
   useEffect(() => {
     if (!showPreview) return
@@ -245,24 +248,37 @@ export default function InvitacionPage() {
         {activeTab === 'diseno' ? (
           <div className="grid items-start gap-6 sm:grid-cols-[1fr_360px] lg:gap-8">
             <div className="min-w-0">
-              <div className="sticky top-0 z-20 mb-5 flex gap-6 border-b border-[#eee] bg-white pt-5">
-                {([
-                  ['estilo', 'Plantillas'],
-                  ['personalizar', 'Personalizar'],
-                  ['contenido', 'Contenido'],
-                ] as const).map(([key, label]) => (
+              <div className="sticky top-0 z-20 mb-5 flex items-end justify-between gap-4 border-b border-[#eee] bg-white pt-5">
+                <div className="flex gap-6">
+                  {([
+                    ['estilo', 'Plantillas'],
+                    ['personalizar', 'Personalizar'],
+                    ['contenido', 'Contenido'],
+                  ] as const).map(([key, label]) => (
+                    <button
+                      key={key}
+                      onClick={() => setDisenoSub(key)}
+                      className={['-mb-px border-b-2 pb-2.5 text-sm font-semibold transition', disenoSub === key ? 'border-[#48C9B0] text-[#1D1E20]' : 'border-transparent text-[#999] hover:text-[#666]'].join(' ')}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                {disenoSub === 'contenido' && (
                   <button
-                    key={key}
-                    onClick={() => setDisenoSub(key)}
-                    className={['-mb-px border-b-2 pb-2.5 text-sm font-semibold transition', disenoSub === key ? 'border-[#48C9B0] text-[#1D1E20]' : 'border-transparent text-[#999] hover:text-[#666]'].join(' ')}
+                    type="button"
+                    onClick={() => setAddSectionOpen(true)}
+                    className="mb-1.5 flex shrink-0 items-center gap-1.5 rounded-lg border border-dashed border-[#ccc] px-2.5 py-1.5 text-xs font-medium text-[#888] transition hover:border-[#48C9B0] hover:text-[#48C9B0]"
                   >
-                    {label}
+                    <Plus size={14} />
+                    <span className="hidden sm:inline">Agregar sección</span>
+                    <span className="sm:hidden">Agregar</span>
                   </button>
-                ))}
+                )}
               </div>
               {disenoSub === 'estilo' && <EstiloPanel doc={doc} onChange={updateDoc} />}
               {disenoSub === 'personalizar' && <PersonalizarPanel doc={doc} onChange={updateDoc} />}
-              {disenoSub === 'contenido' && <BlockEditor doc={doc} onChange={updateDoc} makeId={() => crypto.randomUUID()} />}
+              {disenoSub === 'contenido' && <BlockEditor doc={doc} onChange={updateDoc} makeId={() => crypto.randomUUID()} addOpen={addSectionOpen} onAddOpenChange={setAddSectionOpen} />}
             </div>
 
             <div className="hidden sm:sticky sm:top-0 sm:block sm:pt-5">
