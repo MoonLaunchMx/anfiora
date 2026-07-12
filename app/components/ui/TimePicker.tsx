@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Clock, X } from 'lucide-react'
 
 interface TimePickerProps {
@@ -30,8 +30,74 @@ function parse(val: string): { h: number; m: number; period: 'am' | 'pm' } {
   return { h: hh % 12 || 12, m: mm, period: hh >= 12 ? 'pm' : 'am' }
 }
 
-const HOURS   = [1,2,3,4,5,6,7,8,9,10,11,12]
-const MINUTES = [0,5,10,15,20,25,30,35,40,45,50,55]
+function clampN(n: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, n))
+}
+
+const HOURS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+const MINUTES = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55]
+const AMPM: ('am' | 'pm')[] = ['am', 'pm']
+
+const ITEM_H = 40
+const PAD = ITEM_H * 2
+
+function Wheel<T extends string | number>({
+  items, value, onChange, render,
+}: { items: T[]; value: T; onChange: (v: T) => void; render: (v: T) => string }) {
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const idx = items.indexOf(value)
+    if (idx < 0) return
+    const target = idx * ITEM_H
+    if (Math.abs(el.scrollTop - target) > ITEM_H / 2) el.scrollTop = target
+  }, [value, items])
+
+  const handleScroll = () => {
+    const el = ref.current
+    if (!el) return
+    const idx = clampN(Math.round(el.scrollTop / ITEM_H), 0, items.length - 1)
+    if (items[idx] !== value) onChange(items[idx])
+  }
+
+  const selectAt = (idx: number) => {
+    ref.current?.scrollTo({ top: idx * ITEM_H, behavior: 'smooth' })
+    onChange(items[idx])
+  }
+
+  return (
+    <div
+      ref={ref}
+      onScroll={handleScroll}
+      className="tp-wheel relative h-[200px] snap-y snap-mandatory overflow-y-scroll"
+      style={{
+        scrollbarWidth: 'none',
+        maskImage: 'linear-gradient(to bottom, transparent, #000 32%, #000 68%, transparent)',
+        WebkitMaskImage: 'linear-gradient(to bottom, transparent, #000 32%, #000 68%, transparent)',
+      }}
+    >
+      <div style={{ height: PAD }} />
+      {items.map((it, i) => {
+        const on = it === value
+        return (
+          <button
+            key={i}
+            type="button"
+            onClick={() => selectAt(i)}
+            className={`flex h-10 w-full snap-center items-center justify-center text-lg tabular-nums transition ${
+              on ? 'font-bold text-[#1D1E20]' : 'font-medium text-[#c4c4c4]'
+            }`}
+          >
+            {render(it)}
+          </button>
+        )
+      })}
+      <div style={{ height: PAD }} />
+    </div>
+  )
+}
 
 export default function TimePicker({ value, onChange, disabled }: TimePickerProps) {
   const [open, setOpen]     = useState(false)
@@ -88,6 +154,9 @@ export default function TimePicker({ value, onChange, disabled }: TimePickerProp
         <div className="fixed inset-0 z-[200] flex items-center justify-center p-4" onClick={() => setOpen(false)}>
           <div className="absolute inset-0 bg-black/40" />
           <div className="relative w-full max-w-xs overflow-hidden rounded-2xl bg-white shadow-2xl" onClick={e => e.stopPropagation()}>
+            <style jsx global>{`
+              .tp-wheel::-webkit-scrollbar { display: none; }
+            `}</style>
 
             {/* Header */}
             <div className="flex items-center justify-between border-b border-[#f0f0f0] px-4 py-3">
@@ -97,49 +166,23 @@ export default function TimePicker({ value, onChange, disabled }: TimePickerProp
               </button>
             </div>
 
-            <div className="p-4">
-
-              {/* Horas */}
-              <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-[#bbb]">Hora</p>
-              <div className="mb-4 grid grid-cols-6 gap-1.5">
-                {HOURS.map(hr => (
-                  <button key={hr}
-                    onClick={() => setH(hr)}
-                    className={`rounded-lg py-2 text-center text-sm font-medium transition ${
-                      h === hr ? 'bg-[#48C9B0] text-white' : 'border border-[#e8e8e8] text-[#555] hover:border-[#48C9B0] hover:text-[#1a9e88]'
-                    }`}
-                  >{hr}</button>
-                ))}
+            {/* Ruedas */}
+            <div className="px-4 pb-1 pt-3">
+              <div className="grid grid-cols-3 text-center">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-[#bbb]">Hora</p>
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-[#bbb]">Min</p>
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-[#bbb]">AM/PM</p>
               </div>
 
-              {/* Minutos */}
-              <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-[#bbb]">Minutos</p>
-              <div className="mb-4 grid grid-cols-6 gap-1.5">
-                {MINUTES.map(min => (
-                  <button key={min}
-                    onClick={() => setM(min)}
-                    className={`rounded-lg py-2 text-center text-sm font-medium transition ${
-                      m === min ? 'bg-[#48C9B0] text-white' : 'border border-[#e8e8e8] text-[#555] hover:border-[#48C9B0] hover:text-[#1a9e88]'
-                    }`}
-                  >{String(min).padStart(2, '0')}</button>
-                ))}
+              <div className="relative">
+                {/* Banda central */}
+                <div className="pointer-events-none absolute left-0 right-0 top-1/2 z-10 h-10 -translate-y-1/2 rounded-lg border-y border-[#48C9B0]/40 bg-[#48C9B0]/[0.07]" />
+                <div className="grid grid-cols-3">
+                  <Wheel items={HOURS} value={h} onChange={setH} render={v => String(v)} />
+                  <Wheel items={MINUTES} value={m} onChange={setM} render={v => String(v).padStart(2, '0')} />
+                  <Wheel items={AMPM} value={period} onChange={setPeriod} render={v => v.toUpperCase()} />
+                </div>
               </div>
-
-              {/* AM / PM — siempre los dos visibles */}
-              <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-[#bbb]">AM / PM</p>
-              <div className="grid grid-cols-2 gap-1.5">
-                {(['am', 'pm'] as const).map(p => (
-                  <button key={p}
-                    onClick={() => setPeriod(p)}
-                    className={`rounded-lg py-2.5 text-sm font-semibold uppercase transition ${
-                      period === p
-                        ? 'bg-[#48C9B0] text-white'
-                        : 'border border-[#e0e0e0] text-[#888] hover:border-[#48C9B0] hover:text-[#1a9e88]'
-                    }`}
-                  >{p === 'am' ? 'AM' : 'PM'}</button>
-                ))}
-              </div>
-
             </div>
 
             {/* Footer: preview + guardar */}

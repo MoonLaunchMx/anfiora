@@ -342,6 +342,7 @@ export type Guest = {
   allergies?: string[]
   needs_attention?: boolean
   attention_reason?: AttentionReason | null
+  attention_detail?: string | null
   rsvp_token?: string | null
 }
 

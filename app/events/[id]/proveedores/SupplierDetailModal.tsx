@@ -17,7 +17,7 @@ import {
   PAID_BY_OPTIONS, PAID_BY_LABELS, PaidBy,
 } from '@/lib/types'
 import PhoneInput from '@/app/components/ui/PhoneInput'
-import { toWhatsApp, detectCountry, COUNTRIES } from '@/lib/phone'
+import { toWhatsApp, detectCountry, dialCode } from '@/lib/phone'
 
 type SupplierWithDetails = EventSupplier & { supplier: Supplier }
 
@@ -110,7 +110,7 @@ export default function SupplierDetailModal({
   const derivePhoneCountryCode = (): string | null => {
     if (!phone.trim()) return null
     const cc = detectCountry(phone)
-    return COUNTRIES.find(c => c.iso === cc)?.dial ?? null
+    return cc ? dialCode(cc) || null : null
   }
 
   const buildUpdatedItem = (): SupplierWithDetails => ({

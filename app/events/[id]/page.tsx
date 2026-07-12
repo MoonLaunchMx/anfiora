@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef, useMemo } from 'react'
 import { createPortal } from 'react-dom'
-import { useParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import { motion, AnimatePresence, useMotionValue, useTransform, animate } from 'framer-motion'
 import type { PanInfo } from 'framer-motion'
 import { Trash2, Send, Clock, MessageSquare, AlertCircle, CheckCircle, XCircle, Download, Upload, Columns3, Search, UserPlus, Plus, Check, X, Filter, Loader2, FileSpreadsheet, FileText, AlertTriangle, ChevronDown } from 'lucide-react'
@@ -30,7 +30,7 @@ const STATUS_ORDER: RsvpStatus[] = ['pending', 'mensaje_enviado', 'respondio', '
 
 const ATTENTION_LABEL: Record<string, string> = {
   alergia: 'Alergia o restricción',
-  peticion: 'Petición de acompañantes',
+  peticion: 'Cambio solicitado',
   queja: 'Queja',
   duda: 'Duda',
   otro: 'Requiere atención',
@@ -373,7 +373,7 @@ function MembersEditor({ value, onChange, allergyPool, onCreateAllergy, onDelete
             <div className="mb-2"><span className="text-[11px] font-semibold text-[#aaa]">+{i + 1}</span></div>
             <div className="flex flex-col gap-2">
               <input type="text" value={m.name} onChange={e => update(i, 'name', e.target.value)} placeholder="Nombre (opcional)" style={{ ...inp, fontSize: '13px', padding: '8px 12px' }} />
-              <PhoneInput value={m.phone} onChange={val => update(i, 'phone', val)} placeholder="WhatsApp (opcional)" />
+              <PhoneInput value={m.phone} onChange={val => update(i, 'phone', val)} placeholder="WhatsApp (opcional)" compact />
               <select value={m.rsvp_status} onChange={e => update(i, 'rsvp_status', e.target.value as RsvpStatus)} style={{ ...inp, fontSize: '13px', padding: '8px 12px', cursor: 'pointer' }}>
                 <option value="mensaje_enviado">Mensaje enviado</option>
                 <option value="pending">Pendiente</option>
@@ -411,10 +411,11 @@ type CsvDuplicateResult = {
   newAllergies: string[]
 }
 
-function SwipeableGuestCard({ guest, groupColor, isSelected, guestTags, availableTags, onSelect, onEdit, onDelete, onWaLongPressStart, onWaLongPressEnd, onWaTouchMove, onStatusChange }: {
+function SwipeableGuestCard({ guest, groupColor, isSelected, guestTags, availableTags, onSelect, onEdit, onDelete, onWaLongPressStart, onWaLongPressEnd, onWaTouchMove, onStatusChange, onOpenConversation }: {
   guest: Guest; groupColor: string | null; isSelected: boolean; guestTags: string[]; availableTags: string[]
   onSelect: () => void; onEdit: () => void; onDelete: () => void
   onWaLongPressStart: (g: Guest) => void; onWaLongPressEnd: (g: Guest) => void; onWaTouchMove: () => void; onStatusChange: (s: RsvpStatus) => void
+  onOpenConversation: (guestId: string) => void
 }) {
   const x = useMotionValue(0)
   const bgOpacity = useTransform(x, [-80, -20, 0], [1, 0.5, 0])
@@ -451,14 +452,16 @@ function SwipeableGuestCard({ guest, groupColor, isSelected, guestTags, availabl
             </p>
             <div className="mt-0.5 flex flex-wrap items-center gap-1">
               {guest.needs_attention && (
-                <span
-                  className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium"
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); onOpenConversation(guest.id) }}
+                  className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium transition hover:opacity-80"
                   style={{ background: 'var(--error-bg)', color: 'var(--error-text)', border: '1px solid var(--error-border)' }}
-                  title={ATTENTION_LABEL[guest.attention_reason || 'otro']}
+                  title={`${ATTENTION_LABEL[guest.attention_reason || 'otro']} — abrir conversación`}
                 >
                   <AlertTriangle size={12} />
                   {ATTENTION_LABEL[guest.attention_reason || 'otro']}
-                </span>
+                </button>
               )}
               {guestTags.map(tag => {
                 const tagIdx = availableTags.indexOf(tag)
@@ -466,6 +469,11 @@ function SwipeableGuestCard({ guest, groupColor, isSelected, guestTags, availabl
                 return <span key={tag} className="rounded-full border px-1.5 py-0.5 text-[10px] font-medium" style={{ background: col.bg, borderColor: col.border, color: col.text }}>{tag}</span>
               })}
             </div>
+            {guest.needs_attention && guest.attention_detail && (
+              <p className="mt-0.5 truncate text-[11px] text-[#888]" title={guest.attention_detail}>
+                {guest.attention_detail}
+              </p>
+            )}
           </div>
           <StatusDot value={guest.rsvp_status} onChange={onStatusChange} />
         </div>
@@ -628,14 +636,21 @@ function EditGuestModal({ guest, availableTags, groupPool, allergyPool, onCreate
         </div>
         <div className="overflow-y-auto px-6 py-6 sm:px-8">
         {guest.needs_attention && (
-          <div className="mb-4 flex items-center gap-2 rounded-lg border p-3" style={{ background: 'var(--error-bg)', borderColor: 'var(--error-border)' }}>
-            <AlertTriangle size={14} style={{ color: 'var(--error-text)', flexShrink: 0 }} />
-            <span className="flex-1 text-xs" style={{ color: 'var(--error-text)' }}>
-              {ATTENTION_LABEL[guest.attention_reason || 'otro']}
-            </span>
-            <button onClick={onResolveAttention} className="text-xs font-semibold" style={{ color: '#48C9B0' }}>
-              Marcar atención como resuelta
-            </button>
+          <div className="mb-4 rounded-lg border p-3" style={{ background: 'var(--error-bg)', borderColor: 'var(--error-border)' }}>
+            <div className="flex items-center gap-2">
+              <AlertTriangle size={14} style={{ color: 'var(--error-text)', flexShrink: 0 }} />
+              <span className="flex-1 text-xs font-semibold" style={{ color: 'var(--error-text)' }}>
+                {ATTENTION_LABEL[guest.attention_reason || 'otro']}
+              </span>
+              <button onClick={onResolveAttention} className="text-xs font-semibold" style={{ color: '#48C9B0' }}>
+                Marcar atención como resuelta
+              </button>
+            </div>
+            {guest.attention_detail && (
+              <p className="mt-2 line-clamp-3 text-xs" style={{ color: 'var(--text-sec)' }}>
+                “{guest.attention_detail}”
+              </p>
+            )}
           </div>
         )}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -673,6 +688,8 @@ function EditGuestModal({ guest, availableTags, groupPool, allergyPool, onCreate
 
 export default function EventPage() {
   const { id } = useParams()
+  const router = useRouter()
+  const openConversation = (guestId: string) => router.push(`/events/${id}/mensajes?guest=${guestId}`)
 
   const { visible: statsVisible, toggle: toggleStats } = useStatsToggle(id as string, 'guests')
 
@@ -888,9 +905,9 @@ export default function EventPage() {
   }
 
   const resolveAttention = async (guestId: string) => {
-    setGuests(prev => prev.map(g => g.id === guestId ? { ...g, needs_attention: false, attention_reason: null } : g))
-    setEditGuest(prev => prev ? { ...prev, needs_attention: false, attention_reason: null } : null)
-    await supabase.from('guests').update({ needs_attention: false, attention_reason: null }).eq('id', guestId)
+    setGuests(prev => prev.map(g => g.id === guestId ? { ...g, needs_attention: false, attention_reason: null, attention_detail: null } : g))
+    setEditGuest(prev => prev ? { ...prev, needs_attention: false, attention_reason: null, attention_detail: null } : null)
+    await supabase.from('guests').update({ needs_attention: false, attention_reason: null, attention_detail: null }).eq('id', guestId)
   }
 
   const performDeleteGuest = async (guestId: string, conversationIds: string[], mode: 'unlink' | 'purge') => {
@@ -1628,6 +1645,7 @@ export default function EventPage() {
                       onEdit={() => openEdit(guest)} onDelete={() => deleteGuest(guest.id)}
                       onWaLongPressStart={handleWaLongPressStart} onWaLongPressEnd={handleWaLongPressEnd}
                       onWaTouchMove={handleWaTouchMove} onStatusChange={(s) => updateStatus(guest.id, s)}
+                      onOpenConversation={openConversation}
                     />
                     {groupColor && guest.party_members.map((m, mi) => {
                       const isLast = mi === guest.party_members.length - 1
@@ -1682,14 +1700,21 @@ export default function EventPage() {
                         <span className="text-sm font-semibold text-[#1D1E20]">{guest.name}</span>
                         {hasMembers && <span className="text-xs font-semibold" style={{ color: groupColor || '#aaa' }}>+{guest.party_members.length}</span>}
                         {guest.needs_attention && (
-                          <span
-                            className="ml-2 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium"
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); openConversation(guest.id) }}
+                            className="ml-2 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium transition hover:opacity-80"
                             style={{ background: 'var(--error-bg)', color: 'var(--error-text)', border: '1px solid var(--error-border)' }}
-                            title={ATTENTION_LABEL[guest.attention_reason || 'otro']}
+                            title={`${ATTENTION_LABEL[guest.attention_reason || 'otro']} — abrir conversación`}
                           >
                             <AlertTriangle size={12} />
                             {ATTENTION_LABEL[guest.attention_reason || 'otro']}
-                          </span>
+                          </button>
+                        )}
+                        {guest.needs_attention && guest.attention_detail && (
+                          <p className="w-full min-w-0 truncate text-[11px] text-[#888]" title={guest.attention_detail}>
+                            {guest.attention_detail}
+                          </p>
                         )}
                       </div>
                       {visibleCols.has('tags') && (
