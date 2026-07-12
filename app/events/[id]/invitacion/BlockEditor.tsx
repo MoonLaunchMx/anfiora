@@ -35,6 +35,8 @@ const TYPE_LABELS: Record<SectionType, string> = {
   texto: 'Texto libre',
   cierre: 'Cierre',
   media: 'Imagen o GIF',
+  video: 'Video',
+  audio: 'Audio',
 }
 
 const SINGLETON_TYPES = new Set<SectionType>(['dress_code', 'itinerario', 'playlist', 'mesa'])

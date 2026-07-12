@@ -50,6 +50,16 @@ const MediaContent = z.object({
   url: z.string().default(''),
   caption: z.string().default(''),
 })
+const VideoContent = z.object({
+  url: z.string().default(''),
+  caption: z.string().default(''),
+})
+const AudioContent = z.object({
+  url: z.string().default(''),
+  spotify_url: z.string().default(''),
+  titulo: z.string().default(''),
+  caption: z.string().default(''),
+})
 
 export const CONTENT_BY_TYPE = {
   portada: PortadaContent,
@@ -64,6 +74,8 @@ export const CONTENT_BY_TYPE = {
   texto: TextoContent,
   cierre: CierreContent,
   media: MediaContent,
+  video: VideoContent,
+  audio: AudioContent,
 } as const
 
 export type SectionType = keyof typeof CONTENT_BY_TYPE
@@ -82,6 +94,8 @@ export const SectionSchema = z.discriminatedUnion('type', [
   z.object({ id: z.string(), type: z.literal('texto'),      content: TextoContent }),
   z.object({ id: z.string(), type: z.literal('cierre'),     content: CierreContent }),
   z.object({ id: z.string(), type: z.literal('media'),      content: MediaContent }),
+  z.object({ id: z.string(), type: z.literal('video'),      content: VideoContent }),
+  z.object({ id: z.string(), type: z.literal('audio'),      content: AudioContent }),
 ])
 
 export const MetaSchema = z.object({

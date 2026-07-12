@@ -1,7 +1,78 @@
 'use client'
 
+import { useState } from 'react'
+import { useParams } from 'next/navigation'
+import { Upload, X, CheckCircle2 } from 'lucide-react'
 import type { Section } from '@/lib/invite/schema'
+import { parseVideoUrl } from '@/lib/invite/video'
+import { supabase } from '@/lib/supabase'
 import GifSearch from './GifSearch'
+
+const PROVIDER_LABEL: Record<string, string> = {
+  youtube: 'YouTube',
+  tiktok: 'TikTok',
+  instagram: 'Instagram',
+}
+
+function AudioUploadField({
+  url, onChange,
+}: {
+  url: string
+  onChange: (v: string) => void
+}) {
+  const { id } = useParams()
+  const [uploading, setUploading] = useState(false)
+  const [error, setError] = useState('')
+
+  const upload = async (file: File) => {
+    setError('')
+    if (file.size > 15 * 1024 * 1024) {
+      setError('El clip no debe pesar más de 15 MB.')
+      return
+    }
+    setUploading(true)
+    const safe = file.name.replace(/[^a-zA-Z0-9.-]/g, '_')
+    const path = `audio/${id}/${Date.now()}-${Math.random().toString(36).slice(2, 7)}-${safe}`
+    const { error: upErr } = await supabase.storage.from('event-media').upload(path, file, { upsert: false })
+    if (upErr) {
+      setError('No se pudo subir el audio. Intenta de nuevo.')
+    } else {
+      onChange(supabase.storage.from('event-media').getPublicUrl(path).data.publicUrl)
+    }
+    setUploading(false)
+  }
+
+  return (
+    <div>
+      <label className="mb-1 block text-xs font-medium text-[#555]">Clip de audio (voz, coro, 20-40 seg)</label>
+      {url ? (
+        <div className="flex flex-col gap-2 rounded-lg border border-[#e0e0e0] bg-white p-2.5">
+          <audio src={url} controls preload="none" className="w-full" />
+          <button
+            type="button"
+            onClick={() => onChange('')}
+            className="flex items-center gap-1 self-start text-xs text-[#cc3333] transition hover:underline"
+          >
+            <X size={12} /> Quitar clip
+          </button>
+        </div>
+      ) : (
+        <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-[#ccc] bg-white px-3 py-3 text-xs font-medium text-[#888] transition hover:border-[#48C9B0] hover:text-[#48C9B0]">
+          <Upload size={14} />
+          {uploading ? 'Subiendo...' : 'Subir clip de audio'}
+          <input
+            type="file"
+            accept="audio/*"
+            disabled={uploading}
+            onChange={e => { const f = e.target.files?.[0]; if (f) upload(f); e.target.value = '' }}
+            className="hidden"
+          />
+        </label>
+      )}
+      {error && <p className="mt-1 text-[11px] text-[#cc3333]">{error}</p>}
+    </div>
+  )
+}
 
 function TextField({
   label, value, onChange, placeholder,
@@ -174,6 +245,35 @@ export default function SectionForm({
           <TextField label="URL de la imagen o GIF" value={section.content.url} onChange={v => onPatch({ url: v })} placeholder="https://media.giphy.com/....gif" />
           <TextField label="Texto opcional (pie)" value={section.content.caption} onChange={v => onPatch({ caption: v })} placeholder="Un pie de foto" />
           <p className="text-xs text-[#999]">Busca arriba o pega el link de un GIF/imagen.</p>
+        </div>
+      )
+    case 'video': {
+      const parsed = parseVideoUrl(section.content.url)
+      const hasUrl = section.content.url.trim().length > 0
+      return (
+        <div className="flex flex-col gap-3">
+          <TextField label="Enlace del video" value={section.content.url} onChange={v => onPatch({ url: v })} placeholder="Pega un link de YouTube, TikTok o Instagram" />
+          {hasUrl && parsed && (
+            <p className="flex items-center gap-1.5 text-[11px] font-medium text-[#2a7a50]">
+              <CheckCircle2 size={13} /> Video de {PROVIDER_LABEL[parsed.provider]} detectado
+            </p>
+          )}
+          {hasUrl && !parsed && (
+            <p className="text-[11px] text-[#b8912f]">No reconocimos el enlace. Usa un link de YouTube, TikTok o Instagram.</p>
+          )}
+          <TextField label="Texto opcional (pie)" value={section.content.caption} onChange={v => onPatch({ caption: v })} placeholder="Un pie de video" />
+          <p className="text-xs text-[#999]">El video se reproduce cuando el invitado lo toca (sin audio automático).</p>
+        </div>
+      )
+    }
+    case 'audio':
+      return (
+        <div className="flex flex-col gap-3">
+          <AudioUploadField url={section.content.url} onChange={v => onPatch({ url: v })} />
+          <TextField label="Título" value={section.content.titulo} onChange={v => onPatch({ titulo: v })} placeholder="Un mensaje para ti" />
+          <TextField label="Texto opcional" value={section.content.caption} onChange={v => onPatch({ caption: v })} placeholder="Escúchalo antes de la fiesta" />
+          <TextField label="Enlace de Spotify (opcional)" value={section.content.spotify_url} onChange={v => onPatch({ spotify_url: v })} placeholder="https://open.spotify.com/..." />
+          <p className="text-xs text-[#999]">Sube un clip propio; se reproduce con un toque (sin audio automático).</p>
         </div>
       )
     default:
