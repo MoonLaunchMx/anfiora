@@ -56,7 +56,7 @@ const VideoContent = z.object({
 })
 const AudioContent = z.object({
   url: z.string().default(''),
-  spotify_url: z.string().default(''),
+  drive_url: z.string().default(''),
   titulo: z.string().default(''),
   caption: z.string().default(''),
 })

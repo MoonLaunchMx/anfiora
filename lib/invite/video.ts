@@ -1,4 +1,6 @@
-export type VideoProvider = 'youtube' | 'tiktok' | 'instagram'
+import { parseDriveUrl } from './drive'
+
+export type VideoProvider = 'youtube' | 'tiktok' | 'instagram' | 'drive'
 
 export type ParsedVideo = {
   provider: VideoProvider
@@ -84,5 +86,18 @@ export function parseVideoUrl(raw: string): ParsedVideo | null {
   } catch {
     return null
   }
-  return parseYouTube(url) ?? parseTikTok(url) ?? parseInstagram(url)
+  const social = parseYouTube(url) ?? parseTikTok(url) ?? parseInstagram(url)
+  if (social) return social
+
+  const drive = parseDriveUrl(value)
+  if (drive) {
+    return {
+      provider: 'drive',
+      id: drive.id,
+      embedUrl: drive.embedUrl,
+      aspect: 'landscape',
+      poster: null,
+    }
+  }
+  return null
 }

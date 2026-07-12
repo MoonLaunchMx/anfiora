@@ -76,6 +76,23 @@ describe('parseVideoUrl - Instagram', () => {
   })
 })
 
+describe('parseVideoUrl - Google Drive', () => {
+  it('parses a Drive file view URL as a landscape video', () => {
+    const v = parseVideoUrl('https://drive.google.com/file/d/1A2b3C4d5E6f7G8h/view?usp=sharing')
+    expect(v?.provider).toBe('drive')
+    expect(v?.id).toBe('1A2b3C4d5E6f7G8h')
+    expect(v?.embedUrl).toBe('https://drive.google.com/file/d/1A2b3C4d5E6f7G8h/preview')
+    expect(v?.aspect).toBe('landscape')
+    expect(v?.poster).toBeNull()
+  })
+
+  it('parses a Drive open?id URL', () => {
+    const v = parseVideoUrl('https://drive.google.com/open?id=1A2b3C4d5E6f7G8h')
+    expect(v?.provider).toBe('drive')
+    expect(v?.id).toBe('1A2b3C4d5E6f7G8h')
+  })
+})
+
 describe('parseVideoUrl - invalid', () => {
   it('returns null for empty', () => {
     expect(parseVideoUrl('')).toBeNull()
