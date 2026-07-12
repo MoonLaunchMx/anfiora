@@ -41,7 +41,7 @@ const TYPE_LABELS: Record<SectionType, string> = {
   audio: 'Audio',
 }
 
-const SINGLETON_TYPES = new Set<SectionType>(['dress_code', 'itinerario', 'playlist', 'mesa'])
+const SINGLETON_TYPES = new Set<SectionType>(['dress_code', 'itinerario', 'playlist', 'mesa', 'rsvp'])
 // 'enganche' se separo en playlist + mesa; se conserva para no romper docs viejos pero no se ofrece agregarlo.
 const HIDDEN_TYPES = new Set<SectionType>(['enganche'])
 
