@@ -1,7 +1,8 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
-import { GripVertical, ChevronDown, Trash2, Plus } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { AnimatePresence, motion } from 'framer-motion'
+import { GripVertical, ChevronDown, Trash2, Plus, X } from 'lucide-react'
 import {
   DndContext,
   closestCenter,
@@ -108,7 +109,6 @@ export default function BlockEditor({
 }) {
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
-  const menuRef = useRef<HTMLDivElement>(null)
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -116,12 +116,15 @@ export default function BlockEditor({
   )
 
   useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false)
+    if (!menuOpen) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setMenuOpen(false) }
+    document.addEventListener('keydown', onKey)
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      document.body.style.overflow = ''
     }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [])
+  }, [menuOpen])
 
   const handleDragStart = () => { document.body.style.cursor = 'grabbing' }
 
@@ -162,33 +165,64 @@ export default function BlockEditor({
         </DndContext>
       )}
 
-      <div ref={menuRef} className="relative self-start">
-        <button
-          type="button"
-          onClick={() => setMenuOpen(v => !v)}
-          className="flex items-center gap-1.5 rounded-lg border border-dashed border-[#ccc] px-3.5 py-2 text-xs font-medium text-[#888] transition hover:border-[#48C9B0] hover:text-[#48C9B0]"
-        >
-          <Plus size={14} /> Agregar sección
-        </button>
+      <button
+        type="button"
+        onClick={() => setMenuOpen(true)}
+        className="flex items-center gap-1.5 self-start rounded-lg border border-dashed border-[#ccc] px-3.5 py-2 text-xs font-medium text-[#888] transition hover:border-[#48C9B0] hover:text-[#48C9B0]"
+      >
+        <Plus size={14} /> Agregar sección
+      </button>
+
+      <AnimatePresence>
         {menuOpen && (
-          <div className="absolute left-0 top-full z-20 mt-1 w-56 overflow-hidden rounded-xl border border-[#e8e8e8] bg-white py-1 shadow-lg">
-            {availableTypes.length === 0 ? (
-              <p className="px-3.5 py-2 text-xs text-[#bbb]">No hay más secciones para agregar.</p>
-            ) : (
-              availableTypes.map(type => (
+          <motion.div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+          >
+            <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setMenuOpen(false)} />
+            <motion.div
+              className="relative z-10 w-full max-w-sm overflow-hidden rounded-2xl bg-white shadow-xl"
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              transition={{ duration: 0.15 }}
+            >
+              <div className="flex items-center justify-between border-b border-[#f0f0f0] px-4 py-3">
+                <h3 className="text-sm font-semibold text-[#1D1E20]">Agregar sección</h3>
                 <button
-                  key={type}
                   type="button"
-                  onClick={() => { onChange(addSection(doc, type, makeId)); setMenuOpen(false) }}
-                  className="block w-full px-3.5 py-2 text-left text-xs text-[#1D1E20] transition hover:bg-[#f0fdfb]"
+                  onClick={() => setMenuOpen(false)}
+                  aria-label="Cerrar"
+                  className="flex h-7 w-7 items-center justify-center rounded-lg text-[#bbb] transition hover:bg-[#f5f5f5] hover:text-[#666]"
                 >
-                  {TYPE_LABELS[type]}
+                  <X size={16} />
                 </button>
-              ))
-            )}
-          </div>
+              </div>
+              <div className="max-h-[70vh] overflow-y-auto p-4">
+                {availableTypes.length === 0 ? (
+                  <p className="py-6 text-center text-xs text-[#bbb]">No hay más secciones para agregar.</p>
+                ) : (
+                  <div className="grid grid-cols-2 gap-2">
+                    {availableTypes.map(type => (
+                      <button
+                        key={type}
+                        type="button"
+                        onClick={() => { onChange(addSection(doc, type, makeId)); setMenuOpen(false) }}
+                        className="rounded-xl border border-[#e8e8e8] px-3 py-3 text-left text-xs font-medium text-[#1D1E20] transition hover:border-[#48C9B0] hover:bg-[#f0fdfb]"
+                      >
+                        {TYPE_LABELS[type]}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
         )}
-      </div>
+      </AnimatePresence>
     </div>
   )
 }
