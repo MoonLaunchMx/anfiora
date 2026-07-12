@@ -33,6 +33,7 @@ export const ThemeColorsSchema = z.object({
   fondo: z.string().default('#ffffff'),
   texto: z.string().default('#1D1E20'),
   titulo: z.string().optional(),
+  tarjeta: z.string().optional(),
   acento: z.string().default('#48C9B0'),
   botonBg: z.string().default('#48C9B0'),
   botonTexto: z.string().default('#ffffff'),
