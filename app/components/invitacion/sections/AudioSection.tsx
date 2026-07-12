@@ -26,7 +26,7 @@ export default function AudioSection({ content }: { content: Content; ctx: Invit
   }
 
   return (
-    <figure className="mx-auto flex w-full max-w-md flex-col gap-3 px-6">
+    <figure className="mx-auto flex w-full max-w-md flex-col gap-3 px-6 py-4">
       {hasClip && (
         <div
           className="flex items-center gap-3 rounded-2xl border px-4 py-3 shadow-sm"
@@ -45,7 +45,7 @@ export default function AudioSection({ content }: { content: Content; ctx: Invit
             <p className="truncate text-sm font-semibold">{content.titulo.trim() || 'Un mensaje para ti'}</p>
             {content.caption.trim() && <p className="truncate text-xs opacity-70">{content.caption}</p>}
           </div>
-          <audio ref={audioRef} src={content.url} preload="none" onEnded={() => setPlaying(false)} onPause={() => setPlaying(false)} onPlay={() => setPlaying(true)} />
+          <audio key={content.url} ref={audioRef} src={content.url} preload="none" onEnded={() => setPlaying(false)} onPause={() => setPlaying(false)} onPlay={() => setPlaying(true)} />
         </div>
       )}
 

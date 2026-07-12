@@ -49,7 +49,7 @@ function AudioUploadField({
       <label className="mb-1 block text-xs font-medium text-[#555]">Clip de audio (voz, coro, 20-40 seg)</label>
       {url ? (
         <div className="flex flex-col gap-2 rounded-lg border border-[#e0e0e0] bg-white p-2.5">
-          <audio src={url} controls preload="none" className="w-full" />
+          <audio key={url} src={url} controls preload="none" className="w-full" />
           <button
             type="button"
             onClick={() => onChange('')}
