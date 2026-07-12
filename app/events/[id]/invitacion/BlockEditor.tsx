@@ -21,6 +21,7 @@ import { CSS } from '@dnd-kit/utilities'
 import type { InviteDoc, Section, SectionType } from '@/lib/invite/schema'
 import { SECTION_TYPES } from '@/lib/invite/schema'
 import { addSection, removeSection, moveSection, updateSectionContent } from '@/lib/invite/doc'
+import { groupSectionTypes } from '@/lib/invite/section-catalog'
 import SectionForm from './SectionForm'
 
 const TYPE_LABELS: Record<SectionType, string> = {
@@ -198,16 +199,23 @@ export default function BlockEditor({
                 {availableTypes.length === 0 ? (
                   <p className="py-6 text-center text-xs text-[#bbb]">No hay más secciones para agregar.</p>
                 ) : (
-                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3">
-                    {availableTypes.map(type => (
-                      <button
-                        key={type}
-                        type="button"
-                        onClick={() => { onChange(addSection(doc, type, makeId)); onAddOpenChange(false) }}
-                        className="rounded-xl border border-[#e8e8e8] px-3 py-3 text-left text-xs font-medium text-[#1D1E20] transition hover:border-[#48C9B0] hover:bg-[#f0fdfb] sm:py-4 sm:text-sm"
-                      >
-                        {TYPE_LABELS[type]}
-                      </button>
+                  <div className="flex flex-col gap-4 sm:gap-5">
+                    {groupSectionTypes(availableTypes).map(group => (
+                      <div key={group.key}>
+                        <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-[#999]">{group.label}</p>
+                        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3">
+                          {group.types.map(type => (
+                            <button
+                              key={type}
+                              type="button"
+                              onClick={() => { onChange(addSection(doc, type, makeId)); onAddOpenChange(false) }}
+                              className="rounded-xl border border-[#e8e8e8] px-3 py-3 text-left text-xs font-medium text-[#1D1E20] transition hover:border-[#48C9B0] hover:bg-[#f0fdfb] sm:py-4 sm:text-sm"
+                            >
+                              {TYPE_LABELS[type]}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
                     ))}
                   </div>
                 )}
