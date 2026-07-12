@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import { emptySection, defaultDoc, resolveDoc, addSection, removeSection, moveSection, updateSectionContent, setMeta } from './doc'
+import { emptySection, defaultDoc, resolveDoc, addSection, removeSection, moveSection, updateSectionContent, setMeta, setTheme, applyVibe } from './doc'
 import { SECTION_TYPES } from './schema'
+import { getVibe } from './vibes'
 
 let n = 0
 const makeId = () => `id-${++n}`
@@ -20,20 +21,35 @@ describe('emptySection', () => {
 })
 
 describe('defaultDoc', () => {
-  it('trae los 8 bloques por defecto en orden', () => {
+  it('trae los 9 bloques por defecto en orden', () => {
     const d = defaultDoc(makeId)
-    expect(d.v).toBe(1)
+    expect(d.v).toBe(2)
     expect(d.meta).toEqual({ publicada: false, fecha_limite: null })
     expect(d.sections.map(s => s.type)).toEqual(
-      ['portada', 'saludo', 'detalles', 'itinerario', 'dress_code', 'rsvp', 'enganche', 'cierre'],
+      ['portada', 'saludo', 'detalles', 'itinerario', 'dress_code', 'rsvp', 'playlist', 'mesa', 'cierre'],
     )
   })
 })
 
 describe('resolveDoc', () => {
   it('null/basura -> doc por defecto', () => {
-    expect(resolveDoc(null, makeId).sections.length).toBe(8)
-    expect(resolveDoc('x', makeId).sections.length).toBe(8)
+    expect(resolveDoc(null, makeId).sections.length).toBe(9)
+    expect(resolveDoc('x', makeId).sections.length).toBe(9)
+  })
+  it('migra bloque enganche viejo a playlist + mesa segun toggles', () => {
+    const raw = {
+      sections: [
+        { id: 'a', type: 'portada', content: {} },
+        { id: 'b', type: 'enganche', content: { mostrar_playlist: true, mostrar_mesa: true } },
+        { id: 'c', type: 'cierre', content: {} },
+      ],
+    }
+    expect(resolveDoc(raw, makeId).sections.map(s => s.type)).toEqual(['portada', 'playlist', 'mesa', 'cierre'])
+
+    const soloPlaylist = {
+      sections: [{ id: 'b', type: 'enganche', content: { mostrar_playlist: true, mostrar_mesa: false } }],
+    }
+    expect(resolveDoc(soloPlaylist, makeId).sections.map(s => s.type)).toEqual(['playlist'])
   })
   it('descarta secciones invalidas en silencio', () => {
     const raw = {
@@ -72,6 +88,36 @@ describe('resolveDoc', () => {
 
 const base = () => defaultDoc(makeId)
 
+describe('resolveDoc theme migration', () => {
+  let n = 0
+  const makeId = () => `id-${n++}`
+
+  it('defaultDoc includes the default theme and v2', () => {
+    const d = defaultDoc(makeId)
+    expect(d.v).toBe(2)
+    expect(d.theme.vibeId).toBe('clasico')
+  })
+
+  it('a v1 doc without theme resolves to the default theme, keeping sections', () => {
+    const v1 = { v: 1, meta: { publicada: true, fecha_limite: null }, sections: [
+      { id: 'a', type: 'portada', content: { kicker: '', titulo: 'Ana', subtitulo: '' } },
+    ] }
+    const d = resolveDoc(v1, makeId)
+    expect(d.theme.vibeId).toBe('clasico')
+    expect(d.sections.find(s => s.type === 'portada')).toBeTruthy()
+    expect(d.meta.publicada).toBe(true)
+  })
+
+  it('preserves a valid custom theme', () => {
+    const doc = { v: 2, meta: { publicada: false, fecha_limite: null }, theme: { vibeId: 'fiesta', colores: { fondo: '#000000', texto: '#fff', acento: '#ffe600', botonBg: '#ffe600', botonTexto: '#000' }, boton: { forma: 'pill', estilo: 'elevado' } }, sections: [
+      { id: 'a', type: 'portada', content: { kicker: '', titulo: 'X', subtitulo: '' } },
+    ] }
+    const d = resolveDoc(doc, makeId)
+    expect(d.theme.vibeId).toBe('fiesta')
+    expect(d.theme.colores.fondo).toBe('#000000')
+  })
+})
+
 describe('ops de array', () => {
   it('addSection agrega al final sin mutar', () => {
     const d0 = base()
@@ -107,5 +153,41 @@ describe('ops de array', () => {
     const d1 = setMeta(base(), { publicada: true })
     expect(d1.meta.publicada).toBe(true)
     expect(d1.meta.fecha_limite).toBeNull()
+  })
+})
+
+describe('theme editing helpers', () => {
+  let n = 0
+  const makeId = () => `id-${n++}`
+
+  it('applyVibe replaces the theme with the vibe theme, keeping sections and meta', () => {
+    const base = defaultDoc(makeId)
+    const next = applyVibe(base, 'fiesta')
+    expect(next.theme.vibeId).toBe('fiesta')
+    expect(next.theme.colores.fondo).toBe(getVibe('fiesta').theme.colores.fondo)
+    expect(next.sections).toBe(base.sections) // sections untouched (same ref)
+    expect(next.meta).toEqual(base.meta)
+  })
+
+  it('applyVibe with an unknown id falls back to the clasico theme', () => {
+    const base = defaultDoc(makeId)
+    const next = applyVibe(base, 'no-existe')
+    expect(next.theme.vibeId).toBe('clasico')
+  })
+
+  it('setTheme merges a color override without dropping other tokens', () => {
+    const base = applyVibe(defaultDoc(makeId), 'fiesta')
+    const next = setTheme(base, { colores: { acento: '#123456' } })
+    expect(next.theme.colores.acento).toBe('#123456')
+    expect(next.theme.colores.fondo).toBe(base.theme.colores.fondo) // otros colores intactos
+    expect(next.theme.fonts.titulo).toBe(base.theme.fonts.titulo)   // otras secciones intactas
+    expect(next.theme.vibeId).toBe('fiesta')
+  })
+
+  it('setTheme merges a boton override', () => {
+    const base = applyVibe(defaultDoc(makeId), 'clasico')
+    const next = setTheme(base, { boton: { forma: 'recto' } })
+    expect(next.theme.boton.forma).toBe('recto')
+    expect(next.theme.boton.estilo).toBe(base.theme.boton.estilo)
   })
 })

@@ -1,12 +1,13 @@
 'use client'
 
 import { useEffect, useState, useRef, useCallback } from 'react'
-import { useParams } from 'next/navigation'
+import { useParams, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import {
   MessageCircle, Clock, Send, Sparkles, Info,
   AlertCircle, CheckCircle, XCircle,
   Megaphone, X, ChevronLeft, ChevronRight, UserRound,
+  ListChecks, BellRing,
 } from 'lucide-react'
 import { FaWhatsapp, FaTelegram } from 'react-icons/fa'
 import type { InboxConversation, InboxMessage } from '@/lib/omnichannel/inbox-view'
@@ -133,6 +134,10 @@ const DEMOS = [
 ]
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+// Candado cosmetico: Mensajes esta en preview. Solo el admin ve el inbox real;
+// el resto ve la pantalla "Proximamente". No es una barrera de seguridad.
+const ADMIN_EMAIL = 'diego.garza@moonlaunch.mx'
 
 function ModalProximamente({ onClose }: { onClose: () => void }) {
   const [slide, setSlide]       = useState(0)
@@ -737,8 +742,10 @@ function EmptyChat() {
 
 // ─── COMPONENTE PRINCIPAL ─────────────────────────────────────────────────────
 
-export default function MensajesPage() {
+function MensajesInbox() {
   const { id: eventId } = useParams<{ id: string }>()
+  const searchParams = useSearchParams()
+  const guestParam = searchParams.get('guest')
 
   const [conversaciones, setConversaciones] = useState<InboxConversation[]>([])
   const [seleccionadaId, setSeleccionadaId] = useState<string | null>(null)
@@ -780,6 +787,13 @@ export default function MensajesPage() {
     const t = setInterval(() => fetchInbox(seleccionadaId ?? undefined), 4000)
     return () => clearInterval(t)
   }, [fetchInbox, seleccionadaId])
+
+  // Deep-link desde la lista de invitados: ?guest=<id> abre su conversacion
+  useEffect(() => {
+    if (!guestParam || seleccionadaId) return
+    const match = conversaciones.find(c => c.guestId === guestParam)
+    if (match) setSeleccionadaId(match.id)
+  }, [guestParam, conversaciones, seleccionadaId])
 
   useEffect(() => {
     if (seleccionadaId) {
@@ -950,4 +964,116 @@ export default function MensajesPage() {
 
     </div>
   )
+}
+
+function ProximamenteMensajes() {
+  const [correo, setCorreo]         = useState('')
+  const [enviado, setEnviado]       = useState(false)
+  const [sending, setSending]       = useState(false)
+  const [errorEmail, setErrorEmail] = useState('')
+
+  async function notificar() {
+    if (!correo.trim()) return
+    if (!EMAIL_REGEX.test(correo.trim())) {
+      setErrorEmail('Ingresa un correo válido, por ejemplo: nombre@dominio.com')
+      return
+    }
+    setErrorEmail('')
+    setSending(true)
+    try {
+      await supabase.from('waitlist_whatsapp').insert({ email: correo.trim() })
+    } catch (err) {
+      console.error('[waitlist]', err)
+    }
+    setEnviado(true)
+    setSending(false)
+  }
+
+  const features = [
+    { icon: <MessageCircle size={18} />, title: 'Inbox unificado', desc: 'WhatsApp y Telegram en un mismo lugar.' },
+    { icon: <Sparkles size={18} />,      title: 'Agente con IA',    desc: 'Confirma asistencia y acompañantes solo, con respuestas naturales y honestas.' },
+    { icon: <ListChecks size={18} />,    title: 'Captura automática', desc: 'Alergias y peticiones quedan registradas sin que muevas un dedo.' },
+    { icon: <BellRing size={18} />,      title: 'Solo lo importante', desc: 'Cuando un invitado pide un cambio, aparece en tu lista para que tú decidas.' },
+  ]
+
+  return (
+    <div className="flex min-h-[75vh] items-center justify-center px-4 py-10">
+      <div className="w-full max-w-2xl text-center">
+        <span className="inline-flex items-center gap-1.5 rounded-full border border-[#c8ede7] bg-[#f0fdfb] px-3 py-1 text-xs font-semibold text-[#1a9e88]">
+          <Sparkles size={13} />
+          Próximamente
+        </span>
+        <h1 className="mt-5 text-2xl font-bold text-[#1D1E20] sm:text-3xl">
+          Un asistente que le responde a tus invitados por ti
+        </h1>
+        <p className="mx-auto mt-3 max-w-xl text-sm leading-relaxed text-[#666] sm:text-base">
+          Estamos por lanzar un inbox con inteligencia artificial que atiende a tus invitados por WhatsApp y Telegram — confirma asistencia, toma nota de alergias y te avisa solo cuando algo necesita tu decisión.
+        </p>
+
+        <div className="mt-8 grid gap-3 text-left sm:grid-cols-2">
+          {features.map((f) => (
+            <div key={f.title} className="flex items-start gap-3 rounded-xl border border-[#eee] bg-white p-4">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#f0fdfb] text-[#1a9e88]">
+                {f.icon}
+              </span>
+              <div>
+                <p className="text-sm font-semibold text-[#1D1E20]">{f.title}</p>
+                <p className="mt-0.5 text-xs leading-relaxed text-[#666]">{f.desc}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="mx-auto mt-8 max-w-md">
+          {enviado ? (
+            <div className="flex items-center justify-center gap-2 rounded-xl border border-[#a0e0c0] bg-[#f0fff6] px-4 py-3 text-sm font-medium text-[#2a7a50]">
+              <CheckCircle size={16} />
+              Listo, te avisamos en cuanto abramos Mensajes.
+            </div>
+          ) : (
+            <>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <input
+                  type="email"
+                  value={correo}
+                  onChange={(e) => setCorreo(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') notificar() }}
+                  placeholder="tu@correo.com"
+                  className="flex-1 rounded-lg border border-[#e0e0e0] px-3 py-2.5 text-sm outline-none focus:border-[#48C9B0]"
+                />
+                <button
+                  onClick={notificar}
+                  disabled={sending}
+                  className="rounded-lg px-4 py-2.5 text-sm font-semibold text-white transition disabled:opacity-60"
+                  style={{ background: '#48C9B0' }}
+                >
+                  {sending ? 'Enviando…' : 'Avísame cuando esté listo'}
+                </button>
+              </div>
+              {errorEmail && <p className="mt-1.5 text-left text-xs text-[#cc3333]">{errorEmail}</p>}
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export default function MensajesPage() {
+  const [access, setAccess] = useState<'checking' | 'allowed' | 'denied'>('checking')
+
+  useEffect(() => {
+    let active = true
+    supabase.auth.getSession().then(({ data }) => {
+      if (!active) return
+      setAccess(data.session?.user?.email === ADMIN_EMAIL ? 'allowed' : 'denied')
+    })
+    return () => { active = false }
+  }, [])
+
+  if (access === 'checking') {
+    return <div className="flex min-h-[75vh] items-center justify-center text-sm text-[#999]">Cargando…</div>
+  }
+  if (access === 'denied') return <ProximamenteMensajes />
+  return <MensajesInbox />
 }

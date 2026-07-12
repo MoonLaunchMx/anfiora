@@ -1,9 +1,26 @@
 import { CONTENT_BY_TYPE, SectionSchema, MetaSchema } from './schema'
 import type { InviteDoc, InviteMeta, Section, SectionType } from './schema'
+import { ThemeSchema, DEFAULT_THEME, type Theme } from './theme'
+import { getVibe } from './vibes'
 
 const DEFAULT_ORDER: SectionType[] = [
-  'portada', 'saludo', 'detalles', 'itinerario', 'dress_code', 'rsvp', 'enganche', 'cierre',
+  'portada', 'saludo', 'detalles', 'itinerario', 'dress_code', 'rsvp', 'playlist', 'mesa', 'cierre',
 ]
+
+// El bloque 'enganche' (playlist + mesa juntos) se separo en dos bloques.
+// Los docs viejos se expanden a 'playlist' y 'mesa' segun sus toggles, en su lugar.
+function migrateEngancheSections(sections: Section[], makeId: () => string): Section[] {
+  const out: Section[] = []
+  for (const s of sections) {
+    if (s.type === 'enganche') {
+      if (s.content.mostrar_playlist) out.push(emptySection('playlist', makeId()))
+      if (s.content.mostrar_mesa) out.push(emptySection('mesa', makeId()))
+    } else {
+      out.push(s)
+    }
+  }
+  return out
+}
 
 export function emptySection(type: SectionType, id: string): Section {
   return { id, type, content: CONTENT_BY_TYPE[type].parse({}) } as Section
@@ -11,8 +28,9 @@ export function emptySection(type: SectionType, id: string): Section {
 
 export function defaultDoc(makeId: () => string): InviteDoc {
   return {
-    v: 1,
+    v: 2,
     meta: MetaSchema.parse({}),
+    theme: DEFAULT_THEME,
     sections: DEFAULT_ORDER.map(t => emptySection(t, makeId())),
   }
 }
@@ -22,18 +40,21 @@ export function resolveDoc(raw: unknown, makeId: () => string): InviteDoc {
   const r = raw as Record<string, unknown>
   const rawSections = Array.isArray(r.sections) ? r.sections : []
   const seen = new Set<string>()
-  const sections: Section[] = []
+  const parsedSections: Section[] = []
   for (const s of rawSections) {
     const parsed = SectionSchema.safeParse(s)
     if (!parsed.success) continue
     if (seen.has(parsed.data.id)) continue
     seen.add(parsed.data.id)
-    sections.push(parsed.data)
+    parsedSections.push(parsed.data)
   }
-  if (sections.length === 0) return defaultDoc(makeId)
+  if (parsedSections.length === 0) return defaultDoc(makeId)
+  const sections = migrateEngancheSections(parsedSections, makeId)
   const metaParsed = MetaSchema.safeParse(r.meta)
   const meta: InviteMeta = metaParsed.success ? metaParsed.data : MetaSchema.parse({})
-  return { v: 1, meta, sections }
+  const themeParsed = ThemeSchema.safeParse(r.theme)
+  const theme = themeParsed.success ? themeParsed.data : DEFAULT_THEME
+  return { v: 2, meta, theme, sections }
 }
 
 export function addSection(doc: InviteDoc, type: SectionType, makeId: () => string): InviteDoc {
@@ -65,4 +86,26 @@ export function updateSectionContent(doc: InviteDoc, id: string, patch: Record<s
 
 export function setMeta(doc: InviteDoc, patch: Partial<InviteMeta>): InviteDoc {
   return { ...doc, meta: { ...doc.meta, ...patch } }
+}
+
+type DeepPartial<T> = { [K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K] }
+
+export function applyVibe(doc: InviteDoc, vibeId: string): InviteDoc {
+  const theme = ThemeSchema.parse(getVibe(vibeId).theme)
+  return { ...doc, theme }
+}
+
+export function setTheme(doc: InviteDoc, patch: DeepPartial<Theme>): InviteDoc {
+  const t = doc.theme
+  const merged = {
+    ...t,
+    ...patch,
+    colores: { ...t.colores, ...(patch.colores ?? {}) },
+    fonts: { ...t.fonts, ...(patch.fonts ?? {}) },
+    boton: { ...t.boton, ...(patch.boton ?? {}) },
+    fondo: { ...t.fondo, ...(patch.fondo ?? {}) },
+    anim: { ...t.anim, ...(patch.anim ?? {}) },
+    copy: { ...t.copy, ...(patch.copy ?? {}) },
+  }
+  return { ...doc, theme: ThemeSchema.parse(merged) }
 }

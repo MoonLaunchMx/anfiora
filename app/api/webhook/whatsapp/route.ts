@@ -117,7 +117,7 @@ export async function POST(request: NextRequest) {
       const res = resolveRsvpAndAttention(interpretation.intent, text)
       const updates: Record<string, unknown> = {}
       if (res.rsvp && guest.rsvp_status !== res.rsvp) updates.rsvp_status = res.rsvp
-      if (res.needsAttention) { updates.needs_attention = true; updates.attention_reason = res.attentionReason }
+      if (res.needsAttention) { updates.needs_attention = true; updates.attention_reason = res.attentionReason; updates.attention_detail = text.trim().slice(0, 500) }
       if (Object.keys(updates).length > 0) {
         const { error: updErr } = await supabase.from('guests').update(updates).eq('id', guest.id)
         if (updErr) console.error(`[RSVP] update fallo ${guestName}:`, JSON.stringify(updErr))

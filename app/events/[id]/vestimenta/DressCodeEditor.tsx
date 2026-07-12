@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useParams } from 'next/navigation'
 import { X, Plus, ImagePlus } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import ColorPicker from '@/app/components/ui/ColorPicker'
 import { NIVELES, getRecomendacionesSugeridas, type DressCode, type DressCodeColor } from '@/lib/dresscode'
 
 type FotoField = 'fotos_ellas' | 'fotos_ellos'
@@ -20,6 +21,7 @@ function Section({ label, children }: { label: string; children: React.ReactNode
 function ColorRow({
   colors, onChange, avoid,
 }: { colors: DressCodeColor[]; onChange: (next: DressCodeColor[]) => void; avoid?: boolean }) {
+  const [openIdx, setOpenIdx] = useState<number | null>(null)
   const add = () => onChange([...colors, { hex: '#d4a853', nombre: '' }])
   const remove = (i: number) => onChange(colors.filter((_, idx) => idx !== i))
   const update = (i: number, patch: Partial<DressCodeColor>) =>
@@ -29,17 +31,12 @@ function ColorRow({
     <div className="flex flex-wrap items-start gap-3">
       {colors.map((c, i) => (
         <div key={i} className="relative">
-          <label
+          <button
+            type="button"
+            onClick={() => setOpenIdx(i)}
             className={`block h-11 w-11 cursor-pointer rounded-lg border ${avoid ? 'border-[#ffc0c0]' : 'border-black/10'}`}
             style={{ background: c.hex }}
-          >
-            <input
-              type="color"
-              value={/^#[0-9a-fA-F]{6}$/.test(c.hex) ? c.hex : '#d4a853'}
-              onChange={e => update(i, { hex: e.target.value })}
-              className="h-full w-full cursor-pointer opacity-0"
-            />
-          </label>
+          />
           <input
             value={c.nombre}
             onChange={e => update(i, { nombre: e.target.value })}
@@ -52,6 +49,13 @@ function ColorRow({
           >
             <X size={10} />
           </button>
+          {openIdx === i && (
+            <ColorPicker
+              value={c.hex}
+              onChange={hex => update(i, { hex })}
+              onClose={() => setOpenIdx(null)}
+            />
+          )}
         </div>
       ))}
       <button
@@ -185,28 +189,47 @@ export default function DressCodeEditor({
         />
       </Section>
 
-      <Section label="Guía por género (opcional)">
+      <Section label="Grupos y guía (opcional)">
+        <p className="mb-3 text-[11px] text-[#999]">Nombra los dos grupos (por defecto Ellas/Ellos). Se muestran en la invitación; cámbialos según tu tipo de evento.</p>
         <div className="grid gap-3 sm:grid-cols-2">
-          <textarea
-            value={dc.guia_ellas ?? ''}
-            onChange={e => patch({ guia_ellas: e.target.value || null })}
-            rows={2}
-            placeholder="Para ellas..."
-            className="w-full resize-y rounded-lg border border-[#e8e8e8] px-3 py-2 text-sm focus:border-[#48C9B0] focus:outline-none"
-          />
-          <textarea
-            value={dc.guia_ellos ?? ''}
-            onChange={e => patch({ guia_ellos: e.target.value || null })}
-            rows={2}
-            placeholder="Para ellos..."
-            className="w-full resize-y rounded-lg border border-[#e8e8e8] px-3 py-2 text-sm focus:border-[#48C9B0] focus:outline-none"
-          />
+          <div className="flex flex-col gap-2">
+            <input
+              type="text"
+              value={dc.label_ellas}
+              onChange={e => patch({ label_ellas: e.target.value })}
+              placeholder="Ellas"
+              className="w-full rounded-lg border border-[#e8e8e8] px-3 py-2 text-sm font-medium focus:border-[#48C9B0] focus:outline-none"
+            />
+            <textarea
+              value={dc.guia_ellas ?? ''}
+              onChange={e => patch({ guia_ellas: e.target.value || null })}
+              rows={2}
+              placeholder={`Guía para ${dc.label_ellas.trim() || 'ellas'}...`}
+              className="w-full resize-y rounded-lg border border-[#e8e8e8] px-3 py-2 text-sm focus:border-[#48C9B0] focus:outline-none"
+            />
+          </div>
+          <div className="flex flex-col gap-2">
+            <input
+              type="text"
+              value={dc.label_ellos}
+              onChange={e => patch({ label_ellos: e.target.value })}
+              placeholder="Ellos"
+              className="w-full rounded-lg border border-[#e8e8e8] px-3 py-2 text-sm font-medium focus:border-[#48C9B0] focus:outline-none"
+            />
+            <textarea
+              value={dc.guia_ellos ?? ''}
+              onChange={e => patch({ guia_ellos: e.target.value || null })}
+              rows={2}
+              placeholder={`Guía para ${dc.label_ellos.trim() || 'ellos'}...`}
+              className="w-full resize-y rounded-lg border border-[#e8e8e8] px-3 py-2 text-sm focus:border-[#48C9B0] focus:outline-none"
+            />
+          </div>
         </div>
       </Section>
 
       <Section label="Fotos de ejemplo (opcional)">
         <div className="grid gap-4 sm:grid-cols-2">
-          {([['fotos_ellas', 'Para ellas'], ['fotos_ellos', 'Para ellos']] as [FotoField, string][]).map(([field, titulo]) => (
+          {([['fotos_ellas', dc.label_ellas], ['fotos_ellos', dc.label_ellos]] as [FotoField, string][]).map(([field, titulo]) => (
             <div key={field}>
               <p className="mb-2 text-[11px] font-semibold text-[#888]">{titulo}</p>
               <div className="flex flex-wrap gap-3">

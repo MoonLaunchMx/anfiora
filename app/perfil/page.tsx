@@ -4,8 +4,9 @@ import { useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { supabase } from '@/lib/supabase'
-import { User, Phone, Lock, Eye, EyeOff, CheckCircle, AlertCircle, ArrowLeft, ChevronDown, Bell, MessageSquarePlus } from 'lucide-react'
+import { User, Lock, Eye, EyeOff, CheckCircle, AlertCircle, ArrowLeft, ChevronDown, Bell, MessageSquarePlus } from 'lucide-react'
 import { ROLES, getRole, Role } from '@/lib/roles'
+import PhoneInput from '@/app/components/ui/PhoneInput'
 
 type PlanInfo = {
   label: string
@@ -559,13 +560,7 @@ export default function PerfilPage() {
               </Field>
 
               <Field label="WhatsApp" hint="Lo usaremos para verificación en el futuro">
-                <InputIcon
-                  icon={<Phone size={15} />}
-                  type="tel"
-                  value={phone}
-                  onChange={setPhone}
-                  placeholder="+52 55 1234 5678"
-                />
+                <PhoneInput value={phone} onChange={setPhone} placeholder="55 1234 5678" />
               </Field>
             </div>
 

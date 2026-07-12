@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 import { isInviteOpen, buildRsvpUpdate, type RsvpSubmission } from '@/lib/invite'
 import { resolveDoc } from '@/lib/invite/doc'
 import { parseDressCode } from '@/lib/dresscode'
+import { curateForGuests } from '@/lib/itinerary'
 import { logAction } from '@/lib/audit'
 
 const admin = () =>
@@ -57,8 +58,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
     safeSingle<{ dress_code: unknown }>(
       db.from('event_settings').select('dress_code').eq('event_id', guest.event_id).maybeSingle(),
     ),
-    safeList<{ start_time: string; title: string; location: string | null }>(
-      db.from('event_itinerary_moments').select('start_time, title, location').eq('event_id', guest.event_id).eq('visible_to_guests', true).order('start_time', { ascending: true }),
+    safeList<{ start_time: string; title: string; location: string | null; visible_to_guests: boolean; position: number }>(
+      db.from('event_itinerary_moments').select('start_time, title, location, visible_to_guests, position').eq('event_id', guest.event_id).eq('visible_to_guests', true),
     ),
   ])
   if (!event) return NextResponse.json({ error: 'not_found' }, { status: 404 })
@@ -69,7 +70,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
     companions: members.map(m => ({ id: m.id, name: m.name, rsvp_status: m.rsvp_status, allergies: m.allergies || [] })),
     doc,
     dressCode: parseDressCode(dressRow?.dress_code),
-    itinerary: itin,
+    itinerary: curateForGuests(itin),
     tokens: { playlist: settings?.playlist_token ?? null, registry: settings?.registry_token ?? null },
   })
 }

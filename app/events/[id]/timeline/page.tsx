@@ -7,12 +7,15 @@ import { TimelineTask } from '@/lib/types'
 import {
   CalendarDays, CheckCircle2, Circle, Plus,
   ChevronDown, ChevronLeft, ChevronRight,
-  LayoutList, Search, SlidersHorizontal, X, AlertTriangle,
+  LayoutList, Search, SlidersHorizontal, X, AlertTriangle, Clock,
 } from 'lucide-react'
 import StatsCollapse, { StatsToggleButton, useStatsToggle } from '@/app/components/ui/StatsCollapse'
 import { TaskCard, CategoryIcon, CalendarTaskIcon, getUrgency, formatDateFull } from './TaskCard'
 import { TaskModal } from './TaskModal'
 import { buildTimelineTasks } from './lib/templates'
+import { ItineraryView } from './ItineraryView'
+import { ItineraryToolbar } from './ItineraryToolbar'
+import { useItinerary } from './useItinerary'
 
 // ─── CONSTANTS ───────────────────────────────────────────────────────────────
 
@@ -177,7 +180,7 @@ export default function TimelinePage() {
 
   const [tasks, setTasks]             = useState<TimelineTask[]>([])
   const [loading, setLoading]         = useState(true)
-  const [view, setView]               = useState<'lista' | 'calendario'>('lista')
+  const [view, setView]               = useState<'lista' | 'calendario' | 'itinerario'>('lista')
   const [showModal, setShowModal]     = useState(false)
   const [editTask, setEditTask]       = useState<TimelineTask | null>(null)
   const [prefillDate, setPrefillDate] = useState<string | null>(null)
@@ -189,8 +192,14 @@ export default function TimelinePage() {
   const [search, setSearch]           = useState('')
   const [filterCat, setFilterCat]     = useState('')
   const [showFilters, setShowFilters] = useState(false)
-  const [eventInfo, setEventInfo]     = useState<{ event_date: string | null; event_type: string | null; event_category: string | null } | null>(null)
+  const [eventInfo, setEventInfo]     = useState<{ event_date: string | null; event_type: string | null; event_category: string | null; event_time: string | null } | null>(null)
   const [generating, setGenerating]   = useState(false)
+
+  const itinEventInfo = useMemo(
+    () => eventInfo ? { ...eventInfo, venue: null } : null,
+    [eventInfo],
+  )
+  const itinerary = useItinerary(eventId, itinEventInfo, view === 'itinerario')
 
   const hasActiveFilters = search.trim() !== '' || filterCat !== ''
 
@@ -230,7 +239,7 @@ export default function TimelinePage() {
   useEffect(() => {
     supabase
       .from('events')
-      .select('event_date, event_type, event_category')
+      .select('event_date, event_type, event_category, event_time')
       .eq('id', eventId)
       .single()
       .then(({ data }) => { if (data) setEventInfo(data) })
@@ -431,8 +440,8 @@ export default function TimelinePage() {
       <div style={{ flexShrink: 0, borderBottom: '1px solid #e8e8e8' }} className="px-4 pt-4 pb-0 sm:px-6 sm:pt-5 lg:px-10 lg:pt-6">
         <div className="mb-4 flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
-            <h1 className="text-lg font-bold text-[#1D1E20] sm:text-xl lg:text-2xl">Timeline & tareas</h1>
-            <p className="mt-0.5 text-xs text-[#888] sm:text-sm">Planea tu evento desde el save the date hasta la torna boda</p>
+            <h1 className="text-lg font-bold text-[#1D1E20] sm:text-xl lg:text-2xl">Itinerario & Timeline</h1>
+            <p className="mt-0.5 text-xs text-[#888] sm:text-sm">Las tareas de tu evento y el itinerario del gran día</p>
           </div>
           <div className="lg:hidden shrink-0 pt-1">
             <StatsToggleButton visible={statsVisible} onClick={toggleStats} />
@@ -497,14 +506,19 @@ export default function TimelinePage() {
           <div className="flex overflow-hidden rounded-lg border border-[#e0e0e0]">
             <button onClick={() => setView('lista')}
               className={['flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition', view === 'lista' ? 'bg-[#1D1E20] text-white' : 'text-[#888] hover:bg-[#f5f5f5]'].join(' ')}>
-              <LayoutList width={13} height={13} /><span>Lista</span>
+              <LayoutList width={13} height={13} /><span className="hidden sm:inline">Tareas</span>
             </button>
             <button onClick={() => setView('calendario')}
               className={['flex items-center gap-1.5 border-l border-[#e0e0e0] px-3 py-1.5 text-xs font-medium transition', view === 'calendario' ? 'bg-[#1D1E20] text-white' : 'text-[#888] hover:bg-[#f5f5f5]'].join(' ')}>
-              <CalendarDays width={13} height={13} /><span>Calendario</span>
+              <CalendarDays width={13} height={13} /><span className="hidden sm:inline">Calendario</span>
+            </button>
+            <button onClick={() => setView('itinerario')}
+              className={['flex items-center gap-1.5 border-l border-[#e0e0e0] px-3 py-1.5 text-xs font-medium transition', view === 'itinerario' ? 'bg-[#1D1E20] text-white' : 'text-[#888] hover:bg-[#f5f5f5]'].join(' ')}>
+              <Clock width={13} height={13} /><span className="hidden sm:inline">Itinerario</span>
             </button>
           </div>
 
+          {view !== 'itinerario' && <>
           <div className="hidden sm:flex items-center gap-2 flex-1">
             <div className="relative flex-1 max-w-xs">
               <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#bbb]" />
@@ -553,6 +567,8 @@ export default function TimelinePage() {
               <Plus width={14} height={14} />Agregar
             </button>
           </div>
+          </>}
+          {view === 'itinerario' && <ItineraryToolbar itin={itinerary} />}
         </div>
       </div>
 
@@ -564,6 +580,8 @@ export default function TimelinePage() {
               <p className="text-sm text-[#999]">Cargando...</p>
             </div>
           </div>
+        ) : view === 'itinerario' ? (
+          <ItineraryView itin={itinerary} />
         ) : view === 'lista' ? <ListView /> : <CalendarView />}
       </div>
 

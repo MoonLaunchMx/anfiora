@@ -13,7 +13,7 @@ import {
   type TelegramUpdate,
 } from '@/lib/telegram/adapter'
 import { resolveStart, resolveByChat, type TelegramRoute } from '@/lib/telegram/routing'
-import { applyExtraction } from '@/lib/agent/apply'
+import { applyExtraction, resolveEscalation } from '@/lib/agent/apply'
 import { extractFromMessage, executeWritePlan } from '@/lib/agent/extraction'
 import { getAgentConfig } from '@/lib/agent/config'
 import { buildContextPack } from '@/lib/agent/context-pack'
@@ -183,10 +183,14 @@ async function processTelegramUpdate(
       extraction,
       { rsvp_status: guestRow?.rsvp_status ?? 'pending', allergies: guestRow?.allergies },
       partyMembers ?? [],
+      update.text,
     )
     await executeWritePlan(supabase, plan, route.guestId)
 
-    const escalate: 'queja' | null = extraction.complaint && config.escalate.quejas ? 'queja' : null
+    const escalate = resolveEscalation(plan, {
+      complaint: extraction.complaint,
+      escalateQuejas: config.escalate.quejas,
+    })
     const intentForPipeline = {
       intent: extraction.attendance === 'none' ? 'respondio' : extraction.attendance,
       confidence: extraction.confidence,

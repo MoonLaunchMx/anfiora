@@ -5,3 +5,12 @@ export function formatFecha(iso: string | null): string {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
   })
 }
+
+export function formatHora(t: string | null): string {
+  if (!t) return ''
+  const [h, m] = t.split(':').map(Number)
+  if (Number.isNaN(h)) return t
+  return new Date(2000, 0, 1, h, m || 0).toLocaleTimeString('es-MX', {
+    hour: 'numeric', minute: '2-digit', hour12: true,
+  })
+}

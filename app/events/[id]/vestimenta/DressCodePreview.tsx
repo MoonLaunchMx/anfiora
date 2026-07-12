@@ -67,26 +67,26 @@ export default function DressCodePreview({ dc, eventName }: { dc: DressCode; eve
             )}
 
             {dc.recomendaciones.length > 0 && (
-              <p className="mt-4 rounded-lg border border-[#f0e2bf] bg-[#fffbf0] px-3 py-2 text-left text-xs leading-relaxed text-[#1D1E20]">
+              <p className="mt-4 rounded-lg border border-[#f0e2bf] bg-[#fffbf0] px-3 py-2 text-center text-xs leading-relaxed text-[#1D1E20]">
                 {dc.recomendaciones.join('. ')}.
               </p>
             )}
 
             {dc.nota_libre.trim() && (
-              <p className="mt-2 text-left text-xs leading-relaxed text-[#666]">{dc.nota_libre}</p>
+              <p className="mt-2 text-center text-xs leading-relaxed text-[#666]">{dc.nota_libre}</p>
             )}
 
             {(dc.guia_ellas?.trim() || dc.guia_ellos?.trim()) && (
-              <div className="mt-3 grid gap-2 text-left sm:grid-cols-2">
+              <div className={`mt-3 grid gap-2 text-left ${[dc.guia_ellas?.trim(), dc.guia_ellos?.trim()].filter(Boolean).length === 2 ? 'sm:grid-cols-2' : ''}`}>
                 {dc.guia_ellas?.trim() && (
                   <div className="rounded-lg bg-[#f8f8f8] px-2.5 py-2">
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-[#999]">Ellas</p>
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-[#999]">{dc.label_ellas}</p>
                     <p className="mt-0.5 text-xs text-[#666]">{dc.guia_ellas}</p>
                   </div>
                 )}
                 {dc.guia_ellos?.trim() && (
                   <div className="rounded-lg bg-[#f8f8f8] px-2.5 py-2">
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-[#999]">Ellos</p>
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-[#999]">{dc.label_ellos}</p>
                     <p className="mt-0.5 text-xs text-[#666]">{dc.guia_ellos}</p>
                   </div>
                 )}
@@ -94,8 +94,8 @@ export default function DressCodePreview({ dc, eventName }: { dc: DressCode; eve
             )}
 
             {(dc.fotos_ellas.length > 0 || dc.fotos_ellos.length > 0) && (
-              <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                {([['fotos_ellas', 'Ellas'], ['fotos_ellos', 'Ellos']] as const).map(([field, titulo]) =>
+              <div className={`mt-4 grid gap-3 ${(dc.fotos_ellas.length > 0 ? 1 : 0) + (dc.fotos_ellos.length > 0 ? 1 : 0) === 2 ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                {([['fotos_ellas', dc.label_ellas], ['fotos_ellos', dc.label_ellos]] as ['fotos_ellas' | 'fotos_ellos', string][]).map(([field, titulo]) =>
                   dc[field].length > 0 ? (
                     <div key={field}>
                       <p className="text-[10px] font-bold uppercase tracking-wider text-[#999]">{titulo}</p>

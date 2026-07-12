@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
-import { resolveInviteHeading } from '@/lib/invite'
+import type { Section } from '@/lib/invite/schema'
 import { resolveDoc } from '@/lib/invite/doc'
 import { formatFecha } from '@/app/components/invitacion/format'
 import InvitacionClient from './InvitacionClient'
@@ -29,14 +29,15 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 
     const { data: event } = await db
       .from('events')
-      .select('name, event_date, venue, host_name, host_name_2')
+      .select('name, event_date, venue')
       .eq('id', guest.event_id)
       .maybeSingle()
     if (!event) return FALLBACK_METADATA
 
-    const heading = resolveInviteHeading(event)
+    const portada = doc.sections.find((s): s is Extract<Section, { type: 'portada' }> => s.type === 'portada')
+    const heading = portada?.content.titulo?.trim() || event.name?.trim()
     const description = [formatFecha(event.event_date), event.venue].filter(Boolean).join(' · ') || FALLBACK_METADATA.description
-    const title = `${heading} | Invitación`
+    const title = heading ? `${heading} | Invitación` : FALLBACK_METADATA.title
 
     return {
       title,
