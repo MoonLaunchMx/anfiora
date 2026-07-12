@@ -268,11 +268,11 @@ export default function InvitacionPage() {
                   <button
                     type="button"
                     onClick={() => setAddSectionOpen(true)}
-                    className="mb-1.5 flex shrink-0 items-center gap-1.5 rounded-lg border border-dashed border-[#ccc] px-2.5 py-1.5 text-xs font-medium text-[#888] transition hover:border-[#48C9B0] hover:text-[#48C9B0]"
+                    aria-label="Agregar sección"
+                    className="mb-1.5 flex shrink-0 items-center gap-1.5 rounded-lg border border-dashed border-[#ccc] px-2.5 py-2 text-xs font-medium text-[#888] transition hover:border-[#48C9B0] hover:text-[#48C9B0] md:py-1.5"
                   >
-                    <Plus size={14} />
-                    <span className="hidden sm:inline">Agregar sección</span>
-                    <span className="sm:hidden">Agregar</span>
+                    <Plus size={16} />
+                    <span className="hidden md:inline">Agregar sección</span>
                   </button>
                 )}
               </div>
