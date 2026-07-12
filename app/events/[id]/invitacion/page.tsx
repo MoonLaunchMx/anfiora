@@ -245,7 +245,7 @@ export default function InvitacionPage() {
         {activeTab === 'diseno' ? (
           <div className="grid items-start gap-6 sm:grid-cols-[1fr_360px] lg:gap-8">
             <div className="min-w-0">
-              <div className="mb-5 flex gap-6 border-b border-[#eee]">
+              <div className="sticky top-0 z-20 mb-5 flex gap-6 border-b border-[#eee] bg-white">
                 {([
                   ['estilo', 'Plantillas'],
                   ['personalizar', 'Personalizar'],
