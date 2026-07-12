@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation'
 import { Upload, X, CheckCircle2 } from 'lucide-react'
 import type { Section } from '@/lib/invite/schema'
 import { parseVideoUrl } from '@/lib/invite/video'
-import { parseSpotifyUrl } from '@/lib/invite/spotify'
+import { parseDriveUrl } from '@/lib/invite/drive'
 import { supabase } from '@/lib/supabase'
 import GifSearch from './GifSearch'
 
@@ -13,6 +13,7 @@ const PROVIDER_LABEL: Record<string, string> = {
   youtube: 'YouTube',
   tiktok: 'TikTok',
   instagram: 'Instagram',
+  drive: 'Google Drive',
 }
 
 function AudioUploadField({
@@ -253,14 +254,17 @@ export default function SectionForm({
       const hasUrl = section.content.url.trim().length > 0
       return (
         <div className="flex flex-col gap-3">
-          <TextField label="Enlace del video" value={section.content.url} onChange={v => onPatch({ url: v })} placeholder="Pega un link de YouTube, TikTok o Instagram" />
+          <TextField label="Enlace del video" value={section.content.url} onChange={v => onPatch({ url: v })} placeholder="YouTube, TikTok, Instagram o Google Drive" />
           {hasUrl && parsed && (
             <p className="flex items-center gap-1.5 text-[11px] font-medium text-[#2a7a50]">
               <CheckCircle2 size={13} /> Video de {PROVIDER_LABEL[parsed.provider]} detectado
             </p>
           )}
           {hasUrl && !parsed && (
-            <p className="text-[11px] text-[#b8912f]">No reconocimos el enlace. Usa un link de YouTube, TikTok o Instagram.</p>
+            <p className="text-[11px] text-[#b8912f]">No reconocimos el enlace. Usa un link de YouTube, TikTok, Instagram o Google Drive.</p>
+          )}
+          {parsed?.provider === 'drive' && (
+            <p className="text-[11px] text-[#999]">En Google Drive comparte el archivo como "Cualquiera con el enlace" para que se vea.</p>
           )}
           <TextField label="Texto opcional (pie)" value={section.content.caption} onChange={v => onPatch({ caption: v })} placeholder="Un pie de video" />
           <p className="text-xs text-[#999]">El video se reproduce cuando el invitado lo toca (sin audio automático).</p>
@@ -268,23 +272,26 @@ export default function SectionForm({
       )
     }
     case 'audio': {
-      const spotify = parseSpotifyUrl(section.content.spotify_url)
-      const hasSpotifyUrl = section.content.spotify_url.trim().length > 0
+      const drive = parseDriveUrl(section.content.drive_url)
+      const hasDriveUrl = section.content.drive_url.trim().length > 0
       return (
         <div className="flex flex-col gap-3">
           <AudioUploadField url={section.content.url} onChange={v => onPatch({ url: v })} />
           <TextField label="Título" value={section.content.titulo} onChange={v => onPatch({ titulo: v })} placeholder="Un mensaje para ti" />
           <TextField label="Texto opcional" value={section.content.caption} onChange={v => onPatch({ caption: v })} placeholder="Escúchalo antes de la fiesta" />
-          <TextField label="Enlace de Spotify (opcional)" value={section.content.spotify_url} onChange={v => onPatch({ spotify_url: v })} placeholder="https://open.spotify.com/track/..." />
-          {hasSpotifyUrl && spotify && (
+          <TextField label="Enlace de Google Drive (opcional)" value={section.content.drive_url} onChange={v => onPatch({ drive_url: v })} placeholder="https://drive.google.com/file/d/..." />
+          {hasDriveUrl && drive && (
             <p className="flex items-center gap-1.5 text-[11px] font-medium text-[#2a7a50]">
-              <CheckCircle2 size={13} /> Reproductor de Spotify listo
+              <CheckCircle2 size={13} /> Audio de Google Drive detectado
             </p>
           )}
-          {hasSpotifyUrl && !spotify && (
-            <p className="text-[11px] text-[#b8912f]">No reconocimos el enlace. Copia un link de canción, álbum o playlist de Spotify.</p>
+          {hasDriveUrl && !drive && (
+            <p className="text-[11px] text-[#b8912f]">No reconocimos el enlace. Copia el link de un archivo de Google Drive.</p>
           )}
-          <p className="text-xs text-[#999]">Sube un clip propio o pega un link de Spotify (o ambos). Nada se reproduce solo: el invitado toca play.</p>
+          {hasDriveUrl && drive && (
+            <p className="text-[11px] text-[#999]">En Google Drive comparte el archivo como "Cualquiera con el enlace" para que se escuche.</p>
+          )}
+          <p className="text-xs text-[#999]">Sube un clip propio o pega un link de Google Drive (o ambos). Nada se reproduce solo: el invitado toca play.</p>
         </div>
       )
     }

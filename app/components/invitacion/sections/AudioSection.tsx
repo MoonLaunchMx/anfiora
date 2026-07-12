@@ -2,7 +2,7 @@
 import { useRef, useState } from 'react'
 import { Play, Pause } from 'lucide-react'
 import type { Section } from '@/lib/invite/schema'
-import { parseSpotifyUrl } from '@/lib/invite/spotify'
+import { parseDriveUrl } from '@/lib/invite/drive'
 import type { InviteCtx } from '../types'
 
 type Content = Extract<Section, { type: 'audio' }>['content']
@@ -11,8 +11,8 @@ export default function AudioSection({ content }: { content: Content; ctx: Invit
   const audioRef = useRef<HTMLAudioElement>(null)
   const [playing, setPlaying] = useState(false)
   const hasClip = content.url.trim().length > 0
-  const spotify = parseSpotifyUrl(content.spotify_url)
-  if (!hasClip && !spotify) return null
+  const drive = parseDriveUrl(content.drive_url)
+  if (!hasClip && !drive) return null
 
   const toggle = () => {
     const el = audioRef.current
@@ -49,15 +49,17 @@ export default function AudioSection({ content }: { content: Content; ctx: Invit
         </div>
       )}
 
-      {spotify && (
-        <iframe
-          src={spotify.embedUrl}
-          title="Reproductor de Spotify"
-          className="w-full rounded-xl border-0"
-          style={{ height: spotify.compact ? 152 : 352 }}
-          loading="lazy"
-          allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
-        />
+      {drive && (
+        <div className="overflow-hidden rounded-xl border" style={{ borderColor: 'color-mix(in srgb, var(--inv-texto) 15%, transparent)' }}>
+          <iframe
+            src={drive.embedUrl}
+            title="Reproductor de audio"
+            className="w-full border-0"
+            style={{ height: 80 }}
+            loading="lazy"
+            allow="autoplay; encrypted-media"
+          />
+        </div>
       )}
     </figure>
   )
