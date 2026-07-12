@@ -1,8 +1,8 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { useParams } from 'next/navigation'
-import { Upload, X, CheckCircle2, Mic, Square } from 'lucide-react'
+import { Upload, X, CheckCircle2, Mic, Square, ChevronDown } from 'lucide-react'
 import type { Section } from '@/lib/invite/schema'
 import { parseVideoUrl } from '@/lib/invite/video'
 import { parseDriveUrl } from '@/lib/invite/drive'
@@ -32,7 +32,7 @@ async function uploadAudioToBucket(eventId: string, blob: Blob, filename: string
   return { url: supabase.storage.from('event-media').getPublicUrl(path).data.publicUrl }
 }
 
-function VoiceRecorder({ eventId, onUploaded }: { eventId: string; onUploaded: (url: string) => void }) {
+function useVoiceRecorder(eventId: string, onUploaded: (url: string) => void) {
   const [phase, setPhase] = useState<'idle' | 'recording' | 'recorded'>('idle')
   const [seconds, setSeconds] = useState(0)
   const [localUrl, setLocalUrl] = useState<string | null>(null)
@@ -130,60 +130,26 @@ function VoiceRecorder({ eventId, onUploaded }: { eventId: string; onUploaded: (
     if (res.url) onUploaded(res.url)
   }
 
+  return { phase, seconds, localUrl, uploading, error, supported, start, stop, regrabar, confirm }
+}
+
+function FieldRow({ children }: { children: ReactNode }) {
+  return <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">{children}</div>
+}
+
+function MoreOptions({ children }: { children: ReactNode }) {
+  const [open, setOpen] = useState(false)
   return (
-    <div className="flex flex-col gap-1.5">
-      {phase === 'idle' && (
-        <button
-          type="button"
-          onClick={start}
-          className="flex items-center justify-center gap-2 rounded-lg border border-dashed border-[#ccc] bg-white px-3 py-3 text-xs font-medium text-[#888] transition hover:border-[#48C9B0] hover:text-[#48C9B0]"
-        >
-          <Mic size={14} /> Grabar nota de voz
-        </button>
-      )}
-
-      {phase === 'recording' && (
-        <div className="flex items-center gap-3 rounded-lg border border-[#f0c8c8] bg-[#fff6f6] px-3 py-2.5">
-          <span className="h-2.5 w-2.5 shrink-0 animate-pulse rounded-full bg-[#e11d1d]" />
-          <span className="flex-1 text-xs font-medium text-[#cc3333]">Grabando… {formatTimer(seconds)}</span>
-          <button
-            type="button"
-            onClick={stop}
-            className="flex items-center gap-1.5 rounded-lg bg-[#cc3333] px-2.5 py-1.5 text-xs font-semibold text-white transition hover:bg-[#b82d2d]"
-          >
-            <Square size={12} fill="currentColor" /> Detener
-          </button>
-        </div>
-      )}
-
-      {phase === 'recorded' && localUrl && (
-        <div className="flex flex-col gap-2 rounded-lg border border-[#e0e0e0] bg-white p-2.5">
-          <audio key={localUrl} src={localUrl} controls className="w-full" />
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={regrabar}
-              disabled={uploading}
-              className="flex items-center gap-1 rounded-lg border border-[#e0e0e0] px-3 py-1.5 text-xs font-medium text-[#666] transition hover:border-[#48C9B0] hover:text-[#48C9B0] disabled:opacity-50"
-            >
-              <Mic size={12} /> Regrabar
-            </button>
-            <button
-              type="button"
-              onClick={confirm}
-              disabled={uploading}
-              className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-[#48C9B0] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#3ab89f] disabled:opacity-50"
-            >
-              {uploading ? 'Guardando…' : 'Usar esta grabación'}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {phase === 'idle' && (
-        <p className="text-[11px] text-[#999]">Se detiene sola al minuto. Necesita permiso del micrófono.</p>
-      )}
-      {error && <p className="text-[11px] text-[#b8912f]">{error}</p>}
+    <div className="flex flex-col gap-3">
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className="flex items-center gap-1 self-start text-xs font-medium text-[#888] transition hover:text-[#48C9B0]"
+      >
+        <ChevronDown size={13} className={`transition-transform ${open ? 'rotate-180' : ''}`} />
+        Más opciones
+      </button>
+      {open && <div className="flex flex-col gap-3">{children}</div>}
     </div>
   )
 }
@@ -198,6 +164,7 @@ function AudioUploadField({
   const eventId = String(id)
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState('')
+  const rec = useVoiceRecorder(eventId, onChange)
 
   const upload = async (file: File) => {
     setError('')
@@ -214,7 +181,7 @@ function AudioUploadField({
 
   return (
     <div>
-      <label className="mb-1 block text-xs font-medium text-[#555]">Clip de audio (voz, coro, 20-40 seg)</label>
+      <label className="mb-1 block text-xs font-medium text-[#555]">Audio de la invitación (voz, coro, 20-40 seg)</label>
       {url ? (
         <div className="flex flex-col gap-2 rounded-lg border border-[#e0e0e0] bg-white p-2.5">
           <audio key={url} src={url} controls preload="none" className="w-full" />
@@ -228,19 +195,71 @@ function AudioUploadField({
         </div>
       ) : (
         <div className="flex flex-col gap-2">
-          <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-[#ccc] bg-white px-3 py-3 text-xs font-medium text-[#888] transition hover:border-[#48C9B0] hover:text-[#48C9B0]">
-            <Upload size={14} />
-            {uploading ? 'Subiendo...' : 'Subir clip de audio'}
-            <input
-              type="file"
-              accept="audio/*"
-              disabled={uploading}
-              onChange={e => { const f = e.target.files?.[0]; if (f) upload(f); e.target.value = '' }}
-              className="hidden"
-            />
-          </label>
-          <VoiceRecorder eventId={eventId} onUploaded={onChange} />
+          <div className="grid grid-cols-2 gap-2">
+            <label className="flex cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-dashed border-[#ccc] bg-white px-2 py-2.5 text-center text-xs font-medium text-[#888] transition hover:border-[#48C9B0] hover:text-[#48C9B0]">
+              <Upload size={14} />
+              {uploading ? 'Subiendo...' : 'Subir clip'}
+              <input
+                type="file"
+                accept="audio/*"
+                disabled={uploading}
+                onChange={e => { const f = e.target.files?.[0]; if (f) upload(f); e.target.value = '' }}
+                className="hidden"
+              />
+            </label>
+            <button
+              type="button"
+              onClick={rec.start}
+              disabled={rec.phase !== 'idle'}
+              className="flex items-center justify-center gap-1.5 rounded-lg border border-dashed border-[#ccc] bg-white px-2 py-2.5 text-xs font-medium text-[#888] transition hover:border-[#48C9B0] hover:text-[#48C9B0] disabled:opacity-50"
+            >
+              <Mic size={14} /> Grabar voz
+            </button>
+          </div>
+
+          {rec.phase === 'recording' && (
+            <div className="flex items-center gap-3 rounded-lg border border-[#f0c8c8] bg-[#fff6f6] px-3 py-2.5">
+              <span className="h-2.5 w-2.5 shrink-0 animate-pulse rounded-full bg-[#e11d1d]" />
+              <span className="flex-1 text-xs font-medium text-[#cc3333]">Grabando… {formatTimer(rec.seconds)}</span>
+              <button
+                type="button"
+                onClick={rec.stop}
+                className="flex items-center gap-1.5 rounded-lg bg-[#cc3333] px-2.5 py-1.5 text-xs font-semibold text-white transition hover:bg-[#b82d2d]"
+              >
+                <Square size={12} fill="currentColor" /> Detener
+              </button>
+            </div>
+          )}
+
+          {rec.phase === 'recorded' && rec.localUrl && (
+            <div className="flex flex-col gap-2 rounded-lg border border-[#e0e0e0] bg-white p-2.5">
+              <audio key={rec.localUrl} src={rec.localUrl} controls className="w-full" />
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={rec.regrabar}
+                  disabled={rec.uploading}
+                  className="flex items-center gap-1 rounded-lg border border-[#e0e0e0] px-3 py-1.5 text-xs font-medium text-[#666] transition hover:border-[#48C9B0] hover:text-[#48C9B0] disabled:opacity-50"
+                >
+                  <Mic size={12} /> Regrabar
+                </button>
+                <button
+                  type="button"
+                  onClick={rec.confirm}
+                  disabled={rec.uploading}
+                  className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-[#48C9B0] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#3ab89f] disabled:opacity-50"
+                >
+                  {rec.uploading ? 'Guardando…' : 'Usar esta grabación'}
+                </button>
+              </div>
+            </div>
+          )}
+
           {error && <p className="text-[11px] text-[#cc3333]">{error}</p>}
+          {rec.error && <p className="text-[11px] text-[#b8912f]">{rec.error}</p>}
+          {rec.phase === 'idle' && !error && !rec.error && (
+            <p className="text-[11px] text-[#999]">La grabación se detiene sola al minuto y pide permiso del micrófono.</p>
+          )}
         </div>
       )}
     </div>
@@ -328,8 +347,10 @@ export default function SectionForm({
     case 'portada':
       return (
         <div className="flex flex-col gap-3">
-          <TextField label="Texto pequeño arriba" value={section.content.kicker} onChange={v => onPatch({ kicker: v })} placeholder="Nuestra boda" />
-          <TextField label="Título" value={section.content.titulo} onChange={v => onPatch({ titulo: v })} placeholder="Nombre de los anfitriones" />
+          <FieldRow>
+            <TextField label="Texto pequeño arriba" value={section.content.kicker} onChange={v => onPatch({ kicker: v })} placeholder="Nuestra boda" />
+            <TextField label="Título" value={section.content.titulo} onChange={v => onPatch({ titulo: v })} placeholder="Nombre de los anfitriones" />
+          </FieldRow>
           <TextAreaField label="Subtítulo" value={section.content.subtitulo} onChange={v => onPatch({ subtitulo: v })} placeholder="Una frase corta de bienvenida" />
         </div>
       )
@@ -386,24 +407,30 @@ export default function SectionForm({
     case 'playlist':
       return (
         <div className="flex flex-col gap-3">
-          <TextField label="Título" value={section.content.titulo} onChange={v => onPatch({ titulo: v })} />
-          <TextField label="Descripción" value={section.content.descripcion} onChange={v => onPatch({ descripcion: v })} />
+          <FieldRow>
+            <TextField label="Título" value={section.content.titulo} onChange={v => onPatch({ titulo: v })} />
+            <TextField label="Descripción" value={section.content.descripcion} onChange={v => onPatch({ descripcion: v })} />
+          </FieldRow>
           <p className="text-xs text-[#999]">Se muestra cuando el evento tiene playlist activa.</p>
         </div>
       )
     case 'mesa':
       return (
         <div className="flex flex-col gap-3">
-          <TextField label="Título" value={section.content.titulo} onChange={v => onPatch({ titulo: v })} />
-          <TextField label="Descripción" value={section.content.descripcion} onChange={v => onPatch({ descripcion: v })} />
+          <FieldRow>
+            <TextField label="Título" value={section.content.titulo} onChange={v => onPatch({ titulo: v })} />
+            <TextField label="Descripción" value={section.content.descripcion} onChange={v => onPatch({ descripcion: v })} />
+          </FieldRow>
           <p className="text-xs text-[#999]">Se muestra cuando el evento tiene mesa de regalos activa.</p>
         </div>
       )
     case 'texto':
       return (
         <div className="flex flex-col gap-3">
-          <TextField label="Texto pequeño arriba" value={section.content.eyebrow} onChange={v => onPatch({ eyebrow: v })} />
-          <TextField label="Título" value={section.content.titulo} onChange={v => onPatch({ titulo: v })} />
+          <FieldRow>
+            <TextField label="Texto pequeño arriba" value={section.content.eyebrow} onChange={v => onPatch({ eyebrow: v })} />
+            <TextField label="Título" value={section.content.titulo} onChange={v => onPatch({ titulo: v })} />
+          </FieldRow>
           <TextAreaField label="Cuerpo" value={section.content.cuerpo} onChange={v => onPatch({ cuerpo: v })} />
         </div>
       )
@@ -422,9 +449,10 @@ export default function SectionForm({
             // eslint-disable-next-line @next/next/no-img-element
             <img src={section.content.url} alt="" className="max-h-32 w-full rounded-lg object-contain" />
           )}
-          <TextField label="URL de la imagen o GIF" value={section.content.url} onChange={v => onPatch({ url: v })} placeholder="https://media.giphy.com/....gif" />
-          <TextField label="Texto opcional (pie)" value={section.content.caption} onChange={v => onPatch({ caption: v })} placeholder="Un pie de foto" />
-          <p className="text-xs text-[#999]">Busca arriba o pega el link de un GIF/imagen.</p>
+          <MoreOptions>
+            <TextField label="URL de la imagen o GIF" value={section.content.url} onChange={v => onPatch({ url: v })} placeholder="https://media.giphy.com/....gif" />
+            <TextField label="Texto opcional (pie)" value={section.content.caption} onChange={v => onPatch({ caption: v })} placeholder="Un pie de foto" />
+          </MoreOptions>
         </div>
       )
     case 'video': {
@@ -444,8 +472,9 @@ export default function SectionForm({
           {parsed?.provider === 'drive' && (
             <p className="text-[11px] text-[#999]">En Google Drive comparte el archivo como "Cualquiera con el enlace" para que se vea.</p>
           )}
-          <TextField label="Texto opcional (pie)" value={section.content.caption} onChange={v => onPatch({ caption: v })} placeholder="Un pie de video" />
-          <p className="text-xs text-[#999]">El video se reproduce cuando el invitado lo toca (sin audio automático).</p>
+          <MoreOptions>
+            <TextField label="Texto opcional (pie)" value={section.content.caption} onChange={v => onPatch({ caption: v })} placeholder="Un pie de video" />
+          </MoreOptions>
         </div>
       )
     }
@@ -455,21 +484,24 @@ export default function SectionForm({
       return (
         <div className="flex flex-col gap-3">
           <AudioUploadField url={section.content.url} onChange={v => onPatch({ url: v })} />
-          <TextField label="Título" value={section.content.titulo} onChange={v => onPatch({ titulo: v })} placeholder="Un mensaje para ti" />
-          <TextField label="Texto opcional" value={section.content.caption} onChange={v => onPatch({ caption: v })} placeholder="Escúchalo antes de la fiesta" />
-          <TextField label="Enlace de Google Drive (opcional)" value={section.content.drive_url} onChange={v => onPatch({ drive_url: v })} placeholder="https://drive.google.com/file/d/..." />
-          {hasDriveUrl && drive && (
-            <p className="flex items-center gap-1.5 text-[11px] font-medium text-[#2a7a50]">
-              <CheckCircle2 size={13} /> Audio de Google Drive detectado
-            </p>
-          )}
-          {hasDriveUrl && !drive && (
-            <p className="text-[11px] text-[#b8912f]">No reconocimos el enlace. Copia el link de un archivo de Google Drive.</p>
-          )}
-          {hasDriveUrl && drive && (
-            <p className="text-[11px] text-[#999]">En Google Drive comparte el archivo como "Cualquiera con el enlace" para que se escuche.</p>
-          )}
-          <p className="text-xs text-[#999]">Sube un clip propio o pega un link de Google Drive (o ambos). Nada se reproduce solo: el invitado toca play.</p>
+          <FieldRow>
+            <TextField label="Título" value={section.content.titulo} onChange={v => onPatch({ titulo: v })} placeholder="Un mensaje para ti" />
+            <TextField label="Texto opcional" value={section.content.caption} onChange={v => onPatch({ caption: v })} placeholder="Escúchalo antes de la fiesta" />
+          </FieldRow>
+          <MoreOptions>
+            <TextField label="Enlace de Google Drive (opcional)" value={section.content.drive_url} onChange={v => onPatch({ drive_url: v })} placeholder="https://drive.google.com/file/d/..." />
+            {hasDriveUrl && drive && (
+              <p className="flex items-center gap-1.5 text-[11px] font-medium text-[#2a7a50]">
+                <CheckCircle2 size={13} /> Audio de Google Drive detectado
+              </p>
+            )}
+            {hasDriveUrl && !drive && (
+              <p className="text-[11px] text-[#b8912f]">No reconocimos el enlace. Copia el link de un archivo de Google Drive.</p>
+            )}
+            {hasDriveUrl && drive && (
+              <p className="text-[11px] text-[#999]">En Google Drive comparte el archivo como "Cualquiera con el enlace" para que se escuche.</p>
+            )}
+          </MoreOptions>
         </div>
       )
     }
