@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation'
 import { Upload, X, CheckCircle2 } from 'lucide-react'
 import type { Section } from '@/lib/invite/schema'
 import { parseVideoUrl } from '@/lib/invite/video'
+import { parseSpotifyUrl } from '@/lib/invite/spotify'
 import { supabase } from '@/lib/supabase'
 import GifSearch from './GifSearch'
 
@@ -266,16 +267,27 @@ export default function SectionForm({
         </div>
       )
     }
-    case 'audio':
+    case 'audio': {
+      const spotify = parseSpotifyUrl(section.content.spotify_url)
+      const hasSpotifyUrl = section.content.spotify_url.trim().length > 0
       return (
         <div className="flex flex-col gap-3">
           <AudioUploadField url={section.content.url} onChange={v => onPatch({ url: v })} />
           <TextField label="Título" value={section.content.titulo} onChange={v => onPatch({ titulo: v })} placeholder="Un mensaje para ti" />
           <TextField label="Texto opcional" value={section.content.caption} onChange={v => onPatch({ caption: v })} placeholder="Escúchalo antes de la fiesta" />
-          <TextField label="Enlace de Spotify (opcional)" value={section.content.spotify_url} onChange={v => onPatch({ spotify_url: v })} placeholder="https://open.spotify.com/..." />
-          <p className="text-xs text-[#999]">Sube un clip propio; se reproduce con un toque (sin audio automático).</p>
+          <TextField label="Enlace de Spotify (opcional)" value={section.content.spotify_url} onChange={v => onPatch({ spotify_url: v })} placeholder="https://open.spotify.com/track/..." />
+          {hasSpotifyUrl && spotify && (
+            <p className="flex items-center gap-1.5 text-[11px] font-medium text-[#2a7a50]">
+              <CheckCircle2 size={13} /> Reproductor de Spotify listo
+            </p>
+          )}
+          {hasSpotifyUrl && !spotify && (
+            <p className="text-[11px] text-[#b8912f]">No reconocimos el enlace. Copia un link de canción, álbum o playlist de Spotify.</p>
+          )}
+          <p className="text-xs text-[#999]">Sube un clip propio o pega un link de Spotify (o ambos). Nada se reproduce solo: el invitado toca play.</p>
         </div>
       )
+    }
     default:
       return null
   }
