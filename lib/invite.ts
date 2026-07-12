@@ -13,9 +13,10 @@ function stripAccents(s: string): string {
 }
 
 export function slugifyEvent(event: { name: string; host_name?: string | null; host_name_2?: string | null }): string {
-  const base = event.host_name && event.host_name_2
+  const hosts = event.host_name && event.host_name_2
     ? `${event.host_name} y ${event.host_name_2}`
-    : event.host_name || event.name || 'evento'
+    : event.host_name
+  const base = event.name || hosts || 'evento'
   return stripAccents(base)
     .toLowerCase()
     .replace(/&/g, ' y ')

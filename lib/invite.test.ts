@@ -17,11 +17,17 @@ describe('randomToken', () => {
 })
 
 describe('slugifyEvent', () => {
-  it('dos anfitriones -> nombres con y', () => {
-    expect(slugifyEvent({ name: 'Boda', host_name: 'Ana', host_name_2: 'Mateo' })).toBe('ana-y-mateo')
+  it('prioriza el nombre del evento aunque haya anfitriones', () => {
+    expect(slugifyEvent({ name: "Final Mundial '26", host_name: 'Diego', host_name_2: 'Daniel' })).toBe('final-mundial-26')
   })
-  it('sin anfitriones -> nombre del evento sin acentos', () => {
+  it('sin acentos y en minusculas', () => {
     expect(slugifyEvent({ name: 'Cumpleaños de Adrián' })).toBe('cumpleanos-de-adrian')
+  })
+  it('cae a los anfitriones si el evento no tiene nombre', () => {
+    expect(slugifyEvent({ name: '', host_name: 'Ana', host_name_2: 'Mateo' })).toBe('ana-y-mateo')
+  })
+  it('cae a evento si no hay nada', () => {
+    expect(slugifyEvent({ name: '' })).toBe('evento')
   })
 })
 
