@@ -13,6 +13,7 @@ const SaludoContent = z.object({
 const DetallesContent = z.object({
   titulo: z.string().default('Los detalles'),
   mostrar_mapa: z.boolean().default(true),
+  maps_url: z.string().default(''),
 })
 const DressCodeContent = z.object({
   titulo: z.string().default('Código de vestimenta'),

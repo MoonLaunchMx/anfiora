@@ -173,7 +173,14 @@ export default function SectionForm({
       return (
         <div className="flex flex-col gap-3">
           <TextField label="Título" value={section.content.titulo} onChange={v => onPatch({ titulo: v })} />
-          <ToggleField label="Mostrar mapa" value={section.content.mostrar_mapa} onChange={v => onPatch({ mostrar_mapa: v })} />
+          <ToggleField label="Mostrar botón de Google Maps" value={section.content.mostrar_mapa} onChange={v => onPatch({ mostrar_mapa: v })} />
+          {section.content.mostrar_mapa && (
+            <>
+              <TextField label="Enlace de Google Maps (opcional)" value={section.content.maps_url} onChange={v => onPatch({ maps_url: v })} placeholder="Pega un link de Maps o déjalo vacío" />
+              <p className="text-xs text-[#999]">Si lo dejas vacío, usamos la dirección del evento.</p>
+            </>
+          )}
+          <p className="text-xs text-[#999]">Los datos (fecha, hora, lugar, dirección) se toman del evento.</p>
         </div>
       )
     case 'dress_code':
