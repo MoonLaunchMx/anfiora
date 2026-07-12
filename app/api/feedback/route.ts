@@ -69,19 +69,37 @@ export async function POST(req: NextRequest) {
     eventName,
   })
 
-  try {
-    const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ chat_id: chatId, text, disable_web_page_preview: true }),
-    })
-    if (!res.ok) {
-      const detail = await res.text().catch(() => '')
-      console.error('[feedback] telegram error:', res.status, detail.slice(0, 200))
-      return NextResponse.json({ ok: false, error: 'envio fallo' }, { status: 502 })
+  const tgUrl = `https://api.telegram.org/bot${token}/sendMessage`
+  const tgBody = JSON.stringify({ chat_id: chatId, text, disable_web_page_preview: true })
+
+  // Reintento unico: el connect a Telegram falla ~esporadicamente en cold start
+  let res: Response | null = null
+  let lastErr: unknown = null
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const ctrl = new AbortController()
+    const timer = setTimeout(() => ctrl.abort(), 8000)
+    try {
+      res = await fetch(tgUrl, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: tgBody,
+        signal: ctrl.signal,
+      })
+      break
+    } catch (e) {
+      lastErr = e
+    } finally {
+      clearTimeout(timer)
     }
-  } catch (e) {
-    console.error('[feedback] telegram fetch error:', e)
+  }
+
+  if (!res) {
+    console.error('[feedback] telegram fetch error (2 intentos):', lastErr)
+    return NextResponse.json({ ok: false, error: 'envio fallo' }, { status: 502 })
+  }
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '')
+    console.error('[feedback] telegram error:', res.status, detail.slice(0, 200))
     return NextResponse.json({ ok: false, error: 'envio fallo' }, { status: 502 })
   }
 
