@@ -24,13 +24,13 @@ export default function DetallesSection({ content, ctx }: { content: Content; ct
 
       <div className="mt-8 grid gap-4 sm:grid-cols-2">
         {(fecha || event_time) && (
-          <div className="rounded-2xl border border-[#e8e8e8] bg-white px-5 py-4">
-            <p className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-[#999]">
-              <Calendar size={13} style={{ color: 'var(--inv-acento)' }} /> Cuándo
+          <div className="rounded-2xl border border-[#e8e8e8] px-5 py-4" style={{ background: 'var(--inv-tarjeta)' }}>
+            <p className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider" style={{ color: 'var(--inv-tarjeta-texto)', opacity: 0.6 }}>
+              <Calendar size={13} style={{ color: 'var(--inv-acento)', opacity: 1 }} /> Cuándo
             </p>
-            {fecha && <p className="mt-1.5 text-sm capitalize" style={{ color: 'var(--inv-texto)' }}>{fecha}</p>}
+            {fecha && <p className="mt-1.5 text-sm capitalize" style={{ color: 'var(--inv-tarjeta-texto)' }}>{fecha}</p>}
             {event_time && (
-              <p className="mt-1 flex items-center gap-1.5 text-sm opacity-70" style={{ color: 'var(--inv-texto)' }}>
+              <p className="mt-1 flex items-center gap-1.5 text-sm opacity-70" style={{ color: 'var(--inv-tarjeta-texto)' }}>
                 <Clock size={13} /> {formatHora(event_time)}
               </p>
             )}
@@ -38,12 +38,12 @@ export default function DetallesSection({ content, ctx }: { content: Content; ct
         )}
 
         {(venue || address) && (
-          <div className="rounded-2xl border border-[#e8e8e8] bg-white px-5 py-4">
-            <p className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-[#999]">
-              <MapPin size={13} style={{ color: 'var(--inv-acento)' }} /> Dónde
+          <div className="rounded-2xl border border-[#e8e8e8] px-5 py-4" style={{ background: 'var(--inv-tarjeta)' }}>
+            <p className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider" style={{ color: 'var(--inv-tarjeta-texto)', opacity: 0.6 }}>
+              <MapPin size={13} style={{ color: 'var(--inv-acento)', opacity: 1 }} /> Dónde
             </p>
-            {venue && <p className="mt-1.5 text-sm" style={{ color: 'var(--inv-texto)' }}>{venue}</p>}
-            {address && <p className="mt-1 text-sm opacity-70" style={{ color: 'var(--inv-texto)' }}>{address}</p>}
+            {venue && <p className="mt-1.5 text-sm" style={{ color: 'var(--inv-tarjeta-texto)' }}>{venue}</p>}
+            {address && <p className="mt-1 text-sm opacity-70" style={{ color: 'var(--inv-tarjeta-texto)' }}>{address}</p>}
             {mapsUrl && (
               <a
                 href={mapsUrl}

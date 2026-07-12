@@ -6,6 +6,7 @@ type Colores = {
   fondo: string
   texto: string
   titulo?: string
+  tarjeta?: string
   acento: string
   botonBg: string
   botonTexto: string
@@ -17,6 +18,7 @@ const TOKENS: { key: ColorToken; label: string }[] = [
   { key: 'fondo', label: 'Fondo' },
   { key: 'titulo', label: 'Título' },
   { key: 'texto', label: 'Cuerpo' },
+  { key: 'tarjeta', label: 'Cajas' },
   { key: 'acento', label: 'Acento' },
   { key: 'botonBg', label: 'Botón' },
   { key: 'botonTexto', label: 'Texto botón' },
@@ -32,7 +34,8 @@ export default function ColorControls({
   const [open, setOpen] = useState<ColorToken | null>(null)
   const apply = (token: ColorToken, v: string) => onColores({ [token]: v } as Partial<Colores>)
   const openLabel = TOKENS.find(t => t.key === open)?.label
-  const valueOf = (key: ColorToken) => colores[key] ?? (key === 'titulo' ? colores.texto : '#000000')
+  const valueOf = (key: ColorToken) =>
+    colores[key] ?? (key === 'titulo' ? colores.texto : key === 'tarjeta' ? '#ffffff' : '#000000')
 
   return (
     <div className="flex flex-col gap-3">

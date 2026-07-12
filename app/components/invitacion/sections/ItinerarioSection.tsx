@@ -11,7 +11,7 @@ export default function ItinerarioSection({ content, ctx }: { content: Content; 
     if (ctx.mode !== 'preview') return null
     return (
       <SectionShell variant="band" className="text-center">
-        <p className="rounded-xl border border-dashed border-[#e0e0e0] bg-white px-4 py-6 text-xs text-[#bbb]">
+        <p className="rounded-xl border border-dashed border-[#e0e0e0] px-4 py-6 text-xs" style={{ background: 'var(--inv-tarjeta)', color: 'var(--inv-tarjeta-texto)', opacity: 0.6 }}>
           Se mostrará cuando configures el itinerario en Timeline
         </p>
       </SectionShell>
