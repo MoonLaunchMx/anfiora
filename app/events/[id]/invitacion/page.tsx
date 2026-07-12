@@ -241,11 +241,11 @@ export default function InvitacionPage() {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-4 pb-6 pt-5 sm:px-6 lg:px-10">
+      <div className="flex-1 overflow-y-auto px-4 pb-6 sm:px-6 lg:px-10">
         {activeTab === 'diseno' ? (
           <div className="grid items-start gap-6 sm:grid-cols-[1fr_360px] lg:gap-8">
             <div className="min-w-0">
-              <div className="sticky top-0 z-20 mb-5 flex gap-6 border-b border-[#eee] bg-white">
+              <div className="sticky top-0 z-20 mb-5 flex gap-6 border-b border-[#eee] bg-white pt-5">
                 {([
                   ['estilo', 'Plantillas'],
                   ['personalizar', 'Personalizar'],
@@ -265,7 +265,7 @@ export default function InvitacionPage() {
               {disenoSub === 'contenido' && <BlockEditor doc={doc} onChange={updateDoc} makeId={() => crypto.randomUUID()} />}
             </div>
 
-            <div className="hidden sm:sticky sm:top-0 sm:block">
+            <div className="hidden sm:sticky sm:top-0 sm:block sm:pt-5">
               <div className="mb-2 flex items-center justify-between">
                 <p className="text-[11px] font-bold uppercase tracking-wider text-[#999]">Vista previa</p>
                 <button onClick={() => { setPreviewMode('escritorio'); setShowPreview(true) }} className="flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider text-[#999] transition hover:text-[#48C9B0]">
@@ -284,7 +284,9 @@ export default function InvitacionPage() {
             </div>
           </div>
         ) : (
-          <RepartoLinks eventId={eventId} event={event} />
+          <div className="pt-5">
+            <RepartoLinks eventId={eventId} event={event} />
+          </div>
         )}
       </div>
 
