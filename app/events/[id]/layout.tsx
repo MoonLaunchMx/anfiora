@@ -422,7 +422,7 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
   const badgeStyle    = displayStatus ? EVENT_STATUS_STYLES[displayStatus] : null
 
   const AvatarDropdown = () => (
-    <div className="absolute bottom-full right-0 z-50 mb-2 w-52 overflow-hidden rounded-xl border border-[#e8e8e8] bg-white shadow-lg">
+    <div className={`absolute bottom-full ${collapsed ? 'left-0' : 'right-0'} z-50 mb-2 w-52 overflow-hidden rounded-xl border border-[#e8e8e8] bg-white shadow-lg`}>
       <div className="border-b border-[#f0f0f0] px-4 py-3">
         <p className="truncate text-xs font-semibold text-[#1D1E20]">{userName || 'Mi cuenta'}</p>
         <p className="truncate text-[11px] text-[#aaa]">{userEmail}</p>
@@ -610,7 +610,7 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
 
         {/* SIDEBAR desktop lg+ */}
         <aside
-          className="hidden shrink-0 flex-col overflow-hidden border-r border-[#e8e8e8] bg-[#f8f5f0] lg:flex"
+          className="hidden shrink-0 flex-col border-r border-[#e8e8e8] bg-[#f8f5f0] lg:flex"
           style={{ width: collapsed ? '56px' : '224px', transition: 'width 0.2s ease' }}
         >
           <nav className="flex-1 overflow-y-auto py-2">
