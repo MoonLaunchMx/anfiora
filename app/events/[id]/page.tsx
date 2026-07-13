@@ -821,10 +821,7 @@ export default function EventPage() {
     ])
     if (data) {
       setEvent(data)
-      if (data.user_id) {
-        const { data: planner } = await supabase.from('users').select('full_name').eq('id', data.user_id).single()
-        if (planner?.full_name) setPlannerName(planner.full_name)
-      }
+      if (data.planner_name) setPlannerName(data.planner_name)
     }
     if (settings) setEventSettings(settings)
   }

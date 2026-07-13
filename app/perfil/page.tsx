@@ -204,6 +204,8 @@ export default function PerfilPage() {
     } else {
       // Sincronizar metadata de auth también
       await supabase.auth.updateUser({ data: { full_name: name.trim() } })
+      // Mantener fresco el nombre denormalizado en los eventos propios
+      await supabase.from('events').update({ planner_name: name.trim() }).eq('user_id', userId)
       setProfileMsg({ type: 'success', text: 'Perfil actualizado correctamente' })
     }
     setSavingProfile(false)
