@@ -7,6 +7,7 @@ import ButtonStylePicker from './ButtonStylePicker'
 import ColorControls from './ColorControls'
 import FondoControls from './FondoControls'
 import AnimControls from './AnimControls'
+import CarruselControls from './CarruselControls'
 
 export default function PersonalizarPanel({ doc, onChange }: { doc: InviteDoc; onChange: (next: InviteDoc) => void }) {
   const t = doc.theme
@@ -51,6 +52,11 @@ export default function PersonalizarPanel({ doc, onChange }: { doc: InviteDoc; o
         <div className="flex flex-col gap-2.5">
           <p className="text-xs font-semibold text-[#1D1E20]">Fondo</p>
           <FondoControls doc={doc} onChange={onChange} />
+        </div>
+
+        <div className="flex flex-col gap-2.5">
+          <p className="text-xs font-semibold text-[#1D1E20]">Carrusel de fotos</p>
+          <CarruselControls doc={doc} onChange={onChange} />
         </div>
       </div>
     </div>

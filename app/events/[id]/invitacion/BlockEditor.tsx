@@ -37,6 +37,7 @@ const TYPE_LABELS: Record<SectionType, string> = {
   texto: 'Texto libre',
   cierre: 'Cierre',
   media: 'Imagen o GIF',
+  galeria: 'Carrusel de fotos',
   video: 'Video',
   audio: 'Audio',
 }

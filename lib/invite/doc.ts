@@ -105,6 +105,7 @@ export function setTheme(doc: InviteDoc, patch: DeepPartial<Theme>): InviteDoc {
     boton: { ...t.boton, ...(patch.boton ?? {}) },
     fondo: { ...t.fondo, ...(patch.fondo ?? {}) },
     anim: { ...t.anim, ...(patch.anim ?? {}) },
+    carrusel: { ...t.carrusel, ...(patch.carrusel ?? {}) },
     copy: { ...t.copy, ...(patch.copy ?? {}) },
   }
   return { ...doc, theme: ThemeSchema.parse(merged) }

@@ -21,4 +21,14 @@ describe('ThemeSchema', () => {
     const bad = { ...DEFAULT_THEME, boton: { forma: 'circulo', estilo: 'relleno' } }
     expect(ThemeSchema.safeParse(bad).success).toBe(false)
   })
+
+  it('defaults carrusel estilo to fundido for docs sin carrusel', () => {
+    const parsed = ThemeSchema.parse({ vibeId: 'clasico' })
+    expect(parsed.carrusel.estilo).toBe('fundido')
+  })
+
+  it('keeps a valid carrusel estilo', () => {
+    const parsed = ThemeSchema.parse({ carrusel: { estilo: 'polaroid' } })
+    expect(parsed.carrusel.estilo).toBe('polaroid')
+  })
 })

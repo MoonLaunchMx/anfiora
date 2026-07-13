@@ -29,6 +29,9 @@ export const NO_ANIM_IDS = [
 ] as const
 export type NoAnimId = (typeof NO_ANIM_IDS)[number]
 
+export const CARRUSEL_ESTILOS = ['fundido', 'zoom', 'deslizar', 'polaroid'] as const
+export type CarruselEstilo = (typeof CARRUSEL_ESTILOS)[number]
+
 export const ThemeColorsSchema = z.object({
   fondo: z.string().default('#ffffff'),
   texto: z.string().default('#1D1E20'),
@@ -59,6 +62,10 @@ export const ThemeAnimSchema = z.object({
   no: z.enum(NO_ANIM_IDS).default('calido'),
 })
 
+export const ThemeCarruselSchema = z.object({
+  estilo: z.enum(CARRUSEL_ESTILOS).default('fundido'),
+})
+
 export const ThemeSchema = z.object({
   vibeId: z.string().default('anfiora-claro'),
   colores: ThemeColorsSchema.default(() => ThemeColorsSchema.parse({})),
@@ -66,6 +73,7 @@ export const ThemeSchema = z.object({
   boton: ThemeBotonSchema.default(() => ThemeBotonSchema.parse({})),
   fondo: ThemeFondoSchema.default(() => ThemeFondoSchema.parse({})),
   anim: ThemeAnimSchema.default(() => ThemeAnimSchema.parse({})),
+  carrusel: ThemeCarruselSchema.default(() => ThemeCarruselSchema.parse({})),
   copy: z.record(z.string(), z.string()).default({}),
 })
 

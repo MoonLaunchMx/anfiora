@@ -51,6 +51,10 @@ const MediaContent = z.object({
   url: z.string().default(''),
   caption: z.string().default(''),
 })
+const GaleriaContent = z.object({
+  fotos: z.array(z.string()).default([]),
+  titulo: z.string().default(''),
+})
 const VideoContent = z.object({
   url: z.string().default(''),
   caption: z.string().default(''),
@@ -75,6 +79,7 @@ export const CONTENT_BY_TYPE = {
   texto: TextoContent,
   cierre: CierreContent,
   media: MediaContent,
+  galeria: GaleriaContent,
   video: VideoContent,
   audio: AudioContent,
 } as const
@@ -95,6 +100,7 @@ export const SectionSchema = z.discriminatedUnion('type', [
   z.object({ id: z.string(), type: z.literal('texto'),      content: TextoContent }),
   z.object({ id: z.string(), type: z.literal('cierre'),     content: CierreContent }),
   z.object({ id: z.string(), type: z.literal('media'),      content: MediaContent }),
+  z.object({ id: z.string(), type: z.literal('galeria'),    content: GaleriaContent }),
   z.object({ id: z.string(), type: z.literal('video'),      content: VideoContent }),
   z.object({ id: z.string(), type: z.literal('audio'),      content: AudioContent }),
 ])

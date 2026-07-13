@@ -2,11 +2,12 @@
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { useParams } from 'next/navigation'
-import { Upload, X, CheckCircle2, Mic, Square, ChevronDown } from 'lucide-react'
+import { Upload, X, CheckCircle2, Mic, Square, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react'
 import type { Section } from '@/lib/invite/schema'
 import { parseVideoUrl } from '@/lib/invite/video'
 import { parseDriveUrl } from '@/lib/invite/drive'
 import { pickAudioMime, extForMime, formatTimer } from '@/lib/invite/audio-recording'
+import { addFotos, removeFotoAt, moveFoto, MAX_GALERIA_FOTOS } from '@/lib/invite/galeria'
 import { supabase } from '@/lib/supabase'
 import GifSearch from './GifSearch'
 
@@ -79,6 +80,103 @@ function ImageUploadButton({ onUploaded }: { onUploaded: (url: string) => void }
           className="hidden"
         />
       </label>
+      {error && <p className="text-[11px] text-[#cc3333]">{error}</p>}
+    </div>
+  )
+}
+
+function GaleriaField({
+  fotos,
+  titulo,
+  onPatch,
+}: {
+  fotos: string[]
+  titulo: string
+  onPatch: (patch: Record<string, unknown>) => void
+}) {
+  const { id } = useParams()
+  const eventId = String(id)
+  const [uploading, setUploading] = useState(false)
+  const [error, setError] = useState('')
+  const full = fotos.length >= MAX_GALERIA_FOTOS
+
+  const uploadFiles = async (fileList: FileList) => {
+    setError('')
+    const room = MAX_GALERIA_FOTOS - fotos.length
+    if (room <= 0) return
+    const picked = Array.from(fileList).slice(0, room)
+    setUploading(true)
+    const urls: string[] = []
+    for (const file of picked) {
+      if (!file.type.startsWith('image/')) { setError('Solo se pueden subir imágenes.'); continue }
+      if (file.size > 15 * 1024 * 1024) { setError('Cada foto debe pesar menos de 15 MB.'); continue }
+      const res = await uploadImageToBucket(eventId, file)
+      if (res.error) setError(res.error)
+      else if (res.url) urls.push(res.url)
+    }
+    setUploading(false)
+    if (urls.length) onPatch({ fotos: addFotos(fotos, urls) })
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      <TextField label="Título opcional" value={titulo} onChange={v => onPatch({ titulo: v })} placeholder="Nuestros momentos" />
+
+      {fotos.length > 0 && (
+        <div className="grid grid-cols-3 gap-2">
+          {fotos.map((url, i) => (
+            <div key={`${url}-${i}`} className="relative overflow-hidden rounded-lg border border-[#e0e0e0] bg-white">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={url} alt="" className="aspect-[4/5] w-full object-cover" loading="lazy" />
+              <button
+                type="button"
+                onClick={() => onPatch({ fotos: removeFotoAt(fotos, i) })}
+                className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-black/55 text-white transition hover:bg-black/75"
+                aria-label="Quitar foto"
+              >
+                <X size={13} />
+              </button>
+              <div className="absolute inset-x-0 bottom-0 flex justify-between bg-gradient-to-t from-black/50 to-transparent px-1 py-1">
+                <button
+                  type="button"
+                  disabled={i === 0}
+                  onClick={() => onPatch({ fotos: moveFoto(fotos, i, -1) })}
+                  className="flex h-6 w-6 items-center justify-center rounded-md text-white transition hover:bg-white/20 disabled:opacity-30"
+                  aria-label="Mover a la izquierda"
+                >
+                  <ChevronLeft size={15} />
+                </button>
+                <button
+                  type="button"
+                  disabled={i === fotos.length - 1}
+                  onClick={() => onPatch({ fotos: moveFoto(fotos, i, 1) })}
+                  className="flex h-6 w-6 items-center justify-center rounded-md text-white transition hover:bg-white/20 disabled:opacity-30"
+                  aria-label="Mover a la derecha"
+                >
+                  <ChevronRight size={15} />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {full ? (
+        <p className="text-[11px] text-[#999]">Máximo {MAX_GALERIA_FOTOS} fotos.</p>
+      ) : (
+        <label className="flex cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-dashed border-[#ccc] bg-white px-2 py-2.5 text-center text-xs font-medium text-[#888] transition hover:border-[#48C9B0] hover:text-[#48C9B0]">
+          <Upload size={14} />
+          {uploading ? 'Subiendo...' : 'Agregar fotos (galería o cámara)'}
+          <input
+            type="file"
+            accept="image/*"
+            multiple
+            disabled={uploading}
+            onChange={e => { const fs = e.target.files; if (fs && fs.length) uploadFiles(fs); e.target.value = '' }}
+            className="hidden"
+          />
+        </label>
+      )}
       {error && <p className="text-[11px] text-[#cc3333]">{error}</p>}
     </div>
   )
@@ -519,6 +617,8 @@ export default function SectionForm({
           </MoreOptions>
         </div>
       )
+    case 'galeria':
+      return <GaleriaField fotos={section.content.fotos} titulo={section.content.titulo} onPatch={onPatch} />
     case 'video': {
       const parsed = parseVideoUrl(section.content.url)
       const hasUrl = section.content.url.trim().length > 0

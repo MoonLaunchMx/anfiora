@@ -20,6 +20,7 @@ export const SECTION_TYPE_CATEGORY: Record<SectionType, SectionCategoryKey> = {
   texto: 'texto',
   cierre: 'texto',
   media: 'visuales',
+  galeria: 'visuales',
   video: 'visuales',
   audio: 'audio',
   rsvp: 'evento',
