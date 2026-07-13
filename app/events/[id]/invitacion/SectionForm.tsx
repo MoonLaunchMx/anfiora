@@ -515,7 +515,6 @@ export default function SectionForm({
             </>
           )}
           <MoreOptions>
-            <TextField label="URL de la imagen o GIF" value={section.content.url} onChange={v => onPatch({ url: v })} placeholder="https://media.giphy.com/....gif" />
             <TextField label="Texto opcional (pie)" value={section.content.caption} onChange={v => onPatch({ caption: v })} placeholder="Un pie de foto" />
           </MoreOptions>
         </div>

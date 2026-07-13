@@ -66,7 +66,7 @@ export default function GifSearch({ onSelect }: { onSelect: (url: string) => voi
 
       {noKey && (
         <p className="text-[11px] text-[#b8912f]">
-          Falta configurar GIPHY_API_KEY. Mientras, pega la URL de un GIF abajo.
+          El buscador de GIF no está disponible por ahora.
         </p>
       )}
 
