@@ -103,7 +103,7 @@ export default function ColorControls({
           >
             <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setOpen(null)} />
             <motion.div
-              className="relative z-10 w-full max-w-[300px]"
+              className="relative z-10 flex w-full max-w-sm justify-center"
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
@@ -114,6 +114,7 @@ export default function ColorControls({
                 value={valueOf(open)}
                 onChange={v => apply(open, v)}
                 onClose={() => setOpen(null)}
+                fluid
               />
             </motion.div>
           </motion.div>
