@@ -32,6 +32,58 @@ async function uploadAudioToBucket(eventId: string, blob: Blob, filename: string
   return { url: supabase.storage.from('event-media').getPublicUrl(path).data.publicUrl }
 }
 
+async function uploadImageToBucket(eventId: string, file: File): Promise<UploadResult> {
+  const safe = file.name.replace(/[^a-zA-Z0-9.-]/g, '_')
+  const path = `imagenes/${eventId}/${Date.now()}-${Math.random().toString(36).slice(2, 7)}-${safe}`
+  const { error } = await supabase.storage.from('event-media').upload(path, file, {
+    upsert: false,
+    contentType: file.type || undefined,
+  })
+  if (error) return { error: 'No se pudo subir la imagen. Intenta de nuevo.' }
+  return { url: supabase.storage.from('event-media').getPublicUrl(path).data.publicUrl }
+}
+
+function ImageUploadButton({ onUploaded }: { onUploaded: (url: string) => void }) {
+  const { id } = useParams()
+  const eventId = String(id)
+  const [uploading, setUploading] = useState(false)
+  const [error, setError] = useState('')
+
+  const upload = async (file: File) => {
+    setError('')
+    if (!file.type.startsWith('image/')) {
+      setError('Elige un archivo de imagen.')
+      return
+    }
+    if (file.size > 15 * 1024 * 1024) {
+      setError('La imagen no debe pesar más de 15 MB.')
+      return
+    }
+    setUploading(true)
+    const res = await uploadImageToBucket(eventId, file)
+    setUploading(false)
+    if (res.error) setError(res.error)
+    else if (res.url) onUploaded(res.url)
+  }
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      <label className="flex cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-dashed border-[#ccc] bg-white px-2 py-2.5 text-center text-xs font-medium text-[#888] transition hover:border-[#48C9B0] hover:text-[#48C9B0]">
+        <Upload size={14} />
+        {uploading ? 'Subiendo...' : 'Subir imagen (galería o cámara)'}
+        <input
+          type="file"
+          accept="image/*"
+          disabled={uploading}
+          onChange={e => { const f = e.target.files?.[0]; if (f) upload(f); e.target.value = '' }}
+          className="hidden"
+        />
+      </label>
+      {error && <p className="text-[11px] text-[#cc3333]">{error}</p>}
+    </div>
+  )
+}
+
 function useVoiceRecorder(eventId: string, onUploaded: (url: string) => void) {
   const [phase, setPhase] = useState<'idle' | 'recording' | 'recorded'>('idle')
   const [seconds, setSeconds] = useState(0)
@@ -444,10 +496,23 @@ export default function SectionForm({
     case 'media':
       return (
         <div className="flex flex-col gap-3">
-          <GifSearch onSelect={url => onPatch({ url })} />
-          {section.content.url && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={section.content.url} alt="" className="max-h-32 w-full rounded-lg object-contain" />
+          {section.content.url ? (
+            <div className="flex flex-col gap-2 rounded-lg border border-[#e0e0e0] bg-white p-2.5">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={section.content.url} alt="" className="max-h-40 w-full rounded-md object-contain" />
+              <button
+                type="button"
+                onClick={() => onPatch({ url: '' })}
+                className="flex items-center gap-1 self-start text-xs text-[#cc3333] transition hover:underline"
+              >
+                <X size={12} /> Quitar
+              </button>
+            </div>
+          ) : (
+            <>
+              <ImageUploadButton onUploaded={url => onPatch({ url })} />
+              <GifSearch onSelect={url => onPatch({ url })} />
+            </>
           )}
           <MoreOptions>
             <TextField label="URL de la imagen o GIF" value={section.content.url} onChange={v => onPatch({ url: v })} placeholder="https://media.giphy.com/....gif" />

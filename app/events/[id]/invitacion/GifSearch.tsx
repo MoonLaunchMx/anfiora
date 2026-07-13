@@ -10,6 +10,13 @@ export default function GifSearch({ onSelect }: { onSelect: (url: string) => voi
   const [loading, setLoading] = useState(false)
   const [noKey, setNoKey] = useState(false)
 
+  const handlePick = (url: string) => {
+    onSelect(url)
+    setQuery('')
+    setResults([])
+    setLoading(false)
+  }
+
   useEffect(() => {
     const q = query.trim()
     if (!q) {
@@ -71,7 +78,7 @@ export default function GifSearch({ onSelect }: { onSelect: (url: string) => voi
             <button
               key={r.id}
               type="button"
-              onClick={() => onSelect(r.url)}
+              onClick={() => handlePick(r.url)}
               className="overflow-hidden rounded-md transition hover:opacity-80"
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
