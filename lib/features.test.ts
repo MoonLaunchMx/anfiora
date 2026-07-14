@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { getDefaultAccessMode, resolveAccessMode } from './features'
+import { getDefaultAccessMode, resolveAccessMode, normalizeAccessFields } from './features'
 import { EVENT_TYPES } from './event-types'
 
 describe('getDefaultAccessMode', () => {
@@ -56,5 +56,47 @@ describe('resolveAccessMode', () => {
   it('valor basura en la columna cae en el default del tipo', () => {
     expect(resolveAccessMode('boda', 'lo-que-sea')).toBe('privada')
     expect(resolveAccessMode('boda', '')).toBe('privada')
+  })
+})
+
+describe('normalizeAccessFields', () => {
+  it('privada borra cupo y precio aunque vengan llenos', () => {
+    expect(normalizeAccessFields({ accessMode: 'privada', guestCap: '100', ticketPrice: '500' }))
+      .toEqual({ guest_cap: null, ticket_price: null })
+  })
+
+  it('abierta guarda cupo y precio', () => {
+    expect(normalizeAccessFields({ accessMode: 'abierta', guestCap: '100', ticketPrice: '500' }))
+      .toEqual({ guest_cap: 100, ticket_price: 500 })
+  })
+
+  it('aprobacion guarda cupo y precio', () => {
+    expect(normalizeAccessFields({ accessMode: 'aprobacion', guestCap: '30', ticketPrice: '0' }))
+      .toEqual({ guest_cap: 30, ticket_price: 0 })
+  })
+
+  it('vacio o espacios es null: sin limite y gratis', () => {
+    expect(normalizeAccessFields({ accessMode: 'abierta', guestCap: '', ticketPrice: '   ' }))
+      .toEqual({ guest_cap: null, ticket_price: null })
+  })
+
+  it('el precio acepta decimales', () => {
+    expect(normalizeAccessFields({ accessMode: 'abierta', guestCap: '', ticketPrice: '250.50' }).ticket_price)
+      .toBe(250.5)
+  })
+
+  it('el cupo rechaza decimales, cero y negativos', () => {
+    expect(normalizeAccessFields({ accessMode: 'abierta', guestCap: '10.5', ticketPrice: '' }).guest_cap).toBeNull()
+    expect(normalizeAccessFields({ accessMode: 'abierta', guestCap: '0', ticketPrice: '' }).guest_cap).toBeNull()
+    expect(normalizeAccessFields({ accessMode: 'abierta', guestCap: '-5', ticketPrice: '' }).guest_cap).toBeNull()
+  })
+
+  it('el precio rechaza negativos y basura', () => {
+    expect(normalizeAccessFields({ accessMode: 'abierta', guestCap: '', ticketPrice: '-1' }).ticket_price).toBeNull()
+    expect(normalizeAccessFields({ accessMode: 'abierta', guestCap: '', ticketPrice: 'abc' }).ticket_price).toBeNull()
+  })
+
+  it('el cupo rechaza basura', () => {
+    expect(normalizeAccessFields({ accessMode: 'abierta', guestCap: 'muchos', ticketPrice: '' }).guest_cap).toBeNull()
   })
 })

@@ -90,3 +90,31 @@ export function resolveAccessMode(
   if (stored === 'privada' || stored === 'aprobacion' || stored === 'abierta') return stored
   return getDefaultAccessMode(eventTypeValue)
 }
+
+function parseCap(raw: string): number | null {
+  const trimmed = raw.trim()
+  if (!trimmed) return null
+  const n = Number(trimmed)
+  if (!Number.isInteger(n) || n <= 0) return null
+  return n
+}
+
+function parsePrice(raw: string): number | null {
+  const trimmed = raw.trim()
+  if (!trimmed) return null
+  const n = Number(trimmed)
+  if (!Number.isFinite(n) || n < 0) return null
+  return n
+}
+
+export function normalizeAccessFields(input: {
+  accessMode: AccessMode
+  guestCap: string
+  ticketPrice: string
+}): { guest_cap: number | null; ticket_price: number | null } {
+  if (input.accessMode === 'privada') return { guest_cap: null, ticket_price: null }
+  return {
+    guest_cap: parseCap(input.guestCap),
+    ticket_price: parsePrice(input.ticketPrice),
+  }
+}
