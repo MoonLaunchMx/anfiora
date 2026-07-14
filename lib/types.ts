@@ -116,6 +116,8 @@ export type Event = {
   host_name_2?: string | null
   organization?: string | null
   event_category?: string | null
+  guest_cap?: number | null
+  ticket_price?: number | null
 }
 
 export type EventSettings = {
@@ -132,6 +134,7 @@ export type EventSettings = {
   registry_external_links: RegistryExternalLink[] | null
   enabled_features: import('./features').EnabledFeatures | null
   dress_code: import('./dresscode').DressCode | null
+  access_mode?: import('./features').AccessMode | null
   created_at: string
   updated_at: string
 }
@@ -144,6 +147,7 @@ export function resolveMaxSongs(value: number | null | undefined): number {
 }
 
 export type { InviteDoc } from './invite/schema'
+export type { AccessMode } from './features'
 
 export type RegistryExternalLink = {
   id: string
