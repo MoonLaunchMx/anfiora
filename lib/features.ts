@@ -91,8 +91,8 @@ export function resolveAccessMode(
   return getDefaultAccessMode(eventTypeValue)
 }
 
-// Maximum guest cap; prevents Postgres int4 overflow (max 2,147,483,647).
-// Returns null for any value out of range, consistent with invalid input handling.
+// events.guest_cap es int4 y el min del input no valida (el boton es onClick, no submit):
+// sin esta cota, un cupo tecleado de mas digitos tumba el insert con un error crudo de Postgres.
 const MAX_GUEST_CAP = 1_000_000
 
 function parseCap(raw: string): number | null {
