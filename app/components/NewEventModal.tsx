@@ -7,7 +7,7 @@ import { supabase } from '@/lib/supabase'
 import { AnimatePresence, motion } from 'framer-motion'
 import { ChevronRight, ArrowLeft, X } from 'lucide-react'
 import { EVENT_TYPES, CATEGORIES, EventTypeConfig, EventCategory } from '@/lib/event-types'
-import { FEATURES, ALWAYS_ON_FEATURES, ACCESS_MODES, getDefaultFeatures, getDefaultAccessMode, type FeatureKey, type AccessMode } from '@/lib/features'
+import { FEATURES, ALWAYS_ON_FEATURES, ACCESS_MODES, getDefaultFeatures, getDefaultAccessMode, normalizeAccessFields, type FeatureKey, type AccessMode } from '@/lib/features'
 
 function generatePlaylistToken(): string {
   return Math.random().toString(36).substring(2, 10) +
@@ -117,6 +117,8 @@ export function NewEventModal({ open, onClose, onCreated }: NewEventModalProps) 
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { window.location.href = '/'; return }
 
+    const access = normalizeAccessFields({ accessMode, guestCap, ticketPrice })
+
     const { data: eventData, error: eventError } = await supabase
       .from('events')
       .insert({
@@ -132,6 +134,8 @@ export function NewEventModal({ open, onClose, onCreated }: NewEventModalProps) 
         host_name_2:    hostName2.trim() || null,
         organization:   organization.trim() || null,
         total_guests:   0,
+        guest_cap:      access.guest_cap,
+        ticket_price:   access.ticket_price,
       })
       .select()
       .single()
@@ -150,6 +154,7 @@ export function NewEventModal({ open, onClose, onCreated }: NewEventModalProps) 
         message_templates: [],
         template_names:    [],
         enabled_features:  features,
+        access_mode:       accessMode,
       })
 
     if (settingsError) {
@@ -617,7 +622,7 @@ export function NewEventModal({ open, onClose, onCreated }: NewEventModalProps) 
               )}
             </div>
 
-            {/* Footer fijo — pasos 2 y 3 */}
+            {/* Footer fijo — pasos 2, 3 y 4 */}
             {step > 1 && (
               <div className="shrink-0 border-t border-[#e8e8e8] px-5 py-4">
                 <div className="flex gap-3">
