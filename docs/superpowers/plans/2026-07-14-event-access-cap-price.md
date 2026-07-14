@@ -12,7 +12,10 @@
 
 ## Global Constraints
 
-- **Worktree:** `C:\Users\diego\Documents\anfiora\.claude\worktrees\access-cap-price`. Rama `feature/ANF-054-event-access-cap-price` desde `origin/main` (`3eb0103`). **No trabajar en el checkout principal** (esta en `feat/forms`, que esta congelada).
+- **Worktree:** `C:\Users\diego\Documents\anfiora\.claude\worktrees\access-cap-price`. Rama `feature/ANF-054-event-access-cap-price`, mergeada con `origin/main` en `dec015a` (RLS Fase 1). **No trabajar en el checkout principal** (esta en `feat/forms`, que esta congelada).
+- **Antes de creerle a cualquier build o test: `git fetch origin && git merge origin/main`.** `origin/main` se mueve mientras esta rama trabaja. Un verde contra una base vieja no vale nada.
+- **`lib/types.ts`: NO agregar `planner_name`.** La columna existe en la DB desde RLS Fase 1 y se usa sin tipo en `app/events/[id]/page.tsx:841` y `app/perfil/page.tsx:209`, pero **no** esta en el tipo `Event`. Es un cabo suelto ajeno a ANF-054. La Task 4 reemplaza el bloque `Event` completo: **copiar el bloque tal como esta al momento de editar**, no desde este plan a ciegas, por si alguien lo agrego mientras tanto.
+- **Si hay que borrar este worktree:** quitar a mano el junction de `node_modules` ANTES (`(Get-Item $ruta -Force).Delete()`). `git worktree remove` lo sigue y vacia el `node_modules` de la carpeta principal.
 - **NUNCA** `git push`. **NUNCA** tocar Supabase: el SQL lo escribe Claude, lo corre Diego.
 - **`feat/forms` no se toca.** Queda congelada como donante.
 - Mobile first. UI en espanol **con acentos y ñ**. Sin emojis. Solo Tailwind (sin inline styles).
@@ -29,7 +32,7 @@
 
 | Archivo | Responsabilidad |
 |---|---|
-| `docs/superpowers/plans/2026-07-14-access-cap-price.sql` | Crear: migracion. La corre Diego en Supabase. |
+| `docs/superpowers/plans/sql/2026-07-14-access-cap-price.sql` | Crear: migracion. La corre Diego en Supabase. |
 | `lib/features.ts` | Modificar: tipo `AccessMode`, catalogo `ACCESS_MODES` (label/desc/icono), y los helpers `getDefaultAccessMode` / `resolveAccessMode` / `normalizeAccessFields`. |
 | `lib/event-types.ts` | Modificar: campo `defaultAccessMode` en `EventTypeConfig` y en los 17 tipos. Es el mapeo. |
 | `lib/features.test.ts` | Crear: Vitest de los tres helpers y del mapeo completo. |
@@ -43,7 +46,7 @@
 ### Task 1: Migracion SQL (la corre Diego)
 
 **Files:**
-- Create: `docs/superpowers/plans/2026-07-14-access-cap-price.sql`
+- Create: `docs/superpowers/plans/sql/2026-07-14-access-cap-price.sql`
 
 **Interfaces:**
 - Consumes: nada.
@@ -53,7 +56,7 @@
 
 - [ ] **Step 1: Escribir el archivo de migracion**
 
-Crear `docs/superpowers/plans/2026-07-14-access-cap-price.sql`:
+Crear `docs/superpowers/plans/sql/2026-07-14-access-cap-price.sql`:
 
 ```sql
 -- ANF-054 — modo de acceso, cupo y precio del evento.
@@ -69,7 +72,7 @@ alter table events        add column if not exists ticket_price numeric;
 - [ ] **Step 2: Commit**
 
 ```bash
-git add docs/superpowers/plans/2026-07-14-access-cap-price.sql
+git add docs/superpowers/plans/sql/2026-07-14-access-cap-price.sql
 git commit -m "chore(events): migracion de access mode, guest cap y ticket price"
 ```
 
@@ -79,7 +82,7 @@ git commit -m "chore(events): migracion de access mode, guest cap y ticket price
 Las tasks 2 a 5 (logica y tipos) no dependen de la DB y podrian correr antes, pero la Task 6
 (insert) y la Task 7 (verificacion local) fallan sin las columnas.
 
-Decirle a Diego, literal: el SQL esta en `docs/superpowers/plans/2026-07-14-access-cap-price.sql`,
+Decirle a Diego, literal: el SQL esta en `docs/superpowers/plans/sql/2026-07-14-access-cap-price.sql`,
 son tres `ALTER TABLE` aditivos y nullable, y necesito que lo corra en el SQL editor de Supabase
 antes de que yo pueda verificar nada en local.
 
