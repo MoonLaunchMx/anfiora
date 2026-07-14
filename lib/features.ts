@@ -91,11 +91,15 @@ export function resolveAccessMode(
   return getDefaultAccessMode(eventTypeValue)
 }
 
+// Maximum guest cap; prevents Postgres int4 overflow (max 2,147,483,647).
+// Returns null for any value out of range, consistent with invalid input handling.
+const MAX_GUEST_CAP = 1_000_000
+
 function parseCap(raw: string): number | null {
   const trimmed = raw.trim()
   if (!trimmed) return null
   const n = Number(trimmed)
-  if (!Number.isInteger(n) || n <= 0) return null
+  if (!Number.isInteger(n) || n <= 0 || n > MAX_GUEST_CAP) return null
   return n
 }
 

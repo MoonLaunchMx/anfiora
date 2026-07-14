@@ -99,4 +99,16 @@ describe('normalizeAccessFields', () => {
   it('el cupo rechaza basura', () => {
     expect(normalizeAccessFields({ accessMode: 'abierta', guestCap: 'muchos', ticketPrice: '' }).guest_cap).toBeNull()
   })
+
+  it('el cupo acepta el limite exacto (1000000)', () => {
+    expect(normalizeAccessFields({ accessMode: 'abierta', guestCap: '1000000', ticketPrice: '' }).guest_cap).toBe(1000000)
+  })
+
+  it('el cupo rechaza arriba del limite (1000001)', () => {
+    expect(normalizeAccessFields({ accessMode: 'abierta', guestCap: '1000001', ticketPrice: '' }).guest_cap).toBeNull()
+  })
+
+  it('el cupo rechaza valores absurdos (99999999999)', () => {
+    expect(normalizeAccessFields({ accessMode: 'abierta', guestCap: '99999999999', ticketPrice: '' }).guest_cap).toBeNull()
+  })
 })
