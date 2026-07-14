@@ -58,8 +58,11 @@ CREATE POLICY audit_admin_select ON public.event_audit_log
 -- Sin UPDATE/DELETE -> bitacora inmutable desde el cliente.
 
 -- ============ 4) event_itinerary_moments: prender RLS ============
--- En main solo se LEE via service role (/api/invitacion/[token]) -> bypassa RLS.
--- Las policies de miembro/editor cubren la escritura si el editor de itinerario aterriza.
+-- Caminos verificados en main:
+--   escritura: app/events/[id]/timeline/useItinerary.ts (cliente autenticado) -> itinerary_editor_write
+--   lectura autenticada: /events/[id]/invitacion y /invitacion/preview/[id] (ambas exigen sesion) -> itinerary_member_select
+--   lectura publica: /api/invitacion/[token] usa service role -> bypassa RLS
+-- lib/audit.ts::getEventAuditLog no tiene llamadores (codigo muerto), no influye.
 ALTER TABLE public.event_itinerary_moments ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS itinerary_member_select ON public.event_itinerary_moments;
 DROP POLICY IF EXISTS itinerary_editor_write ON public.event_itinerary_moments;
