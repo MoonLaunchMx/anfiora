@@ -209,7 +209,7 @@ export default function Dashboard() {
         .in('event_id', allEventIds),
       myIds.length > 0
         ? supabase
-            .from('timeline_tasks')
+            .from('event_timeline_tasks')
             .select('id, event_id, title, category, reminder_date')
             .in('event_id', myIds)
             .not('reminder_date', 'is', null)
@@ -416,7 +416,7 @@ export default function Dashboard() {
   const totalReminders = reminders.length
 
   const markDone = async (id: string) => {
-    await supabase.from('timeline_tasks').update({ is_completed: true }).eq('id', id)
+    await supabase.from('event_timeline_tasks').update({ is_completed: true }).eq('id', id)
     const target = reminders.find(r => r.id === id)
     setReminders(prev => prev.filter(x => x.id !== id))
     if (target) {
@@ -429,7 +429,7 @@ export default function Dashboard() {
 
   const markAllDone = async () => {
     await supabase
-      .from('timeline_tasks')
+      .from('event_timeline_tasks')
       .update({ is_completed: true })
       .in('id', reminders.map(r => r.id))
     setReminders([])
