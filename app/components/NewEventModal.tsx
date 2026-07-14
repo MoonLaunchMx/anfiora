@@ -7,7 +7,7 @@ import { supabase } from '@/lib/supabase'
 import { AnimatePresence, motion } from 'framer-motion'
 import { ChevronRight, ArrowLeft, X } from 'lucide-react'
 import { EVENT_TYPES, CATEGORIES, EventTypeConfig, EventCategory } from '@/lib/event-types'
-import { FEATURES, ALWAYS_ON_FEATURES, getDefaultFeatures, type FeatureKey } from '@/lib/features'
+import { FEATURES, ALWAYS_ON_FEATURES, ACCESS_MODES, getDefaultFeatures, getDefaultAccessMode, type FeatureKey, type AccessMode } from '@/lib/features'
 
 function generatePlaylistToken(): string {
   return Math.random().toString(36).substring(2, 10) +
@@ -25,7 +25,7 @@ interface NewEventModalProps {
 // ─── Componente ──────────────────────────────────────────────────────────────
 
 export function NewEventModal({ open, onClose, onCreated }: NewEventModalProps) {
-  const [step, setStep]                   = useState<1 | 2 | 3>(1)
+  const [step, setStep]                   = useState<1 | 2 | 3 | 4>(1)
   const [category, setCategory]           = useState<EventCategory>('social')
   const [eventType, setEventType]         = useState<EventTypeConfig | null>(null)
 
@@ -39,6 +39,9 @@ export function NewEventModal({ open, onClose, onCreated }: NewEventModalProps) 
   const [venue, setVenue]                 = useState('')
 
   const [features, setFeatures]           = useState<Record<FeatureKey, boolean>>(getDefaultFeatures('otro'))
+  const [accessMode, setAccessMode]       = useState<AccessMode>('aprobacion')
+  const [guestCap, setGuestCap]           = useState('')
+  const [ticketPrice, setTicketPrice]     = useState('')
 
   const [loading, setLoading]             = useState(false)
   const [error, setError]                 = useState('')
@@ -64,6 +67,9 @@ export function NewEventModal({ open, onClose, onCreated }: NewEventModalProps) 
     setName(''); setHostName(''); setHostName2(''); setOrganization('')
     setDate(''); setEndDate(''); setTime(''); setVenue('')
     setFeatures(getDefaultFeatures('otro'))
+    setAccessMode('aprobacion')
+    setGuestCap('')
+    setTicketPrice('')
     setError('')
     setLoading(false)
   }
@@ -77,20 +83,28 @@ export function NewEventModal({ open, onClose, onCreated }: NewEventModalProps) 
   const handleSelectType = (type: EventTypeConfig) => {
     setEventType(type)
     setFeatures(getDefaultFeatures(type.value))
+    setAccessMode(getDefaultAccessMode(type.value))
     setStep(2)
     setError('')
   }
 
   const handleBack = () => {
-    setStep(prev => (prev === 3 ? 2 : 1))
+    setStep(prev => (prev === 4 ? 3 : prev === 3 ? 2 : 1))
     setError('')
   }
 
   const handleNext = () => {
-    if (!name.trim()) { setError('El nombre del evento es obligatorio'); return }
-    if (!date)        { setError('La fecha del evento es obligatoria'); return }
-    setError('')
-    setStep(3)
+    if (step === 2) {
+      if (!name.trim()) { setError('El nombre del evento es obligatorio'); return }
+      if (!date)        { setError('La fecha del evento es obligatoria'); return }
+      setError('')
+      setStep(3)
+      return
+    }
+    if (step === 3) {
+      setError('')
+      setStep(4)
+    }
   }
 
   const handleCreate = async () => {
@@ -332,9 +346,109 @@ export function NewEventModal({ open, onClose, onCreated }: NewEventModalProps) 
     )
   }
 
-  // ─── Paso 3 — Herramientas ───────────────────────────────────────────────
+  // ─── Paso 3 — Acceso ─────────────────────────────────────────────────────
 
   const renderStep3 = () => {
+    if (!eventType) return null
+    const recommended = getDefaultAccessMode(eventType.value)
+
+    return (
+      <div className="flex flex-col gap-4">
+
+        <div className="flex flex-col gap-2">
+          {ACCESS_MODES.map(m => {
+            const Icon = m.icon
+            const on = accessMode === m.key
+            return (
+              <button
+                key={m.key}
+                type="button"
+                onClick={() => setAccessMode(m.key)}
+                className={
+                  'flex items-center gap-3 rounded-xl border p-3 text-left transition ' +
+                  (on ? 'border-[#c8ede7] bg-[#f0fdfb]' : 'border-[#e8e8e8] bg-white hover:border-[#d0d0d0]')
+                }
+              >
+                <div className={'flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ' + (on ? 'bg-[#d0f5ec]' : 'bg-[#f4f4f4]')}>
+                  <Icon size={18} className={on ? 'text-[#0F6E56]' : 'text-[#888]'} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-medium text-[#1D1E20]">{m.label}</p>
+                    {recommended === m.key && (
+                      <span className="rounded-full border border-[#f0e2c0] bg-[#fffbf0] px-2 py-0.5 text-[10px] font-semibold text-[#c49a3a]">
+                        Recomendado
+                      </span>
+                    )}
+                  </div>
+                  <p className="mt-0.5 text-xs text-[#888]">{m.description}</p>
+                </div>
+                <div className={
+                  'flex h-4 w-4 shrink-0 items-center justify-center rounded-full border transition ' +
+                  (on ? 'border-[#48C9B0] bg-[#48C9B0]' : 'border-[#ddd] bg-white')
+                }>
+                  {on && <div className="h-1.5 w-1.5 rounded-full bg-white" />}
+                </div>
+              </button>
+            )
+          })}
+        </div>
+
+        {accessMode === 'privada' ? (
+          <div className="rounded-xl border border-[#e8e8e8] bg-[#f8f8f8] px-3 py-2.5 text-xs text-[#888]">
+            Este evento va por lista de invitados: sin cupo ni cobro.
+          </div>
+        ) : (
+          <>
+            <div>
+              <label className="mb-1.5 block text-xs font-medium text-[#555]">
+                Cupo máximo
+                <span className="ml-1 font-normal text-[#bbb]">(opcional)</span>
+              </label>
+              <input
+                type="number"
+                inputMode="numeric"
+                min={1}
+                step={1}
+                value={guestCap}
+                onChange={e => setGuestCap(e.target.value)}
+                placeholder="Sin límite"
+                className="w-full rounded-lg border border-[#e0e0e0] bg-white px-3 py-2.5 text-sm text-[#1D1E20] outline-none transition focus:border-[#48C9B0]"
+              />
+            </div>
+
+            <div>
+              <label className="mb-1.5 block text-xs font-medium text-[#555]">
+                Precio del boleto
+                <span className="ml-1 font-normal text-[#bbb]">(opcional)</span>
+              </label>
+              <div className="relative">
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  min={0}
+                  step="0.01"
+                  value={ticketPrice}
+                  onChange={e => setTicketPrice(e.target.value)}
+                  placeholder="Gratis"
+                  className="w-full rounded-lg border border-[#e0e0e0] bg-white px-3 py-2.5 pr-14 text-sm text-[#1D1E20] outline-none transition focus:border-[#48C9B0]"
+                />
+                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-[#aaa]">
+                  MXN
+                </span>
+              </div>
+              <p className="mt-1 text-[11px] text-[#aaa]">Anfiora no procesa el pago. Tú recibes el dinero directo.</p>
+            </div>
+          </>
+        )}
+
+      </div>
+    )
+  }
+
+  // ─── Paso 4 — Herramientas ───────────────────────────────────────────────
+
+  const renderStep4 = () => {
     if (!eventType) return null
     const defaults = getDefaultFeatures(eventType.value)
 
@@ -433,7 +547,7 @@ export function NewEventModal({ open, onClose, onCreated }: NewEventModalProps) 
                 <div className="flex items-center gap-3">
                   {/* Steps */}
                   <div className="flex items-center gap-2">
-                    {([[1, 'Tipo'], [2, 'Datos'], [3, 'Herramientas']] as [number, string][]).map(([n, label], i) => (
+                    {([[1, 'Tipo'], [2, 'Datos'], [3, 'Acceso'], [4, 'Herramientas']] as [number, string][]).map(([n, label], i) => (
                       <div key={n} className="flex items-center gap-2">
                         {i > 0 && <div className="h-px w-4 bg-[#e8e8e8]" />}
                         <div className={
@@ -465,14 +579,20 @@ export function NewEventModal({ open, onClose, onCreated }: NewEventModalProps) 
                 </button>
               </div>
               <h2 className="mt-3 text-lg font-bold text-[#1D1E20]">
-                {step === 1 ? 'Nuevo evento' : eventType?.label ?? 'Nuevo evento'}
+                {step === 1
+                  ? 'Nuevo evento'
+                  : step === 3
+                    ? '¿Cómo confirmas invitados?'
+                    : eventType?.label ?? 'Nuevo evento'}
               </h2>
               <p className="mt-0.5 text-xs text-[#888]">
                 {step === 1
                   ? 'Elige el tipo para personalizar los campos'
                   : step === 2
                     ? 'Completa los datos del evento'
-                    : 'Activa las herramientas de tu evento'}
+                    : step === 3
+                      ? 'Define quién puede sumarse a tu evento'
+                      : 'Activa las herramientas de tu evento'}
               </p>
             </div>
 
@@ -486,7 +606,7 @@ export function NewEventModal({ open, onClose, onCreated }: NewEventModalProps) 
                   exit={{ opacity: 0, x: step === 2 ? -16 : 16 }}
                   transition={{ duration: 0.18 }}
                 >
-                  {step === 1 ? renderStep1() : step === 2 ? renderStep2() : renderStep3()}
+                  {step === 1 ? renderStep1() : step === 2 ? renderStep2() : step === 3 ? renderStep3() : renderStep4()}
                 </motion.div>
               </AnimatePresence>
 
@@ -508,7 +628,7 @@ export function NewEventModal({ open, onClose, onCreated }: NewEventModalProps) 
                   >
                     <ArrowLeft size={14} /> Atras
                   </button>
-                  {step === 2 ? (
+                  {step < 4 ? (
                     <button
                       onClick={handleNext}
                       className="flex-1 rounded-lg bg-[#48C9B0] py-2.5 text-sm font-semibold text-white transition hover:bg-[#3ab89f]"
