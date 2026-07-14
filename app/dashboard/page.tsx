@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { Event, EventStatus, formatEventDate } from '@/lib/types'
-import { Bell } from 'lucide-react'
+import { Bell, MessageSquarePlus } from 'lucide-react'
 import { WhatsNewModal } from '@/app/components/WhatsNewModal'
 import { NewEventModal } from '@/app/components/NewEventModal'
 import { OnboardingModal } from '@/app/components/OnboardingModal'
@@ -600,6 +600,13 @@ export default function Dashboard() {
                 </div>
               )}
             </div>
+            <button
+              onClick={() => window.dispatchEvent(new CustomEvent('anfiora:open-feedback'))}
+              title="Enviar feedback"
+              className="rounded-lg border border-[#e0e0e0] p-2 text-[#888] transition hover:border-[#48C9B0] hover:text-[#1a9e88]"
+            >
+              <MessageSquarePlus size={16} />
+            </button>
             <button
               onClick={() => window.location.href = '/perfil'}
               title="Mi perfil"

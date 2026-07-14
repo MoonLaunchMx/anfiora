@@ -10,9 +10,9 @@ const INNER: Record<Variant, string> = {
 }
 
 const PAD: Record<Variant, string> = {
-  hero: 'px-6 py-16 sm:py-20 lg:py-28',
-  band: 'px-6 py-8 sm:py-12 lg:py-16',
-  form: 'px-6 py-8 sm:py-12 lg:py-16',
+  hero: 'px-6 py-12 lg:py-16',
+  band: 'px-6 py-8 lg:py-10',
+  form: 'px-6 py-8 lg:py-10',
 }
 
 export default function SectionShell({

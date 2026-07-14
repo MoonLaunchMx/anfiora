@@ -16,6 +16,8 @@ import {
   PAYMENT_METHODS, PAYMENT_METHOD_LABELS, PaymentMethod,
   PAID_BY_OPTIONS, PAID_BY_LABELS, PaidBy,
 } from '@/lib/types'
+import PhoneInput from '@/app/components/ui/PhoneInput'
+import { toWhatsApp, detectCountry, dialCode } from '@/lib/phone'
 
 type SupplierWithDetails = EventSupplier & { supplier: Supplier }
 
@@ -31,8 +33,6 @@ interface Props {
   onReviewNeeded: (item: SupplierWithDetails) => void
 }
 
-const COUNTRY_CODES = ['+52', '+1', '+34', '+57', '+54', '+55', '+56', '+51']
-
 export default function SupplierDetailModal({
   item, eventId, currency, budgets, onClose, onSaved, onDeleted, onReviewNeeded,
 }: Props) {
@@ -41,7 +41,6 @@ export default function SupplierDetailModal({
   const [name, setName]             = useState(item.supplier.name)
   const [category, setCategory]     = useState<BudgetCategory>(item.supplier.category)
   const [phone, setPhone]           = useState(item.supplier.phone ?? '')
-  const [phoneCountryCode, setPhoneCountryCode] = useState(item.supplier.phone_country_code ?? '+52')
   const [instagram, setInstagram]   = useState(item.supplier.instagram ?? '')
   const [facebook, setFacebook]     = useState((item.supplier as any).facebook ?? '')
   const [website, setWebsite]       = useState(item.supplier.website ?? '')
@@ -108,6 +107,12 @@ export default function SupplierDetailModal({
     if (data) setLinkedBudget(data as EventBudget)
   }
 
+  const derivePhoneCountryCode = (): string | null => {
+    if (!phone.trim()) return null
+    const cc = detectCountry(phone)
+    return cc ? dialCode(cc) || null : null
+  }
+
   const buildUpdatedItem = (): SupplierWithDetails => ({
     ...item,
     status,
@@ -121,7 +126,7 @@ export default function SupplierDetailModal({
       category,
       subcategory:        selectedBudget?.subcategory || null,
       phone:              phone.trim() || null,
-      phone_country_code: phone.trim() ? phoneCountryCode : null,
+      phone_country_code: derivePhoneCountryCode(),
       instagram:          instagram.trim() || null,
       facebook:           facebook.trim() || null,
       website:            website.trim() || null,
@@ -145,7 +150,7 @@ export default function SupplierDetailModal({
           category,
           subcategory:        selectedBudget?.subcategory || null,
           phone:              phone.trim() || null,
-          phone_country_code: phone.trim() ? phoneCountryCode : null,
+          phone_country_code: derivePhoneCountryCode(),
           instagram:          instagram.trim() || null,
           facebook:           facebook.trim() || null,
           website:            website.trim() || null,
@@ -252,7 +257,12 @@ export default function SupplierDetailModal({
     if (editingPaymentId === paymentId) resetPaymentForm()
   }
 
-  const openWhatsApp  = () => { if (!phone) return; window.open(`https://wa.me/${phoneCountryCode.replace(/\D/g, '')}${phone.replace(/\D/g, '')}`, '_blank', 'noopener,noreferrer') }
+  const openWhatsApp  = () => {
+    const raw = phone.startsWith('+') ? phone : `${item.supplier.phone_country_code ?? '+52'} ${phone}`
+    const num = toWhatsApp(raw)
+    if (!num) return
+    window.open(`https://wa.me/${num}`, '_blank', 'noopener,noreferrer')
+  }
   const openInstagram = () => { if (!instagram) return; window.open(`https://instagram.com/${instagram.replace('@', '').trim()}`, '_blank', 'noopener,noreferrer') }
   const openFacebook  = () => { if (!facebook) return; const h = facebook.replace(/^(https?:\/\/)?(www\.)?facebook\.com\//, '').replace(/^@/, '').trim(); window.open(`https://facebook.com/${h}`, '_blank', 'noopener,noreferrer') }
   const openWebsite   = () => { if (!website) return; window.open(website.startsWith('http') ? website : `https://${website}`, '_blank', 'noopener,noreferrer') }
@@ -376,10 +386,7 @@ export default function SupplierDetailModal({
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <Field label="WhatsApp">
                   <div className="flex gap-1.5">
-                    <select value={phoneCountryCode} onChange={e => setPhoneCountryCode(e.target.value)} className="country-code-select">
-                      {COUNTRY_CODES.map(cc => <option key={cc} value={cc}>{cc}</option>)}
-                    </select>
-                    <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="55 1234 5678" className="input-base min-w-0 flex-1" />
+                    <PhoneInput value={phone} onChange={setPhone} placeholder="55 1234 5678" className="min-w-0 flex-1" />
                     <button onClick={openWhatsApp} disabled={!phone} className="flex shrink-0 items-center justify-center rounded-lg border border-[#e8e8e8] px-3 text-emerald-600 hover:bg-emerald-50 disabled:opacity-30">
                       <FaWhatsapp size={18} />
                     </button>
@@ -631,8 +638,6 @@ export default function SupplierDetailModal({
       <style jsx global>{`
         .input-base { width: 100%; padding: 0.5rem 0.75rem; font-size: 0.875rem; border: 1px solid #e8e8e8; border-radius: 0.5rem; background-color: white; color: #1D1E20; outline: none; transition: border-color 0.15s; }
         .input-base:focus { border-color: #48C9B0; }
-        .country-code-select { width: 78px; flex-shrink: 0; padding: 0.5rem 0.5rem; font-size: 0.875rem; border: 1px solid #e8e8e8; border-radius: 0.5rem; background-color: white; color: #1D1E20; outline: none; transition: border-color 0.15s; text-align: center; text-align-last: center; }
-        .country-code-select:focus { border-color: #48C9B0; }
       `}</style>
     </AnimatePresence>
   )

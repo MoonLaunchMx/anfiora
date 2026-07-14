@@ -15,6 +15,8 @@ export type DressCode = {
   colores_evitar: DressCodeColor[]
   recomendaciones: string[]
   nota_libre: string
+  label_ellas: string
+  label_ellos: string
   guia_ellas: string | null
   guia_ellos: string | null
   fotos_ellas: string[]
@@ -70,6 +72,8 @@ export function defaultDressCode(): DressCode {
     colores_evitar: [],
     recomendaciones: [],
     nota_libre: '',
+    label_ellas: 'Ellas',
+    label_ellos: 'Ellos',
     guia_ellas: null,
     guia_ellos: null,
     fotos_ellas: [],
@@ -112,6 +116,8 @@ export function parseDressCode(raw: unknown): DressCode {
     colores_evitar: parseColors(r.colores_evitar),
     recomendaciones: parseStrings(r.recomendaciones),
     nota_libre: typeof r.nota_libre === 'string' ? r.nota_libre : '',
+    label_ellas: typeof r.label_ellas === 'string' && r.label_ellas.trim() ? r.label_ellas : 'Ellas',
+    label_ellos: typeof r.label_ellos === 'string' && r.label_ellos.trim() ? r.label_ellos : 'Ellos',
     guia_ellas: typeof r.guia_ellas === 'string' ? r.guia_ellas : null,
     guia_ellos: typeof r.guia_ellos === 'string' ? r.guia_ellos : null,
     fotos_ellas,

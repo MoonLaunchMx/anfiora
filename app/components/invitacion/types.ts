@@ -21,4 +21,6 @@ export type InviteCtx = {
   mode: 'preview' | 'public'
   onSubmit?: (payload: import('@/lib/invite').RsvpSubmission) => Promise<void>
   deadlinePassed?: boolean
+  botonClassName?: string
+  forceMobile?: boolean
 }

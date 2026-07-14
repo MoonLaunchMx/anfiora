@@ -15,7 +15,7 @@ export default function EngancheSection({ content, ctx }: { content: Content; ct
 
   return (
     <SectionShell variant="band">
-      <h2 className="px-2 text-center text-xl font-semibold text-[#1D1E20] lg:text-2xl" style={{ fontFamily: "'Josefin Sans', sans-serif" }}>
+      <h2 className="px-2 text-center text-xl font-semibold lg:text-2xl" style={{ color: 'var(--inv-texto-titulo)', fontFamily: 'var(--inv-font-titulo)' }}>
         {content.titulo}
       </h2>
 
@@ -23,32 +23,34 @@ export default function EngancheSection({ content, ctx }: { content: Content; ct
         {showPlaylist && (
           <a
             href={ctx.tokens.playlist ? `/playlist/${ctx.tokens.playlist}` : '#'}
-            className="flex items-center gap-3 rounded-2xl border border-[#e8e8e8] bg-white px-5 py-4 transition hover:border-[#48C9B0]"
+            className="flex items-center gap-3 rounded-2xl border border-[#e8e8e8] px-5 py-4 transition hover:border-[var(--inv-acento)]"
+            style={{ background: 'var(--inv-tarjeta)' }}
           >
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#fffbf0] text-[#d4a853]">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full" style={{ color: 'var(--inv-acento)', background: 'var(--inv-acento-bg)' }}>
               <Music2 size={17} />
             </span>
             <span className="flex-1">
-              <span className="block text-sm font-medium text-[#1D1E20]">Arma la playlist</span>
-              <span className="block text-xs text-[#666]">Sugiere las canciones que no pueden faltar</span>
+              <span className="block text-sm font-medium" style={{ color: 'var(--inv-tarjeta-texto)' }}>Arma la playlist</span>
+              <span className="block text-xs opacity-70" style={{ color: 'var(--inv-tarjeta-texto)' }}>Sugiere las canciones que no pueden faltar</span>
             </span>
-            <ChevronRight size={16} className="text-[#bbb]" />
+            <ChevronRight size={16} style={{ color: 'var(--inv-tarjeta-texto)', opacity: 0.4 }} />
           </a>
         )}
 
         {showMesa && (
           <a
             href={ctx.tokens.registry ? `/mesa/${ctx.tokens.registry}` : '#'}
-            className="flex items-center gap-3 rounded-2xl border border-[#e8e8e8] bg-white px-5 py-4 transition hover:border-[#48C9B0]"
+            className="flex items-center gap-3 rounded-2xl border border-[#e8e8e8] px-5 py-4 transition hover:border-[var(--inv-acento)]"
+            style={{ background: 'var(--inv-tarjeta)' }}
           >
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#fffbf0] text-[#d4a853]">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full" style={{ color: 'var(--inv-acento)', background: 'var(--inv-acento-bg)' }}>
               <Gift size={17} />
             </span>
             <span className="flex-1">
-              <span className="block text-sm font-medium text-[#1D1E20]">Mesa de regalos</span>
-              <span className="block text-xs text-[#666]">Consulta las opciones para tu regalo</span>
+              <span className="block text-sm font-medium" style={{ color: 'var(--inv-tarjeta-texto)' }}>Mesa de regalos</span>
+              <span className="block text-xs opacity-70" style={{ color: 'var(--inv-tarjeta-texto)' }}>Consulta las opciones para tu regalo</span>
             </span>
-            <ChevronRight size={16} className="text-[#bbb]" />
+            <ChevronRight size={16} style={{ color: 'var(--inv-tarjeta-texto)', opacity: 0.4 }} />
           </a>
         )}
       </div>

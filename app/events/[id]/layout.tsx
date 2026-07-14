@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { useParams, usePathname, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { Users, Images, Music2, Settings, LayoutGrid, PanelLeftClose, PanelLeftOpen, CalendarDays, House, User, LogOut, Wallet, Briefcase, Heart, MessageCircle, Receipt, Gift, UtensilsCrossed, Shirt, Palette, MailOpen } from 'lucide-react'
+import { Users, Images, Music2, Settings, LayoutGrid, PanelLeftClose, PanelLeftOpen, CalendarDays, House, User, LogOut, Wallet, Briefcase, Heart, MessageCircle, Receipt, Gift, UtensilsCrossed, Shirt, Palette, MailOpen, MessageSquarePlus } from 'lucide-react'
 import { LEGACY_FEATURES, type FeatureKey } from '@/lib/features'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Event, formatEventDate } from '@/lib/types'
@@ -422,7 +422,7 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
   const badgeStyle    = displayStatus ? EVENT_STATUS_STYLES[displayStatus] : null
 
   const AvatarDropdown = () => (
-    <div className="absolute bottom-full right-0 z-50 mb-2 w-52 overflow-hidden rounded-xl border border-[#e8e8e8] bg-white shadow-lg">
+    <div className={`absolute bottom-full ${collapsed ? 'left-0' : 'right-0'} z-50 mb-2 w-52 overflow-hidden rounded-xl border border-[#e8e8e8] bg-white shadow-lg`}>
       <div className="border-b border-[#f0f0f0] px-4 py-3">
         <p className="truncate text-xs font-semibold text-[#1D1E20]">{userName || 'Mi cuenta'}</p>
         <p className="truncate text-[11px] text-[#aaa]">{userEmail}</p>
@@ -433,6 +433,13 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
       >
         <User size={14} className="text-[#aaa]" />
         Mi perfil
+      </button>
+      <button
+        onClick={() => { setAvatarOpen(false); window.dispatchEvent(new CustomEvent('anfiora:open-feedback')) }}
+        className="flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-xs text-[#555] transition hover:bg-[#f8f8f8]"
+      >
+        <MessageSquarePlus size={14} className="text-[#aaa]" />
+        Enviar feedback
       </button>
       <button
         onClick={handleLogout}
@@ -533,6 +540,13 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
                 Mi perfil
               </button>
               <button
+                onClick={() => { setAvatarOpen(false); window.dispatchEvent(new CustomEvent('anfiora:open-feedback')) }}
+                className="flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-xs text-[#555] transition hover:bg-[#f8f8f8]"
+              >
+                <MessageSquarePlus size={14} className="text-[#aaa]" />
+                Enviar feedback
+              </button>
+              <button
                 onClick={handleLogout}
                 className="flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-xs text-[#cc3333] transition hover:bg-[#fff0f0]"
               >
@@ -596,7 +610,7 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
 
         {/* SIDEBAR desktop lg+ */}
         <aside
-          className="hidden shrink-0 flex-col overflow-hidden border-r border-[#e8e8e8] bg-[#f8f5f0] lg:flex"
+          className="hidden shrink-0 flex-col border-r border-[#e8e8e8] bg-[#f8f5f0] lg:flex"
           style={{ width: collapsed ? '56px' : '224px', transition: 'width 0.2s ease' }}
         >
           <nav className="flex-1 overflow-y-auto py-2">

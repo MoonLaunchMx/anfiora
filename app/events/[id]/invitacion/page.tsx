@@ -2,18 +2,24 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useParams } from 'next/navigation'
-import { Send, Check, LayoutGrid, ExternalLink } from 'lucide-react'
+import { AnimatePresence, motion } from 'framer-motion'
+import { Send, Check, LayoutGrid, Eye, X, Maximize2, Plus } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { resolveDoc, setMeta } from '@/lib/invite/doc'
 import type { InviteDoc } from '@/lib/invite/schema'
 import { randomToken } from '@/lib/invite'
+import { botonClass } from '@/lib/invite/theme-css'
 import { parseDressCode, type DressCode } from '@/lib/dresscode'
+import { getGuestItinerary } from '@/lib/guest-itinerary'
+import type { GuestItineraryItem } from '@/lib/types'
 import InvitacionRenderer from '@/app/components/invitacion/InvitacionRenderer'
 import PreviewBoundary from '@/app/components/invitacion/PreviewBoundary'
 import type { InviteCtx } from '@/app/components/invitacion/types'
 import DatePicker from '@/app/components/ui/DatePicker'
 import BlockEditor from './BlockEditor'
 import RepartoLinks from './RepartoLinks'
+import EstiloPanel from './EstiloPanel'
+import PersonalizarPanel from './PersonalizarPanel'
 
 type TabKey = 'diseno' | 'enviar'
 
@@ -37,6 +43,7 @@ async function safeSingle<T>(p: PromiseLike<{ data: T | null; error: unknown }>)
   }
 }
 
+
 export default function InvitacionPage() {
   const { id } = useParams()
   const eventId = id as string
@@ -46,16 +53,21 @@ export default function InvitacionPage() {
   const [dressCode, setDressCode] = useState<DressCode | null>(null)
   const [playlistToken, setPlaylistToken] = useState<string | null>(null)
   const [registryToken, setRegistryToken] = useState<string | null>(null)
+  const [itinerary, setItinerary] = useState<GuestItineraryItem[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [publishing, setPublishing] = useState(false)
   const [activeTab, setActiveTab] = useState<TabKey>('diseno')
+  const [disenoSub, setDisenoSub] = useState<'estilo' | 'personalizar' | 'contenido'>('estilo')
+  const [addSectionOpen, setAddSectionOpen] = useState(false)
+  const [previewMode, setPreviewMode] = useState<'movil' | 'escritorio'>('movil')
+  const [showPreview, setShowPreview] = useState(false)
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   useEffect(() => {
     const load = async () => {
-      const [ev, inviteRow, dressRow] = await Promise.all([
+      const [ev, inviteRow, dressRow, itinRows] = await Promise.all([
         supabase
           .from('events')
           .select('name, event_type, event_date, event_time, venue, address, host_name, host_name_2')
@@ -67,17 +79,32 @@ export default function InvitacionPage() {
         safeSingle<{ dress_code: unknown }>(
           supabase.from('event_settings').select('dress_code').eq('event_id', eventId).maybeSingle(),
         ),
+        getGuestItinerary(eventId),
       ])
       if (ev.data) setEvent(ev.data)
       setDressCode(parseDressCode(dressRow?.dress_code))
       setPlaylistToken(inviteRow?.playlist_token ?? null)
       setRegistryToken(inviteRow?.registry_token ?? null)
+      setItinerary(itinRows)
       setDoc(resolveDoc(inviteRow?.invite_config, () => crypto.randomUUID()))
     }
     load().finally(() => setLoading(false))
   }, [eventId])
 
   useEffect(() => () => { if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current) }, [])
+
+  useEffect(() => { if (disenoSub !== 'contenido') setAddSectionOpen(false) }, [disenoSub])
+
+  useEffect(() => {
+    if (!showPreview) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setShowPreview(false) }
+    document.addEventListener('keydown', onKey)
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      document.body.style.overflow = ''
+    }
+  }, [showPreview])
 
   const persist = useCallback(async (next: InviteDoc) => {
     setSaving(true)
@@ -141,17 +168,17 @@ export default function InvitacionPage() {
 
   const sampleCtx: InviteCtx = {
     event,
-    guest: { name: 'Invitado de ejemplo', party_size: 3, rsvp_status: 'pending', allergies: [] },
+    guest: { name: 'Invitado de ejemplo', party_size: 2, rsvp_status: 'pending', allergies: [] },
     companions: [
-      { name: 'Acompañante 1', rsvp_status: 'pending', allergies: [] },
-      { name: 'Acompañante 2', rsvp_status: 'pending', allergies: [] },
+      { name: 'Acompañante', rsvp_status: 'pending', allergies: [] },
     ],
     dressCode,
-    itinerary: [],
+    itinerary,
     tokens: { playlist: playlistToken, registry: registryToken },
     mode: 'preview',
     onSubmit: undefined,
     deadlinePassed: false,
+    botonClassName: botonClass(doc.theme),
   }
 
   const badgeClass = doc.meta.publicada
@@ -197,14 +224,6 @@ export default function InvitacionPage() {
                 placeholder="Sin límite"
               />
             </div>
-            <a
-              href={`/invitacion/preview/${eventId}`}
-              target="_blank"
-              rel="noreferrer"
-              className="hidden shrink-0 items-center gap-1.5 rounded-lg border border-[#e0e0e0] px-3 py-2 text-xs font-medium text-[#666] transition hover:bg-[#f5f5f5] sm:flex sm:px-4 sm:text-sm"
-            >
-              <ExternalLink size={14} /> Vista web
-            </a>
             <button
               onClick={handlePublish}
               disabled={publishing}
@@ -225,18 +244,55 @@ export default function InvitacionPage() {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-4 pb-6 pt-5 sm:px-6 lg:px-10">
+      <div className="flex-1 overflow-y-auto px-4 pb-6 sm:px-6 lg:px-10">
         {activeTab === 'diseno' ? (
           <div className="grid items-start gap-6 sm:grid-cols-[1fr_360px] lg:gap-8">
-            <BlockEditor doc={doc} onChange={updateDoc} makeId={() => crypto.randomUUID()} />
+            <div className="min-w-0">
+              <div className="sticky top-0 z-20 mb-5 flex items-end justify-between gap-4 border-b border-[#eee] bg-white pt-5">
+                <div className="flex gap-6">
+                  {([
+                    ['estilo', 'Plantillas'],
+                    ['personalizar', 'Personalizar'],
+                    ['contenido', 'Contenido'],
+                  ] as const).map(([key, label]) => (
+                    <button
+                      key={key}
+                      onClick={() => setDisenoSub(key)}
+                      className={['-mb-px border-b-2 pb-2.5 text-sm font-semibold transition', disenoSub === key ? 'border-[#48C9B0] text-[#1D1E20]' : 'border-transparent text-[#999] hover:text-[#666]'].join(' ')}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                {disenoSub === 'contenido' && (
+                  <button
+                    type="button"
+                    onClick={() => setAddSectionOpen(true)}
+                    aria-label="Agregar sección"
+                    className="mb-1.5 flex shrink-0 items-center gap-1.5 rounded-lg border border-dashed border-[#ccc] px-2.5 py-2 text-xs font-medium text-[#888] transition hover:border-[#48C9B0] hover:text-[#48C9B0] md:py-1.5"
+                  >
+                    <Plus size={16} />
+                    <span className="hidden md:inline">Agregar sección</span>
+                  </button>
+                )}
+              </div>
+              {disenoSub === 'estilo' && <EstiloPanel doc={doc} onChange={updateDoc} />}
+              {disenoSub === 'personalizar' && <PersonalizarPanel doc={doc} onChange={updateDoc} />}
+              {disenoSub === 'contenido' && <BlockEditor doc={doc} onChange={updateDoc} makeId={() => crypto.randomUUID()} addOpen={addSectionOpen} onAddOpenChange={setAddSectionOpen} />}
+            </div>
 
-            <div className="sm:sticky sm:top-0">
-              <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wider text-[#999]">Vista previa</p>
+            <div className="hidden sm:sticky sm:top-0 sm:block sm:pt-5">
+              <div className="mb-2 flex items-center justify-between">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-[#999]">Vista previa</p>
+                <button onClick={() => { setPreviewMode('escritorio'); setShowPreview(true) }} className="flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider text-[#999] transition hover:text-[#48C9B0]">
+                  <Maximize2 size={12} /> Escritorio
+                </button>
+              </div>
               <div className="flex justify-center">
                 <div className="w-full max-w-[360px] overflow-hidden rounded-[2.5rem] border-[10px] border-[#1D1E20] bg-[#1D1E20] shadow-xl">
-                  <div className="h-[calc(100dvh-18rem)] max-h-[720px] min-h-[420px] overflow-y-auto overflow-x-hidden bg-[#FBF7F0]">
+                  <div className="h-[calc(100dvh-18rem)] max-h-[720px] min-h-[420px] overflow-y-auto overflow-x-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                     <PreviewBoundary>
-                      <InvitacionRenderer doc={doc} ctx={sampleCtx} />
+                      <InvitacionRenderer doc={doc} ctx={{ ...sampleCtx, forceMobile: true }} />
                     </PreviewBoundary>
                   </div>
                 </div>
@@ -244,9 +300,48 @@ export default function InvitacionPage() {
             </div>
           </div>
         ) : (
-          <RepartoLinks eventId={eventId} event={event} />
+          <div className="pt-5">
+            <RepartoLinks eventId={eventId} event={event} />
+          </div>
         )}
       </div>
+
+      {activeTab === 'diseno' && (
+        <button
+          onClick={() => { setPreviewMode('movil'); setShowPreview(true) }}
+          className="fixed bottom-20 right-4 z-40 flex items-center gap-2 rounded-full bg-[#1D1E20] px-4 py-3 text-sm font-semibold text-white shadow-lg sm:hidden"
+        >
+          <Eye size={16} /> Vista previa
+        </button>
+      )}
+
+      <AnimatePresence>
+        {showPreview && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 z-50 bg-[#FBF7F0]"
+          >
+            <button
+              onClick={() => setShowPreview(false)}
+              aria-label="Cerrar vista previa"
+              className="fixed right-4 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-[#1D1E20]/85 text-white shadow-lg backdrop-blur transition hover:bg-[#1D1E20]"
+              style={{ top: 'max(1rem, env(safe-area-inset-top))' }}
+            >
+              <X size={18} />
+            </button>
+            <div className="h-full overflow-y-auto overflow-x-hidden overscroll-contain">
+              <div className={previewMode === 'movil' ? 'mx-auto min-h-full w-full max-w-[420px] shadow-2xl' : 'min-h-full w-full'}>
+                <PreviewBoundary>
+                  <InvitacionRenderer doc={doc} ctx={{ ...sampleCtx, forceMobile: previewMode === 'movil' }} />
+                </PreviewBoundary>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }

@@ -11,18 +11,18 @@ export default function TextoSection({ content }: { content: Content; ctx: Invit
   return (
     <SectionShell variant="band" className="text-center">
       {content.eyebrow.trim() && (
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#d4a853]">{content.eyebrow}</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: 'var(--inv-acento)' }}>{content.eyebrow}</p>
       )}
       {content.titulo.trim() && (
         <h2
-          className="mt-2 px-2 text-xl font-semibold text-[#1D1E20] lg:text-2xl"
-          style={{ fontFamily: "'Josefin Sans', sans-serif" }}
+          className="mt-2 px-2 text-xl font-semibold lg:text-2xl"
+          style={{ color: 'var(--inv-texto-titulo)', fontFamily: 'var(--inv-font-titulo)' }}
         >
           {content.titulo}
         </h2>
       )}
       {content.cuerpo.trim() && (
-        <p className="mx-auto mt-4 max-w-md whitespace-pre-line text-sm leading-relaxed text-[#666] sm:text-base">
+        <p className="mx-auto mt-4 max-w-md whitespace-pre-line text-sm leading-relaxed opacity-70 sm:text-base" style={{ color: 'var(--inv-texto)' }}>
           {content.cuerpo}
         </p>
       )}

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { applyExtraction, renderAppliedActions, type ExtractionResult } from './apply'
+import { applyExtraction, renderAppliedActions, resolveEscalation, type ExtractionResult } from './apply'
 import type { PartyMember } from '@/lib/types'
 
 const base: ExtractionResult = {
@@ -185,6 +185,47 @@ describe('renderAppliedActions — Fase 2.1', () => {
   })
 })
 
+describe('resolveEscalation — honestidad: no afirmar lo que no se hizo', () => {
+  const members = [member('m1', 'Esposa'), member('m2', 'Hijo')]
+  it('peticion no cumplida (partial_ambiguous) fuerza hold honesto', () => {
+    const plan = applyExtraction(
+      { ...base, companions: { action: 'partial_ambiguous', names: [], decliningNames: [], impliesOthersNotComing: false } },
+      guest({ rsvp_status: 'confirmed' }), members,
+    )
+    expect(plan.escalations).toContain('peticion') // precondicion del bug
+    expect(resolveEscalation(plan, { complaint: false, escalateQuejas: true })).toBe('peticion')
+  })
+  it('acompanante nombrado sin match fuerza hold honesto', () => {
+    const plan = applyExtraction(
+      { ...base, companions: { action: 'named', names: ['Suegra'], decliningNames: [], impliesOthersNotComing: false } },
+      guest({ rsvp_status: 'confirmed' }), members,
+    )
+    expect(resolveEscalation(plan, { complaint: false, escalateQuejas: true })).toBe('peticion')
+  })
+  it('acompanante confirmado limpio NO fuerza hold (deja responder normal)', () => {
+    const plan = applyExtraction(
+      { ...base, companions: { action: 'named', names: ['Esposa'], decliningNames: [], impliesOthersNotComing: false } },
+      guest({ rsvp_status: 'confirmed' }), members,
+    )
+    expect(plan.escalations).not.toContain('peticion')
+    expect(resolveEscalation(plan, { complaint: false, escalateQuejas: true })).toBeNull()
+  })
+  it('queja tiene prioridad sobre peticion', () => {
+    const plan = applyExtraction(
+      { ...base, complaint: true, companions: { action: 'partial_ambiguous', names: [], decliningNames: [], impliesOthersNotComing: false } },
+      guest({ rsvp_status: 'confirmed' }), members,
+    )
+    expect(resolveEscalation(plan, { complaint: true, escalateQuejas: true })).toBe('queja')
+  })
+  it('queja desactivada en config no escala queja pero si peticion pendiente', () => {
+    const plan = applyExtraction(
+      { ...base, complaint: true, companions: { action: 'partial_ambiguous', names: [], decliningNames: [], impliesOthersNotComing: false } },
+      guest({ rsvp_status: 'confirmed' }), members,
+    )
+    expect(resolveEscalation(plan, { complaint: true, escalateQuejas: false })).toBe('peticion')
+  })
+})
+
 describe('applyExtraction — conteo honesto confirmar+declinar (Fase 2.1 fix)', () => {
   const members = [member('m1', 'Olivia'), member('m2', 'Alejandro')]
   it('vamos todos menos Olivia: cuenta 1 confirmado y 1 declinado', () => {
@@ -199,5 +240,61 @@ describe('applyExtraction — conteo honesto confirmar+declinar (Fase 2.1 fix)',
     expect(p.partyMemberUpdates).toEqual([{ id: 'm1', rsvp_status: 'declined' }])
     expect(p.appliedSummary.confirmedCompanions).toBe(0)
     expect(p.appliedSummary.declinedCompanions).toBe(1)
+  })
+})
+
+describe('applyExtraction — attention_detail (Camino B)', () => {
+  const members = [member('m1', 'Esposa'), member('m2', 'Hijo')]
+  const MSG = 'Hola, oye siempre si va mi esposa'
+
+  it('guarda el mensaje literal cuando marca atencion (peticion)', () => {
+    const p = applyExtraction(
+      { ...base, companions: { action: 'partial_ambiguous', names: [], decliningNames: [], impliesOthersNotComing: false } },
+      guest({ rsvp_status: 'confirmed' }), members, MSG,
+    )
+    expect(p.guestUpdate?.needs_attention).toBe(true)
+    expect(p.guestUpdate?.attention_detail).toBe(MSG)
+  })
+
+  it('guarda el mensaje tambien en atencion por baja confianza', () => {
+    const p = applyExtraction({ ...base, confidence: 'low' }, guest(), members, MSG)
+    expect(p.guestUpdate?.attention_reason).toBe('duda')
+    expect(p.guestUpdate?.attention_detail).toBe(MSG)
+  })
+
+  it('NO setea detalle en un turno limpio (sin atencion)', () => {
+    const p = applyExtraction(
+      { ...base, companions: { action: 'named', names: ['Esposa'], decliningNames: [], impliesOthersNotComing: false } },
+      guest({ rsvp_status: 'confirmed' }), members, MSG,
+    )
+    expect(p.guestUpdate?.needs_attention).toBeUndefined()
+    expect(p.guestUpdate?.attention_detail).toBeUndefined()
+  })
+
+  it('con mensaje vacio no setea detalle aunque marque atencion', () => {
+    const p = applyExtraction(
+      { ...base, companions: { action: 'partial_ambiguous', names: [], decliningNames: [], impliesOthersNotComing: false } },
+      guest({ rsvp_status: 'confirmed' }), members, '   ',
+    )
+    expect(p.guestUpdate?.needs_attention).toBe(true)
+    expect(p.guestUpdate?.attention_detail).toBeUndefined()
+  })
+
+  it('recorta mensajes largos a 500 chars', () => {
+    const long = 'a'.repeat(800)
+    const p = applyExtraction(
+      { ...base, companions: { action: 'partial_ambiguous', names: [], decliningNames: [], impliesOthersNotComing: false } },
+      guest({ rsvp_status: 'confirmed' }), members, long,
+    )
+    expect(p.guestUpdate?.attention_detail?.length).toBe(500)
+  })
+
+  it('sin el 4to argumento sigue funcionando (retrocompatible)', () => {
+    const p = applyExtraction(
+      { ...base, companions: { action: 'partial_ambiguous', names: [], decliningNames: [], impliesOthersNotComing: false } },
+      guest({ rsvp_status: 'confirmed' }), members,
+    )
+    expect(p.guestUpdate?.needs_attention).toBe(true)
+    expect(p.guestUpdate?.attention_detail).toBeUndefined()
   })
 })

@@ -3,8 +3,13 @@ import { useState } from 'react'
 import type { Section } from '@/lib/invite/schema'
 import type { InviteCtx } from '../types'
 import type { RsvpSubmission } from '@/lib/invite'
+import type { Theme } from '@/lib/invite/theme'
 import { Check, X } from 'lucide-react'
 import SectionShell from '../SectionShell'
+import RsvpAnimation from '../RsvpAnimation'
+
+const SI_MSG = '¡Nos vemos ahí!'
+const NO_MSG = '¡Te vamos a extrañar!'
 
 type Content = Extract<Section, { type: 'rsvp' }>['content']
 
@@ -75,22 +80,26 @@ function AllergyChips({ value, onChange, disabled }: { value: string[]; onChange
           }}
           onBlur={commit}
           placeholder="Alergia o restricción + Enter"
-          className="w-full rounded-lg border border-[#e8e8e8] px-3 py-2 text-xs text-[#1D1E20] outline-none focus:border-[#48C9B0]"
+          className="w-full rounded-lg border border-[#e8e8e8] px-3 py-2 text-xs text-[#1D1E20] outline-none focus:border-[var(--inv-acento)]"
         />
       )}
     </div>
   )
 }
 
-export default function RsvpSection({ content, ctx }: { content: Content; ctx: InviteCtx }) {
+export default function RsvpSection({ content, ctx, anim }: { content: Content; ctx: InviteCtx; anim: Theme['anim'] }) {
   const [rows, setRows] = useState<Row[]>(() => buildRows(ctx))
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [playing, setPlaying] = useState<'si' | 'no' | null>(null)
+  const [playKey, setPlayKey] = useState(0)
 
-  const disabled = ctx.mode === 'preview' || Boolean(ctx.deadlinePassed)
-  const note = ctx.mode === 'preview'
-    ? 'Vista previa — así confirmará tu invitado'
+  const isPreview = ctx.mode === 'preview'
+  const locked = Boolean(ctx.deadlinePassed)
+  const disabled = locked
+  const note = isPreview
+    ? 'Vista previa — toca Sí o No para ver la animación'
     : ctx.deadlinePassed
     ? 'Confirmaciones cerradas'
     : null
@@ -105,7 +114,15 @@ export default function RsvpSection({ content, ctx }: { content: Content; ctx: I
   }
 
   const handleSubmit = async () => {
-    if (!ctx.onSubmit || disabled || !allChosen || submitting) return
+    if (locked || !allChosen || submitting) return
+    const outcome: 'si' | 'no' = rows.some(r => r.attends === true) ? 'si' : 'no'
+    setPlayKey(k => k + 1)
+
+    if (isPreview || !ctx.onSubmit) {
+      setPlaying(outcome)
+      return
+    }
+
     const [guestRow, ...companionRows] = rows
     const payload: RsvpSubmission = {
       guestAttends: Boolean(guestRow.attends),
@@ -121,7 +138,7 @@ export default function RsvpSection({ content, ctx }: { content: Content; ctx: I
     setError(null)
     try {
       await ctx.onSubmit(payload)
-      setSubmitted(true)
+      setPlaying(outcome)
     } catch {
       setError('No pudimos guardar tu confirmación. Intenta de nuevo.')
     } finally {
@@ -131,10 +148,10 @@ export default function RsvpSection({ content, ctx }: { content: Content; ctx: I
 
   return (
     <SectionShell variant="form">
-      <h2 className="px-2 text-center text-xl font-semibold text-[#1D1E20] lg:text-2xl" style={{ fontFamily: "'Josefin Sans', sans-serif" }}>
+      <h2 className="px-2 text-center text-xl font-semibold lg:text-2xl" style={{ color: 'var(--inv-texto-titulo)', fontFamily: 'var(--inv-font-titulo)' }}>
         {content.titulo}
       </h2>
-      <p className="mx-auto mt-2 max-w-md text-center text-sm text-[#666]">{content.texto}</p>
+      <p className="mx-auto mt-2 max-w-md text-center text-sm opacity-70" style={{ color: 'var(--inv-texto)' }}>{content.texto}</p>
 
       <div className="mt-8 flex flex-col gap-4">
         {rows.map(row => (
@@ -147,7 +164,7 @@ export default function RsvpSection({ content, ctx }: { content: Content; ctx: I
                 onClick={() => setAttends(row.key, true)}
                 className={`flex flex-1 items-center justify-center gap-1.5 rounded-full border px-3 py-2 text-xs font-medium transition disabled:cursor-not-allowed disabled:opacity-60 ${
                   row.attends === true
-                    ? 'border-[#48C9B0] bg-[#48C9B0]/10 text-[#2a7a50]'
+                    ? 'border-[var(--inv-acento)] bg-[var(--inv-acento)]/10 text-[#2a7a50]'
                     : 'border-[#e8e8e8] text-[#666]'
                 }`}
               >
@@ -184,7 +201,7 @@ export default function RsvpSection({ content, ctx }: { content: Content; ctx: I
           type="button"
           onClick={handleSubmit}
           disabled={disabled || !allChosen || submitting}
-          className="mt-6 block w-full rounded-full bg-[#48C9B0] py-3 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-50"
+          className={`${ctx.botonClassName ?? 'inv-btn inv-btn-elevado'} mt-6 block w-full px-6 py-3 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50`}
         >
           {submitting ? 'Enviando…' : 'Confirmar asistencia'}
         </button>
@@ -192,6 +209,20 @@ export default function RsvpSection({ content, ctx }: { content: Content; ctx: I
 
       {submitted && (
         <p className="mt-6 text-center text-sm font-medium text-[#2a7a50]">¡Gracias por confirmar!</p>
+      )}
+
+      {playing && (
+        <RsvpAnimation
+          key={playKey}
+          open
+          kind={playing}
+          animId={playing === 'si' ? anim.si : anim.no}
+          message={playing === 'si' ? SI_MSG : NO_MSG}
+          onDone={() => {
+            setPlaying(null)
+            if (!isPreview) setSubmitted(true)
+          }}
+        />
       )}
     </SectionShell>
   )

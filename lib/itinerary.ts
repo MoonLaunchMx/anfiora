@@ -1,0 +1,96 @@
+import type { ItineraryMoment, ItineraryPhase, GuestItineraryItem } from './types'
+
+// Hora de corte del "día del evento": los momentos antes de esta hora se ordenan
+// como madrugada del día siguiente (ej. la fiesta a la 01:00 va despues de la cena).
+export const DAY_START_HOUR = 6
+
+export const ITINERARY_PHASES: ItineraryPhase[] = [
+  'montaje', 'ceremonia', 'social', 'cena', 'fiesta', 'otro',
+]
+
+export const PHASE_LABEL: Record<ItineraryPhase, string> = {
+  montaje:   'Montaje',
+  ceremonia: 'Ceremonia',
+  social:    'Social',
+  cena:      'Cena',
+  fiesta:    'Fiesta',
+  otro:      'Otro',
+}
+
+export const PHASE_COLOR: Record<ItineraryPhase, { text: string; bg: string; border: string }> = {
+  montaje:   { text: '#666666', bg: '#f2f2f2', border: '#e0e0e0' },
+  ceremonia: { text: '#c49a3a', bg: '#fffbf0', border: '#f0e2c0' },
+  social:    { text: '#0F6E56', bg: '#f0fdfb', border: '#c8ede7' },
+  cena:      { text: '#b8860b', bg: '#fdf6e3', border: '#f0e0b0' },
+  fiesta:    { text: '#8b5ca8', bg: '#f9f2fc', border: '#e8d5f0' },
+  otro:      { text: '#888888', bg: '#f8f8f8', border: '#e8e8e8' },
+}
+
+export function parseTimeToMinutes(t: string | null | undefined): number | null {
+  if (!t || typeof t !== 'string') return null
+  const parts = t.split(':')
+  if (parts.length < 2) return null
+  const h = Number(parts[0])
+  const m = Number(parts[1])
+  if (!Number.isInteger(h) || !Number.isInteger(m)) return null
+  if (h < 0 || h > 23 || m < 0 || m > 59) return null
+  return h * 60 + m
+}
+
+export function formatMinutesToHHMM(mins: number): string {
+  const wrapped = ((mins % 1440) + 1440) % 1440
+  const h = Math.floor(wrapped / 60)
+  const m = wrapped % 60
+  const pad = (n: number) => n.toString().padStart(2, '0')
+  return `${pad(h)}:${pad(m)}`
+}
+
+export function computeEndTime(startTime: string, durationMin: number | null): string | null {
+  const mins = parseTimeToMinutes(startTime)
+  if (mins === null || durationMin === null) return null
+  return formatMinutesToHHMM(mins + durationMin)
+}
+
+export function formatDuration(durationMin: number | null): string {
+  if (durationMin === null) return 'hasta cierre'
+  if (durationMin < 60) return `${durationMin} min`
+  const h = Math.floor(durationMin / 60)
+  const m = durationMin % 60
+  return m === 0 ? `${h} h` : `${h} h ${m} min`
+}
+
+export function formatMomentRange(startTime: string, durationMin: number | null): string {
+  const mins = parseTimeToMinutes(startTime)
+  const start = mins === null ? startTime : formatMinutesToHHMM(mins)
+  const end = computeEndTime(startTime, durationMin)
+  return end ? `${start}–${end}` : start
+}
+
+export function momentOrderMinutes(startTime: string): number {
+  const mins = parseTimeToMinutes(startTime)
+  if (mins === null) return Number.MAX_SAFE_INTEGER
+  const h = Math.floor(mins / 60)
+  return h < DAY_START_HOUR ? mins + 24 * 60 : mins
+}
+
+export function sortMoments<T extends { start_time: string; position: number }>(moments: T[]): T[] {
+  return [...moments].sort((a, b) => {
+    const ka = momentOrderMinutes(a.start_time)
+    const kb = momentOrderMinutes(b.start_time)
+    if (ka !== kb) return ka - kb
+    return a.position - b.position
+  })
+}
+
+type CurateInput = Pick<ItineraryMoment, 'start_time' | 'title' | 'location' | 'visible_to_guests' | 'position'>
+
+export function curateForGuests(moments: CurateInput[]): GuestItineraryItem[] {
+  return sortMoments(moments.filter(m => m.visible_to_guests)).map(m => {
+    const mins = parseTimeToMinutes(m.start_time)
+    return {
+      start_time: mins === null ? m.start_time : formatMinutesToHHMM(mins),
+      title: m.title,
+      location: m.location,
+    }
+  })
+}
