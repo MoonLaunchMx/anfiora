@@ -1,10 +1,25 @@
 import type React from 'react'
-import { LayoutGrid, Gift, Images, Music2, UtensilsCrossed, Shirt, MailOpen } from 'lucide-react'
+import { LayoutGrid, Gift, Images, Music2, UtensilsCrossed, Shirt, MailOpen, Lock, UserCheck, Globe } from 'lucide-react'
 import { EVENT_TYPES } from './event-types'
 
 export type FeatureKey = 'mesas' | 'regalos' | 'album' | 'playlist' | 'comida' | 'vestimenta' | 'invitacion'
 
 export type EnabledFeatures = Partial<Record<FeatureKey, boolean>>
+
+export type AccessMode = 'privada' | 'aprobacion' | 'abierta'
+
+export interface AccessModeConfig {
+  key: AccessMode
+  label: string
+  description: string
+  icon: React.ElementType
+}
+
+export const ACCESS_MODES: AccessModeConfig[] = [
+  { key: 'privada',    label: 'Invitación directa', description: 'Tú armas la lista. Cada invitado recibe su propio link.',   icon: Lock },
+  { key: 'aprobacion', label: 'Con aprobación',     description: 'Un link. Se registran solos y tú apruebas cada solicitud.', icon: UserCheck },
+  { key: 'abierta',    label: 'Abierta',            description: 'Un link. Cualquiera se registra y la lista se llena sola.', icon: Globe },
+]
 
 export interface FeatureConfig {
   key: FeatureKey
@@ -61,5 +76,49 @@ export function resolveFeatures(
     comida:   enabled.comida   ?? defaults.comida,
     vestimenta: enabled.vestimenta ?? defaults.vestimenta,
     invitacion: enabled.invitacion ?? defaults.invitacion,
+  }
+}
+
+export function getDefaultAccessMode(eventTypeValue: string | null): AccessMode {
+  return EVENT_TYPES.find(t => t.value === eventTypeValue)?.defaultAccessMode ?? 'aprobacion'
+}
+
+export function resolveAccessMode(
+  eventTypeValue: string | null,
+  stored: string | null | undefined,
+): AccessMode {
+  if (stored === 'privada' || stored === 'aprobacion' || stored === 'abierta') return stored
+  return getDefaultAccessMode(eventTypeValue)
+}
+
+// events.guest_cap es int4 y el min del input no valida (el boton es onClick, no submit):
+// sin esta cota, un cupo tecleado de mas digitos tumba el insert con un error crudo de Postgres.
+const MAX_GUEST_CAP = 1_000_000
+
+function parseCap(raw: string): number | null {
+  const trimmed = raw.trim()
+  if (!trimmed) return null
+  const n = Number(trimmed)
+  if (!Number.isInteger(n) || n <= 0 || n > MAX_GUEST_CAP) return null
+  return n
+}
+
+function parsePrice(raw: string): number | null {
+  const trimmed = raw.trim()
+  if (!trimmed) return null
+  const n = Number(trimmed)
+  if (!Number.isFinite(n) || n < 0) return null
+  return n
+}
+
+export function normalizeAccessFields(input: {
+  accessMode: AccessMode
+  guestCap: string
+  ticketPrice: string
+}): { guest_cap: number | null; ticket_price: number | null } {
+  if (input.accessMode === 'privada') return { guest_cap: null, ticket_price: null }
+  return {
+    guest_cap: parseCap(input.guestCap),
+    ticket_price: parsePrice(input.ticketPrice),
   }
 }
