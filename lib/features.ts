@@ -1,10 +1,25 @@
 import type React from 'react'
-import { LayoutGrid, Gift, Images, Music2, UtensilsCrossed, Shirt, MailOpen } from 'lucide-react'
+import { LayoutGrid, Gift, Images, Music2, UtensilsCrossed, Shirt, MailOpen, Lock, UserCheck, Globe } from 'lucide-react'
 import { EVENT_TYPES } from './event-types'
 
 export type FeatureKey = 'mesas' | 'regalos' | 'album' | 'playlist' | 'comida' | 'vestimenta' | 'invitacion'
 
 export type EnabledFeatures = Partial<Record<FeatureKey, boolean>>
+
+export type AccessMode = 'privada' | 'aprobacion' | 'abierta'
+
+export interface AccessModeConfig {
+  key: AccessMode
+  label: string
+  description: string
+  icon: React.ElementType
+}
+
+export const ACCESS_MODES: AccessModeConfig[] = [
+  { key: 'privada',    label: 'Invitación directa', description: 'Tú armas la lista. Cada invitado recibe su propio link.',   icon: Lock },
+  { key: 'aprobacion', label: 'Con aprobación',     description: 'Un link. Se registran solos y tú apruebas cada solicitud.', icon: UserCheck },
+  { key: 'abierta',    label: 'Abierta',            description: 'Un link. Cualquiera se registra y la lista se llena sola.', icon: Globe },
+]
 
 export interface FeatureConfig {
   key: FeatureKey
@@ -62,4 +77,16 @@ export function resolveFeatures(
     vestimenta: enabled.vestimenta ?? defaults.vestimenta,
     invitacion: enabled.invitacion ?? defaults.invitacion,
   }
+}
+
+export function getDefaultAccessMode(eventTypeValue: string | null): AccessMode {
+  return EVENT_TYPES.find(t => t.value === eventTypeValue)?.defaultAccessMode ?? 'aprobacion'
+}
+
+export function resolveAccessMode(
+  eventTypeValue: string | null,
+  stored: string | null | undefined,
+): AccessMode {
+  if (stored === 'privada' || stored === 'aprobacion' || stored === 'abierta') return stored
+  return getDefaultAccessMode(eventTypeValue)
 }
