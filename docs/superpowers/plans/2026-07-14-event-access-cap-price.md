@@ -54,7 +54,7 @@
 
 **Contexto critico:** Anfiora tiene UNA sola base de Supabase. `localhost:3000` pega a la base de **produccion**. Por eso la migracion tiene que correr antes incluso de la verificacion local, no solo antes del deploy. Correrla antes es inofensivo: las columnas son nullable y nadie las lee.
 
-- [ ] **Step 1: Escribir el archivo de migracion**
+- [x] **Step 1: Escribir el archivo de migracion**
 
 Crear `docs/superpowers/plans/sql/2026-07-14-access-cap-price.sql`:
 
@@ -69,14 +69,14 @@ alter table events        add column if not exists guest_cap int;
 alter table events        add column if not exists ticket_price numeric;
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add docs/superpowers/plans/sql/2026-07-14-access-cap-price.sql
 git commit -m "chore(events): migracion de access mode, guest cap y ticket price"
 ```
 
-- [ ] **Step 3: PARAR y entregarle el SQL a Diego**
+- [x] **Step 3: PARAR y entregarle el SQL a Diego** — CORRIDO por Diego el 14-jul. Verificado en information_schema: las 3 columnas existen y son nullable.
 
 **No continuar con las demas tasks hasta que Diego confirme que corrio el SQL en Supabase.**
 Las tasks 2 a 5 (logica y tipos) no dependen de la DB y podrian correr antes, pero la Task 6
