@@ -1,114 +1,150 @@
 import { describe, it, expect } from 'vitest'
-import { getDefaultAccessMode, resolveAccessMode, normalizeAccessFields } from './features'
+import {
+  getDefaultAccessMode, getDefaultRequiresApproval,
+  resolveAccessMode, resolveRequiresApproval,
+  normalizeAccessFields, ACCESS_MODES,
+} from './features'
 import { EVENT_TYPES } from './event-types'
 
 describe('getDefaultAccessMode', () => {
-  it('las celebraciones de lista curada son privadas', () => {
-    expect(getDefaultAccessMode('boda')).toBe('privada')
-    expect(getDefaultAccessMode('xv')).toBe('privada')
-    expect(getDefaultAccessMode('bautizo')).toBe('privada')
-    expect(getDefaultAccessMode('graduacion')).toBe('privada')
+  it('los eventos de lista curada son privados', () => {
+    for (const t of ['boda', 'xv', 'bautizo', 'graduacion']) {
+      expect(getDefaultAccessMode(t)).toBe('privada')
+    }
   })
 
-  it('los eventos de boleto y cupo son abiertos', () => {
-    expect(getDefaultAccessMode('conferencia')).toBe('abierta')
-    expect(getDefaultAccessMode('congreso')).toBe('abierta')
-    expect(getDefaultAccessMode('caridad')).toBe('abierta')
-    expect(getDefaultAccessMode('fiesta')).toBe('abierta')
-    expect(getDefaultAccessMode('cumpleanos')).toBe('abierta')
+  it('todo lo demas es publico', () => {
+    for (const t of ['cumpleanos', 'fiesta', 'conferencia', 'congreso', 'caridad',
+                     'despedida', 'capacitacion', 'teambuilding', 'lanzamiento',
+                     'asamblea', 'retiro', 'campamento', 'otro']) {
+      expect(getDefaultAccessMode(t)).toBe('publica')
+    }
   })
 
-  it('los grupos cerrados self-serve piden aprobacion', () => {
-    expect(getDefaultAccessMode('despedida')).toBe('aprobacion')
-    expect(getDefaultAccessMode('capacitacion')).toBe('aprobacion')
-    expect(getDefaultAccessMode('teambuilding')).toBe('aprobacion')
-    expect(getDefaultAccessMode('lanzamiento')).toBe('aprobacion')
-    expect(getDefaultAccessMode('asamblea')).toBe('aprobacion')
-    expect(getDefaultAccessMode('retiro')).toBe('aprobacion')
-    expect(getDefaultAccessMode('campamento')).toBe('aprobacion')
-    expect(getDefaultAccessMode('otro')).toBe('aprobacion')
+  it('cae en publica si el tipo no existe o es null', () => {
+    expect(getDefaultAccessMode('inexistente')).toBe('publica')
+    expect(getDefaultAccessMode(null)).toBe('publica')
+  })
+})
+
+describe('getDefaultRequiresApproval', () => {
+  it('los que antes eran aprobacion piden aprobacion', () => {
+    for (const t of ['despedida', 'capacitacion', 'teambuilding', 'lanzamiento',
+                     'asamblea', 'retiro', 'campamento', 'otro']) {
+      expect(getDefaultRequiresApproval(t)).toBe(true)
+    }
   })
 
-  it('tipo desconocido o null cae en aprobacion', () => {
-    expect(getDefaultAccessMode('inexistente')).toBe('aprobacion')
-    expect(getDefaultAccessMode(null)).toBe('aprobacion')
+  it('los que antes eran abierta no piden aprobacion', () => {
+    for (const t of ['cumpleanos', 'fiesta', 'conferencia', 'congreso', 'caridad']) {
+      expect(getDefaultRequiresApproval(t)).toBe(false)
+    }
   })
 
-  it('los 17 tipos declaran un modo valido', () => {
-    expect(EVENT_TYPES).toHaveLength(17)
-    for (const t of EVENT_TYPES) {
-      expect(['privada', 'aprobacion', 'abierta']).toContain(t.defaultAccessMode)
+  it('los privados nunca piden aprobacion', () => {
+    for (const t of ['boda', 'xv', 'bautizo', 'graduacion']) {
+      expect(getDefaultRequiresApproval(t)).toBe(false)
     }
   })
 })
 
+describe('los 17 tipos declaran su acceso', () => {
+  it('cada tipo tiene un modo valido', () => {
+    for (const t of EVENT_TYPES) {
+      expect(['privada', 'publica']).toContain(t.defaultAccessMode)
+      expect(typeof t.defaultRequiresApproval).toBe('boolean')
+    }
+  })
+
+  it('ningun tipo privado pide aprobacion', () => {
+    for (const t of EVENT_TYPES.filter(t => t.defaultAccessMode === 'privada')) {
+      expect(t.defaultRequiresApproval).toBe(false)
+    }
+  })
+})
+
+describe('ACCESS_MODES', () => {
+  it('son exactamente dos: privada y publica', () => {
+    expect(ACCESS_MODES.map(m => m.key)).toEqual(['privada', 'publica'])
+  })
+})
+
 describe('resolveAccessMode', () => {
-  it('respeta el valor guardado', () => {
-    expect(resolveAccessMode('boda', 'abierta')).toBe('abierta')
+  it('lo guardado gana sobre el default del tipo', () => {
+    expect(resolveAccessMode('boda', 'publica')).toBe('publica')
     expect(resolveAccessMode('conferencia', 'privada')).toBe('privada')
   })
 
-  it('evento viejo (columna null) cae en el default del tipo', () => {
-    expect(resolveAccessMode('boda', null)).toBe('privada')
-    expect(resolveAccessMode('conferencia', undefined)).toBe('abierta')
+  it('lectura tolerante: los valores viejos de 3 se leen como publica', () => {
+    expect(resolveAccessMode('boda', 'abierta')).toBe('publica')
+    expect(resolveAccessMode('boda', 'aprobacion')).toBe('publica')
   })
 
-  it('valor basura en la columna cae en el default del tipo', () => {
+  it('sin nada guardado cae al default del tipo', () => {
+    expect(resolveAccessMode('boda', null)).toBe('privada')
+    expect(resolveAccessMode('conferencia', undefined)).toBe('publica')
+  })
+
+  it('basura cae al default del tipo', () => {
     expect(resolveAccessMode('boda', 'lo-que-sea')).toBe('privada')
     expect(resolveAccessMode('boda', '')).toBe('privada')
   })
 })
 
+describe('resolveRequiresApproval', () => {
+  it('un evento privado nunca pide aprobacion, aunque la bandera diga que si', () => {
+    expect(resolveRequiresApproval('otro', 'privada', true)).toBe(false)
+  })
+
+  it('la bandera guardada gana en un evento publico', () => {
+    expect(resolveRequiresApproval('conferencia', 'publica', true)).toBe(true)
+    expect(resolveRequiresApproval('otro', 'publica', false)).toBe(false)
+  })
+
+  it('lectura tolerante: el viejo aprobacion implica que si', () => {
+    expect(resolveRequiresApproval('conferencia', 'aprobacion', null)).toBe(true)
+  })
+
+  it('lectura tolerante: el viejo abierta implica que no', () => {
+    expect(resolveRequiresApproval('otro', 'abierta', null)).toBe(false)
+  })
+
+  it('sin bandera cae al default del tipo', () => {
+    expect(resolveRequiresApproval('otro', null, null)).toBe(true)
+    expect(resolveRequiresApproval('conferencia', null, undefined)).toBe(false)
+  })
+})
+
 describe('normalizeAccessFields', () => {
-  it('privada borra cupo y precio aunque vengan llenos', () => {
-    expect(normalizeAccessFields({ accessMode: 'privada', guestCap: '100', ticketPrice: '500' }))
-      .toEqual({ guest_cap: null, ticket_price: null })
+  it('privada borra cupo, precio y aprobacion aunque vengan llenos', () => {
+    expect(normalizeAccessFields({
+      accessMode: 'privada', guestCap: '100', ticketPrice: '500', requiresApproval: true,
+    })).toEqual({ guest_cap: null, ticket_price: null, requires_approval: false })
   })
 
-  it('abierta guarda cupo y precio', () => {
-    expect(normalizeAccessFields({ accessMode: 'abierta', guestCap: '100', ticketPrice: '500' }))
-      .toEqual({ guest_cap: 100, ticket_price: 500 })
+  it('publica respeta lo que se tecleo', () => {
+    expect(normalizeAccessFields({
+      accessMode: 'publica', guestCap: '100', ticketPrice: '500', requiresApproval: true,
+    })).toEqual({ guest_cap: 100, ticket_price: 500, requires_approval: true })
   })
 
-  it('aprobacion guarda cupo y precio', () => {
-    expect(normalizeAccessFields({ accessMode: 'aprobacion', guestCap: '30', ticketPrice: '0' }))
-      .toEqual({ guest_cap: 30, ticket_price: 0 })
+  it('publica sin cupo ni precio los deja nulos y respeta la aprobacion', () => {
+    expect(normalizeAccessFields({
+      accessMode: 'publica', guestCap: '', ticketPrice: '', requiresApproval: false,
+    })).toEqual({ guest_cap: null, ticket_price: null, requires_approval: false })
   })
 
-  it('vacio o espacios es null: sin limite y gratis', () => {
-    expect(normalizeAccessFields({ accessMode: 'abierta', guestCap: '', ticketPrice: '   ' }))
-      .toEqual({ guest_cap: null, ticket_price: null })
+  it('un cupo invalido o pasado de la cota se vuelve nulo', () => {
+    for (const cap of ['0', '-5', 'abc', '1.5', '1000001']) {
+      expect(normalizeAccessFields({
+        accessMode: 'publica', guestCap: cap, ticketPrice: '', requiresApproval: false,
+      }).guest_cap).toBeNull()
+    }
   })
 
-  it('el precio acepta decimales', () => {
-    expect(normalizeAccessFields({ accessMode: 'abierta', guestCap: '', ticketPrice: '250.50' }).ticket_price)
-      .toBe(250.5)
-  })
-
-  it('el cupo rechaza decimales, cero y negativos', () => {
-    expect(normalizeAccessFields({ accessMode: 'abierta', guestCap: '10.5', ticketPrice: '' }).guest_cap).toBeNull()
-    expect(normalizeAccessFields({ accessMode: 'abierta', guestCap: '0', ticketPrice: '' }).guest_cap).toBeNull()
-    expect(normalizeAccessFields({ accessMode: 'abierta', guestCap: '-5', ticketPrice: '' }).guest_cap).toBeNull()
-  })
-
-  it('el precio rechaza negativos y basura', () => {
-    expect(normalizeAccessFields({ accessMode: 'abierta', guestCap: '', ticketPrice: '-1' }).ticket_price).toBeNull()
-    expect(normalizeAccessFields({ accessMode: 'abierta', guestCap: '', ticketPrice: 'abc' }).ticket_price).toBeNull()
-  })
-
-  it('el cupo rechaza basura', () => {
-    expect(normalizeAccessFields({ accessMode: 'abierta', guestCap: 'muchos', ticketPrice: '' }).guest_cap).toBeNull()
-  })
-
-  it('el cupo acepta el limite exacto (1000000)', () => {
-    expect(normalizeAccessFields({ accessMode: 'abierta', guestCap: '1000000', ticketPrice: '' }).guest_cap).toBe(1000000)
-  })
-
-  it('el cupo rechaza arriba del limite (1000001)', () => {
-    expect(normalizeAccessFields({ accessMode: 'abierta', guestCap: '1000001', ticketPrice: '' }).guest_cap).toBeNull()
-  })
-
-  it('el cupo rechaza valores absurdos (99999999999)', () => {
-    expect(normalizeAccessFields({ accessMode: 'abierta', guestCap: '99999999999', ticketPrice: '' }).guest_cap).toBeNull()
+  it('un precio de cero es valido (evento publico gratis con registro)', () => {
+    expect(normalizeAccessFields({
+      accessMode: 'publica', guestCap: '', ticketPrice: '0', requiresApproval: false,
+    }).ticket_price).toBe(0)
   })
 })

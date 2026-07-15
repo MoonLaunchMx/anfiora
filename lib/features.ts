@@ -1,12 +1,12 @@
 import type React from 'react'
-import { LayoutGrid, Gift, Images, Music2, UtensilsCrossed, Shirt, MailOpen, Lock, UserCheck, Globe } from 'lucide-react'
+import { LayoutGrid, Gift, Images, Music2, UtensilsCrossed, Shirt, MailOpen, Lock, Globe } from 'lucide-react'
 import { EVENT_TYPES } from './event-types'
 
 export type FeatureKey = 'mesas' | 'regalos' | 'album' | 'playlist' | 'comida' | 'vestimenta' | 'invitacion'
 
 export type EnabledFeatures = Partial<Record<FeatureKey, boolean>>
 
-export type AccessMode = 'privada' | 'aprobacion' | 'abierta'
+export type AccessMode = 'privada' | 'publica'
 
 export interface AccessModeConfig {
   key: AccessMode
@@ -16,9 +16,8 @@ export interface AccessModeConfig {
 }
 
 export const ACCESS_MODES: AccessModeConfig[] = [
-  { key: 'privada',    label: 'Invitación directa', description: 'Tú armas la lista. Cada invitado recibe su propio link.',   icon: Lock },
-  { key: 'aprobacion', label: 'Con aprobación',     description: 'Un link. Se registran solos y tú apruebas cada solicitud.', icon: UserCheck },
-  { key: 'abierta',    label: 'Abierta',            description: 'Un link. Cualquiera se registra y la lista se llena sola.', icon: Globe },
+  { key: 'privada', label: 'Invitación directa', description: 'Tú armas la lista. Cada invitado recibe su propio link.', icon: Lock },
+  { key: 'publica', label: 'Link público',       description: 'Compartes un link y la gente se registra sola.',        icon: Globe },
 ]
 
 export interface FeatureConfig {
@@ -80,15 +79,35 @@ export function resolveFeatures(
 }
 
 export function getDefaultAccessMode(eventTypeValue: string | null): AccessMode {
-  return EVENT_TYPES.find(t => t.value === eventTypeValue)?.defaultAccessMode ?? 'aprobacion'
+  return EVENT_TYPES.find(t => t.value === eventTypeValue)?.defaultAccessMode ?? 'publica'
 }
 
+export function getDefaultRequiresApproval(eventTypeValue: string | null): boolean {
+  return EVENT_TYPES.find(t => t.value === eventTypeValue)?.defaultRequiresApproval ?? true
+}
+
+// Lectura tolerante: 'abierta' y 'aprobacion' son el modelo viejo de 3 valores.
+// La base tenia 0 filas con valor al migrar (verificado 14-jul), pero leerlos
+// cuesta una linea y evita que un dato viejo se lea como basura.
 export function resolveAccessMode(
   eventTypeValue: string | null,
   stored: string | null | undefined,
 ): AccessMode {
-  if (stored === 'privada' || stored === 'aprobacion' || stored === 'abierta') return stored
+  if (stored === 'privada' || stored === 'publica') return stored
+  if (stored === 'abierta' || stored === 'aprobacion') return 'publica'
   return getDefaultAccessMode(eventTypeValue)
+}
+
+export function resolveRequiresApproval(
+  eventTypeValue: string | null,
+  storedMode: string | null | undefined,
+  storedFlag: boolean | null | undefined,
+): boolean {
+  if (resolveAccessMode(eventTypeValue, storedMode) === 'privada') return false
+  if (storedMode === 'aprobacion') return true
+  if (storedMode === 'abierta') return false
+  if (typeof storedFlag === 'boolean') return storedFlag
+  return getDefaultRequiresApproval(eventTypeValue)
 }
 
 // events.guest_cap es int4 y el min del input no valida (el boton es onClick, no submit):
@@ -115,10 +134,14 @@ export function normalizeAccessFields(input: {
   accessMode: AccessMode
   guestCap: string
   ticketPrice: string
-}): { guest_cap: number | null; ticket_price: number | null } {
-  if (input.accessMode === 'privada') return { guest_cap: null, ticket_price: null }
+  requiresApproval: boolean
+}): { guest_cap: number | null; ticket_price: number | null; requires_approval: boolean } {
+  if (input.accessMode === 'privada') {
+    return { guest_cap: null, ticket_price: null, requires_approval: false }
+  }
   return {
     guest_cap: parseCap(input.guestCap),
     ticket_price: parsePrice(input.ticketPrice),
+    requires_approval: input.requiresApproval,
   }
 }
