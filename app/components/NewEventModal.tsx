@@ -5,9 +5,9 @@ import TimePicker from '@/app/components/ui/TimePicker'
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { AnimatePresence, motion } from 'framer-motion'
-import { ChevronRight, ArrowLeft, X } from 'lucide-react'
+import { ChevronRight, ArrowLeft, X, UserCheck } from 'lucide-react'
 import { EVENT_TYPES, CATEGORIES, EventTypeConfig, EventCategory } from '@/lib/event-types'
-import { FEATURES, ALWAYS_ON_FEATURES, ACCESS_MODES, getDefaultFeatures, getDefaultAccessMode, normalizeAccessFields, type FeatureKey, type AccessMode } from '@/lib/features'
+import { FEATURES, ALWAYS_ON_FEATURES, ACCESS_MODES, getDefaultFeatures, getDefaultAccessMode, getDefaultRequiresApproval, normalizeAccessFields, type FeatureKey, type AccessMode } from '@/lib/features'
 
 function generatePlaylistToken(): string {
   return Math.random().toString(36).substring(2, 10) +
@@ -39,7 +39,8 @@ export function NewEventModal({ open, onClose, onCreated }: NewEventModalProps) 
   const [venue, setVenue]                 = useState('')
 
   const [features, setFeatures]           = useState<Record<FeatureKey, boolean>>(getDefaultFeatures('otro'))
-  const [accessMode, setAccessMode]       = useState<AccessMode>('aprobacion')
+  const [accessMode, setAccessMode]       = useState<AccessMode>('publica')
+  const [requiresApproval, setRequiresApproval] = useState(false)
   const [guestCap, setGuestCap]           = useState('')
   const [ticketPrice, setTicketPrice]     = useState('')
 
@@ -67,7 +68,8 @@ export function NewEventModal({ open, onClose, onCreated }: NewEventModalProps) 
     setName(''); setHostName(''); setHostName2(''); setOrganization('')
     setDate(''); setEndDate(''); setTime(''); setVenue('')
     setFeatures(getDefaultFeatures('otro'))
-    setAccessMode('aprobacion')
+    setAccessMode('publica')
+    setRequiresApproval(false)
     setGuestCap('')
     setTicketPrice('')
     setError('')
@@ -84,6 +86,7 @@ export function NewEventModal({ open, onClose, onCreated }: NewEventModalProps) 
     setEventType(type)
     setFeatures(getDefaultFeatures(type.value))
     setAccessMode(getDefaultAccessMode(type.value))
+    setRequiresApproval(getDefaultRequiresApproval(type.value))
     setStep(2)
     setError('')
   }
@@ -117,7 +120,7 @@ export function NewEventModal({ open, onClose, onCreated }: NewEventModalProps) 
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { window.location.href = '/'; return }
 
-    const access = normalizeAccessFields({ accessMode, guestCap, ticketPrice })
+    const access = normalizeAccessFields({ accessMode, guestCap, ticketPrice, requiresApproval })
 
     const { data: eventData, error: eventError } = await supabase
       .from('events')
@@ -155,6 +158,7 @@ export function NewEventModal({ open, onClose, onCreated }: NewEventModalProps) 
         template_names:    [],
         enabled_features:  features,
         access_mode:       accessMode,
+        requires_approval: access.requires_approval,
       })
 
     if (settingsError) {
@@ -398,6 +402,32 @@ export function NewEventModal({ open, onClose, onCreated }: NewEventModalProps) 
             )
           })}
         </div>
+
+        {accessMode === 'publica' && (
+          <button
+            type="button"
+            onClick={() => setRequiresApproval(v => !v)}
+            className="flex items-center gap-3 rounded-xl border border-[#e8e8e8] bg-white p-3 text-left transition hover:border-[#d0d0d0]"
+          >
+            <div className={'flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ' + (requiresApproval ? 'bg-[#d0f5ec]' : 'bg-[#f4f4f4]')}>
+              <UserCheck size={18} className={requiresApproval ? 'text-[#0F6E56]' : 'text-[#888]'} />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium text-[#1D1E20]">Aprobar cada solicitud</p>
+              <p className="mt-0.5 text-xs text-[#888]">
+                {requiresApproval
+                  ? 'Nadie entra a la lista hasta que tú lo apruebes.'
+                  : 'Quien abra el link se registra y ya está en la lista.'}
+              </p>
+            </div>
+            <div className={
+              'flex h-5 w-9 shrink-0 items-center rounded-full p-0.5 transition ' +
+              (requiresApproval ? 'justify-end bg-[#48C9B0]' : 'justify-start bg-[#ddd]')
+            }>
+              <div className="h-4 w-4 rounded-full bg-white" />
+            </div>
+          </button>
+        )}
 
         {accessMode === 'privada' ? (
           <div className="rounded-xl border border-[#e8e8e8] bg-[#f8f8f8] px-3 py-2.5 text-xs text-[#888]">
