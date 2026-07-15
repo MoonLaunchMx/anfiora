@@ -454,7 +454,7 @@ export function NewEventModal({ open, onClose, onCreated }: NewEventModalProps) 
 
             <div>
               <label className="mb-1.5 block text-xs font-medium text-[#555]">
-                Precio del boleto
+                Precio por persona
                 <span className="ml-1 font-normal text-[#bbb]">(opcional)</span>
               </label>
               <div className="relative">
