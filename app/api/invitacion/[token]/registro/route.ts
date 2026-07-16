@@ -53,20 +53,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
 
   const { data: existing } = await db
     .from('guests')
-    .select('id, rsvp_token')
+    .select('id')
     .eq('event_id', settings.event_id)
     .eq('phone', reg.phone)
     .maybeSingle()
 
-  // Ya se habia registrado: se le devuelve SU invitacion. No se pisa el nombre
-  // (el planner pudo haberlo curado) ni se le cobra otro lugar del cupo.
+  // Ya estaba en la lista: no duplicamos, no pisamos el nombre (el planner pudo
+  // curarlo) ni cobramos otro lugar. Y NO devolvemos su token: el telefono no
+  // es una llave. Quien lo teclee solo ve "ya estas dentro", igual que un alta
+  // nueva — asi ni siquiera se puede sondear quien esta invitado.
   if (existing) {
-    let rsvpToken = existing.rsvp_token as string | null
-    if (!rsvpToken) {
-      rsvpToken = randomToken()
-      await db.from('guests').update({ rsvp_token: rsvpToken }).eq('id', existing.id)
-    }
-    return NextResponse.json({ rsvp_token: rsvpToken, ya_estaba: true })
+    return NextResponse.json({ ok: true })
   }
 
   const { data: all } = await db
@@ -112,5 +109,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
   // inflaria el contador y lo desalinearia del resto de la app.
   await db.rpc('increment_guests', { event_id_input: settings.event_id })
 
-  return NextResponse.json({ rsvp_token: rsvpToken, ya_estaba: false })
+  // Se crea con su rsvp_token (existe en la fila para que el planner pueda
+  // mandarle su link despues), pero NO viaja al navegador anonimo.
+  return NextResponse.json({ ok: true })
 }

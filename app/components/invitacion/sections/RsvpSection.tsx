@@ -101,6 +101,20 @@ function PuertaAviso({ titulo, texto }: { titulo: string; texto: string }) {
   )
 }
 
+// El estado final del registro. Hoy solo "dentro"; es el molde que despues
+// dira "falta que te aprueben" o "falta tu pago" segun los candados.
+export function PuertaExito() {
+  return (
+    <div className="mx-auto max-w-sm rounded-2xl border border-[#a0e0c0] bg-[#f0fff6] px-5 py-6 text-center">
+      <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-[#2a7a50]">
+        <Check size={22} className="text-white" />
+      </div>
+      <p className="text-base font-semibold text-[#1a5c3a]">¡Listo, ya estás dentro!</p>
+      <p className="mt-1 text-sm text-[#2a7a50]">Explora la invitación, descubre todo lo que preparamos para ti... esto apenas empieza.</p>
+    </div>
+  )
+}
+
 export default function RsvpSection({ content, ctx, anim }: { content: Content; ctx: InviteCtx; anim: Theme['anim'] }) {
   const [rows, setRows] = useState<Row[]>(() => buildRows(ctx))
   const [submitting, setSubmitting] = useState(false)
@@ -114,6 +128,15 @@ export default function RsvpSection({ content, ctx, anim }: { content: Content; 
   // DESPUES de los hooks, no antes.
   if (ctx.mode === 'compartida') {
     if (!ctx.puerta) return null
+    // Ya se registro: la tarjeta de estado reemplaza al formulario, sin el
+    // encabezado del bloque ("Confirma tu asistencia" ya no aplica).
+    if (ctx.puerta.registrado) {
+      return (
+        <SectionShell variant="form">
+          <PuertaExito />
+        </SectionShell>
+      )
+    }
     return (
       <SectionShell variant="form">
         <h2 className="px-2 text-center text-xl font-semibold lg:text-2xl" style={{ color: 'var(--inv-texto-titulo)', fontFamily: 'var(--inv-font-titulo)' }}>
@@ -136,7 +159,7 @@ export default function RsvpSection({ content, ctx, anim }: { content: Content; 
               token={ctx.puerta.token}
               maxCompanions={ctx.puerta.maxCompanions}
               botonClassName={ctx.botonClassName}
-              onDone={ctx.puerta.onDone}
+              onRegistrado={ctx.puerta.onRegistrado}
             />
           )}
         </div>

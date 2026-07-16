@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Heart } from 'lucide-react'
+import { Heart, Check } from 'lucide-react'
 import { isInviteOpen, type RsvpSubmission } from '@/lib/invite'
 import type { InviteDoc } from '@/lib/invite/schema'
 import { botonClass } from '@/lib/invite/theme-css'
@@ -33,6 +33,7 @@ export default function InvitacionClient({ token }: { token: string }) {
   const [data, setData] = useState<ApiData | null>(null)
   const [loading, setLoading] = useState(true)
   const [estado, setEstado] = useState<Estado>('ok')
+  const [registrado, setRegistrado] = useState(false)
 
   useEffect(() => {
     let active = true
@@ -96,12 +97,6 @@ export default function InvitacionClient({ token }: { token: string }) {
 
   const compartida = data.mode === 'compartida'
 
-  // El registro se va a SU link personal: de ahi en adelante ve la invitacion
-  // igual que un invitado de boda.
-  const irASuInvitacion = (rsvpToken: string) => {
-    window.location.href = window.location.pathname.replace(/[^/]+$/, rsvpToken)
-  }
-
   const ctx: InviteCtx = {
     event: data.event,
     guest: data.guest,
@@ -116,7 +111,10 @@ export default function InvitacionClient({ token }: { token: string }) {
           token,
           maxCompanions: data.puerta.maxCompanions,
           agotado: data.puerta.agotado,
-          onDone: irASuInvitacion,
+          registrado,
+          // Registrarse ES confirmar: no se rebota a ningun lado, el mismo slot
+          // pasa a "ya estas dentro" y la invitacion sigue visible.
+          onRegistrado: () => setRegistrado(true),
         }
       : undefined,
     deadlinePassed: !isInviteOpen(data.doc.meta, todayISO()),
@@ -137,7 +135,15 @@ export default function InvitacionClient({ token }: { token: string }) {
 
         {alFinal && (
           <section className="px-6 pb-16 pt-4">
-            {agotado ? (
+            {registrado ? (
+              <div className="mx-auto max-w-sm rounded-xl border border-[#a0e0c0] bg-[#f0fff6] px-5 py-6 text-center">
+                <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-[#2a7a50]">
+                  <Check size={22} className="text-white" />
+                </div>
+                <h2 className="text-base font-semibold text-[#1a5c3a]">¡Listo, ya estás dentro!</h2>
+                <p className="mt-1 text-sm text-[#2a7a50]">Explora la invitación, descubre todo lo que preparamos para ti... esto apenas empieza.</p>
+              </div>
+            ) : agotado ? (
               <div className="mx-auto max-w-sm rounded-xl border border-[#e8e8e8] bg-white/70 px-5 py-6 text-center">
                 <h2 className="text-base font-semibold text-[#1D1E20]">Ya no quedan lugares</h2>
                 <p className="mt-1 text-sm text-[#888]">Este evento llegó a su cupo. Escríbele al anfitrión por si se libera alguno.</p>
@@ -154,7 +160,7 @@ export default function InvitacionClient({ token }: { token: string }) {
                   token={token}
                   maxCompanions={data.puerta!.maxCompanions}
                   botonClassName={ctx.botonClassName}
-                  onDone={irASuInvitacion}
+                  onRegistrado={() => setRegistrado(true)}
                 />
               </>
             )}

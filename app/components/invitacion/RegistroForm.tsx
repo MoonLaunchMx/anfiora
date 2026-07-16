@@ -7,7 +7,7 @@ type Props = {
   token: string
   maxCompanions: number
   botonClassName?: string
-  onDone: (rsvpToken: string) => void
+  onRegistrado: () => void
 }
 
 const ERRORES: Record<string, string> = {
@@ -16,7 +16,7 @@ const ERRORES: Record<string, string> = {
   bad_request: 'Revisa tu nombre y tu WhatsApp.',
 }
 
-export default function RegistroForm({ token, maxCompanions, botonClassName, onDone }: Props) {
+export default function RegistroForm({ token, maxCompanions, botonClassName, onRegistrado }: Props) {
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
   const [companions, setCompanions] = useState(0)
@@ -38,7 +38,7 @@ export default function RegistroForm({ token, maxCompanions, botonClassName, onD
         setError(ERRORES[json?.error as string] || 'No pudimos registrarte. Intenta de nuevo.')
         return
       }
-      onDone(json.rsvp_token as string)
+      onRegistrado()
     } catch {
       setError('No pudimos registrarte. Intenta de nuevo.')
     } finally {

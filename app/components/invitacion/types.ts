@@ -24,11 +24,15 @@ export type InviteCtx = {
   onSubmit?: (payload: import('@/lib/invite').RsvpSubmission) => Promise<void>
   // La puerta publica ocupa el slot del bloque RSVP: el anfitrion ya decidio
   // ahi donde va la confirmacion, y el registro respeta esa decision.
+  // registrarse ES confirmar: al terminar no rebota a ningun lado, el mismo
+  // slot pasa a "ya estas dentro". Es el molde que despues dira "falta que te
+  // aprueben" o "falta tu pago" segun los candados.
   puerta?: {
     token: string
     maxCompanions: number
     agotado: boolean
-    onDone: (rsvpToken: string) => void
+    registrado: boolean
+    onRegistrado: () => void
   }
   deadlinePassed?: boolean
   botonClassName?: string
