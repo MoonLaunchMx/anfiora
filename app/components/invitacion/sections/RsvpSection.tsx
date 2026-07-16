@@ -128,12 +128,31 @@ export default function RsvpSection({ content, ctx, anim }: { content: Content; 
   // DESPUES de los hooks, no antes.
   if (ctx.mode === 'compartida') {
     if (!ctx.puerta) return null
-    // Ya se registro: la tarjeta de estado reemplaza al formulario, sin el
-    // encabezado del bloque ("Confirma tu asistencia" ya no aplica).
-    if (ctx.puerta.registrado) {
+    const p = ctx.puerta
+
+    // Los estados terminales muestran SOLO su tarjeta: el encabezado "Confirma
+    // tu asistencia" no aplica cuando ya no se puede registrar (dentro, lleno o
+    // cerrado). El encabezado vive con el formulario, no afuera de el.
+    if (p.registrado) {
+      return <SectionShell variant="form"><PuertaExito /></SectionShell>
+    }
+    if (p.agotado) {
       return (
         <SectionShell variant="form">
-          <PuertaExito />
+          <PuertaAviso
+            titulo="Ya no quedan lugares"
+            texto="Este evento llegó a su cupo. Escríbele al anfitrión por si se libera alguno."
+          />
+        </SectionShell>
+      )
+    }
+    if (ctx.deadlinePassed) {
+      return (
+        <SectionShell variant="form">
+          <PuertaAviso
+            titulo="Los registros ya cerraron"
+            texto="La fecha límite para confirmar ya pasó. Escríbele al anfitrión si todavía quieres ir."
+          />
         </SectionShell>
       )
     }
@@ -144,24 +163,12 @@ export default function RsvpSection({ content, ctx, anim }: { content: Content; 
         </h2>
         <p className="mx-auto mt-2 max-w-md text-center text-sm opacity-70" style={{ color: 'var(--inv-texto)' }}>{content.texto}</p>
         <div className="mt-8">
-          {ctx.puerta.agotado ? (
-            <PuertaAviso
-              titulo="Ya no quedan lugares"
-              texto="Este evento llegó a su cupo. Escríbele al anfitrión por si se libera alguno."
-            />
-          ) : ctx.deadlinePassed ? (
-            <PuertaAviso
-              titulo="Los registros ya cerraron"
-              texto="La fecha límite para confirmar ya pasó. Escríbele al anfitrión si todavía quieres ir."
-            />
-          ) : (
-            <RegistroForm
-              token={ctx.puerta.token}
-              maxCompanions={ctx.puerta.maxCompanions}
-              botonClassName={ctx.botonClassName}
-              onRegistrado={ctx.puerta.onRegistrado}
-            />
-          )}
+          <RegistroForm
+            token={p.token}
+            maxCompanions={p.maxCompanions}
+            botonClassName={ctx.botonClassName}
+            onRegistrado={p.onRegistrado}
+          />
         </div>
       </SectionShell>
     )
