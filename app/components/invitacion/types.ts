@@ -13,12 +13,14 @@ export type InviteCtx = {
     name: string; event_type: string | null; event_date: string | null; event_time: string | null
     venue: string | null; address: string | null; host_name: string | null; host_name_2: string | null
   }
-  guest: InviteGuest
+  // null en modo compartida: la puerta publica se pinta sin invitado, porque
+  // todavia no existe. Lo llena el registro.
+  guest: InviteGuest | null
   companions: InviteCompanion[]
   dressCode: DressCode | null
   itinerary: { start_time: string; title: string; location: string | null }[]
   tokens: { playlist: string | null; registry: string | null }
-  mode: 'preview' | 'public'
+  mode: 'preview' | 'public' | 'compartida'
   onSubmit?: (payload: import('@/lib/invite').RsvpSubmission) => Promise<void>
   deadlinePassed?: boolean
   botonClassName?: string

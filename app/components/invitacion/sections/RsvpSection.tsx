@@ -21,13 +21,17 @@ type Row = {
   allergies: string[]
 }
 
+// Corre en el inicializador de useState, antes del corte por modo: tiene que
+// tolerar que no haya invitado aunque la seccion no se llegue a pintar.
 function buildRows(ctx: InviteCtx): Row[] {
-  const guestRow: Row = {
-    key: 'guest',
-    name: ctx.guest.name,
-    attends: ctx.guest.rsvp_status === 'confirmed' ? true : ctx.guest.rsvp_status === 'declined' ? false : null,
-    allergies: ctx.guest.allergies,
-  }
+  const guestRow: Row | null = ctx.guest
+    ? {
+        key: 'guest',
+        name: ctx.guest.name,
+        attends: ctx.guest.rsvp_status === 'confirmed' ? true : ctx.guest.rsvp_status === 'declined' ? false : null,
+        allergies: ctx.guest.allergies,
+      }
+    : null
   const companionRows: Row[] = ctx.companions.map((c, i) => ({
     key: c.id || `companion-${i}`,
     id: c.id,
@@ -35,7 +39,7 @@ function buildRows(ctx: InviteCtx): Row[] {
     attends: c.rsvp_status === 'confirmed' ? true : c.rsvp_status === 'declined' ? false : null,
     allergies: c.allergies,
   }))
-  return [guestRow, ...companionRows]
+  return guestRow ? [guestRow, ...companionRows] : companionRows
 }
 
 function AllergyChips({ value, onChange, disabled }: { value: string[]; onChange: (v: string[]) => void; disabled: boolean }) {
@@ -94,6 +98,10 @@ export default function RsvpSection({ content, ctx, anim }: { content: Content; 
   const [error, setError] = useState<string | null>(null)
   const [playing, setPlaying] = useState<'si' | 'no' | null>(null)
   const [playKey, setPlayKey] = useState(0)
+
+  // En la puerta publica no hay a quien confirmar todavia: el registro
+  // sustituye a esta seccion. El corte va DESPUES de los hooks, no antes.
+  if (ctx.mode === 'compartida' || !ctx.guest) return null
 
   const isPreview = ctx.mode === 'preview'
   const locked = Boolean(ctx.deadlinePassed)
