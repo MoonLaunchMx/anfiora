@@ -22,6 +22,14 @@ export type InviteCtx = {
   tokens: { playlist: string | null; registry: string | null }
   mode: 'preview' | 'public' | 'compartida'
   onSubmit?: (payload: import('@/lib/invite').RsvpSubmission) => Promise<void>
+  // La puerta publica ocupa el slot del bloque RSVP: el anfitrion ya decidio
+  // ahi donde va la confirmacion, y el registro respeta esa decision.
+  puerta?: {
+    token: string
+    maxCompanions: number
+    agotado: boolean
+    onDone: (rsvpToken: string) => void
+  }
   deadlinePassed?: boolean
   botonClassName?: string
   forceMobile?: boolean

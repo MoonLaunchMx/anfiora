@@ -7,6 +7,7 @@ import type { Theme } from '@/lib/invite/theme'
 import { Check, X } from 'lucide-react'
 import SectionShell from '../SectionShell'
 import RsvpAnimation from '../RsvpAnimation'
+import RegistroForm from '../RegistroForm'
 
 const SI_MSG = '¡Nos vemos ahí!'
 const NO_MSG = '¡Te vamos a extrañar!'
@@ -91,6 +92,15 @@ function AllergyChips({ value, onChange, disabled }: { value: string[]; onChange
   )
 }
 
+function PuertaAviso({ titulo, texto }: { titulo: string; texto: string }) {
+  return (
+    <div className="mx-auto max-w-sm rounded-2xl border border-[#e8e8e8] bg-white px-5 py-6 text-center">
+      <p className="text-base font-semibold text-[#1D1E20]">{titulo}</p>
+      <p className="mt-1 text-sm text-[#888]">{texto}</p>
+    </div>
+  )
+}
+
 export default function RsvpSection({ content, ctx, anim }: { content: Content; ctx: InviteCtx; anim: Theme['anim'] }) {
   const [rows, setRows] = useState<Row[]>(() => buildRows(ctx))
   const [submitting, setSubmitting] = useState(false)
@@ -99,9 +109,42 @@ export default function RsvpSection({ content, ctx, anim }: { content: Content; 
   const [playing, setPlaying] = useState<'si' | 'no' | null>(null)
   const [playKey, setPlayKey] = useState(0)
 
-  // En la puerta publica no hay a quien confirmar todavia: el registro
-  // sustituye a esta seccion. El corte va DESPUES de los hooks, no antes.
-  if (ctx.mode === 'compartida' || !ctx.guest) return null
+  // En la puerta publica no hay a quien confirmar todavia: el registro ocupa
+  // este slot, con el titulo y el tema que el anfitrion ya eligio. El corte va
+  // DESPUES de los hooks, no antes.
+  if (ctx.mode === 'compartida') {
+    if (!ctx.puerta) return null
+    return (
+      <SectionShell variant="form">
+        <h2 className="px-2 text-center text-xl font-semibold lg:text-2xl" style={{ color: 'var(--inv-texto-titulo)', fontFamily: 'var(--inv-font-titulo)' }}>
+          {content.titulo}
+        </h2>
+        <p className="mx-auto mt-2 max-w-md text-center text-sm opacity-70" style={{ color: 'var(--inv-texto)' }}>{content.texto}</p>
+        <div className="mt-8">
+          {ctx.puerta.agotado ? (
+            <PuertaAviso
+              titulo="Ya no quedan lugares"
+              texto="Este evento llegó a su cupo. Escríbele al anfitrión por si se libera alguno."
+            />
+          ) : ctx.deadlinePassed ? (
+            <PuertaAviso
+              titulo="Los registros ya cerraron"
+              texto="La fecha límite para confirmar ya pasó. Escríbele al anfitrión si todavía quieres ir."
+            />
+          ) : (
+            <RegistroForm
+              token={ctx.puerta.token}
+              maxCompanions={ctx.puerta.maxCompanions}
+              botonClassName={ctx.botonClassName}
+              onDone={ctx.puerta.onDone}
+            />
+          )}
+        </div>
+      </SectionShell>
+    )
+  }
+
+  if (!ctx.guest) return null
 
   const isPreview = ctx.mode === 'preview'
   const locked = Boolean(ctx.deadlinePassed)

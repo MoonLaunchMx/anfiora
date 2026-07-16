@@ -96,6 +96,12 @@ export default function InvitacionClient({ token }: { token: string }) {
 
   const compartida = data.mode === 'compartida'
 
+  // El registro se va a SU link personal: de ahi en adelante ve la invitacion
+  // igual que un invitado de boda.
+  const irASuInvitacion = (rsvpToken: string) => {
+    window.location.href = window.location.pathname.replace(/[^/]+$/, rsvpToken)
+  }
+
   const ctx: InviteCtx = {
     event: data.event,
     guest: data.guest,
@@ -105,50 +111,53 @@ export default function InvitacionClient({ token }: { token: string }) {
     tokens: data.tokens,
     mode: compartida ? 'compartida' : 'public',
     onSubmit: compartida ? undefined : handleSubmit,
+    puerta: compartida && data.puerta
+      ? {
+          token,
+          maxCompanions: data.puerta.maxCompanions,
+          agotado: data.puerta.agotado,
+          onDone: irASuInvitacion,
+        }
+      : undefined,
     deadlinePassed: !isInviteOpen(data.doc.meta, todayISO()),
     botonClassName: botonClass(data.doc.theme),
   }
 
-  const agotado = compartida && data.puerta?.agotado === true
-  const registro = compartida && data.puerta && !agotado && !ctx.deadlinePassed
+  // El registro vive en el slot del bloque RSVP, donde el anfitrion lo puso.
+  // Si borro ese bloque, cae al final: un link publico vivo que no registra a
+  // nadie y no avisa es peor que la excepcion fea.
+  const hayBloqueRsvp = data.doc.sections.some(s => s.type === 'rsvp')
+  const alFinal = compartida && data.puerta && !hayBloqueRsvp
+  const agotado = data.puerta?.agotado === true
 
   return (
     <div className="min-h-screen bg-[#FBF7F0]">
       <PreviewBoundary>
         <InvitacionRenderer doc={data.doc} ctx={ctx} />
 
-        {registro && (
+        {alFinal && (
           <section className="px-6 pb-16 pt-4">
-            <h2 className="mb-4 text-center text-lg font-semibold text-[#1D1E20]">Confirma tu asistencia</h2>
-            <RegistroForm
-              token={token}
-              maxCompanions={data.puerta!.maxCompanions}
-              botonClassName={ctx.botonClassName}
-              onDone={rsvpToken => {
-                // Se va a SU link personal: de ahi en adelante ve la invitacion
-                // igual que un invitado de boda.
-                window.location.href = window.location.pathname.replace(/[^/]+$/, rsvpToken)
-              }}
-            />
-          </section>
-        )}
-
-        {/* El cupo lleno no es un 404: ve la fiesta y se entera de que se lleno. */}
-        {agotado && (
-          <section className="px-6 pb-16 pt-4">
-            <div className="mx-auto max-w-sm rounded-xl border border-[#e8e8e8] bg-white/70 px-5 py-6 text-center">
-              <h2 className="text-base font-semibold text-[#1D1E20]">Ya no quedan lugares</h2>
-              <p className="mt-1 text-sm text-[#888]">Este evento llegó a su cupo. Escríbele al anfitrión por si se libera alguno.</p>
-            </div>
-          </section>
-        )}
-
-        {compartida && ctx.deadlinePassed && !agotado && (
-          <section className="px-6 pb-16 pt-4">
-            <div className="mx-auto max-w-sm rounded-xl border border-[#e8e8e8] bg-white/70 px-5 py-6 text-center">
-              <h2 className="text-base font-semibold text-[#1D1E20]">Los registros ya cerraron</h2>
-              <p className="mt-1 text-sm text-[#888]">La fecha límite para confirmar ya pasó. Escríbele al anfitrión si todavía quieres ir.</p>
-            </div>
+            {agotado ? (
+              <div className="mx-auto max-w-sm rounded-xl border border-[#e8e8e8] bg-white/70 px-5 py-6 text-center">
+                <h2 className="text-base font-semibold text-[#1D1E20]">Ya no quedan lugares</h2>
+                <p className="mt-1 text-sm text-[#888]">Este evento llegó a su cupo. Escríbele al anfitrión por si se libera alguno.</p>
+              </div>
+            ) : ctx.deadlinePassed ? (
+              <div className="mx-auto max-w-sm rounded-xl border border-[#e8e8e8] bg-white/70 px-5 py-6 text-center">
+                <h2 className="text-base font-semibold text-[#1D1E20]">Los registros ya cerraron</h2>
+                <p className="mt-1 text-sm text-[#888]">La fecha límite para confirmar ya pasó. Escríbele al anfitrión si todavía quieres ir.</p>
+              </div>
+            ) : (
+              <>
+                <h2 className="mb-4 text-center text-lg font-semibold text-[#1D1E20]">Confirma tu asistencia</h2>
+                <RegistroForm
+                  token={token}
+                  maxCompanions={data.puerta!.maxCompanions}
+                  botonClassName={ctx.botonClassName}
+                  onDone={irASuInvitacion}
+                />
+              </>
+            )}
           </section>
         )}
       </PreviewBoundary>
