@@ -106,7 +106,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
     )
   }
 
-  await db.rpc('increment_guests_by', { event_id_input: settings.event_id, amount: reg.partySize })
+  // events.total_guests cuenta FILAS de invitados, no cabezas: la lista hace +1
+  // por alta y el import CSV suma rowsToImport.length. El aforo (que si cuenta
+  // cabezas) se calcula aparte con occupiedSeats. Sumar party_size aqui
+  // inflaria el contador y lo desalinearia del resto de la app.
+  await db.rpc('increment_guests', { event_id_input: settings.event_id })
 
   return NextResponse.json({ rsvp_token: rsvpToken, ya_estaba: false })
 }
