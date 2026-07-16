@@ -11,9 +11,14 @@ type Props = {
 }
 
 const ERRORES: Record<string, string> = {
-  agotado: 'Ya no quedan lugares para tu grupo.',
   cerrada: 'Los registros de este evento están cerrados.',
   bad_request: 'Revisa tu nombre y tu WhatsApp.',
+}
+
+function mensajeSinLugar(quedan: number): string {
+  if (quedan <= 0) return 'Ya no quedan lugares para este evento.'
+  if (quedan === 1) return 'Solo queda 1 lugar. Ajusta cuántos vienen contigo.'
+  return `Solo quedan ${quedan} lugares. Ajusta cuántos vienen contigo.`
 }
 
 export default function RegistroForm({ token, maxCompanions, botonClassName, onRegistrado }: Props) {
@@ -35,7 +40,8 @@ export default function RegistroForm({ token, maxCompanions, botonClassName, onR
       })
       const json = await res.json().catch(() => null)
       if (!res.ok) {
-        setError(ERRORES[json?.error as string] || 'No pudimos registrarte. Intenta de nuevo.')
+        if (json?.error === 'sin_lugar') setError(mensajeSinLugar(Number(json.quedan) || 0))
+        else setError(ERRORES[json?.error as string] || 'No pudimos registrarte. Intenta de nuevo.')
         return
       }
       onRegistrado()
