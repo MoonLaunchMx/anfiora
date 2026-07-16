@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   getDefaultAccessMode, getDefaultRequiresApproval,
   resolveAccessMode, resolveRequiresApproval,
-  normalizeAccessFields, ACCESS_MODES,
+  normalizeAccessFields, ACCESS_MODES, resolveMaxCompanions,
 } from './features'
 import { EVENT_TYPES } from './event-types'
 
@@ -146,5 +146,42 @@ describe('normalizeAccessFields', () => {
     expect(normalizeAccessFields({
       accessMode: 'publica', guestCap: '', ticketPrice: '0', requiresApproval: false,
     }).ticket_price).toBe(0)
+  })
+})
+
+describe('puerta publica: defaults por tipo', () => {
+  it('todo tipo publico trae invitacion, porque la puerta cuelga de ella', () => {
+    const sinInvitacion = EVENT_TYPES
+      .filter(t => t.defaultAccessMode === 'publica')
+      .filter(t => !(t.defaultFeatures || []).includes('invitacion'))
+      .map(t => t.value)
+    expect(sinInvitacion).toEqual([])
+  })
+
+  it('todo tipo declara su maximo de acompanantes', () => {
+    for (const t of EVENT_TYPES) {
+      expect(typeof t.defaultMaxCompanions).toBe('number')
+      expect(t.defaultMaxCompanions).toBeGreaterThanOrEqual(0)
+    }
+  })
+
+  it('lo guardado gana sobre el default', () => {
+    expect(resolveMaxCompanions('boda', 3)).toBe(3)
+  })
+
+  it('cero guardado es un valor legitimo, no un vacio', () => {
+    expect(resolveMaxCompanions('boda', 0)).toBe(0)
+  })
+
+  it('sin nada guardado cae al default del tipo', () => {
+    expect(resolveMaxCompanions('conferencia', null)).toBe(0)
+  })
+
+  it('un tipo desconocido no truena', () => {
+    expect(resolveMaxCompanions('inventado', null)).toBe(1)
+  })
+
+  it('un guardado invalido cae al default', () => {
+    expect(resolveMaxCompanions('boda', -2)).toBe(1)
   })
 })

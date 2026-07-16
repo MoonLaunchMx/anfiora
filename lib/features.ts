@@ -110,6 +110,17 @@ export function resolveRequiresApproval(
   return getDefaultRequiresApproval(eventTypeValue)
 }
 
+const DEFAULT_MAX_COMPANIONS = 1
+
+// Cuantos acompanantes acepta la puerta publica. 0 es un valor legitimo (una
+// conferencia no trae acompanantes), asi que solo null/undefined caen al default.
+export function resolveMaxCompanions(eventTypeValue: string | null, stored: number | null | undefined): number {
+  const fallback = EVENT_TYPES.find(t => t.value === eventTypeValue)?.defaultMaxCompanions ?? DEFAULT_MAX_COMPANIONS
+  if (stored === null || stored === undefined) return fallback
+  if (!Number.isInteger(stored) || stored < 0) return fallback
+  return stored
+}
+
 // events.guest_cap es int4 y el min del input no valida (el boton es onClick, no submit):
 // sin esta cota, un cupo tecleado de mas digitos tumba el insert con un error crudo de Postgres.
 const MAX_GUEST_CAP = 1_000_000
