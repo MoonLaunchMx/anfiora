@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabase'
 import { slugifyEvent } from '@/lib/invite'
 import {
   ACCESS_MODES, resolveAccessMode, resolveRequiresApproval, normalizeAccessFields,
-  CANDADOS_PUERTA_LISTOS, type AccessMode,
+  resolveMaxCompanions, CANDADOS_PUERTA_LISTOS, type AccessMode,
 } from '@/lib/features'
 
 type EventInfo = {
@@ -24,6 +24,7 @@ export default function AccesoPanel({ eventId, event }: { eventId: string; event
   const [requiresApproval, setRequiresApproval] = useState(false)
   const [guestCap, setGuestCap] = useState('')
   const [ticketPrice, setTicketPrice] = useState('')
+  const [maxCompanions, setMaxCompanions] = useState('')
   const [sharedToken, setSharedToken] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -39,7 +40,7 @@ export default function AccesoPanel({ eventId, event }: { eventId: string; event
     const load = async () => {
       const [ev, st] = await Promise.all([
         supabase.from('events').select('guest_cap, ticket_price').eq('id', eventId).maybeSingle(),
-        supabase.from('event_settings').select('access_mode, requires_approval, shared_token').eq('event_id', eventId).maybeSingle(),
+        supabase.from('event_settings').select('access_mode, requires_approval, shared_token, max_companions').eq('event_id', eventId).maybeSingle(),
       ])
       if (cancelled) return
       const tipo = event.event_type
@@ -47,6 +48,7 @@ export default function AccesoPanel({ eventId, event }: { eventId: string; event
       setRequiresApproval(resolveRequiresApproval(tipo, st.data?.access_mode, st.data?.requires_approval))
       setGuestCap(ev.data?.guest_cap != null ? String(ev.data.guest_cap) : '')
       setTicketPrice(ev.data?.ticket_price != null ? String(ev.data.ticket_price) : '')
+      setMaxCompanions(String(resolveMaxCompanions(tipo, st.data?.max_companions)))
       setSharedToken(st.data?.shared_token ?? null)
       setLoading(false)
     }
@@ -57,7 +59,7 @@ export default function AccesoPanel({ eventId, event }: { eventId: string; event
   useEffect(() => () => { if (timeoutRef.current) clearTimeout(timeoutRef.current) }, [])
 
   const persist = useCallback(async (next: {
-    accessMode: AccessMode; requiresApproval: boolean; guestCap: string; ticketPrice: string
+    accessMode: AccessMode; requiresApproval: boolean; guestCap: string; ticketPrice: string; maxCompanions: string
   }) => {
     setSaving(true)
     try {
@@ -67,6 +69,8 @@ export default function AccesoPanel({ eventId, event }: { eventId: string; event
         ticketPrice: CANDADOS_PUERTA_LISTOS ? next.ticketPrice : '',
         requiresApproval: CANDADOS_PUERTA_LISTOS ? next.requiresApproval : false,
       })
+      // Entero >= 0; vacio o invalido = null (cae al default del tipo de evento).
+      const mc = next.maxCompanions.trim() === '' ? null : Math.max(0, Math.floor(Number(next.maxCompanions)) || 0)
       await supabase.from('events')
         .update({ guest_cap: access.guest_cap, ticket_price: access.ticket_price })
         .eq('id', eventId)
@@ -74,6 +78,7 @@ export default function AccesoPanel({ eventId, event }: { eventId: string; event
         event_id: eventId,
         access_mode: next.accessMode,
         requires_approval: access.requires_approval,
+        max_companions: mc,
         updated_at: new Date().toISOString(),
       }, { onConflict: 'event_id' })
       setSaved(true)
@@ -83,8 +88,8 @@ export default function AccesoPanel({ eventId, event }: { eventId: string; event
     }
   }, [eventId])
 
-  const schedule = (next: Partial<{ accessMode: AccessMode; requiresApproval: boolean; guestCap: string; ticketPrice: string }>) => {
-    const merged = { accessMode, requiresApproval, guestCap, ticketPrice, ...next }
+  const schedule = (next: Partial<{ accessMode: AccessMode; requiresApproval: boolean; guestCap: string; ticketPrice: string; maxCompanions: string }>) => {
+    const merged = { accessMode, requiresApproval, guestCap, ticketPrice, maxCompanions, ...next }
     if (timeoutRef.current) clearTimeout(timeoutRef.current)
     timeoutRef.current = setTimeout(() => persist(merged), 800)
   }
@@ -168,7 +173,7 @@ export default function AccesoPanel({ eventId, event }: { eventId: string; event
             </button>
           )}
 
-          <div className={CANDADOS_PUERTA_LISTOS ? 'grid grid-cols-2 gap-3' : ''}>
+          <div className="grid grid-cols-2 gap-3">
             <div>
               <label htmlFor="acc-cap" className="mb-1 block text-xs font-medium text-[#666]">Cupo máximo</label>
               <input
@@ -183,28 +188,44 @@ export default function AccesoPanel({ eventId, event }: { eventId: string; event
                 className="w-full rounded-lg border border-[#e8e8e8] px-3 py-2 text-sm outline-none focus:border-[#48C9B0]"
               />
             </div>
-            {CANDADOS_PUERTA_LISTOS && (
-              <div>
-                <label htmlFor="acc-price" className="mb-1 block text-xs font-medium text-[#666]">Precio por persona</label>
-                <div className="relative">
-                  <input
-                    id="acc-price"
-                    type="number"
-                    inputMode="decimal"
-                    min={0}
-                    step="0.01"
-                    value={ticketPrice}
-                    onChange={e => { setTicketPrice(e.target.value); schedule({ ticketPrice: e.target.value }) }}
-                    placeholder="Gratis"
-                    className="w-full rounded-lg border border-[#e8e8e8] px-3 py-2 pr-14 text-sm outline-none focus:border-[#48C9B0]"
-                  />
-                  <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-[#aaa]">
-                    MXN
-                  </span>
-                </div>
-              </div>
-            )}
+            <div>
+              <label htmlFor="acc-companions" className="mb-1 block text-xs font-medium text-[#666]">Acompañantes por invitado</label>
+              <input
+                id="acc-companions"
+                type="number"
+                inputMode="numeric"
+                min={0}
+                step={1}
+                value={maxCompanions}
+                onChange={e => { setMaxCompanions(e.target.value); schedule({ maxCompanions: e.target.value }) }}
+                placeholder="0"
+                className="w-full rounded-lg border border-[#e8e8e8] px-3 py-2 text-sm outline-none focus:border-[#48C9B0]"
+              />
+            </div>
           </div>
+          <p className="-mt-1 text-[11px] text-[#aaa]">Cuántos puede llevar cada quien. 0 = va solo.</p>
+
+          {CANDADOS_PUERTA_LISTOS && (
+            <div>
+              <label htmlFor="acc-price" className="mb-1 block text-xs font-medium text-[#666]">Precio por persona</label>
+              <div className="relative">
+                <input
+                  id="acc-price"
+                  type="number"
+                  inputMode="decimal"
+                  min={0}
+                  step="0.01"
+                  value={ticketPrice}
+                  onChange={e => { setTicketPrice(e.target.value); schedule({ ticketPrice: e.target.value }) }}
+                  placeholder="Gratis"
+                  className="w-full rounded-lg border border-[#e8e8e8] px-3 py-2 pr-14 text-sm outline-none focus:border-[#48C9B0]"
+                />
+                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-[#aaa]">
+                  MXN
+                </span>
+              </div>
+            </div>
+          )}
           {CANDADOS_PUERTA_LISTOS && (
             <p className="-mt-1 text-[11px] text-[#aaa]">Anfiora no procesa el pago. Tú recibes el dinero directo.</p>
           )}

@@ -102,7 +102,7 @@ export default function RegistroForm({ token, maxCompanions, botonClassName, onR
       <button
         type="submit"
         disabled={sending}
-        className={botonClassName || 'rounded-lg bg-[#48C9B0] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#3ab89f] disabled:opacity-60'}
+        className={`${botonClassName ?? 'inv-btn inv-btn-elevado'} mt-2 block w-full px-6 py-3 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60`}
       >
         {sending ? 'Registrando...' : 'Confirmar mi lugar'}
       </button>
