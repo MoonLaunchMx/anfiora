@@ -10,6 +10,7 @@ import TimePicker from '@/app/components/ui/TimePicker'
 import { TabToggle, type TabItem } from '@/app/components/ui/TabToggle'
 import { useEventAccess } from '@/lib/event-access-context'
 import { FEATURES, ALWAYS_ON_FEATURES, ACCESS_MODES, resolveAccessMode, resolveRequiresApproval, normalizeAccessFields, getDefaultFeatures, type FeatureKey, type AccessMode } from '@/lib/features'
+import { slugifyEvent } from '@/lib/invite'
 import { Copy, Check, UserPlus, X, Shield, Pencil, Eye, Settings2, Lock, UserCheck, MessageCircle, Users, Smartphone, Gem, Crown, Cake, GraduationCap, Sun, PartyPopper, Wine, CalendarDays, Presentation, Monitor, UsersRound, Rocket, Building2, Tent, Mic, Flame, HeartHandshake, type LucideIcon } from 'lucide-react'
 
 // ─── Constantes ──────────────────────────────────────────────────────────────
@@ -266,6 +267,9 @@ export default function ConfiguracionPage() {
   const [requiresApproval, setRequiresApproval] = useState(false)
   const [guestCap, setGuestCap]                 = useState('')
   const [ticketPrice, setTicketPrice]           = useState('')
+  const [sharedToken, setSharedToken]           = useState<string | null>(null)
+  const [copiedShared, setCopiedShared]         = useState(false)
+  const [origin, setOrigin]                     = useState('')
 
   // Datos de event_settings
   const [settingsId, setSettingsId]           = useState<string | null>(null)
@@ -301,6 +305,12 @@ export default function ConfiguracionPage() {
   useEffect(() => {
     return () => { if (autoSaveTimeoutRef.current) clearTimeout(autoSaveTimeoutRef.current) }
   }, [])
+  // window no existe en el servidor: el origin se lee ya montado.
+  useEffect(() => { setOrigin(window.location.origin) }, [])
+
+  const sharedLink = sharedToken
+    ? `${origin}/invitacion/${slugifyEvent({ name, host_name: hostName, host_name_2: hostName2 })}/${sharedToken}`
+    : ''
 
   const applyPack = (pack: { name: string; body: string }[]) => {
     const newTemplates = [...pack.map(t => t.body), ...Array(10).fill('')].slice(0, 10)
@@ -346,6 +356,7 @@ export default function ConfiguracionPage() {
     const tipo = eventData?.event_type || null
     setAccessMode(resolveAccessMode(tipo, settingsData?.access_mode))
     setRequiresApproval(resolveRequiresApproval(tipo, settingsData?.access_mode, settingsData?.requires_approval))
+    setSharedToken(settingsData?.shared_token ?? null)
 
     if (settingsData) {
       setSettingsId(settingsData.id)
@@ -1003,6 +1014,43 @@ export default function ConfiguracionPage() {
                     </div>
                   </div>
                   <p className="-mt-1 text-[11px] text-[#aaa]">Anfiora no procesa el pago. Tú recibes el dinero directo.</p>
+
+                  {/* El link solo se muestra en modo publica: el token puede
+                      existir en un evento privado, pero ahi no hay puerta. */}
+                  <div className="rounded-xl border border-[#e8e8e8] bg-[#f8f8f8] p-3">
+                    <h3 className="text-sm font-medium text-[#1D1E20]">Link público</h3>
+                    {sharedToken ? (
+                      <>
+                        <p className="mt-0.5 text-xs text-[#888]">
+                          Compártelo y cualquiera podrá registrarse. Si cambias el evento a invitación directa, este link deja de funcionar.
+                        </p>
+                        <div className="mt-2.5 flex items-center gap-2">
+                          <input
+                            readOnly
+                            value={sharedLink}
+                            onFocus={e => e.currentTarget.select()}
+                            className="min-w-0 flex-1 rounded-lg border border-[#e8e8e8] bg-white px-3 py-2 text-xs text-[#666] outline-none"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              navigator.clipboard.writeText(sharedLink)
+                              setCopiedShared(true)
+                              setTimeout(() => setCopiedShared(false), 2000)
+                            }}
+                            className="flex shrink-0 items-center gap-1.5 rounded-lg bg-[#48C9B0] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#3ab89f]"
+                          >
+                            {copiedShared ? <Check size={13} /> : <Copy size={13} />}
+                            {copiedShared ? 'Copiado' : 'Copiar'}
+                          </button>
+                        </div>
+                      </>
+                    ) : (
+                      <p className="mt-0.5 text-xs text-[#888]">
+                        Publica la invitación del evento para generar el link público.
+                      </p>
+                    )}
+                  </div>
                 </>
               )}
 
