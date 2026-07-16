@@ -16,13 +16,20 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const { token } = await params
   try {
     const db = admin()
+    // Mismo desvio que el API: si el token no es de un invitado, puede ser el
+    // de la puerta publica. Sin esto el link compartido se previsualiza mudo.
     const { data: guest } = await db.from('guests').select('event_id').eq('rsvp_token', token).maybeSingle()
-    if (!guest) return FALLBACK_METADATA
+    let eventId = guest?.event_id as string | undefined
+    if (!eventId) {
+      const { data: shared } = await db.from('event_settings').select('event_id').eq('shared_token', token).maybeSingle()
+      eventId = shared?.event_id as string | undefined
+    }
+    if (!eventId) return FALLBACK_METADATA
 
     const { data: settings } = await db
       .from('event_settings')
       .select('invite_config')
-      .eq('event_id', guest.event_id)
+      .eq('event_id', eventId)
       .maybeSingle()
     const doc = resolveDoc(settings?.invite_config, () => crypto.randomUUID())
     if (!doc.meta.publicada) return FALLBACK_METADATA
@@ -30,7 +37,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     const { data: event } = await db
       .from('events')
       .select('name, event_date, venue')
-      .eq('id', guest.event_id)
+      .eq('id', eventId)
       .maybeSingle()
     if (!event) return FALLBACK_METADATA
 

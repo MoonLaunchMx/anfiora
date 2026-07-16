@@ -5,6 +5,8 @@ import { resolveDoc } from '@/lib/invite/doc'
 import { parseDressCode } from '@/lib/dresscode'
 import { curateForGuests } from '@/lib/itinerary'
 import { logAction } from '@/lib/audit'
+import { resolveAccessMode, resolveMaxCompanions } from '@/lib/features'
+import { occupiedSeats, seatsLeft } from '@/lib/puerta'
 
 const admin = () =>
   createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
@@ -24,19 +26,64 @@ async function safeList<T>(p: PromiseLike<{ data: T[] | null; error: unknown }>)
 
 type GuestRow = { id: string; event_id: string; name: string; party_size: number; rsvp_status: string; allergies: string[] | null }
 
-async function fetchGuestAndDoc(db: ReturnType<typeof admin>, token: string) {
+type SettingsRow = {
+  invite_config: unknown
+  playlist_token: string | null
+  registry_token: string | null
+  access_mode: string | null
+  max_companions: number | null
+}
+
+type Resolved = {
+  kind: 'guest' | 'compartida'
+  guest: GuestRow | null
+  eventId: string
+  settings: SettingsRow | null
+  doc: ReturnType<typeof resolveDoc>
+}
+
+async function fetchSettings(db: ReturnType<typeof admin>, eventId: string) {
+  return safeSingle<SettingsRow>(
+    db.from('event_settings')
+      .select('invite_config, playlist_token, registry_token, access_mode, max_companions')
+      .eq('event_id', eventId)
+      .maybeSingle(),
+  )
+}
+
+// El token puede ser de un invitado (link personal) o del evento (puerta
+// publica). Se prueba primero el personal: son los 971 links ya repartidos.
+async function resolveToken(db: ReturnType<typeof admin>, token: string): Promise<Resolved | null> {
   const { data: guest } = await db
     .from('guests')
     .select('id, event_id, name, party_size, rsvp_status, allergies')
     .eq('rsvp_token', token)
     .maybeSingle<GuestRow>()
-  if (!guest) return null
 
-  const settings = await safeSingle<{ invite_config: unknown; playlist_token: string | null; registry_token: string | null }>(
-    db.from('event_settings').select('invite_config, playlist_token, registry_token').eq('event_id', guest.event_id).maybeSingle(),
+  if (guest) {
+    const settings = await fetchSettings(db, guest.event_id)
+    return {
+      kind: 'guest',
+      guest,
+      eventId: guest.event_id,
+      settings,
+      doc: resolveDoc(settings?.invite_config, () => crypto.randomUUID()),
+    }
+  }
+
+  const shared = await safeSingle<{ event_id: string }>(
+    db.from('event_settings').select('event_id').eq('shared_token', token).maybeSingle(),
   )
-  const doc = resolveDoc(settings?.invite_config, () => crypto.randomUUID())
-  return { guest, settings, doc }
+  if (!shared) return null
+
+  const settings = await fetchSettings(db, shared.event_id)
+  return {
+    kind: 'compartida',
+    guest: null,
+    eventId: shared.event_id,
+    settings,
+    doc: resolveDoc(settings?.invite_config, () => crypto.randomUUID()),
+  }
 }
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
@@ -44,34 +91,64 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
   if (!token) return NextResponse.json({ error: 'not_found' }, { status: 404 })
   const db = admin()
 
-  const found = await fetchGuestAndDoc(db, token)
+  const found = await resolveToken(db, token)
   if (!found || !found.doc.meta.publicada) return NextResponse.json({ error: 'not_found' }, { status: 404 })
-  const { guest, settings, doc } = found
+  const { guest, settings, doc, eventId } = found
 
   const [event, members, dressRow, itin] = await Promise.all([
-    safeSingle<{ name: string; event_type: string | null; event_date: string | null; event_time: string | null; venue: string | null; address: string | null; host_name: string | null; host_name_2: string | null }>(
-      db.from('events').select('name, event_type, event_date, event_time, venue, address, host_name, host_name_2').eq('id', guest.event_id).maybeSingle(),
+    safeSingle<{ name: string; event_type: string | null; event_date: string | null; event_time: string | null; venue: string | null; address: string | null; host_name: string | null; host_name_2: string | null; guest_cap: number | null }>(
+      db.from('events').select('name, event_type, event_date, event_time, venue, address, host_name, host_name_2, guest_cap').eq('id', eventId).maybeSingle(),
     ),
-    safeList<{ id: string; name: string; rsvp_status: string; allergies: string[] | null }>(
-      db.from('party_members').select('id, name, rsvp_status, allergies').eq('guest_id', guest.id).order('created_at', { ascending: true }),
-    ),
+    guest
+      ? safeList<{ id: string; name: string; rsvp_status: string; allergies: string[] | null }>(
+          db.from('party_members').select('id, name, rsvp_status, allergies').eq('guest_id', guest.id).order('created_at', { ascending: true }),
+        )
+      : Promise.resolve([]),
     safeSingle<{ dress_code: unknown }>(
-      db.from('event_settings').select('dress_code').eq('event_id', guest.event_id).maybeSingle(),
+      db.from('event_settings').select('dress_code').eq('event_id', eventId).maybeSingle(),
     ),
     safeList<{ start_time: string; title: string; location: string | null; visible_to_guests: boolean; position: number }>(
-      db.from('event_itinerary_moments').select('start_time, title, location, visible_to_guests, position').eq('event_id', guest.event_id).eq('visible_to_guests', true),
+      db.from('event_itinerary_moments').select('start_time, title, location, visible_to_guests, position').eq('event_id', eventId).eq('visible_to_guests', true),
     ),
   ])
   if (!event) return NextResponse.json({ error: 'not_found' }, { status: 404 })
 
+  // La puerta se honra solo si se cumplen las tres: token del evento (arriba),
+  // invitacion publicada (arriba) y modo publica. Pasar el evento a privada la
+  // cierra al instante sin tocar los links personales.
+  const accessMode = resolveAccessMode(event.event_type, settings?.access_mode ?? null)
+  if (found.kind === 'compartida' && accessMode !== 'publica') {
+    return NextResponse.json({ error: 'cerrada' }, { status: 403 })
+  }
+
+  let puerta: { seatsLeft: number | null; maxCompanions: number; agotado: boolean } | null = null
+  if (found.kind === 'compartida') {
+    const all = await safeList<{ party_size: number | null }>(
+      db.from('guests').select('party_size').eq('event_id', eventId),
+    )
+    const left = seatsLeft(event.guest_cap ?? null, occupiedSeats(all))
+    puerta = {
+      seatsLeft: left,
+      maxCompanions: resolveMaxCompanions(event.event_type, settings?.max_companions ?? null),
+      agotado: left !== null && left < 1,
+    }
+  }
+
   return NextResponse.json({
-    event,
-    guest: { name: guest.name, party_size: guest.party_size, rsvp_status: guest.rsvp_status, allergies: guest.allergies || [] },
+    event: {
+      name: event.name, event_type: event.event_type, event_date: event.event_date, event_time: event.event_time,
+      venue: event.venue, address: event.address, host_name: event.host_name, host_name_2: event.host_name_2,
+    },
+    guest: guest
+      ? { name: guest.name, party_size: guest.party_size, rsvp_status: guest.rsvp_status, allergies: guest.allergies || [] }
+      : null,
     companions: members.map(m => ({ id: m.id, name: m.name, rsvp_status: m.rsvp_status, allergies: m.allergies || [] })),
     doc,
     dressCode: parseDressCode(dressRow?.dress_code),
     itinerary: curateForGuests(itin),
     tokens: { playlist: settings?.playlist_token ?? null, registry: settings?.registry_token ?? null },
+    mode: found.kind === 'compartida' ? 'compartida' : 'personal',
+    puerta,
   })
 }
 
@@ -98,8 +175,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
   if (!token) return NextResponse.json({ error: 'not_found' }, { status: 404 })
   const db = admin()
 
-  const found = await fetchGuestAndDoc(db, token)
+  const found = await resolveToken(db, token)
   if (!found || !found.doc.meta.publicada) return NextResponse.json({ error: 'not_found' }, { status: 404 })
+  // El RSVP confirma a UN invitado. Con el token compartido no hay a quien
+  // confirmar: ese camino es el registro (/registro), no este.
+  if (found.kind !== 'guest' || !found.guest) return NextResponse.json({ error: 'not_found' }, { status: 404 })
   const { guest, doc } = found
 
   const deadlinePassed = !isInviteOpen(doc.meta, todayISO())
