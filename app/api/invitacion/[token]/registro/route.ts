@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 import { resolveDoc } from '@/lib/invite/doc'
 import { isInviteOpen, randomToken } from '@/lib/invite'
 import { resolveAccessMode, resolveMaxCompanions } from '@/lib/features'
-import { parseRegistration, occupiedSeats, canFit } from '@/lib/puerta'
+import { parseRegistration, occupiedSeats, seatsLeft } from '@/lib/puerta'
 
 // El alta de la puerta publica. Va por service role, igual que el resto de este
 // endpoint: guests no tiene politica RLS para anon, asi que la llave del
@@ -70,8 +70,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
     .from('guests')
     .select('party_size')
     .eq('event_id', settings.event_id)
-  if (!canFit(event.guest_cap ?? null, occupiedSeats(all || []), reg.partySize)) {
-    return NextResponse.json({ error: 'agotado' }, { status: 409 })
+  const libres = seatsLeft(event.guest_cap ?? null, occupiedSeats(all || []))
+  // Distingue "lleno" (0 libres) de "no alcanza para tu grupo" (quedan algunos
+  // pero menos que party_size). El cliente decide el mensaje segun `quedan`.
+  if (libres !== null && reg.partySize > libres) {
+    return NextResponse.json({ error: 'sin_lugar', quedan: libres }, { status: 409 })
   }
 
   const rsvpToken = randomToken()

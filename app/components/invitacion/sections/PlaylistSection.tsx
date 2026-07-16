@@ -11,7 +11,7 @@ export default function PlaylistSection({ content, ctx }: { content: Content; ct
   if (!preview && !ctx.tokens.playlist) return null
 
   return (
-    <SectionShell variant="band">
+    <SectionShell variant="card">
       <a
         href={ctx.tokens.playlist ? `/playlist/${ctx.tokens.playlist}` : '#'}
         className="flex items-center gap-3 rounded-2xl border border-[#e8e8e8] px-5 py-4 transition hover:border-[var(--inv-acento)]"

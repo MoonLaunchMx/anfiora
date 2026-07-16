@@ -11,7 +11,7 @@ export default function MesaSection({ content, ctx }: { content: Content; ctx: I
   if (!preview && !ctx.tokens.registry) return null
 
   return (
-    <SectionShell variant="band">
+    <SectionShell variant="card">
       <a
         href={ctx.tokens.registry ? `/mesa/${ctx.tokens.registry}` : '#'}
         className="flex items-center gap-3 rounded-2xl border border-[#e8e8e8] px-5 py-4 transition hover:border-[var(--inv-acento)]"

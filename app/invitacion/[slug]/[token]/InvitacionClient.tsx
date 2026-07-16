@@ -109,7 +109,11 @@ export default function InvitacionClient({ token }: { token: string }) {
     puerta: compartida && data.puerta
       ? {
           token,
-          maxCompanions: data.puerta.maxCompanions,
+          // El selector no ofrece mas acompanantes de los que caben: si quedan
+          // 2 lugares, como maximo 1 acompanante (el que se registra + 1 = 2).
+          maxCompanions: data.puerta.seatsLeft == null
+            ? data.puerta.maxCompanions
+            : Math.max(0, Math.min(data.puerta.maxCompanions, data.puerta.seatsLeft - 1)),
           agotado: data.puerta.agotado,
           registrado,
           // Registrarse ES confirmar: no se rebota a ningun lado, el mismo slot
