@@ -260,6 +260,8 @@ export default function ConfiguracionPage() {
   const [address, setAddress]         = useState('')
   const [eventStatus, setEventStatus] = useState<EventStatus>('active')
 
+  // Acceso
+
   // Datos de event_settings
   const [settingsId, setSettingsId]           = useState<string | null>(null)
   const [templates, setTemplates]             = useState<string[]>(Array(10).fill(''))
@@ -377,6 +379,9 @@ export default function ConfiguracionPage() {
     const isSocial = ['boda','xv','cumpleanos','graduacion','bautizo','fiesta','despedida','otro'].includes(eventType)
     const isCorp   = ['conferencia','capacitacion','teambuilding','lanzamiento','asamblea','congreso','caridad'].includes(eventType)
 
+    // El acceso (modo, aprobacion, cupo y precio) ya NO se guarda aqui: vive en
+    // la pestana Enviar de la invitacion. Escribirlo desde aqui pisaria con
+    // estado viejo lo que el anfitrion acabe de cambiar alla.
     const { error: eventErr } = await supabase.from('events').update({
       name,
       event_type:     eventType || null,
@@ -615,7 +620,7 @@ export default function ConfiguracionPage() {
 
         {/* Mobile: toggle full width */}
         <div className="mt-3 sm:hidden">
-          <div className="grid grid-cols-3 gap-0.5 rounded-lg border border-[#e8e8e8] bg-[#f4f4f4] p-0.5">
+          <div className="grid grid-cols-4 gap-0.5 rounded-lg border border-[#e8e8e8] bg-[#f4f4f4] p-0.5">
             {TABS.map(tab => {
               const Icon = tab.icon
               const isActive = tab.key === activeTab

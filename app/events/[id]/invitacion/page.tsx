@@ -3,9 +3,10 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useParams } from 'next/navigation'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Send, Check, LayoutGrid, Eye, X, Maximize2, Plus } from 'lucide-react'
+import { Send, Check, LayoutGrid, Eye, X, Maximize2, Plus, RotateCcw, AlertTriangle } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { resolveDoc, setMeta } from '@/lib/invite/doc'
+import { estadoPublicacion } from '@/lib/invite/publicacion'
 import type { InviteDoc } from '@/lib/invite/schema'
 import { randomToken } from '@/lib/invite'
 import { botonClass } from '@/lib/invite/theme-css'
@@ -18,6 +19,8 @@ import type { InviteCtx } from '@/app/components/invitacion/types'
 import DatePicker from '@/app/components/ui/DatePicker'
 import BlockEditor from './BlockEditor'
 import RepartoLinks from './RepartoLinks'
+import AccesoPanel from './AccesoPanel'
+import { useSalidaGuard } from '../SalidaGuardProvider'
 import EstiloPanel from './EstiloPanel'
 import PersonalizarPanel from './PersonalizarPanel'
 
@@ -49,6 +52,8 @@ export default function InvitacionPage() {
   const eventId = id as string
 
   const [doc, setDoc] = useState<InviteDoc | null>(null)
+  const [publishedDoc, setPublishedDoc] = useState<InviteDoc | null>(null)
+  const [discardOpen, setDiscardOpen] = useState(false)
   const [event, setEvent] = useState<EventInfo | null>(null)
   const [dressCode, setDressCode] = useState<DressCode | null>(null)
   const [playlistToken, setPlaylistToken] = useState<string | null>(null)
@@ -64,6 +69,8 @@ export default function InvitacionPage() {
   const [previewMode, setPreviewMode] = useState<'movil' | 'escritorio'>('movil')
   const [showPreview, setShowPreview] = useState(false)
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const salidaGuard = useSalidaGuard()
+  const publishRef = useRef<() => Promise<void>>(async () => {})
 
   useEffect(() => {
     const load = async () => {
@@ -73,8 +80,8 @@ export default function InvitacionPage() {
           .select('name, event_type, event_date, event_time, venue, address, host_name, host_name_2')
           .eq('id', eventId)
           .single(),
-        safeSingle<{ invite_config: unknown; playlist_token: string | null; registry_token: string | null }>(
-          supabase.from('event_settings').select('invite_config, playlist_token, registry_token').eq('event_id', eventId).maybeSingle(),
+        safeSingle<{ invite_config: unknown; invite_draft: unknown; playlist_token: string | null; registry_token: string | null }>(
+          supabase.from('event_settings').select('invite_config, invite_draft, playlist_token, registry_token').eq('event_id', eventId).maybeSingle(),
         ),
         safeSingle<{ dress_code: unknown }>(
           supabase.from('event_settings').select('dress_code').eq('event_id', eventId).maybeSingle(),
@@ -86,12 +93,29 @@ export default function InvitacionPage() {
       setPlaylistToken(inviteRow?.playlist_token ?? null)
       setRegistryToken(inviteRow?.registry_token ?? null)
       setItinerary(itinRows)
-      setDoc(resolveDoc(inviteRow?.invite_config, () => crypto.randomUUID()))
+      // El editor edita el BORRADOR; los invitados ven lo PUBLICADO (invite_config).
+      // Si el borrador aun no existe (evento previo a la migracion), arranca de lo publicado.
+      const draftRaw = inviteRow?.invite_draft ?? inviteRow?.invite_config
+      setDoc(resolveDoc(draftRaw, () => crypto.randomUUID()))
+      setPublishedDoc(resolveDoc(inviteRow?.invite_config, () => crypto.randomUUID()))
     }
     load().finally(() => setLoading(false))
   }, [eventId])
 
   useEffect(() => () => { if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current) }, [])
+
+  // Guardian de salida + aviso del navegador: solo con cambios sin publicar.
+  useEffect(() => {
+    const dirty = !!doc && !!publishedDoc && estadoPublicacion(doc, publishedDoc) === 'cambios'
+    salidaGuard?.registrar({ dirty, publish: () => publishRef.current() })
+    if (!dirty) return () => salidaGuard?.registrar(null)
+    const onBeforeUnload = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = '' }
+    window.addEventListener('beforeunload', onBeforeUnload)
+    return () => {
+      window.removeEventListener('beforeunload', onBeforeUnload)
+      salidaGuard?.registrar(null)
+    }
+  }, [doc, publishedDoc, salidaGuard])
 
   useEffect(() => { if (disenoSub !== 'contenido') setAddSectionOpen(false) }, [disenoSub])
 
@@ -106,12 +130,15 @@ export default function InvitacionPage() {
     }
   }, [showPreview])
 
+  // El autosave escribe SOLO al borrador. Lo publicado (invite_config) no se
+  // toca hasta que el anfitrion publica: es lo que evita que cada edicion salga
+  // en vivo a los links ya repartidos.
   const persist = useCallback(async (next: InviteDoc) => {
     setSaving(true)
     try {
       await supabase
         .from('event_settings')
-        .upsert({ event_id: eventId, invite_config: next, updated_at: new Date().toISOString() }, { onConflict: 'event_id' })
+        .upsert({ event_id: eventId, invite_draft: next, updated_at: new Date().toISOString() }, { onConflict: 'event_id' })
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
     } finally {
@@ -125,6 +152,16 @@ export default function InvitacionPage() {
     saveTimeoutRef.current = setTimeout(() => persist(next), 800)
   }
 
+  // Descartar: el borrador vuelve a lo publicado. Se pierde lo editado desde
+  // la ultima publicacion. Solo aparece cuando hay cambios sin publicar.
+  const handleDiscard = async () => {
+    if (!publishedDoc) return
+    setDiscardOpen(false)
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current)
+    setDoc(publishedDoc)
+    await persist(publishedDoc)
+  }
+
   const handlePublish = async () => {
     if (!doc) return
     const next = setMeta(doc, { publicada: true })
@@ -132,7 +169,31 @@ export default function InvitacionPage() {
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current)
     setPublishing(true)
     try {
-      await persist(next)
+      // Publicar copia el borrador ENCIMA de lo publicado y sincroniza ambos,
+      // para que el estado vuelva a "Publicada" (draft == config).
+      await supabase
+        .from('event_settings')
+        .upsert({ event_id: eventId, invite_config: next, invite_draft: next, updated_at: new Date().toISOString() }, { onConflict: 'event_id' })
+      setPublishedDoc(next)
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2000)
+
+      // El token de la puerta publica nace con la invitacion publicada. El
+      // .is(null) del update es la red: si se publica dos veces (o desde dos
+      // pestanas), el token NO se regenera y los links repartidos siguen vivos.
+      const { data: settings } = await supabase
+        .from('event_settings')
+        .select('shared_token')
+        .eq('event_id', eventId)
+        .maybeSingle()
+      if (settings && !settings.shared_token) {
+        await supabase
+          .from('event_settings')
+          .update({ shared_token: randomToken() })
+          .eq('event_id', eventId)
+          .is('shared_token', null)
+      }
+
       const { data: pending, error } = await supabase
         .from('guests')
         .select('id')
@@ -149,6 +210,8 @@ export default function InvitacionPage() {
       setPublishing(false)
     }
   }
+  // El guardian llama publish sin cerrar sobre un doc viejo: siempre el actual.
+  publishRef.current = handlePublish
 
   if (loading || !doc) {
     return (
@@ -181,9 +244,12 @@ export default function InvitacionPage() {
     botonClassName: botonClass(doc.theme),
   }
 
-  const badgeClass = doc.meta.publicada
-    ? 'border-[#c8ede7] bg-[#f0fdfb] text-[#1a9e88]'
-    : 'border-[#e0e0e0] bg-[#f8f8f8] text-[#888]'
+  const estado = estadoPublicacion(doc, publishedDoc ?? doc)
+  const sello = {
+    borrador:  { cls: 'border-[#e0e0e0] bg-[#f8f8f8] text-[#888]',    dot: 'bg-[#bbb]',     label: 'Borrador' },
+    publicada: { cls: 'border-[#c8ede7] bg-[#f0fdfb] text-[#1a9e88]', dot: 'bg-[#48C9B0]',  label: 'Publicada' },
+    cambios:   { cls: 'border-[#f0e2c0] bg-[#fffbf0] text-[#8a6d1f]', dot: 'bg-[#d4a853]',  label: 'Cambios sin publicar' },
+  }[estado]
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -191,9 +257,9 @@ export default function InvitacionPage() {
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <h1 className="text-xl font-bold text-[#1D1E20]">Invitación</h1>
-            <span className={`flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${badgeClass}`}>
-              <span className={`h-1.5 w-1.5 rounded-full ${doc.meta.publicada ? 'bg-[#48C9B0]' : 'bg-[#bbb]'}`} />
-              {doc.meta.publicada ? 'Publicada' : 'Borrador'}
+            <span className={`flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${sello.cls}`}>
+              <span className={`h-1.5 w-1.5 rounded-full ${sello.dot}`} />
+              {sello.label}
             </span>
           </div>
           <p className="mt-0.5 text-xs text-[#888] sm:text-sm">Arma la invitación digital que verán tus invitados.</p>
@@ -224,15 +290,26 @@ export default function InvitacionPage() {
                 placeholder="Sin límite"
               />
             </div>
+            {estado === 'cambios' && (
+              <button
+                onClick={() => setDiscardOpen(true)}
+                disabled={publishing}
+                className="flex shrink-0 items-center gap-1 rounded-lg px-2.5 py-2 text-xs font-medium text-[#a06b6b] transition hover:bg-[#fbf1f1] hover:text-[#cc3333] disabled:opacity-60"
+              >
+                <RotateCcw size={13} /> Descartar
+              </button>
+            )}
             <button
               onClick={handlePublish}
-              disabled={publishing}
+              disabled={publishing || estado === 'publicada'}
               className="flex shrink-0 items-center gap-1.5 rounded-lg bg-[#48C9B0] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#3ab89f] disabled:cursor-not-allowed disabled:opacity-60 sm:px-4 sm:text-sm"
             >
               {publishing ? (
                 'Publicando...'
-              ) : doc.meta.publicada ? (
+              ) : estado === 'publicada' ? (
                 <><Check size={14} /> Publicada</>
+              ) : estado === 'cambios' ? (
+                <><Send size={14} /> Publicar cambios</>
               ) : (
                 <><Send size={14} /> Publicar</>
               )}
@@ -301,6 +378,7 @@ export default function InvitacionPage() {
           </div>
         ) : (
           <div className="pt-5">
+            <AccesoPanel eventId={eventId} event={event} />
             <RepartoLinks eventId={eventId} event={event} />
           </div>
         )}
@@ -337,6 +415,48 @@ export default function InvitacionPage() {
                 <PreviewBoundary>
                   <InvitacionRenderer doc={doc} ctx={{ ...sampleCtx, forceMobile: previewMode === 'movil' }} />
                 </PreviewBoundary>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {discardOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            className="fixed inset-0 z-[60] flex items-center justify-center bg-[#1D1E20]/40 px-6"
+            onClick={() => setDiscardOpen(false)}
+          >
+            <div
+              className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#fff0f0]">
+                  <AlertTriangle size={17} className="text-[#cc3333]" />
+                </div>
+                <h3 className="text-base font-bold text-[#1D1E20]">¿Descartar los cambios?</h3>
+              </div>
+              <p className="mt-3 text-sm leading-relaxed text-[#666]">
+                Tu invitación volverá a la última versión publicada. Lo que editaste desde entonces se pierde.
+              </p>
+              <div className="mt-5 flex flex-col gap-2">
+                <button
+                  onClick={handleDiscard}
+                  className="rounded-lg bg-[#cc3333] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#b82d2d]"
+                >
+                  Descartar cambios
+                </button>
+                <button
+                  onClick={() => setDiscardOpen(false)}
+                  className="rounded-lg px-4 py-2 text-xs font-medium text-[#999] transition hover:bg-[#f5f5f5]"
+                >
+                  Cancelar
+                </button>
               </div>
             </div>
           </motion.div>

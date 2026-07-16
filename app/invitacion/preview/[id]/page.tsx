@@ -53,8 +53,8 @@ export default function InvitacionPreviewPage() {
           .select('name, event_type, event_date, event_time, venue, address, host_name, host_name_2')
           .eq('id', eventId)
           .single(),
-        safeSingle<{ invite_config: unknown; playlist_token: string | null; registry_token: string | null }>(
-          supabase.from('event_settings').select('invite_config, playlist_token, registry_token').eq('event_id', eventId).maybeSingle(),
+        safeSingle<{ invite_config: unknown; invite_draft: unknown; playlist_token: string | null; registry_token: string | null }>(
+          supabase.from('event_settings').select('invite_config, invite_draft, playlist_token, registry_token').eq('event_id', eventId).maybeSingle(),
         ),
         safeSingle<{ dress_code: unknown }>(
           supabase.from('event_settings').select('dress_code').eq('event_id', eventId).maybeSingle(),
@@ -71,7 +71,8 @@ export default function InvitacionPreviewPage() {
       setPlaylistToken(inviteRow?.playlist_token ?? null)
       setRegistryToken(inviteRow?.registry_token ?? null)
       setItinerary(itinRows)
-      setDoc(resolveDoc(inviteRow?.invite_config, () => crypto.randomUUID()))
+      // El preview del editor muestra el BORRADOR: es lo que el organizador esta editando.
+      setDoc(resolveDoc(inviteRow?.invite_draft ?? inviteRow?.invite_config, () => crypto.randomUUID()))
       setLoading(false)
     }
     load()

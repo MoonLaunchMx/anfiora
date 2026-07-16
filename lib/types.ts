@@ -135,6 +135,9 @@ export type EventSettings = {
   enabled_features: import('./features').EnabledFeatures | null
   dress_code: import('./dresscode').DressCode | null
   access_mode?: import('./features').AccessMode | null
+  requires_approval?: boolean | null
+  shared_token?: string | null
+  max_companions?: number | null
   created_at: string
   updated_at: string
 }

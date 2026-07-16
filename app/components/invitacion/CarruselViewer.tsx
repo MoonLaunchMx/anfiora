@@ -73,7 +73,9 @@ export default function CarruselViewer({ fotos, estilo, mini = false, forceMobil
 
   const v = variantsFor()
   const stageBase = 'relative w-full aspect-[4/5]'
-  const stagePad = isPolaroid ? 'px-4 py-3' : ''
+  // El polaroid no recorta a proposito: se inclina y tiene sombra. Su margen
+  // vive dentro (en el wrapper de la tarjeta), porque el hijo absolute inset-0
+  // se mide contra la caja de padding y el padding de aqui no lo insetaria.
   const clip = isPolaroid ? '' : 'overflow-hidden'
   const radius = mini ? 'rounded-md' : 'rounded-2xl'
   const arrowVis = forceMobile ? 'hidden' : 'hidden sm:flex'
@@ -84,7 +86,7 @@ export default function CarruselViewer({ fotos, estilo, mini = false, forceMobil
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
     >
-      <div className={`${stageBase} ${stagePad} ${clip} ${isPolaroid ? '' : radius}`}>
+      <div className={`${stageBase} ${clip} ${isPolaroid ? '' : radius}`}>
         <AnimatePresence initial={false} mode="popLayout">
           <motion.div
             key={active}
@@ -106,10 +108,15 @@ export default function CarruselViewer({ fotos, estilo, mini = false, forceMobil
             }}
           >
             {isPolaroid ? (
-              <div className="flex h-full w-full items-center justify-center">
-                <div className="rounded-sm bg-white p-2 pb-6 shadow-lg">
+              // La tarjeta se dimensiona desde el escenario, NUNCA desde la foto.
+              // Antes el marco blanco no tenia limite de altura: una foto vertical
+              // de celular lo estiraba y, como el polaroid es el unico estilo sin
+              // overflow-hidden (se inclina y tiene sombra, recortar las mataria),
+              // se derramaba encima de las secciones vecinas.
+              <div className="flex h-full w-full items-center justify-center px-4 py-3">
+                <div className="flex h-full w-full flex-col rounded-sm bg-white p-2 pb-6 shadow-lg">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={fotos[active]} alt="" className="h-full max-h-full w-auto object-cover" loading="lazy" />
+                  <img src={fotos[active]} alt="" className="min-h-0 w-full flex-1 object-cover" loading="lazy" />
                 </div>
               </div>
             ) : (
