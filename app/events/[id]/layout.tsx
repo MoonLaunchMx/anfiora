@@ -8,6 +8,7 @@ import { LEGACY_FEATURES, type FeatureKey } from '@/lib/features'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Event, formatEventDate } from '@/lib/types'
 import { EventAccessProvider, useEventAccess } from '@/lib/event-access-context'
+import { SalidaGuardProvider, useSalidaGuard } from './SalidaGuardProvider'
 
 const EVENT_TYPE_LABELS: Record<string, string> = {
   boda:        'Boda',
@@ -292,6 +293,15 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const router = useRouter()
   const { canAdmin, features } = useEventAccess()
+  const salidaGuard = useSalidaGuard()
+
+  // Toda salida del editor pasa por aqui: si hay cambios sin publicar, el
+  // guardian abre el aviso; fuera del editor no hay guardian y navega directo.
+  const irA = (dest: string) => {
+    const go = () => router.push(dest)
+    if (salidaGuard) salidaGuard.salir(go)
+    else go()
+  }
 
   const [event, setEvent]             = useState<Event | null>(null)
   const [drawerOpen, setDrawerOpen]   = useState(false)
@@ -383,8 +393,8 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
   const isGroupActive = (group: NavGroup) => group.children.some(child => isActive(child.path))
 
   const navigate = (path: string) => {
-    router.push(`/events/${id}${path}`)
     setDrawerOpen(false)
+    irA(`/events/${id}${path}`)
   }
 
   const handleLogout = async () => {
@@ -428,7 +438,7 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
         <p className="truncate text-[11px] text-[#aaa]">{userEmail}</p>
       </div>
       <button
-        onClick={() => { setAvatarOpen(false); router.push('/perfil') }}
+        onClick={() => { setAvatarOpen(false); irA('/perfil') }}
         className="flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-xs text-[#555] transition hover:bg-[#f8f8f8]"
       >
         <User size={14} className="text-[#aaa]" />
@@ -513,7 +523,7 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
       <header className="flex h-12 shrink-0 items-center justify-between border-b border-[#e8e8e8] bg-white px-4 sm:hidden">
         <div className="flex min-w-0 flex-1 items-center gap-2">
           <button
-            onClick={() => router.push('/dashboard')}
+            onClick={() => irA('/dashboard')}
             className="shrink-0 text-[#bbb] transition hover:text-[#48C9B0]"
           >
             <House size={16} />
@@ -533,7 +543,7 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
                 <p className="truncate text-[11px] text-[#aaa]">{userEmail}</p>
               </div>
               <button
-                onClick={() => { setAvatarOpen(false); router.push('/perfil') }}
+                onClick={() => { setAvatarOpen(false); irA('/perfil') }}
                 className="flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-xs text-[#555] transition hover:bg-[#f8f8f8]"
               >
                 <User size={14} className="text-[#aaa]" />
@@ -560,7 +570,7 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
 
       {/* HEADER DESKTOP */}
       <header className="hidden h-14 shrink-0 items-center justify-between border-b border-[#e8e8e8] bg-white px-4 sm:flex sm:h-16 sm:px-6">
-        <button onClick={() => router.push('/dashboard')} className="shrink-0">
+        <button onClick={() => irA('/dashboard')} className="shrink-0">
           <img src="/images/Logo-010526newest.svg" alt="Anfiora" className="h-10 sm:h-11 lg:h-14" />
         </button>
 
@@ -589,7 +599,7 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
         )}
 
         <div className="flex shrink-0 items-center gap-3">
-          <button onClick={() => router.push('/dashboard')} className="text-xs text-[#999] transition hover:text-[#48C9B0]">
+          <button onClick={() => irA('/dashboard')} className="text-xs text-[#999] transition hover:text-[#48C9B0]">
             Mis eventos
           </button>
           <button
@@ -752,7 +762,7 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
         }}
       >
         <button
-          onClick={() => router.push('/dashboard')}
+          onClick={() => irA('/dashboard')}
           className="flex shrink-0 flex-col items-center justify-center gap-1 py-2.5 text-[10px] font-medium text-[#bbb] transition"
           style={{ minWidth: '72px', scrollSnapAlign: 'center' }}
         >
@@ -792,7 +802,9 @@ export default function EventLayout({ children }: { children: React.ReactNode })
   const { id } = useParams()
   return (
     <EventAccessProvider eventId={id as string}>
-      <EventLayoutInner>{children}</EventLayoutInner>
+      <SalidaGuardProvider>
+        <EventLayoutInner>{children}</EventLayoutInner>
+      </SalidaGuardProvider>
     </EventAccessProvider>
   )
 }

@@ -20,6 +20,7 @@ import DatePicker from '@/app/components/ui/DatePicker'
 import BlockEditor from './BlockEditor'
 import RepartoLinks from './RepartoLinks'
 import AccesoPanel from './AccesoPanel'
+import { useSalidaGuard } from '../SalidaGuardProvider'
 import EstiloPanel from './EstiloPanel'
 import PersonalizarPanel from './PersonalizarPanel'
 
@@ -68,6 +69,8 @@ export default function InvitacionPage() {
   const [previewMode, setPreviewMode] = useState<'movil' | 'escritorio'>('movil')
   const [showPreview, setShowPreview] = useState(false)
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const salidaGuard = useSalidaGuard()
+  const publishRef = useRef<() => Promise<void>>(async () => {})
 
   useEffect(() => {
     const load = async () => {
@@ -100,6 +103,19 @@ export default function InvitacionPage() {
   }, [eventId])
 
   useEffect(() => () => { if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current) }, [])
+
+  // Guardian de salida + aviso del navegador: solo con cambios sin publicar.
+  useEffect(() => {
+    const dirty = !!doc && !!publishedDoc && estadoPublicacion(doc, publishedDoc) === 'cambios'
+    salidaGuard?.registrar({ dirty, publish: () => publishRef.current() })
+    if (!dirty) return () => salidaGuard?.registrar(null)
+    const onBeforeUnload = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = '' }
+    window.addEventListener('beforeunload', onBeforeUnload)
+    return () => {
+      window.removeEventListener('beforeunload', onBeforeUnload)
+      salidaGuard?.registrar(null)
+    }
+  }, [doc, publishedDoc, salidaGuard])
 
   useEffect(() => { if (disenoSub !== 'contenido') setAddSectionOpen(false) }, [disenoSub])
 
@@ -194,6 +210,8 @@ export default function InvitacionPage() {
       setPublishing(false)
     }
   }
+  // El guardian llama publish sin cerrar sobre un doc viejo: siempre el actual.
+  publishRef.current = handlePublish
 
   if (loading || !doc) {
     return (
