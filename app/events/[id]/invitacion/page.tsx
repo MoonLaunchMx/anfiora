@@ -133,6 +133,23 @@ export default function InvitacionPage() {
     setPublishing(true)
     try {
       await persist(next)
+
+      // El token de la puerta publica nace con la invitacion publicada. El
+      // .is(null) del update es la red: si se publica dos veces (o desde dos
+      // pestanas), el token NO se regenera y los links repartidos siguen vivos.
+      const { data: settings } = await supabase
+        .from('event_settings')
+        .select('shared_token')
+        .eq('event_id', eventId)
+        .maybeSingle()
+      if (settings && !settings.shared_token) {
+        await supabase
+          .from('event_settings')
+          .update({ shared_token: randomToken() })
+          .eq('event_id', eventId)
+          .is('shared_token', null)
+      }
+
       const { data: pending, error } = await supabase
         .from('guests')
         .select('id')
