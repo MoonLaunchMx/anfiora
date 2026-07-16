@@ -7,7 +7,7 @@ import { supabase } from '@/lib/supabase'
 import { AnimatePresence, motion } from 'framer-motion'
 import { ChevronRight, ArrowLeft, X, UserCheck } from 'lucide-react'
 import { EVENT_TYPES, CATEGORIES, EventTypeConfig, EventCategory } from '@/lib/event-types'
-import { FEATURES, ALWAYS_ON_FEATURES, ACCESS_MODES, getDefaultFeatures, getDefaultAccessMode, getDefaultRequiresApproval, normalizeAccessFields, type FeatureKey, type AccessMode } from '@/lib/features'
+import { FEATURES, ALWAYS_ON_FEATURES, ACCESS_MODES, getDefaultFeatures, getDefaultAccessMode, getDefaultRequiresApproval, normalizeAccessFields, CANDADOS_PUERTA_LISTOS, type FeatureKey, type AccessMode } from '@/lib/features'
 
 function generatePlaylistToken(): string {
   return Math.random().toString(36).substring(2, 10) +
@@ -120,7 +120,14 @@ export function NewEventModal({ open, onClose, onCreated }: NewEventModalProps) 
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { window.location.href = '/'; return }
 
-    const access = normalizeAccessFields({ accessMode, guestCap, ticketPrice, requiresApproval })
+    // Mientras los candados no existan, no se guardan: ningun evento nace con
+    // aprobacion o precio armados que se activarian de golpe al construir las fases.
+    const access = normalizeAccessFields({
+      accessMode,
+      guestCap,
+      ticketPrice: CANDADOS_PUERTA_LISTOS ? ticketPrice : '',
+      requiresApproval: CANDADOS_PUERTA_LISTOS ? requiresApproval : false,
+    })
 
     const { data: eventData, error: eventError } = await supabase
       .from('events')
@@ -403,7 +410,7 @@ export function NewEventModal({ open, onClose, onCreated }: NewEventModalProps) 
           })}
         </div>
 
-        {accessMode === 'publica' && (
+        {accessMode === 'publica' && CANDADOS_PUERTA_LISTOS && (
           <button
             type="button"
             onClick={() => setRequiresApproval(v => !v)}
@@ -452,28 +459,30 @@ export function NewEventModal({ open, onClose, onCreated }: NewEventModalProps) 
               />
             </div>
 
-            <div>
-              <label className="mb-1.5 block text-xs font-medium text-[#555]">
-                Precio por persona
-                <span className="ml-1 font-normal text-[#bbb]">(opcional)</span>
-              </label>
-              <div className="relative">
-                <input
-                  type="number"
-                  inputMode="decimal"
-                  min={0}
-                  step="0.01"
-                  value={ticketPrice}
-                  onChange={e => setTicketPrice(e.target.value)}
-                  placeholder="Gratis"
-                  className="w-full rounded-lg border border-[#e0e0e0] bg-white px-3 py-2.5 pr-14 text-sm text-[#1D1E20] outline-none transition focus:border-[#48C9B0]"
-                />
-                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-[#aaa]">
-                  MXN
-                </span>
+            {CANDADOS_PUERTA_LISTOS && (
+              <div>
+                <label className="mb-1.5 block text-xs font-medium text-[#555]">
+                  Precio por persona
+                  <span className="ml-1 font-normal text-[#bbb]">(opcional)</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    min={0}
+                    step="0.01"
+                    value={ticketPrice}
+                    onChange={e => setTicketPrice(e.target.value)}
+                    placeholder="Gratis"
+                    className="w-full rounded-lg border border-[#e0e0e0] bg-white px-3 py-2.5 pr-14 text-sm text-[#1D1E20] outline-none transition focus:border-[#48C9B0]"
+                  />
+                  <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-[#aaa]">
+                    MXN
+                  </span>
+                </div>
+                <p className="mt-1 text-[11px] text-[#aaa]">Anfiora no procesa el pago. Tú recibes el dinero directo.</p>
               </div>
-              <p className="mt-1 text-[11px] text-[#aaa]">Anfiora no procesa el pago. Tú recibes el dinero directo.</p>
-            </div>
+            )}
           </>
         )}
 

@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabase'
 import { slugifyEvent } from '@/lib/invite'
 import {
   ACCESS_MODES, resolveAccessMode, resolveRequiresApproval, normalizeAccessFields,
-  type AccessMode,
+  CANDADOS_PUERTA_LISTOS, type AccessMode,
 } from '@/lib/features'
 
 type EventInfo = {
@@ -61,7 +61,12 @@ export default function AccesoPanel({ eventId, event }: { eventId: string; event
   }) => {
     setSaving(true)
     try {
-      const access = normalizeAccessFields(next)
+      // Mientras los candados no existan, no se guardan (ver CANDADOS_PUERTA_LISTOS).
+      const access = normalizeAccessFields({
+        ...next,
+        ticketPrice: CANDADOS_PUERTA_LISTOS ? next.ticketPrice : '',
+        requiresApproval: CANDADOS_PUERTA_LISTOS ? next.requiresApproval : false,
+      })
       await supabase.from('events')
         .update({ guest_cap: access.guest_cap, ticket_price: access.ticket_price })
         .eq('id', eventId)
@@ -137,31 +142,33 @@ export default function AccesoPanel({ eventId, event }: { eventId: string; event
 
       {accessMode === 'publica' && (
         <>
-          <button
-            type="button"
-            onClick={() => { const v = !requiresApproval; setRequiresApproval(v); schedule({ requiresApproval: v }) }}
-            className="flex items-center gap-3 rounded-xl border border-[#e8e8e8] bg-white p-3 text-left transition hover:border-[#d0d0d0]"
-          >
-            <div className={'flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ' + (requiresApproval ? 'bg-[#d0f5ec]' : 'bg-[#f4f4f4]')}>
-              <UserCheck size={18} className={requiresApproval ? 'text-[#0F6E56]' : 'text-[#888]'} />
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium text-[#1D1E20]">Aprobar cada solicitud</p>
-              <p className="mt-0.5 text-xs text-[#888]">
-                {requiresApproval
-                  ? 'Nadie entra a la lista hasta que tú lo apruebes.'
-                  : 'Quien abra el link se registra y ya está en la lista.'}
-              </p>
-            </div>
-            <div className={
-              'flex h-5 w-9 shrink-0 items-center rounded-full p-0.5 transition ' +
-              (requiresApproval ? 'justify-end bg-[#48C9B0]' : 'justify-start bg-[#ddd]')
-            }>
-              <div className="h-4 w-4 rounded-full bg-white" />
-            </div>
-          </button>
+          {CANDADOS_PUERTA_LISTOS && (
+            <button
+              type="button"
+              onClick={() => { const v = !requiresApproval; setRequiresApproval(v); schedule({ requiresApproval: v }) }}
+              className="flex items-center gap-3 rounded-xl border border-[#e8e8e8] bg-white p-3 text-left transition hover:border-[#d0d0d0]"
+            >
+              <div className={'flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ' + (requiresApproval ? 'bg-[#d0f5ec]' : 'bg-[#f4f4f4]')}>
+                <UserCheck size={18} className={requiresApproval ? 'text-[#0F6E56]' : 'text-[#888]'} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium text-[#1D1E20]">Aprobar cada solicitud</p>
+                <p className="mt-0.5 text-xs text-[#888]">
+                  {requiresApproval
+                    ? 'Nadie entra a la lista hasta que tú lo apruebes.'
+                    : 'Quien abra el link se registra y ya está en la lista.'}
+                </p>
+              </div>
+              <div className={
+                'flex h-5 w-9 shrink-0 items-center rounded-full p-0.5 transition ' +
+                (requiresApproval ? 'justify-end bg-[#48C9B0]' : 'justify-start bg-[#ddd]')
+              }>
+                <div className="h-4 w-4 rounded-full bg-white" />
+              </div>
+            </button>
+          )}
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className={CANDADOS_PUERTA_LISTOS ? 'grid grid-cols-2 gap-3' : ''}>
             <div>
               <label htmlFor="acc-cap" className="mb-1 block text-xs font-medium text-[#666]">Cupo máximo</label>
               <input
@@ -176,27 +183,31 @@ export default function AccesoPanel({ eventId, event }: { eventId: string; event
                 className="w-full rounded-lg border border-[#e8e8e8] px-3 py-2 text-sm outline-none focus:border-[#48C9B0]"
               />
             </div>
-            <div>
-              <label htmlFor="acc-price" className="mb-1 block text-xs font-medium text-[#666]">Precio por persona</label>
-              <div className="relative">
-                <input
-                  id="acc-price"
-                  type="number"
-                  inputMode="decimal"
-                  min={0}
-                  step="0.01"
-                  value={ticketPrice}
-                  onChange={e => { setTicketPrice(e.target.value); schedule({ ticketPrice: e.target.value }) }}
-                  placeholder="Gratis"
-                  className="w-full rounded-lg border border-[#e8e8e8] px-3 py-2 pr-14 text-sm outline-none focus:border-[#48C9B0]"
-                />
-                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-[#aaa]">
-                  MXN
-                </span>
+            {CANDADOS_PUERTA_LISTOS && (
+              <div>
+                <label htmlFor="acc-price" className="mb-1 block text-xs font-medium text-[#666]">Precio por persona</label>
+                <div className="relative">
+                  <input
+                    id="acc-price"
+                    type="number"
+                    inputMode="decimal"
+                    min={0}
+                    step="0.01"
+                    value={ticketPrice}
+                    onChange={e => { setTicketPrice(e.target.value); schedule({ ticketPrice: e.target.value }) }}
+                    placeholder="Gratis"
+                    className="w-full rounded-lg border border-[#e8e8e8] px-3 py-2 pr-14 text-sm outline-none focus:border-[#48C9B0]"
+                  />
+                  <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-[#aaa]">
+                    MXN
+                  </span>
+                </div>
               </div>
-            </div>
+            )}
           </div>
-          <p className="-mt-1 text-[11px] text-[#aaa]">Anfiora no procesa el pago. Tú recibes el dinero directo.</p>
+          {CANDADOS_PUERTA_LISTOS && (
+            <p className="-mt-1 text-[11px] text-[#aaa]">Anfiora no procesa el pago. Tú recibes el dinero directo.</p>
+          )}
 
           <div className="rounded-xl border border-[#e8e8e8] bg-[#f8f8f8] p-3">
             <h3 className="text-sm font-medium text-[#1D1E20]">Link público</h3>

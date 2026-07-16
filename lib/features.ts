@@ -8,6 +8,12 @@ export type EnabledFeatures = Partial<Record<FeatureKey, boolean>>
 
 export type AccessMode = 'privada' | 'publica'
 
+// Los candados de aprobacion (Fase 3) y pago (Fase 4) todavia no funcionan: el
+// toggle "Aprobar cada solicitud" y el campo "Precio por persona" se ocultan
+// hasta que existan, para no mostrar controles que no hacen nada. Cambiar a
+// true (y forzar los valores deja de aplicar) cuando esas fases esten listas.
+export const CANDADOS_PUERTA_LISTOS = false
+
 export interface AccessModeConfig {
   key: AccessMode
   label: string
