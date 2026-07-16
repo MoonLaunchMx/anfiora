@@ -9,9 +9,8 @@ import DatePicker from '@/app/components/ui/DatePicker'
 import TimePicker from '@/app/components/ui/TimePicker'
 import { TabToggle, type TabItem } from '@/app/components/ui/TabToggle'
 import { useEventAccess } from '@/lib/event-access-context'
-import { FEATURES, ALWAYS_ON_FEATURES, ACCESS_MODES, resolveAccessMode, resolveRequiresApproval, normalizeAccessFields, getDefaultFeatures, type FeatureKey, type AccessMode } from '@/lib/features'
-import { slugifyEvent } from '@/lib/invite'
-import { Copy, Check, UserPlus, X, Shield, Pencil, Eye, Settings2, Lock, UserCheck, MessageCircle, Users, Smartphone, Gem, Crown, Cake, GraduationCap, Sun, PartyPopper, Wine, CalendarDays, Presentation, Monitor, UsersRound, Rocket, Building2, Tent, Mic, Flame, HeartHandshake, type LucideIcon } from 'lucide-react'
+import { FEATURES, ALWAYS_ON_FEATURES, getDefaultFeatures, type FeatureKey } from '@/lib/features'
+import { Copy, Check, UserPlus, X, Shield, Pencil, Eye, Settings2, MessageCircle, Users, Smartphone, Gem, Crown, Cake, GraduationCap, Sun, PartyPopper, Wine, CalendarDays, Presentation, Monitor, UsersRound, Rocket, Building2, Tent, Mic, Flame, HeartHandshake, type LucideIcon } from 'lucide-react'
 
 // ─── Constantes ──────────────────────────────────────────────────────────────
 
@@ -98,7 +97,6 @@ const ROLES = [
 
 const TABS: TabItem[] = [
   { key: 'evento',   label: 'Evento',   icon: Settings2 },
-  { key: 'acceso',   label: 'Acceso',   icon: Lock },
   { key: 'whatsapp', label: 'WhatsApp', icon: MessageCircle },
   { key: 'equipo',   label: 'Equipo',   icon: Users },
 ]
@@ -263,13 +261,6 @@ export default function ConfiguracionPage() {
   const [eventStatus, setEventStatus] = useState<EventStatus>('active')
 
   // Acceso
-  const [accessMode, setAccessMode]             = useState<AccessMode>('privada')
-  const [requiresApproval, setRequiresApproval] = useState(false)
-  const [guestCap, setGuestCap]                 = useState('')
-  const [ticketPrice, setTicketPrice]           = useState('')
-  const [sharedToken, setSharedToken]           = useState<string | null>(null)
-  const [copiedShared, setCopiedShared]         = useState(false)
-  const [origin, setOrigin]                     = useState('')
 
   // Datos de event_settings
   const [settingsId, setSettingsId]           = useState<string | null>(null)
@@ -305,12 +296,6 @@ export default function ConfiguracionPage() {
   useEffect(() => {
     return () => { if (autoSaveTimeoutRef.current) clearTimeout(autoSaveTimeoutRef.current) }
   }, [])
-  // window no existe en el servidor: el origin se lee ya montado.
-  useEffect(() => { setOrigin(window.location.origin) }, [])
-
-  const sharedLink = sharedToken
-    ? `${origin}/invitacion/${slugifyEvent({ name, host_name: hostName, host_name_2: hostName2 })}/${sharedToken}`
-    : ''
 
   const applyPack = (pack: { name: string; body: string }[]) => {
     const newTemplates = [...pack.map(t => t.body), ...Array(10).fill('')].slice(0, 10)
@@ -349,14 +334,7 @@ export default function ConfiguracionPage() {
       setVenue(eventData.venue || '')
       setAddress(eventData.address || '')
       setEventStatus(eventData.event_status || 'active')
-      setGuestCap(eventData.guest_cap != null ? String(eventData.guest_cap) : '')
-      setTicketPrice(eventData.ticket_price != null ? String(eventData.ticket_price) : '')
     }
-
-    const tipo = eventData?.event_type || null
-    setAccessMode(resolveAccessMode(tipo, settingsData?.access_mode))
-    setRequiresApproval(resolveRequiresApproval(tipo, settingsData?.access_mode, settingsData?.requires_approval))
-    setSharedToken(settingsData?.shared_token ?? null)
 
     if (settingsData) {
       setSettingsId(settingsData.id)
@@ -401,8 +379,9 @@ export default function ConfiguracionPage() {
     const isSocial = ['boda','xv','cumpleanos','graduacion','bautizo','fiesta','despedida','otro'].includes(eventType)
     const isCorp   = ['conferencia','capacitacion','teambuilding','lanzamiento','asamblea','congreso','caridad'].includes(eventType)
 
-    const access = normalizeAccessFields({ accessMode, guestCap, ticketPrice, requiresApproval })
-
+    // El acceso (modo, aprobacion, cupo y precio) ya NO se guarda aqui: vive en
+    // la pestana Enviar de la invitacion. Escribirlo desde aqui pisaria con
+    // estado viejo lo que el anfitrion acabe de cambiar alla.
     const { error: eventErr } = await supabase.from('events').update({
       name,
       event_type:     eventType || null,
@@ -414,8 +393,6 @@ export default function ConfiguracionPage() {
       host_name:      isSocial ? (hostName || null) : null,
       host_name_2:    eventType === 'boda' ? (hostName2 || null) : null,
       organization:   isCorp ? (organization || null) : null,
-      guest_cap:      access.guest_cap,
-      ticket_price:   access.ticket_price,
     }).eq('id', id)
 
     if (eventErr) { setError('Error: ' + eventErr.message); setSaving(false); return }
@@ -425,8 +402,6 @@ export default function ConfiguracionPage() {
       event_id:          id,
       message_templates: templates,
       template_names:    templateNames,
-      access_mode:       accessMode,
-      requires_approval: access.requires_approval,
       updated_at:        new Date().toISOString(),
     }, { onConflict: 'event_id' })
 
@@ -912,151 +887,6 @@ export default function ConfiguracionPage() {
                 )}
               </div>
 
-            </div>
-          )}
-
-          {/* ── TAB: ACCESO ── */}
-          {activeTab === 'acceso' && (
-            <div className="flex flex-col gap-4">
-              <div className="flex flex-col gap-2">
-                {ACCESS_MODES.map(m => {
-                  const Icon = m.icon
-                  const on = accessMode === m.key
-                  return (
-                    <button
-                      key={m.key}
-                      type="button"
-                      onClick={() => { setAccessMode(m.key); scheduleAutoSave() }}
-                      className={
-                        'flex items-center gap-3 rounded-xl border p-3 text-left transition ' +
-                        (on ? 'border-[#c8ede7] bg-[#f0fdfb]' : 'border-[#e8e8e8] bg-white hover:border-[#d0d0d0]')
-                      }
-                    >
-                      <div className={'flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ' + (on ? 'bg-[#d0f5ec]' : 'bg-[#f4f4f4]')}>
-                        <Icon size={18} className={on ? 'text-[#0F6E56]' : 'text-[#888]'} />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium text-[#1D1E20]">{m.label}</p>
-                        <p className="mt-0.5 text-xs text-[#888]">{m.description}</p>
-                      </div>
-                      <div className={
-                        'flex h-4 w-4 shrink-0 items-center justify-center rounded-full border transition ' +
-                        (on ? 'border-[#48C9B0] bg-[#48C9B0]' : 'border-[#ddd] bg-white')
-                      }>
-                        {on && <div className="h-1.5 w-1.5 rounded-full bg-white" />}
-                      </div>
-                    </button>
-                  )
-                })}
-              </div>
-
-              {accessMode === 'privada' ? (
-                <div className="rounded-xl border border-[#e8e8e8] bg-[#f8f8f8] px-3 py-2.5 text-xs text-[#888]">
-                  Este evento va por lista de invitados: sin cupo ni cobro.
-                </div>
-              ) : (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => { setRequiresApproval(v => !v); scheduleAutoSave() }}
-                    className="flex items-center gap-3 rounded-xl border border-[#e8e8e8] bg-white p-3 text-left transition hover:border-[#d0d0d0]"
-                  >
-                    <div className={'flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ' + (requiresApproval ? 'bg-[#d0f5ec]' : 'bg-[#f4f4f4]')}>
-                      <UserCheck size={18} className={requiresApproval ? 'text-[#0F6E56]' : 'text-[#888]'} />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium text-[#1D1E20]">Aprobar cada solicitud</p>
-                      <p className="mt-0.5 text-xs text-[#888]">
-                        {requiresApproval
-                          ? 'Nadie entra a la lista hasta que tú lo apruebes.'
-                          : 'Quien abra el link se registra y ya está en la lista.'}
-                      </p>
-                    </div>
-                    <div className={
-                      'flex h-5 w-9 shrink-0 items-center rounded-full p-0.5 transition ' +
-                      (requiresApproval ? 'justify-end bg-[#48C9B0]' : 'justify-start bg-[#ddd]')
-                    }>
-                      <div className="h-4 w-4 rounded-full bg-white" />
-                    </div>
-                  </button>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="mb-1 block text-xs font-medium text-[#666]">Cupo máximo</label>
-                      <input
-                        type="number"
-                        inputMode="numeric"
-                        min={1}
-                        step={1}
-                        value={guestCap}
-                        onChange={e => { setGuestCap(e.target.value); scheduleAutoSave() }}
-                        placeholder="Sin límite"
-                        className="w-full rounded-lg border border-[#e8e8e8] px-3 py-2 text-sm outline-none focus:border-[#48C9B0]"
-                      />
-                    </div>
-                    <div>
-                      <label className="mb-1 block text-xs font-medium text-[#666]">Precio por persona</label>
-                      <div className="relative">
-                        <input
-                          type="number"
-                          inputMode="decimal"
-                          min={0}
-                          step="0.01"
-                          value={ticketPrice}
-                          onChange={e => { setTicketPrice(e.target.value); scheduleAutoSave() }}
-                          placeholder="Gratis"
-                          className="w-full rounded-lg border border-[#e8e8e8] px-3 py-2 pr-14 text-sm outline-none focus:border-[#48C9B0]"
-                        />
-                        <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-[#aaa]">
-                          MXN
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                  <p className="-mt-1 text-[11px] text-[#aaa]">Anfiora no procesa el pago. Tú recibes el dinero directo.</p>
-
-                  {/* El link solo se muestra en modo publica: el token puede
-                      existir en un evento privado, pero ahi no hay puerta. */}
-                  <div className="rounded-xl border border-[#e8e8e8] bg-[#f8f8f8] p-3">
-                    <h3 className="text-sm font-medium text-[#1D1E20]">Link público</h3>
-                    {sharedToken ? (
-                      <>
-                        <p className="mt-0.5 text-xs text-[#888]">
-                          Compártelo y cualquiera podrá registrarse. Si cambias el evento a invitación directa, este link deja de funcionar.
-                        </p>
-                        <div className="mt-2.5 flex items-center gap-2">
-                          <input
-                            readOnly
-                            value={sharedLink}
-                            onFocus={e => e.currentTarget.select()}
-                            className="min-w-0 flex-1 rounded-lg border border-[#e8e8e8] bg-white px-3 py-2 text-xs text-[#666] outline-none"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => {
-                              navigator.clipboard.writeText(sharedLink)
-                              setCopiedShared(true)
-                              setTimeout(() => setCopiedShared(false), 2000)
-                            }}
-                            className="flex shrink-0 items-center gap-1.5 rounded-lg bg-[#48C9B0] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#3ab89f]"
-                          >
-                            {copiedShared ? <Check size={13} /> : <Copy size={13} />}
-                            {copiedShared ? 'Copiado' : 'Copiar'}
-                          </button>
-                        </div>
-                      </>
-                    ) : (
-                      <p className="mt-0.5 text-xs text-[#888]">
-                        Publica la invitación del evento para generar el link público.
-                      </p>
-                    )}
-                  </div>
-                </>
-              )}
-
-              <div className="rounded-xl border border-[#f0e2c0] bg-[#fffbf0] px-3 py-2.5 text-xs text-[#8a6d1f]">
-                El link público para que la gente se registre llega en la siguiente entrega. Por ahora esto define cómo entra la gente a tu evento.
-              </div>
             </div>
           )}
 

@@ -18,6 +18,7 @@ import type { InviteCtx } from '@/app/components/invitacion/types'
 import DatePicker from '@/app/components/ui/DatePicker'
 import BlockEditor from './BlockEditor'
 import RepartoLinks from './RepartoLinks'
+import AccesoPanel from './AccesoPanel'
 import EstiloPanel from './EstiloPanel'
 import PersonalizarPanel from './PersonalizarPanel'
 
@@ -318,6 +319,7 @@ export default function InvitacionPage() {
           </div>
         ) : (
           <div className="pt-5">
+            <AccesoPanel eventId={eventId} event={event} />
             <RepartoLinks eventId={eventId} event={event} />
           </div>
         )}
