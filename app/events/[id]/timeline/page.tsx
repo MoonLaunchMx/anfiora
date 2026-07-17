@@ -576,7 +576,7 @@ export default function TimelinePage() {
             </div>
           </div>
         ) : (
-          <div className="mb-3">
+          <div className="mb-3 flex items-center">
             <ItineraryToolbar itin={itinerary} />
           </div>
         )}

@@ -261,23 +261,26 @@ export default function InvitacionPage() {
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <div className="shrink-0 border-b border-[#e8e8e8] bg-white px-4 pt-4 pb-4 sm:px-6 sm:pt-5 lg:px-10 lg:pt-6">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <h1 className="text-xl font-bold text-[#1D1E20]">Invitación</h1>
-            <span className={`flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${sello.cls}`}>
-              <span className={`h-1.5 w-1.5 rounded-full ${sello.dot}`} />
-              {sello.label}
-            </span>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
+          {/* Izquierda: titulo + estado + subtitulo */}
+          <div className="min-w-0 sm:shrink">
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl font-bold text-[#1D1E20]">Invitación</h1>
+              <span className={`flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${sello.cls}`}>
+                <span className={`h-1.5 w-1.5 rounded-full ${sello.dot}`} />
+                {sello.label}
+              </span>
+            </div>
+            <p className="mt-0.5 text-xs text-[#888] sm:text-sm">Arma la invitación digital que verán tus invitados.</p>
           </div>
-          <p className="mt-0.5 text-xs text-[#888] sm:text-sm">Arma la invitación digital que verán tus invitados.</p>
-        </div>
 
-        <div className="mt-3 flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
-          <div className="flex w-full justify-center overflow-x-auto sm:w-auto sm:justify-start">
+          {/* Centro: pestanas al nivel del titulo */}
+          <div className="flex justify-center overflow-x-auto sm:flex-1">
             <TabToggle tabs={INVITE_TABS} active={activeTab} onChange={(k) => setActiveTab(k as TabKey)} />
           </div>
 
-          <div className="flex items-center gap-2.5">
+          {/* Derecha: fecha limite + acciones */}
+          <div className="flex items-center gap-2.5 sm:shrink-0">
             <span className="hidden shrink-0 text-xs text-[#888] sm:inline">Fecha límite</span>
             <div className="flex-1 sm:w-36 sm:flex-none">
               <DatePicker
