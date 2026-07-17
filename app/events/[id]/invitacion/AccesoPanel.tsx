@@ -1,13 +1,15 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Copy, Check, UserCheck } from 'lucide-react'
+import { Copy, Check, UserCheck, Landmark, Plus, Pencil, Trash2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { slugifyEvent } from '@/lib/invite'
 import {
   ACCESS_MODES, resolveAccessMode, resolveRequiresApproval, normalizeAccessFields,
-  resolveMaxCompanions, CANDADOS_PUERTA_LISTOS, type AccessMode,
+  resolveMaxCompanions, CANDADO_PRECIO_LISTO, CANDADO_APROBACION_LISTO, type AccessMode,
 } from '@/lib/features'
+import { RegistryPaymentMethod, normalizePaymentMethods } from '@/lib/types'
+import PaymentMethodModal, { payTypeMeta } from '../mesa-regalos/PaymentMethodModal'
 
 type EventInfo = {
   name: string
@@ -26,6 +28,9 @@ export default function AccesoPanel({ eventId, event }: { eventId: string; event
   const [ticketPrice, setTicketPrice] = useState('')
   const [maxCompanions, setMaxCompanions] = useState('')
   const [sharedToken, setSharedToken] = useState<string | null>(null)
+  const [payMethods, setPayMethods] = useState<RegistryPaymentMethod[]>([])
+  const [showPayModal, setShowPayModal] = useState(false)
+  const [editingMethod, setEditingMethod] = useState<RegistryPaymentMethod | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -40,7 +45,7 @@ export default function AccesoPanel({ eventId, event }: { eventId: string; event
     const load = async () => {
       const [ev, st] = await Promise.all([
         supabase.from('events').select('guest_cap, ticket_price').eq('id', eventId).maybeSingle(),
-        supabase.from('event_settings').select('access_mode, requires_approval, shared_token, max_companions').eq('event_id', eventId).maybeSingle(),
+        supabase.from('event_settings').select('access_mode, requires_approval, shared_token, max_companions, registry_payment_info').eq('event_id', eventId).maybeSingle(),
       ])
       if (cancelled) return
       const tipo = event.event_type
@@ -50,6 +55,7 @@ export default function AccesoPanel({ eventId, event }: { eventId: string; event
       setTicketPrice(ev.data?.ticket_price != null ? String(ev.data.ticket_price) : '')
       setMaxCompanions(String(resolveMaxCompanions(tipo, st.data?.max_companions)))
       setSharedToken(st.data?.shared_token ?? null)
+      setPayMethods(normalizePaymentMethods(st.data?.registry_payment_info))
       setLoading(false)
     }
     load()
@@ -63,11 +69,11 @@ export default function AccesoPanel({ eventId, event }: { eventId: string; event
   }) => {
     setSaving(true)
     try {
-      // Mientras los candados no existan, no se guardan (ver CANDADOS_PUERTA_LISTOS).
+      // Mientras el candado de aprobacion no exista, no se guarda (ver CANDADO_APROBACION_LISTO).
       const access = normalizeAccessFields({
         ...next,
-        ticketPrice: CANDADOS_PUERTA_LISTOS ? next.ticketPrice : '',
-        requiresApproval: CANDADOS_PUERTA_LISTOS ? next.requiresApproval : false,
+        ticketPrice: CANDADO_PRECIO_LISTO ? next.ticketPrice : '',
+        requiresApproval: CANDADO_APROBACION_LISTO ? next.requiresApproval : false,
       })
       // Entero >= 0; vacio o invalido = null (cae al default del tipo de evento).
       const mc = next.maxCompanions.trim() === '' ? null : Math.max(0, Math.floor(Number(next.maxCompanions)) || 0)
@@ -147,7 +153,7 @@ export default function AccesoPanel({ eventId, event }: { eventId: string; event
 
       {accessMode === 'publica' && (
         <>
-          {CANDADOS_PUERTA_LISTOS && (
+          {CANDADO_APROBACION_LISTO && (
             <button
               type="button"
               onClick={() => { const v = !requiresApproval; setRequiresApproval(v); schedule({ requiresApproval: v }) }}
@@ -205,29 +211,102 @@ export default function AccesoPanel({ eventId, event }: { eventId: string; event
           </div>
           <p className="-mt-1 text-[11px] text-[#aaa]">Cuántos puede llevar cada quien. 0 = va solo.</p>
 
-          {CANDADOS_PUERTA_LISTOS && (
-            <div>
-              <label htmlFor="acc-price" className="mb-1 block text-xs font-medium text-[#666]">Precio por persona</label>
-              <div className="relative">
-                <input
-                  id="acc-price"
-                  type="number"
-                  inputMode="decimal"
-                  min={0}
-                  step="0.01"
-                  value={ticketPrice}
-                  onChange={e => { setTicketPrice(e.target.value); schedule({ ticketPrice: e.target.value }) }}
-                  placeholder="Gratis"
-                  className="w-full rounded-lg border border-[#e8e8e8] px-3 py-2 pr-14 text-sm outline-none focus:border-[#48C9B0]"
-                />
-                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-[#aaa]">
-                  MXN
-                </span>
+          {CANDADO_PRECIO_LISTO && (
+            <>
+              <div>
+                <label htmlFor="acc-price" className="mb-1 block text-xs font-medium text-[#666]">Precio por persona</label>
+                <div className="relative">
+                  <input
+                    id="acc-price"
+                    type="number"
+                    inputMode="decimal"
+                    min={0}
+                    step="0.01"
+                    value={ticketPrice}
+                    onChange={e => { setTicketPrice(e.target.value); schedule({ ticketPrice: e.target.value }) }}
+                    placeholder="Gratis"
+                    className="w-full rounded-lg border border-[#e8e8e8] px-3 py-2 pr-14 text-sm outline-none focus:border-[#48C9B0]"
+                  />
+                  <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-[#aaa]">
+                    MXN
+                  </span>
+                </div>
               </div>
-            </div>
-          )}
-          {CANDADOS_PUERTA_LISTOS && (
-            <p className="-mt-1 text-[11px] text-[#aaa]">Anfiora no procesa el pago. Tú recibes el dinero directo.</p>
+              <p className="-mt-1 text-[11px] text-[#aaa]">Anfiora no procesa el pago. Tú recibes el dinero directo.</p>
+
+              <div className="rounded-xl border border-[#e8e8e8] bg-[#f8f8f8] p-3">
+                <div className="mb-1 flex items-center gap-2">
+                  <Landmark size={14} className="text-[#48C9B0]" />
+                  <h3 className="text-sm font-medium text-[#1D1E20]">¿A qué cuenta te pagan?</h3>
+                </div>
+                <p className="mb-2.5 text-xs text-[#888]">
+                  El invitado verá estos datos para transferirte. Anfiora no procesa el pago.
+                </p>
+
+                {payMethods.length > 0 && (
+                  <div className="mb-2.5 divide-y divide-[#f0f0f0] rounded-lg border border-[#e8e8e8] bg-white">
+                    {payMethods.map(m => {
+                      const meta = payTypeMeta(m.type)
+                      const masked = (m.type === 'transfer' || m.type === 'card')
+                        ? `•••• ${m.value.slice(-4)}`
+                        : m.value
+                      const line = m.type === 'other'
+                        ? m.label
+                        : [m.bank, m.holder].filter(Boolean).join(' · ')
+                      return (
+                        <div key={m.id} className="flex items-center gap-3 px-3 py-2.5">
+                          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#f0fdfb] text-[#1a9e88]">
+                            {meta.icon}
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-xs font-semibold text-[#1D1E20]">
+                              {m.type === 'other' && m.label ? m.label : meta.label}
+                              {line && m.type !== 'other' && <span className="ml-1.5 font-normal text-[#888]">{line}</span>}
+                            </p>
+                            <p className="truncate text-[11px] tabular-nums text-[#888]">{masked}</p>
+                          </div>
+                          <div className="flex shrink-0 items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => { setEditingMethod(m); setShowPayModal(true) }}
+                              title="Editar"
+                              className="flex h-7 w-7 items-center justify-center rounded-md text-[#bbb] transition hover:bg-[#f5f5f5] hover:text-[#1D1E20]"
+                            >
+                              <Pencil size={13} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                if (!confirm('¿Eliminar este método de pago?')) return
+                                const methods = payMethods.filter(x => x.id !== m.id)
+                                setPayMethods(methods)
+                                await supabase.from('event_settings')
+                                  .update({ registry_payment_info: methods.length ? { methods } : null })
+                                  .eq('event_id', eventId)
+                              }}
+                              title="Eliminar"
+                              className="flex h-7 w-7 items-center justify-center rounded-md text-[#bbb] transition hover:bg-[#fff0f0] hover:text-[#cc3333]"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => { setEditingMethod(null); setShowPayModal(true) }}
+                    className="flex items-center gap-1.5 rounded-lg bg-[#48C9B0] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#3aa896]"
+                  >
+                    <Plus size={14} /> Agregar cuenta
+                  </button>
+                </div>
+              </div>
+            </>
           )}
 
           <div className="rounded-xl border border-[#e8e8e8] bg-[#f8f8f8] p-3">
@@ -264,6 +343,20 @@ export default function AccesoPanel({ eventId, event }: { eventId: string; event
           </div>
         </>
       )}
+
+      <PaymentMethodModal
+        isOpen={showPayModal}
+        initial={editingMethod}
+        onClose={() => { setShowPayModal(false); setEditingMethod(null) }}
+        onSave={async m => {
+          const exists = payMethods.some(x => x.id === m.id)
+          const methods = exists ? payMethods.map(x => x.id === m.id ? m : x) : [...payMethods, m]
+          setPayMethods(methods)
+          await supabase.from('event_settings')
+            .update({ registry_payment_info: methods.length ? { methods } : null })
+            .eq('event_id', eventId)
+        }}
+      />
     </div>
   )
 }
