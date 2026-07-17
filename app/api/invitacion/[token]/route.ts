@@ -176,7 +176,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
     ticketPrice: event.ticket_price ?? null,
     currency: event.currency ?? 'MXN',
     paymentMethods,
-    hostPhone,
+    hostPhone: tienePrecio ? hostPhone : null,
     // Estado durable del link personal. En modo compartida (sin invitado
     // todavia) van null: la tarjeta de pago de esa sesion se arma con el
     // monto que acaba de calcular el cliente al registrarse, no con esto.
