@@ -48,3 +48,25 @@ export function parseRegistration(body: unknown, maxCompanions: number): Registr
 
   return { name, phone, companions, partySize: 1 + companions }
 }
+
+// El precio se congela al registrarse: ticket_price x party_size (cabezas).
+// Si manana sube el boleto, la deuda de quien ya se registro no cambia hacia atras.
+export function montoAPagar(ticketPrice: number | null | undefined, partySize: number): number {
+  if (!ticketPrice || ticketPrice <= 0) return 0
+  return ticketPrice * partySize
+}
+
+// El estado se DERIVA, no hay columna access_status. "dentro" = no debe nada o
+// ya pago; "pendiente_pago" = debe y no ha pagado.
+export function estadoAcceso(guest: { amount_due?: number | null; paid_at?: string | null }): 'dentro' | 'pendiente_pago' {
+  const debe = Number(guest.amount_due) > 0
+  if (!debe) return 'dentro'
+  return guest.paid_at ? 'dentro' : 'pendiente_pago'
+}
+
+// El cupo cuenta cabezas de los que estan dentro. En evento gratis cuenta a
+// todos (como fase 2); con precio, solo a los dentro (los pendientes no ocupan).
+export function ocupaLugar(guest: { amount_due?: number | null; paid_at?: string | null }, tienePrecio: boolean): boolean {
+  if (!tienePrecio) return true
+  return estadoAcceso(guest) === 'dentro'
+}
