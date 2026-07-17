@@ -5,10 +5,12 @@ import { createPortal } from 'react-dom'
 import { useParams, useRouter } from 'next/navigation'
 import { motion, AnimatePresence, useMotionValue, useTransform, animate } from 'framer-motion'
 import type { PanInfo } from 'framer-motion'
-import { Trash2, Send, Clock, MessageSquare, AlertCircle, CheckCircle, XCircle, Download, Upload, Columns3, Search, UserPlus, Plus, Check, X, Filter, Loader2, FileSpreadsheet, FileText, AlertTriangle, ChevronDown } from 'lucide-react'
+import { Trash2, Send, Clock, MessageSquare, AlertCircle, CheckCircle, XCircle, Download, Upload, Columns3, Search, UserPlus, Users, Wallet, Plus, Check, X, Filter, Loader2, FileSpreadsheet, FileText, AlertTriangle, ChevronDown } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { buildGuestDeletionOps, executeGuestDeletion, guestConversationIds } from '@/lib/guests/delete'
-import { PartyMember, Guest, Event, EventSettings, EventStatus, RsvpStatus } from '@/lib/types'
+import { PartyMember, Guest, Event, EventSettings, EventStatus, RsvpStatus, Currency, formatCurrency } from '@/lib/types'
+import { estadoAcceso } from '@/lib/puerta'
+import { logAction } from '@/lib/audit'
 import StatsCollapse, { StatsToggleButton, useStatsToggle } from '@/app/components/ui/StatsCollapse'
 import { ImportStepsModal } from '@/app/components/ui/ImportStepsModal'
 import PhoneInput from '@/app/components/ui/PhoneInput'
@@ -411,8 +413,42 @@ type CsvDuplicateResult = {
   newAllergies: string[]
 }
 
-function SwipeableGuestCard({ guest, groupColor, isSelected, guestTags, availableTags, onSelect, onEdit, onDelete, onWaLongPressStart, onWaLongPressEnd, onWaTouchMove, onStatusChange, onOpenConversation }: {
-  guest: Guest; groupColor: string | null; isSelected: boolean; guestTags: string[]; availableTags: string[]
+// Chip de cobro por fila: solo se llama cuando tienePrecio, nunca en eventos sin precio.
+function CobroBadge({ guest, currency, onConfirmar, onDeshacer }: {
+  guest: Guest; currency: Currency; onConfirmar: () => void; onDeshacer: () => void
+}) {
+  const estado = estadoAcceso(guest)
+  if (estado === 'pendiente_pago') {
+    return (
+      <span className="inline-flex items-center gap-1.5">
+        <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ background: '#fdf7ea', color: '#d4a853' }}>
+          Debe {formatCurrency(Number(guest.amount_due) || 0, currency)}
+        </span>
+        <button type="button" onClick={e => { e.stopPropagation(); onConfirmar() }}
+          className="rounded-full border border-[#48C9B0] px-2 py-0.5 text-[10px] font-semibold text-[#48C9B0] transition hover:bg-[#f0fdfb]">
+          Confirmar pago
+        </button>
+      </span>
+    )
+  }
+  if (Number(guest.amount_due) > 0) {
+    return (
+      <span className="inline-flex items-center gap-1.5">
+        <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ background: '#f0fdfb', color: '#48C9B0' }}>
+          Pagado
+        </span>
+        <button type="button" onClick={e => { e.stopPropagation(); onDeshacer() }}
+          className="text-[10px] font-medium text-[#999] transition hover:text-[#666] hover:underline">
+          deshacer
+        </button>
+      </span>
+    )
+  }
+  return null
+}
+
+function SwipeableGuestCard({ guest, groupColor, isSelected, guestTags, availableTags, cobroBadge, onSelect, onEdit, onDelete, onWaLongPressStart, onWaLongPressEnd, onWaTouchMove, onStatusChange, onOpenConversation }: {
+  guest: Guest; groupColor: string | null; isSelected: boolean; guestTags: string[]; availableTags: string[]; cobroBadge?: React.ReactNode
   onSelect: () => void; onEdit: () => void; onDelete: () => void
   onWaLongPressStart: (g: Guest) => void; onWaLongPressEnd: (g: Guest) => void; onWaTouchMove: () => void; onStatusChange: (s: RsvpStatus) => void
   onOpenConversation: (guestId: string) => void
@@ -474,6 +510,7 @@ function SwipeableGuestCard({ guest, groupColor, isSelected, guestTags, availabl
                 {guest.attention_detail}
               </p>
             )}
+            {cobroBadge && <div className="mt-1">{cobroBadge}</div>}
           </div>
           <StatusDot value={guest.rsvp_status} onChange={onStatusChange} />
         </div>
@@ -520,9 +557,9 @@ function BulkMenuContent({ onClose, onBulkUpdateStatus, onBulkDelete, onOpenComp
   )
 }
 
-type FilterField = 'tag' | 'allergy' | 'side' | 'rsvp_status' | 'table'
+type FilterField = 'tag' | 'allergy' | 'side' | 'rsvp_status' | 'table' | 'cobro'
 type FilterCondition = { field: FilterField; value: string }
-const FILTER_LABEL: Record<FilterField, string> = { tag: 'Tag', allergy: 'Alergia', side: 'Grupo', rsvp_status: 'Estatus', table: 'Mesa' }
+const FILTER_LABEL: Record<FilterField, string> = { tag: 'Tag', allergy: 'Alergia', side: 'Grupo', rsvp_status: 'Estatus', table: 'Mesa', cobro: 'Cobro' }
 
 // Los modales de invitado son componentes con estado propio: teclear en sus
 // campos no debe re-renderizar la pagina completa (la lista de invitados).
@@ -782,6 +819,7 @@ export default function EventPage() {
           case 'side':        return g.side === f.value
           case 'rsvp_status': return g.rsvp_status === f.value || g.party_members.some(m => m.rsvp_status === f.value)
           case 'table':       { const tb = guestTableMap.get(g.id); return !!tb && `Mesa ${tb.tableNumber}` === f.value }
+          case 'cobro':       return estadoAcceso(g) === 'pendiente_pago'
           default:            return true
         }
       })
@@ -894,6 +932,20 @@ export default function EventPage() {
   const updateStatus = async (guestId: string, status: RsvpStatus) => {
     setGuests(prev => prev.map(g => g.id === guestId ? { ...g, rsvp_status: status } : g))
     await supabase.from('guests').update({ rsvp_status: status }).eq('id', guestId)
+  }
+
+  const confirmarPago = async (guest: Guest) => {
+    const { error } = await supabase.from('guests').update({ paid_at: new Date().toISOString() }).eq('id', guest.id)
+    if (error) { alert('No se pudo confirmar el pago. Intenta de nuevo.'); return }
+    await logAction({ eventId: id as string, action: 'guest.payment_confirmed', entityType: 'guest', entityId: guest.id, entityLabel: guest.name, oldValue: { paid_at: guest.paid_at ?? null } })
+    await loadGuests()
+  }
+
+  const deshacerPago = async (guest: Guest) => {
+    const { error } = await supabase.from('guests').update({ paid_at: null }).eq('id', guest.id)
+    if (error) { alert('No se pudo deshacer el pago. Intenta de nuevo.'); return }
+    await logAction({ eventId: id as string, action: 'guest.payment_undone', entityType: 'guest', entityId: guest.id, entityLabel: guest.name, oldValue: { paid_at: guest.paid_at ?? null } })
+    await loadGuests()
   }
 
   const updatePartyMemberStatus = async (memberId: string, guestId: string, status: RsvpStatus) => {
@@ -1381,6 +1433,12 @@ export default function EventPage() {
   const allSelected = filtered.length > 0 && selected.size === filtered.length
   const someSelected = selected.size > 0 || selectedMembers.size > 0
 
+  const tienePrecio = Number(event?.ticket_price) > 0
+  const currency: Currency = event?.currency || 'MXN'
+  const cobradoTotal = guests.reduce((acc, g) => acc + (Number(g.amount_due) > 0 && g.paid_at ? Number(g.amount_due) : 0), 0)
+  const porCobrarTotal = guests.reduce((acc, g) => acc + (Number(g.amount_due) > 0 && !g.paid_at ? Number(g.amount_due) : 0), 0)
+  const cupoOcupado = guests.reduce((acc, g) => acc + (estadoAcceso(g) === 'dentro' ? (Number(g.party_size) || 1) : 0), 0)
+
   const activeTemplates = (eventSettings?.message_templates as string[] | null)?.filter((t: string) => t.trim()) || []
   const templateNames = eventSettings?.template_names as string[] | null
   const availableTags = event?.guest_tags || []
@@ -1483,6 +1541,31 @@ export default function EventPage() {
               </div>
             </div>
           </div>
+          {tienePrecio && (
+            <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <div className="rounded-xl border border-[#e8e8e8] bg-white p-4">
+                <div className="flex items-center gap-2">
+                  <Wallet size={16} className="text-[#48C9B0]" />
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-[#888]">Cobrado</span>
+                </div>
+                <p className="mt-2 text-2xl font-bold tabular-nums text-[#1D1E20]">{formatCurrency(cobradoTotal, currency)}</p>
+              </div>
+              <div className="rounded-xl border border-[#e8e8e8] bg-white p-4">
+                <div className="flex items-center gap-2">
+                  <Clock size={16} className={porCobrarTotal > 0 ? 'text-[#d4a853]' : 'text-[#bbb]'} />
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-[#888]">Por cobrar</span>
+                </div>
+                <p className="mt-2 text-2xl font-bold tabular-nums" style={{ color: porCobrarTotal > 0 ? '#d4a853' : '#1D1E20' }}>{formatCurrency(porCobrarTotal, currency)}</p>
+              </div>
+              <div className="rounded-xl border border-[#e8e8e8] bg-white p-4">
+                <div className="flex items-center gap-2">
+                  <Users size={16} className="text-[#48C9B0]" />
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-[#888]">Cupo</span>
+                </div>
+                <p className="mt-2 text-2xl font-bold tabular-nums text-[#1D1E20]">{cupoOcupado}{event?.guest_cap != null && <span className="ml-1.5 text-sm font-normal text-[#aaa]">/ {event.guest_cap}</span>}</p>
+              </div>
+            </div>
+          )}
         </StatsCollapse>
 
         <div className="mb-3 flex items-center gap-2">
@@ -1535,6 +1618,7 @@ export default function EventPage() {
                   { title: 'Alergias', field: 'allergy' as FilterField, values: allergyPool },
                   { title: 'Grupos', field: 'side' as FilterField, values: groupPool },
                   { title: 'Mesas', field: 'table' as FilterField, values: tableFilterValues },
+                  ...(tienePrecio ? [{ title: 'Cobro', field: 'cobro' as FilterField, values: ['Por cobrar'] }] : []),
                 ]).map(sec => sec.values.length > 0 && (
                   <div key={sec.field} className="mb-1.5">
                     <p className="mb-1 px-2 text-[10px] font-semibold uppercase tracking-wide text-[#aaa]">{sec.title}</p>
@@ -1550,7 +1634,7 @@ export default function EventPage() {
                     })}
                   </div>
                 ))}
-                {availableTags.length === 0 && allergyPool.length === 0 && groupPool.length === 0 && tableFilterValues.length === 0 && (
+                {availableTags.length === 0 && allergyPool.length === 0 && groupPool.length === 0 && tableFilterValues.length === 0 && !tienePrecio && (
                   <p className="px-2 py-2 text-xs text-[#aaa]">No hay valores para filtrar todavia</p>
                 )}
               </div>
@@ -1638,6 +1722,7 @@ export default function EventPage() {
                     <SwipeableGuestCard
                       guest={guest} groupColor={groupColor} isSelected={isSelected}
                       guestTags={guestTags} availableTags={availableTags}
+                      cobroBadge={tienePrecio ? <CobroBadge guest={guest} currency={currency} onConfirmar={() => confirmarPago(guest)} onDeshacer={() => deshacerPago(guest)} /> : undefined}
                       onSelect={() => toggleSelect(guest.id, gIdx, false)}
                       onEdit={() => openEdit(guest)} onDelete={() => deleteGuest(guest.id)}
                       onWaLongPressStart={handleWaLongPressStart} onWaLongPressEnd={handleWaLongPressEnd}
@@ -1713,6 +1798,7 @@ export default function EventPage() {
                             {guest.attention_detail}
                           </p>
                         )}
+                        {tienePrecio && <CobroBadge guest={guest} currency={currency} onConfirmar={() => confirmarPago(guest)} onDeshacer={() => deshacerPago(guest)} />}
                       </div>
                       {visibleCols.has('tags') && (
                         <div onClick={() => openEdit(guest)} className="flex flex-wrap gap-1 cursor-pointer">

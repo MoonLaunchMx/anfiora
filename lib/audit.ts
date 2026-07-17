@@ -10,6 +10,8 @@ export type AuditAction =
   | 'guest.deleted'
   | 'guest.rsvp_updated'
   | 'guest.checked_in'
+  | 'guest.payment_confirmed'
+  | 'guest.payment_undone'
   | 'party_member.created'
   | 'party_member.deleted'
   | 'party_member.rsvp_updated'
@@ -109,6 +111,8 @@ export const AUDIT_ACTION_LABEL: Record<AuditAction, string> = {
   'guest.deleted': 'Invitado eliminado',
   'guest.rsvp_updated': 'RSVP actualizado',
   'guest.checked_in': 'Check-in realizado',
+  'guest.payment_confirmed': 'Pago confirmado',
+  'guest.payment_undone': 'Pago revertido',
   'party_member.created': 'Acompañante agregado',
   'party_member.deleted': 'Acompañante eliminado',
   'party_member.rsvp_updated': 'RSVP de acompañante actualizado',
