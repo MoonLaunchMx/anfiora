@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useParams } from 'next/navigation'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Send, Check, LayoutGrid, Eye, X, Maximize2, Plus, RotateCcw, AlertTriangle } from 'lucide-react'
+import { Send, Check, LayoutGrid, Eye, X, Maximize2, Plus, RotateCcw, AlertTriangle, Settings } from 'lucide-react'
+import { TabToggle, type TabItem } from '@/app/components/ui/TabToggle'
 import { supabase } from '@/lib/supabase'
 import { resolveDoc, setMeta } from '@/lib/invite/doc'
 import { estadoPublicacion } from '@/lib/invite/publicacion'
@@ -24,7 +25,7 @@ import { useSalidaGuard } from '../SalidaGuardProvider'
 import EstiloPanel from './EstiloPanel'
 import PersonalizarPanel from './PersonalizarPanel'
 
-type TabKey = 'diseno' | 'enviar'
+type TabKey = 'diseno' | 'enviar' | 'config'
 
 type EventInfo = {
   name: string
@@ -251,6 +252,12 @@ export default function InvitacionPage() {
     cambios:   { cls: 'border-[#f0e2c0] bg-[#fffbf0] text-[#8a6d1f]', dot: 'bg-[#d4a853]',  label: 'Cambios sin publicar' },
   }[estado]
 
+  const INVITE_TABS: TabItem[] = [
+    { key: 'diseno', label: 'Diseño', icon: LayoutGrid },
+    { key: 'enviar', label: 'Enviar', icon: Send },
+    { key: 'config', label: 'Configuración', shortLabel: 'Config', icon: Settings },
+  ]
+
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <div className="shrink-0 border-b border-[#e8e8e8] bg-white px-4 pt-4 pb-4 sm:px-6 sm:pt-5 lg:px-10 lg:pt-6">
@@ -266,19 +273,8 @@ export default function InvitacionPage() {
         </div>
 
         <div className="mt-3 flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
-          <div className="flex w-full overflow-hidden rounded-lg border border-[#e0e0e0] sm:w-auto">
-            <button
-              onClick={() => setActiveTab('diseno')}
-              className={['flex flex-1 items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium transition sm:flex-none sm:py-1.5', activeTab === 'diseno' ? 'bg-[#1D1E20] text-white' : 'text-[#888] hover:bg-[#f5f5f5]'].join(' ')}
-            >
-              <LayoutGrid width={13} height={13} /><span>Diseño</span>
-            </button>
-            <button
-              onClick={() => setActiveTab('enviar')}
-              className={['flex flex-1 items-center justify-center gap-1.5 border-l border-[#e0e0e0] px-3 py-2 text-xs font-medium transition sm:flex-none sm:py-1.5', activeTab === 'enviar' ? 'bg-[#1D1E20] text-white' : 'text-[#888] hover:bg-[#f5f5f5]'].join(' ')}
-            >
-              <Send width={13} height={13} /><span>Enviar</span>
-            </button>
+          <div className="flex w-full justify-center overflow-x-auto sm:w-auto sm:justify-start">
+            <TabToggle tabs={INVITE_TABS} active={activeTab} onChange={(k) => setActiveTab(k as TabKey)} />
           </div>
 
           <div className="flex items-center gap-2.5">
@@ -376,10 +372,13 @@ export default function InvitacionPage() {
               </div>
             </div>
           </div>
+        ) : activeTab === 'enviar' ? (
+          <div className="pt-5">
+            <RepartoLinks eventId={eventId} event={event} />
+          </div>
         ) : (
           <div className="pt-5">
             <AccesoPanel eventId={eventId} event={event} />
-            <RepartoLinks eventId={eventId} event={event} />
           </div>
         )}
       </div>
