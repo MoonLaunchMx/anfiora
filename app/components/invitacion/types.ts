@@ -1,4 +1,5 @@
 import type { DressCode } from '@/lib/dresscode'
+import type { RegistryPaymentMethod, Currency } from '@/lib/types'
 
 export type InviteGuest = {
   name: string
@@ -32,9 +33,21 @@ export type InviteCtx = {
     maxCompanions: number
     agotado: boolean
     registrado: boolean
-    onRegistrado: () => void
+    onRegistrado: (partySize: number) => void
+    // Monto que acaba de congelarse tras el registro por liga (evento con
+    // precio). Vive en sesion, nunca lo devuelve el endpoint al anonimo.
+    montoRegistrado: number | null
   }
   deadlinePassed?: boolean
   botonClassName?: string
   forceMobile?: boolean
+  // Cobro (fase 4): presentes en todo modo cuando el evento tiene precio.
+  // amountDue/paidAt son el estado DURABLE del link personal (null en
+  // compartida, donde el estado recien nacido vive en puerta.montoRegistrado).
+  ticketPrice?: number | null
+  currency?: Currency
+  paymentMethods?: RegistryPaymentMethod[]
+  waHref?: string
+  amountDue?: number | null
+  paidAt?: string | null
 }

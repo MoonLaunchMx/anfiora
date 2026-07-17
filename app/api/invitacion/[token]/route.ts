@@ -6,7 +6,8 @@ import { parseDressCode } from '@/lib/dresscode'
 import { curateForGuests } from '@/lib/itinerary'
 import { logAction } from '@/lib/audit'
 import { resolveAccessMode, resolveMaxCompanions } from '@/lib/features'
-import { occupiedSeats, seatsLeft } from '@/lib/puerta'
+import { occupiedSeats, seatsLeft, ocupaLugar } from '@/lib/puerta'
+import { normalizePaymentMethods, type Currency, type RegistryPaymentMethod } from '@/lib/types'
 
 const admin = () =>
   createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
@@ -24,7 +25,10 @@ async function safeList<T>(p: PromiseLike<{ data: T[] | null; error: unknown }>)
   try { const { data, error } = await p; return error ? [] : (data || []) } catch { return [] }
 }
 
-type GuestRow = { id: string; event_id: string; name: string; party_size: number; rsvp_status: string; allergies: string[] | null }
+type GuestRow = {
+  id: string; event_id: string; name: string; party_size: number; rsvp_status: string; allergies: string[] | null
+  amount_due: number | null; paid_at: string | null
+}
 
 type SettingsRow = {
   invite_config: unknown
@@ -56,7 +60,7 @@ async function fetchSettings(db: ReturnType<typeof admin>, eventId: string) {
 async function resolveToken(db: ReturnType<typeof admin>, token: string): Promise<Resolved | null> {
   const { data: guest } = await db
     .from('guests')
-    .select('id, event_id, name, party_size, rsvp_status, allergies')
+    .select('id, event_id, name, party_size, rsvp_status, allergies, amount_due, paid_at')
     .eq('rsvp_token', token)
     .maybeSingle<GuestRow>()
 
@@ -95,23 +99,38 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
   if (!found || !found.doc.meta.publicada) return NextResponse.json({ error: 'not_found' }, { status: 404 })
   const { guest, settings, doc, eventId } = found
 
-  const [event, members, dressRow, itin] = await Promise.all([
-    safeSingle<{ name: string; event_type: string | null; event_date: string | null; event_time: string | null; venue: string | null; address: string | null; host_name: string | null; host_name_2: string | null; guest_cap: number | null }>(
-      db.from('events').select('name, event_type, event_date, event_time, venue, address, host_name, host_name_2, guest_cap').eq('id', eventId).maybeSingle(),
+  const [event, members, settingsExtra, itin] = await Promise.all([
+    safeSingle<{
+      name: string; event_type: string | null; event_date: string | null; event_time: string | null
+      venue: string | null; address: string | null; host_name: string | null; host_name_2: string | null
+      guest_cap: number | null; ticket_price: number | null; currency: Currency | null; user_id: string
+    }>(
+      db.from('events')
+        .select('name, event_type, event_date, event_time, venue, address, host_name, host_name_2, guest_cap, ticket_price, currency, user_id')
+        .eq('id', eventId).maybeSingle(),
     ),
     guest
       ? safeList<{ id: string; name: string; rsvp_status: string; allergies: string[] | null }>(
           db.from('party_members').select('id, name, rsvp_status, allergies').eq('guest_id', guest.id).order('created_at', { ascending: true }),
         )
       : Promise.resolve([]),
-    safeSingle<{ dress_code: unknown }>(
-      db.from('event_settings').select('dress_code').eq('event_id', eventId).maybeSingle(),
+    safeSingle<{ dress_code: unknown; registry_payment_info: unknown }>(
+      db.from('event_settings').select('dress_code, registry_payment_info').eq('event_id', eventId).maybeSingle(),
     ),
     safeList<{ start_time: string; title: string; location: string | null; visible_to_guests: boolean; position: number }>(
       db.from('event_itinerary_moments').select('start_time, title, location, visible_to_guests, position').eq('event_id', eventId).eq('visible_to_guests', true),
     ),
   ])
   if (!event) return NextResponse.json({ error: 'not_found' }, { status: 404 })
+
+  // El telefono del anfitrion vive en su cuenta (users.phone, E.164), no en
+  // events: la puerta publica no tiene un campo de contacto propio. Se usa
+  // solo para el boton "Ya pague" — nunca se expone el resto del perfil.
+  const hostUser = await safeSingle<{ phone: string | null }>(
+    db.from('users').select('phone').eq('id', event.user_id).maybeSingle(),
+  )
+  const hostPhone = hostUser?.phone ? hostUser.phone.replace(/\D/g, '') : null
+  const paymentMethods: RegistryPaymentMethod[] = normalizePaymentMethods(settingsExtra?.registry_payment_info)
 
   // La puerta se honra solo si se cumplen las tres: token del evento (arriba),
   // invitacion publicada (arriba) y modo publica. Pasar el evento a privada la
@@ -121,12 +140,17 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
     return NextResponse.json({ error: 'cerrada' }, { status: 403 })
   }
 
+  const tienePrecio = Number(event.ticket_price) > 0
+
   let puerta: { seatsLeft: number | null; maxCompanions: number; agotado: boolean } | null = null
   if (found.kind === 'compartida') {
-    const all = await safeList<{ party_size: number | null }>(
-      db.from('guests').select('party_size').eq('event_id', eventId),
+    const all = await safeList<{ party_size: number | null; amount_due: number | null; paid_at: string | null }>(
+      db.from('guests').select('party_size, amount_due, paid_at').eq('event_id', eventId),
     )
-    const left = seatsLeft(event.guest_cap ?? null, occupiedSeats(all))
+    // Con precio, un pendiente_pago no ocupa lugar: la puerta solo cuenta
+    // agotado contra los que ya estan dentro (mismo criterio que el registro).
+    const ocupantes = all.filter(g => ocupaLugar(g, tienePrecio))
+    const left = seatsLeft(event.guest_cap ?? null, occupiedSeats(ocupantes))
     puerta = {
       seatsLeft: left,
       maxCompanions: resolveMaxCompanions(event.event_type, settings?.max_companions ?? null),
@@ -144,11 +168,20 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
       : null,
     companions: members.map(m => ({ id: m.id, name: m.name, rsvp_status: m.rsvp_status, allergies: m.allergies || [] })),
     doc,
-    dressCode: parseDressCode(dressRow?.dress_code),
+    dressCode: parseDressCode(settingsExtra?.dress_code),
     itinerary: curateForGuests(itin),
     tokens: { playlist: settings?.playlist_token ?? null, registry: settings?.registry_token ?? null },
     mode: found.kind === 'compartida' ? 'compartida' : 'personal',
     puerta,
+    ticketPrice: event.ticket_price ?? null,
+    currency: event.currency ?? 'MXN',
+    paymentMethods,
+    hostPhone,
+    // Estado durable del link personal. En modo compartida (sin invitado
+    // todavia) van null: la tarjeta de pago de esa sesion se arma con el
+    // monto que acaba de calcular el cliente al registrarse, no con esto.
+    amountDue: guest ? guest.amount_due ?? null : null,
+    paidAt: guest ? guest.paid_at ?? null : null,
   })
 }
 

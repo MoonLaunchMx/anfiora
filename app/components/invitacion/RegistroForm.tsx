@@ -2,12 +2,19 @@
 
 import { useState } from 'react'
 import { formatAsYouType } from '@/lib/phone'
+import { montoAPagar } from '@/lib/puerta'
+import { formatCurrency, type Currency } from '@/lib/types'
 
 type Props = {
   token: string
   maxCompanions: number
   botonClassName?: string
-  onRegistrado: () => void
+  ticketPrice?: number | null
+  currency?: Currency
+  // Reporta cuantas cabezas (1 + acompanantes) quedaron registradas: quien
+  // llama arma el monto congelado con montoAPagar, porque el endpoint no
+  // devuelve el monto al navegador anonimo (ni el token).
+  onRegistrado: (partySize: number) => void
 }
 
 const ERRORES: Record<string, string> = {
@@ -21,12 +28,16 @@ function mensajeSinLugar(quedan: number): string {
   return `Solo quedan ${quedan} lugares. Ajusta cuántos vienen contigo.`
 }
 
-export default function RegistroForm({ token, maxCompanions, botonClassName, onRegistrado }: Props) {
+export default function RegistroForm({ token, maxCompanions, botonClassName, ticketPrice, currency = 'MXN', onRegistrado }: Props) {
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
   const [companions, setCompanions] = useState(0)
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const partySize = 1 + companions
+  const hasPrice = Number(ticketPrice) > 0
+  const total = hasPrice ? montoAPagar(ticketPrice, partySize) : 0
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -44,7 +55,7 @@ export default function RegistroForm({ token, maxCompanions, botonClassName, onR
         else setError(ERRORES[json?.error as string] || 'No pudimos registrarte. Intenta de nuevo.')
         return
       }
-      onRegistrado()
+      onRegistrado(partySize)
     } catch {
       setError('No pudimos registrarte. Intenta de nuevo.')
     } finally {
@@ -101,6 +112,13 @@ export default function RegistroForm({ token, maxCompanions, botonClassName, onR
         </div>
       )}
 
+      {hasPrice && (
+        <div className="rounded-lg border border-[#f0d896] bg-[#fdf7ea] px-3 py-2.5 text-xs text-[#8a6d1f]">
+          Total ({partySize} {partySize === 1 ? 'persona' : 'personas'} × {formatCurrency(Number(ticketPrice), currency)}) ={' '}
+          <strong>{formatCurrency(total, currency)}</strong>
+        </div>
+      )}
+
       {error && (
         <p role="alert" className="rounded-lg border border-[#ffc0c0] bg-[#fff0f0] px-3 py-2 text-xs text-[#cc3333]">{error}</p>
       )}
@@ -110,7 +128,7 @@ export default function RegistroForm({ token, maxCompanions, botonClassName, onR
         disabled={sending}
         className={`${botonClassName ?? 'inv-btn inv-btn-elevado'} mt-2 block w-full px-6 py-3 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60`}
       >
-        {sending ? 'Registrando...' : 'Confirmar mi lugar'}
+        {sending ? (hasPrice ? 'Apartando...' : 'Registrando...') : (hasPrice ? 'Apartar mi lugar' : 'Confirmar mi lugar')}
       </button>
     </form>
   )

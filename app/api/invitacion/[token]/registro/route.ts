@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 import { resolveDoc } from '@/lib/invite/doc'
 import { isInviteOpen, randomToken } from '@/lib/invite'
 import { resolveAccessMode, resolveMaxCompanions } from '@/lib/features'
-import { parseRegistration, occupiedSeats, seatsLeft } from '@/lib/puerta'
+import { parseRegistration, occupiedSeats, seatsLeft, montoAPagar, ocupaLugar } from '@/lib/puerta'
 
 // El alta de la puerta publica. Va por service role, igual que el resto de este
 // endpoint: guests no tiene politica RLS para anon, asi que la llave del
@@ -37,7 +37,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
 
   const { data: event } = await db
     .from('events')
-    .select('event_type, guest_cap')
+    .select('event_type, guest_cap, ticket_price')
     .eq('id', settings.event_id)
     .maybeSingle()
   if (!event) return NextResponse.json({ error: 'not_found' }, { status: 404 })
@@ -66,14 +66,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
     return NextResponse.json({ ok: true })
   }
 
+  const tienePrecio = Number(event.ticket_price) > 0
   const { data: all } = await db
     .from('guests')
-    .select('party_size')
+    .select('party_size, amount_due, paid_at')
     .eq('event_id', settings.event_id)
-  const libres = seatsLeft(event.guest_cap ?? null, occupiedSeats(all || []))
+  const ocupantes = (all || []).filter(g => ocupaLugar(g, tienePrecio))
+  const libres = seatsLeft(event.guest_cap ?? null, occupiedSeats(ocupantes))
   // Distingue "lleno" (0 libres) de "no alcanza para tu grupo" (quedan algunos
   // pero menos que party_size). El cliente decide el mensaje segun `quedan`.
-  if (libres !== null && reg.partySize > libres) {
+  // Con precio, la puerta bloquea solo cuando ya no quedan lugares (agotado):
+  // los pendientes de pago no ocupan, asi que no se bloquea por party_size.
+  if (libres !== null && (tienePrecio ? libres <= 0 : reg.partySize > libres)) {
     return NextResponse.json({ error: 'sin_lugar', quedan: libres }, { status: 409 })
   }
 
@@ -87,6 +91,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
       party_size: reg.partySize,
       rsvp_status: 'confirmed',
       rsvp_token: rsvpToken,
+      amount_due: montoAPagar(event.ticket_price, reg.partySize),
     })
     .select('id')
     .single()

@@ -5,9 +5,11 @@ import type { InviteCtx } from '../types'
 import type { RsvpSubmission } from '@/lib/invite'
 import type { Theme } from '@/lib/invite/theme'
 import { Check, X } from 'lucide-react'
+import { estadoAcceso } from '@/lib/puerta'
 import SectionShell from '../SectionShell'
 import RsvpAnimation from '../RsvpAnimation'
 import RegistroForm from '../RegistroForm'
+import PagoPendiente from '../PagoPendiente'
 
 const SI_MSG = '¡Nos vemos ahí!'
 const NO_MSG = '¡Te vamos a extrañar!'
@@ -134,6 +136,21 @@ export default function RsvpSection({ content, ctx, anim }: { content: Content; 
     // tu asistencia" no aplica cuando ya no se puede registrar (dentro, lleno o
     // cerrado). El encabezado vive con el formulario, no afuera de el.
     if (p.registrado) {
+      // Evento con precio: el registro recien hecho debe, no esta dentro
+      // todavia. La liga es anonima — el monto que se acaba de congelar viaja
+      // en sesion (montoRegistrado), nunca lo devuelve el endpoint al anonimo.
+      if (p.montoRegistrado != null) {
+        return (
+          <SectionShell variant="form">
+            <PagoPendiente
+              amount={p.montoRegistrado}
+              currency={ctx.currency}
+              methods={ctx.paymentMethods || []}
+              waHref={ctx.waHref || '#'}
+            />
+          </SectionShell>
+        )
+      }
       return <SectionShell variant="form"><PuertaExito /></SectionShell>
     }
     if (p.agotado) {
@@ -167,6 +184,8 @@ export default function RsvpSection({ content, ctx, anim }: { content: Content; 
             token={p.token}
             maxCompanions={p.maxCompanions}
             botonClassName={ctx.botonClassName}
+            ticketPrice={ctx.ticketPrice}
+            currency={ctx.currency}
             onRegistrado={p.onRegistrado}
           />
         </div>
@@ -175,6 +194,26 @@ export default function RsvpSection({ content, ctx, anim }: { content: Content; 
   }
 
   if (!ctx.guest) return null
+
+  // Link personal de un evento con precio: el estado de pago es durable
+  // (amountDue/paidAt vienen de la fila del invitado, no de esta sesion) y
+  // reemplaza la caja Si/No mientras no este dentro — pagar ES confirmar.
+  if (Number(ctx.ticketPrice) > 0) {
+    const estado = estadoAcceso({ amount_due: ctx.amountDue, paid_at: ctx.paidAt })
+    if (estado === 'pendiente_pago') {
+      return (
+        <SectionShell variant="form">
+          <PagoPendiente
+            amount={Number(ctx.amountDue) || 0}
+            currency={ctx.currency}
+            methods={ctx.paymentMethods || []}
+            waHref={ctx.waHref || '#'}
+          />
+        </SectionShell>
+      )
+    }
+    return <SectionShell variant="form"><PuertaExito /></SectionShell>
+  }
 
   const isPreview = ctx.mode === 'preview'
   const locked = Boolean(ctx.deadlinePassed)

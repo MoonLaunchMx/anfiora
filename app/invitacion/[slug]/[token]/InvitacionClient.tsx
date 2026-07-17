@@ -6,10 +6,13 @@ import { isInviteOpen, type RsvpSubmission } from '@/lib/invite'
 import type { InviteDoc } from '@/lib/invite/schema'
 import { botonClass } from '@/lib/invite/theme-css'
 import type { DressCode } from '@/lib/dresscode'
+import type { RegistryPaymentMethod, Currency } from '@/lib/types'
+import { montoAPagar } from '@/lib/puerta'
 import type { InviteCtx, InviteGuest, InviteCompanion } from '@/app/components/invitacion/types'
 import InvitacionRenderer from '@/app/components/invitacion/InvitacionRenderer'
 import PreviewBoundary from '@/app/components/invitacion/PreviewBoundary'
 import RegistroForm from '@/app/components/invitacion/RegistroForm'
+import PagoPendiente from '@/app/components/invitacion/PagoPendiente'
 
 type ApiData = {
   event: InviteCtx['event']
@@ -21,6 +24,12 @@ type ApiData = {
   tokens: { playlist: string | null; registry: string | null }
   mode: 'personal' | 'compartida'
   puerta: { seatsLeft: number | null; maxCompanions: number; agotado: boolean } | null
+  ticketPrice: number | null
+  currency: Currency
+  paymentMethods: RegistryPaymentMethod[]
+  hostPhone: string | null
+  amountDue: number | null
+  paidAt: string | null
 }
 
 type Estado = 'ok' | 'no_existe' | 'cerrada'
@@ -34,6 +43,10 @@ export default function InvitacionClient({ token }: { token: string }) {
   const [loading, setLoading] = useState(true)
   const [estado, setEstado] = useState<Estado>('ok')
   const [registrado, setRegistrado] = useState(false)
+  // Monto recien congelado tras registrarse por la liga publica (evento con
+  // precio). Vive solo en esta sesion: el endpoint de registro no devuelve el
+  // monto ni el token al navegador anonimo, asi que se recalcula en cliente.
+  const [montoRegistrado, setMontoRegistrado] = useState<number | null>(null)
 
   useEffect(() => {
     let active = true
@@ -97,6 +110,20 @@ export default function InvitacionClient({ token }: { token: string }) {
 
   const compartida = data.mode === 'compartida'
 
+  // hostPhone ya viene solo digitos (sin +) desde la API. Sin telefono capturado,
+  // wa.me sin numero abre igual el selector de contacto — mismo patron que ya
+  // usan mesa de regalos, comida y playlist para compartir sin destinatario fijo.
+  const waMensaje = `¡Hola! Ya transferí para "${data.event.name}". Aquí va mi comprobante:`
+  const waHref = `https://wa.me/${data.hostPhone || ''}?text=${encodeURIComponent(waMensaje)}`
+
+  // Reporta el partySize (1 + acompanantes) que acaba de registrarse: el
+  // endpoint no devuelve el monto al navegador anonimo, asi que se congela
+  // aqui con la misma funcion pura que uso el servidor (montoAPagar).
+  const handleRegistrado = (partySize: number) => {
+    setMontoRegistrado(Number(data.ticketPrice) > 0 ? montoAPagar(data.ticketPrice, partySize) : null)
+    setRegistrado(true)
+  }
+
   const ctx: InviteCtx = {
     event: data.event,
     guest: data.guest,
@@ -117,12 +144,20 @@ export default function InvitacionClient({ token }: { token: string }) {
           agotado: data.puerta.agotado,
           registrado,
           // Registrarse ES confirmar: no se rebota a ningun lado, el mismo slot
-          // pasa a "ya estas dentro" y la invitacion sigue visible.
-          onRegistrado: () => setRegistrado(true),
+          // pasa a "ya estas dentro" (o "pendiente de pago") y la invitacion
+          // sigue visible.
+          onRegistrado: handleRegistrado,
+          montoRegistrado,
         }
       : undefined,
     deadlinePassed: !isInviteOpen(data.doc.meta, todayISO()),
     botonClassName: botonClass(data.doc.theme),
+    ticketPrice: data.ticketPrice,
+    currency: data.currency,
+    paymentMethods: data.paymentMethods,
+    waHref,
+    amountDue: data.amountDue,
+    paidAt: data.paidAt,
   }
 
   // El registro vive en el slot del bloque RSVP, donde el anfitrion lo puso.
@@ -140,13 +175,22 @@ export default function InvitacionClient({ token }: { token: string }) {
         {alFinal && (
           <section className="px-6 pb-16 pt-4">
             {registrado ? (
-              <div className="mx-auto max-w-sm rounded-xl border border-[#a0e0c0] bg-[#f0fff6] px-5 py-6 text-center">
-                <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-[#2a7a50]">
-                  <Check size={22} className="text-white" />
+              montoRegistrado != null ? (
+                <PagoPendiente
+                  amount={montoRegistrado}
+                  currency={data.currency}
+                  methods={data.paymentMethods}
+                  waHref={waHref}
+                />
+              ) : (
+                <div className="mx-auto max-w-sm rounded-xl border border-[#a0e0c0] bg-[#f0fff6] px-5 py-6 text-center">
+                  <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-[#2a7a50]">
+                    <Check size={22} className="text-white" />
+                  </div>
+                  <h2 className="text-base font-semibold text-[#1a5c3a]">¡Listo, ya estás dentro!</h2>
+                  <p className="mt-1 text-sm text-[#2a7a50]">Explora la invitación, descubre todo lo que preparamos para ti... esto apenas empieza.</p>
                 </div>
-                <h2 className="text-base font-semibold text-[#1a5c3a]">¡Listo, ya estás dentro!</h2>
-                <p className="mt-1 text-sm text-[#2a7a50]">Explora la invitación, descubre todo lo que preparamos para ti... esto apenas empieza.</p>
-              </div>
+              )
             ) : agotado ? (
               <div className="mx-auto max-w-sm rounded-xl border border-[#e8e8e8] bg-white/70 px-5 py-6 text-center">
                 <h2 className="text-base font-semibold text-[#1D1E20]">Ya no quedan lugares</h2>
@@ -164,7 +208,9 @@ export default function InvitacionClient({ token }: { token: string }) {
                   token={token}
                   maxCompanions={data.puerta!.maxCompanions}
                   botonClassName={ctx.botonClassName}
-                  onRegistrado={() => setRegistrado(true)}
+                  ticketPrice={data.ticketPrice}
+                  currency={data.currency}
+                  onRegistrado={handleRegistrado}
                 />
               </>
             )}
