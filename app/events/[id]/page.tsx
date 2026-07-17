@@ -935,16 +935,17 @@ export default function EventPage() {
   }
 
   const confirmarPago = async (guest: Guest) => {
-    const { error } = await supabase.from('guests').update({ paid_at: new Date().toISOString() }).eq('id', guest.id)
+    const nuevoTimestamp = new Date().toISOString()
+    const { error } = await supabase.from('guests').update({ paid_at: nuevoTimestamp }).eq('id', guest.id)
     if (error) { alert('No se pudo confirmar el pago. Intenta de nuevo.'); return }
-    await logAction({ eventId: id as string, action: 'guest.payment_confirmed', entityType: 'guest', entityId: guest.id, entityLabel: guest.name, oldValue: { paid_at: guest.paid_at ?? null } })
+    await logAction({ eventId: id as string, action: 'guest.payment_confirmed', entityType: 'guest', entityId: guest.id, entityLabel: guest.name, oldValue: { paid_at: guest.paid_at ?? null }, newValue: { paid_at: nuevoTimestamp } })
     await loadGuests()
   }
 
   const deshacerPago = async (guest: Guest) => {
     const { error } = await supabase.from('guests').update({ paid_at: null }).eq('id', guest.id)
     if (error) { alert('No se pudo deshacer el pago. Intenta de nuevo.'); return }
-    await logAction({ eventId: id as string, action: 'guest.payment_undone', entityType: 'guest', entityId: guest.id, entityLabel: guest.name, oldValue: { paid_at: guest.paid_at ?? null } })
+    await logAction({ eventId: id as string, action: 'guest.payment_undone', entityType: 'guest', entityId: guest.id, entityLabel: guest.name, oldValue: { paid_at: guest.paid_at ?? null }, newValue: { paid_at: null } })
     await loadGuests()
   }
 
