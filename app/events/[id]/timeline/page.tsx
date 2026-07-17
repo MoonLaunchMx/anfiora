@@ -16,6 +16,7 @@ import { buildTimelineTasks } from './lib/templates'
 import { ItineraryView } from './ItineraryView'
 import { ItineraryToolbar } from './ItineraryToolbar'
 import { useItinerary } from './useItinerary'
+import { TabToggle, type TabItem } from '@/app/components/ui/TabToggle'
 
 // ─── CONSTANTS ───────────────────────────────────────────────────────────────
 
@@ -180,7 +181,8 @@ export default function TimelinePage() {
 
   const [tasks, setTasks]             = useState<TimelineTask[]>([])
   const [loading, setLoading]         = useState(true)
-  const [view, setView]               = useState<'lista' | 'calendario' | 'itinerario'>('lista')
+  const [section, setSection]         = useState<'tareas' | 'itinerario'>('tareas')
+  const [view, setView]               = useState<'lista' | 'calendario'>('lista')
   const [showModal, setShowModal]     = useState(false)
   const [editTask, setEditTask]       = useState<TimelineTask | null>(null)
   const [prefillDate, setPrefillDate] = useState<string | null>(null)
@@ -199,7 +201,7 @@ export default function TimelinePage() {
     () => eventInfo ? { ...eventInfo, venue: null } : null,
     [eventInfo],
   )
-  const itinerary = useItinerary(eventId, itinEventInfo, view === 'itinerario')
+  const itinerary = useItinerary(eventId, itinEventInfo, section === 'itinerario')
 
   const hasActiveFilters = search.trim() !== '' || filterCat !== ''
 
@@ -432,6 +434,11 @@ export default function TimelinePage() {
     )
   }
 
+  const TIMELINE_SECTIONS: TabItem[] = [
+    { key: 'tareas', label: 'Tareas', icon: LayoutList },
+    { key: 'itinerario', label: 'Itinerario', icon: Clock },
+  ]
+
   // ─── RENDER ─────────────────────────────────────────────────────────────────
 
   return (
@@ -502,74 +509,77 @@ export default function TimelinePage() {
           </div>
         </StatsCollapse>
 
-        <div className="mb-3 flex items-center gap-2">
-          <div className="flex overflow-hidden rounded-lg border border-[#e0e0e0]">
-            <button onClick={() => setView('lista')}
-              className={['flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition', view === 'lista' ? 'bg-[#1D1E20] text-white' : 'text-[#888] hover:bg-[#f5f5f5]'].join(' ')}>
-              <LayoutList width={13} height={13} /><span className="hidden sm:inline">Tareas</span>
-            </button>
-            <button onClick={() => setView('calendario')}
-              className={['flex items-center gap-1.5 border-l border-[#e0e0e0] px-3 py-1.5 text-xs font-medium transition', view === 'calendario' ? 'bg-[#1D1E20] text-white' : 'text-[#888] hover:bg-[#f5f5f5]'].join(' ')}>
-              <CalendarDays width={13} height={13} /><span className="hidden sm:inline">Calendario</span>
-            </button>
-            <button onClick={() => setView('itinerario')}
-              className={['flex items-center gap-1.5 border-l border-[#e0e0e0] px-3 py-1.5 text-xs font-medium transition', view === 'itinerario' ? 'bg-[#1D1E20] text-white' : 'text-[#888] hover:bg-[#f5f5f5]'].join(' ')}>
-              <Clock width={13} height={13} /><span className="hidden sm:inline">Itinerario</span>
-            </button>
-          </div>
+        <div className="mb-3 flex justify-center overflow-x-auto sm:justify-start">
+          <TabToggle tabs={TIMELINE_SECTIONS} active={section} onChange={(k) => setSection(k as 'tareas' | 'itinerario')} />
+        </div>
 
-          {view !== 'itinerario' && <>
-          <div className="hidden sm:flex items-center gap-2 flex-1">
-            <div className="relative flex-1 max-w-xs">
-              <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#bbb]" />
-              <input type="text" value={search} onChange={e => setSearch(e.target.value)}
-                placeholder="Buscar en título o notas..."
-                className="w-full border border-[#e0e0e0] rounded-lg pl-8 pr-8 py-1.5 text-xs focus:outline-none focus:border-[#48C9B0] bg-[#f8f8f8]" />
-              {search && (
-                <button onClick={() => setSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#bbb] hover:text-[#888]">
-                  <X size={12} />
+        {section === 'tareas' ? (
+          <div className="mb-3 flex items-center gap-2">
+            <div className="flex overflow-hidden rounded-lg border border-[#e0e0e0]">
+              <button onClick={() => setView('lista')}
+                className={['flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition', view === 'lista' ? 'bg-[#1D1E20] text-white' : 'text-[#888] hover:bg-[#f5f5f5]'].join(' ')}>
+                <LayoutList width={13} height={13} /><span className="hidden sm:inline">Lista</span>
+              </button>
+              <button onClick={() => setView('calendario')}
+                className={['flex items-center gap-1.5 border-l border-[#e0e0e0] px-3 py-1.5 text-xs font-medium transition', view === 'calendario' ? 'bg-[#1D1E20] text-white' : 'text-[#888] hover:bg-[#f5f5f5]'].join(' ')}>
+                <CalendarDays width={13} height={13} /><span className="hidden sm:inline">Calendario</span>
+              </button>
+            </div>
+
+            <div className="hidden sm:flex items-center gap-2 flex-1">
+              <div className="relative flex-1 max-w-xs">
+                <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#bbb]" />
+                <input type="text" value={search} onChange={e => setSearch(e.target.value)}
+                  placeholder="Buscar en título o notas..."
+                  className="w-full border border-[#e0e0e0] rounded-lg pl-8 pr-8 py-1.5 text-xs focus:outline-none focus:border-[#48C9B0] bg-[#f8f8f8]" />
+                {search && (
+                  <button onClick={() => setSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#bbb] hover:text-[#888]">
+                    <X size={12} />
+                  </button>
+                )}
+              </div>
+              <div className="relative">
+                <select value={filterCat} onChange={e => setFilterCat(e.target.value)}
+                  className="border border-[#e0e0e0] rounded-lg pl-3 pr-8 py-1.5 text-xs appearance-none focus:outline-none focus:border-[#48C9B0] bg-[#f8f8f8] text-[#888]">
+                  <option value="">Todas las categorías</option>
+                  {CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+                </select>
+                <ChevronDown size={12} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#aaa] pointer-events-none" />
+              </div>
+              {hasActiveFilters && (
+                <button onClick={clearFilters} className="text-xs text-[#aaa] hover:text-[#cc3333] transition-colors whitespace-nowrap">
+                  Limpiar
                 </button>
               )}
             </div>
-            <div className="relative">
-              <select value={filterCat} onChange={e => setFilterCat(e.target.value)}
-                className="border border-[#e0e0e0] rounded-lg pl-3 pr-8 py-1.5 text-xs appearance-none focus:outline-none focus:border-[#48C9B0] bg-[#f8f8f8] text-[#888]">
-                <option value="">Todas las categorías</option>
-                {CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
-              </select>
-              <ChevronDown size={12} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#aaa] pointer-events-none" />
-            </div>
-            {hasActiveFilters && (
-              <button onClick={clearFilters} className="text-xs text-[#aaa] hover:text-[#cc3333] transition-colors whitespace-nowrap">
-                Limpiar
+
+            <button onClick={() => setShowFilters(true)}
+              className={['sm:hidden flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition', hasActiveFilters ? 'border-[#48C9B0] bg-[#f0fdfb] text-[#1a9e88]' : 'border-[#e0e0e0] text-[#888] hover:bg-[#f5f5f5]'].join(' ')}>
+              <SlidersHorizontal width={13} height={13} />Filtrar
+              {hasActiveFilters && (
+                <span className="flex h-4 w-4 items-center justify-center rounded-full bg-[#48C9B0] text-[9px] font-bold text-white">
+                  {(search ? 1 : 0) + (filterCat ? 1 : 0)}
+                </span>
+              )}
+            </button>
+
+            <div className="ml-auto flex items-center gap-2">
+              <button onClick={handleGeneratePlan}
+                disabled={!eventInfo?.event_date || generating}
+                className="hidden sm:flex items-center gap-1.5 rounded-lg border border-[#e0e0e0] px-3 py-1.5 text-xs font-medium text-[#666] transition hover:border-[#48C9B0] hover:text-[#48C9B0] disabled:opacity-50">
+                <CalendarDays width={13} height={13} />{generating ? 'Generando...' : 'Generar plan'}
               </button>
-            )}
+              <button onClick={() => openNew()}
+                className="flex items-center gap-1.5 rounded-lg bg-[#48C9B0] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#3ab89f] sm:px-4 sm:text-sm">
+                <Plus width={14} height={14} />Agregar
+              </button>
+            </div>
           </div>
-
-          <button onClick={() => setShowFilters(true)}
-            className={['sm:hidden flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition', hasActiveFilters ? 'border-[#48C9B0] bg-[#f0fdfb] text-[#1a9e88]' : 'border-[#e0e0e0] text-[#888] hover:bg-[#f5f5f5]'].join(' ')}>
-            <SlidersHorizontal width={13} height={13} />Filtrar
-            {hasActiveFilters && (
-              <span className="flex h-4 w-4 items-center justify-center rounded-full bg-[#48C9B0] text-[9px] font-bold text-white">
-                {(search ? 1 : 0) + (filterCat ? 1 : 0)}
-              </span>
-            )}
-          </button>
-
-          <div className="ml-auto flex items-center gap-2">
-            <button onClick={handleGeneratePlan}
-              disabled={!eventInfo?.event_date || generating}
-              className="hidden sm:flex items-center gap-1.5 rounded-lg border border-[#e0e0e0] px-3 py-1.5 text-xs font-medium text-[#666] transition hover:border-[#48C9B0] hover:text-[#48C9B0] disabled:opacity-50">
-              <CalendarDays width={13} height={13} />{generating ? 'Generando...' : 'Generar plan'}
-            </button>
-            <button onClick={() => openNew()}
-              className="flex items-center gap-1.5 rounded-lg bg-[#48C9B0] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#3ab89f] sm:px-4 sm:text-sm">
-              <Plus width={14} height={14} />Agregar
-            </button>
+        ) : (
+          <div className="mb-3 flex items-center">
+            <ItineraryToolbar itin={itinerary} />
           </div>
-          </>}
-          {view === 'itinerario' && <ItineraryToolbar itin={itinerary} />}
-        </div>
+        )}
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto' }} className="px-4 pb-6 pt-4 sm:px-6 lg:px-10">
@@ -580,7 +590,7 @@ export default function TimelinePage() {
               <p className="text-sm text-[#999]">Cargando...</p>
             </div>
           </div>
-        ) : view === 'itinerario' ? (
+        ) : section === 'itinerario' ? (
           <ItineraryView itin={itinerary} />
         ) : view === 'lista' ? <ListView /> : <CalendarView />}
       </div>
