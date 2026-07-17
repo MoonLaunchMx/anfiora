@@ -38,6 +38,12 @@ type EventInfo = {
   host_name_2: string | null
 }
 
+// meta.access viene vacio en docs viejos (el schema lo rellena con null/[]);
+// asi se distingue de un evento que de verdad nunca tuvo cupo/precio/acompanantes.
+function accessIsEmpty(access: InviteDoc['meta']['access']): boolean {
+  return access.guest_cap === null && access.ticket_price === null && access.max_companions === null
+}
+
 async function safeSingle<T>(p: PromiseLike<{ data: T | null; error: unknown }>): Promise<T | null> {
   try {
     const { data, error } = await p
@@ -78,11 +84,11 @@ export default function InvitacionPage() {
       const [ev, inviteRow, dressRow, itinRows] = await Promise.all([
         supabase
           .from('events')
-          .select('name, event_type, event_date, event_time, venue, address, host_name, host_name_2')
+          .select('name, event_type, event_date, event_time, venue, address, host_name, host_name_2, guest_cap, ticket_price')
           .eq('id', eventId)
           .single(),
-        safeSingle<{ invite_config: unknown; invite_draft: unknown; playlist_token: string | null; registry_token: string | null }>(
-          supabase.from('event_settings').select('invite_config, invite_draft, playlist_token, registry_token').eq('event_id', eventId).maybeSingle(),
+        safeSingle<{ invite_config: unknown; invite_draft: unknown; playlist_token: string | null; registry_token: string | null; max_companions: number | null }>(
+          supabase.from('event_settings').select('invite_config, invite_draft, playlist_token, registry_token, max_companions').eq('event_id', eventId).maybeSingle(),
         ),
         safeSingle<{ dress_code: unknown }>(
           supabase.from('event_settings').select('dress_code').eq('event_id', eventId).maybeSingle(),
@@ -97,8 +103,26 @@ export default function InvitacionPage() {
       // El editor edita el BORRADOR; los invitados ven lo PUBLICADO (invite_config).
       // Si el borrador aun no existe (evento previo a la migracion), arranca de lo publicado.
       const draftRaw = inviteRow?.invite_draft ?? inviteRow?.invite_config
-      setDoc(resolveDoc(draftRaw, () => crypto.randomUUID()))
-      setPublishedDoc(resolveDoc(inviteRow?.invite_config, () => crypto.randomUUID()))
+      let draftDoc = resolveDoc(draftRaw, () => crypto.randomUUID())
+      let configDoc = resolveDoc(inviteRow?.invite_config, () => crypto.randomUUID())
+      // Seed: eventos que ya tenian cupo/precio/acompanantes en columnas (modelo
+      // previo a esta feature) nunca tuvieron meta.access en NINGUNO de los dos
+      // docs. Se siembra en draft Y config a la vez para que publicar los
+      // preserve (en vez de ponerlos en null) y para que abrir el editor no
+      // invente un "cambios sin publicar" de la nada. La cuenta de cobro es
+      // nueva y separada: nunca se siembra desde columnas.
+      if (accessIsEmpty(draftDoc.meta.access) && accessIsEmpty(configDoc.meta.access)) {
+        const seededAccess = {
+          ...draftDoc.meta.access,
+          guest_cap: ev.data?.guest_cap ?? null,
+          ticket_price: ev.data?.ticket_price ?? null,
+          max_companions: inviteRow?.max_companions ?? null,
+        }
+        draftDoc = setMeta(draftDoc, { access: seededAccess })
+        configDoc = setMeta(configDoc, { access: seededAccess })
+      }
+      setDoc(draftDoc)
+      setPublishedDoc(configDoc)
     }
     load().finally(() => setLoading(false))
   }, [eventId])
@@ -178,6 +202,18 @@ export default function InvitacionPage() {
       setPublishedDoc(next)
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
+
+      // Cupo/precio/acompanantes se CUENTAN/FILTRAN en el endpoint de registro,
+      // por eso su valor publicado sigue viviendo en columnas ademas del doc.
+      // cobro_payment_methods solo se pinta: viaja dentro de invite_config, sin columna.
+      await supabase
+        .from('events')
+        .update({ guest_cap: next.meta.access.guest_cap, ticket_price: next.meta.access.ticket_price })
+        .eq('id', eventId)
+      await supabase
+        .from('event_settings')
+        .update({ max_companions: next.meta.access.max_companions })
+        .eq('event_id', eventId)
 
       // El token de la puerta publica nace con la invitacion publicada. El
       // .is(null) del update es la red: si se publica dos veces (o desde dos

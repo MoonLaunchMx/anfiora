@@ -24,7 +24,11 @@ describe('defaultDoc', () => {
   it('trae los 9 bloques por defecto en orden', () => {
     const d = defaultDoc(makeId)
     expect(d.v).toBe(2)
-    expect(d.meta).toEqual({ publicada: false, fecha_limite: null })
+    expect(d.meta).toEqual({
+      publicada: false,
+      fecha_limite: null,
+      access: { guest_cap: null, ticket_price: null, max_companions: null, cobro_payment_methods: [] },
+    })
     expect(d.sections.map(s => s.type)).toEqual(
       ['portada', 'saludo', 'detalles', 'itinerario', 'dress_code', 'rsvp', 'playlist', 'mesa', 'cierre'],
     )
@@ -81,7 +85,11 @@ describe('resolveDoc', () => {
   })
   it('meta invalida -> defaults, conservando secciones', () => {
     const d = resolveDoc({ meta: 'malo', sections: [{ id: 'a', type: 'cierre', content: {} }] }, makeId)
-    expect(d.meta).toEqual({ publicada: false, fecha_limite: null })
+    expect(d.meta).toEqual({
+      publicada: false,
+      fecha_limite: null,
+      access: { guest_cap: null, ticket_price: null, max_companions: null, cobro_payment_methods: [] },
+    })
     expect(d.sections.length).toBe(1)
   })
 })
