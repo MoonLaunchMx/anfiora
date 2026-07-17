@@ -104,3 +104,61 @@ Apartado/reloj de 24h, aprobación de solicitudes, lista de espera, pago con tar
 - El cliente de Supabase no está tipado: `tsc` no valida nombres de columna en inserts. Verificarlos a mano contra la base.
 - Orden de migración al revés de la "Regla crítica" de CLAUDE.md: para columnas nuevas, la migración va **antes** que el código.
 - Reusar `normalizePaymentMethods`, `RegistryPaymentMethod`, `PaymentMethodModal` y el render con copiar de `mesa/[token]` — ya existen y funcionan.
+
+---
+
+## Enmienda (17-jul, tarde) — La config del acceso pasa por Publicar + cuenta de cobro propia
+
+Al probar la v1 en local, Diego detectó dos cosas que se deciden aquí y se construyen **en esta misma rama, antes del merge** (el precio y el banco todavía no están en producción, así que nacen ya con el comportamiento correcto).
+
+### Problema 1: la config del acceso se guardaba en vivo, incoherente con el contenido
+
+El contenido de la invitación pasa por **Publicar** (borrador `invite_draft` vs publicado `invite_config`) + aviso al salir (`SalidaGuardProvider`). Pero el `AccesoPanel` guardaba **en vivo** (autosave 800ms directo a columnas): cupo, acompañantes, precio y banco salían al público al instante, sin gesto de publicar — el mismo bug que el modelo borrador/publicado mató para el contenido, y peor con el dinero.
+
+**Decisión:** *nada de la invitación se va en vivo hasta que publicas — salvo cerrar la puerta.*
+
+| Campo | Comportamiento |
+|---|---|
+| Cupo máximo | Por **Publicar** (borrador hasta publicar) |
+| Acompañantes por invitado | Por **Publicar** |
+| Precio por persona | Por **Publicar** |
+| Cuenta de cobro (CLABE) | Por **Publicar** |
+| **Modo privada/pública** | **En vivo** — es el apagador; cerrar la puerta debe ser inmediato |
+
+### Problema 2: el cobro compartía cuenta con Mesa de Regalos
+
+La v1 reusó `event_settings.registry_payment_info` para el cobro. Eso choca: (a) es la cuenta que **Mesa de Regalos edita en vivo** (conflicto al publicar), y (b) el planner puede querer **una cuenta para regalos y otra para boletos** (boda: regalos a cuenta personal; cena de gala: boletos a la fundación).
+
+**Decisión (Diego):** el cobro tiene su **PROPIA cuenta**, configurada **en la invitación** (no prestada de Mesa de Regalos). Cada feature configura su cuenta en su lugar. Se **reusa el mismo UI** (`PaymentMethodModal`, render con copiar), pero el **dato es independiente**. Sin toggle "usar la misma": son cuentas separadas por diseño. Esto además destraba el problema 1 — al no compartir cuenta, la del cobro entra a Publicar sin pisar a nadie.
+
+### Modelo de almacenamiento
+
+El borrador/publicado ya existe en el **doc de la invitación** (`invite_draft`/`invite_config`). Se cuelga de ahí para heredar Publicar + aviso al salir **sin lógica nueva de publicación**:
+
+- **Borrador:** los 4 campos (cupo, acompañantes, precio, cuenta de cobro) viven en el doc borrador (p.ej. `doc.meta.access = { guest_cap, ticket_price, max_companions, cobro_payment_methods }`). El `AccesoPanel` los edita ahí (como `BlockEditor` edita el contenido).
+- **Publicado — dos naturalezas** (regla "JSONB para lo que pintas, columnas para lo que filtras/cuentas"):
+  - `guest_cap`, `ticket_price`, `max_companions` se **cuentan/filtran** en el endpoint de registro → su valor publicado sigue en **columnas** (`events.guest_cap`, `events.ticket_price`, `event_settings.max_companions`). **Los endpoints de registro/lectura NO cambian su lectura.** `handlePublish` copia `doc.meta.access.*` → esas columnas al publicar.
+  - `cobro_payment_methods` solo se **pinta** (se muestra la CLABE) → vive **solo en el doc publicado** (`invite_config.meta.access`). El endpoint de lectura ya resuelve el doc; `PagoPendiente` lee la cuenta de ahí. **Sin columna nueva.**
+- **Dirty:** `hayCambiosSinPublicar` (`lib/invite/publicacion.ts`) se extiende para incluir `meta.access`, así el sello "cambios sin publicar" + el aviso al salir cubren el acceso.
+- **Modo privada/pública:** se escribe **en vivo** a `event_settings.access_mode`, fuera del doc — no pasa por publicar.
+
+### Cambios a la Fase 4 ya construida
+
+- La captura de cuenta en `AccesoPanel` (Task 3) pasa de escribir `registry_payment_info` a escribir la **cuenta de cobro propia en el doc borrador**.
+- La lectura de métodos de pago (Task 4: endpoint + `PagoPendiente`) pasa de `registry_payment_info` a `invite_config.meta.access.cobro_payment_methods`.
+- `AccesoPanel` deja de autoguardar cupo/acompañantes/precio a columnas; ahora escribe al doc borrador. El modo sigue en vivo.
+- Mesa de Regalos queda **intacta** (su `registry_payment_info`, en su página).
+
+### Reconciliación con la reestructura TabToggle (obligatoria antes de merge)
+
+En paralelo, `feat/puerta-publica-invitados` **reestructuró la invitación** (commits `dcdf86d`, `57a608b`, `4fd4d5c`; handoff `docs/HANDOFF-invitacion-tabtoggle.md`) y se pusheó a origin. La rama de cobro divergió antes. Cambios que impactan:
+
+- La invitación ahora usa **`TabToggle`** con **3 pestañas**: `Diseño · Enviar · Configuración`.
+- **`AccesoPanel` ya NO vive en "Enviar" — es el contenido de la pestaña `Configuración`.** En "Enviar" quedó solo `RepartoLinks`.
+- Header en una sola fila.
+
+**El cobro se adapta ENCIMA de la estructura nueva** (ese UI está más avanzado y aprobado): traer `feat/puerta-publica-invitados` a la rama de cobro, resolver el conflicto de `invitacion/page.tsx` **dejando las 3 pestañas** y `AccesoPanel` en Configuración, con el contenido de precio/CLABE del cobro adentro. **No** reintroducir el switcher negro ni el acceso en "Enviar". `TabToggle` = secciones; negro = solo vistas del mismo contenido.
+
+### Fuera de alcance de esta enmienda
+
+Meter Mesa de Regalos al modelo de publicar (su cuenta sigue en vivo; proteger su CLABE de typos es un item cross-cutting aparte). Un toggle "usar la misma cuenta para ambos" (se descartó: cuentas separadas por diseño).
