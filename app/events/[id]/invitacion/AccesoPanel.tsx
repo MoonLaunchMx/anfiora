@@ -4,11 +4,13 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Copy, Check, UserCheck, Landmark, Plus, Pencil, Trash2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { slugifyEvent } from '@/lib/invite'
+import { setMeta } from '@/lib/invite/doc'
+import type { InviteDoc, InviteAccess } from '@/lib/invite/schema'
 import {
-  ACCESS_MODES, resolveAccessMode, resolveRequiresApproval, normalizeAccessFields,
-  resolveMaxCompanions, CANDADO_PRECIO_LISTO, CANDADO_APROBACION_LISTO, type AccessMode,
+  ACCESS_MODES, resolveAccessMode, resolveRequiresApproval, resolveMaxCompanions,
+  parseCap, parsePrice, CANDADO_PRECIO_LISTO, CANDADO_APROBACION_LISTO, type AccessMode,
 } from '@/lib/features'
-import { RegistryPaymentMethod, normalizePaymentMethods } from '@/lib/types'
+import { RegistryPaymentMethod } from '@/lib/types'
 import PaymentMethodModal, { payTypeMeta } from '../mesa-regalos/PaymentMethodModal'
 
 type EventInfo = {
@@ -18,17 +20,32 @@ type EventInfo = {
   host_name_2: string | null
 }
 
+// Entero >= 0; vacio o invalido = null (cae al default del tipo de evento).
+function parseMaxCompanions(raw: string): number | null {
+  if (raw.trim() === '') return null
+  return Math.max(0, Math.floor(Number(raw)) || 0)
+}
+
 // El acceso vive aqui, junto a los links, porque contesta la misma pregunta que
 // la pestana Enviar: como entra la gente a este evento. Antes estaba en
 // configuracion, partido de los links personales que siempre vivieron aqui.
-export default function AccesoPanel({ eventId, event }: { eventId: string; event: EventInfo }) {
+//
+// Cupo, acompanantes, precio y cuenta de cobro viven en el BORRADOR de la
+// invitacion (doc.meta.access) y se publican con el resto del contenido. El
+// modo privada/publica es el apagador de la puerta: se queda escribiendo en
+// vivo a event_settings, fuera del doc (ver enmienda 17-jul en el spec de
+// cobro por transferencia).
+export default function AccesoPanel({
+  eventId, event, doc, onChange,
+}: {
+  eventId: string
+  event: EventInfo
+  doc: InviteDoc
+  onChange: (next: InviteDoc) => void
+}) {
   const [accessMode, setAccessMode] = useState<AccessMode>('privada')
   const [requiresApproval, setRequiresApproval] = useState(false)
-  const [guestCap, setGuestCap] = useState('')
-  const [ticketPrice, setTicketPrice] = useState('')
-  const [maxCompanions, setMaxCompanions] = useState('')
   const [sharedToken, setSharedToken] = useState<string | null>(null)
-  const [payMethods, setPayMethods] = useState<RegistryPaymentMethod[]>([])
   const [showPayModal, setShowPayModal] = useState(false)
   const [editingMethod, setEditingMethod] = useState<RegistryPaymentMethod | null>(null)
   const [loading, setLoading] = useState(true)
@@ -38,53 +55,58 @@ export default function AccesoPanel({ eventId, event }: { eventId: string; event
   const [origin, setOrigin] = useState('')
   const timeoutRef = useRef<NodeJS.Timeout | null>(null)
 
+  // Buffers de texto para cupo/precio/acompanantes: el doc guarda numero, el
+  // input necesita string libre mientras se teclea (ej. "12." antes del decimal).
+  const [guestCap, setGuestCap] = useState('')
+  const [ticketPrice, setTicketPrice] = useState('')
+  const [maxCompanions, setMaxCompanions] = useState('')
+  // Guarda el objeto access que YO mande via onChange, para distinguir un
+  // doc.meta.access que cambio por mi propia tecla (ignorar, no repisar el
+  // buffer a medio teclear) de uno que cambio desde afuera (publicar,
+  // descartar, carga inicial: ahi si hay que resincronizar los inputs).
+  const lastSentAccessRef = useRef<InviteAccess | null>(null)
+
   useEffect(() => { setOrigin(window.location.origin) }, [])
 
   useEffect(() => {
     let cancelled = false
     const load = async () => {
-      const [ev, st] = await Promise.all([
-        supabase.from('events').select('guest_cap, ticket_price').eq('id', eventId).maybeSingle(),
-        supabase.from('event_settings').select('access_mode, requires_approval, shared_token, max_companions, registry_payment_info').eq('event_id', eventId).maybeSingle(),
-      ])
+      const st = await supabase
+        .from('event_settings')
+        .select('access_mode, requires_approval, shared_token')
+        .eq('event_id', eventId)
+        .maybeSingle()
       if (cancelled) return
       const tipo = event.event_type
       setAccessMode(resolveAccessMode(tipo, st.data?.access_mode))
       setRequiresApproval(resolveRequiresApproval(tipo, st.data?.access_mode, st.data?.requires_approval))
-      setGuestCap(ev.data?.guest_cap != null ? String(ev.data.guest_cap) : '')
-      setTicketPrice(ev.data?.ticket_price != null ? String(ev.data.ticket_price) : '')
-      setMaxCompanions(String(resolveMaxCompanions(tipo, st.data?.max_companions)))
       setSharedToken(st.data?.shared_token ?? null)
-      setPayMethods(normalizePaymentMethods(st.data?.registry_payment_info))
       setLoading(false)
     }
     load()
     return () => { cancelled = true }
   }, [eventId, event.event_type])
 
+  useEffect(() => {
+    if (doc.meta.access === lastSentAccessRef.current) return
+    setGuestCap(doc.meta.access.guest_cap != null ? String(doc.meta.access.guest_cap) : '')
+    setTicketPrice(doc.meta.access.ticket_price != null ? String(doc.meta.access.ticket_price) : '')
+    setMaxCompanions(String(resolveMaxCompanions(event.event_type, doc.meta.access.max_companions)))
+  }, [doc.meta.access, event.event_type])
+
   useEffect(() => () => { if (timeoutRef.current) clearTimeout(timeoutRef.current) }, [])
 
-  const persist = useCallback(async (next: {
-    accessMode: AccessMode; requiresApproval: boolean; guestCap: string; ticketPrice: string; maxCompanions: string
-  }) => {
+  // Solo el modo (y su aprobacion) siguen en vivo: es el apagador de la puerta.
+  const persistMode = useCallback(async (next: { accessMode: AccessMode; requiresApproval: boolean }) => {
     setSaving(true)
     try {
-      // Mientras el candado de aprobacion no exista, no se guarda (ver CANDADO_APROBACION_LISTO).
-      const access = normalizeAccessFields({
-        ...next,
-        ticketPrice: CANDADO_PRECIO_LISTO ? next.ticketPrice : '',
-        requiresApproval: CANDADO_APROBACION_LISTO ? next.requiresApproval : false,
-      })
-      // Entero >= 0; vacio o invalido = null (cae al default del tipo de evento).
-      const mc = next.maxCompanions.trim() === '' ? null : Math.max(0, Math.floor(Number(next.maxCompanions)) || 0)
-      await supabase.from('events')
-        .update({ guest_cap: access.guest_cap, ticket_price: access.ticket_price })
-        .eq('id', eventId)
+      const requires_approval = next.accessMode === 'privada'
+        ? false
+        : (CANDADO_APROBACION_LISTO ? next.requiresApproval : false)
       await supabase.from('event_settings').upsert({
         event_id: eventId,
         access_mode: next.accessMode,
-        requires_approval: access.requires_approval,
-        max_companions: mc,
+        requires_approval,
         updated_at: new Date().toISOString(),
       }, { onConflict: 'event_id' })
       setSaved(true)
@@ -94,10 +116,19 @@ export default function AccesoPanel({ eventId, event }: { eventId: string; event
     }
   }, [eventId])
 
-  const schedule = (next: Partial<{ accessMode: AccessMode; requiresApproval: boolean; guestCap: string; ticketPrice: string; maxCompanions: string }>) => {
-    const merged = { accessMode, requiresApproval, guestCap, ticketPrice, maxCompanions, ...next }
+  const scheduleMode = (next: Partial<{ accessMode: AccessMode; requiresApproval: boolean }>) => {
+    const merged = { accessMode, requiresApproval, ...next }
     if (timeoutRef.current) clearTimeout(timeoutRef.current)
-    timeoutRef.current = setTimeout(() => persist(merged), 800)
+    timeoutRef.current = setTimeout(() => persistMode(merged), 800)
+  }
+
+  // Cupo, acompanantes, precio y cuenta de cobro: al borrador, no a Supabase.
+  // updateDoc (en el page) ya autoguarda el borrador y dispara el sello de
+  // "cambios sin publicar" + el aviso al salir.
+  const updateAccess = (patch: Partial<InviteAccess>) => {
+    const nextAccess: InviteAccess = { ...doc.meta.access, ...patch }
+    lastSentAccessRef.current = nextAccess
+    onChange(setMeta(doc, { access: nextAccess }))
   }
 
   if (loading) {
@@ -111,6 +142,8 @@ export default function AccesoPanel({ eventId, event }: { eventId: string; event
   const sharedLink = sharedToken
     ? `${origin}/invitacion/${slugifyEvent({ name: event.name, host_name: event.host_name, host_name_2: event.host_name_2 })}/${sharedToken}`
     : ''
+
+  const payMethods = doc.meta.access.cobro_payment_methods
 
   return (
     <div className="mb-5 flex flex-col gap-3 rounded-xl border border-[#e8e8e8] bg-white p-4">
@@ -127,7 +160,7 @@ export default function AccesoPanel({ eventId, event }: { eventId: string; event
             <button
               key={m.key}
               type="button"
-              onClick={() => { setAccessMode(m.key); schedule({ accessMode: m.key }) }}
+              onClick={() => { setAccessMode(m.key); scheduleMode({ accessMode: m.key }) }}
               className={
                 'flex items-center gap-3 rounded-xl border p-3 text-left transition ' +
                 (on ? 'border-[#c8ede7] bg-[#f0fdfb]' : 'border-[#e8e8e8] bg-white hover:border-[#d0d0d0]')
@@ -156,7 +189,7 @@ export default function AccesoPanel({ eventId, event }: { eventId: string; event
           {CANDADO_APROBACION_LISTO && (
             <button
               type="button"
-              onClick={() => { const v = !requiresApproval; setRequiresApproval(v); schedule({ requiresApproval: v }) }}
+              onClick={() => { const v = !requiresApproval; setRequiresApproval(v); scheduleMode({ requiresApproval: v }) }}
               className="flex items-center gap-3 rounded-xl border border-[#e8e8e8] bg-white p-3 text-left transition hover:border-[#d0d0d0]"
             >
               <div className={'flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ' + (requiresApproval ? 'bg-[#d0f5ec]' : 'bg-[#f4f4f4]')}>
@@ -189,7 +222,7 @@ export default function AccesoPanel({ eventId, event }: { eventId: string; event
                 min={1}
                 step={1}
                 value={guestCap}
-                onChange={e => { setGuestCap(e.target.value); schedule({ guestCap: e.target.value }) }}
+                onChange={e => { const v = e.target.value; setGuestCap(v); updateAccess({ guest_cap: parseCap(v) }) }}
                 placeholder="Sin límite"
                 className="w-full rounded-lg border border-[#e8e8e8] px-3 py-2 text-sm outline-none focus:border-[#48C9B0]"
               />
@@ -203,7 +236,7 @@ export default function AccesoPanel({ eventId, event }: { eventId: string; event
                 min={0}
                 step={1}
                 value={maxCompanions}
-                onChange={e => { setMaxCompanions(e.target.value); schedule({ maxCompanions: e.target.value }) }}
+                onChange={e => { const v = e.target.value; setMaxCompanions(v); updateAccess({ max_companions: parseMaxCompanions(v) }) }}
                 placeholder="0"
                 className="w-full rounded-lg border border-[#e8e8e8] px-3 py-2 text-sm outline-none focus:border-[#48C9B0]"
               />
@@ -223,7 +256,7 @@ export default function AccesoPanel({ eventId, event }: { eventId: string; event
                     min={0}
                     step="0.01"
                     value={ticketPrice}
-                    onChange={e => { setTicketPrice(e.target.value); schedule({ ticketPrice: e.target.value }) }}
+                    onChange={e => { const v = e.target.value; setTicketPrice(v); updateAccess({ ticket_price: parsePrice(v) }) }}
                     placeholder="Gratis"
                     className="w-full rounded-lg border border-[#e8e8e8] px-3 py-2 pr-14 text-sm outline-none focus:border-[#48C9B0]"
                   />
@@ -237,10 +270,11 @@ export default function AccesoPanel({ eventId, event }: { eventId: string; event
               <div className="rounded-xl border border-[#e8e8e8] bg-[#f8f8f8] p-3">
                 <div className="mb-1 flex items-center gap-2">
                   <Landmark size={14} className="text-[#48C9B0]" />
-                  <h3 className="text-sm font-medium text-[#1D1E20]">¿A qué cuenta te pagan?</h3>
+                  <h3 className="text-sm font-medium text-[#1D1E20]">¿A qué cuenta te pagan el boleto?</h3>
                 </div>
                 <p className="mb-2.5 text-xs text-[#888]">
-                  El invitado verá estos datos para transferirte. Anfiora no procesa el pago.
+                  El invitado verá estos datos para transferirte el cobro de esta invitación. Es una cuenta aparte
+                  de Mesa de regalos — Anfiora no procesa el pago.
                 </p>
 
                 {payMethods.length > 0 && (
@@ -276,13 +310,9 @@ export default function AccesoPanel({ eventId, event }: { eventId: string; event
                             </button>
                             <button
                               type="button"
-                              onClick={async () => {
+                              onClick={() => {
                                 if (!confirm('¿Eliminar este método de pago?')) return
-                                const methods = payMethods.filter(x => x.id !== m.id)
-                                setPayMethods(methods)
-                                await supabase.from('event_settings')
-                                  .update({ registry_payment_info: methods.length ? { methods } : null })
-                                  .eq('event_id', eventId)
+                                updateAccess({ cobro_payment_methods: payMethods.filter(x => x.id !== m.id) })
                               }}
                               title="Eliminar"
                               className="flex h-7 w-7 items-center justify-center rounded-md text-[#bbb] transition hover:bg-[#fff0f0] hover:text-[#cc3333]"
@@ -351,10 +381,7 @@ export default function AccesoPanel({ eventId, event }: { eventId: string; event
         onSave={async m => {
           const exists = payMethods.some(x => x.id === m.id)
           const methods = exists ? payMethods.map(x => x.id === m.id ? m : x) : [...payMethods, m]
-          setPayMethods(methods)
-          await supabase.from('event_settings')
-            .update({ registry_payment_info: methods.length ? { methods } : null })
-            .eq('event_id', eventId)
+          updateAccess({ cobro_payment_methods: methods })
         }}
       />
     </div>

@@ -417,7 +417,7 @@ export default function InvitacionPage() {
           </div>
         ) : (
           <div className="pt-5">
-            <AccesoPanel eventId={eventId} event={event} />
+            <AccesoPanel eventId={eventId} event={event} doc={doc} onChange={updateDoc} />
           </div>
         )}
       </div>

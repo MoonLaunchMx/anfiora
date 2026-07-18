@@ -130,7 +130,7 @@ export function resolveMaxCompanions(eventTypeValue: string | null, stored: numb
 // sin esta cota, un cupo tecleado de mas digitos tumba el insert con un error crudo de Postgres.
 const MAX_GUEST_CAP = 1_000_000
 
-function parseCap(raw: string): number | null {
+export function parseCap(raw: string): number | null {
   const trimmed = raw.trim()
   if (!trimmed) return null
   const n = Number(trimmed)
@@ -138,7 +138,7 @@ function parseCap(raw: string): number | null {
   return n
 }
 
-function parsePrice(raw: string): number | null {
+export function parsePrice(raw: string): number | null {
   const trimmed = raw.trim()
   if (!trimmed) return null
   const n = Number(trimmed)
