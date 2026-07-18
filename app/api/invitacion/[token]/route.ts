@@ -27,7 +27,7 @@ async function safeList<T>(p: PromiseLike<{ data: T[] | null; error: unknown }>)
 
 type GuestRow = {
   id: string; event_id: string; name: string; party_size: number; rsvp_status: string; allergies: string[] | null
-  amount_due: number | null; paid_at: string | null
+  amount_due: number | null; paid_at: string | null; created_at: string | null
 }
 
 type SettingsRow = {
@@ -60,7 +60,7 @@ async function fetchSettings(db: ReturnType<typeof admin>, eventId: string) {
 async function resolveToken(db: ReturnType<typeof admin>, token: string): Promise<Resolved | null> {
   const { data: guest } = await db
     .from('guests')
-    .select('id, event_id, name, party_size, rsvp_status, allergies, amount_due, paid_at')
+    .select('id, event_id, name, party_size, rsvp_status, allergies, amount_due, paid_at, created_at')
     .eq('rsvp_token', token)
     .maybeSingle<GuestRow>()
 
@@ -184,6 +184,10 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
     // monto que acaba de calcular el cliente al registrarse, no con esto.
     amountDue: guest ? guest.amount_due ?? null : null,
     paidAt: guest ? guest.paid_at ?? null : null,
+    // Momento del registro del invitado: base para el plazo de pago visible
+    // (plazoPago). Solo aplica al link personal — en compartida el cliente
+    // usa "ahora" porque el invitado se acaba de registrar en esta sesion.
+    guestCreatedAt: guest ? guest.created_at ?? null : null,
   })
 }
 

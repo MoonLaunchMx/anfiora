@@ -113,9 +113,10 @@ export default function RegistroForm({ token, maxCompanions, botonClassName, tic
       )}
 
       {hasPrice && (
-        <div className="rounded-lg border border-[#f0d896] bg-[#fdf7ea] px-3 py-2.5 text-xs text-[#8a6d1f]">
-          Total ({partySize} {partySize === 1 ? 'persona' : 'personas'} × {formatCurrency(Number(ticketPrice), currency)}) ={' '}
-          <strong>{formatCurrency(total, currency)}</strong>
+        <div className="flex items-center justify-center gap-1.5 rounded-lg border border-[#f0d896] bg-[#fdf7ea] px-3 py-2.5 text-xs text-[#8a6d1f]">
+          <span>{partySize} {partySize === 1 ? 'persona' : 'personas'} × {formatCurrency(Number(ticketPrice), currency)}</span>
+          <span className="text-[#c9b98a]">=</span>
+          <strong className="text-sm text-[#1D1E20]">{formatCurrency(total, currency)}</strong>
         </div>
       )}
 

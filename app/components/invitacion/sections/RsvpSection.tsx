@@ -147,6 +147,9 @@ export default function RsvpSection({ content, ctx, anim }: { content: Content; 
               currency={ctx.currency}
               methods={ctx.paymentMethods || []}
               waHref={ctx.waHref || '#'}
+              partySize={p.partySizeRegistrado ?? 1}
+              ticketPrice={Number(ctx.ticketPrice) || 0}
+              deadline={p.deadlineRegistrado}
             />
           </SectionShell>
         )
@@ -208,6 +211,9 @@ export default function RsvpSection({ content, ctx, anim }: { content: Content; 
             currency={ctx.currency}
             methods={ctx.paymentMethods || []}
             waHref={ctx.waHref || '#'}
+            partySize={ctx.guest.party_size}
+            ticketPrice={Number(ctx.ticketPrice) || 0}
+            deadline={ctx.deadline ?? null}
           />
         </SectionShell>
       )

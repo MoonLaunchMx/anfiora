@@ -70,3 +70,13 @@ export function ocupaLugar(guest: { amount_due?: number | null; paid_at?: string
   if (!tienePrecio) return true
   return estadoAcceso(guest) === 'dentro'
 }
+
+// Limite para pagar: 24h desde el registro, nunca despues de que empiece el evento.
+// null-safe: sin fecha de evento no hay tope (solo las 24h).
+export function plazoPago(desde: Date, eventDate: string | null, eventTime: string | null): Date | null {
+  const limite24 = new Date(desde.getTime() + 24 * 60 * 60 * 1000)
+  if (!eventDate) return limite24
+  const inicio = new Date(`${eventDate}T${eventTime || '23:59'}`)
+  if (isNaN(inicio.getTime())) return limite24
+  return inicio.getTime() < limite24.getTime() ? inicio : limite24
+}

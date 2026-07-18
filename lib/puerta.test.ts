@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { occupiedSeats, seatsLeft, canFit, parseRegistration, montoAPagar, estadoAcceso, ocupaLugar } from './puerta'
+import { occupiedSeats, seatsLeft, canFit, parseRegistration, montoAPagar, estadoAcceso, ocupaLugar, plazoPago } from './puerta'
 
 describe('cupo', () => {
   it('el aforo suma party_size, no cabezas de fila', () => {
@@ -140,5 +140,41 @@ describe('ocupaLugar', () => {
   it('evento con precio: solo los dentro ocupan', () => {
     expect(ocupaLugar({ amount_due: 1500, paid_at: null }, true)).toBe(false)
     expect(ocupaLugar({ amount_due: 1500, paid_at: '2026-07-17T10:00:00Z' }, true)).toBe(true)
+  })
+})
+
+describe('plazoPago', () => {
+  const desde = new Date('2026-07-17T10:00:00Z')
+
+  it('evento lejos (mas de 24h): el plazo son las 24h desde el registro', () => {
+    const limite = plazoPago(desde, '2026-08-01', '20:00')
+    expect(limite?.toISOString()).toBe(new Date('2026-07-18T10:00:00Z').toISOString())
+  })
+
+  it('evento dentro de 24h: el plazo se topa al inicio del evento', () => {
+    // event_date/event_time son hora local (wall clock) del evento, igual que
+    // los parsea plazoPago (sin "Z"): el fixture se construye igual, no en UTC.
+    const limite = plazoPago(desde, '2026-07-17', '18:00')
+    expect(limite?.getTime()).toBe(new Date(2026, 6, 17, 18, 0, 0).getTime())
+  })
+
+  it('sin fecha de evento: solo las 24h, sin tope', () => {
+    const limite = plazoPago(desde, null, null)
+    expect(limite?.toISOString()).toBe(new Date('2026-07-18T10:00:00Z').toISOString())
+  })
+
+  it('sin hora del evento: usa 23:59 como inicio', () => {
+    const limite = plazoPago(desde, '2026-07-17', null)
+    expect(limite?.getTime()).toBe(new Date(2026, 6, 17, 23, 59, 0).getTime())
+  })
+
+  it('hora invalida: cae al mismo fallback que sin hora (23:59)', () => {
+    const limite = plazoPago(desde, '2026-07-17', '')
+    expect(limite?.getTime()).toBe(new Date(2026, 6, 17, 23, 59, 0).getTime())
+  })
+
+  it('fecha invalida no rompe: se comporta como si no hubiera fecha', () => {
+    const limite = plazoPago(desde, 'no-es-fecha', '20:00')
+    expect(limite?.toISOString()).toBe(new Date('2026-07-18T10:00:00Z').toISOString())
   })
 })

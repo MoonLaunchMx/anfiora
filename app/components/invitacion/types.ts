@@ -37,6 +37,12 @@ export type InviteCtx = {
     // Monto que acaba de congelarse tras el registro por liga (evento con
     // precio). Vive en sesion, nunca lo devuelve el endpoint al anonimo.
     montoRegistrado: number | null
+    // Cabezas que se acaban de registrar: para el desglose "N x precio" de
+    // PagoPendiente. Va de la mano con montoRegistrado (mismo instante).
+    partySizeRegistrado: number | null
+    // Plazo de pago (24h desde ESTE registro, topado al inicio del evento).
+    // Se congela en el momento del registro, no se recalcula en cada render.
+    deadlineRegistrado: Date | null
   }
   deadlinePassed?: boolean
   botonClassName?: string
@@ -50,4 +56,7 @@ export type InviteCtx = {
   waHref?: string
   amountDue?: number | null
   paidAt?: string | null
+  // Plazo de pago del link personal (durable): 24h desde guest.created_at,
+  // topado al inicio del evento. null si no hay created_at o el evento es gratis.
+  deadline?: Date | null
 }

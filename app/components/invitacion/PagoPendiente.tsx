@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Copy, Check, CreditCard } from 'lucide-react'
+import { Copy, Check, CreditCard, Clock } from 'lucide-react'
 import { FaWhatsapp } from 'react-icons/fa'
 import { formatCurrency, type RegistryPaymentMethod, type Currency } from '@/lib/types'
 import { payTypeMeta } from '@/app/events/[id]/mesa-regalos/PaymentMethodModal'
@@ -11,13 +11,16 @@ type Props = {
   currency?: Currency
   methods: RegistryPaymentMethod[]
   waHref: string
+  partySize: number
+  ticketPrice: number
+  deadline: Date | null
 }
 
 // La tarjeta que ve el invitado en cuanto aparta su lugar en un evento con
 // precio: no esta "dentro" hasta que el anfitrion confirme el pago (lo hace
 // desde la lista, fuera de esta pantalla). Reusa el render con Copiar de
 // app/mesa/[token]/page.tsx: mismo dato bancario, mismo gesto.
-export default function PagoPendiente({ amount, currency = 'MXN', methods, waHref }: Props) {
+export default function PagoPendiente({ amount, currency = 'MXN', methods, waHref, partySize, ticketPrice, deadline }: Props) {
   const [copiedId, setCopiedId] = useState<string | null>(null)
 
   const copyValue = async (m: RegistryPaymentMethod) => {
@@ -29,9 +32,20 @@ export default function PagoPendiente({ amount, currency = 'MXN', methods, waHre
   return (
     <div className="mx-auto max-w-sm rounded-xl border border-[#f0d896] bg-[#fdf7ea] px-5 py-6 text-center">
       <h2 className="text-base font-semibold text-[#8a6d1f]">Ya casi, falta tu pago</h2>
-      <p className="mt-1 text-sm text-[#a68a3a]">
-        Apartamos tu lugar. Transfiere <strong>{formatCurrency(amount, currency)}</strong> para confirmarlo.
-      </p>
+      <p className="mt-1 text-sm text-[#a68a3a]">Apartamos tu lugar. Transfiere para confirmarlo.</p>
+
+      <div className="mt-3 flex items-center justify-center gap-1.5 rounded-lg border border-[#eee4d6] bg-white px-3 py-2 text-xs text-[#666]">
+        <span>{partySize} {partySize === 1 ? 'persona' : 'personas'} × {formatCurrency(ticketPrice, currency)}</span>
+        <span className="text-[#c9b98a]">=</span>
+        <strong className="text-sm text-[#1D1E20]">{formatCurrency(amount, currency)}</strong>
+      </div>
+
+      {deadline && (
+        <p className="mt-2 flex items-center justify-center gap-1 text-[11px] font-medium text-[#d4a853]">
+          <Clock size={12} />
+          Paga antes de {deadline.toLocaleString('es-MX', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}
+        </p>
+      )}
 
       {methods.length > 0 ? (
         <div className="mt-4 space-y-2 text-left">
