@@ -7,7 +7,7 @@ import { curateForGuests } from '@/lib/itinerary'
 import { logAction } from '@/lib/audit'
 import { resolveAccessMode, resolveMaxCompanions } from '@/lib/features'
 import { occupiedSeats, seatsLeft, ocupaLugar } from '@/lib/puerta'
-import { normalizePaymentMethods, type Currency, type RegistryPaymentMethod } from '@/lib/types'
+import type { Currency, RegistryPaymentMethod } from '@/lib/types'
 
 const admin = () =>
   createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
@@ -114,8 +114,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
           db.from('party_members').select('id, name, rsvp_status, allergies').eq('guest_id', guest.id).order('created_at', { ascending: true }),
         )
       : Promise.resolve([]),
-    safeSingle<{ dress_code: unknown; registry_payment_info: unknown }>(
-      db.from('event_settings').select('dress_code, registry_payment_info').eq('event_id', eventId).maybeSingle(),
+    safeSingle<{ dress_code: unknown }>(
+      db.from('event_settings').select('dress_code').eq('event_id', eventId).maybeSingle(),
     ),
     safeList<{ start_time: string; title: string; location: string | null; visible_to_guests: boolean; position: number }>(
       db.from('event_itinerary_moments').select('start_time, title, location, visible_to_guests, position').eq('event_id', eventId).eq('visible_to_guests', true),
@@ -130,7 +130,9 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
     db.from('users').select('phone').eq('id', event.user_id).maybeSingle(),
   )
   const hostPhone = hostUser?.phone ? hostUser.phone.replace(/\D/g, '') : null
-  const paymentMethods: RegistryPaymentMethod[] = normalizePaymentMethods(settingsExtra?.registry_payment_info)
+  // La cuenta de cobro vive en el doc PUBLICADO (meta.access), separada de
+  // registry_payment_info (Mesa de Regalos): son dos cuentas distintas.
+  const paymentMethods: RegistryPaymentMethod[] = doc.meta.access.cobro_payment_methods
 
   // La puerta se honra solo si se cumplen las tres: token del evento (arriba),
   // invitacion publicada (arriba) y modo publica. Pasar el evento a privada la
