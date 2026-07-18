@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { emptySection, defaultDoc, resolveDoc, addSection, removeSection, moveSection, updateSectionContent, setMeta, setTheme, applyVibe } from './doc'
+import { emptySection, defaultDoc, resolveDoc, addSection, removeSection, moveSection, updateSectionContent, setMeta, setTheme, applyVibe, seedAccessFromColumns } from './doc'
+import { hayCambiosSinPublicar } from './publicacion'
 import { SECTION_TYPES } from './schema'
 import { getVibe } from './vibes'
 
@@ -161,6 +162,42 @@ describe('ops de array', () => {
     const d1 = setMeta(base(), { publicada: true })
     expect(d1.meta.publicada).toBe(true)
     expect(d1.meta.fecha_limite).toBeNull()
+  })
+})
+
+describe('seedAccessFromColumns', () => {
+  const cols = { guest_cap: null, ticket_price: null, max_companions: null }
+
+  // Regresion: el seed viejo armaba UN objeto de access compartido (spread del
+  // draft) y lo aplicaba a draft Y config por igual. Eso pisaba la cuenta de
+  // cobro del doc publicado con la del borrador -> hayCambiosSinPublicar daba
+  // false aunque la cuenta solo existiera en el borrador, y el boton Publicar
+  // quedaba deshabilitado para siempre. Este test falla contra ese
+  // comportamiento viejo (ambos docs terminarian con la misma cuenta).
+  it('preserva la cuenta de cobro de CADA doc: la diferencia sigue siendo detectable', () => {
+    const metodo = { id: 'm1', type: 'transfer' as const, value: '1234567890' }
+    const shared = base()
+    let draft = setMeta(structuredClone(shared), { access: { ...shared.meta.access, cobro_payment_methods: [metodo] } })
+    let config = setMeta(structuredClone(shared), { access: { ...shared.meta.access, cobro_payment_methods: [] } })
+
+    draft = seedAccessFromColumns(draft, cols)
+    config = seedAccessFromColumns(config, cols)
+
+    expect(draft.meta.access.cobro_payment_methods).toEqual([metodo])
+    expect(config.meta.access.cobro_payment_methods).toEqual([])
+    expect(hayCambiosSinPublicar(draft, config)).toBe(true)
+  })
+
+  it('siembra los 3 numericos identicos en ambos docs sin generar falso "sin publicar"', () => {
+    const shared = base()
+    let draft = structuredClone(shared)
+    let config = structuredClone(shared)
+
+    draft = seedAccessFromColumns(draft, { guest_cap: 100, ticket_price: 250, max_companions: 2 })
+    config = seedAccessFromColumns(config, { guest_cap: 100, ticket_price: 250, max_companions: 2 })
+
+    expect(draft.meta.access).toEqual(config.meta.access)
+    expect(hayCambiosSinPublicar(draft, config)).toBe(false)
   })
 })
 

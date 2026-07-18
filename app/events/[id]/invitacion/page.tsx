@@ -6,7 +6,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { Send, Check, LayoutGrid, Eye, X, Maximize2, Plus, RotateCcw, AlertTriangle, Settings } from 'lucide-react'
 import { TabToggle, type TabItem } from '@/app/components/ui/TabToggle'
 import { supabase } from '@/lib/supabase'
-import { resolveDoc, setMeta } from '@/lib/invite/doc'
+import { resolveDoc, setMeta, seedAccessFromColumns } from '@/lib/invite/doc'
 import { estadoPublicacion } from '@/lib/invite/publicacion'
 import type { InviteDoc } from '@/lib/invite/schema'
 import { randomToken } from '@/lib/invite'
@@ -108,19 +108,19 @@ export default function InvitacionPage() {
       let configDoc = resolveDoc(inviteRow?.invite_config, () => crypto.randomUUID())
       // Seed: eventos que ya tenian cupo/precio/acompanantes en columnas (modelo
       // previo a esta feature) nunca tuvieron meta.access en NINGUNO de los dos
-      // docs. Se siembra en draft Y config a la vez para que publicar los
-      // preserve (en vez de ponerlos en null) y para que abrir el editor no
-      // invente un "cambios sin publicar" de la nada. La cuenta de cobro es
-      // nueva y separada: nunca se siembra desde columnas.
+      // docs. Se siembra en draft Y config para que publicar los preserve (en
+      // vez de ponerlos en null) y para que abrir el editor no invente un
+      // "cambios sin publicar" de la nada. Cada doc se siembra POR SEPARADO:
+      // un objeto compartido pisaria la cuenta de cobro (cobro_payment_methods)
+      // del doc publicado con la del borrador.
       if (accessIsEmpty(draftDoc.meta.access) && accessIsEmpty(configDoc.meta.access)) {
-        const seededAccess = {
-          ...draftDoc.meta.access,
+        const cols = {
           guest_cap: ev.data?.guest_cap ?? null,
           ticket_price: ev.data?.ticket_price ?? null,
           max_companions: inviteRow?.max_companions ?? null,
         }
-        draftDoc = setMeta(draftDoc, { access: seededAccess })
-        configDoc = setMeta(configDoc, { access: seededAccess })
+        draftDoc = seedAccessFromColumns(draftDoc, cols)
+        configDoc = seedAccessFromColumns(configDoc, cols)
       }
       setDoc(draftDoc)
       setPublishedDoc(configDoc)
