@@ -389,3 +389,54 @@ git commit -m "feat(cobro): la lista muestra deuda, cobro y confirmar pago cuand
 ## Riesgo abierto (anotado, no bloquea)
 
 Sobrecupo posible en evento con precio: los pendientes no ocupan, así que si muchos pagan a la vez con el cupo casi lleno podría pasarse — riesgo aceptado por Diego (sin apartado en v1). Si aparece, el apartado con `hold_expires_at` es el remedio y ya está diseñado en el spec padre.
+
+---
+
+# Enmienda al plan (17-jul, tarde) — Reconciliación + config por publicar + cuenta propia
+
+Las Tasks 1-5 quedaron **completas y revisadas** (commits `723e551..43a0c8c`). Esta enmienda agrega la reconciliación con la reestructura TabToggle y las tasks del enhancement de la enmienda del spec. **Van en esta misma rama, antes del merge.** Ver spec: sección "Enmienda (17-jul, tarde)".
+
+**Constraint nueva:** la rama de cobro debe **absorber la reestructura primero** (Task R) — hasta entonces el `AccesoPanel` que las Tasks 7-8 tocan **no existe en su forma final** en este árbol. Por eso las tasks del enhancement se describen a nivel archivos + interfaces + enfoque; el código exacto se afina al implementar, contra el `AccesoPanel` ya reconciliado.
+
+### Task R: Reconciliar la reestructura TabToggle
+
+**No es TDD — es git + verificación.** Objetivo: la rama de cobro construye sobre la invitación NUEVA (3 pestañas, AccesoPanel en Configuración).
+
+- [ ] Traer `origin/feat/puerta-publica-invitados` a la rama de cobro (merge). Handoff: `docs/HANDOFF-invitacion-tabtoggle.md`.
+- [ ] Resolver el conflicto de `app/events/[id]/invitacion/page.tsx`: **conservar las 3 pestañas** (`Diseño · Enviar · Configuración` vía `TabToggle`), con `AccesoPanel` bajo **Configuración** y el contenido de precio/CLABE del cobro adentro. En "Enviar" solo `RepartoLinks`. **No** reintroducir el switcher negro ni el acceso en "Enviar".
+- [ ] Correr `npx tsc --noEmit`, `npx vitest run` (verde), y verificar a mano que la Fase 4 sigue funcionando sobre la estructura nueva (el precio/CLABE ahora se ven en la pestaña Configuración).
+- [ ] Commit del merge/reconciliación.
+
+### Task 6: Plomería del doc — `meta.access` + publicar + dirty
+
+**Files:** `lib/invite/schema.ts` (o donde vive `InviteDoc`), `lib/invite/publicacion.ts` (+ su test), `app/events/[id]/invitacion/page.tsx` (`handlePublish`).
+**Interfaces — Produces:** `doc.meta.access = { guest_cap: number|null; ticket_price: number|null; max_companions: number|null; cobro_payment_methods: RegistryPaymentMethod[] }` en el schema; `hayCambiosSinPublicar` incluye `meta.access`; `handlePublish` aplica `meta.access.{guest_cap,ticket_price,max_companions}` a las columnas (`events`, `event_settings`).
+
+- [ ] **TDD:** extender `lib/invite/publicacion.ts` test — un cambio en `meta.access` marca `hayCambiosSinPublicar = true`; reordenar llaves NO lo marca (usa `stable`). Ver el patrón de `contenido()` que ya hashea `{v, theme, sections, fecha_limite}` → agregar `access`.
+- [ ] Agregar `access` al schema/tipo del doc (`meta.access`), con `resolveDoc` rellenando defaults (todo null / array vacío) para docs viejos.
+- [ ] Extender `contenido()` en `publicacion.ts` para incluir `meta.access` en el hash. Correr el test → verde.
+- [ ] En `handlePublish` (`invitacion/page.tsx`): además de copiar `invite_draft→invite_config`, escribir `doc.meta.access.guest_cap`/`ticket_price` a `events` y `max_companions` a `event_settings`. `cobro_payment_methods` ya viaja dentro del doc publicado (no necesita columna). Commit.
+
+### Task 7: `AccesoPanel` edita el borrador (no en vivo), cuenta de cobro propia
+
+**Files:** `app/events/[id]/invitacion/AccesoPanel.tsx` (ya reconciliado en Task R), `app/events/[id]/invitacion/page.tsx` (pasar `doc`/`updateDoc` al panel).
+**Interfaces — Consumes:** `doc.meta.access` (Task 6), `updateDoc` del page. **Produces:** el panel edita cupo/acompañantes/precio/cuenta en el borrador; el modo sigue en vivo.
+
+- [ ] `page.tsx` pasa a `AccesoPanel` el `doc` (borrador) y un handler para actualizar `meta.access` (que llame `updateDoc`, que ya autoguarda al borrador y dispara el dirty/aviso).
+- [ ] `AccesoPanel`: **cupo, acompañantes, precio** dejan de escribir a columnas; ahora leen/escriben `doc.meta.access` vía el handler. Quitar el autosave propio de esos campos.
+- [ ] **Cuenta de cobro:** el bloque "¿A qué cuenta te pagan?" escribe a `doc.meta.access.cobro_payment_methods` (NO a `registry_payment_info`). Reusa `PaymentMethodModal`. Copy: deja claro que es la cuenta del cobro de esta invitación.
+- [ ] **Modo privada/pública:** se queda escribiendo en vivo a `event_settings.access_mode` (sin cambio).
+- [ ] Verificar a mano: editar cupo/precio/cuenta marca "cambios sin publicar"; salir dispara el aviso; publicar los aplica; cambiar el modo NO requiere publicar. Commit.
+
+### Task 8: Lado invitado lee la cuenta del doc publicado
+
+**Files:** `app/api/invitacion/[token]/route.ts`, `app/components/invitacion/PagoPendiente.tsx`.
+**Interfaces — Consumes:** `invite_config.meta.access.cobro_payment_methods`.
+
+- [ ] El endpoint de lectura deja de exponer los métodos desde `registry_payment_info`; ahora los toma de `invite_config.meta.access.cobro_payment_methods` (el doc que ya resuelve). `PagoPendiente` los renderiza igual (copiar, etc.).
+- [ ] Confirmar que `registry_payment_info` ya **no** se toca para el cobro (Mesa de Regalos intacta).
+- [ ] `npx tsc --noEmit` + verificación manual del flujo del invitado (la CLABE que ve viene de la cuenta de cobro, no de mesa de regalos). Commit.
+
+### Nota de migración
+
+Esta enmienda **no agrega columnas** (`meta.access` vive en el doc JSONB existente). Sí requiere, al publicar por primera vez tras el deploy, que `handlePublish` siembre las columnas desde `meta.access`. Para eventos que ya tenían precio/cupo en columnas (de la v1), la carga inicial del editor debe **sembrar `meta.access` desde las columnas actuales** para no borrarlas al publicar. Cubrir eso en Task 6 (defaults de `resolveDoc` / carga del editor).

@@ -51,4 +51,23 @@ describe('hayCambiosSinPublicar', () => {
   it('un borrador vacio contra el default no inventa cambios', () => {
     expect(hayCambiosSinPublicar(null, null)).toBe(false)
   })
+
+  it('un cambio en meta.access (precio) cuenta como cambio', () => {
+    const draft = setMeta(publicado, { access: { ...publicado.meta.access, ticket_price: 500 } })
+    expect(hayCambiosSinPublicar(draft, publicado)).toBe(true)
+  })
+
+  it('el mismo meta.access con llaves en otro orden no genera un falso cambio', () => {
+    const conAccess = setMeta(publicado, {
+      access: { guest_cap: 100, ticket_price: 250, max_companions: 2, cobro_payment_methods: [] },
+    })
+    const reordenado = JSON.parse(JSON.stringify(conAccess))
+    reordenado.meta.access = {
+      cobro_payment_methods: [],
+      max_companions: 2,
+      ticket_price: 250,
+      guest_cap: 100,
+    }
+    expect(hayCambiosSinPublicar(reordenado, conAccess)).toBe(false)
+  })
 })

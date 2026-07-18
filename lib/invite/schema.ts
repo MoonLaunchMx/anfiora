@@ -105,9 +105,26 @@ export const SectionSchema = z.discriminatedUnion('type', [
   z.object({ id: z.string(), type: z.literal('audio'),      content: AudioContent }),
 ])
 
+const RegistryPaymentMethodSchema = z.object({
+  id: z.string(),
+  type: z.enum(['transfer', 'card', 'mercado_pago', 'paypal', 'zelle', 'other']),
+  bank: z.string().optional(),
+  holder: z.string().optional(),
+  value: z.string(),
+  label: z.string().optional(),
+}).passthrough()
+
+const AccessSchema = z.object({
+  guest_cap: z.number().nullable().default(null),
+  ticket_price: z.number().nullable().default(null),
+  max_companions: z.number().nullable().default(null),
+  cobro_payment_methods: z.array(RegistryPaymentMethodSchema).default([]),
+})
+
 export const MetaSchema = z.object({
   publicada: z.boolean().default(false),
   fecha_limite: z.string().nullable().default(null),
+  access: AccessSchema.default(() => AccessSchema.parse({})),
 })
 
 export const InviteDocSchema = z.object({
@@ -120,3 +137,5 @@ export const InviteDocSchema = z.object({
 export type Section = z.infer<typeof SectionSchema>
 export type InviteMeta = z.infer<typeof MetaSchema>
 export type InviteDoc = z.infer<typeof InviteDocSchema>
+export type InviteAccess = z.infer<typeof AccessSchema>
+export type InviteRegistryPaymentMethod = z.infer<typeof RegistryPaymentMethodSchema>

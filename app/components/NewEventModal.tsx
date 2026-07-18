@@ -7,7 +7,7 @@ import { supabase } from '@/lib/supabase'
 import { AnimatePresence, motion } from 'framer-motion'
 import { ChevronRight, ArrowLeft, X, UserCheck } from 'lucide-react'
 import { EVENT_TYPES, CATEGORIES, EventTypeConfig, EventCategory } from '@/lib/event-types'
-import { FEATURES, ALWAYS_ON_FEATURES, ACCESS_MODES, getDefaultFeatures, getDefaultAccessMode, getDefaultRequiresApproval, normalizeAccessFields, CANDADOS_PUERTA_LISTOS, type FeatureKey, type AccessMode } from '@/lib/features'
+import { FEATURES, ALWAYS_ON_FEATURES, ACCESS_MODES, getDefaultFeatures, getDefaultAccessMode, getDefaultRequiresApproval, normalizeAccessFields, CANDADO_PRECIO_LISTO, CANDADO_APROBACION_LISTO, type FeatureKey, type AccessMode } from '@/lib/features'
 
 function generatePlaylistToken(): string {
   return Math.random().toString(36).substring(2, 10) +
@@ -120,13 +120,13 @@ export function NewEventModal({ open, onClose, onCreated }: NewEventModalProps) 
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { window.location.href = '/'; return }
 
-    // Mientras los candados no existan, no se guardan: ningun evento nace con
-    // aprobacion o precio armados que se activarian de golpe al construir las fases.
+    // Mientras el candado de aprobacion no exista, ningun evento nace con
+    // aprobacion armada que se activaria de golpe al construir esa fase.
     const access = normalizeAccessFields({
       accessMode,
       guestCap,
-      ticketPrice: CANDADOS_PUERTA_LISTOS ? ticketPrice : '',
-      requiresApproval: CANDADOS_PUERTA_LISTOS ? requiresApproval : false,
+      ticketPrice: CANDADO_PRECIO_LISTO ? ticketPrice : '',
+      requiresApproval: CANDADO_APROBACION_LISTO ? requiresApproval : false,
     })
 
     const { data: eventData, error: eventError } = await supabase
@@ -410,7 +410,7 @@ export function NewEventModal({ open, onClose, onCreated }: NewEventModalProps) 
           })}
         </div>
 
-        {accessMode === 'publica' && CANDADOS_PUERTA_LISTOS && (
+        {accessMode === 'publica' && CANDADO_APROBACION_LISTO && (
           <button
             type="button"
             onClick={() => setRequiresApproval(v => !v)}
@@ -459,7 +459,7 @@ export function NewEventModal({ open, onClose, onCreated }: NewEventModalProps) 
               />
             </div>
 
-            {CANDADOS_PUERTA_LISTOS && (
+            {CANDADO_PRECIO_LISTO && (
               <div>
                 <label className="mb-1.5 block text-xs font-medium text-[#555]">
                   Precio por persona

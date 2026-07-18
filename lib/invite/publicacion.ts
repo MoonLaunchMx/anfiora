@@ -16,7 +16,7 @@ function stable(v: unknown): string {
 // estado de publicacion, no contenido, y draft/config la comparten tras publicar.
 function contenido(raw: unknown): string {
   const doc = resolveDoc(raw, () => 'x')
-  return stable({ v: doc.v, theme: doc.theme, sections: doc.sections, fecha_limite: doc.meta.fecha_limite })
+  return stable({ v: doc.v, theme: doc.theme, sections: doc.sections, fecha_limite: doc.meta.fecha_limite, access: doc.meta.access })
 }
 
 export function hayCambiosSinPublicar(draftRaw: unknown, configRaw: unknown): boolean {

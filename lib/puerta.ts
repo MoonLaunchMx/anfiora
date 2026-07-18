@@ -48,3 +48,38 @@ export function parseRegistration(body: unknown, maxCompanions: number): Registr
 
   return { name, phone, companions, partySize: 1 + companions }
 }
+
+// El precio se congela al registrarse: ticket_price x party_size (cabezas).
+// Si manana sube el boleto, la deuda de quien ya se registro no cambia hacia atras.
+export function montoAPagar(ticketPrice: number | null | undefined, partySize: number): number {
+  if (!ticketPrice || ticketPrice <= 0) return 0
+  return ticketPrice * partySize
+}
+
+// El estado se DERIVA, no hay columna access_status. "dentro" = no debe nada o
+// ya pago; "pendiente_pago" = debe y no ha pagado.
+export function estadoAcceso(guest: { amount_due?: number | null; paid_at?: string | null }): 'dentro' | 'pendiente_pago' {
+  const debe = Number(guest.amount_due) > 0
+  if (!debe) return 'dentro'
+  return guest.paid_at ? 'dentro' : 'pendiente_pago'
+}
+
+// El cupo cuenta cabezas de los que estan dentro. En evento gratis cuenta a
+// todos (como fase 2); con precio, solo a los dentro (los pendientes no ocupan).
+export function ocupaLugar(guest: { amount_due?: number | null; paid_at?: string | null }, tienePrecio: boolean): boolean {
+  if (!tienePrecio) return true
+  return estadoAcceso(guest) === 'dentro'
+}
+
+// Limite para pagar: 24h desde el registro, nunca despues de que empiece el evento.
+// null-safe: sin fecha de evento no hay tope (solo las 24h).
+export function plazoPago(desde: Date, eventDate: string | null, eventTime: string | null): Date | null {
+  const limite24 = new Date(desde.getTime() + 24 * 60 * 60 * 1000)
+  if (!eventDate) return limite24
+  let inicio = new Date(`${eventDate}T${eventTime || '23:59'}`)
+  // Una hora truthy pero mal formada (ej. "25:99") no debe tirar el tope del
+  // dia del evento: se reintenta con 23:59 antes de rendirse sin cupo.
+  if (isNaN(inicio.getTime())) inicio = new Date(`${eventDate}T23:59`)
+  if (isNaN(inicio.getTime())) return limite24
+  return inicio.getTime() < limite24.getTime() ? inicio : limite24
+}

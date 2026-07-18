@@ -88,6 +88,24 @@ export function setMeta(doc: InviteDoc, patch: Partial<InviteMeta>): InviteDoc {
   return { ...doc, meta: { ...doc.meta, ...patch } }
 }
 
+// Siembra los 3 numericos desde columnas (modelo previo a esta feature),
+// preservando el resto de meta.access DE ESTE DOC (cobro_payment_methods
+// incluido). Llamar por separado para draft y config: un objeto compartido
+// entre ambos pisaria la cuenta de cobro del que se llame despues.
+export function seedAccessFromColumns(
+  doc: InviteDoc,
+  cols: { guest_cap: number | null; ticket_price: number | null; max_companions: number | null },
+): InviteDoc {
+  return setMeta(doc, {
+    access: {
+      ...doc.meta.access,
+      guest_cap: cols.guest_cap,
+      ticket_price: cols.ticket_price,
+      max_companions: cols.max_companions,
+    },
+  })
+}
+
 type DeepPartial<T> = { [K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K] }
 
 export function applyVibe(doc: InviteDoc, vibeId: string): InviteDoc {
