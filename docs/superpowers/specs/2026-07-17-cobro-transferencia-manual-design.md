@@ -162,3 +162,21 @@ En paralelo, `feat/puerta-publica-invitados` **reestructuró la invitación** (c
 ### Fuera de alcance de esta enmienda
 
 Meter Mesa de Regalos al modelo de publicar (su cuenta sigue en vivo; proteger su CLABE de typos es un item cross-cutting aparte). Un toggle "usar la misma cuenta para ambos" (se descartó: cuentas separadas por diseño).
+
+---
+
+## Polish del pago (17-jul, tras probar el preview) — desglose + plazo visible
+
+Dos ajustes a la tarjeta de pago del invitado, decididos al ver el preview. Van en el mismo PR.
+
+### 1. Desglose tipo calculadora
+
+Hoy el monto sale en **una sola línea**, pobre para algo que es dinero. Se desglosa como recibo: **N personas × $precio por boleto = Total**. Como el precio es por cabeza y todos pagan igual (sin fees ni descuentos), subtotal = total; el desglose honesto es `party_size × ticket_price`. Va en el registro (total al vuelo) y en la tarjeta "falta tu pago". Puro UI en `PagoPendiente.tsx` / `RegistroForm.tsx`, con `formatCurrency`.
+
+### 2. Plazo de 24h VISIBLE (NO es el apartado del spec padre)
+
+Diego pidió "darle 24 horas para pagar". **Decisión (elegida sobre el apartado completo): las 24h son solo una EXPECTATIVA visible, NO congelan el cupo.** Se muestra *"Paga antes de [fecha/hora]"*; sigue siendo primero-que-paga (la regla de cupo de la v1 no cambia: pendientes no ocupan).
+
+**El plazo se DERIVA, sin columna nueva:** `plazoPago = mín(guest.created_at + 24h, inicio del evento)`. Nunca pasa de que empiece el evento — resuelve el caso "evento en < 24h" con una sola regla (evento en 10h → 10h; ya empezó → sin plazo / registros cerrados por fecha límite). Función pura testeable `plazoPago(desde, event_date, event_time)`. El endpoint de lectura agrega `guest.created_at` al select y expone el plazo (o el created_at) para el link personal; en sesión (liga anónima) el cliente lo calcula desde `now` con la fecha del evento que ya tiene.
+
+**Explícitamente NO se construye** el apartado que congela el cupo (`hold_expires_at`, pendientes-con-reloj-ocupan): ese sigue diferido al spec padre. Este plazo es solo el mensaje.
