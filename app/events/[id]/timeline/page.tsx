@@ -447,7 +447,7 @@ export default function TimelinePage() {
       <div style={{ flexShrink: 0, borderBottom: '1px solid #e8e8e8' }} className="px-4 pt-4 pb-0 sm:px-6 sm:pt-5 lg:px-10 lg:pt-6">
         <div className="mb-4 flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
-            <h1 className="text-lg font-bold text-[#1D1E20] sm:text-xl lg:text-2xl">Itinerario & Timeline</h1>
+            <h1 className="text-lg font-bold text-[#1D1E20] sm:text-xl lg:text-2xl">Timeline e Itinerario</h1>
             <p className="mt-0.5 text-xs text-[#888] sm:text-sm">Las tareas de tu evento y el itinerario del gran día</p>
           </div>
           <div className="lg:hidden shrink-0 pt-1">
@@ -582,7 +582,7 @@ export default function TimelinePage() {
         )}
       </div>
 
-      <div style={{ flex: 1, overflowY: 'auto' }} className="px-4 pb-6 pt-4 sm:px-6 lg:px-10">
+      <div style={{ flex: 1, overflowY: 'auto' }} className="px-4 pb-6 pt-4 sm:px-6 lg:px-10 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {loading ? (
           <div className="flex h-full items-center justify-center">
             <div className="flex flex-col items-center gap-3">

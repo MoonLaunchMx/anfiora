@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useParams } from 'next/navigation'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Send, Check, LayoutGrid, Eye, X, Maximize2, Plus, RotateCcw, AlertTriangle, Settings } from 'lucide-react'
+import { Send, Check, Paintbrush, Eye, X, Maximize2, Plus, RotateCcw, AlertTriangle, Settings } from 'lucide-react'
 import { TabToggle, type TabItem } from '@/app/components/ui/TabToggle'
 import { supabase } from '@/lib/supabase'
 import { resolveDoc, setMeta } from '@/lib/invite/doc'
@@ -253,9 +253,9 @@ export default function InvitacionPage() {
   }[estado]
 
   const INVITE_TABS: TabItem[] = [
-    { key: 'diseno', label: 'Diseño', icon: LayoutGrid },
+    { key: 'config', label: 'Acceso', icon: Settings },
+    { key: 'diseno', label: 'Diseño', icon: Paintbrush },
     { key: 'enviar', label: 'Enviar', icon: Send },
-    { key: 'config', label: 'Configuración', shortLabel: 'Config', icon: Settings },
   ]
 
   return (
@@ -320,7 +320,7 @@ export default function InvitacionPage() {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-4 pb-6 sm:px-6 lg:px-10">
+      <div className="flex-1 overflow-y-auto px-4 pb-6 sm:px-6 lg:px-10 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {activeTab === 'diseno' ? (
           <div className="grid items-start gap-6 sm:grid-cols-[1fr_360px] lg:gap-8">
             <div className="min-w-0">
@@ -366,7 +366,7 @@ export default function InvitacionPage() {
               </div>
               <div className="flex justify-center">
                 <div className="w-full max-w-[360px] overflow-hidden rounded-[2.5rem] border-[10px] border-[#1D1E20] bg-[#1D1E20] shadow-xl">
-                  <div className="h-[calc(100dvh-18rem)] max-h-[720px] min-h-[420px] overflow-y-auto overflow-x-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                  <div className="h-[calc(100dvh-11rem)] min-h-[420px] overflow-y-auto overflow-x-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                     <PreviewBoundary>
                       <InvitacionRenderer doc={doc} ctx={{ ...sampleCtx, forceMobile: true }} />
                     </PreviewBoundary>
