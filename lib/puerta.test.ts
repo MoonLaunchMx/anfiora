@@ -168,8 +168,13 @@ describe('plazoPago', () => {
     expect(limite?.getTime()).toBe(new Date(2026, 6, 17, 23, 59, 0).getTime())
   })
 
-  it('hora invalida: cae al mismo fallback que sin hora (23:59)', () => {
+  it('hora vacia: cae al mismo fallback que sin hora (23:59)', () => {
     const limite = plazoPago(desde, '2026-07-17', '')
+    expect(limite?.getTime()).toBe(new Date(2026, 6, 17, 23, 59, 0).getTime())
+  })
+
+  it('hora truthy pero invalida (25:99) igual topa al 23:59 del evento, no se queda sin tope', () => {
+    const limite = plazoPago(desde, '2026-07-17', '25:99')
     expect(limite?.getTime()).toBe(new Date(2026, 6, 17, 23, 59, 0).getTime())
   })
 

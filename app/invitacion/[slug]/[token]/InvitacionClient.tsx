@@ -202,7 +202,6 @@ export default function InvitacionClient({ token }: { token: string }) {
                   methods={data.paymentMethods}
                   waHref={waHref}
                   partySize={partySizeRegistrado ?? 1}
-                  ticketPrice={Number(data.ticketPrice) || 0}
                   deadline={deadlineRegistrado}
                 />
               ) : (

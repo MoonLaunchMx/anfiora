@@ -12,7 +12,6 @@ type Props = {
   methods: RegistryPaymentMethod[]
   waHref: string
   partySize: number
-  ticketPrice: number
   deadline: Date | null
 }
 
@@ -20,8 +19,14 @@ type Props = {
 // precio: no esta "dentro" hasta que el anfitrion confirme el pago (lo hace
 // desde la lista, fuera de esta pantalla). Reusa el render con Copiar de
 // app/mesa/[token]/page.tsx: mismo dato bancario, mismo gesto.
-export default function PagoPendiente({ amount, currency = 'MXN', methods, waHref, partySize, ticketPrice, deadline }: Props) {
+export default function PagoPendiente({ amount, currency = 'MXN', methods, waHref, partySize, deadline }: Props) {
   const [copiedId, setCopiedId] = useState<string | null>(null)
+
+  // El desglose se deriva del TOTAL congelado (amount = amount_due), nunca del
+  // precio vivo del evento: si el anfitrion sube el precio despues de que este
+  // invitado se registro, el precio por cabeza mostrado aqui sigue cuadrando
+  // con lo que en verdad debe (partySize x perHead === amount, siempre).
+  const perHead = partySize > 0 ? amount / partySize : amount
 
   const copyValue = async (m: RegistryPaymentMethod) => {
     await navigator.clipboard.writeText(m.value)
@@ -35,7 +40,7 @@ export default function PagoPendiente({ amount, currency = 'MXN', methods, waHre
       <p className="mt-1 text-sm text-[#a68a3a]">Apartamos tu lugar. Transfiere para confirmarlo.</p>
 
       <div className="mt-3 flex items-center justify-center gap-1.5 rounded-lg border border-[#eee4d6] bg-white px-3 py-2 text-xs text-[#666]">
-        <span>{partySize} {partySize === 1 ? 'persona' : 'personas'} × {formatCurrency(ticketPrice, currency)}</span>
+        <span>{partySize} {partySize === 1 ? 'persona' : 'personas'} × {formatCurrency(perHead, currency)}</span>
         <span className="text-[#c9b98a]">=</span>
         <strong className="text-sm text-[#1D1E20]">{formatCurrency(amount, currency)}</strong>
       </div>
