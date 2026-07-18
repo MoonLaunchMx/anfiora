@@ -13,6 +13,7 @@ import { randomToken } from '@/lib/invite'
 import { botonClass } from '@/lib/invite/theme-css'
 import { parseDressCode, type DressCode } from '@/lib/dresscode'
 import { getGuestItinerary } from '@/lib/guest-itinerary'
+import { resolveAccessMode } from '@/lib/features'
 import type { GuestItineraryItem } from '@/lib/types'
 import InvitacionRenderer from '@/app/components/invitacion/InvitacionRenderer'
 import PreviewBoundary from '@/app/components/invitacion/PreviewBoundary'
@@ -203,26 +204,36 @@ export default function InvitacionPage() {
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
 
+      // Leer access_mode para determinar si se escriben columnas de cupo/precio.
+      // Si el evento es privada, las columnas van a null.
+      const { data: settings } = await supabase
+        .from('event_settings')
+        .select('shared_token, access_mode')
+        .eq('event_id', eventId)
+        .maybeSingle()
+      const esPublica = resolveAccessMode(event?.event_type ?? null, settings?.access_mode) === 'publica'
+
       // Cupo/precio/acompanantes se CUENTAN/FILTRAN en el endpoint de registro,
       // por eso su valor publicado sigue viviendo en columnas ademas del doc.
+      // PERO: solo cuando el evento es publica. Si es privada, las columnas son null.
       // cobro_payment_methods solo se pinta: viaja dentro de invite_config, sin columna.
       await supabase
         .from('events')
-        .update({ guest_cap: next.meta.access.guest_cap, ticket_price: next.meta.access.ticket_price })
+        .update({
+          guest_cap: esPublica ? next.meta.access.guest_cap : null,
+          ticket_price: esPublica ? next.meta.access.ticket_price : null
+        })
         .eq('id', eventId)
       await supabase
         .from('event_settings')
-        .update({ max_companions: next.meta.access.max_companions })
+        .update({
+          max_companions: esPublica ? next.meta.access.max_companions : null
+        })
         .eq('event_id', eventId)
 
       // El token de la puerta publica nace con la invitacion publicada. El
       // .is(null) del update es la red: si se publica dos veces (o desde dos
       // pestanas), el token NO se regenera y los links repartidos siguen vivos.
-      const { data: settings } = await supabase
-        .from('event_settings')
-        .select('shared_token')
-        .eq('event_id', eventId)
-        .maybeSingle()
       if (settings && !settings.shared_token) {
         await supabase
           .from('event_settings')
