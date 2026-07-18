@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useParams } from 'next/navigation'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Send, Check, LayoutGrid, Eye, X, Maximize2, Plus, RotateCcw, AlertTriangle } from 'lucide-react'
+import { Send, Check, Paintbrush, Eye, X, Maximize2, Plus, RotateCcw, AlertTriangle, Users } from 'lucide-react'
+import { TabToggle, type TabItem } from '@/app/components/ui/TabToggle'
 import { supabase } from '@/lib/supabase'
 import { resolveDoc, setMeta } from '@/lib/invite/doc'
 import { estadoPublicacion } from '@/lib/invite/publicacion'
@@ -24,7 +25,7 @@ import { useSalidaGuard } from '../SalidaGuardProvider'
 import EstiloPanel from './EstiloPanel'
 import PersonalizarPanel from './PersonalizarPanel'
 
-type TabKey = 'diseno' | 'enviar'
+type TabKey = 'diseno' | 'enviar' | 'config'
 
 type EventInfo = {
   name: string
@@ -251,37 +252,35 @@ export default function InvitacionPage() {
     cambios:   { cls: 'border-[#f0e2c0] bg-[#fffbf0] text-[#8a6d1f]', dot: 'bg-[#d4a853]',  label: 'Cambios sin publicar' },
   }[estado]
 
+  const INVITE_TABS: TabItem[] = [
+    { key: 'config', label: 'Acceso', icon: Users },
+    { key: 'diseno', label: 'Diseño', icon: Paintbrush },
+    { key: 'enviar', label: 'Enviar', icon: Send },
+  ]
+
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <div className="shrink-0 border-b border-[#e8e8e8] bg-white px-4 pt-4 pb-4 sm:px-6 sm:pt-5 lg:px-10 lg:pt-6">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <h1 className="text-xl font-bold text-[#1D1E20]">Invitación</h1>
-            <span className={`flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${sello.cls}`}>
-              <span className={`h-1.5 w-1.5 rounded-full ${sello.dot}`} />
-              {sello.label}
-            </span>
-          </div>
-          <p className="mt-0.5 text-xs text-[#888] sm:text-sm">Arma la invitación digital que verán tus invitados.</p>
-        </div>
-
-        <div className="mt-3 flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
-          <div className="flex w-full overflow-hidden rounded-lg border border-[#e0e0e0] sm:w-auto">
-            <button
-              onClick={() => setActiveTab('diseno')}
-              className={['flex flex-1 items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium transition sm:flex-none sm:py-1.5', activeTab === 'diseno' ? 'bg-[#1D1E20] text-white' : 'text-[#888] hover:bg-[#f5f5f5]'].join(' ')}
-            >
-              <LayoutGrid width={13} height={13} /><span>Diseño</span>
-            </button>
-            <button
-              onClick={() => setActiveTab('enviar')}
-              className={['flex flex-1 items-center justify-center gap-1.5 border-l border-[#e0e0e0] px-3 py-2 text-xs font-medium transition sm:flex-none sm:py-1.5', activeTab === 'enviar' ? 'bg-[#1D1E20] text-white' : 'text-[#888] hover:bg-[#f5f5f5]'].join(' ')}
-            >
-              <Send width={13} height={13} /><span>Enviar</span>
-            </button>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
+          {/* Izquierda: titulo + estado + subtitulo */}
+          <div className="min-w-0 sm:shrink">
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl font-bold text-[#1D1E20]">Invitación</h1>
+              <span className={`flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${sello.cls}`}>
+                <span className={`h-1.5 w-1.5 rounded-full ${sello.dot}`} />
+                {sello.label}
+              </span>
+            </div>
+            <p className="mt-0.5 text-xs text-[#888] sm:text-sm">Arma la invitación digital que verán tus invitados.</p>
           </div>
 
-          <div className="flex items-center gap-2.5">
+          {/* Centro: pestanas al nivel del titulo */}
+          <div className="flex justify-center overflow-x-auto sm:flex-1">
+            <TabToggle tabs={INVITE_TABS} active={activeTab} onChange={(k) => setActiveTab(k as TabKey)} />
+          </div>
+
+          {/* Derecha: fecha limite + acciones */}
+          <div className="flex items-center gap-2.5 sm:shrink-0">
             <span className="hidden shrink-0 text-xs text-[#888] sm:inline">Fecha límite</span>
             <div className="flex-1 sm:w-36 sm:flex-none">
               <DatePicker
@@ -321,10 +320,10 @@ export default function InvitacionPage() {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-4 pb-6 sm:px-6 lg:px-10">
+      <div className="flex-1 min-h-0 overflow-y-auto px-4 sm:px-6 lg:px-10 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {activeTab === 'diseno' ? (
-          <div className="grid items-start gap-6 sm:grid-cols-[1fr_360px] lg:gap-8">
-            <div className="min-w-0">
+          <div className="grid gap-6 sm:h-full sm:min-h-0 sm:grid-rows-1 sm:grid-cols-[1fr_360px] lg:gap-8">
+            <div className="min-w-0 pb-6 sm:h-full sm:overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               <div className="sticky top-0 z-20 mb-5 flex items-end justify-between gap-4 border-b border-[#eee] bg-white pt-5">
                 <div className="flex gap-6">
                   {([
@@ -358,16 +357,16 @@ export default function InvitacionPage() {
               {disenoSub === 'contenido' && <BlockEditor doc={doc} onChange={updateDoc} makeId={() => crypto.randomUUID()} addOpen={addSectionOpen} onAddOpenChange={setAddSectionOpen} />}
             </div>
 
-            <div className="hidden sm:sticky sm:top-0 sm:block sm:pt-5">
+            <div className="hidden sm:flex sm:h-full sm:flex-col sm:pt-5 sm:pb-6">
               <div className="mb-2 flex items-center justify-between">
                 <p className="text-[11px] font-bold uppercase tracking-wider text-[#999]">Vista previa</p>
                 <button onClick={() => { setPreviewMode('escritorio'); setShowPreview(true) }} className="flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider text-[#999] transition hover:text-[#48C9B0]">
                   <Maximize2 size={12} /> Escritorio
                 </button>
               </div>
-              <div className="flex justify-center">
-                <div className="w-full max-w-[360px] overflow-hidden rounded-[2.5rem] border-[10px] border-[#1D1E20] bg-[#1D1E20] shadow-xl">
-                  <div className="h-[calc(100dvh-18rem)] max-h-[720px] min-h-[420px] overflow-y-auto overflow-x-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              <div className="flex flex-1 min-h-0 justify-center">
+                <div className="h-full w-full max-w-[360px] overflow-hidden rounded-[2.5rem] border-[10px] border-[#1D1E20] bg-[#1D1E20] shadow-xl">
+                  <div className="h-full min-h-[420px] overflow-y-auto overflow-x-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                     <PreviewBoundary>
                       <InvitacionRenderer doc={doc} ctx={{ ...sampleCtx, forceMobile: true }} />
                     </PreviewBoundary>
@@ -376,10 +375,13 @@ export default function InvitacionPage() {
               </div>
             </div>
           </div>
-        ) : (
-          <div className="pt-5">
-            <AccesoPanel eventId={eventId} event={event} />
+        ) : activeTab === 'enviar' ? (
+          <div className="pt-5 pb-6">
             <RepartoLinks eventId={eventId} event={event} />
+          </div>
+        ) : (
+          <div className="pt-5 pb-6">
+            <AccesoPanel eventId={eventId} event={event} />
           </div>
         )}
       </div>
