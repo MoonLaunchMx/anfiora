@@ -322,7 +322,7 @@ export default function InvitacionPage() {
 
       <div className="flex-1 min-h-0 overflow-y-auto px-4 sm:px-6 lg:px-10 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {activeTab === 'diseno' ? (
-          <div className="grid gap-6 sm:h-full sm:min-h-0 sm:grid-cols-[1fr_360px] lg:gap-8">
+          <div className="grid gap-6 sm:h-full sm:min-h-0 sm:grid-rows-1 sm:grid-cols-[1fr_360px] lg:gap-8">
             <div className="min-w-0 pb-6 sm:h-full sm:overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               <div className="sticky top-0 z-20 mb-5 flex items-end justify-between gap-4 border-b border-[#eee] bg-white pt-5">
                 <div className="flex gap-6">
