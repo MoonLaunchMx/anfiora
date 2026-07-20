@@ -13,7 +13,10 @@ export default function GlobalError({
   reset: () => void;
 }) {
   useEffect(() => {
-    Sentry.captureException(error);
+    Sentry.captureException(error, {
+      level: "fatal",
+      tags: { impact: "pantalla-rota", zona: "general" },
+    });
   }, [error]);
 
   return (
