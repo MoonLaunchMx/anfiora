@@ -9,16 +9,28 @@ export async function GET(req: NextRequest) {
     return new NextResponse("Not found", { status: 404 });
   }
 
+  // caso permite probar cada rama del semaforo desde el navegador:
+  // ?caso=cosmetico -> 🟡 silencioso · ?caso=pantalla -> 🔴🚨 · default -> 🔴
+  const caso = req.nextUrl.searchParams.get("caso") ?? "error";
   const stamp = new Date().toISOString();
   let eventId = "";
   Sentry.withScope((scope) => {
-    scope.setFingerprint(["sentry-smoke-test", stamp]);
-    eventId = Sentry.captureException(new Error(`Sentry smoke test ${stamp}`));
+    scope.setFingerprint(["sentry-smoke-test", caso, stamp]);
+    scope.setTag("zona", "smoke-test");
+    if (caso === "cosmetico") {
+      scope.setTag("severity", "cosmetico");
+      scope.setLevel("warning");
+    } else if (caso === "pantalla") {
+      scope.setTag("impact", "pantalla-rota");
+      scope.setLevel("fatal");
+    }
+    eventId = Sentry.captureException(new Error(`Sentry smoke test [${caso}] ${stamp}`));
   });
   await Sentry.flush(2000);
 
   return NextResponse.json({
     ok: true,
+    caso,
     eventId,
     environment: process.env.VERCEL_ENV ?? process.env.NODE_ENV,
     alertConfig: {
