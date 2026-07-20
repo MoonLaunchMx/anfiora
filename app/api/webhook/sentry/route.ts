@@ -5,6 +5,7 @@ import {
   shouldNotify,
   formatTelegramMessage,
   isProductionEnv,
+  severidadDesdeAlerta,
 } from "@/lib/sentry-alerts/format";
 import { sendTelegramMessage } from "@/lib/sentry-alerts/send";
 
@@ -47,7 +48,8 @@ export async function POST(req: Request) {
   }
 
   try {
-    await sendTelegramMessage(formatTelegramMessage(alert), { token, chatId });
+    const { silent } = severidadDesdeAlerta(alert);
+    await sendTelegramMessage(formatTelegramMessage(alert), { token, chatId }, { silent });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "telegram fallo";
     console.error("[sentry-webhook] telegram error:", msg);

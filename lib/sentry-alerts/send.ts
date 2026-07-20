@@ -2,7 +2,8 @@ export type TelegramConfig = { token: string; chatId: string };
 
 export async function sendTelegramMessage(
   text: string,
-  cfg: TelegramConfig
+  cfg: TelegramConfig,
+  opts?: { silent?: boolean }
 ): Promise<void> {
   const res = await fetch(
     `https://api.telegram.org/bot${cfg.token}/sendMessage`,
@@ -14,6 +15,7 @@ export async function sendTelegramMessage(
         text,
         parse_mode: "HTML",
         disable_web_page_preview: true,
+        disable_notification: Boolean(opts?.silent),
       }),
     }
   );
