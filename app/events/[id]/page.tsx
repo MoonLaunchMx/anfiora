@@ -15,6 +15,7 @@ import StatsCollapse, { StatsToggleButton, useStatsToggle } from '@/app/componen
 import { ImportStepsModal } from '@/app/components/ui/ImportStepsModal'
 import PhoneInput from '@/app/components/ui/PhoneInput'
 import { toWhatsApp, toE164 } from '@/lib/phone'
+import { reportError } from '@/lib/observabilidad/report'
 import * as XLSX from 'xlsx'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
@@ -964,6 +965,7 @@ export default function EventPage() {
     const ops = buildGuestDeletionOps(guestId, conversationIds, mode)
     const { ok, error } = await executeGuestDeletion(supabase, ops)
     if (!ok) {
+      reportError(error, { zona: 'planner' })
       alert('No se pudo eliminar el invitado. Intenta de nuevo.' + (error ? ' (' + error + ')' : ''))
       return
     }
@@ -1016,7 +1018,10 @@ export default function EventPage() {
       }
     }
     const { error } = await supabase.from('guests').update({ name: f.name, phone: f.phone || null, email: f.email || null, party_size: 1 + f.members.length, notes: f.notes || null, tags: f.tags, side: f.side || null, allergies: f.allergies.length > 0 ? f.allergies : null }).eq('id', guest.id)
-    if (error) return 'Error: ' + error.message
+    if (error) {
+      reportError(error, { zona: 'planner' })
+      return 'Error: ' + error.message
+    }
     const existingIds = guest.party_members.map(m => m.id)
     const keepIds = f.members.filter(m => m.id).map(m => m.id as string)
     const toDelete = existingIds.filter(id => !keepIds.includes(id))
@@ -1196,7 +1201,10 @@ export default function EventPage() {
       }
     }
     const { data: guestData, error } = await supabase.from('guests').insert({ event_id: id, name: f.name, phone: f.phone || null, email: f.email || null, party_size: 1 + f.members.length, notes: f.notes || null, tags: f.tags, rsvp_status: 'pending', side: f.side || null, allergies: f.allergies.length > 0 ? f.allergies : null }).select().single()
-    if (error || !guestData) return 'Error: ' + error?.message
+    if (error || !guestData) {
+      if (error) reportError(error, { zona: 'planner' })
+      return 'Error: ' + error?.message
+    }
     if (f.members.length > 0) await supabase.from('party_members').insert(f.members.map(m => ({ guest_id: guestData.id, event_id: id, name: m.name, phone: m.phone || null, rsvp_status: m.rsvp_status, allergies: m.allergies.length ? m.allergies : null, tags: m.tags.length ? m.tags : null, notes: m.notes || null })))
     await supabase.rpc('increment_guests', { event_id_input: id })
     setEvent(prev => prev ? { ...prev, total_guests: prev.total_guests + 1 } : prev)
@@ -1280,7 +1288,7 @@ export default function EventPage() {
     if (!rowsToImport.length) { setCsvError('No quedan invitados para importar'); setCsvImporting(false); setCsvPreview(null); return }
     const guestPayload = rowsToImport.map(r => ({ event_id: r.event_id, name: r.name, phone: r.phone, email: r.email, party_size: r.party_size, rsvp_status: r.rsvp_status, tags: r.tags, notes: r.notes, side: r.side, allergies: r.allergies }))
     const { data: insertedGuests, error } = await supabase.from('guests').insert(guestPayload).select('id')
-    if (error) { setCsvError('Error al importar: ' + error.message); setCsvImporting(false); return }
+    if (error) { reportError(error, { zona: 'planner' }); setCsvError('Error al importar: ' + error.message); setCsvImporting(false); return }
     const memberRows = (insertedGuests || []).flatMap((g, i) => rowsToImport[i]._companions.map(name => ({ guest_id: g.id, event_id: id as string, name: name || '', phone: null, rsvp_status: 'pending' })))
     for (let i = 0; i < memberRows.length; i += 500) await supabase.from('party_members').insert(memberRows.slice(i, i + 500))
     await supabase.rpc('increment_guests_by', { event_id_input: id, amount: rowsToImport.length })
