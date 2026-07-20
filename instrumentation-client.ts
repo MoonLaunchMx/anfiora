@@ -1,6 +1,7 @@
 import * as Sentry from "@sentry/nextjs";
 import { sentryInitOptions } from "@/lib/sentry/config";
 import { CURRENT_VERSION } from "@/lib/changelog";
+import { zonaDesdePath } from "@/lib/observabilidad/zona";
 
 Sentry.init({
   ...sentryInitOptions({
@@ -29,6 +30,16 @@ Sentry.init({
   ],
   // Errores originados por extensiones del navegador, no por nuestro codigo.
   denyUrls: [/^chrome-extension:\/\//i, /^moz-extension:\/\//i, /extensions\//i],
+  beforeSend(event) {
+    event.tags = event.tags ?? {};
+    if (!event.tags.zona) {
+      event.tags.zona =
+        typeof window !== "undefined"
+          ? zonaDesdePath(window.location.pathname)
+          : "general";
+    }
+    return event;
+  },
 });
 
 export const onRouterTransitionStart = Sentry.captureRouterTransitionStart;
