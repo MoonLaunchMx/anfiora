@@ -8,6 +8,7 @@ import LegalGate from './components/LegalGate'
 import AttributionCapture from './components/AttributionCapture'
 import InstallPrompt from './components/InstallPrompt'
 import SentryUser from './components/SentryUser'
+import CosmeticBoundary from './components/CosmeticBoundary'
 
 export const metadata: Metadata = {
   title: 'Anfiora — Gestión de invitados para eventos',
@@ -68,10 +69,14 @@ export default function RootLayout({
       <body>
         <PostHogProvider>{children}</PostHogProvider>
         <SentryUser />
-        <AttributionCapture />
+        <CosmeticBoundary zona="analytics">
+          <AttributionCapture />
+        </CosmeticBoundary>
         <FeedbackModal />
         <LegalGate />
-        <InstallPrompt />
+        <CosmeticBoundary zona="banner-instalar">
+          <InstallPrompt />
+        </CosmeticBoundary>
         <Script id="sw-register" strategy="afterInteractive">{`
           if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js'));
