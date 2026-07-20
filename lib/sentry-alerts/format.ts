@@ -8,6 +8,9 @@ export type SentryAlert = {
   url?: string;
   culprit?: string;
   rule?: string;
+  severity?: string;
+  impact?: string;
+  zona?: string;
 };
 
 // Sentry firma el webhook con HMAC-SHA256 (hex) del cuerpo crudo usando el
@@ -45,6 +48,20 @@ const asObj = (v: unknown): AnyObj | undefined =>
 const str = (v: unknown): string | undefined =>
   typeof v === "string" && v.length > 0 ? v : undefined;
 
+function tagValue(node: AnyObj, key: string): string | undefined {
+  const tags = node.tags;
+  if (Array.isArray(tags)) {
+    for (const t of tags) {
+      if (Array.isArray(t) && t[0] === key) return str(t[1]);
+      const o = asObj(t);
+      if (o && str(o.key) === key) return str(o.value);
+    }
+  }
+  const obj = asObj(tags);
+  if (obj) return str(obj[key]);
+  return undefined;
+}
+
 export function parseSentryWebhook(body: unknown): SentryAlert | null {
   const data = asObj(asObj(body)?.data);
   if (!data) return null;
@@ -59,6 +76,9 @@ export function parseSentryWebhook(body: unknown): SentryAlert | null {
     url: str(node.web_url) ?? str(node.url),
     culprit: str(node.culprit),
     rule: str(data.triggered_rule),
+    severity: tagValue(node, "severity"),
+    impact: tagValue(node, "impact"),
+    zona: tagValue(node, "zona"),
   };
 }
 
@@ -72,11 +92,29 @@ export function isProductionEnv(environment: string | undefined): boolean {
 const escapeHtml = (s: string): string =>
   s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
+export function severidadDesdeAlerta(a: SentryAlert): {
+  emoji: string;
+  etiqueta: string;
+  silent: boolean;
+} {
+  if (a.impact === "pantalla-rota" || a.level === "fatal") {
+    return { emoji: "🔴🚨", etiqueta: "PANTALLA EN BLANCO", silent: false };
+  }
+  if (a.severity === "cosmetico") {
+    return { emoji: "🟡", etiqueta: "Cosmético", silent: true };
+  }
+  return { emoji: "🔴", etiqueta: "Error", silent: false };
+}
+
 export function formatTelegramMessage(a: SentryAlert): string {
+  const sev = severidadDesdeAlerta(a);
   const level = (a.level ?? "error").toUpperCase();
-  const lines: string[] = [`<b>[${escapeHtml(level)}] ${escapeHtml(a.title)}</b>`];
+  const lines: string[] = [
+    `${sev.emoji} <b>[${escapeHtml(level)}] ${escapeHtml(a.title)}</b>`,
+  ];
   const head = [a.project, a.environment].filter(Boolean).join(" · ");
   if (head) lines.push(escapeHtml(head));
+  if (a.zona) lines.push(escapeHtml(`Zona: ${a.zona}`));
   if (a.rule) lines.push(escapeHtml(`Regla: ${a.rule}`));
   if (a.culprit) lines.push(`<code>${escapeHtml(a.culprit)}</code>`);
   if (a.url) lines.push(`<a href="${escapeHtml(a.url)}">Ver en Sentry</a>`);
