@@ -21,6 +21,8 @@ describe("sentryInitOptions", () => {
       enabled: true,
       environment: "production",
       sendDefaultPii: false,
+      tracesSampleRate: 0.1,
+      initialScope: { tags: { app_version: "unknown" } },
     });
   });
 
@@ -30,6 +32,8 @@ describe("sentryInitOptions", () => {
       enabled: false,
       environment: "development",
       sendDefaultPii: false,
+      tracesSampleRate: 0.1,
+      initialScope: { tags: { app_version: "unknown" } },
     });
   });
 
@@ -41,6 +45,15 @@ describe("sentryInitOptions", () => {
       enabled: true,
       environment: "preview",
       sendDefaultPii: false,
+      tracesSampleRate: 0.1,
+      initialScope: { tags: { app_version: "unknown" } },
     });
+  });
+
+  it("etiqueta la version de la app cuando se pasa appVersion", () => {
+    expect(
+      sentryInitOptions({ nodeEnv: "production", dsn: "d", appVersion: "2026-06-15" })
+        .initialScope.tags.app_version
+    ).toBe("2026-06-15");
   });
 });

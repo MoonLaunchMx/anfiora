@@ -7,6 +7,7 @@ import FeedbackModal from "@/app/components/FeedbackModal";
 import LegalGate from './components/LegalGate'
 import AttributionCapture from './components/AttributionCapture'
 import InstallPrompt from './components/InstallPrompt'
+import SentryUser from './components/SentryUser'
 
 export const metadata: Metadata = {
   title: 'Anfiora — Gestión de invitados para eventos',
@@ -66,6 +67,7 @@ export default function RootLayout({
     <html lang="es">
       <body>
         <PostHogProvider>{children}</PostHogProvider>
+        <SentryUser />
         <AttributionCapture />
         <FeedbackModal />
         <LegalGate />

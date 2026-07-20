@@ -7,6 +7,7 @@ export type SentryEnv = {
   nodeEnv: string | undefined;
   dsn: string | undefined;
   vercelEnv?: string | undefined;
+  appVersion?: string | undefined;
 };
 
 export function isSentryEnabled(env: SentryEnv): boolean {
@@ -19,5 +20,13 @@ export function sentryInitOptions(env: SentryEnv) {
     enabled: isSentryEnabled(env),
     environment: env.vercelEnv ?? env.nodeEnv ?? "development",
     sendDefaultPii: false,
+    // Muestreo de trazas: 10% de las transacciones. Suficiente para correlacionar
+    // navegador -> API -> DB sin quemar la cuota de Sentry.
+    tracesSampleRate: 0.1,
+    // Etiqueta legible de la version de la app (del changelog). El "release" real
+    // sigue siendo el hash de git para no romper el mapeo de source maps.
+    initialScope: {
+      tags: { app_version: env.appVersion ?? "unknown" },
+    },
   };
 }

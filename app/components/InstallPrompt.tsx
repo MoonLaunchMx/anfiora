@@ -14,6 +14,22 @@ const COOLDOWN_MS = 14 * 24 * 60 * 60 * 1000
 const ENGAGEMENT_MS = 30 * 1000
 const AUTHED_PREFIXES = ['/dashboard', '/events', '/perfil', '/admin']
 
+function readDismissed(): string | null {
+  try {
+    return localStorage.getItem(DISMISS_KEY)
+  } catch {
+    return null
+  }
+}
+
+function writeDismissed() {
+  try {
+    localStorage.setItem(DISMISS_KEY, String(Date.now()))
+  } catch {
+    // navegador con almacenamiento bloqueado (modo privado, proteccion de rastreo)
+  }
+}
+
 export default function InstallPrompt() {
   const pathname = usePathname()
   const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(null)
@@ -27,7 +43,7 @@ export default function InstallPrompt() {
       (navigator as { standalone?: boolean }).standalone === true
     if (standalone) return
 
-    const raw = localStorage.getItem(DISMISS_KEY)
+    const raw = readDismissed()
     if (raw && Date.now() - Number(raw) < COOLDOWN_MS) return
     setDismissed(false)
 
@@ -43,7 +59,7 @@ export default function InstallPrompt() {
     const onInstalled = () => {
       setDeferred(null)
       setDismissed(true)
-      localStorage.setItem(DISMISS_KEY, String(Date.now()))
+      writeDismissed()
     }
     window.addEventListener('beforeinstallprompt', onBeforeInstall)
     window.addEventListener('appinstalled', onInstalled)
@@ -63,7 +79,7 @@ export default function InstallPrompt() {
 
   const remember = () => {
     setDismissed(true)
-    localStorage.setItem(DISMISS_KEY, String(Date.now()))
+    writeDismissed()
   }
 
   const install = async () => {
