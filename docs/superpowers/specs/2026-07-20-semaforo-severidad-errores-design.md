@@ -69,7 +69,11 @@ PreviewBoundary) que, al atrapar un error:
 - renderiza un fallback nulo o mínimo (el adorno simplemente desaparece),
 - reporta a Sentry con `Sentry.captureException(error, { level: "warning", tags: { severity: "cosmetico", zona } })`.
 Recibe una prop `zona` (string) para etiquetar de dónde viene.
-Se envuelven en el layout: `InstallPrompt`, `PostHogProvider`, `AttributionCapture`.
+Se envuelven en el layout solo los widgets *hoja*: `InstallPrompt` y
+`AttributionCapture`. **No** se envuelve `PostHogProvider` (envuelve `{children}` =
+toda la app; un boundary ahí tragaría cualquier crash real como cosmético y dejaría
+la app en blanco). Los errores de PostHog son async (init en `useEffect`) y ya los
+cubre `ignoreErrors`/`beforeSend`, no un boundary.
 
 **3. Etiqueta de zona automática.**
 En `instrumentation-client.ts` (o `lib/sentry/config.ts`), un `beforeSend` que deriva
