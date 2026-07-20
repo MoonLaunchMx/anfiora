@@ -6,6 +6,7 @@ import type { RsvpSubmission } from '@/lib/invite'
 import type { Theme } from '@/lib/invite/theme'
 import { Check, X } from 'lucide-react'
 import { estadoAcceso } from '@/lib/puerta'
+import { reportError } from '@/lib/observabilidad/report'
 import SectionShell from '../SectionShell'
 import RsvpAnimation from '../RsvpAnimation'
 import RegistroForm from '../RegistroForm'
@@ -263,7 +264,8 @@ export default function RsvpSection({ content, ctx, anim }: { content: Content; 
     try {
       await ctx.onSubmit(payload)
       setPlaying(outcome)
-    } catch {
+    } catch (err) {
+      reportError(err, { zona: 'invitacion-publica' })
       setError('No pudimos guardar tu confirmación. Intenta de nuevo.')
     } finally {
       setSubmitting(false)
