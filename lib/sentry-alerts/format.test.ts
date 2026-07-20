@@ -6,6 +6,7 @@ import {
   parseSentryWebhook,
   formatTelegramMessage,
   isProductionEnv,
+  severidadDesdeAlerta,
 } from "./format";
 
 describe("isProductionEnv", () => {
@@ -83,5 +84,53 @@ describe("formatTelegramMessage", () => {
     expect(msg).toContain("&lt;script&gt;");
     expect(msg).toContain("Ver en Sentry");
     expect(msg).toContain("anfiora · production");
+  });
+});
+
+describe("severidadDesdeAlerta", () => {
+  it("pantalla rota por impact es urgente y no silenciosa", () => {
+    const s = severidadDesdeAlerta({ title: "x", impact: "pantalla-rota" });
+    expect(s.silent).toBe(false);
+    expect(s.emoji).toContain("🚨");
+  });
+  it("pantalla rota por level fatal tambien", () => {
+    const s = severidadDesdeAlerta({ title: "x", level: "fatal" });
+    expect(s.emoji).toContain("🚨");
+    expect(s.silent).toBe(false);
+  });
+  it("cosmetico es silencioso y amarillo", () => {
+    const s = severidadDesdeAlerta({ title: "x", severity: "cosmetico" });
+    expect(s.silent).toBe(true);
+    expect(s.emoji).toBe("🟡");
+  });
+  it("default es rojo no silencioso", () => {
+    const s = severidadDesdeAlerta({ title: "x" });
+    expect(s.silent).toBe(false);
+    expect(s.emoji).toBe("🔴");
+  });
+});
+
+describe("parseSentryWebhook lee tags", () => {
+  it("extrae severity/impact/zona de tags como pares", () => {
+    const body = {
+      data: {
+        event: {
+          title: "boom",
+          environment: "production",
+          tags: [["severity", "cosmetico"], ["zona", "planner"]],
+        },
+      },
+    };
+    const a = parseSentryWebhook(body);
+    expect(a?.severity).toBe("cosmetico");
+    expect(a?.zona).toBe("planner");
+  });
+});
+
+describe("formatTelegramMessage muestra emoji y zona", () => {
+  it("antepone emoji y agrega zona", () => {
+    const msg = formatTelegramMessage({ title: "boom", zona: "invitacion-publica" });
+    expect(msg).toContain("🔴");
+    expect(msg).toContain("Zona: invitacion-publica");
   });
 });

@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { formatAsYouType } from '@/lib/phone'
 import { montoAPagar } from '@/lib/puerta'
 import { formatCurrency, type Currency } from '@/lib/types'
+import { reportError } from '@/lib/observabilidad/report'
 
 type Props = {
   token: string
@@ -56,7 +57,8 @@ export default function RegistroForm({ token, maxCompanions, botonClassName, tic
         return
       }
       onRegistrado(partySize)
-    } catch {
+    } catch (err) {
+      reportError(err, { zona: 'invitacion-publica' })
       setError('No pudimos registrarte. Intenta de nuevo.')
     } finally {
       setSending(false)
