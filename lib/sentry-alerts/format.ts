@@ -100,7 +100,9 @@ export function severidadDesdeAlerta(a: SentryAlert): {
   if (a.impact === "pantalla-rota" || a.level === "fatal") {
     return { emoji: "🔴🚨", etiqueta: "PANTALLA EN BLANCO", silent: false };
   }
-  if (a.severity === "cosmetico") {
+  // level "warning" tambien es cosmetico: el CosmeticBoundary lo emite y el
+  // nivel SI viaja en el webhook issue.created, a diferencia del tag severity.
+  if (a.severity === "cosmetico" || a.level === "warning") {
     return { emoji: "🟡", etiqueta: "Cosmético", silent: true };
   }
   return { emoji: "🔴", etiqueta: "Error", silent: false };

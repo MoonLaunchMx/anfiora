@@ -103,6 +103,11 @@ describe("severidadDesdeAlerta", () => {
     expect(s.silent).toBe(true);
     expect(s.emoji).toBe("🟡");
   });
+  it("level warning es cosmetico (el tag no viaja, el nivel si)", () => {
+    const s = severidadDesdeAlerta({ title: "x", level: "warning" });
+    expect(s.silent).toBe(true);
+    expect(s.emoji).toBe("🟡");
+  });
   it("default es rojo no silencioso", () => {
     const s = severidadDesdeAlerta({ title: "x" });
     expect(s.silent).toBe(false);
