@@ -14,6 +14,7 @@ import { logAction } from '@/lib/audit'
 import StatsCollapse, { StatsToggleButton, useStatsToggle } from '@/app/components/ui/StatsCollapse'
 import { ImportStepsModal } from '@/app/components/ui/ImportStepsModal'
 import PhoneInput from '@/app/components/ui/PhoneInput'
+import { useConfirm } from '@/app/components/ui/ConfirmModal'
 import { toWhatsApp, toE164 } from '@/lib/phone'
 import { reportError } from '@/lib/observabilidad/report'
 import * as XLSX from 'xlsx'
@@ -727,6 +728,7 @@ function EditGuestModal({ guest, availableTags, groupPool, allergyPool, onCreate
 export default function EventPage() {
   const { id } = useParams()
   const router = useRouter()
+  const askConfirm = useConfirm()
   const openConversation = (guestId: string) => router.push(`/events/${id}/mensajes?guest=${guestId}`)
 
   const { visible: statsVisible, toggle: toggleStats } = useStatsToggle(id as string, 'guests')
@@ -986,12 +988,12 @@ export default function EventPage() {
       setDeleteChatModal({ guestId, conversationIds })
       return
     }
-    if (!confirm('¿Eliminar este invitado?')) return
+    if (!(await askConfirm({ title: '¿Eliminar este invitado?' }))) return
     await performDeleteGuest(guestId, conversationIds, 'unlink')
   }
 
   const deletePartyMember = async (memberId: string, guestId: string) => {
-    if (!confirm('¿Eliminar este acompañante?')) return
+    if (!(await askConfirm({ title: '¿Eliminar este acompañante?' }))) return
     await supabase.from('party_members').delete().eq('id', memberId)
     setGuests(prev => prev.map(g => g.id === guestId ? { ...g, party_size: g.party_size - 1, party_members: g.party_members.filter(m => m.id !== memberId) } : g))
   }
@@ -1088,8 +1090,33 @@ export default function EventPage() {
     // Una sola consulta para todas las conversaciones del lote (antes: una por invitado).
     const convRows = guestIds.length > 0 ? await guestConversationRowsForMany(supabase, guestIds) : []
     const conChat = new Set(convRows.map(r => r.contactGuestId)).size
-    const chatNota = conChat > 0 ? ' (' + conChat + ' con conversación; sus chats se conservarán sin invitado)' : ''
-    if (!confirm('¿Eliminar ' + guestIds.length + ' invitado(s)' + (guestIds.length ? ' con sus acompañantes' : '') + (looseMemberIds.length ? ' y ' + looseMemberIds.length + ' acompañante(s) más' : '') + chatNota + '?')) return
+
+    // Pocos (<=5): listar nombres da confianza. Muchos: el conteo comunica mejor.
+    const nombres = guestIds.map(gid => guests.find(g => g.id === gid)?.name).filter(Boolean) as string[]
+    const listar = guestIds.length >= 1 && guestIds.length <= 5
+    const detalle: string[] = []
+    if (guestIds.length > 0) detalle.push('con sus acompañantes')
+    if (looseMemberIds.length > 0) detalle.push(looseMemberIds.length + ' acompañante(s) más')
+    if (conChat > 0) detalle.push(conChat + ' con conversación; se conservarán sus chats')
+    const tituloBulk = guestIds.length === 0
+      ? '¿Eliminar ' + looseMemberIds.length + ' acompañante(s)?'
+      : listar
+        ? '¿Eliminar estos invitados?'
+        : '¿Eliminar ' + guestIds.length + ' invitados?'
+    const okBulk = await askConfirm({
+      title: tituloBulk,
+      message: (
+        <>
+          {listar && (
+            <ul className="mb-1.5 space-y-0.5 text-left text-[#444]">
+              {nombres.map((n, i) => <li key={i} className="truncate">· {n}</li>)}
+            </ul>
+          )}
+          {detalle.length > 0 && <p>{detalle.join(' · ')}</p>}
+        </>
+      ),
+    })
+    if (!okBulk) return
 
     // Borrado por lote: ~pocas llamadas con .in(...) en vez de 8 por invitado.
     let deletedIds = guestIds

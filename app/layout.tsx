@@ -3,6 +3,7 @@ import Script from 'next/script'
 // @ts-ignore
 import './globals.css'
 import { PostHogProvider } from './components/PostHogProvider'
+import { ConfirmProvider } from './components/ui/ConfirmModal'
 import FeedbackModal from "@/app/components/FeedbackModal";
 import LegalGate from './components/LegalGate'
 import AttributionCapture from './components/AttributionCapture'
@@ -67,7 +68,7 @@ export default function RootLayout({
   return (
     <html lang="es">
       <body>
-        <PostHogProvider>{children}</PostHogProvider>
+        <PostHogProvider><ConfirmProvider>{children}</ConfirmProvider></PostHogProvider>
         <SentryUser />
         <CosmeticBoundary zona="analytics">
           <AttributionCapture />
