@@ -27,6 +27,10 @@ Sentry.init({
     /storage is not allowed/i,
     "ResizeObserver loop limit exceeded",
     "ResizeObserver loop completed with undelivered notifications",
+    // Bug interno de @supabase/auth-js: cuando el renovador de token pierde el
+    // candado del navegador reenvia el AbortError crudo desde un setInterval sin
+    // catch. No afecta al usuario y no es parcheable desde nuestro codigo.
+    /Lock was stolen by another request/i,
   ],
   // Errores originados por extensiones del navegador, no por nuestro codigo.
   denyUrls: [/^chrome-extension:\/\//i, /^moz-extension:\/\//i, /extensions\//i],
