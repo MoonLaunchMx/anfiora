@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import type { User } from '@supabase/supabase-js'
 import { Event, EventStatus, formatEventDate } from '@/lib/types'
 import { Bell, MessageSquarePlus } from 'lucide-react'
 import { WhatsNewModal } from '@/app/components/WhatsNewModal'
@@ -107,7 +108,7 @@ export default function Dashboard() {
     return () => clearInterval(interval)
   }, [])
 
-  useEffect(() => { checkAuth(); loadData() }, [])
+  useEffect(() => { init() }, [])
 
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
@@ -119,9 +120,17 @@ export default function Dashboard() {
     return () => document.removeEventListener('mousedown', handleClick)
   }, [])
 
-  const checkAuth = async () => {
+  // Una sola lectura de sesion para toda la pantalla: cada getUser() toma un
+  // candado global exclusivo en el cliente de Supabase, y varias en paralelo se
+  // encolan hasta agotar el timeout de 5s en redes lentas.
+  const init = async () => {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { window.location.href = '/'; return }
+    checkAuth(user)
+    loadData(user)
+  }
+
+  const checkAuth = async (user: User) => {
     setUserEmail(user.email || '')
     const { data: profile, error: profErr } = await supabase
       .from('users').select('role').eq('id', user.id).single()
@@ -132,9 +141,7 @@ export default function Dashboard() {
     if (!localStorage.getItem('gf_welcomed')) localStorage.setItem('gf_welcomed', '1')
   }
 
-  const loadData = async () => {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) { setLoading(false); return }
+  const loadData = async (user: User) => {
     const userId = user.id
 
     const [myRes, collabRes] = await Promise.all([
