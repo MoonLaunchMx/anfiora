@@ -23,7 +23,21 @@ const DROPDOWN_GAP = 4
 const DROPDOWN_HEADER_HEIGHT = 41
 const DROPDOWN_LIST_HEIGHT = 224
 const DROPDOWN_MIN_LIST_HEIGHT = 96
-const DROPDOWN_ABSOLUTE_MIN = 40
+// Una fila de pais (text-sm, 20px de line-height + py-2) mas el py-1 superior de la
+// lista: el alto minimo con el que todavia se alcanza a ver y tocar un pais completo.
+const DROPDOWN_MIN_USABLE_LIST = 40
+// Alto de la caja del campo: border 1+1, py-2 8+8, line-height del text-base 24.
+const FIELD_HEIGHT = 42
+// Peor caso del popover anclado: campo centrado verticalmente, cada lado recibe
+// (vh - FIELD_HEIGHT) / 2. Un lado sirve solo si alcanza para gap + buscador +
+// una fila de pais + gap. Debajo de este alto visible no hay NINGUNA posicion del
+// campo en la que el popover quepa, asi que se abre como hoja centrada.
+const SHEET_VIEWPORT_HEIGHT =
+  2 * (DROPDOWN_GAP + DROPDOWN_HEADER_HEIGHT + DROPDOWN_MIN_USABLE_LIST + DROPDOWN_GAP) + FIELD_HEIGHT
+
+type DropdownLayout =
+  | { mode: 'popover'; top: number; left: number; listMaxHeight: number }
+  | { mode: 'sheet'; top: number; left: number; width: number; height: number }
 
 type PhoneInputProps = {
   value: string
@@ -52,7 +66,12 @@ export default function PhoneInput({
   const [text, setText] = useState('')
   const [open, setOpen] = useState(false)
   const [filter, setFilter] = useState('')
-  const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0, listMaxHeight: DROPDOWN_LIST_HEIGHT })
+  const [layout, setLayout] = useState<DropdownLayout>({
+    mode: 'popover',
+    top: 0,
+    left: 0,
+    listMaxHeight: DROPDOWN_LIST_HEIGHT,
+  })
   const containerRef = useRef<HTMLDivElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
   // Guarda el ultimo valor E.164 conocido (recibido por props o emitido por nosotros)
@@ -76,38 +95,51 @@ export default function PhoneInput({
   }, [value])
 
   const computeDropdownPosition = () => {
+    const vv = window.visualViewport
+    const viewportHeight = vv?.height ?? window.innerHeight
+    // La hoja se ancla al viewport VISIBLE, no al de layout: con el teclado de iOS
+    // abierto, `inset-0` cubriria tambien la franja que el teclado tapa.
+    const openAsSheet = () =>
+      setLayout({
+        mode: 'sheet',
+        top: vv?.offsetTop ?? 0,
+        left: vv?.offsetLeft ?? 0,
+        width: vv?.width ?? window.innerWidth,
+        height: viewportHeight,
+      })
+
+    if (viewportHeight < SHEET_VIEWPORT_HEIGHT) {
+      openAsSheet()
+      return
+    }
+
     const rect = containerRef.current?.getBoundingClientRect()
     if (!rect) return
-    const viewportHeight = window.visualViewport?.height ?? window.innerHeight
     const left = Math.max(8, Math.min(rect.left, window.innerWidth - DROPDOWN_WIDTH - 8))
 
     const spaceBelow = viewportHeight - rect.bottom - DROPDOWN_GAP
     const spaceAbove = rect.top - DROPDOWN_GAP
     // Solo decide de que lado abrir. La posicion manda sobre el alto, no al reves:
     // una vez elegido el lado, el borde pegado al campo es fijo y el alto es el que
-    // realmente quepa (aunque sea menor al minimo comodo de abajo).
+    // realmente quepa ahi.
     const flipUp = spaceBelow < DROPDOWN_HEADER_HEIGHT + DROPDOWN_MIN_LIST_HEIGHT && spaceAbove > spaceBelow
 
-    const clampListHeight = (raw: number) => raw <= 0 ? DROPDOWN_ABSOLUTE_MIN : Math.min(DROPDOWN_LIST_HEIGHT, raw)
-
-    if (flipUp) {
-      const anchoredHeight = rect.top - DROPDOWN_GAP - DROPDOWN_GAP - DROPDOWN_HEADER_HEIGHT
-      if (anchoredHeight <= 0) {
-        // Ni el header cabe entre el margen superior y el campo: se fija arriba
-        // (nunca fuera de pantalla) y la lista colapsa a 0 en vez de re-inflar el
-        // alto al piso general, que empujaria el borde inferior sobre el campo.
-        setDropdownPos({ top: DROPDOWN_GAP, left, listMaxHeight: 0 })
-        return
-      }
-      const listMaxHeight = Math.min(DROPDOWN_LIST_HEIGHT, anchoredHeight)
-      const top = rect.top - DROPDOWN_GAP - (DROPDOWN_HEADER_HEIGHT + listMaxHeight)
-      setDropdownPos({ top, left, listMaxHeight })
+    // El lado elegido tiene que dar para el buscador mas un pais completo. Si no da,
+    // no se degrada el popover (colapsarlo o moverlo lo dejaria inservible o encima
+    // del campo): se abre la hoja, que no depende del espacio alrededor del campo.
+    const anchoredHeight = flipUp
+      ? rect.top - DROPDOWN_GAP - DROPDOWN_GAP - DROPDOWN_HEADER_HEIGHT
+      : viewportHeight - rect.bottom - DROPDOWN_GAP - DROPDOWN_GAP - DROPDOWN_HEADER_HEIGHT
+    if (anchoredHeight < DROPDOWN_MIN_USABLE_LIST) {
+      openAsSheet()
       return
     }
 
-    const top = rect.bottom + DROPDOWN_GAP
-    const listMaxHeight = clampListHeight(viewportHeight - top - DROPDOWN_GAP - DROPDOWN_HEADER_HEIGHT)
-    setDropdownPos({ top, left, listMaxHeight })
+    const listMaxHeight = Math.min(DROPDOWN_LIST_HEIGHT, anchoredHeight)
+    const top = flipUp
+      ? rect.top - DROPDOWN_GAP - (DROPDOWN_HEADER_HEIGHT + listMaxHeight)
+      : rect.bottom + DROPDOWN_GAP
+    setLayout({ mode: 'popover', top, left, listMaxHeight })
   }
 
   const toggleOpen = () => {
@@ -178,6 +210,42 @@ export default function PhoneInput({
       )
     : COUNTRIES
 
+  const close = () => {
+    setOpen(false)
+    setFilter('')
+  }
+
+  const countryOptions = (
+    <>
+      {filteredCountries.length === 0 && (
+        <p className="px-3 py-2 text-sm text-[#999]">Sin resultados</p>
+      )}
+      {filteredCountries.map(c => (
+        <button
+          key={c.iso}
+          type="button"
+          onClick={() => handleSelectCountry(c.iso)}
+          className={`flex w-full items-center justify-between px-3 py-2 text-left text-sm transition ${
+            c.iso === country ? 'bg-[#f0f0f0] text-[#1D1E20]' : 'text-[#333] hover:bg-[#f8f8f8]'
+          }`}
+        >
+          <span className="truncate">{c.name}</span>
+          <span className="shrink-0 text-[#999]">{c.dial}</span>
+        </button>
+      ))}
+    </>
+  )
+
+  const searchField = (
+    <input
+      autoFocus
+      value={filter}
+      onChange={e => setFilter(e.target.value)}
+      placeholder="Buscar país"
+      className="w-full bg-transparent text-base text-[#1D1E20] outline-none placeholder:text-[#c0c0c0]"
+    />
+  )
+
   return (
     <div ref={containerRef} className={`relative ${className}`}>
       <div
@@ -215,45 +283,55 @@ export default function PhoneInput({
       </div>
 
       {open && mounted && createPortal(
-        <div
-          ref={dropdownRef}
-          style={{ top: dropdownPos.top, left: dropdownPos.left }}
-          className="fixed z-[350] w-64 overflow-hidden rounded-lg border border-[#e0e0e0] bg-white shadow-xl"
-        >
-          <div className="flex items-center gap-2 border-b border-[#eee] px-3 py-2">
-            <Search size={13} className="shrink-0 text-[#999]" />
-            <input
-              autoFocus
-              value={filter}
-              onChange={e => setFilter(e.target.value)}
-              placeholder="Buscar país"
-              className="w-full bg-transparent text-base text-[#1D1E20] outline-none placeholder:text-[#c0c0c0]"
-            />
-            {filter && (
-              <button type="button" onClick={() => setFilter('')} className="text-[#999] transition hover:text-[#1D1E20]">
-                <X size={13} />
-              </button>
-            )}
+        layout.mode === 'sheet' ? (
+          <div
+            style={{ top: layout.top, left: layout.left, width: layout.width, height: layout.height }}
+            className="fixed z-[350] flex items-center justify-center p-2"
+            onClick={close}
+          >
+            <div className="absolute inset-0 bg-black/40" />
+            <div
+              ref={dropdownRef}
+              onClick={e => e.stopPropagation()}
+              className="relative flex max-h-full w-full max-w-xs flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
+            >
+              <div className="flex shrink-0 items-center gap-2 border-b border-[#eee] px-3 py-2">
+                <Search size={13} className="shrink-0 text-[#999]" />
+                {searchField}
+                <button
+                  type="button"
+                  aria-label="Cerrar"
+                  onClick={close}
+                  className="shrink-0 text-[#999] transition hover:text-[#1D1E20]"
+                >
+                  <X size={13} />
+                </button>
+              </div>
+              <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain py-1">
+                {countryOptions}
+              </div>
+            </div>
           </div>
-          <div className="overflow-y-auto py-1" style={{ maxHeight: dropdownPos.listMaxHeight }}>
-            {filteredCountries.length === 0 && (
-              <p className="px-3 py-2 text-sm text-[#999]">Sin resultados</p>
-            )}
-            {filteredCountries.map(c => (
-              <button
-                key={c.iso}
-                type="button"
-                onClick={() => handleSelectCountry(c.iso)}
-                className={`flex w-full items-center justify-between px-3 py-2 text-left text-sm transition ${
-                  c.iso === country ? 'bg-[#f0f0f0] text-[#1D1E20]' : 'text-[#333] hover:bg-[#f8f8f8]'
-                }`}
-              >
-                <span className="truncate">{c.name}</span>
-                <span className="shrink-0 text-[#999]">{c.dial}</span>
-              </button>
-            ))}
+        ) : (
+          <div
+            ref={dropdownRef}
+            style={{ top: layout.top, left: layout.left }}
+            className="fixed z-[350] w-64 overflow-hidden rounded-lg border border-[#e0e0e0] bg-white shadow-xl"
+          >
+            <div className="flex items-center gap-2 border-b border-[#eee] px-3 py-2">
+              <Search size={13} className="shrink-0 text-[#999]" />
+              {searchField}
+              {filter && (
+                <button type="button" onClick={() => setFilter('')} className="text-[#999] transition hover:text-[#1D1E20]">
+                  <X size={13} />
+                </button>
+              )}
+            </div>
+            <div className="overflow-y-auto overscroll-contain py-1" style={{ maxHeight: layout.listMaxHeight }}>
+              {countryOptions}
+            </div>
           </div>
-        </div>,
+        ),
         document.body
       )}
     </div>
