@@ -153,6 +153,8 @@ export function computeEventMetrics(input: MetricsInput): EventMetrics {
     regalos: calcRegalos(input),
     mesas: calcMesas(input),
     invitacion: estadoPublicacion(input.settings?.invite_draft, input.settings?.invite_config),
+    accessMode: input.settings?.access_mode ?? null,
+    sharedToken: input.settings?.shared_token ?? null,
     proximaTarea: calcProximaTarea(input),
     proveedorConSaldo: calcProveedorConSaldo(input),
   }

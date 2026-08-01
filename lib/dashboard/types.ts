@@ -20,6 +20,8 @@ export type EventoRow = {
   is_shared: boolean
   shared_role: CollaboratorRole | null
   owner_name: string | null
+  host_name?: string | null
+  host_name_2?: string | null
 }
 
 export type GuestRow = {
@@ -57,7 +59,13 @@ export type GiftItemRow = { event_id: string }
 export type ReservationRow = { event_id: string; amount: number | null; purchased: boolean | null }
 export type TableRow = { id: string; event_id: string; capacity: number | null }
 export type SeatRow = { event_id: string; table_id: string; guest_id: string | null; party_size: number | null }
-export type SettingsRow = { event_id: string; invite_draft: unknown; invite_config: unknown }
+export type SettingsRow = {
+  event_id: string
+  invite_draft: unknown
+  invite_config: unknown
+  access_mode?: string | null
+  shared_token?: string | null
+}
 
 export type Invitados = {
   total: number
@@ -111,6 +119,10 @@ export type EventMetrics = {
   regalos: Regalos
   mesas: Mesas
   invitacion: EstadoPublicacion
+  // Crudos: la UI los resuelve con resolveAccessMode / slugifyEvent para no
+  // meter dependencias de presentacion en la capa pura.
+  accessMode: string | null
+  sharedToken: string | null
   proximaTarea: TaskRow | null
   proveedorConSaldo: { nombre: string; contratado: number; pagado: number; porPagar: number } | null
 }

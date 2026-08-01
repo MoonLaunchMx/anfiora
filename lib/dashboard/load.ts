@@ -7,7 +7,7 @@ import type {
 } from './types'
 
 const CAMPOS_EVENTO =
-  'id, name, event_date, event_end_date, event_time, event_type, event_status, venue, total_guests, currency, guest_cap'
+  'id, name, event_date, event_end_date, event_time, event_type, event_status, venue, total_guests, currency, guest_cap, host_name, host_name_2'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 function porEvento<T extends { event_id: string }>(rows: T[]): Map<string, T[]> {
@@ -68,7 +68,7 @@ export async function loadDashboard(userId: string): Promise<DashboardData> {
     supabase.from('gift_reservations').select('event_id, amount, purchased').in('event_id', ids),
     supabase.from('tables').select('id, event_id, capacity').in('event_id', ids),
     supabase.from('table_seats').select('event_id, table_id, guest_id, party_size').in('event_id', ids),
-    supabase.from('event_settings').select('event_id, invite_draft, invite_config').in('event_id', ids),
+    supabase.from('event_settings').select('event_id, invite_draft, invite_config, access_mode, shared_token').in('event_id', ids),
     supabase
       .from('event_collaborators')
       .select('event_id, role, email, user:user_id ( full_name )')

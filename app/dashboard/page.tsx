@@ -5,8 +5,9 @@ import { supabase } from '@/lib/supabase'
 import type { User } from '@supabase/supabase-js'
 import { EventStatus, formatEventDate } from '@/lib/types'
 import { loadDashboard } from '@/lib/dashboard/load'
-import type { Contexto, EventMetrics, EventoRow, Rol } from '@/lib/dashboard/types'
+import type { ColaboradorRow, Contexto, EventMetrics, EventoRow, Rol } from '@/lib/dashboard/types'
 import EventSelector from './EventSelector'
+import ContextoEvento from './ContextoEvento'
 import { Bell, MessageSquarePlus } from 'lucide-react'
 import { WhatsNewModal } from '@/app/components/WhatsNewModal'
 import { NewEventModal } from '@/app/components/NewEventModal'
@@ -107,6 +108,7 @@ export default function Dashboard() {
   const [metrics, setMetrics]           = useState<EventMetrics[]>([])
   const [rol, setRol]                   = useState<Rol>(null)
   const [contexto, setContexto]         = useState<Contexto>({ kind: 'cartera' })
+  const [colaboradores, setColaboradores] = useState<ColaboradorRow[]>([])
 
   useEffect(() => {
     const interval = setInterval(() => setNow(new Date()), 1000)
@@ -171,6 +173,7 @@ export default function Dashboard() {
     setSharedEvents(data.metrics.filter(m => m.event.is_shared).map(asStats))
     setMetrics(data.metrics)
     setRol(data.rol)
+    setColaboradores(data.colaboradores)
 
     const myIds = data.metrics.filter(m => !m.event.is_shared).map(m => m.event.id)
     const allEventIds = data.metrics.map(m => m.event.id)
@@ -352,6 +355,10 @@ export default function Dashboard() {
     .filter(m => m.event.event_status === 'active')
     .reduce((s, m) => s + m.tareas.vencidas, 0)
 
+  const enFoco = contexto.kind === 'evento'
+    ? metrics.find(m => m.event.id === contexto.eventId) ?? null
+    : null
+
   const markDone = async (id: string) => {
     await supabase.from('timeline_tasks').update({ is_completed: true }).eq('id', id)
     const target = reminders.find(r => r.id === id)
@@ -472,7 +479,7 @@ export default function Dashboard() {
 
 
       <header className="shrink-0 border-b border-[#e8e8e8] bg-white">
-        <div className="mx-auto flex h-14 max-w-4xl items-center justify-between gap-3 px-4 sm:h-16 sm:gap-4 sm:px-6 lg:px-8">
+        <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-3 px-4 sm:h-16 sm:gap-4 sm:px-6 lg:px-8">
           <button onClick={() => window.location.href = '/dashboard'} className="shrink-0">
             <img src="/images/isotipo.svg" alt="Anfiora" className="h-11 w-11 sm:hidden" />
             <img src="/images/logo.svg" alt="Anfiora" className="hidden h-11 sm:block lg:h-14" />
@@ -575,8 +582,9 @@ export default function Dashboard() {
         </div>
       </header>
 
+      {contexto.kind === 'cartera' && (
       <div className="shrink-0 bg-[#f8f8f8]">
-        <div className="mx-auto max-w-4xl px-4 pt-3 sm:px-6 sm:pt-4 lg:px-8">
+        <div className="mx-auto max-w-6xl px-4 pt-3 sm:px-6 sm:pt-4 lg:px-8">
           <div className="mb-5 flex items-center justify-between sm:mb-6">
             <div>
               <h1 className="text-xl font-bold text-[#1D1E20] sm:text-2xl">Dashboard</h1>
@@ -671,10 +679,19 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
+      )}
 
       <div className="min-h-0 flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-4xl px-4 pb-8 sm:px-6 lg:px-8">
-          {loading ? (
+        <div className="mx-auto max-w-6xl px-4 pb-8 pt-4 sm:px-6 lg:px-8">
+          {contexto.kind === 'evento' && enFoco ? (
+            <ContextoEvento
+              m={enFoco}
+              colaboradores={colaboradores.filter(c => c.event_id === enFoco.event.id)}
+              rol={rol}
+              puedeVerDinero={enFoco.event.shared_role !== 'viewer'}
+              onAbrirEvento={() => { window.location.href = '/events/' + enFoco.event.id }}
+            />
+          ) : loading ? (
             <div className="flex flex-col gap-3">
               {[1,2,3].map(i => <SkeletonCard key={i} />)}
             </div>
