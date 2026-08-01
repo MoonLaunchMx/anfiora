@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  X, Star, Trash2, Plus, Check, Paperclip, Wallet, Pencil, AlertTriangle, CheckCircle2,
+  Star, Trash2, Plus, Check, Paperclip, Wallet, Pencil, AlertTriangle, CheckCircle2,
 } from 'lucide-react'
 import { FaWhatsapp } from 'react-icons/fa'
 import { FiInstagram, FiGlobe, FiMail, FiFacebook } from 'react-icons/fi'
@@ -18,6 +18,9 @@ import {
 } from '@/lib/types'
 import PhoneInput from '@/app/components/ui/PhoneInput'
 import { toWhatsApp, detectCountry, dialCode } from '@/lib/phone'
+import { Modal } from '@/app/components/ui/Modal'
+
+const INPUT_CLASS = 'rounded-lg border border-[#e8e8e8] bg-white px-3 py-2 text-base text-[#1D1E20] outline-none transition-colors focus:border-[#48C9B0]'
 
 type SupplierWithDetails = EventSupplier & { supplier: Supplier }
 
@@ -85,10 +88,8 @@ export default function SupplierDetailModal({
   const isContractOverBudget = selectedBudget && contractNum > 0 && budgetMeta > 0 && contractNum > budgetMeta
 
   useEffect(() => {
-    document.body.style.overflow = 'hidden'
     loadPayments()
     loadLinkedBudget()
-    return () => { document.body.style.overflow = '' }
   }, [])
 
   const loadPayments = async () => {
@@ -275,16 +276,16 @@ export default function SupplierDetailModal({
         {mode === 'edit' ? 'Editar pago' : 'Nuevo pago'}
       </div>
       <div className="grid grid-cols-2 gap-2">
-        <input type="number" inputMode="decimal" value={payAmount} onChange={e => setPayAmount(e.target.value)} placeholder={`Monto (${currency})`} className="input-base" autoFocus />
-        <input type="date" value={payDate} onChange={e => setPayDate(e.target.value)} className="input-base" />
-        <select value={payMethod} onChange={e => setPayMethod(e.target.value as PaymentMethod)} className="input-base">
+        <input type="number" inputMode="decimal" value={payAmount} onChange={e => setPayAmount(e.target.value)} placeholder={`Monto (${currency})`} className={`${INPUT_CLASS} w-full`} autoFocus />
+        <input type="date" value={payDate} onChange={e => setPayDate(e.target.value)} className={`${INPUT_CLASS} w-full`} />
+        <select value={payMethod} onChange={e => setPayMethod(e.target.value as PaymentMethod)} className={`${INPUT_CLASS} w-full`}>
           {PAYMENT_METHODS.map(m => <option key={m} value={m}>{PAYMENT_METHOD_LABELS[m]}</option>)}
         </select>
-        <select value={payBy} onChange={e => setPayBy(e.target.value as PaidBy)} className="input-base">
+        <select value={payBy} onChange={e => setPayBy(e.target.value as PaidBy)} className={`${INPUT_CLASS} w-full`}>
           {PAID_BY_OPTIONS.map(p => <option key={p} value={p}>{PAID_BY_LABELS[p]}</option>)}
         </select>
       </div>
-      <input type="text" value={payReference} onChange={e => setPayReference(e.target.value)} placeholder="Referencia o nota (opcional)" className="input-base" />
+      <input type="text" value={payReference} onChange={e => setPayReference(e.target.value)} placeholder="Referencia o nota (opcional)" className={`${INPUT_CLASS} w-full`} />
       <div className="flex justify-end gap-2 pt-1">
         <button onClick={resetPaymentForm} disabled={savingPay} className="px-3 py-1 text-xs text-[#666] hover:text-[#1D1E20]">Cancelar</button>
         <button onClick={handleSavePayment} disabled={savingPay || !payAmount} className="flex items-center gap-1 rounded-lg bg-[#48C9B0] px-3 py-1 text-xs font-semibold text-white hover:bg-[#3aa896] disabled:opacity-50">
@@ -296,350 +297,315 @@ export default function SupplierDetailModal({
   )
 
   return (
-    <AnimatePresence>
-      <motion.div
-        key="supplier-detail-overlay"
-        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-        className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center sm:p-4"
-        onClick={onClose}
-      >
-        <motion.div
-          initial={{ y: '100%', opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          exit={{ y: '100%', opacity: 0 }}
-          transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-          className="flex max-h-[95vh] w-full flex-col rounded-t-2xl bg-white shadow-xl sm:max-h-[90vh] sm:max-w-3xl sm:rounded-2xl"
-          onClick={e => e.stopPropagation()}
-        >
-          {/* HEADER */}
-          <div className="flex shrink-0 items-start justify-between gap-4 border-b border-[#e8e8e8] px-5 py-4">
-            <div className="min-w-0 flex-1">
-              <div className="text-[10px] font-semibold uppercase tracking-wider text-[#888]">
-                {BUDGET_CATEGORY_LABELS[category]}
-              </div>
-              <h2 className="mt-1 truncate text-lg font-semibold text-[#1D1E20]">
-                {name || 'Sin nombre'}
-              </h2>
-            </div>
-            <button onClick={onClose} className="-mr-2 shrink-0 rounded-lg p-2 text-[#aaa] transition-colors hover:bg-[#f5f5f5] hover:text-[#1D1E20]">
-              <X size={20} />
-            </button>
-          </div>
+    <Modal open onClose={onClose} size="2xl">
+      <Modal.Header title={name || 'Sin nombre'} subtitle={BUDGET_CATEGORY_LABELS[category]} />
+      <Modal.Body className="space-y-7 py-5">
 
-          {/* CONTENT */}
-          <div className="flex-1 space-y-7 overflow-y-auto px-5 py-5">
-
-            {/* ① ESTADO */}
-            <Section title="Estado">
-              <div className="flex flex-wrap gap-2">
-                {SUPPLIER_STATUSES.map(s => (
-                  <button key={s} onClick={() => setStatus(s)}
-                    className={`rounded-lg border px-3 py-2 text-sm transition-all ${
-                      status === s ? 'border-[#1D1E20] bg-[#1D1E20] font-medium text-white' : 'border-[#e8e8e8] bg-white text-[#666] hover:bg-[#fafafa]'
-                    }`}
-                  >
-                    {SUPPLIER_STATUS_LABELS[s]}
-                  </button>
-                ))}
-              </div>
-            </Section>
-
-            {/* ② IDENTIDAD */}
-            <Section title="Identidad">
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <Field label="Nombre">
-                  <input type="text" value={name} onChange={e => setName(e.target.value)} className="input-base" />
-                </Field>
-                <Field label="Categoría">
-                  <select value={category} onChange={e => { setCategory(e.target.value as BudgetCategory); setEventBudgetId('') }} className="input-base">
-                    {BUDGET_CATEGORIES.map(c => <option key={c} value={c}>{BUDGET_CATEGORY_LABELS[c]}</option>)}
-                  </select>
-                </Field>
-                <Field label="Concepto del presupuesto" className="sm:col-span-2">
-                  {budgetsForCategory.length > 0 ? (
-                    <>
-                      <div className="flex items-center gap-2">
-                        <Wallet size={14} className="shrink-0 text-[#888]" />
-                        <select value={eventBudgetId} onChange={e => setEventBudgetId(e.target.value)} className="input-base flex-1">
-                          <option value="">Sin concepto</option>
-                          {budgetsForCategory.map(b => (
-                            <option key={b.id} value={b.id}>
-                              {b.subcategory || budgetCategoryLabel(b.category)} — {formatCurrency(b.budget_amount, currency)}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      {selectedBudget && <p className="mt-1 text-[10px] text-[#888]">Meta: {formatCurrency(budgetMeta, currency)}</p>}
-                    </>
-                  ) : (
-                    <div className="flex items-center gap-2 rounded-lg border border-dashed border-[#e0e0e0] bg-[#fafafa] px-3 py-3">
-                      <Wallet size={14} className="shrink-0 text-[#aaa]" />
-                      <p className="text-xs text-[#888]">No hay conceptos de {BUDGET_CATEGORY_LABELS[category]} — créalos en Presupuesto</p>
-                    </div>
-                  )}
-                </Field>
-              </div>
-            </Section>
-
-            {/* ③ CONTACTO */}
-            <Section title="Contacto">
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <Field label="WhatsApp">
-                  <div className="flex gap-1.5">
-                    <PhoneInput value={phone} onChange={setPhone} placeholder="55 1234 5678" className="min-w-0 flex-1" />
-                    <button onClick={openWhatsApp} disabled={!phone} className="flex shrink-0 items-center justify-center rounded-lg border border-[#e8e8e8] px-3 text-emerald-600 hover:bg-emerald-50 disabled:opacity-30">
-                      <FaWhatsapp size={18} />
-                    </button>
-                  </div>
-                </Field>
-                <Field label="Email">
-                  <div className="flex gap-1.5">
-                    <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="contacto@proveedor.com" className="input-base min-w-0 flex-1" />
-                    <button onClick={openEmail} disabled={!email} className="flex shrink-0 items-center justify-center rounded-lg border border-[#e8e8e8] px-3 text-[#1D1E20] hover:bg-[#fafafa] disabled:opacity-30">
-                      <FiMail size={18} />
-                    </button>
-                  </div>
-                </Field>
-                <Field label="Instagram">
-                  <div className="flex gap-1.5">
-                    <input type="text" value={instagram} onChange={e => setInstagram(e.target.value)} placeholder="@usuario" className="input-base min-w-0 flex-1" />
-                    <button onClick={openInstagram} disabled={!instagram} className="flex shrink-0 items-center justify-center rounded-lg border border-[#e8e8e8] px-3 text-pink-600 hover:bg-pink-50 disabled:opacity-30">
-                      <FiInstagram size={18} />
-                    </button>
-                  </div>
-                </Field>
-                <Field label="Facebook">
-                  <div className="flex gap-1.5">
-                    <input type="text" value={facebook} onChange={e => setFacebook(e.target.value)} placeholder="fb.com/proveedor" className="input-base min-w-0 flex-1" />
-                    <button onClick={openFacebook} disabled={!facebook} className="flex shrink-0 items-center justify-center rounded-lg border border-[#e8e8e8] px-3 text-blue-600 hover:bg-blue-50 disabled:opacity-30">
-                      <FiFacebook size={18} />
-                    </button>
-                  </div>
-                </Field>
-                <Field label="Website" className="sm:col-span-2">
-                  <div className="flex gap-1.5">
-                    <input type="text" value={website} onChange={e => setWebsite(e.target.value)} placeholder="proveedor.com" className="input-base min-w-0 flex-1" />
-                    <button onClick={openWebsite} disabled={!website} className="flex shrink-0 items-center justify-center rounded-lg border border-[#e8e8e8] px-3 text-[#1D1E20] hover:bg-[#fafafa] disabled:opacity-30">
-                      <FiGlobe size={18} />
-                    </button>
-                  </div>
-                </Field>
-              </div>
-            </Section>
-
-            {/* ④ PRESUPUESTO ASIGNADO */}
-            {linkedBudget && (
-              <Section title="Presupuesto asignado">
-                <button onClick={goToBudget} className="flex w-full items-center justify-between gap-3 rounded-lg border border-[#e8e8e8] bg-[#fafafa] px-4 py-3 text-left transition-colors hover:border-[#48C9B0] hover:bg-white">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white">
-                      <Wallet size={16} className="text-[#48C9B0]" />
-                    </div>
-                    <div>
-                      <div className="text-xs text-[#888]">{linkedBudget.subcategory || budgetCategoryLabel(linkedBudget.category)}</div>
-                      <div className="text-sm font-semibold text-[#1D1E20]">Meta: {formatCurrency(linkedBudget.budget_amount, currency)}</div>
-                    </div>
-                  </div>
-                  <span className="text-xs font-medium text-[#48C9B0]">Ver →</span>
-                </button>
-              </Section>
-            )}
-
-            {/* ⑤ COMERCIAL */}
-            <Section title="Comercial">
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <Field label={`Cotización (${currency})`}>
-                  <input type="number" inputMode="decimal" value={quotedAmount} onChange={e => setQuotedAmount(e.target.value)} placeholder="0.00" className="input-base" />
-                  {quotedAmount && <p className="mt-1 text-xs text-[#888]">{formatCurrency(quotedNum, currency)}</p>}
-                </Field>
-                <Field label={`Monto contratado (${currency})`}>
-                  <input type="number" inputMode="decimal" value={contractAmount} onChange={e => setContractAmount(e.target.value)} placeholder="0.00" className="input-base" />
-                  {contractAmount && <p className="mt-1 text-xs text-[#888]">{formatCurrency(contractNum, currency)}</p>}
-                </Field>
-              </div>
-              {selectedBudget && (quotedNum > 0 || contractNum > 0) && (
-                <div className="mt-3">
-                  {(isContractOverBudget || isQuotedOverBudget) ? (
-                    <div className="flex items-start gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
-                      <AlertTriangle size={13} className="mt-0.5 shrink-0 text-amber-500" />
-                      <p className="text-[11px] text-amber-700">
-                        {isContractOverBudget
-                          ? `El monto contratado supera la meta de "${selectedBudget.subcategory}" por ${formatCurrency(contractNum - budgetMeta, currency)}`
-                          : `La cotización supera la meta de "${selectedBudget.subcategory}" por ${formatCurrency(quotedNum - budgetMeta, currency)}`}
-                      </p>
-                    </div>
-                  ) : isQuotedUnderBudget ? (
-                    <div className="flex items-start gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2">
-                      <CheckCircle2 size={13} className="mt-0.5 shrink-0 text-emerald-500" />
-                      <p className="text-[11px] text-emerald-700">
-                        Dentro del presupuesto — quedan {formatCurrency(budgetMeta - (contractNum || quotedNum), currency)} disponibles
-                      </p>
-                    </div>
-                  ) : null}
-                </div>
-              )}
-            </Section>
-
-            {/* ⑥ PAGOS */}
-            <AnimatePresence initial={false}>
-              {status === 'contratado' && (
-                <motion.div key="pagos-section" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
-                  <Section
-                    title="Pagos"
-                    action={!showNewPaymentForm && !editingPaymentId && (
-                      <button onClick={openNewPaymentForm} className="flex items-center gap-1 text-xs font-medium text-[#48C9B0] hover:text-[#3aa896]">
-                        <Plus size={12} />Registrar pago
-                      </button>
-                    )}
-                  >
-                    {contractNum > 0 && (
-                      <div className={`mb-3 rounded-lg border p-3 ${isOverpaid ? 'border-amber-300 bg-amber-50' : 'border-[#e8e8e8] bg-[#fafafa]'}`}>
-                        <div className="flex items-center justify-between text-xs">
-                          <span className="text-[#888]">Pagado <span className="font-semibold text-[#1D1E20]">{formatCurrency(totalPaid, currency)}</span> / {formatCurrency(contractNum, currency)}</span>
-                          <span className={`font-medium ${isOverpaid ? 'text-amber-700' : 'text-[#1D1E20]'}`}>
-                            {isOverpaid ? `+${formatCurrency(overpaidAmount, currency)} de más` : remaining > 0 ? `Falta ${formatCurrency(remaining, currency)}` : 'Liquidado'}
-                          </span>
-                        </div>
-                        <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-[#e8e8e8]">
-                          <div className={`h-full transition-all ${isOverpaid ? 'bg-amber-500' : 'bg-[#48C9B0]'}`} style={{ width: `${payProgress}%` }} />
-                        </div>
-                        {isOverpaid && (
-                          <div className="mt-2 flex items-start gap-1.5 text-[11px] text-amber-700">
-                            <AlertTriangle size={12} className="mt-0.5 shrink-0" />
-                            <span>Los pagos exceden el monto contratado.</span>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                    <AnimatePresence>
-                      {showNewPaymentForm && (
-                        <motion.div key="new-payment-form" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="mb-3 overflow-hidden">
-                          {renderPaymentForm('new')}
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                    {payments.length === 0 && !showNewPaymentForm ? (
-                      <p className="py-2 text-xs text-[#aaa]">Sin pagos registrados</p>
-                    ) : (
-                      <ul className="space-y-1.5">
-                        {payments.map(p => {
-                          const isEditing = editingPaymentId === p.id
-                          return (
-                            <li key={p.id} className="space-y-1.5">
-                              {!isEditing && (
-                                <div className="flex items-center justify-between gap-3 rounded-lg border border-[#e8e8e8] bg-white px-3 py-2 text-sm">
-                                  <button onClick={() => openEditPaymentForm(p)} className="min-w-0 flex-1 text-left">
-                                    <div className="font-semibold text-[#1D1E20]">{formatCurrency(p.amount, currency)}</div>
-                                    <div className="truncate text-[10px] text-[#888]">
-                                      {p.payment_date}
-                                      {p.payment_method && ` • ${PAYMENT_METHOD_LABELS[p.payment_method]}`}
-                                      {p.paid_by && ` • ${PAID_BY_LABELS[p.paid_by]}`}
-                                      {p.reference && ` • ${p.reference}`}
-                                    </div>
-                                  </button>
-                                  <div className="flex shrink-0 items-center gap-1">
-                                    <button onClick={() => openEditPaymentForm(p)} className="rounded p-1 text-[#aaa] hover:bg-[#f5f5f5] hover:text-[#1D1E20]"><Pencil size={13} /></button>
-                                    <button onClick={() => handleDeletePayment(p.id)} className="rounded p-1 text-[#aaa] hover:bg-red-50 hover:text-red-600"><Trash2 size={13} /></button>
-                                  </div>
-                                </div>
-                              )}
-                              <AnimatePresence>
-                                {isEditing && (
-                                  <motion.div key={`edit-form-${p.id}`} initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
-                                    {renderPaymentForm('edit')}
-                                  </motion.div>
-                                )}
-                              </AnimatePresence>
-                            </li>
-                          )
-                        })}
-                      </ul>
-                    )}
-                  </Section>
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            {/* ⑦ NOTAS */}
-            <Section title="Notas del proveedor">
-              <textarea value={supplierNotes} onChange={e => setSupplierNotes(e.target.value)} rows={3} placeholder="Detalles, acuerdos, observaciones..." className="input-base w-full resize-none" />
-            </Section>
-
-            {/* ⑧ ARCHIVOS PRO */}
-            <Section title="Archivos">
-              <button onClick={() => setShowProModal(true)} className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-[#e8e8e8] bg-[#fafafa] px-4 py-4 text-sm text-[#666] transition-colors hover:border-[#1D1E20] hover:bg-white">
-                <Paperclip size={16} />
-                <span>Añadir archivos</span>
-                <span className="rounded bg-[#1D1E20] px-1.5 py-0.5 text-[9px] font-bold uppercase text-white">PRO</span>
-              </button>
-            </Section>
-
-            {/* ⑨ REVIEW existente */}
-            {hasReview && (
-              <Section title="Review">
-                <div className="rounded-lg border border-[#e8e8e8] bg-[#fafafa] p-3">
-                  {item.rating && (
-                    <div className="mb-1 flex gap-0.5">
-                      {[1, 2, 3, 4, 5].map(n => (
-                        <Star key={n} size={16} className={n <= (item.rating ?? 0) ? 'fill-amber-400 text-amber-400' : 'text-[#d4d4d4]'} />
-                      ))}
-                    </div>
-                  )}
-                  {item.review_text && <p className="mb-2 text-sm text-[#1D1E20]">{item.review_text}</p>}
-                  <button
-                    onClick={() => { onClose(); onReviewNeeded(item) }}
-                    className="flex items-center gap-1 text-xs font-medium text-[#48C9B0] hover:text-[#3aa896]"
-                  >
-                    <Pencil size={11} />Editar review
-                  </button>
-                </div>
-              </Section>
-            )}
-
-            <div className="h-2" />
-          </div>
-
-          {/* FOOTER */}
-          <div className="flex shrink-0 items-center justify-between gap-2 border-t border-[#e8e8e8] bg-white px-5 py-3">
-            <button onClick={handleDelete} disabled={deleting || saving} className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm text-red-600 transition-colors hover:bg-red-50 disabled:opacity-50">
-              <Trash2 size={15} />
-              <span>{deleting ? 'Eliminando...' : 'Eliminar'}</span>
-            </button>
-            <div className="flex items-center gap-2">
-              <button onClick={onClose} disabled={saving || deleting} className="px-4 py-2 text-sm text-[#666] hover:text-[#1D1E20] disabled:opacity-50">Cancelar</button>
-              <button onClick={handleSave} disabled={saving || deleting} className="rounded-lg bg-[#48C9B0] px-5 py-2 text-sm font-semibold text-white hover:bg-[#3aa896] disabled:opacity-50">
-                {saving ? 'Guardando...' : 'Guardar cambios'}
-              </button>
-            </div>
-          </div>
-
-          {/* Mini-modal PRO — este sí puede ser absolute porque es simple */}
-          <AnimatePresence>
-            {showProModal && (
-              <motion.div key="pro-modal" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                className="absolute inset-0 z-10 flex items-center justify-center bg-black/40 p-4"
-                onClick={() => setShowProModal(false)}
+        {/* ① ESTADO */}
+        <Section title="Estado">
+          <div className="flex flex-wrap gap-2">
+            {SUPPLIER_STATUSES.map(s => (
+              <button key={s} onClick={() => setStatus(s)}
+                className={`rounded-lg border px-3 py-2 text-sm transition-all ${
+                  status === s ? 'border-[#1D1E20] bg-[#1D1E20] font-medium text-white' : 'border-[#e8e8e8] bg-white text-[#666] hover:bg-[#fafafa]'
+                }`}
               >
-                <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
-                  className="max-w-sm rounded-2xl bg-white p-6 text-center shadow-xl"
-                  onClick={e => e.stopPropagation()}
-                >
-                  <div className="mb-3 inline-block rounded-full bg-[#1D1E20] px-2.5 py-1 text-[10px] font-bold uppercase text-white">Próximamente PRO</div>
-                  <h3 className="mb-2 text-base font-semibold text-[#1D1E20]">Archivos del proveedor</h3>
-                  <p className="mb-5 text-sm text-[#666]">Sube contratos, cotizaciones y comprobantes. Disponible próximamente en plan PRO.</p>
-                  <button onClick={() => setShowProModal(false)} className="w-full rounded-lg bg-[#1D1E20] px-4 py-2 text-sm font-semibold text-white hover:bg-black">Entendido</button>
-                </motion.div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </motion.div>
-      </motion.div>
+                {SUPPLIER_STATUS_LABELS[s]}
+              </button>
+            ))}
+          </div>
+        </Section>
 
-      <style jsx global>{`
-        .input-base { width: 100%; padding: 0.5rem 0.75rem; font-size: 0.875rem; border: 1px solid #e8e8e8; border-radius: 0.5rem; background-color: white; color: #1D1E20; outline: none; transition: border-color 0.15s; }
-        .input-base:focus { border-color: #48C9B0; }
-      `}</style>
-    </AnimatePresence>
+        {/* ② IDENTIDAD */}
+        <Section title="Identidad">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <Field label="Nombre">
+              <input type="text" value={name} onChange={e => setName(e.target.value)} className={`${INPUT_CLASS} w-full`} />
+            </Field>
+            <Field label="Categoría">
+              <select value={category} onChange={e => { setCategory(e.target.value as BudgetCategory); setEventBudgetId('') }} className={`${INPUT_CLASS} w-full`}>
+                {BUDGET_CATEGORIES.map(c => <option key={c} value={c}>{BUDGET_CATEGORY_LABELS[c]}</option>)}
+              </select>
+            </Field>
+            <Field label="Concepto del presupuesto" className="sm:col-span-2">
+              {budgetsForCategory.length > 0 ? (
+                <>
+                  <div className="flex items-center gap-2">
+                    <Wallet size={14} className="shrink-0 text-[#888]" />
+                    <select value={eventBudgetId} onChange={e => setEventBudgetId(e.target.value)} className={`${INPUT_CLASS} flex-1`}>
+                      <option value="">Sin concepto</option>
+                      {budgetsForCategory.map(b => (
+                        <option key={b.id} value={b.id}>
+                          {b.subcategory || budgetCategoryLabel(b.category)} — {formatCurrency(b.budget_amount, currency)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  {selectedBudget && <p className="mt-1 text-[10px] text-[#888]">Meta: {formatCurrency(budgetMeta, currency)}</p>}
+                </>
+              ) : (
+                <div className="flex items-center gap-2 rounded-lg border border-dashed border-[#e0e0e0] bg-[#fafafa] px-3 py-3">
+                  <Wallet size={14} className="shrink-0 text-[#aaa]" />
+                  <p className="text-xs text-[#888]">No hay conceptos de {BUDGET_CATEGORY_LABELS[category]} — créalos en Presupuesto</p>
+                </div>
+              )}
+            </Field>
+          </div>
+        </Section>
+
+        {/* ③ CONTACTO */}
+        <Section title="Contacto">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <Field label="WhatsApp">
+              <div className="flex gap-1.5">
+                <PhoneInput value={phone} onChange={setPhone} placeholder="55 1234 5678" className="min-w-0 flex-1" />
+                <button onClick={openWhatsApp} disabled={!phone} className="flex shrink-0 items-center justify-center rounded-lg border border-[#e8e8e8] px-3 text-emerald-600 hover:bg-emerald-50 disabled:opacity-30">
+                  <FaWhatsapp size={18} />
+                </button>
+              </div>
+            </Field>
+            <Field label="Email">
+              <div className="flex gap-1.5">
+                <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="contacto@proveedor.com" className={`${INPUT_CLASS} min-w-0 flex-1`} />
+                <button onClick={openEmail} disabled={!email} className="flex shrink-0 items-center justify-center rounded-lg border border-[#e8e8e8] px-3 text-[#1D1E20] hover:bg-[#fafafa] disabled:opacity-30">
+                  <FiMail size={18} />
+                </button>
+              </div>
+            </Field>
+            <Field label="Instagram">
+              <div className="flex gap-1.5">
+                <input type="text" value={instagram} onChange={e => setInstagram(e.target.value)} placeholder="@usuario" className={`${INPUT_CLASS} min-w-0 flex-1`} />
+                <button onClick={openInstagram} disabled={!instagram} className="flex shrink-0 items-center justify-center rounded-lg border border-[#e8e8e8] px-3 text-pink-600 hover:bg-pink-50 disabled:opacity-30">
+                  <FiInstagram size={18} />
+                </button>
+              </div>
+            </Field>
+            <Field label="Facebook">
+              <div className="flex gap-1.5">
+                <input type="text" value={facebook} onChange={e => setFacebook(e.target.value)} placeholder="fb.com/proveedor" className={`${INPUT_CLASS} min-w-0 flex-1`} />
+                <button onClick={openFacebook} disabled={!facebook} className="flex shrink-0 items-center justify-center rounded-lg border border-[#e8e8e8] px-3 text-blue-600 hover:bg-blue-50 disabled:opacity-30">
+                  <FiFacebook size={18} />
+                </button>
+              </div>
+            </Field>
+            <Field label="Website" className="sm:col-span-2">
+              <div className="flex gap-1.5">
+                <input type="text" value={website} onChange={e => setWebsite(e.target.value)} placeholder="proveedor.com" className={`${INPUT_CLASS} min-w-0 flex-1`} />
+                <button onClick={openWebsite} disabled={!website} className="flex shrink-0 items-center justify-center rounded-lg border border-[#e8e8e8] px-3 text-[#1D1E20] hover:bg-[#fafafa] disabled:opacity-30">
+                  <FiGlobe size={18} />
+                </button>
+              </div>
+            </Field>
+          </div>
+        </Section>
+
+        {/* ④ PRESUPUESTO ASIGNADO */}
+        {linkedBudget && (
+          <Section title="Presupuesto asignado">
+            <button onClick={goToBudget} className="flex w-full items-center justify-between gap-3 rounded-lg border border-[#e8e8e8] bg-[#fafafa] px-4 py-3 text-left transition-colors hover:border-[#48C9B0] hover:bg-white">
+              <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white">
+                  <Wallet size={16} className="text-[#48C9B0]" />
+                </div>
+                <div>
+                  <div className="text-xs text-[#888]">{linkedBudget.subcategory || budgetCategoryLabel(linkedBudget.category)}</div>
+                  <div className="text-sm font-semibold text-[#1D1E20]">Meta: {formatCurrency(linkedBudget.budget_amount, currency)}</div>
+                </div>
+              </div>
+              <span className="text-xs font-medium text-[#48C9B0]">Ver →</span>
+            </button>
+          </Section>
+        )}
+
+        {/* ⑤ COMERCIAL */}
+        <Section title="Comercial">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <Field label={`Cotización (${currency})`}>
+              <input type="number" inputMode="decimal" value={quotedAmount} onChange={e => setQuotedAmount(e.target.value)} placeholder="0.00" className={`${INPUT_CLASS} w-full`} />
+              {quotedAmount && <p className="mt-1 text-xs text-[#888]">{formatCurrency(quotedNum, currency)}</p>}
+            </Field>
+            <Field label={`Monto contratado (${currency})`}>
+              <input type="number" inputMode="decimal" value={contractAmount} onChange={e => setContractAmount(e.target.value)} placeholder="0.00" className={`${INPUT_CLASS} w-full`} />
+              {contractAmount && <p className="mt-1 text-xs text-[#888]">{formatCurrency(contractNum, currency)}</p>}
+            </Field>
+          </div>
+          {selectedBudget && (quotedNum > 0 || contractNum > 0) && (
+            <div className="mt-3">
+              {(isContractOverBudget || isQuotedOverBudget) ? (
+                <div className="flex items-start gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+                  <AlertTriangle size={13} className="mt-0.5 shrink-0 text-amber-500" />
+                  <p className="text-[11px] text-amber-700">
+                    {isContractOverBudget
+                      ? `El monto contratado supera la meta de "${selectedBudget.subcategory}" por ${formatCurrency(contractNum - budgetMeta, currency)}`
+                      : `La cotización supera la meta de "${selectedBudget.subcategory}" por ${formatCurrency(quotedNum - budgetMeta, currency)}`}
+                  </p>
+                </div>
+              ) : isQuotedUnderBudget ? (
+                <div className="flex items-start gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2">
+                  <CheckCircle2 size={13} className="mt-0.5 shrink-0 text-emerald-500" />
+                  <p className="text-[11px] text-emerald-700">
+                    Dentro del presupuesto — quedan {formatCurrency(budgetMeta - (contractNum || quotedNum), currency)} disponibles
+                  </p>
+                </div>
+              ) : null}
+            </div>
+          )}
+        </Section>
+
+        {/* ⑥ PAGOS */}
+        <AnimatePresence initial={false}>
+          {status === 'contratado' && (
+            <motion.div key="pagos-section" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
+              <Section
+                title="Pagos"
+                action={!showNewPaymentForm && !editingPaymentId && (
+                  <button onClick={openNewPaymentForm} className="flex items-center gap-1 text-xs font-medium text-[#48C9B0] hover:text-[#3aa896]">
+                    <Plus size={12} />Registrar pago
+                  </button>
+                )}
+              >
+                {contractNum > 0 && (
+                  <div className={`mb-3 rounded-lg border p-3 ${isOverpaid ? 'border-amber-300 bg-amber-50' : 'border-[#e8e8e8] bg-[#fafafa]'}`}>
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-[#888]">Pagado <span className="font-semibold text-[#1D1E20]">{formatCurrency(totalPaid, currency)}</span> / {formatCurrency(contractNum, currency)}</span>
+                      <span className={`font-medium ${isOverpaid ? 'text-amber-700' : 'text-[#1D1E20]'}`}>
+                        {isOverpaid ? `+${formatCurrency(overpaidAmount, currency)} de más` : remaining > 0 ? `Falta ${formatCurrency(remaining, currency)}` : 'Liquidado'}
+                      </span>
+                    </div>
+                    <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-[#e8e8e8]">
+                      <div className={`h-full transition-all ${isOverpaid ? 'bg-amber-500' : 'bg-[#48C9B0]'}`} style={{ width: `${payProgress}%` }} />
+                    </div>
+                    {isOverpaid && (
+                      <div className="mt-2 flex items-start gap-1.5 text-[11px] text-amber-700">
+                        <AlertTriangle size={12} className="mt-0.5 shrink-0" />
+                        <span>Los pagos exceden el monto contratado.</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+                <AnimatePresence>
+                  {showNewPaymentForm && (
+                    <motion.div key="new-payment-form" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="mb-3 overflow-hidden">
+                      {renderPaymentForm('new')}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+                {payments.length === 0 && !showNewPaymentForm ? (
+                  <p className="py-2 text-xs text-[#aaa]">Sin pagos registrados</p>
+                ) : (
+                  <ul className="space-y-1.5">
+                    {payments.map(p => {
+                      const isEditing = editingPaymentId === p.id
+                      return (
+                        <li key={p.id} className="space-y-1.5">
+                          {!isEditing && (
+                            <div className="flex items-center justify-between gap-3 rounded-lg border border-[#e8e8e8] bg-white px-3 py-2 text-sm">
+                              <button onClick={() => openEditPaymentForm(p)} className="min-w-0 flex-1 text-left">
+                                <div className="font-semibold text-[#1D1E20]">{formatCurrency(p.amount, currency)}</div>
+                                <div className="truncate text-[10px] text-[#888]">
+                                  {p.payment_date}
+                                  {p.payment_method && ` • ${PAYMENT_METHOD_LABELS[p.payment_method]}`}
+                                  {p.paid_by && ` • ${PAID_BY_LABELS[p.paid_by]}`}
+                                  {p.reference && ` • ${p.reference}`}
+                                </div>
+                              </button>
+                              <div className="flex shrink-0 items-center gap-1">
+                                <button onClick={() => openEditPaymentForm(p)} className="rounded p-1 text-[#aaa] hover:bg-[#f5f5f5] hover:text-[#1D1E20]"><Pencil size={13} /></button>
+                                <button onClick={() => handleDeletePayment(p.id)} className="rounded p-1 text-[#aaa] hover:bg-red-50 hover:text-red-600"><Trash2 size={13} /></button>
+                              </div>
+                            </div>
+                          )}
+                          <AnimatePresence>
+                            {isEditing && (
+                              <motion.div key={`edit-form-${p.id}`} initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
+                                {renderPaymentForm('edit')}
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                )}
+              </Section>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* ⑦ NOTAS */}
+        <Section title="Notas del proveedor">
+          <textarea value={supplierNotes} onChange={e => setSupplierNotes(e.target.value)} rows={3} placeholder="Detalles, acuerdos, observaciones..." className={`${INPUT_CLASS} w-full resize-none`} />
+        </Section>
+
+        {/* ⑧ ARCHIVOS PRO */}
+        <Section title="Archivos">
+          <button onClick={() => setShowProModal(true)} className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-[#e8e8e8] bg-[#fafafa] px-4 py-4 text-sm text-[#666] transition-colors hover:border-[#1D1E20] hover:bg-white">
+            <Paperclip size={16} />
+            <span>Añadir archivos</span>
+            <span className="rounded bg-[#1D1E20] px-1.5 py-0.5 text-[9px] font-bold uppercase text-white">PRO</span>
+          </button>
+        </Section>
+
+        {/* ⑨ REVIEW existente */}
+        {hasReview && (
+          <Section title="Review">
+            <div className="rounded-lg border border-[#e8e8e8] bg-[#fafafa] p-3">
+              {item.rating && (
+                <div className="mb-1 flex gap-0.5">
+                  {[1, 2, 3, 4, 5].map(n => (
+                    <Star key={n} size={16} className={n <= (item.rating ?? 0) ? 'fill-amber-400 text-amber-400' : 'text-[#d4d4d4]'} />
+                  ))}
+                </div>
+              )}
+              {item.review_text && <p className="mb-2 text-sm text-[#1D1E20]">{item.review_text}</p>}
+              <button
+                onClick={() => { onClose(); onReviewNeeded(item) }}
+                className="flex items-center gap-1 text-xs font-medium text-[#48C9B0] hover:text-[#3aa896]"
+              >
+                <Pencil size={11} />Editar review
+              </button>
+            </div>
+          </Section>
+        )}
+
+        <div className="h-2" />
+      </Modal.Body>
+
+      <Modal.Footer>
+        <div className="flex w-full items-center justify-between gap-2">
+          <button onClick={handleDelete} disabled={deleting || saving} className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm text-red-600 transition-colors hover:bg-red-50 disabled:opacity-50">
+            <Trash2 size={15} />
+            <span>{deleting ? 'Eliminando...' : 'Eliminar'}</span>
+          </button>
+          <div className="flex items-center gap-2">
+            <button onClick={onClose} disabled={saving || deleting} className="px-4 py-2 text-sm text-[#666] hover:text-[#1D1E20] disabled:opacity-50">Cancelar</button>
+            <button onClick={handleSave} disabled={saving || deleting} className="rounded-lg bg-[#48C9B0] px-5 py-2 text-sm font-semibold text-white hover:bg-[#3aa896] disabled:opacity-50">
+              {saving ? 'Guardando...' : 'Guardar cambios'}
+            </button>
+          </div>
+        </div>
+      </Modal.Footer>
+
+      {/* fixed (no absolute): el panel del primitivo tiene overflow-hidden, fixed cubre el viewport sin depender del containing block */}
+      <AnimatePresence>
+        {showProModal && (
+          <motion.div key="pro-modal" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[310] flex items-center justify-center bg-black/40 p-4"
+            onClick={() => setShowProModal(false)}
+          >
+            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
+              className="max-w-sm rounded-2xl bg-white p-6 text-center shadow-xl"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="mb-3 inline-block rounded-full bg-[#1D1E20] px-2.5 py-1 text-[10px] font-bold uppercase text-white">Próximamente PRO</div>
+              <h3 className="mb-2 text-base font-semibold text-[#1D1E20]">Archivos del proveedor</h3>
+              <p className="mb-5 text-sm text-[#666]">Sube contratos, cotizaciones y comprobantes. Disponible próximamente en plan PRO.</p>
+              <button onClick={() => setShowProModal(false)} className="w-full rounded-lg bg-[#1D1E20] px-4 py-2 text-sm font-semibold text-white hover:bg-black">Entendido</button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </Modal>
   )
 }
 
