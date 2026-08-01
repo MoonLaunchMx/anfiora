@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   Activity, Briefcase, Check, Copy, Gift, LayoutGrid, Settings,
   UserPlus, Users,
@@ -151,23 +151,10 @@ export default function ContextoEvento({ m, colaboradores, rol, puedeVerDinero, 
   const [tareas, setTareas] = useState<TaskRow[]>(m.tareasProximas)
   const [fallo, setFallo] = useState<string | null>(null)
   const [actividad, setActividad] = useState<ActividadRow[]>([])
-  const [compacto, setCompacto] = useState(false)
-  const sentinela = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const interval = setInterval(() => setNow(new Date()), 1000)
     return () => clearInterval(interval)
-  }, [])
-
-  // El encabezado compacto aparece cuando el hero sale de vista. Se usa un
-  // centinela con IntersectionObserver en vez de un listener de scroll: no
-  // dispara render en cada pixel y no necesita saber quien es el contenedor.
-  useEffect(() => {
-    const el = sentinela.current
-    if (!el) return
-    const io = new IntersectionObserver(([entrada]) => setCompacto(!entrada.isIntersecting), { threshold: 0 })
-    io.observe(el)
-    return () => io.disconnect()
   }, [])
 
   // El componente recibe `m` por props: al cambiar de evento hay que resembrar
@@ -340,48 +327,6 @@ export default function ContextoEvento({ m, colaboradores, rol, puedeVerDinero, 
 
   return (
     <div className="flex flex-col gap-4">
-
-      <div ref={sentinela} className="h-px w-full" aria-hidden />
-
-      <div
-        className={
-          'sticky top-0 z-30 -mx-4 border-b border-[#E8E8E8] bg-white/85 px-4 backdrop-blur-md transition-all duration-300 ease-out sm:-mx-6 sm:px-6 lg:-mx-10 lg:px-10 xl:-mx-14 xl:px-14 ' +
-          (compacto
-            ? 'pointer-events-auto max-h-20 translate-y-0 py-2.5 opacity-100'
-            : 'pointer-events-none max-h-0 -translate-y-3 overflow-hidden py-0 opacity-0')
-        }
-      >
-        <div className="flex items-center gap-3">
-          <span className="h-2.5 w-2.5 shrink-0 animate-pulse rounded-full bg-[#48C9B0]" />
-          <h2 className="min-w-0 flex-1 truncate font-display text-[17px] font-black tracking-[-0.02em] sm:text-[20px]">
-            {ev.name}
-          </h2>
-          <span className="hidden items-baseline gap-1.5 md:flex">
-            <b className="font-display text-[19px] font-black leading-none text-[#1A9E88]">{cd.grande}</b>
-            <span className="text-[12.5px] text-[#888]">{cd.unidad}</span>
-          </span>
-          <span className="hidden h-5 w-px bg-[#E8E8E8] md:block" />
-          <span className="hidden items-baseline gap-1.5 lg:flex">
-            <b className="font-display text-[19px] font-black leading-none">{m.invitados.confirmados}</b>
-            <span className="text-[12.5px] text-[#888]">confirmados</span>
-          </span>
-          {puedeVerDinero && (
-            <>
-              <span className="hidden h-5 w-px bg-[#E8E8E8] lg:block" />
-              <span className="hidden items-baseline gap-1.5 xl:flex">
-                <b className="font-display text-[19px] font-black leading-none">{org}%</b>
-                <span className="text-[12.5px] text-[#888]">organizado</span>
-              </span>
-            </>
-          )}
-          <button
-            onClick={onAbrirEvento}
-            className="ml-1 shrink-0 rounded-[10px] bg-[#48C9B0] px-3.5 py-2 text-[13px] font-semibold text-white transition hover:bg-[#3ab89f] active:scale-95"
-          >
-            Abrir evento
-          </button>
-        </div>
-      </div>
 
       <div className={'grid gap-4 ' + (puedeVerDinero ? 'xl:grid-cols-[1.05fr_1fr]' : 'xl:grid-cols-[1.4fr_1fr]')}>
 

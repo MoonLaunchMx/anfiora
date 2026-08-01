@@ -9,7 +9,7 @@ import type { ColaboradorRow, Contexto, EventMetrics, Rol } from '@/lib/dashboar
 import EventSelector from './EventSelector'
 import ContextoEvento from './ContextoEvento'
 import ContextoCartera from './ContextoCartera'
-import { Bell, Layers, MessageSquarePlus } from 'lucide-react'
+import { Bell, ChevronDown, Layers, LogOut, MessageSquarePlus, User as UserIcon } from 'lucide-react'
 import { WhatsNewModal } from '@/app/components/WhatsNewModal'
 import { NewEventModal } from '@/app/components/NewEventModal'
 import { OnboardingModal } from '@/app/components/OnboardingModal'
@@ -64,6 +64,7 @@ export default function Dashboard() {
   const [userEmail, setUserEmail]         = useState('')
   const [reminders, setReminders]         = useState<ReminderTask[]>([])
   const [showBellMenu, setShowBellMenu]   = useState(false)
+  const [showAvatarMenu, setShowAvatarMenu] = useState(false)
   const [showNewEvent, setShowNewEvent]   = useState(false)
   const [showOnboarding, setShowOnboarding] = useState(false)
   const [metrics, setMetrics]             = useState<EventMetrics[]>([])
@@ -85,9 +86,19 @@ export default function Dashboard() {
     const handleClick = (e: MouseEvent) => {
       const target = e.target as HTMLElement
       if (!target.closest('[data-bell]')) setShowBellMenu(false)
+      if (!target.closest('[data-avatar]')) setShowAvatarMenu(false)
+    }
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      setShowBellMenu(false)
+      setShowAvatarMenu(false)
     }
     document.addEventListener('mousedown', handleClick)
-    return () => document.removeEventListener('mousedown', handleClick)
+    document.addEventListener('keydown', handleKey)
+    return () => {
+      document.removeEventListener('mousedown', handleClick)
+      document.removeEventListener('keydown', handleKey)
+    }
   }, [])
 
   // Una sola lectura de sesion para toda la pantalla: cada getUser() toma un
@@ -198,18 +209,57 @@ export default function Dashboard() {
       <OnboardingModal open={showOnboarding} onCompleted={() => setShowOnboarding(false)} />
 
       <header className="shrink-0 border-b border-[#e8e8e8] bg-white">
-        <div className={'flex h-14 items-center justify-between gap-3 sm:h-16 sm:gap-4 ' + CONTENEDOR}>
+        <div className={'flex h-16 items-center gap-2.5 sm:gap-3 ' + CONTENEDOR}>
           <button onClick={() => window.location.href = '/dashboard'} className="shrink-0">
-            <img src="/images/isotipo.svg" alt="Anfiora" className="h-11 w-11 sm:hidden" />
-            <img src="/images/logo.svg" alt="Anfiora" className="hidden h-11 sm:block lg:h-14" />
+            <img src="/images/isotipo.svg" alt="Anfiora" className="h-10 w-10 lg:hidden" />
+            <img src="/images/logo.svg" alt="Anfiora" className="hidden h-11 lg:block" />
           </button>
-          <div className="flex shrink-0 items-center gap-3 sm:gap-4">
+
+          <span className="hidden h-6 w-px shrink-0 bg-[#e8e8e8] sm:block" />
+
+          <button
+            onClick={() => setContexto({ kind: 'cartera' })}
+            className={'flex shrink-0 items-center gap-2 rounded-[10px] px-2.5 py-2 text-[13px] font-semibold transition sm:px-3 ' + (
+              contexto.kind === 'cartera'
+                ? 'bg-[#1D1E20] text-white'
+                : 'border border-[#E0E0E0] bg-white text-[#1D1E20] hover:border-[#48C9B0]'
+            )}
+          >
+            <Layers size={14} />
+            <span className="hidden md:inline">Cartera</span>
+            {totalAlertas > 0 && (
+              <span className={'rounded-full px-1.5 py-px text-[12px] font-bold ' + (
+                contexto.kind === 'cartera' ? 'bg-white/15 text-white' : 'bg-[#FFF0F0] text-[#CC3333]'
+              )}>
+                {totalAlertas}
+              </span>
+            )}
+          </button>
+
+          {!loading && metrics.length > 0 && (
+            <EventSelector
+              metrics={metrics}
+              contexto={contexto}
+              onChange={elegirContexto}
+              onNuevoEvento={() => setShowNewEvent(true)}
+            />
+          )}
+
+          <div className="ml-auto flex shrink-0 items-center gap-2 sm:gap-2.5">
+            <button
+              onClick={() => setShowNewEvent(true)}
+              className="rounded-[10px] bg-[#48C9B0] px-3 py-2 text-[13px] font-semibold text-white transition hover:bg-[#3ab89f] active:scale-95 sm:px-4"
+            >
+              <span className="sm:hidden">+</span>
+              <span className="hidden sm:inline">+ Nuevo evento</span>
+            </button>
+
             <div data-bell className="relative">
               <button
                 onClick={() => setShowBellMenu(p => !p)}
-                className="relative flex h-8 w-8 items-center justify-center rounded-lg border border-[#e0e0e0] text-[#888] transition hover:border-[#48C9B0] hover:text-[#48C9B0]"
+                className="relative flex h-9 w-9 items-center justify-center rounded-[10px] border border-[#e0e0e0] text-[#888] transition hover:border-[#48C9B0] hover:text-[#48C9B0]"
               >
-                <Bell size={15} />
+                <Bell size={16} />
                 {totalReminders > 0 && (
                   <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-[#48C9B0] text-[9px] font-bold text-white">
                     {totalReminders > 9 ? '9+' : totalReminders}
@@ -270,72 +320,63 @@ export default function Dashboard() {
                 </div>
               )}
             </div>
-            <button
-              onClick={() => window.dispatchEvent(new CustomEvent('anfiora:open-feedback'))}
-              title="Enviar feedback"
-              className="rounded-lg border border-[#e0e0e0] p-2 text-[#888] transition hover:border-[#48C9B0] hover:text-[#1a9e88]"
-            >
-              <MessageSquarePlus size={16} />
-            </button>
-            <button
-              onClick={() => window.location.href = '/perfil'}
-              title="Mi perfil"
-              className="flex items-center gap-2 rounded-lg border border-[#e0e0e0] p-1 transition hover:border-[#48C9B0] sm:pr-3"
-            >
-              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#f0fdfb] text-xs font-bold text-[#1a9e88]">
-                {(userEmail || '?').charAt(0).toUpperCase()}
-              </span>
-              <span className="hidden truncate text-xs text-[#888] sm:block sm:max-w-[160px] sm:text-sm">{userEmail}</span>
-            </button>
-            <button onClick={handleLogout} className="rounded-md border border-[#e0e0e0] px-3 py-1.5 text-xs text-[#888] transition hover:bg-[#f5f5f5] sm:px-4 sm:text-sm">Salir</button>
+            <div data-avatar className="relative">
+              <button
+                onClick={() => setShowAvatarMenu(p => !p)}
+                aria-expanded={showAvatarMenu}
+                aria-haspopup="menu"
+                className="flex items-center gap-1.5 rounded-[10px] border border-[#e0e0e0] p-1 pr-1.5 transition hover:border-[#48C9B0]"
+              >
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#f0fdfb] text-[13px] font-bold text-[#1a9e88]">
+                  {(userEmail || '?').charAt(0).toUpperCase()}
+                </span>
+                <ChevronDown size={14} className={'text-[#bbb] transition ' + (showAvatarMenu ? 'rotate-180' : '')} />
+              </button>
+
+              {showAvatarMenu && (
+                <div className="absolute right-0 top-full z-50 mt-2 w-64 overflow-hidden rounded-xl border border-[#e8e8e8] bg-white shadow-lg">
+                  <div className="flex items-center gap-3 border-b border-[#f0f0f0] px-4 py-3">
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#f0fdfb] text-[15px] font-bold text-[#1a9e88]">
+                      {(userEmail || '?').charAt(0).toUpperCase()}
+                    </span>
+                    <div className="min-w-0">
+                      <p className="truncate text-[13px] font-semibold text-[#1D1E20]">{userEmail}</p>
+                      <p className="text-[12px] text-[#999]">
+                        {rol === 'planner' ? 'Planner' : rol === 'anfitrion' ? 'Anfitrión' : 'Tu cuenta'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => window.location.href = '/perfil'}
+                    className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-[13.5px] text-[#1D1E20] transition hover:bg-[#f8f8f8]"
+                  >
+                    <UserIcon size={15} className="text-[#888]" />
+                    Mi perfil
+                  </button>
+                  <button
+                    onClick={() => { setShowAvatarMenu(false); window.dispatchEvent(new CustomEvent('anfiora:open-feedback')) }}
+                    className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-[13.5px] text-[#1D1E20] transition hover:bg-[#f8f8f8]"
+                  >
+                    <MessageSquarePlus size={15} className="text-[#888]" />
+                    Enviar feedback
+                  </button>
+
+                  <div className="h-px bg-[#f0f0f0]" />
+
+                  <button
+                    onClick={handleLogout}
+                    className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-[13.5px] font-medium text-[#CC3333] transition hover:bg-[#fff5f5]"
+                  >
+                    <LogOut size={15} />
+                    Cerrar sesión
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </header>
-
-      <div className="shrink-0 border-b border-[#e8e8e8] bg-white">
-        <div className={CONTENEDOR + ' flex h-14 items-center gap-2 sm:gap-3'}>
-          <button
-            onClick={() => setContexto({ kind: 'cartera' })}
-            className={'flex shrink-0 items-center gap-2 rounded-[9px] px-2.5 py-1.5 text-[13px] font-semibold transition sm:px-3 ' + (
-              contexto.kind === 'cartera'
-                ? 'bg-[#1D1E20] text-white'
-                : 'border border-[#E0E0E0] bg-white text-[#1D1E20] hover:border-[#48C9B0]'
-            )}
-          >
-            <Layers size={13} />
-            <span className="hidden sm:inline">Cartera</span>
-            {totalAlertas > 0 && (
-              <span className={'rounded-full px-1.5 py-px text-[10px] font-bold ' + (
-                contexto.kind === 'cartera' ? 'bg-white/15 text-white' : 'bg-[#FFF0F0] text-[#CC3333]'
-              )}>
-                {totalAlertas}
-              </span>
-            )}
-          </button>
-
-
-          <span className="h-5 w-px shrink-0 bg-[#e8e8e8]" />
-
-          {!loading && metrics.length > 0 && (
-            <EventSelector
-              metrics={metrics}
-              contexto={contexto}
-              onChange={elegirContexto}
-              onNuevoEvento={() => setShowNewEvent(true)}
-            />
-          )}
-
-          <div className="ml-auto flex shrink-0 items-center gap-2">
-            <button
-              onClick={() => setShowNewEvent(true)}
-              className="rounded-[9px] bg-[#48C9B0] px-3 py-1.5 text-[13px] font-semibold text-white transition hover:bg-[#3ab89f] active:scale-95 sm:px-4"
-            >
-              <span className="sm:hidden">+ Nuevo</span>
-              <span className="hidden sm:inline">+ Nuevo evento</span>
-            </button>
-          </div>
-        </div>
-      </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className={CONTENEDOR + ' py-4 pb-8'}>
