@@ -759,6 +759,7 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
           WebkitOverflowScrolling: 'touch',
           scrollbarWidth: 'none',
           msOverflowStyle: 'none',
+          paddingBottom: 'env(safe-area-inset-bottom, 0px)',
         }}
       >
         <button

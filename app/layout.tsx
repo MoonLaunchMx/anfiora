@@ -1,4 +1,4 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import Script from 'next/script'
 // @ts-ignore
 import './globals.css'
@@ -10,6 +10,13 @@ import AttributionCapture from './components/AttributionCapture'
 import InstallPrompt from './components/InstallPrompt'
 import SentryUser from './components/SentryUser'
 import CosmeticBoundary from './components/CosmeticBoundary'
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover',
+  interactiveWidget: 'resizes-content',
+}
 
 export const metadata: Metadata = {
   title: 'Anfiora — Gestión de invitados para eventos',
