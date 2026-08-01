@@ -293,10 +293,10 @@ export default function Dashboard() {
       </header>
 
       <div className="shrink-0 border-b border-[#e8e8e8] bg-white">
-        <div className={CONTENEDOR + ' flex h-12 items-center gap-2 sm:gap-3'}>
+        <div className={CONTENEDOR + ' flex h-14 items-center gap-2 sm:gap-3'}>
           <button
             onClick={() => setContexto({ kind: 'cartera' })}
-            className={'flex shrink-0 items-center gap-2 rounded-[9px] px-2.5 py-1.5 text-[11.5px] font-semibold transition sm:px-3 ' + (
+            className={'flex shrink-0 items-center gap-2 rounded-[9px] px-2.5 py-1.5 text-[13px] font-semibold transition sm:px-3 ' + (
               contexto.kind === 'cartera'
                 ? 'bg-[#1D1E20] text-white'
                 : 'border border-[#E0E0E0] bg-white text-[#1D1E20] hover:border-[#48C9B0]'
@@ -313,6 +313,7 @@ export default function Dashboard() {
             )}
           </button>
 
+
           <span className="h-5 w-px shrink-0 bg-[#e8e8e8]" />
 
           {!loading && metrics.length > 0 && (
@@ -327,7 +328,7 @@ export default function Dashboard() {
           <div className="ml-auto flex shrink-0 items-center gap-2">
             <button
               onClick={() => setShowNewEvent(true)}
-              className="rounded-[9px] bg-[#48C9B0] px-3 py-1.5 text-[11.5px] font-semibold text-white transition hover:bg-[#3ab89f] active:scale-95 sm:px-4"
+              className="rounded-[9px] bg-[#48C9B0] px-3 py-1.5 text-[13px] font-semibold text-white transition hover:bg-[#3ab89f] active:scale-95 sm:px-4"
             >
               <span className="sm:hidden">+ Nuevo</span>
               <span className="hidden sm:inline">+ Nuevo evento</span>

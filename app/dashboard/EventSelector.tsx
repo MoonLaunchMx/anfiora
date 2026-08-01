@@ -130,17 +130,17 @@ export default function EventSelector({ metrics, contexto, onChange, onNuevoEven
             : 'border-[#E8E8E8] bg-[#F8F8F8] text-[#1D1E20] hover:border-[#48C9B0]'
         )}
       >
-        <span className={'h-1.5 w-1.5 shrink-0 rounded-full ' + (esCartera ? 'bg-[#DDD]' : 'bg-[#48C9B0]')} />
-        <span className="flex-1 truncate text-[11.5px] font-semibold tracking-[-0.005em]">
+        <span className={'h-2 w-2 shrink-0 rounded-full ' + (esCartera ? 'bg-[#DDD]' : 'bg-[#48C9B0]')} />
+        <span className="flex-1 truncate text-[13.5px] font-semibold tracking-[-0.01em]">
           {esCartera ? 'Elegir evento' : enFoco?.event.name ?? 'Elegir evento'}
         </span>
         {!esCartera && (
-          <span className="hidden shrink-0 rounded-full border border-[#E8E8E8] bg-white px-2 py-0.5 text-[10px] font-semibold text-[#888] md:inline-block">
+          <span className="hidden shrink-0 rounded-full border border-[#E8E8E8] bg-white px-2 py-0.5 text-[12px] font-semibold text-[#888] md:inline-block">
             {fechaCorta(enFoco?.event.event_date ?? null, true)}
           </span>
         )}
         <ChevronDown
-          size={12}
+          size={14}
           strokeWidth={2.5}
           className={'shrink-0 text-[#BBB] transition ' + (abierto ? 'rotate-180' : '')}
         />
@@ -188,8 +188,8 @@ export default function EventSelector({ metrics, contexto, onChange, onNuevoEven
                 >
                   <span className={'h-1.5 w-1.5 shrink-0 rounded-full ' + (activo ? 'bg-[#48C9B0]' : 'bg-[#BBB]')} />
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-xs font-semibold tracking-[-0.005em] text-[#1D1E20]">{m.event.name}</span>
-                    <span className="block truncate text-[10.5px] text-[#888]">
+                    <span className="block truncate text-[14px] font-semibold tracking-[-0.01em] text-[#1D1E20]">{m.event.name}</span>
+                    <span className="block truncate text-[12.5px] text-[#888]">
                       {fechaCorta(m.event.event_date)}
                       {' · '}{enCuantosDias(m.event.event_date, hoy)}
                       {m.event.venue && ` · ${m.event.venue}`}
@@ -213,13 +213,13 @@ export default function EventSelector({ metrics, contexto, onChange, onNuevoEven
             <div className="flex gap-[7px] px-[11px] py-[9px]">
               <button
                 onClick={() => { setAbierto(false); onNuevoEvento() }}
-                className="flex-1 rounded-[9px] bg-[#1D1E20] px-3 py-1.5 text-center text-[11.5px] font-semibold text-white transition hover:bg-[#2c2d30]"
+                className="flex-1 rounded-[9px] bg-[#1D1E20] px-3 py-1.5 text-center text-[13px] font-semibold text-white transition hover:bg-[#2c2d30]"
               >
                 + Nuevo evento
               </button>
               <button
                 onClick={() => elegir({ kind: 'cartera' })}
-                className="shrink-0 rounded-[9px] border border-[#E0E0E0] bg-[#F8F8F8] px-3 py-1.5 text-[11.5px] font-semibold text-[#1D1E20] transition hover:border-[#48C9B0]"
+                className="shrink-0 rounded-[9px] border border-[#E0E0E0] bg-[#F8F8F8] px-3 py-1.5 text-[13px] font-semibold text-[#1D1E20] transition hover:border-[#48C9B0]"
               >
                 Pasados · {pasados.length}
               </button>

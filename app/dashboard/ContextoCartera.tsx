@@ -16,7 +16,7 @@ const ROLE_STYLES: Record<string, string> = {
   viewer: 'bg-[#f1efe8] text-[#444441]',
 }
 
-const CHIP_BASE = 'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[10px] font-semibold whitespace-nowrap'
+const CHIP_BASE = 'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[12px] font-semibold whitespace-nowrap'
 const CHIP: Record<Tono, string> = {
   ok:     `${CHIP_BASE} border-[#A0E0C0] bg-[#F0FFF6] text-[#2A7A50]`,
   aviso:  `${CHIP_BASE} border-[#F0DCA8] bg-[#FFF8E8] text-[#B8860B]`,
@@ -24,7 +24,7 @@ const CHIP: Record<Tono, string> = {
   vacio:  `${CHIP_BASE} border-[#E8E8E8] bg-[#F8F8F8] text-[#888]`,
 }
 
-const LABEL = 'text-[9.5px] font-semibold uppercase tracking-[0.1em] text-[#BBB]'
+const LABEL = 'text-[12px] font-semibold uppercase tracking-[0.07em] text-[#999]'
 
 function fechaDe(e: { event_date: string | null }): Date {
   if (!e.event_date) return new Date(8640000000000000)
@@ -50,10 +50,10 @@ function SkeletonCard() {
 
 function Global({ label, valor, sub, color }: { label: string; valor: React.ReactNode; sub: string; color: string }) {
   return (
-    <div className="rounded-[13px] border border-[#E8E8E8] bg-white px-[15px] py-3" style={{ borderLeft: `3px solid ${color}` }}>
+    <div className="rounded-2xl border border-[#E8E8E8] bg-white px-5 py-4" style={{ borderLeft: `4px solid ${color}` }}>
       <span className={LABEL}>{label}</span>
-      <p className="mt-[5px] font-display text-[22px] font-extrabold leading-none tracking-[-0.02em] sm:text-[24px]">{valor}</p>
-      <p className="mt-[3px] text-[11px] text-[#888]">{sub}</p>
+      <p className="mt-2 font-display text-[30px] font-extrabold leading-none tracking-[-0.025em] sm:text-[34px]">{valor}</p>
+      <p className="mt-2 text-[13px] text-[#888]">{sub}</p>
     </div>
   )
 }
@@ -168,7 +168,7 @@ export default function ContextoCartera({
     return (
       <div
         onClick={() => onElegirEvento(ev.id)}
-        className={'group relative cursor-pointer rounded-[13px] border bg-white px-4 py-4 transition hover:border-[#48C9B0] hover:shadow-[0_2px_12px_rgba(72,201,176,0.12)] active:scale-[0.99] ' + (
+        className={'group relative cursor-pointer rounded-2xl border bg-white px-5 py-5 transition hover:border-[#48C9B0] hover:shadow-[0_4px_16px_rgba(72,201,176,0.14)] active:scale-[0.99] ' + (
           enFoco ? 'border-[#c8ede7]' : 'border-[#E8E8E8]'
         )}
       >
@@ -218,43 +218,43 @@ export default function ContextoCartera({
           )}
         </div>
 
-        <h4 className="mt-2 truncate font-display text-[14px] font-bold tracking-[-0.01em] text-[#1D1E20]">{ev.name}</h4>
-        <p className="mt-0.5 truncate text-[11px] text-[#888]">
+        <h4 className="mt-3 truncate font-display text-[19px] font-bold tracking-[-0.02em] text-[#1D1E20]">{ev.name}</h4>
+        <p className="mt-1 truncate text-[13px] text-[#888]">
           {formatEventDate(ev.event_date, ev.event_end_date)}
           {ev.venue && ` · ${ev.venue}`}
         </p>
 
-        <div className="mt-3">
-          <div className="mb-1 flex items-center justify-between gap-3">
-            <span className="text-[11px] text-[#888]">Confirmados</span>
-            <span className="text-[10.5px] font-semibold">{m.invitados.confirmados} / {m.invitados.total}</span>
+        <div className="mt-4">
+          <div className="mb-1.5 flex items-center justify-between gap-3">
+            <span className="text-[13px] text-[#888]">Confirmados</span>
+            <span className="text-[13px] font-semibold">{m.invitados.confirmados} / {m.invitados.total}</span>
           </div>
-          <div className="h-[5px] overflow-hidden rounded-full bg-[#F0F0F0]">
-            <div className="h-full rounded-full bg-[#48C9B0]" style={{ width: `${pctConf}%` }} />
+          <div className="h-2 overflow-hidden rounded-full bg-[#F0F0F0]">
+            <div className="h-full rounded-full bg-[#48C9B0] transition-all duration-500" style={{ width: `${pctConf}%` }} />
           </div>
         </div>
 
         {verDinero && (
-          <div className="mt-2">
-            <div className="mb-1 flex items-center justify-between gap-3">
-              <span className="text-[11px] text-[#888]">{m.dinero.excedido ? 'Contratado del estimado' : 'Pagado del estimado'}</span>
-              <span className="text-[10.5px] font-semibold">
+          <div className="mt-3">
+            <div className="mb-1.5 flex items-center justify-between gap-3">
+              <span className="text-[13px] text-[#888]">{m.dinero.excedido ? 'Contratado del estimado' : 'Pagado del estimado'}</span>
+              <span className="text-[13px] font-semibold">
                 {formatCurrency(m.dinero.excedido ? m.dinero.contratado : m.dinero.pagado, ev.currency)} / {formatCurrency(m.dinero.estimado, ev.currency)}
               </span>
             </div>
-            <div className="h-[5px] overflow-hidden rounded-full bg-[#F0F0F0]">
+            <div className="h-2 overflow-hidden rounded-full bg-[#F0F0F0]">
               <div
-                className="h-full rounded-full"
+                className="h-full rounded-full transition-all duration-500"
                 style={{ width: `${m.dinero.excedido ? pctCon : pctPag}%`, background: m.dinero.excedido ? '#CC3333' : '#48C9B0' }}
               />
             </div>
           </div>
         )}
 
-        <div className="my-3 h-px bg-[#F0F0F0]" />
+        <div className="my-4 h-px bg-[#F0F0F0]" />
         <div className="flex items-center justify-between gap-3">
           <span className={CHIP[chip.tono]}>{chip.texto === 'OK' ? 'OK' : chip.texto === 'Borrador' || chip.texto === 'Sin publicar' ? chip.texto : `${chip.texto} vencidas`}</span>
-          <span className="text-[11px] font-semibold text-[#1A9E88]">Entrar</span>
+          <span className="text-[13px] font-semibold text-[#1A9E88]">Entrar →</span>
         </div>
       </div>
     )
@@ -287,8 +287,8 @@ export default function ContextoCartera({
     <div className="flex flex-col gap-3">
 
       <div>
-        <h2 className="font-display text-xl font-extrabold tracking-[-0.02em]">Tu cartera</h2>
-        <p className="mt-0.5 text-[11px] text-[#888]">
+        <h2 className="font-display text-[28px] font-black tracking-[-0.03em] sm:text-[34px]">Tu cartera</h2>
+        <p className="mt-1 text-[14px] text-[#888]">
           {activos.length} {activos.length === 1 ? 'evento activo' : 'eventos activos'}
           {masProximo !== null && ` · el más próximo ${masProximo === 0 ? 'es hoy' : masProximo === 1 ? 'es mañana' : `en ${masProximo} días`}`}
         </p>
@@ -304,12 +304,12 @@ export default function ContextoCartera({
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
-              className={'flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] font-semibold transition ' + (
+              className={'flex shrink-0 items-center gap-2 rounded-[10px] px-3.5 py-2 text-[13px] font-semibold transition ' + (
                 activeTab === tab.key ? 'bg-[#1D1E20] text-white' : 'text-[#888] hover:bg-[#efefef]'
               )}
             >
               {tab.label}
-              <span className={'rounded-full px-1.5 py-0.5 text-[10px] font-bold ' + (
+              <span className={'rounded-full px-2 py-0.5 text-[12px] font-bold ' + (
                 activeTab === tab.key ? 'bg-white/20 text-white' : 'bg-[#e8e8e8] text-[#666]'
               )}>
                 {tab.count}
@@ -320,7 +320,7 @@ export default function ContextoCartera({
         {activeTab === 'activos' && (
           <button
             onClick={() => setSortAsc(!sortAsc)}
-            className="flex shrink-0 items-center gap-1.5 rounded-lg border border-[#e0e0e0] bg-white px-3 py-1.5 text-[11px] text-[#888] transition hover:border-[#48C9B0] hover:text-[#48C9B0]"
+            className="flex shrink-0 items-center gap-1.5 rounded-[10px] border border-[#e0e0e0] bg-white px-3.5 py-2 text-[13px] font-semibold text-[#888] transition hover:border-[#48C9B0] hover:text-[#48C9B0]"
           >
             {sortAsc ? 'Fecha ↑' : 'Fecha ↓'}
           </button>
@@ -341,8 +341,8 @@ export default function ContextoCartera({
           {mios.length > 0 && (
             <section>
               <div className="mb-3 flex items-center gap-2">
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-[#888]">Mis eventos</h3>
-                <span className="rounded-full bg-[#e8e8e8] px-1.5 py-0.5 text-[10px] font-bold text-[#666]">{mios.length}</span>
+                <h3 className="font-display text-[17px] font-bold tracking-[-0.015em] text-[#1D1E20]">Mis eventos</h3>
+                <span className="rounded-full bg-[#e8e8e8] px-2 py-0.5 text-[12px] font-bold text-[#666]">{mios.length}</span>
               </div>
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
                 {mios.map(m => <Tarjeta key={m.event.id} m={m} />)}
@@ -352,8 +352,8 @@ export default function ContextoCartera({
           {compartidos.length > 0 && (
             <section>
               <div className="mb-3 flex items-center gap-2">
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-[#888]">Compartidos conmigo</h3>
-                <span className="rounded-full bg-[#e8e8e8] px-1.5 py-0.5 text-[10px] font-bold text-[#666]">{compartidos.length}</span>
+                <h3 className="font-display text-[17px] font-bold tracking-[-0.015em] text-[#1D1E20]">Compartidos conmigo</h3>
+                <span className="rounded-full bg-[#e8e8e8] px-2 py-0.5 text-[12px] font-bold text-[#666]">{compartidos.length}</span>
               </div>
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
                 {compartidos.map(m => <Tarjeta key={m.event.id} m={m} />)}
