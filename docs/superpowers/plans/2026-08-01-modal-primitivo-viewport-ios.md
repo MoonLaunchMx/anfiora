@@ -12,7 +12,11 @@
 
 - **Idioma de la UI:** español **con acentos**. Solo los mensajes de commit van sin acentos ni ñ.
 - **Sin emojis** en ninguna UI.
-- **Solo Tailwind** — nada de estilos inline salvo el alto calculado del panel, que es dinámico y no puede ser una clase.
+- **Solo Tailwind**, con exactamente dos excepciones justificadas y ninguna más:
+  1. El alto calculado del panel (`style={{ maxHeight: '<n>px' }}`) — es dinámico, no puede ser una clase.
+  2. `env(safe-area-inset-*)` — no tiene equivalente en Tailwind.
+
+  Cualquier otro `style` inline es un defecto.
 - **Botones CTA en teal `#48C9B0`.** Negro `#1D1E20` solo para dropdowns de filtro.
 - **Sin paquetes nuevos.** Todo se construye con lo que ya está en `package.json`.
 - **Sin comentarios** salvo cuando el porqué no es obvio.
@@ -965,9 +969,13 @@ Expected: el dashboard, el layout de eventos y mensajes se ven igual. En un `use
 
 - [ ] **Step 5: Commit**
 
+Nunca `git add app/` a secas: hay otros agentes trabajando en este mismo checkout y un `add` amplio se lleva su trabajo. Listar los archivos tocados uno por uno:
+
 ```bash
 git branch --show-current
-git add app/
+git status --short
+git add app/dashboard/page.tsx "app/events/[id]/layout.tsx" app/mensajes/page.tsx app/components/ui/ConfirmModal.tsx
+git add <los demas archivos que el Step 2 haya tocado, uno por uno>
 git commit -m "fix(viewport): pantallas de alto completo a dvh y trampa de foco en ConfirmModal"
 ```
 
