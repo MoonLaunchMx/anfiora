@@ -46,8 +46,6 @@ export default function SupplierModal({ isOpen, onClose, currency, budgets, onSu
     }
   }, [isOpen])
 
-  if (!isOpen) return null
-
   const budgetsForCategory = budgets.filter(b => b.category === category)
   const selectedBudget = eventBudgetId ? budgets.find(b => b.id === eventBudgetId) : null
 
@@ -85,7 +83,7 @@ export default function SupplierModal({ isOpen, onClose, currency, budgets, onSu
   }
 
   return (
-    <Modal open onClose={onClose} size="md">
+    <Modal open={isOpen} onClose={onClose} size="md">
       <Modal.Header title="Nuevo proveedor" subtitle="Captura lo esencial, completa después" />
       <Modal.Body>
         <div className="space-y-4">
