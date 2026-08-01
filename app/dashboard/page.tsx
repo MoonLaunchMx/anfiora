@@ -5,7 +5,8 @@ import { supabase } from '@/lib/supabase'
 import type { User } from '@supabase/supabase-js'
 import { EventStatus, formatEventDate } from '@/lib/types'
 import { loadDashboard } from '@/lib/dashboard/load'
-import type { EventMetrics, EventoRow, Rol } from '@/lib/dashboard/types'
+import type { Contexto, EventMetrics, EventoRow, Rol } from '@/lib/dashboard/types'
+import EventSelector from './EventSelector'
 import { Bell, MessageSquarePlus } from 'lucide-react'
 import { WhatsNewModal } from '@/app/components/WhatsNewModal'
 import { NewEventModal } from '@/app/components/NewEventModal'
@@ -105,6 +106,7 @@ export default function Dashboard() {
   const [showOnboarding, setShowOnboarding] = useState(false)
   const [metrics, setMetrics]           = useState<EventMetrics[]>([])
   const [rol, setRol]                   = useState<Rol>(null)
+  const [contexto, setContexto]         = useState<Contexto>({ kind: 'cartera' })
 
   useEffect(() => {
     const interval = setInterval(() => setNow(new Date()), 1000)
@@ -112,6 +114,15 @@ export default function Dashboard() {
   }, [])
 
   useEffect(() => { init() }, [])
+
+  // El anfitrion tiene un solo evento: arrancar en cartera le muestra una
+  // tarjeta sola. El planner necesita ver el panorama primero.
+  useEffect(() => {
+    if (loading || metrics.length === 0) return
+    const activos = metrics.filter(m => m.event.event_status === 'active')
+    if (rol === 'planner' || activos.length > 1) setContexto({ kind: 'cartera' })
+    else if (activos[0]) setContexto({ kind: 'evento', eventId: activos[0].event.id })
+  }, [loading, metrics, rol])
 
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
@@ -337,6 +348,10 @@ export default function Dashboard() {
 
   const totalReminders = reminders.length
 
+  const totalAlertas = metrics
+    .filter(m => m.event.event_status === 'active')
+    .reduce((s, m) => s + m.tareas.vencidas, 0)
+
   const markDone = async (id: string) => {
     await supabase.from('timeline_tasks').update({ is_completed: true }).eq('id', id)
     const target = reminders.find(r => r.id === id)
@@ -457,12 +472,21 @@ export default function Dashboard() {
 
 
       <header className="shrink-0 border-b border-[#e8e8e8] bg-white">
-        <div className="mx-auto flex h-14 max-w-4xl items-center justify-between px-4 sm:h-16 sm:px-6 lg:px-8">
+        <div className="mx-auto flex h-14 max-w-4xl items-center justify-between gap-3 px-4 sm:h-16 sm:gap-4 sm:px-6 lg:px-8">
           <button onClick={() => window.location.href = '/dashboard'} className="shrink-0">
             <img src="/images/isotipo.svg" alt="Anfiora" className="h-11 w-11 sm:hidden" />
             <img src="/images/logo.svg" alt="Anfiora" className="hidden h-11 sm:block lg:h-14" />
           </button>
-          <div className="flex items-center gap-3 sm:gap-4">
+          {!loading && metrics.length > 0 && (
+            <EventSelector
+              metrics={metrics}
+              contexto={contexto}
+              totalAlertas={totalAlertas}
+              onChange={setContexto}
+              onNuevoEvento={() => setShowNewEvent(true)}
+            />
+          )}
+          <div className="flex shrink-0 items-center gap-3 sm:gap-4">
             <div data-bell className="relative">
               <button
                 onClick={() => setShowBellMenu(p => !p)}
