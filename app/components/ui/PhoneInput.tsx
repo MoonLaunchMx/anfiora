@@ -23,6 +23,7 @@ const DROPDOWN_GAP = 4
 const DROPDOWN_HEADER_HEIGHT = 41
 const DROPDOWN_LIST_HEIGHT = 224
 const DROPDOWN_MIN_LIST_HEIGHT = 96
+const DROPDOWN_ABSOLUTE_MIN = 40
 
 type PhoneInputProps = {
   value: string
@@ -82,18 +83,23 @@ export default function PhoneInput({
 
     const spaceBelow = viewportHeight - rect.bottom - DROPDOWN_GAP
     const spaceAbove = rect.top - DROPDOWN_GAP
-    // Se voltea arriba solo si abajo no alcanza ni para el minimo, y arriba hay mas lugar.
+    // Solo decide de que lado abrir. La posicion manda sobre el alto, no al reves:
+    // una vez elegido el lado, el borde pegado al campo es fijo y el alto es el que
+    // realmente quepa (aunque sea menor al minimo comodo de abajo).
     const flipUp = spaceBelow < DROPDOWN_HEADER_HEIGHT + DROPDOWN_MIN_LIST_HEIGHT && spaceAbove > spaceBelow
 
-    const available = (flipUp ? spaceAbove : spaceBelow) - DROPDOWN_HEADER_HEIGHT
-    const listMaxHeight = Math.max(DROPDOWN_MIN_LIST_HEIGHT, Math.min(DROPDOWN_LIST_HEIGHT, available))
-    const totalHeight = DROPDOWN_HEADER_HEIGHT + listMaxHeight
+    const clampListHeight = (raw: number) => raw <= 0 ? DROPDOWN_ABSOLUTE_MIN : Math.min(DROPDOWN_LIST_HEIGHT, raw)
 
-    const top = flipUp
-      ? rect.top - DROPDOWN_GAP - totalHeight
-      : Math.min(rect.bottom + DROPDOWN_GAP, viewportHeight - DROPDOWN_GAP - totalHeight)
+    if (flipUp) {
+      const listMaxHeight = clampListHeight(rect.top - DROPDOWN_GAP - DROPDOWN_GAP - DROPDOWN_HEADER_HEIGHT)
+      const top = rect.top - DROPDOWN_GAP - (DROPDOWN_HEADER_HEIGHT + listMaxHeight)
+      setDropdownPos({ top, left, listMaxHeight })
+      return
+    }
 
-    setDropdownPos({ top: Math.max(8, top), left, listMaxHeight })
+    const top = rect.bottom + DROPDOWN_GAP
+    const listMaxHeight = clampListHeight(viewportHeight - top - DROPDOWN_GAP - DROPDOWN_HEADER_HEIGHT)
+    setDropdownPos({ top, left, listMaxHeight })
   }
 
   const toggleOpen = () => {
