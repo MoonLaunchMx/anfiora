@@ -207,15 +207,13 @@ export default function Dashboard() {
         .from('party_members')
         .select('event_id, rsvp_status')
         .in('event_id', allEventIds),
-      myIds.length > 0
-        ? supabase
-            .from('event_timeline_tasks')
-            .select('id, event_id, title, category, reminder_date')
-            .in('event_id', myIds)
-            .not('reminder_date', 'is', null)
-            .eq('is_completed', false)
-            .lte('reminder_date', today.toISOString())
-        : Promise.resolve({ data: [] }),
+      supabase
+        .from('event_timeline_tasks')
+        .select('id, event_id, title, category, reminder_date')
+        .in('event_id', allEventIds)
+        .not('reminder_date', 'is', null)
+        .eq('is_completed', false)
+        .lte('reminder_date', today.toISOString()),
     ])
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -231,6 +229,12 @@ export default function Dashboard() {
     for (const m of (membersRes.data || []) as any[]) {
       if (!membersByEvent[m.event_id]) membersByEvent[m.event_id] = []
       membersByEvent[m.event_id].push(m)
+    }
+
+    // Sin este log, un error de la consulta (tabla inexistente, RLS) se vuelve
+    // "no hay recordatorios" y el bug queda invisible durante meses.
+    if (remindersRes.error) {
+      console.error('[dashboard] recordatorios no cargaron:', remindersRes.error.message)
     }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
