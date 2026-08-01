@@ -175,6 +175,19 @@ export default function PhoneInput({
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [open])
 
+  useEffect(() => {
+    if (!open || layout.mode !== 'sheet') return
+    const body = document.body
+    // Se restaura el valor guardado, no la cadena vacia: si el <Modal> padre ya
+    // habia bloqueado el scroll, al cerrar la hoja se le devuelve su 'hidden'
+    // en vez de desbloquearle el fondo por debajo.
+    const previousOverflow = body.style.overflow
+    body.style.overflow = 'hidden'
+    return () => {
+      body.style.overflow = previousOverflow
+    }
+  }, [open, layout.mode])
+
   const emit = (raw: string, targetCountry: CountryCode) => {
     const next = raw.trim() ? (toE164(raw, targetCountry) ?? '') : ''
     lastSyncedRef.current = next
