@@ -18,6 +18,12 @@ import { useModalLayer } from '@/app/components/ui/Modal'
 
 const emptySubscribe = () => () => {}
 
+const DROPDOWN_WIDTH = 256
+const DROPDOWN_GAP = 4
+const DROPDOWN_HEADER_HEIGHT = 41
+const DROPDOWN_LIST_HEIGHT = 224
+const DROPDOWN_MIN_LIST_HEIGHT = 96
+
 type PhoneInputProps = {
   value: string
   onChange: (e164OrEmpty: string) => void
@@ -45,7 +51,7 @@ export default function PhoneInput({
   const [text, setText] = useState('')
   const [open, setOpen] = useState(false)
   const [filter, setFilter] = useState('')
-  const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0 })
+  const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0, listMaxHeight: DROPDOWN_LIST_HEIGHT })
   const containerRef = useRef<HTMLDivElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
   // Guarda el ultimo valor E.164 conocido (recibido por props o emitido por nosotros)
@@ -71,8 +77,23 @@ export default function PhoneInput({
   const computeDropdownPosition = () => {
     const rect = containerRef.current?.getBoundingClientRect()
     if (!rect) return
-    const left = Math.max(8, Math.min(rect.left, window.innerWidth - 264))
-    setDropdownPos({ top: rect.bottom + 4, left })
+    const viewportHeight = window.visualViewport?.height ?? window.innerHeight
+    const left = Math.max(8, Math.min(rect.left, window.innerWidth - DROPDOWN_WIDTH - 8))
+
+    const spaceBelow = viewportHeight - rect.bottom - DROPDOWN_GAP
+    const spaceAbove = rect.top - DROPDOWN_GAP
+    // Se voltea arriba solo si abajo no alcanza ni para el minimo, y arriba hay mas lugar.
+    const flipUp = spaceBelow < DROPDOWN_HEADER_HEIGHT + DROPDOWN_MIN_LIST_HEIGHT && spaceAbove > spaceBelow
+
+    const available = (flipUp ? spaceAbove : spaceBelow) - DROPDOWN_HEADER_HEIGHT
+    const listMaxHeight = Math.max(DROPDOWN_MIN_LIST_HEIGHT, Math.min(DROPDOWN_LIST_HEIGHT, available))
+    const totalHeight = DROPDOWN_HEADER_HEIGHT + listMaxHeight
+
+    const top = flipUp
+      ? rect.top - DROPDOWN_GAP - totalHeight
+      : Math.min(rect.bottom + DROPDOWN_GAP, viewportHeight - DROPDOWN_GAP - totalHeight)
+
+    setDropdownPos({ top: Math.max(8, top), left, listMaxHeight })
   }
 
   const toggleOpen = () => {
@@ -82,11 +103,16 @@ export default function PhoneInput({
 
   useEffect(() => {
     if (!open) return
+    const vv = window.visualViewport
     window.addEventListener('scroll', computeDropdownPosition, true)
     window.addEventListener('resize', computeDropdownPosition)
+    vv?.addEventListener('resize', computeDropdownPosition)
+    vv?.addEventListener('scroll', computeDropdownPosition)
     return () => {
       window.removeEventListener('scroll', computeDropdownPosition, true)
       window.removeEventListener('resize', computeDropdownPosition)
+      vv?.removeEventListener('resize', computeDropdownPosition)
+      vv?.removeEventListener('scroll', computeDropdownPosition)
     }
   }, [open])
 
@@ -195,7 +221,7 @@ export default function PhoneInput({
               </button>
             )}
           </div>
-          <div className="max-h-56 overflow-y-auto py-1">
+          <div className="overflow-y-auto py-1" style={{ maxHeight: dropdownPos.listMaxHeight }}>
             {filteredCountries.length === 0 && (
               <p className="px-3 py-2 text-sm text-[#999]">Sin resultados</p>
             )}
