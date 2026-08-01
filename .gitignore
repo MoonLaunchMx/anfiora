@@ -44,3 +44,4 @@ next-env.d.ts
 # tooling local (Claude Code / superpowers)
 /.superpowers/
 /.claude/worktrees/
+/.claude/settings.local.json
