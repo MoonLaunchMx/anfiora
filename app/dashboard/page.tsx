@@ -72,8 +72,6 @@ export default function Dashboard() {
   const [contexto, setContexto]           = useState<Contexto>({ kind: 'cartera' })
   const [ultimoEvento, setUltimoEvento]   = useState<string | null>(null)
 
-  useEffect(() => { init() }, [])
-
   // El anfitrion tiene un solo evento: arrancar en cartera le muestra una
   // tarjeta sola. El planner necesita ver el panorama primero.
   useEffect(() => {
@@ -149,6 +147,9 @@ export default function Dashboard() {
     })) as ReminderTask[])
     setLoading(false)
   }
+
+  // Va despues de declarar init: el efecto solo lo invoca al montar.
+  useEffect(() => { init() }, [])
 
   const handleLogout = async () => {
     await supabase.auth.signOut()
