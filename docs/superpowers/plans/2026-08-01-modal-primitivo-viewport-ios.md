@@ -572,7 +572,10 @@ Expected: el selector abre centrado y cubre la pantalla, igual que antes. Se cie
 - [ ] **Step 5: Verificar que Escape no atraviesa**
 
 Con `npm run dev`, abrir `/events/<id>/timeline` → nueva tarea → abrir el selector de fecha → presionar Escape.
-Expected: se cierra **solo el selector**, no la tarea. Si se cierran los dos, la llamada a `useModalLayer(open)` del Step 1 no se aplicó.
+
+Expected: **la tarea NO se cierra.** Eso es lo que verifica esta tarea.
+
+Aclaración sobre el selector: hoy los selectores no tienen cierre por Escape — nunca lo tuvieron. Así que Escape con el selector abierto no hará nada visible, y eso es correcto para esta tarea. Antes de este cambio, Escape cerraba el modal entero y se perdía lo capturado; ese es el bug que se arregla aquí. Agregarle cierre por Escape al propio selector queda como pulido diferido (solo aplica a escritorio: en iPhone no hay tecla Escape).
 
 - [ ] **Step 6: Commit**
 
