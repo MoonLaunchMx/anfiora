@@ -997,64 +997,73 @@ function ProximamenteMensajes() {
   ]
 
   return (
-    <div className="flex min-h-[75vh] items-center justify-center px-4 py-10">
-      <div className="w-full max-w-2xl text-center">
-        <span className="inline-flex items-center gap-1.5 rounded-full border border-[#c8ede7] bg-[#f0fdfb] px-3 py-1 text-xs font-semibold text-[#1a9e88]">
-          <Sparkles size={13} />
-          Próximamente
-        </span>
-        <h1 className="mt-5 text-2xl font-bold text-[#1D1E20] sm:text-3xl">
-          Un asistente que le responde a tus invitados por ti
-        </h1>
-        <p className="mx-auto mt-3 max-w-xl text-sm leading-relaxed text-[#666] sm:text-base">
-          Estamos por lanzar un inbox con inteligencia artificial que atiende a tus invitados por WhatsApp y Telegram — confirma asistencia, toma nota de alergias y te avisa solo cuando algo necesita tu decisión.
-        </p>
+    <div className="flex min-h-0 flex-1 flex-col">
 
-        <div className="mt-8 grid gap-3 text-left sm:grid-cols-2">
-          {features.map((f) => (
-            <div key={f.title} className="flex items-start gap-3 rounded-xl border border-[#eee] bg-white p-4">
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#f0fdfb] text-[#1a9e88]">
-                {f.icon}
-              </span>
-              <div>
-                <p className="text-sm font-semibold text-[#1D1E20]">{f.title}</p>
-                <p className="mt-0.5 text-xs leading-relaxed text-[#666]">{f.desc}</p>
-              </div>
+      <div className="flex-1 overflow-y-auto px-4">
+        <div className="flex min-h-full items-center justify-center">
+          <div className="w-full max-w-2xl py-10 text-center">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-[#c8ede7] bg-[#f0fdfb] px-3 py-1 text-xs font-semibold text-[#1a9e88]">
+              <Sparkles size={13} />
+              Próximamente
+            </span>
+            <h1 className="mt-5 text-2xl font-bold text-[#1D1E20] sm:text-3xl">
+              Un asistente que le responde a tus invitados por ti
+            </h1>
+            <p className="mx-auto mt-3 max-w-xl text-sm leading-relaxed text-[#666] sm:text-base">
+              Estamos por lanzar un inbox con inteligencia artificial que atiende a tus invitados por WhatsApp y Telegram — confirma asistencia, toma nota de alergias y te avisa solo cuando algo necesita tu decisión.
+            </p>
+
+            <div className="mt-8 grid gap-3 text-left sm:grid-cols-2">
+              {features.map((f) => (
+                <div key={f.title} className="flex items-start gap-3 rounded-xl border border-[#eee] bg-white p-4">
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#f0fdfb] text-[#1a9e88]">
+                    {f.icon}
+                  </span>
+                  <div>
+                    <p className="text-sm font-semibold text-[#1D1E20]">{f.title}</p>
+                    <p className="mt-0.5 text-xs leading-relaxed text-[#666]">{f.desc}</p>
+                  </div>
+                </div>
+              ))}
             </div>
-          ))}
+          </div>
         </div>
+      </div>
 
-        <div className="mx-auto mt-8 max-w-md">
+      <div className="shrink-0 border-t border-[#e8e8e8] bg-white px-4 py-3">
+        <div className="mx-auto w-full max-w-md">
           {enviado ? (
-            <div className="flex items-center justify-center gap-2 rounded-xl border border-[#a0e0c0] bg-[#f0fff6] px-4 py-3 text-sm font-medium text-[#2a7a50]">
+            <div className="flex items-center justify-center gap-2 rounded-xl border border-[#a0e0c0] bg-[#f0fff6] px-4 py-2.5 text-sm font-medium text-[#2a7a50]">
               <CheckCircle size={16} />
               Listo, te avisamos en cuanto abramos Mensajes.
             </div>
           ) : (
             <>
-              <div className="flex flex-col gap-2 sm:flex-row">
+              <div className="flex gap-2">
                 <input
                   type="email"
                   value={correo}
-                  onChange={(e) => setCorreo(e.target.value)}
+                  onChange={(e) => { setCorreo(e.target.value); setErrorEmail('') }}
                   onKeyDown={(e) => { if (e.key === 'Enter') notificar() }}
                   placeholder="tu@correo.com"
-                  className="flex-1 rounded-lg border border-[#e0e0e0] px-3 py-2.5 text-sm outline-none focus:border-[#48C9B0]"
+                  className="min-w-0 flex-1 rounded-lg border border-[#e0e0e0] px-3 py-2.5 text-sm outline-none focus:border-[#48C9B0]"
                 />
                 <button
                   onClick={notificar}
                   disabled={sending}
-                  className="rounded-lg px-4 py-2.5 text-sm font-semibold text-white transition disabled:opacity-60"
+                  className="shrink-0 rounded-lg px-4 py-2.5 text-sm font-semibold text-white transition disabled:opacity-60"
                   style={{ background: '#48C9B0' }}
                 >
-                  {sending ? 'Enviando…' : 'Avísame cuando esté listo'}
+                  <span className="sm:hidden">{sending ? 'Enviando…' : 'Avísame'}</span>
+                  <span className="hidden sm:inline">{sending ? 'Enviando…' : 'Avísame cuando esté listo'}</span>
                 </button>
               </div>
-              {errorEmail && <p className="mt-1.5 text-left text-xs text-[#cc3333]">{errorEmail}</p>}
+              {errorEmail && <p className="mt-1.5 text-xs text-[#cc3333]">{errorEmail}</p>}
             </>
           )}
         </div>
       </div>
+
     </div>
   )
 }
