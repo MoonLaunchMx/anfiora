@@ -115,6 +115,21 @@ export type EventMetrics = {
   proveedorConSaldo: { nombre: string; contratado: number; pagado: number; porPagar: number } | null
 }
 
+export type ColaboradorRow = {
+  event_id: string
+  role: CollaboratorRole
+  full_name: string | null
+  email: string
+}
+
+export type Rol = 'planner' | 'anfitrion' | null
+
+export type DashboardData = {
+  metrics: EventMetrics[]
+  rol: Rol
+  colaboradores: ColaboradorRow[]
+}
+
 export type MetricsInput = {
   event: EventoRow
   guests: GuestRow[]

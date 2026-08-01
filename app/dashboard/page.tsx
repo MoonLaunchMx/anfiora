@@ -3,7 +3,9 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import type { User } from '@supabase/supabase-js'
-import { Event, EventStatus, formatEventDate } from '@/lib/types'
+import { EventStatus, formatEventDate } from '@/lib/types'
+import { loadDashboard } from '@/lib/dashboard/load'
+import type { EventMetrics, EventoRow, Rol } from '@/lib/dashboard/types'
 import { Bell, MessageSquarePlus } from 'lucide-react'
 import { WhatsNewModal } from '@/app/components/WhatsNewModal'
 import { NewEventModal } from '@/app/components/NewEventModal'
@@ -11,16 +13,15 @@ import { OnboardingModal } from '@/app/components/OnboardingModal'
 
 export const dynamic = 'force-dynamic'
 
-type EventWithStats = Event & {
+type EventWithStats = EventoRow & {
   confirmed: number
   pending: number
   declined: number
   total: number
   pendingReminders: number
-  is_shared?: boolean
-  shared_role?: 'admin' | 'editor' | 'viewer'
-  owner_name?: string | null
 }
+
+type ConFecha = { event_date: string | null; event_time: string | null }
 
 type Tab = 'activos' | 'pasados' | 'pausados' | 'cancelados'
 
@@ -102,6 +103,8 @@ export default function Dashboard() {
   const [showBellMenu, setShowBellMenu] = useState(false)
   const [showNewEvent, setShowNewEvent] = useState(false)
   const [showOnboarding, setShowOnboarding] = useState(false)
+  const [metrics, setMetrics]           = useState<EventMetrics[]>([])
+  const [rol, setRol]                   = useState<Rol>(null)
 
   useEffect(() => {
     const interval = setInterval(() => setNow(new Date()), 1000)
@@ -142,54 +145,26 @@ export default function Dashboard() {
   }
 
   const loadData = async (user: User) => {
-    const userId = user.id
+    const data = await loadDashboard(user.id)
 
-    const [myRes, collabRes] = await Promise.all([
-      supabase
-        .from('events')
-        .select('id, name, event_date, event_end_date, event_time, venue, total_guests, event_status')
-        .eq('user_id', userId)
-        .order('event_date', { ascending: true }),
-      supabase
-        .from('event_collaborators')
-        .select(`
-          role,
-          event:event_id (
-            id, name, event_date, event_end_date, event_time, venue, total_guests, event_status, user_id,
-            owner:user_id ( full_name )
-          )
-        `)
-        .eq('user_id', userId)
-        .eq('status', 'active'),
-    ])
+    const asStats = (m: EventMetrics): EventWithStats => ({
+      ...m.event,
+      confirmed: m.invitados.confirmados,
+      pending:   m.invitados.pendientes,
+      declined:  m.invitados.declinados,
+      total:     m.invitados.total,
+      pendingReminders: m.tareas.vencidas + m.tareas.hoy,
+    })
 
-    const myEventsData = myRes.data || []
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const collabRows = (collabRes.data || []) as any[]
+    setMyEvents(data.metrics.filter(m => !m.event.is_shared).map(asStats))
+    setSharedEvents(data.metrics.filter(m => m.event.is_shared).map(asStats))
+    setMetrics(data.metrics)
+    setRol(data.rol)
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sharedRaw: any[] = collabRows
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .map((c: any) => {
-        if (!c.event) return null
-        return {
-          ...c.event,
-          shared_role: c.role,
-          is_shared: true,
-          owner_name: c.event.owner?.full_name || null,
-        }
-      })
-      .filter(Boolean)
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const myIds = myEventsData.map((e: any) => e.id)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sharedIds = sharedRaw.map((e: any) => e.id)
-    const allEventIds = [...myIds, ...sharedIds]
+    const myIds = data.metrics.filter(m => !m.event.is_shared).map(m => m.event.id)
+    const allEventIds = data.metrics.map(m => m.event.id)
 
     if (allEventIds.length === 0) {
-      setMyEvents([])
-      setSharedEvents([])
       setReminders([])
       setLoading(false)
       return
@@ -198,78 +173,25 @@ export default function Dashboard() {
     const today = new Date()
     today.setHours(23, 59, 59, 999)
 
-    const [guestsRes, membersRes, remindersRes] = await Promise.all([
-      supabase
-        .from('guests')
-        .select('event_id, rsvp_status')
-        .in('event_id', allEventIds),
-      supabase
-        .from('party_members')
-        .select('event_id, rsvp_status')
-        .in('event_id', allEventIds),
-      myIds.length > 0
-        ? supabase
-            .from('timeline_tasks')
-            .select('id, event_id, title, category, reminder_date')
-            .in('event_id', myIds)
-            .not('reminder_date', 'is', null)
-            .eq('is_completed', false)
-            .lte('reminder_date', today.toISOString())
-        : Promise.resolve({ data: [] }),
-    ])
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const guestsByEvent: Record<string, any[]> = {}
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const membersByEvent: Record<string, any[]> = {}
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    for (const g of (guestsRes.data || []) as any[]) {
-      if (!guestsByEvent[g.event_id]) guestsByEvent[g.event_id] = []
-      guestsByEvent[g.event_id].push(g)
-    }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    for (const m of (membersRes.data || []) as any[]) {
-      if (!membersByEvent[m.event_id]) membersByEvent[m.event_id] = []
-      membersByEvent[m.event_id].push(m)
-    }
+    const remindersRes = myIds.length > 0
+      ? await supabase
+          .from('timeline_tasks')
+          .select('id, event_id, title, category, reminder_date')
+          .in('event_id', myIds)
+          .not('reminder_date', 'is', null)
+          .eq('is_completed', false)
+          .lte('reminder_date', today.toISOString())
+      : { data: [] }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const reminderData = (remindersRes.data || []) as any[]
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const computeStats = (event: any): EventWithStats => {
-      const guests = guestsByEvent[event.id] || []
-      const members = membersByEvent[event.id] || []
-      const all = [...guests, ...members]
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const pendingReminders = reminderData.filter((r: any) => r.event_id === event.id).length
-      return {
-        ...event,
-        event_status: event.event_status || 'active',
-        total: all.length,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        confirmed: all.filter((g: any) => g.rsvp_status === 'confirmed').length,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        pending:   all.filter((g: any) => g.rsvp_status === 'pending').length,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        declined:  all.filter((g: any) => g.rsvp_status === 'declined').length,
-        pendingReminders,
-      }
-    }
-
-    const myEventsWithStats = myEventsData.map(computeStats)
-    const sharedEventsWithStats = sharedRaw.map(computeStats)
-
-    const allEventsForLookup = [...myEventsData, ...sharedRaw]
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const enrichedReminders: ReminderTask[] = reminderData.map((r: any) => ({
       ...r,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      event_name: allEventsForLookup.find((e: any) => e.id === r.event_id)?.name || '',
+      event_name: data.metrics.find(m => m.event.id === r.event_id)?.event.name || '',
     }))
 
-    setMyEvents(myEventsWithStats)
-    setSharedEvents(sharedEventsWithStats)
     setReminders(enrichedReminders)
     setLoading(false)
   }
@@ -287,7 +209,7 @@ export default function Dashboard() {
     window.location.href = '/'
   }
 
-  const getEventDateTime = (event: Event): Date => {
+  const getEventDateTime = (event: ConFecha): Date => {
     if (!event.event_date) return new Date()
     const [year, month, day] = event.event_date.split('T')[0].split('-').map(Number)
     const base = new Date(year, month - 1, day)
@@ -320,7 +242,7 @@ export default function Dashboard() {
     return d.toLocaleDateString('es-MX', { day: 'numeric', month: 'short' })
   }
 
-  const getCountdown = (event: Event): string => {
+  const getCountdown = (event: ConFecha): string => {
     const target = getEventDateTime(event)
     const diff = target.getTime() - now.getTime()
     if (diff <= 0) return '¡Es hoy!'
@@ -343,7 +265,7 @@ export default function Dashboard() {
   const today = new Date()
   today.setHours(0, 0, 0, 0)
 
-  const isUpcoming = (e: Event) => {
+  const isUpcoming = (e: ConFecha) => {
     const d = getEventDateTime(e)
     d.setHours(0, 0, 0, 0)
     return d >= today
