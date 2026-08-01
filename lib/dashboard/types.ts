@@ -124,6 +124,9 @@ export type EventMetrics = {
   accessMode: string | null
   sharedToken: string | null
   proximaTarea: TaskRow | null
+  // Tareas vivas ordenadas por fecha: la columna de pendientes las marca sin
+  // entrar al timeline, asi que necesita la lista, no solo la primera.
+  tareasProximas: TaskRow[]
   proveedorConSaldo: { nombre: string; contratado: number; pagado: number; porPagar: number } | null
 }
 

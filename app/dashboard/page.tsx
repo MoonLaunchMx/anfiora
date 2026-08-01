@@ -8,16 +8,16 @@ import { loadDashboard } from '@/lib/dashboard/load'
 import type { ColaboradorRow, Contexto, EventMetrics, EventoRow, Rol } from '@/lib/dashboard/types'
 import EventSelector from './EventSelector'
 import ContextoEvento from './ContextoEvento'
-import { Bell, MessageSquarePlus } from 'lucide-react'
+import { Bell, Layers, MessageSquarePlus } from 'lucide-react'
 import { WhatsNewModal } from '@/app/components/WhatsNewModal'
 import { NewEventModal } from '@/app/components/NewEventModal'
 import { OnboardingModal } from '@/app/components/OnboardingModal'
 
 export const dynamic = 'force-dynamic'
 
-// El dashboard es una pantalla de tablero: en escritorio toma el 90% del ancho
-// para que las cuatro tarjetas y la cartera de tres columnas respiren.
-const CONTENEDOR = 'mx-auto w-full px-4 sm:px-6 lg:max-w-[90%] lg:px-8'
+// El dashboard es una pantalla de tablero: usa todo el ancho disponible, sin
+// tope de columna, para que las cuatro tarjetas y la cartera respiren.
+const CONTENEDOR = 'w-full px-4 sm:px-6 lg:px-10 xl:px-14'
 
 type EventWithStats = EventoRow & {
   confirmed: number
@@ -577,26 +577,42 @@ export default function Dashboard() {
         </div>
       </header>
 
-      <div className="shrink-0 bg-[#f8f8f8]">
-        <div className={CONTENEDOR + ' pt-3 sm:pt-4'}>
-          <div className="mb-5 flex items-start justify-between gap-3 sm:mb-6">
-            {!loading && metrics.length > 0 ? (
-              <EventSelector
-                metrics={metrics}
-                contexto={contexto}
-                totalAlertas={totalAlertas}
-                onChange={setContexto}
-                onNuevoEvento={() => setShowNewEvent(true)}
-              />
-            ) : (
-              <div>
-                <h1 className="text-xl font-bold text-[#1D1E20] sm:text-2xl">Dashboard</h1>
-                <p className="mt-0.5 text-xs text-[#888] sm:text-sm">Resumen de tus eventos</p>
-              </div>
+      <div className="shrink-0 border-b border-[#e8e8e8] bg-white">
+        <div className={CONTENEDOR + ' flex h-12 items-center gap-2 sm:gap-3'}>
+          <button
+            onClick={() => setContexto({ kind: 'cartera' })}
+            className={'flex shrink-0 items-center gap-2 rounded-[9px] px-2.5 py-1.5 text-[11.5px] font-semibold transition sm:px-3 ' + (
+              contexto.kind === 'cartera'
+                ? 'bg-[#1D1E20] text-white'
+                : 'border border-[#E0E0E0] bg-white text-[#1D1E20] hover:border-[#48C9B0]'
             )}
+          >
+            <Layers size={13} />
+            <span className="hidden sm:inline">Cartera</span>
+            {totalAlertas > 0 && (
+              <span className={'rounded-full px-1.5 py-px text-[10px] font-bold ' + (
+                contexto.kind === 'cartera' ? 'bg-white/15 text-white' : 'bg-[#FFF0F0] text-[#CC3333]'
+              )}>
+                {totalAlertas}
+              </span>
+            )}
+          </button>
+
+          <span className="h-5 w-px shrink-0 bg-[#e8e8e8]" />
+
+          {!loading && metrics.length > 0 && (
+            <EventSelector
+              metrics={metrics}
+              contexto={contexto}
+              onChange={setContexto}
+              onNuevoEvento={() => setShowNewEvent(true)}
+            />
+          )}
+
+          <div className="ml-auto flex shrink-0 items-center gap-2">
             <button
               onClick={() => setShowNewEvent(true)}
-              className="mt-1 shrink-0 rounded-lg bg-[#48C9B0] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#3ab89f] active:scale-95 sm:px-5 sm:py-2.5"
+              className="rounded-[9px] bg-[#48C9B0] px-3 py-1.5 text-[11.5px] font-semibold text-white transition hover:bg-[#3ab89f] active:scale-95 sm:px-4"
             >
               <span className="sm:hidden">+ Nuevo</span>
               <span className="hidden sm:inline">+ Nuevo evento</span>
@@ -607,7 +623,7 @@ export default function Dashboard() {
 
       {contexto.kind === 'cartera' && (
       <div className="shrink-0 bg-[#f8f8f8]">
-        <div className={CONTENEDOR}>
+        <div className={CONTENEDOR + ' pt-4'}>
           {!loading && nextEvent && (
             <div onClick={() => window.location.href = '/events/' + nextEvent.id}
               className="mb-5 cursor-pointer rounded-2xl border border-[#48C9B0]/30 bg-white p-4 shadow-[0_2px_16px_rgba(72,201,176,0.1)] transition hover:shadow-[0_4px_24px_rgba(72,201,176,0.18)] sm:mb-6">
@@ -697,6 +713,7 @@ export default function Dashboard() {
               m={enFoco}
               colaboradores={colaboradores.filter(c => c.event_id === enFoco.event.id)}
               rol={rol}
+              usuarioEmail={userEmail}
               puedeVerDinero={enFoco.event.shared_role !== 'viewer'}
               onAbrirEvento={() => { window.location.href = '/events/' + enFoco.event.id }}
             />

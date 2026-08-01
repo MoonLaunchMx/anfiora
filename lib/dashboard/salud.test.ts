@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { computeSalud, computeChipDeuda } from './salud'
+import { computeSalud, computeChipDeuda, haceCuanto, sumaPorMoneda } from './salud'
 import type { EventMetrics } from './types'
 
 function m(over: Record<string, unknown> = {}): EventMetrics {
@@ -72,5 +72,56 @@ describe('computeChipDeuda', () => {
 
   it('todo limpio dice OK', () => {
     expect(computeChipDeuda(m())).toEqual({ tono: 'ok', texto: 'OK' })
+  })
+})
+
+describe('haceCuanto', () => {
+  const ahora = new Date(2026, 7, 1, 15, 0, 0)
+
+  it('menos de un minuto', () => {
+    expect(haceCuanto(new Date(2026, 7, 1, 14, 59, 40).toISOString(), ahora)).toBe('Hace un momento')
+  })
+
+  it('minutos, en singular y plural', () => {
+    expect(haceCuanto(new Date(2026, 7, 1, 14, 59, 0).toISOString(), ahora)).toBe('Hace 1 minuto')
+    expect(haceCuanto(new Date(2026, 7, 1, 14, 35, 0).toISOString(), ahora)).toBe('Hace 25 minutos')
+  })
+
+  it('horas del mismo dia', () => {
+    expect(haceCuanto(new Date(2026, 7, 1, 12, 0, 0).toISOString(), ahora)).toBe('Hace 3 horas')
+  })
+
+  it('ayer trae la hora', () => {
+    expect(haceCuanto(new Date(2026, 6, 31, 18, 40, 0).toISOString(), ahora)).toBe('Ayer, 6:40 pm')
+  })
+
+  it('mas de una semana cae a fecha corta', () => {
+    expect(haceCuanto(new Date(2026, 6, 10, 9, 0, 0).toISOString(), ahora)).toBe('10 jul')
+  })
+
+  it('una fecha invalida no revienta', () => {
+    expect(haceCuanto('no-es-fecha', ahora)).toBe('')
+  })
+})
+
+describe('sumaPorMoneda', () => {
+  const conMoneda = (currency: string, estimado: number) =>
+    m({ event: { id: 'x', name: 'X', currency, event_status: 'active' }, dinero: { estimado, contratado: 0, pagado: 0, porPagar: 0, sinContratar: 0, excedido: false, pctContratado: 0 } })
+
+  it('sin eventos da cero en MXN', () => {
+    expect(sumaPorMoneda([], x => x.dinero.estimado)).toEqual({ total: 0, currency: 'MXN', otras: 0 })
+  })
+
+  it('una sola moneda suma todo', () => {
+    const r = sumaPorMoneda([conMoneda('MXN', 100), conMoneda('MXN', 250)], x => x.dinero.estimado)
+    expect(r).toEqual({ total: 350, currency: 'MXN', otras: 0 })
+  })
+
+  it('con dos monedas devuelve la dominante y cuenta las otras', () => {
+    const r = sumaPorMoneda(
+      [conMoneda('MXN', 100), conMoneda('MXN', 200), conMoneda('USD', 9000)],
+      x => x.dinero.estimado,
+    )
+    expect(r).toEqual({ total: 300, currency: 'MXN', otras: 1 })
   })
 })

@@ -111,12 +111,12 @@ function calcTareas(input: MetricsInput): Tareas {
 
 // La tarea que el dashboard destaca: la mas atrasada; si no hay atrasadas, la
 // mas proxima. Las bloqueantes ganan a igualdad de fecha.
-function calcProximaTarea(input: MetricsInput): TaskRow | null {
-  const vivas = tareasVivas(input)
+function calcTareasOrdenadas(input: MetricsInput): TaskRow[] {
+  return tareasVivas(input)
     .map(t => ({ t, ms: diaDeYMD(t.task_date as string) }))
     .filter((x): x is { t: TaskRow; ms: number } => x.ms !== null)
     .sort((a, b) => a.ms - b.ms || Number(b.t.priority === 'bloqueante') - Number(a.t.priority === 'bloqueante'))
-  return vivas[0]?.t ?? null
+    .map(x => x.t)
 }
 
 function calcRegalos(input: MetricsInput): Regalos {
@@ -144,7 +144,10 @@ function calcMesas(input: MetricsInput): Mesas {
 }
 
 export function computeEventMetrics(input: MetricsInput): EventMetrics {
+  const tareasProximas = calcTareasOrdenadas(input)
   return {
+    tareasProximas,
+    proximaTarea: tareasProximas[0] ?? null,
     event: input.event,
     invitados: calcInvitados(input),
     dinero: calcDinero(input),
@@ -155,7 +158,6 @@ export function computeEventMetrics(input: MetricsInput): EventMetrics {
     invitacion: estadoPublicacion(input.settings?.invite_draft, input.settings?.invite_config),
     accessMode: input.settings?.access_mode ?? null,
     sharedToken: input.settings?.shared_token ?? null,
-    proximaTarea: calcProximaTarea(input),
     proveedorConSaldo: calcProveedorConSaldo(input),
   }
 }

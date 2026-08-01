@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ChevronDown, Layers, Search } from 'lucide-react'
+import { ChevronDown, Search } from 'lucide-react'
 import { computeSalud, computeChipDeuda, ORDEN_BARRAS } from '@/lib/dashboard/salud'
 import type { Contexto, EventMetrics, Tono } from '@/lib/dashboard/types'
 
@@ -53,12 +53,11 @@ function sinAcentos(s: string): string {
 type Props = {
   metrics: EventMetrics[]
   contexto: Contexto
-  totalAlertas: number
   onChange: (c: Contexto) => void
   onNuevoEvento: () => void
 }
 
-export default function EventSelector({ metrics, contexto, totalAlertas, onChange, onNuevoEvento }: Props) {
+export default function EventSelector({ metrics, contexto, onChange, onNuevoEvento }: Props) {
   const [abierto, setAbierto] = useState(false)
   const [busqueda, setBusqueda] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
@@ -120,28 +119,30 @@ export default function EventSelector({ metrics, contexto, totalAlertas, onChang
   }
 
   return (
-    <div data-selector className="relative min-w-0">
+    <div data-selector className="relative min-w-0 flex-1 sm:max-w-[340px]">
       <button
         onClick={() => setAbierto(p => !p)}
         aria-expanded={abierto}
         aria-haspopup="listbox"
-        className="group -ml-2 flex max-w-full items-center gap-2 rounded-xl px-2 py-1 text-left transition hover:bg-[#EFEFEF] sm:gap-2.5"
+        className={'flex w-full items-center gap-2 rounded-[9px] border px-2.5 py-1.5 text-left transition ' + (
+          esCartera
+            ? 'border-dashed border-[#E0E0E0] bg-white text-[#888] hover:border-[#48C9B0]'
+            : 'border-[#E8E8E8] bg-[#F8F8F8] text-[#1D1E20] hover:border-[#48C9B0]'
+        )}
       >
-        {esCartera
-          ? <span className="grid h-6 w-6 shrink-0 place-items-center rounded-lg bg-[#1D1E20] sm:h-7 sm:w-7"><Layers size={13} className="text-white" /></span>
-          : <span className="h-2 w-2 shrink-0 rounded-full bg-[#48C9B0]" />}
-        <span className="truncate font-display text-xl font-black tracking-[-0.028em] text-[#1D1E20] sm:text-[28px]">
-          {esCartera ? 'Tu cartera' : enFoco?.event.name ?? 'Elige un evento'}
+        <span className={'h-1.5 w-1.5 shrink-0 rounded-full ' + (esCartera ? 'bg-[#DDD]' : 'bg-[#48C9B0]')} />
+        <span className="flex-1 truncate text-[11.5px] font-semibold tracking-[-0.005em]">
+          {esCartera ? 'Elegir evento' : enFoco?.event.name ?? 'Elegir evento'}
         </span>
-        <span className="hidden shrink-0 rounded-full border border-[#E8E8E8] bg-[#F8F8F8] px-2 py-0.5 text-[10px] font-semibold text-[#888] sm:inline-block">
-          {esCartera
-            ? `${activos.length} ${activos.length === 1 ? 'activo' : 'activos'}`
-            : fechaCorta(enFoco?.event.event_date ?? null, true)}
-        </span>
+        {!esCartera && (
+          <span className="hidden shrink-0 rounded-full border border-[#E8E8E8] bg-white px-2 py-0.5 text-[10px] font-semibold text-[#888] md:inline-block">
+            {fechaCorta(enFoco?.event.event_date ?? null, true)}
+          </span>
+        )}
         <ChevronDown
-          size={16}
+          size={12}
           strokeWidth={2.5}
-          className={'shrink-0 text-[#BBB] transition group-hover:text-[#1D1E20] ' + (abierto ? 'rotate-180' : '')}
+          className={'shrink-0 text-[#BBB] transition ' + (abierto ? 'rotate-180' : '')}
         />
       </button>
 
@@ -160,30 +161,7 @@ export default function EventSelector({ metrics, contexto, totalAlertas, onChang
               />
             </div>
 
-            <button
-              onClick={() => elegir({ kind: 'cartera' })}
-              className="m-[3px_11px_8px] flex w-[calc(100%-22px)] items-center gap-2.5 rounded-[10px] border border-[#E8E8E8] bg-[#F8F8F8] px-[11px] py-2.5 text-left transition hover:border-[#48C9B0]"
-            >
-              <span className="grid h-7 w-7 shrink-0 place-items-center rounded-[9px] bg-[#1D1E20]">
-                <Layers size={13} className="text-white" />
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block text-xs font-semibold tracking-[-0.005em] text-[#1D1E20]">Vista cartera</span>
-                <span className="block text-[10.5px] text-[#888]">
-                  Tus {activos.length} {activos.length === 1 ? 'evento activo' : 'eventos activos'}
-                  {totalAlertas > 0 && ` · ${totalAlertas} ${totalAlertas === 1 ? 'tarea vencida' : 'tareas vencidas'}`}
-                </span>
-              </span>
-              {totalAlertas > 0 && (
-                <span className={'shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold ' + CHIP.alerta}>
-                  {totalAlertas}
-                </span>
-              )}
-            </button>
-
-            <div className="h-px bg-[#F0F0F0]" />
-
-            <div className="flex items-center justify-between px-[11px] pb-[3px] pt-1.5">
+            <div className="flex items-center justify-between px-[11px] pb-[3px]">
               <span className="text-[9.5px] font-semibold uppercase tracking-[0.1em] text-[#BBB]">
                 Activos · {filtrados.length}
               </span>
