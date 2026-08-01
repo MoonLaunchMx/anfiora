@@ -19,6 +19,32 @@ const SIZE_CLASS: Record<ModalSize, string> = {
 const FOCUSABLE =
   'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
 
+let openModalIds: string[] = []
+
+function pushOpenModal(id: string) {
+  openModalIds = [...openModalIds, id]
+}
+
+function popOpenModal(id: string) {
+  openModalIds = openModalIds.filter(existing => existing !== id)
+}
+
+function isTopmostModal(id: string) {
+  return openModalIds[openModalIds.length - 1] === id
+}
+
+export function useModalLayer(open: boolean) {
+  const id = useId()
+
+  useEffect(() => {
+    if (!open) return
+    pushOpenModal(id)
+    return () => popOpenModal(id)
+  }, [open, id])
+
+  return useCallback(() => isTopmostModal(id), [id])
+}
+
 const ModalCtx = createContext<{ onClose: () => void; titleId: string } | null>(null)
 
 function useModalCtx(component: string) {
@@ -51,34 +77,49 @@ function useVisualHeight(open: boolean) {
   return height
 }
 
+let scrollLockCount = 0
+let scrollLockY = 0
+let scrollLockPrev: { position: string; top: string; width: string; overflow: string } | null = null
+
 function useScrollLock(open: boolean) {
   useEffect(() => {
     if (!open) return
-    const y = window.scrollY
     const body = document.body
-    const prev = {
-      position: body.style.position,
-      top: body.style.top,
-      width: body.style.width,
-      overflow: body.style.overflow,
+    if (scrollLockCount === 0) {
+      scrollLockY = window.scrollY
+      scrollLockPrev = {
+        position: body.style.position,
+        top: body.style.top,
+        width: body.style.width,
+        overflow: body.style.overflow,
+      }
+      body.style.position = 'fixed'
+      body.style.top = `-${scrollLockY}px`
+      body.style.width = '100%'
+      body.style.overflow = 'hidden'
     }
-    body.style.position = 'fixed'
-    body.style.top = `-${y}px`
-    body.style.width = '100%'
-    body.style.overflow = 'hidden'
+    scrollLockCount += 1
     return () => {
-      body.style.position = prev.position
-      body.style.top = prev.top
-      body.style.width = prev.width
-      body.style.overflow = prev.overflow
-      window.scrollTo(0, y)
+      scrollLockCount -= 1
+      if (scrollLockCount === 0 && scrollLockPrev) {
+        body.style.position = scrollLockPrev.position
+        body.style.top = scrollLockPrev.top
+        body.style.width = scrollLockPrev.width
+        body.style.overflow = scrollLockPrev.overflow
+        window.scrollTo(0, scrollLockY)
+        scrollLockPrev = null
+      }
     }
   }, [open])
 }
 
-function useFocusTrap(open: boolean, panelRef: React.RefObject<HTMLDivElement | null>) {
+function useFocusTrap(
+  open: boolean,
+  mounted: boolean,
+  panelRef: React.RefObject<HTMLDivElement | null>
+) {
   useEffect(() => {
-    if (!open) return
+    if (!open || !mounted) return
     const opener = document.activeElement as HTMLElement | null
     const panel = panelRef.current
     if (!panel) return
@@ -111,7 +152,7 @@ function useFocusTrap(open: boolean, panelRef: React.RefObject<HTMLDivElement | 
       panel.removeEventListener('keydown', onKeyDown)
       opener?.focus?.({ preventScroll: true })
     }
-  }, [open, panelRef])
+  }, [open, mounted, panelRef])
 }
 
 export function Modal({
@@ -132,17 +173,18 @@ export function Modal({
   const titleId = labelledBy ?? `${generatedId}-title`
   const maxHeight = useVisualHeight(open)
   const [mounted, setMounted] = useState(false)
+  const isTopModal = useModalLayer(open)
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => setMounted(true), [])
   useScrollLock(open)
-  useFocusTrap(open, panelRef)
+  useFocusTrap(open, mounted, panelRef)
 
   const handleEscape = useCallback(
     (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
+      if (e.key === 'Escape' && isTopModal()) onClose()
     },
-    [onClose]
+    [onClose, isTopModal]
   )
 
   useEffect(() => {
