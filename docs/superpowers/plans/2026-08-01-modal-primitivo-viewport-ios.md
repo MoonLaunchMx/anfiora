@@ -484,6 +484,106 @@ git commit -m "feat(modal): primitivo Modal con alto real, scroll interno y tram
 
 ---
 
+## Task 3.5: Sacar los selectores de fecha y hora de la caja del modal
+
+**Files:**
+- Modify: `app/components/ui/DatePicker.tsx:153-154`
+- Modify: `app/components/ui/TimePicker.tsx:153-154`
+
+**Interfaces:**
+- Consumes: `useModalLayer` de `app/components/ui/Modal.tsx` (Task 3).
+- Produces: nada nuevo. Las props públicas de ambos componentes no cambian.
+
+**Por qué existe esta tarea.** Se agregó durante la ejecución, con decisión explícita de Diego, tras un hallazgo de la revisión de la Task 3.
+
+Un panel con `transform` de Framer Motion se convierte en el bloque contenedor de sus descendientes `position: fixed`. Ambos selectores renderizan su capa **inline** como `fixed inset-0 z-[200]`, sin portal. Al migrar `NewEventModal` (Task 10), que embebe los dos, el calendario a pantalla completa quedaría **recortado dentro del modal** y sujeto a su `overflow-hidden`.
+
+`ColorPicker.tsx:125` tiene el mismo patrón pero **queda fuera de alcance**: solo lo usa `vestimenta/DressCodeEditor.tsx`, que es una página, no un modal de la migración. No tocarlo.
+
+- [ ] **Step 1: Portalizar DatePicker**
+
+Agregar los imports:
+
+```tsx
+import { useState, useEffect, useSyncExternalStore } from 'react'
+import { createPortal } from 'react-dom'
+import { useModalLayer } from '@/app/components/ui/Modal'
+```
+
+Dentro del componente, antes del `return`:
+
+```tsx
+const mounted = useSyncExternalStore(emptySubscribe, () => true, () => false)
+useModalLayer(open)
+```
+
+Y a nivel de módulo, fuera del componente:
+
+```tsx
+const emptySubscribe = () => () => {}
+```
+
+Usar `useSyncExternalStore` y **no** `useState` + `useEffect(() => setMounted(true), [])`: el segundo dispara la regla `react-hooks/set-state-in-effect` y obligaría a suprimirla. Esta forma pasa el lint limpia.
+
+Reemplazar la apertura del bloque de la línea 153-154:
+
+```tsx
+      {open && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4" onClick={() => setOpen(false)}>
+```
+
+por:
+
+```tsx
+      {open && mounted && createPortal(
+        <div className="fixed inset-0 z-[350] flex items-center justify-center p-4" onClick={() => setOpen(false)}>
+```
+
+Y cerrar el bloque con `, document.body)` en vez de `)`. Cuidado al localizar el cierre correcto: es el que cierra ese `<div>` externo, no uno interno.
+
+**El `z-[350]` es deliberado.** La escala del proyecto es: `Modal` = 300, selectores = 350, `ConfirmModal` = 400. Al portalizar, el selector pasa a ser hermano del modal en el DOM, así que necesita un z mayor que 300 para pintarse encima. Con el `z-[200]` original quedaría **debajo** del modal, que es peor que el bug que estamos arreglando.
+
+- [ ] **Step 2: Portalizar TimePicker**
+
+Exactamente el mismo cambio en `app/components/ui/TimePicker.tsx`, mismas líneas, mismo `z-[350]`.
+
+Ojo: este archivo tiene un `<style jsx global>` dentro del bloque que se portaliza. Se mueve con él sin problema; no lo saques.
+
+- [ ] **Step 3: Verificar que compila y tipa**
+
+Run: `npx tsc --noEmit`
+Expected: exit 0.
+
+Run: `npx eslint app/components/ui/DatePicker.tsx app/components/ui/TimePicker.tsx`
+Expected: exit 0, sin salida. Si aparece `react-hooks/set-state-in-effect`, el Step 1 se implementó con `useState` en vez de `useSyncExternalStore` — corregirlo, no suprimir la regla.
+
+- [ ] **Step 4: Verificar las tres páginas que también usan estos selectores**
+
+Los selectores no viven solo en modales. Verificar que estas tres siguen funcionando igual:
+
+Run: `npm run dev`
+
+1. `/events/<id>/configuracion` — abrir el selector de fecha del evento
+2. `/events/<id>/invitacion` — abrir cualquier selector del editor
+3. `/events/<id>/timeline` — nueva tarea, abrir el selector de fecha
+
+Expected: el selector abre centrado y cubre la pantalla, igual que antes. Se cierra al hacer clic fuera. La fecha elegida se guarda.
+
+- [ ] **Step 5: Verificar que Escape no atraviesa**
+
+Con `npm run dev`, abrir `/events/<id>/timeline` → nueva tarea → abrir el selector de fecha → presionar Escape.
+Expected: se cierra **solo el selector**, no la tarea. Si se cierran los dos, la llamada a `useModalLayer(open)` del Step 1 no se aplicó.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git branch --show-current
+git add app/components/ui/DatePicker.tsx app/components/ui/TimePicker.tsx
+git commit -m "fix(pickers): DatePicker y TimePicker se pintan fuera de la caja del modal"
+```
+
+---
+
 ## Task 4: Piloto 1 — SupplierModal (anatomía A limpia)
 
 **Files:**
