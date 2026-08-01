@@ -120,31 +120,29 @@ export default function EventSelector({ metrics, contexto, totalAlertas, onChang
   }
 
   return (
-    <div data-selector className="relative min-w-0 flex-1 sm:max-w-[400px]">
+    <div data-selector className="relative min-w-0">
       <button
         onClick={() => setAbierto(p => !p)}
         aria-expanded={abierto}
         aria-haspopup="listbox"
-        className={'flex w-full items-center gap-2.5 rounded-[10px] border px-3 py-1.5 text-left transition sm:gap-3 ' + (
-          esCartera
-            ? 'border-[#1D1E20] bg-[#1D1E20] text-white hover:bg-[#2c2d30]'
-            : 'border-[#E8E8E8] bg-[#F8F8F8] text-[#1D1E20] hover:border-[#48C9B0]'
-        )}
+        className="group -ml-2 flex max-w-full items-center gap-2 rounded-xl px-2 py-1 text-left transition hover:bg-[#EFEFEF] sm:gap-2.5"
       >
         {esCartera
-          ? <Layers size={13} className="shrink-0" />
-          : <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#48C9B0]" />}
-        <span className="flex-1 truncate text-[12.5px] font-semibold tracking-[-0.005em]">
-          {esCartera ? 'Vista cartera' : enFoco?.event.name ?? 'Elige un evento'}
+          ? <span className="grid h-6 w-6 shrink-0 place-items-center rounded-lg bg-[#1D1E20] sm:h-7 sm:w-7"><Layers size={13} className="text-white" /></span>
+          : <span className="h-2 w-2 shrink-0 rounded-full bg-[#48C9B0]" />}
+        <span className="truncate font-display text-xl font-black tracking-[-0.028em] text-[#1D1E20] sm:text-[28px]">
+          {esCartera ? 'Tu cartera' : enFoco?.event.name ?? 'Elige un evento'}
         </span>
-        <span className={'hidden shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold sm:inline-block ' + (
-          esCartera
-            ? 'border-white/20 bg-white/10 text-white/80'
-            : 'border-[#E8E8E8] bg-[#F8F8F8] text-[#888]'
-        )}>
-          {esCartera ? `${activos.length} activos` : fechaCorta(enFoco?.event.event_date ?? null, true)}
+        <span className="hidden shrink-0 rounded-full border border-[#E8E8E8] bg-[#F8F8F8] px-2 py-0.5 text-[10px] font-semibold text-[#888] sm:inline-block">
+          {esCartera
+            ? `${activos.length} ${activos.length === 1 ? 'activo' : 'activos'}`
+            : fechaCorta(enFoco?.event.event_date ?? null, true)}
         </span>
-        <ChevronDown size={11} strokeWidth={2.5} className={'shrink-0 transition ' + (abierto ? 'rotate-180 ' : '') + (esCartera ? 'text-white/60' : 'text-[#BBB]')} />
+        <ChevronDown
+          size={16}
+          strokeWidth={2.5}
+          className={'shrink-0 text-[#BBB] transition group-hover:text-[#1D1E20] ' + (abierto ? 'rotate-180' : '')}
+        />
       </button>
 
       {abierto && (

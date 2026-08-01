@@ -15,6 +15,10 @@ import { OnboardingModal } from '@/app/components/OnboardingModal'
 
 export const dynamic = 'force-dynamic'
 
+// El dashboard es una pantalla de tablero: en escritorio toma el 90% del ancho
+// para que las cuatro tarjetas y la cartera de tres columnas respiren.
+const CONTENEDOR = 'mx-auto w-full px-4 sm:px-6 lg:max-w-[90%] lg:px-8'
+
 type EventWithStats = EventoRow & {
   confirmed: number
   pending: number
@@ -479,20 +483,11 @@ export default function Dashboard() {
 
 
       <header className="shrink-0 border-b border-[#e8e8e8] bg-white">
-        <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-3 px-4 sm:h-16 sm:gap-4 sm:px-6 lg:px-8">
+        <div className={'flex h-14 items-center justify-between gap-3 sm:h-16 sm:gap-4 ' + CONTENEDOR}>
           <button onClick={() => window.location.href = '/dashboard'} className="shrink-0">
             <img src="/images/isotipo.svg" alt="Anfiora" className="h-11 w-11 sm:hidden" />
             <img src="/images/logo.svg" alt="Anfiora" className="hidden h-11 sm:block lg:h-14" />
           </button>
-          {!loading && metrics.length > 0 && (
-            <EventSelector
-              metrics={metrics}
-              contexto={contexto}
-              totalAlertas={totalAlertas}
-              onChange={setContexto}
-              onNuevoEvento={() => setShowNewEvent(true)}
-            />
-          )}
           <div className="flex shrink-0 items-center gap-3 sm:gap-4">
             <div data-bell className="relative">
               <button
@@ -582,23 +577,37 @@ export default function Dashboard() {
         </div>
       </header>
 
-      {contexto.kind === 'cartera' && (
       <div className="shrink-0 bg-[#f8f8f8]">
-        <div className="mx-auto max-w-6xl px-4 pt-3 sm:px-6 sm:pt-4 lg:px-8">
-          <div className="mb-5 flex items-center justify-between sm:mb-6">
-            <div>
-              <h1 className="text-xl font-bold text-[#1D1E20] sm:text-2xl">Dashboard</h1>
-              <p className="mt-0.5 text-xs text-[#888] sm:text-sm">Resumen de tus eventos</p>
-            </div>
+        <div className={CONTENEDOR + ' pt-3 sm:pt-4'}>
+          <div className="mb-5 flex items-start justify-between gap-3 sm:mb-6">
+            {!loading && metrics.length > 0 ? (
+              <EventSelector
+                metrics={metrics}
+                contexto={contexto}
+                totalAlertas={totalAlertas}
+                onChange={setContexto}
+                onNuevoEvento={() => setShowNewEvent(true)}
+              />
+            ) : (
+              <div>
+                <h1 className="text-xl font-bold text-[#1D1E20] sm:text-2xl">Dashboard</h1>
+                <p className="mt-0.5 text-xs text-[#888] sm:text-sm">Resumen de tus eventos</p>
+              </div>
+            )}
             <button
               onClick={() => setShowNewEvent(true)}
-              className="rounded-lg bg-[#48C9B0] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#3ab89f] active:scale-95 sm:px-5 sm:py-2.5"
+              className="mt-1 shrink-0 rounded-lg bg-[#48C9B0] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#3ab89f] active:scale-95 sm:px-5 sm:py-2.5"
             >
               <span className="sm:hidden">+ Nuevo</span>
               <span className="hidden sm:inline">+ Nuevo evento</span>
             </button>
           </div>
+        </div>
+      </div>
 
+      {contexto.kind === 'cartera' && (
+      <div className="shrink-0 bg-[#f8f8f8]">
+        <div className={CONTENEDOR}>
           {!loading && nextEvent && (
             <div onClick={() => window.location.href = '/events/' + nextEvent.id}
               className="mb-5 cursor-pointer rounded-2xl border border-[#48C9B0]/30 bg-white p-4 shadow-[0_2px_16px_rgba(72,201,176,0.1)] transition hover:shadow-[0_4px_24px_rgba(72,201,176,0.18)] sm:mb-6">
@@ -682,7 +691,7 @@ export default function Dashboard() {
       )}
 
       <div className="min-h-0 flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-6xl px-4 pb-8 pt-4 sm:px-6 lg:px-8">
+        <div className={CONTENEDOR + ' pb-8'}>
           {contexto.kind === 'evento' && enFoco ? (
             <ContextoEvento
               m={enFoco}
