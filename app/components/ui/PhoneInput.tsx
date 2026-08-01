@@ -91,7 +91,15 @@ export default function PhoneInput({
     const clampListHeight = (raw: number) => raw <= 0 ? DROPDOWN_ABSOLUTE_MIN : Math.min(DROPDOWN_LIST_HEIGHT, raw)
 
     if (flipUp) {
-      const listMaxHeight = clampListHeight(rect.top - DROPDOWN_GAP - DROPDOWN_GAP - DROPDOWN_HEADER_HEIGHT)
+      const anchoredHeight = rect.top - DROPDOWN_GAP - DROPDOWN_GAP - DROPDOWN_HEADER_HEIGHT
+      if (anchoredHeight <= 0) {
+        // Ni el header cabe entre el margen superior y el campo: se fija arriba
+        // (nunca fuera de pantalla) y la lista colapsa a 0 en vez de re-inflar el
+        // alto al piso general, que empujaria el borde inferior sobre el campo.
+        setDropdownPos({ top: DROPDOWN_GAP, left, listMaxHeight: 0 })
+        return
+      }
+      const listMaxHeight = Math.min(DROPDOWN_LIST_HEIGHT, anchoredHeight)
       const top = rect.top - DROPDOWN_GAP - (DROPDOWN_HEADER_HEIGHT + listMaxHeight)
       setDropdownPos({ top, left, listMaxHeight })
       return
