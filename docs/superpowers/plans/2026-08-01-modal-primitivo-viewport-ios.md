@@ -467,7 +467,13 @@ Notas de diseño, para que no se "corrijan" por accidente:
 - `min-h-0` en `Body` es obligatorio. Sin él, un hijo flex se niega a encogerse por debajo de su contenido y el scroll interno no funciona.
 - `max-h-[92dvh]` en clase es el **respaldo**: si `visualViewport` no existe, el modal sigue midiendo bien. El `style` con píxeles lo pisa cuando sí hay medición.
 - El `z-[300]` queda por debajo del `z-[400]` de `ConfirmModal` a propósito: una confirmación disparada desde un modal debe pintarse encima.
-- **Sobre la animación de salida:** el `AnimatePresence` interno solo la reproduce si `<Modal>` sigue montado y `open` pasa a `false`. Los modales actuales se montan y desmontan desde el padre (`{showModal && <SupplierModal ... />}`), así que la salida no se va a ver. Es el comportamiento que ya tienen hoy todos menos `SupplierDetailModal`. **No corregirlo en esta migración**: cambiar 18 padres a `open={showModal}` es un refactor aparte y no aporta al problema del viewport. Se anota como deuda menor.
+- **Sobre la animación de salida** (corregido durante la ejecución, con decisión explícita de Diego): el `AnimatePresence` interno solo la reproduce si `<Modal>` sigue montado y `open` pasa a `false`.
+
+  Una versión anterior de este plan afirmaba que eso era inalcanzable porque los padres montan y desmontan el modal. **Es falso** para buena parte de la app: al menos `SupplierModal`, `AddGiftModal`, `PaymentMethodModal`, `AddSongModal` y `BudgetItemModal` reciben una prop tipo `isOpen` y el padre los deja montados (verificado en `app/events/[id]/proveedores/page.tsx:308-315`).
+
+  **Regla de migración,** aplicable a cada archivo:
+  - Si el componente recibe una prop tipo `isOpen`/`open` y hace `if (!isOpen) return null`: **borrar ese early-return** y pasar `open={isOpen}` al primitivo. El primitivo decide cuándo desmontar y la salida se anima.
+  - Si el padre lo monta condicionalmente (`{show && <X/>}`) y el componente no recibe esa prop: dejar `open` literal en `true` y **anotarlo en el reporte**. Cambiar el padre queda fuera de alcance.
 
 - [ ] **Step 2: Verificar que compila y que el tipado cierra**
 
@@ -610,12 +616,14 @@ Reemplazar el bloque de apertura (líneas 87-95 aprox., desde `return (` hasta e
 
 ```tsx
   return (
-    <Modal open onClose={onClose} size="md">
+    <Modal open={isOpen} onClose={onClose} size="md">
       <Modal.Header title="Nuevo proveedor" subtitle="Captura lo esencial, completa después" />
       <Modal.Body>
 ```
 
 Borrar el `<X size={16} />` y su botón — el `Modal.Header` ya lo trae.
+
+**Borrar también el `if (!isOpen) return null` de la línea 49.** El padre deja este componente montado y le pasa `isOpen`, así que el primitivo puede animar la salida. Ver la regla de migración en las notas de la Task 3.
 
 - [ ] **Step 2: Reemplazar el cierre**
 
@@ -866,7 +874,7 @@ Si algo falla, **parar** y corregir el primitivo (Task 3) antes de migrar los 15
 1. Leer el archivo completo antes de tocarlo.
 2. Agregar `import { Modal } from '@/app/components/ui/Modal'`.
 3. Identificar la anatomía: si el panel tiene `overflow-y-auto` es B (reestructurar como en Task 6); si el cuerpo lo tiene, es A (reemplazo directo como en Task 4).
-4. Reemplazar overlay + panel por `<Modal open onClose={...} size={...}>`.
+4. Reemplazar overlay + panel por `<Modal open={...} onClose={...} size={...}>`. Aplicar la **regla de migración** de las notas de la Task 3: si el componente recibe una prop tipo `isOpen` y hace `if (!isOpen) return null`, borrar ese early-return y pasar `open={isOpen}` para que la salida se anime. Si el padre lo monta condicionalmente, dejar `open` literal y anotarlo en el reporte.
 5. Reemplazar el header y su botón de cerrar por `<Modal.Header title=... />`.
 6. Envolver el contenido en `<Modal.Body>`.
 7. Envolver los botones de acción en `<Modal.Footer>`, quitándoles el `sticky`/`border-t`/`px`/`py` que ahora pone el primitivo.
