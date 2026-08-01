@@ -737,6 +737,80 @@ git commit -m "refactor(proveedores): SupplierDetailModal migrado al primitivo M
 
 ---
 
+## Task 5.5: PhoneInput a 16px y su desplegable fuera de la caja
+
+**Files:**
+- Modify: `app/components/ui/PhoneInput.tsx`
+
+**Interfaces:**
+- Consumes: `useModalLayer` de `app/components/ui/Modal.tsx` (Task 3).
+- Produces: nada nuevo. Las props públicas no cambian.
+
+**Por qué existe esta tarea.** Se agregó durante la ejecución, tras un hallazgo de la revisión de la Task 5.
+
+`PhoneInput` es un componente compartido que renderiza su `<input type="tel">` y su buscador de país a `text-sm` (14px) — `PhoneInput.tsx:37`, `:140`, `:153`. **Ninguna otra tarea del plan lo cubre.** Sin esto, cualquier modal con campo de teléfono va a seguir haciendo zoom automático al enfocar en iOS, y el objetivo declarado del proyecto no se cumple aunque los 18 modales estén migrados.
+
+Además, su desplegable de países usa `position: absolute` y hoy queda recortado por el contenedor con scroll que lo envuelve. Es el mismo patrón que la Task 3.5 resolvió para los selectores de fecha y hora.
+
+- [ ] **Step 1: Subir los campos de captura a 16px**
+
+Leer el archivo completo. Cambiar a `text-base` **solo** los `<input>` (el de teléfono y el buscador de país). Las etiquetas, el código de país mostrado, los nombres de país en la lista y cualquier botón **no cambian**.
+
+Run: `grep -n "text-sm\|text-xs" app/components/ui/PhoneInput.tsx` para localizarlos y decidir uno por uno.
+
+Cuidado con el alto: al pasar de 14px a 16px el input crece unos 3px. Verificar que `py-2.5` siga dando una altura coherente con los campos hermanos de los modales donde vive (`SupplierModal`, `SupplierDetailModal`), que usan `py-2`. Si queda desalineado, ajustar el padding de `PhoneInput` para que empate, y decirlo en el reporte.
+
+- [ ] **Step 2: Sacar el desplegable de países de la caja**
+
+Aplicar el mismo tratamiento que la Task 3.5 le dio a `DatePicker` y `TimePicker`:
+
+```tsx
+import { createPortal } from 'react-dom'
+import { useSyncExternalStore } from 'react'
+import { useModalLayer } from '@/app/components/ui/Modal'
+```
+
+```tsx
+const emptySubscribe = () => () => {}
+```
+
+```tsx
+const mounted = useSyncExternalStore(emptySubscribe, () => true, () => false)
+useModalLayer(open)
+```
+
+Usar `useSyncExternalStore` y **no** `useState` + `useEffect(() => setMounted(true), [])`: el segundo dispara `react-hooks/set-state-in-effect` y obligaría a suprimir la regla.
+
+**Diferencia importante con la Task 3.5:** los selectores abren una capa centrada a pantalla completa, así que bastó con portalizarlos. El desplegable de países es un **popover anclado al campo** — al portalizarlo pierde su posición relativa. Hay que posicionarlo con coordenadas tomadas del campo (`getBoundingClientRect()`) y `position: fixed`, y recalcularlas al hacer scroll o cambiar el tamaño de la ventana.
+
+Si al implementarlo resulta que el reposicionamiento es más frágil de lo que vale, **parar y reportarlo** en vez de entregar algo a medias: una alternativa aceptable es dejar el desplegable como está y limitar esta tarea al Step 1, anotando el recorte como deuda. El Step 1 es el que es obligatorio.
+
+Z-index si se portaliza: `z-[350]`, la misma capa que los selectores.
+
+- [ ] **Step 3: Verificar**
+
+Run: `npx tsc --noEmit`
+Expected: exit 0.
+
+Run: `npx eslint app/components/ui/PhoneInput.tsx`
+Expected: sin errores nuevos. Si aparece `react-hooks/set-state-in-effect`, el Step 2 se hizo con `useState` — corregirlo, no suprimir la regla.
+
+- [ ] **Step 4: Verificar dónde vive**
+
+`PhoneInput` se usa en varios lugares. Localizarlos y revisar que ninguno se rompa:
+
+Run: `grep -rln "PhoneInput" app/ --include=*.tsx`
+
+- [ ] **Step 5: Commit**
+
+```bash
+git branch --show-current
+git add app/components/ui/PhoneInput.tsx
+git commit -m "fix(phone): campos a 16px para evitar el zoom de iOS y desplegable fuera de la caja"
+```
+
+---
+
 ## Task 6: Piloto 3 — TaskModal (anatomía B, requiere reestructurar)
 
 **Files:**
