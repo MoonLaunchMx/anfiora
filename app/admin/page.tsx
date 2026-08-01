@@ -162,9 +162,32 @@ export default function AdminPage() {
     }
   }
 
+  // Pasa por la ruta con service role: RLS solo deja al cliente del browser
+  // tocar su propia fila, y un UPDATE filtrado no devuelve error, asi que
+  // hacerlo desde aqui cambiaba la pantalla sin guardar nada.
   async function changePlan(userId: string, newPlan: string) {
-    await supabase.from('users').update({ plan: newPlan }).eq('id', userId)
+    const token = sessionToken
+    if (!token) return
+    const previous = users.find(u => u.id === userId)?.plan
+    setActionLoading(userId + 'plan')
     setUsers(prev => prev.map(u => u.id === userId ? { ...u, plan: newPlan } : u))
+    try {
+      const res = await fetch('/api/admin/update-plan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+        body: JSON.stringify({ userId, plan: newPlan })
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      showToast('Plan actualizado a ' + data.plan)
+    } catch (e: unknown) {
+      if (previous !== undefined) {
+        setUsers(prev => prev.map(u => u.id === userId ? { ...u, plan: previous } : u))
+      }
+      showToast(e instanceof Error ? e.message : 'Error desconocido', false)
+    } finally {
+      setActionLoading(null)
+    }
   }
 
   async function callAdminAction(userId: string, action: 'delete' | 'ban' | 'unban', emailConfirm?: string) {
