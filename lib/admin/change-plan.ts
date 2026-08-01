@@ -1,3 +1,5 @@
+import { PLAN_PRICES } from '@/lib/billing'
+
 export interface PlanChangeTarget {
   id: string
   email: string
@@ -9,7 +11,9 @@ export interface PlanChangeCheck {
   error: string | null
 }
 
-export const VALID_PLANS = ['free', 'pro', 'agency']
+// Los planes vivos se definen en lib/billing.ts. Cuando cambien de nombre o
+// entren nuevos, la validacion los sigue sola en vez de quedarse en el pasado.
+export const VALID_PLANS = Object.keys(PLAN_PRICES)
 
 function normalize(plan: string): string {
   return (plan || '').trim().toLowerCase()
