@@ -43,9 +43,9 @@ export const metadata: Metadata = {
     siteName: 'Anfiora',
     images: [
       {
-        url: '/images/og-image.png',
-        width: 1200,
-        height: 630,
+        url: '/images/logo-banner.png',
+        width: 1366,
+        height: 768,
         alt: 'Anfiora — Gestión de invitados para eventos',
       },
     ],
@@ -56,7 +56,7 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: 'Anfiora — Gestión de invitados para eventos',
     description: 'La plataforma para wedding planners y organizadores de eventos en LATAM. Gestiona listas de invitados y automatiza confirmaciones por WhatsApp.',
-    images: ['/images/og-image.png'],
+    images: ['/images/logo-banner.png'],
   },
 }
 
