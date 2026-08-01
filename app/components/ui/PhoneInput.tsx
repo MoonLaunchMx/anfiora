@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useSyncExternalStore } from 'react'
+import { createPortal } from 'react-dom'
 import { ChevronDown, Search, X } from 'lucide-react'
 import {
   COUNTRIES,
@@ -13,6 +14,9 @@ import {
   dialCode,
   type CountryCode,
 } from '@/lib/phone'
+import { useModalLayer } from '@/app/components/ui/Modal'
+
+const emptySubscribe = () => () => {}
 
 type PhoneInputProps = {
   value: string
@@ -33,16 +37,22 @@ export default function PhoneInput({
   className = '',
   compact,
 }: PhoneInputProps) {
-  const padY = compact ? 'py-2' : 'py-2.5'
+  // py-2 en ambos casos: con el input a text-base (16px), iguala el alto de los
+  // campos hermanos de los modales (px-3 py-2 text-base) que usan PhoneInput.
+  const padY = 'py-2'
   const txt = compact ? 'text-[13px]' : 'text-sm'
   const [country, setCountry] = useState<CountryCode>(defaultCountry)
   const [text, setText] = useState('')
   const [open, setOpen] = useState(false)
   const [filter, setFilter] = useState('')
+  const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0 })
   const containerRef = useRef<HTMLDivElement>(null)
+  const dropdownRef = useRef<HTMLDivElement>(null)
   // Guarda el ultimo valor E.164 conocido (recibido por props o emitido por nosotros)
   // para no volver a derivar country/text cuando el padre solo nos regresa lo que ya emitimos.
   const lastSyncedRef = useRef<string | null>(null)
+  const mounted = useSyncExternalStore(emptySubscribe, () => true, () => false)
+  useModalLayer(open)
 
   useEffect(() => {
     if (value === lastSyncedRef.current) return
@@ -58,13 +68,36 @@ export default function PhoneInput({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value])
 
+  const computeDropdownPosition = () => {
+    const rect = containerRef.current?.getBoundingClientRect()
+    if (!rect) return
+    const left = Math.max(8, Math.min(rect.left, window.innerWidth - 264))
+    setDropdownPos({ top: rect.bottom + 4, left })
+  }
+
+  const toggleOpen = () => {
+    if (!open) computeDropdownPosition()
+    setOpen(o => !o)
+  }
+
+  useEffect(() => {
+    if (!open) return
+    window.addEventListener('scroll', computeDropdownPosition, true)
+    window.addEventListener('resize', computeDropdownPosition)
+    return () => {
+      window.removeEventListener('scroll', computeDropdownPosition, true)
+      window.removeEventListener('resize', computeDropdownPosition)
+    }
+  }, [open])
+
   useEffect(() => {
     if (!open) return
     const handleClickOutside = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setOpen(false)
-        setFilter('')
-      }
+      const target = e.target as Node
+      if (containerRef.current?.contains(target)) return
+      if (dropdownRef.current?.contains(target)) return
+      setOpen(false)
+      setFilter('')
     }
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
@@ -108,7 +141,7 @@ export default function PhoneInput({
   return (
     <div ref={containerRef} className={`relative ${className}`}>
       <div
-        className={`flex items-center rounded-lg border bg-white transition ${
+        className={`flex items-stretch rounded-lg border bg-white transition ${
           disabled
             ? 'cursor-not-allowed border-[#f0f0f0] bg-[#f8f8f8]'
             : showError
@@ -119,7 +152,7 @@ export default function PhoneInput({
         <button
           type="button"
           disabled={disabled}
-          onClick={() => !disabled && setOpen(o => !o)}
+          onClick={() => !disabled && toggleOpen()}
           className={`flex shrink-0 items-center gap-1 rounded-l-lg border-r px-2.5 ${padY} ${txt} font-medium transition ${
             disabled
               ? 'cursor-not-allowed border-[#f0f0f0] text-[#ccc]'
@@ -137,12 +170,16 @@ export default function PhoneInput({
           value={text}
           onChange={handleTextChange}
           placeholder={placeholder}
-          className={`min-w-0 flex-1 rounded-r-lg bg-transparent px-3 ${padY} ${txt} text-[#1D1E20] outline-none placeholder:text-[#c0c0c0] disabled:cursor-not-allowed disabled:text-[#ccc]`}
+          className={`min-w-0 flex-1 rounded-r-lg bg-transparent px-3 ${padY} text-base text-[#1D1E20] outline-none placeholder:text-[#c0c0c0] disabled:cursor-not-allowed disabled:text-[#ccc]`}
         />
       </div>
 
-      {open && (
-        <div className="absolute left-0 top-[calc(100%+4px)] z-[100] w-64 overflow-hidden rounded-lg border border-[#e0e0e0] bg-white shadow-xl">
+      {open && mounted && createPortal(
+        <div
+          ref={dropdownRef}
+          style={{ top: dropdownPos.top, left: dropdownPos.left }}
+          className="fixed z-[350] w-64 overflow-hidden rounded-lg border border-[#e0e0e0] bg-white shadow-xl"
+        >
           <div className="flex items-center gap-2 border-b border-[#eee] px-3 py-2">
             <Search size={13} className="shrink-0 text-[#999]" />
             <input
@@ -150,7 +187,7 @@ export default function PhoneInput({
               value={filter}
               onChange={e => setFilter(e.target.value)}
               placeholder="Buscar país"
-              className="w-full bg-transparent text-sm text-[#1D1E20] outline-none placeholder:text-[#c0c0c0]"
+              className="w-full bg-transparent text-base text-[#1D1E20] outline-none placeholder:text-[#c0c0c0]"
             />
             {filter && (
               <button type="button" onClick={() => setFilter('')} className="text-[#999] transition hover:text-[#1D1E20]">
@@ -176,7 +213,8 @@ export default function PhoneInput({
               </button>
             ))}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   )
