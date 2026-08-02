@@ -147,7 +147,7 @@ export default function EventSelector({ metrics, contexto, onChange, onNuevoEven
       </button>
 
       {abierto && (
-        <div className="absolute left-0 top-[calc(100%+7px)] z-50 flex max-h-[70vh] w-full flex-col overflow-hidden rounded-[14px] border border-[#E8E8E8] bg-white shadow-[0_20px_44px_-14px_rgba(29,30,32,0.22)] sm:w-[428px]">
+        <div className="absolute left-0 top-[calc(100%+7px)] z-50 flex max-h-[70vh] w-[calc(100vw-2rem)] max-w-[428px] flex-col overflow-hidden rounded-[14px] border border-[#E8E8E8] bg-white shadow-[0_20px_44px_-14px_rgba(29,30,32,0.22)] sm:w-[428px]">
 
           <div className="shrink-0">
             <div className="m-[10px_11px] flex items-center gap-2 rounded-[9px] border border-[#E8E8E8] bg-[#F8F8F8] px-2.5 py-1.5">
@@ -195,7 +195,7 @@ export default function EventSelector({ metrics, contexto, onChange, onNuevoEven
                       {m.event.venue && ` · ${m.event.venue}`}
                     </span>
                   </span>
-                  <span className="flex w-[74px] shrink-0 gap-[3px]">
+                  <span className="flex w-[52px] shrink-0 gap-[2px] sm:w-[74px] sm:gap-[3px]">
                     {ORDEN_BARRAS.map(k => (
                       <i key={k} className={'block h-1 flex-1 rounded-full ' + BARRA[salud[k]]} />
                     ))}

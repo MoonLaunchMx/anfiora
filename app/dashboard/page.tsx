@@ -192,6 +192,28 @@ export default function Dashboard() {
     setContexto(c)
   }
 
+  // El proximo evento activo por fecha: es el destino por default cuando sales
+  // de la cartera y todavia no habias entrado a ninguno.
+  const proximoEvento = metrics
+    .filter(m => m.event.event_status === 'active')
+    .slice()
+    .sort((a, b) => {
+      const fa = a.event.event_date ?? '9999'
+      const fb = b.event.event_date ?? '9999'
+      return fa.localeCompare(fb)
+    })[0]?.event.id ?? null
+
+  // El boton de cartera alterna: entra a la cartera y, al volver a picarlo,
+  // regresa al evento donde estabas (o al mas proximo).
+  const alternarCartera = () => {
+    if (contexto.kind !== 'cartera') {
+      setContexto({ kind: 'cartera' })
+      return
+    }
+    const destino = ultimoEvento ?? proximoEvento
+    if (destino) elegirContexto({ kind: 'evento', eventId: destino })
+  }
+
   const totalReminders = reminders.length
 
   const totalAlertas = metrics
@@ -201,6 +223,30 @@ export default function Dashboard() {
   const enFoco = contexto.kind === 'evento'
     ? metrics.find(m => m.event.id === contexto.eventId) ?? null
     : null
+
+  // Elemento, no componente: declarar un componente dentro del render lo
+  // remonta en cada pasada y pierde el foco de lo que tenga dentro.
+  const botonCartera = (
+    <button
+      onClick={alternarCartera}
+      title={contexto.kind === 'cartera' ? 'Volver al evento' : 'Ver toda tu cartera'}
+      className={'flex shrink-0 items-center gap-2 rounded-[10px] px-2.5 py-2 text-[13px] font-semibold transition sm:px-3 ' + (
+        contexto.kind === 'cartera'
+          ? 'bg-[#1D1E20] text-white hover:bg-[#2c2d30]'
+          : 'border border-[#E0E0E0] bg-white text-[#1D1E20] hover:border-[#48C9B0]'
+      )}
+    >
+      <Layers size={14} />
+      <span className="hidden md:inline">Cartera</span>
+      {totalAlertas > 0 && (
+        <span className={'rounded-full px-1.5 py-px text-[12px] font-bold ' + (
+          contexto.kind === 'cartera' ? 'bg-white/15 text-white' : 'bg-[#FFF0F0] text-[#CC3333]'
+        )}>
+          {totalAlertas}
+        </span>
+      )}
+    </button>
+  )
 
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-[#f8f8f8] font-sans text-[#1D1E20]">
@@ -217,33 +263,17 @@ export default function Dashboard() {
 
           <span className="hidden h-6 w-px shrink-0 bg-[#e8e8e8] sm:block" />
 
-          <button
-            onClick={() => setContexto({ kind: 'cartera' })}
-            className={'flex shrink-0 items-center gap-2 rounded-[10px] px-2.5 py-2 text-[13px] font-semibold transition sm:px-3 ' + (
-              contexto.kind === 'cartera'
-                ? 'bg-[#1D1E20] text-white'
-                : 'border border-[#E0E0E0] bg-white text-[#1D1E20] hover:border-[#48C9B0]'
+          <div className="hidden min-w-0 flex-1 items-center gap-2.5 sm:flex">
+            {botonCartera}
+            {!loading && metrics.length > 0 && (
+              <EventSelector
+                metrics={metrics}
+                contexto={contexto}
+                onChange={elegirContexto}
+                onNuevoEvento={() => setShowNewEvent(true)}
+              />
             )}
-          >
-            <Layers size={14} />
-            <span className="hidden md:inline">Cartera</span>
-            {totalAlertas > 0 && (
-              <span className={'rounded-full px-1.5 py-px text-[12px] font-bold ' + (
-                contexto.kind === 'cartera' ? 'bg-white/15 text-white' : 'bg-[#FFF0F0] text-[#CC3333]'
-              )}>
-                {totalAlertas}
-              </span>
-            )}
-          </button>
-
-          {!loading && metrics.length > 0 && (
-            <EventSelector
-              metrics={metrics}
-              contexto={contexto}
-              onChange={elegirContexto}
-              onNuevoEvento={() => setShowNewEvent(true)}
-            />
-          )}
+          </div>
 
           <div className="ml-auto flex shrink-0 items-center gap-2 sm:gap-2.5">
             <button
@@ -377,6 +407,20 @@ export default function Dashboard() {
           </div>
         </div>
       </header>
+
+      <div className="shrink-0 border-b border-[#e8e8e8] bg-white sm:hidden">
+        <div className={CONTENEDOR + ' flex h-14 items-center gap-2'}>
+          {botonCartera}
+          {!loading && metrics.length > 0 && (
+            <EventSelector
+              metrics={metrics}
+              contexto={contexto}
+              onChange={elegirContexto}
+              onNuevoEvento={() => setShowNewEvent(true)}
+            />
+          )}
+        </div>
+      </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className={CONTENEDOR + ' py-4 pb-8'}>

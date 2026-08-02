@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import {
-  Activity, Briefcase, Check, Copy, Gift, LayoutGrid, Settings,
-  UserPlus, Users,
+  Activity, Briefcase, Check, CircleAlert, CircleCheck, Copy, Gift, LayoutGrid,
+  PencilLine, Settings, UserPlus, Users,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { formatCurrency, formatEventDate } from '@/lib/types'
@@ -70,9 +70,7 @@ function pctOrganizacion(m: EventMetrics): number {
 }
 
 const CHIP_BASE = 'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[12px] font-semibold whitespace-nowrap'
-const CHIP_TEAL = `${CHIP_BASE} border-[#C8EDE7] bg-[#F0FDFB] text-[#1A9E88]`
 const CHIP_MUTE = `${CHIP_BASE} border-[#E8E8E8] bg-[#F8F8F8] text-[#777]`
-const CHIP_GOLD = `${CHIP_BASE} border-[#EBD9A8] bg-[#FFFBF0] text-[#8A6A1E]`
 const CHIP_BAD  = `${CHIP_BASE} border-[#FFC0C0] bg-[#FFF0F0] text-[#CC3333]`
 const CHIP_WARN = `${CHIP_BASE} border-[#F0DCA8] bg-[#FFF8E8] text-[#B8860B]`
 
@@ -99,10 +97,12 @@ const ESTADO_LABEL: Record<string, string> = {
 
 const ROL_LABEL: Record<string, string> = { admin: 'Admin', editor: 'Editor', viewer: 'Viewer' }
 
-const INVITACION_CHIP: Record<string, { clase: string; texto: string }> = {
-  publicada: { clase: CHIP_GOLD, texto: 'Invitación publicada' },
-  cambios:   { clase: CHIP_WARN, texto: 'Cambios sin publicar' },
-  borrador:  { clase: CHIP_MUTE, texto: 'Invitación en borrador' },
+// Cada dato del hero se distingue por tratamiento, no por una pill identica:
+// el tipo y el estado van de antetitulo, la invitacion y el acceso de icono.
+const INVITACION_CHIP: Record<string, { color: string; texto: string; Icono: React.ElementType }> = {
+  publicada: { color: 'text-[#1A9E88]', texto: 'Invitación publicada',  Icono: CircleCheck },
+  cambios:   { color: 'text-[#B8860B]', texto: 'Cambios sin publicar',  Icono: CircleAlert },
+  borrador:  { color: 'text-[#999]',    texto: 'Invitación en borrador', Icono: PencilLine },
 }
 
 // Escala tipografica del tablero. Un solo lugar donde cambiarla.
@@ -330,38 +330,55 @@ export default function ContextoEvento({ m, colaboradores, rol, puedeVerDinero, 
 
       <div className={'grid gap-4 ' + (puedeVerDinero ? 'xl:grid-cols-[1.05fr_1fr]' : 'xl:grid-cols-[1.4fr_1fr]')}>
 
-        <div className="relative overflow-hidden rounded-2xl border border-[#e8e8e8] bg-gradient-to-br from-white via-white to-[#f3fbf9] px-6 py-6">
+        <div className="relative overflow-hidden rounded-2xl border border-[#e8e8e8] bg-gradient-to-br from-white via-white to-[#f3fbf9] px-4 py-5 sm:px-6 sm:py-6">
           <div className="pointer-events-none absolute -right-16 -top-24 h-[320px] w-[320px] rounded-full bg-[#48C9B0]/15 blur-3xl" />
           <div className="relative z-10 flex h-full flex-col">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className={CHIP_TEAL}>
-                <i className="h-2 w-2 rounded-full bg-[#48C9B0]" />
+
+            <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[12px] font-semibold uppercase tracking-[0.09em] text-[#999]">
+              {ev.event_type && (
+                <>
+                  <span>{ev.event_type}</span>
+                  <span className="text-[#DDD]">/</span>
+                </>
+              )}
+              <span className={'flex items-center gap-1.5 ' + (ev.event_status === 'active' ? 'text-[#1A9E88]' : 'text-[#B8860B]')}>
+                <i className={'h-[7px] w-[7px] rounded-full ' + (ev.event_status === 'active' ? 'bg-[#48C9B0]' : 'bg-[#D4A853]')} />
                 {ESTADO_LABEL[ev.event_status] ?? ev.event_status}
               </span>
-              {ev.event_type && <span className={CHIP_MUTE}>{ev.event_type}</span>}
-              <span className={inv.clase}>{inv.texto}</span>
-              {acceso && <span className={CHIP_MUTE}>{acceso.label}</span>}
             </div>
 
-            <h2 className="mt-3 font-display text-[34px] font-black leading-[1.02] tracking-[-0.03em] sm:text-[42px]">
+            <h2 className="mt-2 font-display text-[27px] font-black leading-[1.03] tracking-[-0.03em] sm:text-[34px] xl:text-[40px]">
               {ev.name}
             </h2>
-            <p className="mt-2 text-[14px] text-[#777]">
+            <p className="mt-2 text-[13px] text-[#777] sm:text-[14px]">
               {formatEventDate(ev.event_date, ev.event_end_date)}
               {ev.event_time && ` · ${formatTime(ev.event_time)}`}
               {ev.venue && ` · ${ev.venue}`}
             </p>
 
+            <div className="mt-3.5 flex flex-wrap items-center gap-x-5 gap-y-2 text-[13px]">
+              <span className={'flex items-center gap-2 font-medium ' + inv.color}>
+                <inv.Icono size={15} />
+                {inv.texto}
+              </span>
+              {acceso && (
+                <span className="flex items-center gap-2 text-[#999]">
+                  <acceso.icon size={15} />
+                  {acceso.label}
+                </span>
+              )}
+            </div>
+
             <div className="mt-6 flex flex-wrap items-end gap-x-8 gap-y-4">
               <div>
                 <p className={T_LABEL}>Faltan</p>
                 <p className="mt-1 flex items-baseline gap-2">
-                  <b className="font-display text-[52px] font-black leading-[0.85] tracking-[-0.04em] text-[#1A9E88]">{cd.grande}</b>
-                  <span className="text-[15px] font-semibold text-[#888]">{cd.unidad}</span>
+                  <b className="font-display text-[42px] font-black leading-[0.85] tracking-[-0.04em] text-[#1A9E88] sm:text-[52px]">{cd.grande}</b>
+                  <span className="text-[14px] font-semibold text-[#888] sm:text-[15px]">{cd.unidad}</span>
                 </p>
                 {cd.chico && <p className="mt-1.5 text-[13px] text-[#999]">{cd.chico}</p>}
               </div>
-              <div className="min-w-[180px] flex-1">
+              <div className="min-w-[160px] flex-1">
                 <div className="mb-2 flex items-center justify-between gap-3">
                   <span className={T_LABEL}>Organización</span>
                   <span className="font-display text-[15px] font-extrabold text-[#1A9E88]">{org}%</span>
@@ -375,15 +392,12 @@ export default function ContextoEvento({ m, colaboradores, rol, puedeVerDinero, 
             <div className="mt-6 flex flex-wrap gap-2">
               <button
                 onClick={onAbrirEvento}
-                className="rounded-[10px] bg-[#48C9B0] px-4 py-2.5 text-[13.5px] font-semibold text-white transition hover:bg-[#3ab89f] active:scale-95"
+                className="flex-1 rounded-[10px] bg-[#48C9B0] px-4 py-2.5 text-[13.5px] font-semibold text-white transition hover:bg-[#3ab89f] active:scale-95 sm:flex-none"
               >
                 Abrir evento
               </button>
-              <button onClick={() => { window.location.href = `/events/${ev.id}/invitacion` }} className={BTN_SEC}>
-                Ver invitación
-              </button>
               {m.sharedToken && (
-                <button onClick={copiarLink} className={BTN_SEC + ' flex items-center gap-2'}>
+                <button onClick={copiarLink} className={BTN_SEC + ' flex flex-1 items-center justify-center gap-2 sm:flex-none'}>
                   {copiado ? <Check size={14} className="text-[#1A9E88]" /> : <Copy size={14} />}
                   {copiado ? 'Copiado' : 'Copiar link'}
                 </button>
