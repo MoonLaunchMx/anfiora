@@ -1098,12 +1098,11 @@ function DonutChart({value,total}:{value:number;total:number}) {
 function ModalMesa({ visible=true, editTable, mNum, setMNum, mName, setMName, mCap, setMCap, mShape, setMShape, mError, mSaving, onSave, onClose, inp }: {
   visible?:boolean; editTable:TableRecord|null; mNum:string; setMNum:(v:string)=>void; mName:string; setMName:(v:string)=>void; mCap:string; setMCap:(v:string)=>void; mShape:string; setMShape:(v:string)=>void; mError:string; mSaving:boolean; onSave:()=>void; onClose:()=>void; inp:string
 }) {
-  if(!visible)return null
   const shapes: TableShape[] = ['round','oval','rectangle','square','halfmoon','row']
   return(
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-sm rounded-2xl border border-[#e8e8e8] bg-white p-6 shadow-xl">
-        <div className="mb-5 flex items-center justify-between"><h2 className="text-lg font-bold text-[#1D1E20]">{editTable?'Editar mesa':'Nueva mesa'}</h2><button onClick={onClose} className="text-xl text-[#aaa]">✕</button></div>
+    <Modal open={visible} onClose={onClose} size="sm">
+      <Modal.Header title={editTable?'Editar mesa':'Nueva mesa'}/>
+      <Modal.Body>
         <div className="flex flex-col gap-4">
           <div className="grid grid-cols-2 gap-3">
             <div><label className="mb-1.5 block text-xs font-medium text-[#555]"># Mesa *</label><input type="number" min="1" value={mNum} onChange={e=>setMNum(e.target.value)} className={inp} placeholder="1"/></div>
@@ -1123,12 +1122,12 @@ function ModalMesa({ visible=true, editTable, mNum, setMNum, mName, setMName, mC
           </div>
         </div>
         {mError&&<div className="mt-3 rounded-lg border border-[#ffc0c0] bg-[#fff0f0] p-2.5 text-xs text-[#cc3333]">{mError}</div>}
-        <div className="mt-5 flex gap-2.5">
-          <button onClick={onClose} className="flex-1 rounded-lg border border-[#e0e0e0] py-3 text-sm text-[#888]">Cancelar</button>
-          <button onClick={onSave} disabled={mSaving} className="flex-[2] rounded-lg bg-[#48C9B0] py-3 text-sm font-semibold text-white disabled:opacity-60">{mSaving?'Guardando…':editTable?'Guardar cambios':'Crear mesa'}</button>
-        </div>
-      </div>
-    </div>
+      </Modal.Body>
+      <Modal.Footer>
+        <button onClick={onClose} className="flex-1 rounded-lg border border-[#e0e0e0] py-3 text-sm text-[#888]">Cancelar</button>
+        <button onClick={onSave} disabled={mSaving} className="flex-[2] rounded-lg bg-[#48C9B0] py-3 text-sm font-semibold text-white disabled:opacity-60">{mSaving?'Guardando…':editTable?'Guardar cambios':'Crear mesa'}</button>
+      </Modal.Footer>
+    </Modal>
   )
 }
 
@@ -1142,26 +1141,26 @@ function ModalAsignar({ tables, guests, assignModal, assignSearch, setAssignSear
   const isFull=avail<=0
   const filtered=assignSearch?guests.filter(g=>g.name.toLowerCase().includes(assignSearch.toLowerCase())):guests
   return(
-    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
-      <div className="w-full max-w-sm overflow-hidden rounded-2xl border border-[#e8e8e8] bg-white shadow-2xl" onClick={e=>e.stopPropagation()}>
-        <div className="border-b border-[#f0f0f0] px-4 py-3">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="flex items-center gap-1.5 text-sm font-bold text-[#1D1E20]">
-                Asignar a <span className="rounded bg-[#f0f0f0] px-1.5 py-0.5 text-xs font-bold text-[#555]">#{table.number}</span>{table.name||`Mesa ${table.number}`}
-              </p>
-              <p className="text-[11px]" style={{color:isFull?'#cc3333':'#aaa'}}>
-                {isFull ? 'Mesa llena' : `${avail} asiento(s) disponible(s) · ${occ}/${table.capacity}`}
-              </p>
-            </div>
-            <button onClick={onClose} className="rounded-lg bg-[#48C9B0] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#3ab89f]">Listo</button>
+    <Modal open onClose={onClose} size="sm">
+      <div className="shrink-0 border-b border-[#f0f0f0] px-4 py-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="flex items-center gap-1.5 text-sm font-bold text-[#1D1E20]">
+              Asignar a <span className="rounded bg-[#f0f0f0] px-1.5 py-0.5 text-xs font-bold text-[#555]">#{table.number}</span>{table.name||`Mesa ${table.number}`}
+            </p>
+            <p className="text-[11px]" style={{color:isFull?'#cc3333':'#aaa'}}>
+              {isFull ? 'Mesa llena' : `${avail} asiento(s) disponible(s) · ${occ}/${table.capacity}`}
+            </p>
           </div>
-          <div className="relative mt-3">
-            <Search width={13} height={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#bbb]"/>
-            <input ref={assignRef} type="text" value={assignSearch} onChange={e=>setAssignSearch(e.target.value)} placeholder="Buscar invitado..." className="w-full rounded-lg border border-[#e0e0e0] bg-[#f8f8f8] py-2 pl-8 pr-3 text-xs outline-none focus:border-[#48C9B0]"/>
-          </div>
+          <button onClick={onClose} className="rounded-lg bg-[#48C9B0] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#3ab89f]">Listo</button>
         </div>
-        <div className="max-h-72 overflow-y-auto">
+        <div className="relative mt-3">
+          <Search width={13} height={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#bbb]"/>
+          <input ref={assignRef} type="text" value={assignSearch} onChange={e=>setAssignSearch(e.target.value)} placeholder="Buscar invitado..." className="w-full rounded-lg border border-[#e0e0e0] bg-[#f8f8f8] py-2 pl-8 pr-3 text-base outline-none focus:border-[#48C9B0]"/>
+        </div>
+      </div>
+      {/* lista a sangre: el primitivo no expone un cuerpo sin respiro lateral */}
+      <div className="min-h-0 flex-1 overflow-y-auto">
           {!filtered.length?<p className="px-4 py-6 text-center text-xs text-[#bbb]">Sin resultados</p>:filtered.map(g=>{
             const need=1+g.party_members.length
             const ex=gSeatMap.get(g.id)
@@ -1187,9 +1186,8 @@ function ModalAsignar({ tables, guests, assignModal, assignSearch, setAssignSear
               </button>
             )
           })}
-        </div>
       </div>
-    </div>
+    </Modal>
   )
 }
 
@@ -1198,14 +1196,16 @@ function ModalMover({ moveModal, tables, moveSaving, onConfirm, onClose }: {
 }) {
   if(!moveModal)return null
   return(
-    <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-sm rounded-2xl border border-[#e8e8e8] bg-white p-6 shadow-xl">
-        <div className="mb-4 text-center"><h2 className="text-base font-bold text-[#1D1E20]">¿Mover a otra mesa?</h2>
-          <p className="mt-2 text-sm text-[#555]"><span className="font-semibold">{moveModal.guest.name}</span>{moveModal.guest.party_size>1&&<span className="text-[#888]"> +{moveModal.guest.party_size-1}</span>}{' '}está en <span className="font-semibold">Mesa #{moveModal.fromTableNumber}</span>. ¿Mover a <span className="font-semibold">Mesa #{tables.find(t=>t.id===moveModal.toTableId)?.number}</span>?</p>
-        </div>
-        <div className="flex gap-2.5"><button onClick={onClose} className="flex-1 rounded-lg border border-[#e0e0e0] py-3 text-sm text-[#888]">Cancelar</button><button onClick={onConfirm} disabled={moveSaving} className="flex-[2] rounded-lg bg-[#48C9B0] py-3 text-sm font-semibold text-white disabled:opacity-60">{moveSaving?'Moviendo…':'Sí, mover'}</button></div>
-      </div>
-    </div>
+    <Modal open onClose={onClose} size="sm">
+      <Modal.Body className="py-6 text-center">
+        <h2 className="text-base font-bold text-[#1D1E20]">¿Mover a otra mesa?</h2>
+        <p className="mt-2 text-sm text-[#555]"><span className="font-semibold">{moveModal.guest.name}</span>{moveModal.guest.party_size>1&&<span className="text-[#888]"> +{moveModal.guest.party_size-1}</span>}{' '}está en <span className="font-semibold">Mesa #{moveModal.fromTableNumber}</span>. ¿Mover a <span className="font-semibold">Mesa #{tables.find(t=>t.id===moveModal.toTableId)?.number}</span>?</p>
+      </Modal.Body>
+      <Modal.Footer>
+        <button onClick={onClose} className="flex-1 rounded-lg border border-[#e0e0e0] py-3 text-sm text-[#888]">Cancelar</button>
+        <button onClick={onConfirm} disabled={moveSaving} className="flex-[2] rounded-lg bg-[#48C9B0] py-3 text-sm font-semibold text-white disabled:opacity-60">{moveSaving?'Moviendo…':'Sí, mover'}</button>
+      </Modal.Footer>
+    </Modal>
   )
 }
 
@@ -1701,22 +1701,23 @@ function MesasPageInner() {
 
       <ModalMesa visible={showModal} editTable={editTable} mNum={mNum} setMNum={setMNum} mName={mName} setMName={setMName} mCap={mCap} setMCap={setMCap} mShape={mShape} setMShape={setMShape} mError={mError} mSaving={mSaving} onSave={handleSaveTable} onClose={()=>setShowModal(false)} inp={inp}/>
 
-      {showBulk&&(
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-sm rounded-2xl border border-[#e8e8e8] bg-white p-6 shadow-xl">
-            <div className="mb-5 flex items-center justify-between"><div><h2 className="text-lg font-bold text-[#1D1E20]">Agregar en bulk</h2><p className="mt-0.5 text-xs text-[#aaa]">Números automáticos{tables.length>0?` (siguiente: #${nextNum()})`:' (desde #1)'}</p></div><button onClick={()=>setShowBulk(false)} className="text-xl text-[#aaa]">✕</button></div>
-            <div className="flex flex-col gap-4">
-              <div className="grid grid-cols-2 gap-3"><div><label className="mb-1.5 block text-xs font-medium text-[#555]">Cantidad *</label><input type="number" min="1" max="50" value={bCount} onChange={e=>setBCount(e.target.value)} className={inp} placeholder="5"/></div><div><label className="mb-1.5 block text-xs font-medium text-[#555]">Capacidad c/u *</label><input type="number" min="1" max="100" value={bCap} onChange={e=>setBCap(e.target.value)} className={inp} placeholder="8"/></div></div>
-              <div><label className="mb-1.5 block text-xs font-medium text-[#555]">Forma</label>
-                <div className="grid grid-cols-3 gap-2">{(['round','oval','rectangle','square','halfmoon','row'] as TableShape[]).map(s=><button key={s} type="button" onClick={()=>setBShape(s)} className={`flex flex-col items-center gap-1 rounded-xl border py-2 text-[10px] font-medium transition ${bShape===s?'border-[#48C9B0] bg-[#f0fdfb] text-[#1a9e88]':'border-[#e0e0e0] text-[#888]'}`}><div className="flex h-8 w-full items-center justify-center">{SHAPE_ICONS[s]}</div>{SHAPE_LABELS[s]}</button>)}</div>
-              </div>
-              {(()=>{const c=parseInt(bCount);if(!c||c<1||c>50)return null;const ns=previewNums(c);const pv=ns.length<=8?ns.map(n=>`#${n}`).join(', '):`#${ns[0]}, #${ns[1]}... hasta #${ns[ns.length-1]}`;return<div className="rounded-lg border border-[#e8f8f4] bg-[#f0fdfb] px-3 py-2.5"><p className="text-[11px] font-semibold text-[#1a9e88]">Se crearán {c} mesas:</p><p className="mt-0.5 text-[11px] text-[#48C9B0]">{pv}</p></div>})()}
+      <Modal open={showBulk} onClose={()=>setShowBulk(false)} size="sm">
+        <Modal.Header title="Agregar en bulk" subtitle={`Números automáticos${tables.length>0?` (siguiente: #${nextNum()})`:' (desde #1)'}`}/>
+        <Modal.Body>
+          <div className="flex flex-col gap-4">
+            <div className="grid grid-cols-2 gap-3"><div><label className="mb-1.5 block text-xs font-medium text-[#555]">Cantidad *</label><input type="number" min="1" max="50" value={bCount} onChange={e=>setBCount(e.target.value)} className={inp} placeholder="5"/></div><div><label className="mb-1.5 block text-xs font-medium text-[#555]">Capacidad c/u *</label><input type="number" min="1" max="100" value={bCap} onChange={e=>setBCap(e.target.value)} className={inp} placeholder="8"/></div></div>
+            <div><label className="mb-1.5 block text-xs font-medium text-[#555]">Forma</label>
+              <div className="grid grid-cols-3 gap-2">{(['round','oval','rectangle','square','halfmoon','row'] as TableShape[]).map(s=><button key={s} type="button" onClick={()=>setBShape(s)} className={`flex flex-col items-center gap-1 rounded-xl border py-2 text-[10px] font-medium transition ${bShape===s?'border-[#48C9B0] bg-[#f0fdfb] text-[#1a9e88]':'border-[#e0e0e0] text-[#888]'}`}><div className="flex h-8 w-full items-center justify-center">{SHAPE_ICONS[s]}</div>{SHAPE_LABELS[s]}</button>)}</div>
             </div>
-            {bError&&<div className="mt-3 rounded-lg border border-[#ffc0c0] bg-[#fff0f0] p-2.5 text-xs text-[#cc3333]">{bError}</div>}
-            <div className="mt-5 flex gap-2.5"><button onClick={()=>setShowBulk(false)} className="flex-1 rounded-lg border border-[#e0e0e0] py-3 text-sm text-[#888]">Cancelar</button><button onClick={handleBulk} disabled={bSaving} className="flex-[2] rounded-lg bg-[#48C9B0] py-3 text-sm font-semibold text-white disabled:opacity-60">{bSaving?'Creando…':`Crear ${bCount||0} mesas`}</button></div>
+            {(()=>{const c=parseInt(bCount);if(!c||c<1||c>50)return null;const ns=previewNums(c);const pv=ns.length<=8?ns.map(n=>`#${n}`).join(', '):`#${ns[0]}, #${ns[1]}... hasta #${ns[ns.length-1]}`;return<div className="rounded-lg border border-[#e8f8f4] bg-[#f0fdfb] px-3 py-2.5"><p className="text-[11px] font-semibold text-[#1a9e88]">Se crearán {c} mesas:</p><p className="mt-0.5 text-[11px] text-[#48C9B0]">{pv}</p></div>})()}
           </div>
-        </div>
-      )}
+          {bError&&<div className="mt-3 rounded-lg border border-[#ffc0c0] bg-[#fff0f0] p-2.5 text-xs text-[#cc3333]">{bError}</div>}
+        </Modal.Body>
+        <Modal.Footer>
+          <button onClick={()=>setShowBulk(false)} className="flex-1 rounded-lg border border-[#e0e0e0] py-3 text-sm text-[#888]">Cancelar</button>
+          <button onClick={handleBulk} disabled={bSaving} className="flex-[2] rounded-lg bg-[#48C9B0] py-3 text-sm font-semibold text-white disabled:opacity-60">{bSaving?'Creando…':`Crear ${bCount||0} mesas`}</button>
+        </Modal.Footer>
+      </Modal>
 
       <ModalAsignar tables={tables} guests={guests} assignModal={assignModal} assignSearch={assignSearch} setAssignSearch={setAssignSearch} assignRef={assignRef} gSeatMap={gSeatMap} getOccupied={getOccupied} handleSelectGuest={handleSelectGuest} onClose={()=>{setAssignModal(null);setAssignSearch('')}}/>
       <ModalMover moveModal={moveModal} tables={tables} moveSaving={moveSaving} onConfirm={handleMove} onClose={()=>setMoveModal(null)}/>
