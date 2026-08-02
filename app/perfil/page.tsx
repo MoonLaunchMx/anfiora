@@ -7,6 +7,8 @@ import { supabase } from '@/lib/supabase'
 import { User, Lock, Eye, EyeOff, CheckCircle, AlertCircle, ArrowLeft, ChevronDown, Bell, MessageSquarePlus } from 'lucide-react'
 import { ROLES, getRole, Role } from '@/lib/roles'
 import PhoneInput from '@/app/components/ui/PhoneInput'
+import { PUSH_TYPES, type PushType, type NotificationPrefs } from '@/lib/types'
+import { readPrefs, withPref } from '@/lib/notifications/prefs'
 
 type PlanInfo = {
   label: string
@@ -125,6 +127,8 @@ export default function PerfilPage() {
   const [pushPermission, setPushPermission] = useState<NotificationPermission>('default')
   const [pushBusy, setPushBusy]             = useState(false)
   const [pushMsg, setPushMsg]               = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  const [prefs, setPrefs]                   = useState<NotificationPrefs>({})
+  const [prefsBusy, setPrefsBusy]           = useState<PushType | null>(null)
 
   useEffect(() => {
     const load = async () => {
@@ -137,7 +141,7 @@ export default function PerfilPage() {
       // Jalar perfil de tabla users
       const { data } = await supabase
         .from('users')
-        .select('full_name, phone, plan, role')
+        .select('full_name, phone, plan, role, settings')
         .eq('id', user.id)
         .single()
 
@@ -146,6 +150,7 @@ export default function PerfilPage() {
         setPhone(data.phone || '')
         setPlan(data.plan || 'free')
         setRole(data.role || '')
+        setPrefs(readPrefs(data.settings))
       }
 
       setLoading(false)
@@ -342,6 +347,28 @@ export default function PerfilPage() {
     setPushBusy(false)
   }
 
+  const togglePref = async (type: PushType) => {
+    const next = prefs[type] === false
+    const previous = prefs
+    setPrefsBusy(type)
+    setPushMsg(null)
+    setPrefs({ ...prefs, [type]: next })
+
+    const { data: row } = await supabase.from('users').select('settings').eq('id', userId).single()
+    const { data: updated, error } = await supabase
+      .from('users')
+      .update({ settings: withPref(row?.settings, type, next) })
+      .eq('id', userId)
+      .select('id')
+
+    // Un UPDATE filtrado por RLS no da error, devuelve cero filas: hay que contarlas.
+    if (error || !updated || updated.length === 0) {
+      setPrefs(previous)
+      setPushMsg({ type: 'error', text: 'No se pudo guardar la preferencia. Intenta de nuevo.' })
+    }
+    setPrefsBusy(null)
+  }
+
   const planStyle = PLAN_STYLES[plan] || PLAN_STYLES.free
   const currentRole = getRole(role)
   const CurrentIcon = currentRole?.icon
@@ -528,6 +555,47 @@ export default function PerfilPage() {
               >
                 Enviar notificación de prueba
               </button>
+            )}
+
+            {pushSupported && (
+              <div className={`mt-6 border-t border-[#f0f0f0] pt-5 ${pushEnabled ? '' : 'opacity-50'}`}>
+                <p className="text-xs font-semibold text-[#555]">Qué quieres recibir</p>
+                <div className="mt-3 flex flex-col gap-3">
+                  {PUSH_TYPES.map(({ type, label, hint }) => {
+                    const on = prefs[type] !== false
+                    const disabled = !pushEnabled || prefsBusy !== null
+                    return (
+                      <div key={type} className="flex items-center justify-between gap-4">
+                        <div className="min-w-0">
+                          <p className="text-sm text-[#1D1E20]">{label}</p>
+                          <p className="text-[11px] text-[#aaa]">{hint}</p>
+                        </div>
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={on}
+                          aria-label={label}
+                          disabled={disabled}
+                          onClick={() => togglePref(type)}
+                          className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors
+                            ${on ? 'bg-[#48C9B0]' : 'bg-[#d8d8d8]'}
+                            ${disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}
+                        >
+                          <span
+                            className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform
+                              ${on ? 'translate-x-5' : 'translate-x-1'}`}
+                          />
+                        </button>
+                      </div>
+                    )
+                  })}
+                </div>
+                {!pushEnabled && (
+                  <p className="mt-3 text-[11px] text-[#aaa]">
+                    Activa las notificaciones en este dispositivo para elegir qué recibir.
+                  </p>
+                )}
+              </div>
             )}
 
             {pushMsg && (
