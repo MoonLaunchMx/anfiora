@@ -2,8 +2,9 @@
 
 import { Fragment, useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
-import { Gift, Coins, Mail, ExternalLink, Check, X, Heart, Copy, Landmark, MapPin } from 'lucide-react'
+import { Gift, Coins, Mail, ExternalLink, Check, Heart, Copy, Landmark, MapPin } from 'lucide-react'
 import { GiftRegistryItem, RegistryPaymentMethod, RegistryExternalLink, normalizePaymentMethods, formatShippingAddress, PHONE_COUNTRY_CODES, GIFT_CATEGORIES } from '@/lib/types'
+import { Modal } from '@/app/components/ui/Modal'
 
 type Aggregates = Record<string, { count: number; sum: number; buyers: number }>
 type ReserveMode = 'buy' | 'contribute'
@@ -407,248 +408,236 @@ function ReserveModal({
     submit(c === 'deposit' ? item.price : null)
   }
 
-  const inputCls = 'w-full rounded-lg border border-[#e0e0e0] bg-white px-3 py-2 text-sm text-[#1D1E20] outline-none transition focus:border-[#48C9B0]'
+  const inputCls = 'w-full rounded-lg border border-[#e0e0e0] bg-white px-3 py-2 text-base text-[#1D1E20] outline-none transition focus:border-[#48C9B0]'
   const labelCls = 'mb-1 block text-[11px] font-semibold uppercase tracking-wider text-[#888]'
 
   return (
-    <>
-      <div onClick={onClose} className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm" />
-      <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4">
-        <div className="flex max-h-[90vh] w-full max-w-md flex-col overflow-hidden rounded-t-2xl bg-white shadow-xl sm:rounded-2xl">
-
-          {step === 'done' ? (
-            <div className="px-6 py-10 text-center">
-              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-[#f0fdfb] text-[#1a9e88]">
-                <Check size={28} strokeWidth={2.4} />
+    <Modal open onClose={onClose} size="md">
+      {step === 'done' ? (
+        <Modal.Body className="px-6 py-10 text-center">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-[#f0fdfb] text-[#1a9e88]">
+            <Check size={28} strokeWidth={2.4} />
+          </div>
+          <h3 className="text-xl font-bold text-[#1D1E20]" style={josefin}>¡Gracias, {name.split(' ')[0]}!</h3>
+          <p className="mx-auto mt-2 max-w-xs text-sm leading-relaxed text-[#666]">
+            {isBuy
+              ? (choice === 'deposit'
+                  ? <>Registramos tu regalo de <strong>{fmtMXN(item.price || 0)}</strong> para <strong>“{item.title}”</strong>.</>
+                  : <>Marcamos <strong>“{item.title}”</strong> como apartado por ti.</>)
+              : <>Registramos tu {item.type === 'cash' ? 'sobre' : 'aporte'} de <strong>{fmtMXN(parseFloat(amount))}</strong>.</>}
+          </p>
+          {showPayment && (
+            <div className="mx-auto mt-5 max-w-xs rounded-xl border border-[#eee4d6] bg-[#FBF7F0] p-4 text-left">
+              <div className="mb-2.5 flex items-center gap-1.5 text-[#1a9e88]">
+                <Landmark size={14} />
+                <p className="text-[11px] font-semibold uppercase tracking-wider">¿Cómo prefieres hacerlo llegar?</p>
               </div>
-              <h3 className="text-xl font-bold text-[#1D1E20]" style={josefin}>¡Gracias, {name.split(' ')[0]}!</h3>
-              <p className="mx-auto mt-2 max-w-xs text-sm leading-relaxed text-[#666]">
-                {isBuy
-                  ? (choice === 'deposit'
-                      ? <>Registramos tu regalo de <strong>{fmtMXN(item.price || 0)}</strong> para <strong>“{item.title}”</strong>.</>
-                      : <>Marcamos <strong>“{item.title}”</strong> como apartado por ti.</>)
-                  : <>Registramos tu {item.type === 'cash' ? 'sobre' : 'aporte'} de <strong>{fmtMXN(parseFloat(amount))}</strong>.</>}
-              </p>
-              {showPayment && (
-                <div className="mx-auto mt-5 max-w-xs rounded-xl border border-[#eee4d6] bg-[#FBF7F0] p-4 text-left">
-                  <div className="mb-2.5 flex items-center gap-1.5 text-[#1a9e88]">
-                    <Landmark size={14} />
-                    <p className="text-[11px] font-semibold uppercase tracking-wider">¿Cómo prefieres hacerlo llegar?</p>
-                  </div>
-                  <div className="space-y-2">
-                    {payMethods.map(m => {
-                      const isLink = m.type === 'mercado_pago' || m.type === 'paypal' ||
-                        (m.type === 'other' && /^https?:\/\//i.test(m.value))
-                      const title = m.type === 'other' && m.label ? m.label : PAY_LABEL[m.type]
-                      if (isLink) {
-                        return (
-                          <a
-                            key={m.id}
-                            href={m.value}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-[#48C9B0] px-3 py-2.5 text-xs font-semibold text-white transition hover:bg-[#3aa896]"
-                          >
-                            <ExternalLink size={13} /> Pagar con {title}
-                          </a>
-                        )
-                      }
-                      const sub = [m.bank, m.holder].filter(Boolean).join(' · ')
-                      return (
-                        <div key={m.id} className="rounded-lg border border-[#eee4d6] bg-white p-2.5">
-                          <p className="text-[11px] font-semibold text-[#1D1E20]">
-                            {title}{sub && <span className="ml-1 font-normal text-[#999]">{sub}</span>}
-                          </p>
-                          <div className="mt-1 flex items-center justify-between gap-2">
-                            <span className="break-all text-xs font-medium tabular-nums text-[#1D1E20]">{m.value}</span>
-                            <button
-                              onClick={() => copyValue(m)}
-                              className="flex shrink-0 items-center gap-1 rounded-md border border-[#e0e0e0] px-2 py-1 text-[10px] font-medium text-[#666] transition hover:border-[#48C9B0] hover:text-[#48C9B0]"
-                            >
-                              {copiedId === m.id ? <><Check size={11} /> Copiado</> : <><Copy size={11} /> Copiar</>}
-                            </button>
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                </div>
-              )}
-              {isBuy && choice !== 'deposit' && shippingAddress && (
-                <div className="mx-auto mt-5 max-w-xs rounded-xl border border-[#eee4d6] bg-[#FBF7F0] p-4 text-left">
-                  <div className="mb-2 flex items-center gap-1.5 text-[#1a9e88]">
-                    <MapPin size={14} />
-                    <p className="text-[11px] font-semibold uppercase tracking-wider">Envíalo a esta dirección</p>
-                  </div>
-                  <p className="whitespace-pre-line text-xs leading-relaxed text-[#1D1E20]">{shippingAddress}</p>
-                  <button
-                    onClick={copyAddress}
-                    className="mt-2.5 flex items-center gap-1 rounded-md border border-[#e0d9cc] bg-white px-2 py-1 text-[10px] font-medium text-[#666] transition hover:border-[#48C9B0] hover:text-[#48C9B0]"
-                  >
-                    {copiedId === 'address' ? <><Check size={11} /> Copiada</> : <><Copy size={11} /> Copiar dirección</>}
-                  </button>
-                </div>
-              )}
-              {isBuy && choice !== 'deposit' && item.external_url && (
-                <a
-                  href={item.external_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="mt-5 inline-flex items-center gap-1.5 rounded-lg bg-[#48C9B0] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#3aa896]"
-                >
-                  <ExternalLink size={15} /> Ir a la tienda
-                </a>
-              )}
-              <button onClick={onClose} className="mt-3 block w-full rounded-lg px-4 py-2 text-sm font-medium text-[#666] transition hover:bg-[#f5f5f5]">
-                Volver a la mesa
-              </button>
-            </div>
-          ) : step === 'choose' ? (
-            <div className="px-5 py-6">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-[#48C9B0]">Vas a regalar</p>
-              <h3 className="truncate text-base font-bold text-[#1D1E20]">{item.title}</h3>
-              <p className="mt-3 text-sm text-[#666]">¿Cómo prefieres hacerlo?</p>
-
-              <div className="mt-3 space-y-2.5">
-                <button
-                  onClick={() => handleChoice('store')}
-                  disabled={submitting}
-                  className="flex w-full items-start gap-3 rounded-xl border border-[#e8e8e8] bg-white p-3.5 text-left transition hover:border-[#48C9B0] hover:bg-[#f0fdfb] disabled:opacity-50"
-                >
-                  <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#f0fdfb] text-[#1a9e88]">
-                    <ExternalLink size={16} />
-                  </span>
-                  <span>
-                    <span className="block text-sm font-semibold text-[#1D1E20]">Lo compro yo en la tienda</span>
-                    <span className="mt-0.5 block text-xs leading-relaxed text-[#888]">
-                      Te llevamos al link del producto y te mostramos a dónde enviarlo.
-                    </span>
-                  </span>
-                </button>
-
-                <button
-                  onClick={() => handleChoice('deposit')}
-                  disabled={submitting}
-                  className="flex w-full items-start gap-3 rounded-xl border border-[#e8e8e8] bg-white p-3.5 text-left transition hover:border-[#48C9B0] hover:bg-[#f0fdfb] disabled:opacity-50"
-                >
-                  <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#f0fdfb] text-[#1a9e88]">
-                    <Landmark size={16} />
-                  </span>
-                  <span>
-                    <span className="block text-sm font-semibold text-[#1D1E20]">Les deposito el monto · {fmtMXN(item.price || 0)}</span>
-                    <span className="mt-0.5 block text-xs leading-relaxed text-[#888]">
-                      Les haces llegar el dinero y ellos lo compran, sin líos de envíos o direcciones.
-                    </span>
-                  </span>
-                </button>
-              </div>
-
-              {error && <p className="mt-3 text-xs text-[#cc3333]">{error}</p>}
-
-              <button
-                onClick={() => setStep('form')}
-                disabled={submitting}
-                className="mt-3 block w-full rounded-lg px-4 py-2 text-sm font-medium text-[#666] transition hover:bg-[#f5f5f5] disabled:opacity-50"
-              >
-                Volver
-              </button>
-            </div>
-          ) : (
-            <>
-              <div className="flex shrink-0 items-start justify-between border-b border-[#f0f0f0] px-5 py-4">
-                <div className="min-w-0">
-                  <p className="text-[11px] font-semibold uppercase tracking-wider text-[#48C9B0]">
-                    {isBuy ? 'Vas a apartar' : item.type === 'cash' ? 'Dejar un sobre' : 'Aportar a'}
-                  </p>
-                  <h3 className="truncate text-base font-bold text-[#1D1E20]">{item.title}</h3>
-                </div>
-                <button onClick={onClose} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[#aaa] transition hover:bg-[#f5f5f5]">
-                  <X size={16} />
-                </button>
-              </div>
-
-              <div className="flex-1 overflow-y-auto px-5 py-4">
-                <div className="space-y-4">
-                  <div>
-                    <label className={labelCls}>¿Cómo te firmamos?</label>
-                    <input className={inputCls} value={name} onChange={e => setName(e.target.value)} placeholder="Ej. Familia Rodríguez" />
-                  </div>
-
-                  {needsAmount && (
-                    <div>
-                      <label className={labelCls}>{item.type === 'cash' ? 'Monto del sobre (MXN)' : 'Monto a aportar (MXN)'}</label>
-                      <input
-                        className={`${inputCls} tabular-nums`}
-                        inputMode="decimal"
-                        value={amount}
-                        onChange={e => {
-                          const c = e.target.value.replace(/[^0-9.]/g, '')
-                          if (c.split('.').length > 2) return
-                          setAmount(c)
-                        }}
-                        placeholder="1500"
-                      />
-                      <div className="mt-2 flex flex-wrap gap-1.5">
-                        {[500, 1000, 2500, 5000].map(v => (
-                          <button key={v} type="button" onClick={() => setAmount(String(v))}
-                            className="rounded-full border border-[#e0e0e0] bg-white px-2.5 py-1 text-[11px] text-[#555] transition hover:border-[#48C9B0] hover:text-[#48C9B0]">
-                            {fmtMXN(v)}
-                          </button>
-                        ))}
+              <div className="space-y-2">
+                {payMethods.map(m => {
+                  const isLink = m.type === 'mercado_pago' || m.type === 'paypal' ||
+                    (m.type === 'other' && /^https?:\/\//i.test(m.value))
+                  const title = m.type === 'other' && m.label ? m.label : PAY_LABEL[m.type]
+                  if (isLink) {
+                    return (
+                      <a
+                        key={m.id}
+                        href={m.value}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-[#48C9B0] px-3 py-2.5 text-xs font-semibold text-white transition hover:bg-[#3aa896]"
+                      >
+                        <ExternalLink size={13} /> Pagar con {title}
+                      </a>
+                    )
+                  }
+                  const sub = [m.bank, m.holder].filter(Boolean).join(' · ')
+                  return (
+                    <div key={m.id} className="rounded-lg border border-[#eee4d6] bg-white p-2.5">
+                      <p className="text-[11px] font-semibold text-[#1D1E20]">
+                        {title}{sub && <span className="ml-1 font-normal text-[#999]">{sub}</span>}
+                      </p>
+                      <div className="mt-1 flex items-center justify-between gap-2">
+                        <span className="break-all text-xs font-medium tabular-nums text-[#1D1E20]">{m.value}</span>
+                        <button
+                          onClick={() => copyValue(m)}
+                          className="flex shrink-0 items-center gap-1 rounded-md border border-[#e0e0e0] px-2 py-1 text-[10px] font-medium text-[#666] transition hover:border-[#48C9B0] hover:text-[#48C9B0]"
+                        >
+                          {copiedId === m.id ? <><Check size={11} /> Copiado</> : <><Copy size={11} /> Copiar</>}
+                        </button>
                       </div>
                     </div>
-                  )}
-
-                  <div>
-                    <label className={labelCls}>Tu WhatsApp</label>
-                    <div className="flex gap-2">
-                      <select
-                        value={phoneCode}
-                        onChange={e => setPhoneCode(e.target.value)}
-                        className="w-20 shrink-0 rounded-lg border border-[#e0e0e0] bg-white px-2 py-2 text-sm tabular-nums text-[#1D1E20] outline-none transition focus:border-[#48C9B0]"
-                      >
-                        {PHONE_COUNTRY_CODES.map(c => (
-                          <option key={c.code} value={c.code}>{c.code}</option>
-                        ))}
-                      </select>
-                      <input
-                        className={`${inputCls} tabular-nums`}
-                        type="tel"
-                        inputMode="numeric"
-                        value={
-                          phone.length <= 2 ? phone
-                          : phone.length <= 6 ? `${phone.slice(0, 2)} ${phone.slice(2)}`
-                          : phone.length <= 10 ? `${phone.slice(0, 2)} ${phone.slice(2, 6)} ${phone.slice(6)}`
-                          : `${phone.slice(0, 2)} ${phone.slice(2, 6)} ${phone.slice(6, 10)} ${phone.slice(10)}`
-                        }
-                        onChange={e => setPhone(e.target.value.replace(/\D/g, '').slice(0, 12))}
-                        placeholder="55 1234 5678"
-                      />
-                    </div>
-                    <p className="mt-1 text-[10px] text-[#aaa]">Sin lada, solo tu número. Para que los anfitriones puedan agradecerte.</p>
-                  </div>
-
-                  <div>
-                    <label className={labelCls}>Mensaje para los novios <span className="font-normal text-[#bbb]">(opcional)</span></label>
-                    <textarea className={`${inputCls} resize-none`} rows={2} value={message} onChange={e => setMessage(e.target.value)} placeholder="Unas palabras de felicitación..." />
-                  </div>
-
-                  {error && <p className="text-xs text-[#cc3333]">{error}</p>}
-                </div>
+                  )
+                })}
               </div>
-
-              <div className="flex shrink-0 items-center justify-end gap-2 border-t border-[#f0f0f0] bg-[#fafafa] px-5 py-3">
-                <button onClick={onClose} disabled={submitting} className="rounded-lg px-4 py-2 text-xs font-medium text-[#666] transition hover:bg-[#f0f0f0] disabled:opacity-50">
-                  Cancelar
-                </button>
-                <button onClick={handleContinue} disabled={submitting} className="rounded-lg bg-[#48C9B0] px-4 py-2 text-xs font-semibold text-white transition hover:bg-[#3aa896] disabled:opacity-50">
-                  {submitting ? 'Enviando...' : hasChooser ? 'Siguiente' : 'Confirmar'}
-                </button>
-              </div>
-            </>
+            </div>
           )}
-        </div>
-      </div>
-    </>
+          {isBuy && choice !== 'deposit' && shippingAddress && (
+            <div className="mx-auto mt-5 max-w-xs rounded-xl border border-[#eee4d6] bg-[#FBF7F0] p-4 text-left">
+              <div className="mb-2 flex items-center gap-1.5 text-[#1a9e88]">
+                <MapPin size={14} />
+                <p className="text-[11px] font-semibold uppercase tracking-wider">Envíalo a esta dirección</p>
+              </div>
+              <p className="whitespace-pre-line text-xs leading-relaxed text-[#1D1E20]">{shippingAddress}</p>
+              <button
+                onClick={copyAddress}
+                className="mt-2.5 flex items-center gap-1 rounded-md border border-[#e0d9cc] bg-white px-2 py-1 text-[10px] font-medium text-[#666] transition hover:border-[#48C9B0] hover:text-[#48C9B0]"
+              >
+                {copiedId === 'address' ? <><Check size={11} /> Copiada</> : <><Copy size={11} /> Copiar dirección</>}
+              </button>
+            </div>
+          )}
+          {isBuy && choice !== 'deposit' && item.external_url && (
+            <a
+              href={item.external_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-5 inline-flex items-center gap-1.5 rounded-lg bg-[#48C9B0] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#3aa896]"
+            >
+              <ExternalLink size={15} /> Ir a la tienda
+            </a>
+          )}
+          <button onClick={onClose} className="mt-3 block w-full rounded-lg px-4 py-2 text-sm font-medium text-[#666] transition hover:bg-[#f5f5f5]">
+            Volver a la mesa
+          </button>
+        </Modal.Body>
+      ) : step === 'choose' ? (
+        <Modal.Body className="py-6">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-[#48C9B0]">Vas a regalar</p>
+          <h3 className="truncate text-base font-bold text-[#1D1E20]">{item.title}</h3>
+          <p className="mt-3 text-sm text-[#666]">¿Cómo prefieres hacerlo?</p>
+
+          <div className="mt-3 space-y-2.5">
+            <button
+              onClick={() => handleChoice('store')}
+              disabled={submitting}
+              className="flex w-full items-start gap-3 rounded-xl border border-[#e8e8e8] bg-white p-3.5 text-left transition hover:border-[#48C9B0] hover:bg-[#f0fdfb] disabled:opacity-50"
+            >
+              <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#f0fdfb] text-[#1a9e88]">
+                <ExternalLink size={16} />
+              </span>
+              <span>
+                <span className="block text-sm font-semibold text-[#1D1E20]">Lo compro yo en la tienda</span>
+                <span className="mt-0.5 block text-xs leading-relaxed text-[#888]">
+                  Te llevamos al link del producto y te mostramos a dónde enviarlo.
+                </span>
+              </span>
+            </button>
+
+            <button
+              onClick={() => handleChoice('deposit')}
+              disabled={submitting}
+              className="flex w-full items-start gap-3 rounded-xl border border-[#e8e8e8] bg-white p-3.5 text-left transition hover:border-[#48C9B0] hover:bg-[#f0fdfb] disabled:opacity-50"
+            >
+              <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#f0fdfb] text-[#1a9e88]">
+                <Landmark size={16} />
+              </span>
+              <span>
+                <span className="block text-sm font-semibold text-[#1D1E20]">Les deposito el monto · {fmtMXN(item.price || 0)}</span>
+                <span className="mt-0.5 block text-xs leading-relaxed text-[#888]">
+                  Les haces llegar el dinero y ellos lo compran, sin líos de envíos o direcciones.
+                </span>
+              </span>
+            </button>
+          </div>
+
+          {error && <p className="mt-3 text-xs text-[#cc3333]">{error}</p>}
+
+          <button
+            onClick={() => setStep('form')}
+            disabled={submitting}
+            className="mt-3 block w-full rounded-lg px-4 py-2 text-sm font-medium text-[#666] transition hover:bg-[#f5f5f5] disabled:opacity-50"
+          >
+            Volver
+          </button>
+        </Modal.Body>
+      ) : (
+        <>
+          <Modal.Header title={item.title}>
+            <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-wider text-[#48C9B0]">
+              {isBuy ? 'Vas a apartar' : item.type === 'cash' ? 'Dejar un sobre' : 'Aportar a'}
+            </p>
+          </Modal.Header>
+
+          <Modal.Body>
+            <div className="space-y-4">
+              <div>
+                <label className={labelCls}>¿Cómo te firmamos?</label>
+                <input className={inputCls} value={name} onChange={e => setName(e.target.value)} placeholder="Ej. Familia Rodríguez" />
+              </div>
+
+              {needsAmount && (
+                <div>
+                  <label className={labelCls}>{item.type === 'cash' ? 'Monto del sobre (MXN)' : 'Monto a aportar (MXN)'}</label>
+                  <input
+                    className={`${inputCls} tabular-nums`}
+                    inputMode="decimal"
+                    value={amount}
+                    onChange={e => {
+                      const c = e.target.value.replace(/[^0-9.]/g, '')
+                      if (c.split('.').length > 2) return
+                      setAmount(c)
+                    }}
+                    placeholder="1500"
+                  />
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {[500, 1000, 2500, 5000].map(v => (
+                      <button key={v} type="button" onClick={() => setAmount(String(v))}
+                        className="rounded-full border border-[#e0e0e0] bg-white px-2.5 py-1 text-[11px] text-[#555] transition hover:border-[#48C9B0] hover:text-[#48C9B0]">
+                        {fmtMXN(v)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <label className={labelCls}>Tu WhatsApp</label>
+                <div className="flex gap-2">
+                  <select
+                    value={phoneCode}
+                    onChange={e => setPhoneCode(e.target.value)}
+                    className="w-20 shrink-0 rounded-lg border border-[#e0e0e0] bg-white px-2 py-2 text-base tabular-nums text-[#1D1E20] outline-none transition focus:border-[#48C9B0]"
+                  >
+                    {PHONE_COUNTRY_CODES.map(c => (
+                      <option key={c.code} value={c.code}>{c.code}</option>
+                    ))}
+                  </select>
+                  <input
+                    className={`${inputCls} tabular-nums`}
+                    type="tel"
+                    inputMode="numeric"
+                    value={
+                      phone.length <= 2 ? phone
+                      : phone.length <= 6 ? `${phone.slice(0, 2)} ${phone.slice(2)}`
+                      : phone.length <= 10 ? `${phone.slice(0, 2)} ${phone.slice(2, 6)} ${phone.slice(6)}`
+                      : `${phone.slice(0, 2)} ${phone.slice(2, 6)} ${phone.slice(6, 10)} ${phone.slice(10)}`
+                    }
+                    onChange={e => setPhone(e.target.value.replace(/\D/g, '').slice(0, 12))}
+                    placeholder="55 1234 5678"
+                  />
+                </div>
+                <p className="mt-1 text-[10px] text-[#aaa]">Sin lada, solo tu número. Para que los anfitriones puedan agradecerte.</p>
+              </div>
+
+              <div>
+                <label className={labelCls}>Mensaje para los novios <span className="font-normal text-[#bbb]">(opcional)</span></label>
+                <textarea className={`${inputCls} resize-none`} rows={2} value={message} onChange={e => setMessage(e.target.value)} placeholder="Unas palabras de felicitación..." />
+              </div>
+
+              {error && <p className="text-xs text-[#cc3333]">{error}</p>}
+            </div>
+          </Modal.Body>
+
+          <Modal.Footer>
+            <button onClick={onClose} disabled={submitting} className="ml-auto rounded-lg px-4 py-2 text-xs font-medium text-[#666] transition hover:bg-[#f0f0f0] disabled:opacity-50">
+              Cancelar
+            </button>
+            <button onClick={handleContinue} disabled={submitting} className="rounded-lg bg-[#48C9B0] px-4 py-2 text-xs font-semibold text-white transition hover:bg-[#3aa896] disabled:opacity-50">
+              {submitting ? 'Enviando...' : hasChooser ? 'Siguiente' : 'Confirmar'}
+            </button>
+          </Modal.Footer>
+        </>
+      )}
+    </Modal>
   )
 }

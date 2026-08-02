@@ -2,10 +2,11 @@
 
 import DatePicker from '@/app/components/ui/DatePicker'
 import TimePicker from '@/app/components/ui/TimePicker'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { AnimatePresence, motion } from 'framer-motion'
-import { ChevronRight, ArrowLeft, X, UserCheck } from 'lucide-react'
+import { ChevronRight, ArrowLeft, UserCheck } from 'lucide-react'
+import { Modal } from '@/app/components/ui/Modal'
 import { EVENT_TYPES, CATEGORIES, EventTypeConfig, EventCategory } from '@/lib/event-types'
 import { FEATURES, ALWAYS_ON_FEATURES, ACCESS_MODES, getDefaultFeatures, getDefaultAccessMode, getDefaultRequiresApproval, normalizeAccessFields, CANDADO_PRECIO_LISTO, CANDADO_APROBACION_LISTO, type FeatureKey, type AccessMode } from '@/lib/features'
 
@@ -46,20 +47,6 @@ export function NewEventModal({ open, onClose, onCreated }: NewEventModalProps) 
 
   const [loading, setLoading]             = useState(false)
   const [error, setError]                 = useState('')
-
-  // Cerrar con Escape
-  useEffect(() => {
-    if (!open) return
-    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') handleClose() }
-    document.addEventListener('keydown', handler)
-    return () => document.removeEventListener('keydown', handler)
-  }, [open])
-
-  // Bloquear scroll del body cuando el modal está abierto
-  useEffect(() => {
-    document.body.style.overflow = open ? 'hidden' : ''
-    return () => { document.body.style.overflow = '' }
-  }, [open])
 
   const resetForm = () => {
     setStep(1)
@@ -561,139 +548,100 @@ export function NewEventModal({ open, onClose, onCreated }: NewEventModalProps) 
   // ─── Render ───────────────────────────────────────────────────────────────
 
   return (
-    <AnimatePresence>
-      {open && (
-        <>
-          {/* Overlay */}
-          <motion.div
-            key="overlay"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            onClick={handleClose}
-            className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-[2px]"
-          />
+    <Modal open={open} onClose={handleClose} size="lg">
+      {/* Pasos */}
+      <div className="shrink-0 px-5 pt-4">
+        <div className="flex items-center gap-2">
+          {([[1, 'Tipo'], [2, 'Datos'], [3, 'Acceso'], [4, 'Herramientas']] as [number, string][]).map(([n, label], i) => (
+            <div key={n} className="flex items-center gap-2">
+              {i > 0 && <div className="h-px w-4 bg-[#e8e8e8]" />}
+              <div className={
+                'flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold transition ' +
+                (step === n
+                  ? 'bg-[#48C9B0] text-white'
+                  : step > n
+                    ? 'bg-[#d0f5ec] text-[#0F6E56]'
+                    : 'border border-[#e0e0e0] bg-white text-[#bbb]')
+              }>
+                {step > n ? '✓' : n}
+              </div>
+              <span className={
+                'text-xs font-medium ' +
+                (step === n ? 'text-[#1D1E20]' : step > n ? 'hidden text-[#48C9B0] sm:inline' : 'hidden text-[#bbb] sm:inline')
+              }>
+                {label}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
 
-          {/* Modal */}
+      <Modal.Header
+        title={
+          step === 1
+            ? 'Nuevo evento'
+            : step === 3
+              ? '¿Cómo confirmas invitados?'
+              : eventType?.label ?? 'Nuevo evento'
+        }
+        subtitle={
+          step === 1
+            ? 'Elige el tipo para personalizar los campos'
+            : step === 2
+              ? 'Completa los datos del evento'
+              : step === 3
+                ? 'Define quién puede sumarse a tu evento'
+                : 'Activa las herramientas de tu evento'
+        }
+      />
+
+      <Modal.Body className="py-5">
+        <AnimatePresence mode="wait">
           <motion.div
-            key="modal"
-            initial={{ opacity: 0, scale: 0.97, y: 12 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.97, y: 12 }}
-            transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-            className="fixed inset-x-4 bottom-4 top-[4vh] z-[101] mx-auto flex max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-2xl sm:inset-x-auto sm:bottom-auto sm:left-1/2 sm:right-auto sm:top-1/2 sm:w-full sm:-translate-x-1/2 sm:-translate-y-1/2"
-            style={{ maxHeight: '92vh' }}
+            key={step}
+            initial={{ opacity: 0, x: step === 2 ? 16 : -16 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: step === 2 ? -16 : 16 }}
+            transition={{ duration: 0.18 }}
           >
-            {/* Header fijo */}
-            <div className="shrink-0 border-b border-[#e8e8e8] px-5 py-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  {/* Steps */}
-                  <div className="flex items-center gap-2">
-                    {([[1, 'Tipo'], [2, 'Datos'], [3, 'Acceso'], [4, 'Herramientas']] as [number, string][]).map(([n, label], i) => (
-                      <div key={n} className="flex items-center gap-2">
-                        {i > 0 && <div className="h-px w-4 bg-[#e8e8e8]" />}
-                        <div className={
-                          'flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold transition ' +
-                          (step === n
-                            ? 'bg-[#48C9B0] text-white'
-                            : step > n
-                              ? 'bg-[#d0f5ec] text-[#0F6E56]'
-                              : 'border border-[#e0e0e0] bg-white text-[#bbb]')
-                        }>
-                          {step > n ? '✓' : n}
-                        </div>
-                        <span className={
-                          'text-xs font-medium ' +
-                          (step === n ? 'text-[#1D1E20]' : step > n ? 'hidden text-[#48C9B0] sm:inline' : 'hidden text-[#bbb] sm:inline')
-                        }>
-                          {label}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                <button
-                  onClick={handleClose}
-                  disabled={loading}
-                  className="flex h-8 w-8 items-center justify-center rounded-lg text-[#aaa] transition hover:bg-[#f0f0f0] hover:text-[#555] disabled:opacity-40"
-                >
-                  <X size={16} />
-                </button>
-              </div>
-              <h2 className="mt-3 text-lg font-bold text-[#1D1E20]">
-                {step === 1
-                  ? 'Nuevo evento'
-                  : step === 3
-                    ? '¿Cómo confirmas invitados?'
-                    : eventType?.label ?? 'Nuevo evento'}
-              </h2>
-              <p className="mt-0.5 text-xs text-[#888]">
-                {step === 1
-                  ? 'Elige el tipo para personalizar los campos'
-                  : step === 2
-                    ? 'Completa los datos del evento'
-                    : step === 3
-                      ? 'Define quién puede sumarse a tu evento'
-                      : 'Activa las herramientas de tu evento'}
-              </p>
-            </div>
-
-            {/* Contenido scrolleable */}
-            <div className="flex-1 min-h-0 overflow-y-auto px-5 py-5">
-              <AnimatePresence mode="wait">
-                <motion.div
-                  key={step}
-                  initial={{ opacity: 0, x: step === 2 ? 16 : -16 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: step === 2 ? -16 : 16 }}
-                  transition={{ duration: 0.18 }}
-                >
-                  {step === 1 ? renderStep1() : step === 2 ? renderStep2() : step === 3 ? renderStep3() : renderStep4()}
-                </motion.div>
-              </AnimatePresence>
-
-              {error && (
-                <div className="mt-4 rounded-lg border border-[#ffc0c0] bg-[#fff0f0] px-3 py-2.5 text-xs text-[#cc3333]">
-                  {error}
-                </div>
-              )}
-            </div>
-
-            {/* Footer fijo — pasos 2, 3 y 4 */}
-            {step > 1 && (
-              <div className="shrink-0 border-t border-[#e8e8e8] px-5 py-4">
-                <div className="flex gap-3">
-                  <button
-                    onClick={handleBack}
-                    disabled={loading}
-                    className="flex items-center gap-1.5 rounded-lg border border-[#e0e0e0] px-4 py-2.5 text-sm text-[#888] transition hover:bg-[#f5f5f5] disabled:opacity-40"
-                  >
-                    <ArrowLeft size={14} /> Atras
-                  </button>
-                  {step < 4 ? (
-                    <button
-                      onClick={handleNext}
-                      className="flex-1 rounded-lg bg-[#48C9B0] py-2.5 text-sm font-semibold text-white transition hover:bg-[#3ab89f]"
-                    >
-                      Siguiente
-                    </button>
-                  ) : (
-                    <button
-                      onClick={handleCreate}
-                      disabled={loading}
-                      className="flex-1 rounded-lg bg-[#48C9B0] py-2.5 text-sm font-semibold text-white transition hover:bg-[#3ab89f] disabled:opacity-60"
-                    >
-                      {loading ? 'Creando evento...' : 'Crear evento'}
-                    </button>
-                  )}
-                </div>
-              </div>
-            )}
+            {step === 1 ? renderStep1() : step === 2 ? renderStep2() : step === 3 ? renderStep3() : renderStep4()}
           </motion.div>
-        </>
+        </AnimatePresence>
+
+        {error && (
+          <div className="mt-4 rounded-lg border border-[#ffc0c0] bg-[#fff0f0] px-3 py-2.5 text-xs text-[#cc3333]">
+            {error}
+          </div>
+        )}
+      </Modal.Body>
+
+      {step > 1 && (
+        <Modal.Footer>
+          <button
+            onClick={handleBack}
+            disabled={loading}
+            className="flex items-center gap-1.5 rounded-lg border border-[#e0e0e0] px-4 py-2.5 text-sm text-[#888] transition hover:bg-[#f5f5f5] disabled:opacity-40"
+          >
+            <ArrowLeft size={14} /> Atras
+          </button>
+          {step < 4 ? (
+            <button
+              onClick={handleNext}
+              className="flex-1 rounded-lg bg-[#48C9B0] py-2.5 text-sm font-semibold text-white transition hover:bg-[#3ab89f]"
+            >
+              Siguiente
+            </button>
+          ) : (
+            <button
+              onClick={handleCreate}
+              disabled={loading}
+              className="flex-1 rounded-lg bg-[#48C9B0] py-2.5 text-sm font-semibold text-white transition hover:bg-[#3ab89f] disabled:opacity-60"
+            >
+              {loading ? 'Creando evento...' : 'Crear evento'}
+            </button>
+          )}
+        </Modal.Footer>
       )}
-    </AnimatePresence>
+    </Modal>
   )
 }
