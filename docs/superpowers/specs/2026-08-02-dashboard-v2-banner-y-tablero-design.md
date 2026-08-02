@@ -14,7 +14,9 @@ El spec original fijaba la pantalla del evento en una anatomía rígida: hero, c
 
 **1. El tablero vive en el contexto evento del dashboard.** No es una portada nueva dentro del evento. `/events/[id]` y su nav no se tocan.
 
-**2. El acomodo es del evento, no del planner.** Se guarda con el evento; el equipo entero ve lo mismo. Si el owner acomoda la boda de Ana y Rodrigo, su asistente con rol editor ve ese acomodo. Persiste en `event_settings` — **columna nueva, pendiente de definir contra el schema real**.
+**2. El acomodo es del evento, no del planner. Lo define el owner; el equipo lo ve.** Se guarda con el evento, así que el asistente con rol editor abre la boda de Ana y Rodrigo y ve el acomodo que dejó el owner — pero no puede cambiarlo.
+
+Esto no es una preferencia de producto, es lo que la base permite: las políticas de `INSERT` y `UPDATE` de `event_settings` son `is_event_owner(event_id)`. Un colaborador solo tiene `SELECT` vía `is_event_member`. Si dejáramos el botón "Personalizar" visible para un editor, el guardado **fallaría en silencio** — un `UPDATE` filtrado por RLS no devuelve error, simplemente no escribe filas. Por eso el botón se esconde para quien no es owner. Verificado contra el schema el 2-ago-2026.
 
 **3. El hero es un solo banner.** No cuatro tarjetas flotando: una sola pieza, con la fecha y la cuenta regresiva arriba y cuatro cifras adentro divididas por líneas verticales.
 
@@ -49,7 +51,39 @@ Las cuatro cifras son **invitados por estatus** (confirmados · pendientes · de
 
 Lo que se rehace es `ContextoEvento.tsx`: su hero se vuelve el banner, y sus tarjetas, feed y dos columnas se vuelven cajas sobre la cuadrícula.
 
+## Persistencia
+
+Schema verificado el 2-ago-2026. `event_settings` no tiene ninguna columna donde quepa el acomodo, así que se agrega una:
+
+```sql
+alter table public.event_settings
+  add column dashboard_layout jsonb;
+```
+
+Nullable y sin default, a propósito: **`NULL` significa "nunca lo personalizaron"** y la app deriva el acomodo inicial al vuelo. Así no hay que migrar las 51 filas existentes ni inventarle un tablero a eventos que quizá nunca lo abran.
+
+La forma del JSON:
+
+```json
+{
+  "v": 1,
+  "cajas": [
+    { "id": "atencion", "x": 0, "y": 0, "w": 2, "h": 2 },
+    { "id": "tareas",   "x": 2, "y": 0, "w": 2, "h": 2 },
+    { "id": "playlist", "x": 0, "y": 2, "w": 1, "h": 1 }
+  ],
+  "ocultas": ["regalos"]
+}
+```
+
+Cuatro columnas de rejilla; `x`, `y`, `w` y `h` van en casillas, nunca en pixeles. El `v` permite cambiar la forma más adelante sin romper lo ya guardado.
+
+`ocultas` es explícito a propósito: una caja que no aparece **ni** en `cajas` **ni** en `ocultas` es nueva desde la última vez que se guardó, y se agrega sola. Sin esa distinción, cada feature que lancemos después nacería invisible para todo el que ya hubiera acomodado su tablero.
+
+Se escribe con el mismo `upsert` que ya usa la app (`onConflict: 'event_id'`), que funciona porque la tabla tiene `UNIQUE (event_id)`.
+
+**Las herramientas reales** son siete: `album`, `comida`, `invitacion`, `mesas`, `playlist`, `regalos`, `vestimenta`. Solo 16 de 51 filas tienen `enabled_features`, y los objetos guardados vienen incompletos — **llave ausente no significa apagada**. El acomodo inicial tiene que pasar por `resolveFeatures(event_type, enabled_features)` de `lib/event-access-context.tsx`, nunca leer el JSON crudo.
+
 ## Abierto antes de escribir el plan
 
-- **La columna de `event_settings`.** Nombre, tipo y forma del JSON del acomodo. Requiere el SQL de solo lectura del schema antes de proponer nada — no se toca Supabase sin eso.
 - **La librería de la cuadrícula.** Si se resuelve con CSS grid y arrastre propio o con una dependencia. Instalar paquete requiere autorización.
