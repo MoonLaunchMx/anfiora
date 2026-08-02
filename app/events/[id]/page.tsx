@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { useParams, useRouter } from 'next/navigation'
-import { motion, AnimatePresence, useMotionValue, useTransform, animate } from 'framer-motion'
+import { motion, useMotionValue, useTransform, animate } from 'framer-motion'
 import type { PanInfo } from 'framer-motion'
 import { Trash2, Send, Clock, MessageSquare, AlertCircle, CheckCircle, XCircle, Download, Upload, Columns3, Search, UserPlus, Users, Wallet, Plus, Check, X, Filter, Loader2, FileSpreadsheet, FileText, AlertTriangle, ChevronDown } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
@@ -13,6 +13,7 @@ import { estadoAcceso } from '@/lib/puerta'
 import { logAction } from '@/lib/audit'
 import StatsCollapse, { StatsToggleButton, useStatsToggle } from '@/app/components/ui/StatsCollapse'
 import { ImportStepsModal } from '@/app/components/ui/ImportStepsModal'
+import { Modal } from '@/app/components/ui/Modal'
 import PhoneInput from '@/app/components/ui/PhoneInput'
 import { useConfirm } from '@/app/components/ui/ConfirmModal'
 import { toWhatsApp, toE164 } from '@/lib/phone'
@@ -232,12 +233,7 @@ function GroupInput({ availableGroups, selectedGroup, onChange, onCreateGroup, o
   )
 }
 
-const inp: React.CSSProperties = {
-  width: '100%', padding: '10px 14px',
-  background: '#f8f8f8', border: '1px solid #e0e0e0',
-  borderRadius: '8px', color: '#1D1E20',
-  fontSize: '14px', outline: 'none', boxSizing: 'border-box',
-}
+const INPUT_CLASS = 'w-full rounded-lg border border-[#e0e0e0] bg-[#f8f8f8] px-3.5 py-2.5 text-base text-[#1D1E20] outline-none'
 
 const WA_ICON = (
   <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
@@ -376,9 +372,9 @@ function MembersEditor({ value, onChange, allergyPool, onCreateAllergy, onDelete
           <div key={i} className="rounded-lg border border-[#e8e8e8] bg-[#f8f8f8] p-3">
             <div className="mb-2"><span className="text-[11px] font-semibold text-[#aaa]">+{i + 1}</span></div>
             <div className="flex flex-col gap-2">
-              <input type="text" value={m.name} onChange={e => update(i, 'name', e.target.value)} placeholder="Nombre (opcional)" style={{ ...inp, fontSize: '13px', padding: '8px 12px' }} />
+              <input type="text" value={m.name} onChange={e => update(i, 'name', e.target.value)} placeholder="Nombre (opcional)" className="w-full rounded-lg border border-[#e0e0e0] bg-[#f8f8f8] px-3 py-2 text-base text-[#1D1E20] outline-none" />
               <PhoneInput value={m.phone} onChange={val => update(i, 'phone', val)} placeholder="WhatsApp (opcional)" compact />
-              <select value={m.rsvp_status} onChange={e => update(i, 'rsvp_status', e.target.value as RsvpStatus)} style={{ ...inp, fontSize: '13px', padding: '8px 12px', cursor: 'pointer' }}>
+              <select value={m.rsvp_status} onChange={e => update(i, 'rsvp_status', e.target.value as RsvpStatus)} className="w-full cursor-pointer rounded-lg border border-[#e0e0e0] bg-[#f8f8f8] px-3 py-2 text-base text-[#1D1E20] outline-none">
                 <option value="mensaje_enviado">Mensaje enviado</option>
                 <option value="pending">Pendiente</option>
                 <option value="respondio">Respondió</option>
@@ -394,7 +390,7 @@ function MembersEditor({ value, onChange, allergyPool, onCreateAllergy, onDelete
                 value={m.notes || ''}
                 onChange={e => update(i, 'notes', e.target.value)}
                 placeholder="Notas"
-                style={{ ...inp, fontSize: '13px', padding: '8px 12px' }}
+                className="w-full rounded-lg border border-[#e0e0e0] bg-[#f8f8f8] px-3 py-2 text-base text-[#1D1E20] outline-none"
               />
               <button type="button" onClick={() => remove(i)} className="mt-1 w-full rounded-lg border border-[#ffe0e0] bg-[#fff5f5] py-1.5 text-xs font-semibold text-[#cc3333] transition hover:bg-[#ffe8e8]">Eliminar acompañante</button>
             </div>
@@ -605,16 +601,13 @@ function AddGuestModal({ availableTags, groupPool, allergyPool, onCreateTag, onD
   }
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 p-4">
-      <div className="flex w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-[#e8e8e8] bg-white shadow-xl" style={{ maxHeight: '90vh' }}>
-        <div className="flex shrink-0 items-center justify-between border-b border-[#f0f0f0] px-6 py-4 sm:px-8">
-          <h2 className="text-lg font-bold text-[#1D1E20] sm:text-xl">Agregar invitado</h2>
-          <button onClick={onClose} className="text-xl text-[#aaa]">✕</button>
-        </div>
-        <div className="grid grid-cols-1 gap-4 overflow-y-auto px-6 py-6 sm:grid-cols-2 sm:px-8">
-          <div><label className="mb-1.5 block text-xs font-medium text-[#555]">Nombre *</label><input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Ana García" style={inp} /></div>
+    <Modal open onClose={onClose} size="xl">
+      <Modal.Header title="Agregar invitado" />
+      <Modal.Body>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div><label className="mb-1.5 block text-xs font-medium text-[#555]">Nombre *</label><input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Ana García" className={INPUT_CLASS} /></div>
           <div><label className="mb-1.5 block text-xs font-medium text-[#555]">WhatsApp <span className="font-normal text-[#ccc]">(opcional)</span></label><PhoneInput value={phone} onChange={setPhone} placeholder="81 1234 5678" /></div>
-          <div><label className="mb-1.5 block text-xs font-medium text-[#555]">Email <span className="font-normal text-[#ccc]">(opcional)</span></label><input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="ana@ejemplo.com" style={inp} /></div>
+          <div><label className="mb-1.5 block text-xs font-medium text-[#555]">Email <span className="font-normal text-[#ccc]">(opcional)</span></label><input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="ana@ejemplo.com" className={INPUT_CLASS} /></div>
           <div>
             <label className="mb-1.5 block text-xs font-medium text-[#555]">Grupo <span className="font-normal text-[#ccc]">(opcional)</span></label>
             <GroupInput availableGroups={groupPool} selectedGroup={side} onChange={setSide} onCreateGroup={onCreateGroup} onDeleteGroup={handleDeleteGroup} />
@@ -624,18 +617,16 @@ function AddGuestModal({ availableTags, groupPool, allergyPool, onCreateTag, onD
             <label className="mb-1.5 block text-xs font-medium text-[#555]">Alergias <span className="font-normal text-[#ccc]">(opcional)</span></label>
             <TagInput availableTags={allergyPool} selectedTags={allergies} onChangeSelected={setAllergies} onCreateTag={onCreateAllergy} onDeleteTag={handleDeleteAllergy} label="Alergia" />
           </div>
-          <div className="sm:col-span-2"><label className="mb-1.5 block text-xs font-medium text-[#555]">Notas <span className="font-normal text-[#ccc]">(opcional)</span></label><textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Mesa preferida, restricciones..." rows={2} style={{ ...inp, resize: 'vertical' }} /></div>
+          <div className="sm:col-span-2"><label className="mb-1.5 block text-xs font-medium text-[#555]">Notas <span className="font-normal text-[#ccc]">(opcional)</span></label><textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Mesa preferida, restricciones..." rows={2} className={`${INPUT_CLASS} resize-y`} /></div>
           <div className="sm:col-span-2 border-t border-[#f0f0f0] pt-4"><MembersEditor value={members} onChange={setMembers} allergyPool={allergyPool} onCreateAllergy={onCreateAllergy} onDeleteAllergy={handleDeleteAllergy} /></div>
         </div>
-        <div className="shrink-0 border-t border-[#f0f0f0] px-6 py-4 sm:px-8">
-          {formError && <div className="mb-3 rounded-lg border border-[#ffc0c0] bg-[#fff0f0] p-2.5 text-xs text-[#cc3333]">{formError}</div>}
-          <div className="flex gap-2.5">
-            <button onClick={onClose} className="flex-1 rounded-lg border border-[#e0e0e0] py-3 text-sm text-[#888]">Cancelar</button>
-            <button onClick={submit} disabled={saving} className="flex-[2] rounded-lg bg-[#48C9B0] py-3 text-sm font-semibold text-white disabled:opacity-60">{saving ? 'Guardando...' : 'Agregar invitado'}</button>
-          </div>
-        </div>
-      </div>
-    </div>
+        {formError && <div className="mt-4 rounded-lg border border-[#ffc0c0] bg-[#fff0f0] p-2.5 text-xs text-[#cc3333]">{formError}</div>}
+      </Modal.Body>
+      <Modal.Footer>
+        <button onClick={onClose} className="flex-1 rounded-lg border border-[#e0e0e0] py-3 text-sm text-[#888]">Cancelar</button>
+        <button onClick={submit} disabled={saving} className="flex-[2] rounded-lg bg-[#48C9B0] py-3 text-sm font-semibold text-white disabled:opacity-60">{saving ? 'Guardando...' : 'Agregar invitado'}</button>
+      </Modal.Footer>
+    </Modal>
   )
 }
 
@@ -667,13 +658,9 @@ function EditGuestModal({ guest, availableTags, groupPool, allergyPool, onCreate
   }
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 p-4">
-      <div className="flex w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-[#e8e8e8] bg-white shadow-xl" style={{ maxHeight: '90vh' }}>
-        <div className="flex shrink-0 items-center justify-between border-b border-[#f0f0f0] px-6 py-4 sm:px-8">
-          <h2 className="text-lg font-bold text-[#1D1E20] sm:text-xl">Editar invitado</h2>
-          <button onClick={onClose} className="text-xl text-[#aaa]">✕</button>
-        </div>
-        <div className="overflow-y-auto px-6 py-6 sm:px-8">
+    <Modal open onClose={onClose} size="xl">
+      <Modal.Header title="Editar invitado" />
+      <Modal.Body>
         {guest.needs_attention && (
           <div className="mb-4 rounded-lg border p-3" style={{ background: 'var(--error-bg)', borderColor: 'var(--error-border)' }}>
             <div className="flex items-center gap-2">
@@ -693,9 +680,9 @@ function EditGuestModal({ guest, availableTags, groupPool, allergyPool, onCreate
           </div>
         )}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div><label className="mb-1.5 block text-xs font-medium text-[#555]">Nombre *</label><input type="text" value={name} onChange={e => setName(e.target.value)} style={inp} /></div>
+          <div><label className="mb-1.5 block text-xs font-medium text-[#555]">Nombre *</label><input type="text" value={name} onChange={e => setName(e.target.value)} className={INPUT_CLASS} /></div>
           <div><label className="mb-1.5 block text-xs font-medium text-[#555]">WhatsApp</label><PhoneInput value={phone} onChange={setPhone} placeholder="81 1234 5678" /></div>
-          <div><label className="mb-1.5 block text-xs font-medium text-[#555]">Email</label><input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="ana@ejemplo.com" style={inp} /></div>
+          <div><label className="mb-1.5 block text-xs font-medium text-[#555]">Email</label><input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="ana@ejemplo.com" className={INPUT_CLASS} /></div>
           <div>
             <label className="mb-1.5 block text-xs font-medium text-[#555]">Grupo <span className="font-normal text-[#ccc]">(opcional)</span></label>
             <GroupInput availableGroups={groupPool} selectedGroup={side} onChange={setSide} onCreateGroup={onCreateGroup} onDeleteGroup={handleDeleteGroup} />
@@ -705,23 +692,20 @@ function EditGuestModal({ guest, availableTags, groupPool, allergyPool, onCreate
             <label className="mb-1.5 block text-xs font-medium text-[#555]">Alergias <span className="font-normal text-[#ccc]">(opcional)</span></label>
             <TagInput availableTags={allergyPool} selectedTags={allergies} onChangeSelected={setAllergies} onCreateTag={onCreateAllergy} onDeleteTag={handleDeleteAllergy} label="Alergia" />
           </div>
-          <div className="sm:col-span-2"><label className="mb-1.5 block text-xs font-medium text-[#555]">Notas</label><textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Mesa preferida, restricciones..." rows={2} style={{ ...inp, resize: 'vertical' }} /></div>
+          <div className="sm:col-span-2"><label className="mb-1.5 block text-xs font-medium text-[#555]">Notas</label><textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Mesa preferida, restricciones..." rows={2} className={`${INPUT_CLASS} resize-y`} /></div>
           <div className="sm:col-span-2 border-t border-[#f0f0f0] pt-4"><MembersEditor value={members} onChange={setMembers} allergyPool={allergyPool} onCreateAllergy={onCreateAllergy} onDeleteAllergy={handleDeleteAllergy} /></div>
         </div>
         <button onClick={onDelete}
           className="mt-4 w-full rounded-lg border border-[#ffe0e0] bg-[#fff5f5] py-3 text-sm font-semibold text-[#cc3333] transition hover:bg-[#ffe8e8] sm:hidden">
           Eliminar invitado
         </button>
-        </div>
-        <div className="shrink-0 border-t border-[#f0f0f0] px-6 py-4 sm:px-8">
-          {error && <div className="mb-3 rounded-lg border border-[#ffc0c0] bg-[#fff0f0] p-2.5 text-xs text-[#cc3333]">{error}</div>}
-          <div className="flex gap-2.5">
-            <button onClick={onClose} className="flex-1 rounded-lg border border-[#e0e0e0] py-3 text-sm text-[#888]">Cancelar</button>
-            <button onClick={submit} disabled={saving} className="flex-[2] rounded-lg bg-[#48C9B0] py-3 text-sm font-semibold text-white disabled:opacity-60">{saving ? 'Guardando...' : 'Guardar cambios'}</button>
-          </div>
-        </div>
-      </div>
-    </div>
+        {error && <div className="mt-4 rounded-lg border border-[#ffc0c0] bg-[#fff0f0] p-2.5 text-xs text-[#cc3333]">{error}</div>}
+      </Modal.Body>
+      <Modal.Footer>
+        <button onClick={onClose} className="flex-1 rounded-lg border border-[#e0e0e0] py-3 text-sm text-[#888]">Cancelar</button>
+        <button onClick={submit} disabled={saving} className="flex-[2] rounded-lg bg-[#48C9B0] py-3 text-sm font-semibold text-white disabled:opacity-60">{saving ? 'Guardando...' : 'Guardar cambios'}</button>
+      </Modal.Footer>
+    </Modal>
   )
 }
 
@@ -1659,7 +1643,7 @@ export default function EventPage() {
               <Filter size={13} />Filtros{filters.length > 0 ? ` (${filters.length})` : ''}
             </button>
             {showFilterMenu && (
-              <div className="absolute right-0 top-full z-50 mt-1 max-h-[60vh] w-64 overflow-y-auto rounded-xl border border-[#e8e8e8] bg-white p-2 shadow-lg">
+              <div className="absolute right-0 top-full z-50 mt-1 max-h-[60dvh] w-64 overflow-y-auto rounded-xl border border-[#e8e8e8] bg-white p-2 shadow-lg">
                 {([
                   { title: 'Tags', field: 'tag' as FilterField, values: availableTags },
                   { title: 'Alergias', field: 'allergy' as FilterField, values: allergyPool },
@@ -2029,70 +2013,56 @@ export default function EventPage() {
       />
 
       {/* Importar invitados — vista previa */}
-      <AnimatePresence>
       {showCsvModal && csvPreview && (
-        <motion.div
-          key="csv-preview-overlay"
-          initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-          transition={{ duration: 0.2 }}
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 p-4"
-        >
-          <motion.div
-            initial={{ opacity: 0, scale: 0.97, y: 12 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.97, y: 12 }}
-            transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-            className="w-full max-w-md rounded-2xl border border-[#e8e8e8] bg-white p-6 shadow-2xl" style={{ maxHeight: '90vh', overflowY: 'auto' }}
-          >
-            <div className="mb-5 flex items-center justify-between">
-              <h2 className="text-base font-bold text-[#1D1E20]">Importar invitados</h2>
-              <button onClick={() => { setShowCsvModal(false); setCsvPreview(null) }} className="text-xl text-[#aaa]">✕</button>
+        <Modal open onClose={() => { setShowCsvModal(false); setCsvPreview(null) }} size="md">
+          <Modal.Header title="Importar invitados" />
+          <Modal.Body>
+            <div className="mb-4 rounded-xl border border-[#e8e8e8] bg-[#f8f8f8] p-4">
+              <p className="mb-1 text-sm font-semibold text-[#1D1E20]">Resumen del archivo</p>
+              <p className="text-xs text-[#666]">{csvPreview.rows.length} invitados encontrados</p>
+              {csvPreview.hasDuplicates && <p className="mt-1 text-xs font-semibold text-[#cc3333]">{csvPreview.duplicates.length} con WhatsApp duplicado</p>}
             </div>
-            <div>
-                <div className="mb-4 rounded-xl border border-[#e8e8e8] bg-[#f8f8f8] p-4">
-                  <p className="mb-1 text-sm font-semibold text-[#1D1E20]">Resumen del archivo</p>
-                  <p className="text-xs text-[#666]">{csvPreview.rows.length} invitados encontrados</p>
-                  {csvPreview.hasDuplicates && <p className="mt-1 text-xs font-semibold text-[#cc3333]">{csvPreview.duplicates.length} con WhatsApp duplicado</p>}
-                </div>
-                {csvPreview.hasDuplicates && (
-                  <div className="mb-4">
-                    <p className="mb-2 text-xs font-semibold text-[#cc3333]">Números duplicados detectados:</p>
-                    <div className="flex max-h-40 flex-col gap-1 overflow-y-auto rounded-lg border border-[#ffc0c0] bg-[#fff8f8] p-3">
-                      {csvPreview.duplicates.map((d, i) => (
-                        <div key={i} className="text-xs text-[#cc3333]">
-                          <span className="font-semibold">{d.name}</span> ({d.phone}) — duplica a <span className="font-semibold">{d.conflictWith}</span>
-                        </div>
-                      ))}
+            {csvPreview.hasDuplicates && (
+              <div className="mb-4">
+                <p className="mb-2 text-xs font-semibold text-[#cc3333]">Números duplicados detectados:</p>
+                <div className="flex max-h-40 flex-col gap-1 overflow-y-auto rounded-lg border border-[#ffc0c0] bg-[#fff8f8] p-3">
+                  {csvPreview.duplicates.map((d, i) => (
+                    <div key={i} className="text-xs text-[#cc3333]">
+                      <span className="font-semibold">{d.name}</span> ({d.phone}) — duplica a <span className="font-semibold">{d.conflictWith}</span>
                     </div>
-                  </div>
-                )}
-                {(csvPreview.newTags.length > 0 || csvPreview.newGroups.length > 0 || csvPreview.newAllergies.length > 0) && (
-                  <div className="mb-4">
-                    <p className="mb-2 text-xs font-semibold text-[#1a9e88]">Se agregarán estos nuevos:</p>
-                    <div className="flex flex-col gap-1.5 rounded-lg border border-[#c8ede7] bg-[#f0fdfb] p-3 text-xs text-[#1a9e88]">
-                      {csvPreview.newTags.length > 0 && <div><span className="font-semibold">Tags:</span> {csvPreview.newTags.join(', ')}</div>}
-                      {csvPreview.newGroups.length > 0 && <div><span className="font-semibold">Grupos:</span> {csvPreview.newGroups.join(', ')}</div>}
-                      {csvPreview.newAllergies.length > 0 && <div><span className="font-semibold">Alergias:</span> {csvPreview.newAllergies.join(', ')}</div>}
-                    </div>
-                  </div>
-                )}
-                {csvError && <div className="mb-3 rounded-lg border border-[#ffc0c0] bg-[#fff0f0] p-2.5 text-xs text-[#cc3333]">{csvError}</div>}
-                {csvSuccess && <div className="mb-3 rounded-lg border border-[#a0e0c0] bg-[#f0fff6] p-2.5 text-xs text-[#2a7a50]">{csvSuccess}</div>}
-                <div className="flex flex-col gap-2">
-                  {csvPreview.hasDuplicates ? (
-                    <button onClick={() => confirmCsvImport(true)} disabled={csvImporting} className="w-full rounded-lg bg-[#48C9B0] py-3 text-sm font-semibold text-white disabled:opacity-60">
-                      {csvImporting ? 'Importando...' : `Importar ${csvPreview.rows.length - csvPreview.duplicates.length} sin duplicados`}
-                    </button>
-                  ) : (
-                    <button onClick={() => confirmCsvImport(false)} disabled={csvImporting} className="w-full rounded-lg bg-[#48C9B0] py-3 text-sm font-semibold text-white disabled:opacity-60">
-                      {csvImporting ? 'Importando...' : `Confirmar importación (${csvPreview.rows.length} invitados)`}
-                    </button>
-                  )}
-                  <button onClick={() => setCsvPreview(null)} disabled={csvImporting} className="w-full rounded-lg border border-[#e0e0e0] py-2.5 text-xs text-[#888] disabled:opacity-60">Cancelar</button>
+                  ))}
                 </div>
               </div>
-          </motion.div>
-        </motion.div>
+            )}
+            {(csvPreview.newTags.length > 0 || csvPreview.newGroups.length > 0 || csvPreview.newAllergies.length > 0) && (
+              <div className="mb-4">
+                <p className="mb-2 text-xs font-semibold text-[#1a9e88]">Se agregarán estos nuevos:</p>
+                <div className="flex flex-col gap-1.5 rounded-lg border border-[#c8ede7] bg-[#f0fdfb] p-3 text-xs text-[#1a9e88]">
+                  {csvPreview.newTags.length > 0 && <div><span className="font-semibold">Tags:</span> {csvPreview.newTags.join(', ')}</div>}
+                  {csvPreview.newGroups.length > 0 && <div><span className="font-semibold">Grupos:</span> {csvPreview.newGroups.join(', ')}</div>}
+                  {csvPreview.newAllergies.length > 0 && <div><span className="font-semibold">Alergias:</span> {csvPreview.newAllergies.join(', ')}</div>}
+                </div>
+              </div>
+            )}
+            {csvError && <div className="mb-3 rounded-lg border border-[#ffc0c0] bg-[#fff0f0] p-2.5 text-xs text-[#cc3333]">{csvError}</div>}
+            {csvSuccess && <div className="mb-3 rounded-lg border border-[#a0e0c0] bg-[#f0fff6] p-2.5 text-xs text-[#2a7a50]">{csvSuccess}</div>}
+          </Modal.Body>
+          <Modal.Footer>
+            <div className="flex w-full flex-col gap-2">
+              {csvPreview.hasDuplicates ? (
+                <button onClick={() => confirmCsvImport(true)} disabled={csvImporting} className="w-full rounded-lg bg-[#48C9B0] py-3 text-sm font-semibold text-white disabled:opacity-60">
+                  {csvImporting ? 'Importando...' : `Importar ${csvPreview.rows.length - csvPreview.duplicates.length} sin duplicados`}
+                </button>
+              ) : (
+                <button onClick={() => confirmCsvImport(false)} disabled={csvImporting} className="w-full rounded-lg bg-[#48C9B0] py-3 text-sm font-semibold text-white disabled:opacity-60">
+                  {csvImporting ? 'Importando...' : `Confirmar importación (${csvPreview.rows.length} invitados)`}
+                </button>
+              )}
+              <button onClick={() => setCsvPreview(null)} disabled={csvImporting} className="w-full rounded-lg border border-[#e0e0e0] py-2.5 text-xs text-[#888] disabled:opacity-60">Cancelar</button>
+            </div>
+          </Modal.Footer>
+        </Modal>
       )}
-      </AnimatePresence>
 
       {showBulkCompanionModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 p-4">
@@ -2136,7 +2106,7 @@ export default function EventPage() {
             {activeTemplates.length === 0 ? (
               <p className="px-5 py-4 text-sm text-[#aaa]">No hay plantillas — configúralas en Configuración.</p>
             ) : (
-              <div className="flex max-h-[55vh] flex-col overflow-y-auto">
+              <div className="flex max-h-[55dvh] flex-col overflow-y-auto">
                 {activeTemplates.map((template: string, ti: number) => (
                   <button key={ti} onClick={() => { openWhatsApp(showWaSheet.phone!, buildWaText(showWaSheet, ti)); setShowWaSheet(null) }}
                     className="border-b border-[#f5f5f5] px-5 py-3.5 text-left transition active:bg-[#f0fdfb]">
@@ -2158,7 +2128,7 @@ export default function EventPage() {
             <div className="mb-2 px-3">
               <p className="text-xs font-semibold text-[#1D1E20]">{selected.size} invitados{selectedMembers.size > 0 ? ' · ' + selectedMembers.size + ' acompañantes' : ''} seleccionados</p>
             </div>
-            <div className="max-h-[60vh] overflow-y-auto">
+            <div className="max-h-[60dvh] overflow-y-auto">
               <BulkMenuContent
                 onClose={() => setShowMobileBulkSheet(false)}
                 onBulkUpdateStatus={bulkUpdateStatus}

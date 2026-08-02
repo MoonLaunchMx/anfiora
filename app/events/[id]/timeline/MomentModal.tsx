@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react'
 import { ItineraryMoment, ItineraryPhase } from '@/lib/types'
 import { ITINERARY_PHASES, PHASE_LABEL, computeEndTime } from '@/lib/itinerary'
-import { X, ChevronDown, Eye, EyeOff } from 'lucide-react'
+import { ChevronDown, Eye, EyeOff } from 'lucide-react'
+import { Modal } from '@/app/components/ui/Modal'
 
 export interface MomentDraft {
   title: string
@@ -79,26 +80,17 @@ export function MomentModal({ editMoment, suppliers, onClose, onSave, onDelete }
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 p-0 sm:p-4">
-      <div className="bg-white w-full sm:max-w-lg rounded-t-2xl sm:rounded-2xl max-h-[92vh] overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-
-        <div className="sticky top-0 bg-white z-10 flex items-center justify-between px-5 pt-5 pb-4 border-b border-[#f0f0f0]">
-          <h2 className="text-base font-semibold text-[#1D1E20]">
-            {editMoment ? 'Editar momento' : 'Nuevo momento'}
-          </h2>
-          <button onClick={onClose} className="text-[#aaa] hover:text-[#555] transition-colors">
-            <X size={18} />
-          </button>
-        </div>
-
-        <div className="px-5 py-4 flex flex-col gap-3.5">
+    <Modal open onClose={onClose} size="lg">
+      <Modal.Header title={editMoment ? 'Editar momento' : 'Nuevo momento'} />
+      <Modal.Body className="[&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+        <div className="flex flex-col gap-3.5">
           {/* Titulo */}
           <input
             type="text"
             placeholder="Titulo del momento (ej. Ceremonia)"
             value={form.title}
             onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
-            className="w-full border border-[#e0e0e0] rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#d4a853] bg-[#f8f8f8]"
+            className="w-full border border-[#e0e0e0] rounded-xl px-3 py-2.5 text-base focus:outline-none focus:border-[#d4a853] bg-[#f8f8f8]"
           />
 
           {/* Hora + Duracion */}
@@ -109,7 +101,7 @@ export function MomentModal({ editMoment, suppliers, onClose, onSave, onDelete }
                 type="time"
                 value={form.start_time}
                 onChange={e => setForm(f => ({ ...f, start_time: e.target.value }))}
-                className="w-full border border-[#e0e0e0] rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#d4a853] bg-[#f8f8f8]"
+                className="w-full border border-[#e0e0e0] rounded-xl px-3 py-2 text-base focus:outline-none focus:border-[#d4a853] bg-[#f8f8f8]"
               />
             </div>
             <div>
@@ -123,7 +115,7 @@ export function MomentModal({ editMoment, suppliers, onClose, onSave, onDelete }
                 placeholder="40"
                 value={form.duration_min}
                 onChange={e => setForm(f => ({ ...f, duration_min: e.target.value }))}
-                className="w-full border border-[#e0e0e0] rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#d4a853] bg-[#f8f8f8]"
+                className="w-full border border-[#e0e0e0] rounded-xl px-3 py-2 text-base focus:outline-none focus:border-[#d4a853] bg-[#f8f8f8]"
               />
             </div>
           </div>
@@ -139,7 +131,7 @@ export function MomentModal({ editMoment, suppliers, onClose, onSave, onDelete }
                 <select
                   value={form.phase}
                   onChange={e => setForm(f => ({ ...f, phase: e.target.value as ItineraryPhase }))}
-                  className="w-full border border-[#e0e0e0] rounded-xl px-3 py-2 text-sm appearance-none focus:outline-none focus:border-[#d4a853] bg-[#f8f8f8] cursor-pointer"
+                  className="w-full border border-[#e0e0e0] rounded-xl px-3 py-2 text-base appearance-none focus:outline-none focus:border-[#d4a853] bg-[#f8f8f8] cursor-pointer"
                 >
                   {ITINERARY_PHASES.map(p => <option key={p} value={p}>{PHASE_LABEL[p]}</option>)}
                 </select>
@@ -155,7 +147,7 @@ export function MomentModal({ editMoment, suppliers, onClose, onSave, onDelete }
                 placeholder="Jardin, terraza..."
                 value={form.location}
                 onChange={e => setForm(f => ({ ...f, location: e.target.value }))}
-                className="w-full border border-[#e0e0e0] rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#d4a853] bg-[#f8f8f8]"
+                className="w-full border border-[#e0e0e0] rounded-xl px-3 py-2 text-base focus:outline-none focus:border-[#d4a853] bg-[#f8f8f8]"
               />
             </div>
           </div>
@@ -169,7 +161,7 @@ export function MomentModal({ editMoment, suppliers, onClose, onSave, onDelete }
               <select
                 value={form.event_supplier_id}
                 onChange={e => setForm(f => ({ ...f, event_supplier_id: e.target.value }))}
-                className="w-full border border-[#e0e0e0] rounded-xl px-3 py-2 text-sm appearance-none focus:outline-none focus:border-[#d4a853] bg-[#f8f8f8] cursor-pointer"
+                className="w-full border border-[#e0e0e0] rounded-xl px-3 py-2 text-base appearance-none focus:outline-none focus:border-[#d4a853] bg-[#f8f8f8] cursor-pointer"
               >
                 <option value="">Sin proveedor</option>
                 {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
@@ -188,7 +180,7 @@ export function MomentModal({ editMoment, suppliers, onClose, onSave, onDelete }
               placeholder="Coordinador, MC, maestro de ceremonias..."
               value={form.assigned_to_name}
               onChange={e => setForm(f => ({ ...f, assigned_to_name: e.target.value }))}
-              className="w-full border border-[#e0e0e0] rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#d4a853] bg-[#f8f8f8]"
+              className="w-full border border-[#e0e0e0] rounded-xl px-3 py-2 text-base focus:outline-none focus:border-[#d4a853] bg-[#f8f8f8]"
             />
           </div>
 
@@ -202,7 +194,7 @@ export function MomentModal({ editMoment, suppliers, onClose, onSave, onDelete }
               value={form.notes}
               onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
               rows={2}
-              className="w-full border border-[#e0e0e0] rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#d4a853] resize-none bg-[#f8f8f8]"
+              className="w-full border border-[#e0e0e0] rounded-xl px-3 py-2 text-base focus:outline-none focus:border-[#d4a853] resize-none bg-[#f8f8f8]"
             />
           </div>
 
@@ -220,31 +212,30 @@ export function MomentModal({ editMoment, suppliers, onClose, onSave, onDelete }
             {form.visible_to_guests ? 'Visible en la invitacion' : 'Solo interno (no lo ven los invitados)'}
           </button>
         </div>
-
-        <div className="sticky bottom-0 bg-white border-t border-[#f0f0f0] px-5 py-4 flex gap-2.5">
-          {editMoment && (
-            <button
-              onClick={() => onDelete(editMoment)}
-              className="px-4 py-2.5 text-sm text-[#cc3333] border border-[#ffc0c0] rounded-xl hover:bg-[#fff0f0] transition-colors"
-            >
-              Eliminar
-            </button>
-          )}
+      </Modal.Body>
+      <Modal.Footer>
+        {editMoment && (
           <button
-            onClick={onClose}
-            className="flex-1 py-2.5 text-sm border border-[#e0e0e0] rounded-xl text-[#888] hover:bg-[#f8f8f8] transition-colors"
+            onClick={() => onDelete(editMoment)}
+            className="px-4 py-2.5 text-sm text-[#cc3333] border border-[#ffc0c0] rounded-xl hover:bg-[#fff0f0] transition-colors"
           >
-            Cancelar
+            Eliminar
           </button>
-          <button
-            onClick={handleSave}
-            disabled={!form.title.trim() || !form.start_time}
-            className="flex-[2] py-2.5 text-sm bg-[#48C9B0] text-white rounded-xl font-semibold disabled:opacity-40 hover:bg-[#3ab89f] transition-colors"
-          >
-            {editMoment ? 'Guardar cambios' : 'Agregar momento'}
-          </button>
-        </div>
-      </div>
-    </div>
+        )}
+        <button
+          onClick={onClose}
+          className="flex-1 py-2.5 text-sm border border-[#e0e0e0] rounded-xl text-[#888] hover:bg-[#f8f8f8] transition-colors"
+        >
+          Cancelar
+        </button>
+        <button
+          onClick={handleSave}
+          disabled={!form.title.trim() || !form.start_time}
+          className="flex-[2] py-2.5 text-sm bg-[#48C9B0] text-white rounded-xl font-semibold disabled:opacity-40 hover:bg-[#3ab89f] transition-colors"
+        >
+          {editMoment ? 'Guardar cambios' : 'Agregar momento'}
+        </button>
+      </Modal.Footer>
+    </Modal>
   )
 }

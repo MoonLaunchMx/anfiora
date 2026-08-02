@@ -7,6 +7,7 @@ import FeatureGuard from '@/app/components/ui/FeatureGuard'
 import { Guest } from '@/lib/types'
 import { Plus, Trash2, ChevronDown, ChevronUp, X, List, Map as MapIcon, Printer, Search, LayoutGrid, ArrowLeft, LayoutPanelLeft, RotateCw } from 'lucide-react'
 import StatsCollapse, { StatsToggleButton, useStatsToggle } from '@/app/components/ui/StatsCollapse'
+import { Modal } from '@/app/components/ui/Modal'
 
 // ─── CONSTANTES ───────────────────────────────
 const STATUS_COLORS: Record<string, { bg: string; border: string; text: string; label: string }> = {
@@ -30,11 +31,7 @@ const TAG_COLORS = [
 ]
 
 const inp = 'w-full rounded-lg border border-[#e0e0e0] bg-[#f8f8f8] px-3 py-2.5 text-sm text-[#1D1E20] outline-none focus:border-[#48C9B0]'
-const inpStyle: React.CSSProperties = {
-  width: '100%', padding: '10px 14px', background: '#f8f8f8',
-  border: '1px solid #e0e0e0', borderRadius: '8px', color: '#1D1E20',
-  fontSize: '14px', outline: 'none', boxSizing: 'border-box',
-}
+const EDIT_GUEST_INPUT_CLASS = 'w-full rounded-lg border border-[#e0e0e0] bg-[#f8f8f8] px-3.5 py-2.5 text-base text-[#1D1E20] outline-none'
 
 type TableShape = 'round' | 'rectangle' | 'square' | 'oval' | 'halfmoon' | 'row'
 
@@ -467,41 +464,32 @@ function TableDetailModal({ table, getOccupied, onClose, onAssign, onRemoveGuest
 }) {
   const occ=getOccupied(table); const avail=table.capacity-occ; const full=avail===0
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
-      <div className="flex w-full max-w-md flex-col overflow-hidden rounded-2xl border border-[#e8e8e8] bg-white shadow-2xl" style={{maxHeight:'80vh'}} onClick={e=>e.stopPropagation()}>
-        <div className="flex items-start justify-between border-b border-[#f0f0f0] px-5 py-4">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="rounded bg-[#f0f0f0] px-1.5 py-0.5 text-xs font-bold text-[#555]">#{table.number}</span>
-              <span className="text-base font-bold text-[#1D1E20]">{table.name||`Mesa ${table.number}`}</span>
-              {full&&<span className="rounded-full border border-[#a0e0c0] bg-[#f0fff6] px-2 py-0.5 text-[10px] font-semibold text-[#2a7a50]">Llena</span>}
-            </div>
-            <p className="mt-0.5 text-xs text-[#aaa]">{SHAPE_LABELS[table.shape as TableShape]||table.shape} · {occ}/{table.capacity} asientos</p>
-          </div>
-          <button onClick={onClose} className="text-[#aaa] hover:text-[#1D1E20]"><X width={16} height={16}/></button>
-        </div>
-        <div className="flex-1 overflow-y-auto px-5 py-3">
-          {!table.seats.some(s=>s.guest)?<p className="py-6 text-center text-sm text-[#bbb]">Sin invitados asignados</p>:(
-            <div className="flex flex-col gap-2">
-              {table.seats.map(seat=>{const g=seat.guest;if(!g)return null;const st=STATUS_COLORS[g.rsvp_status];return(
-                <div key={seat.id} className="rounded-xl border px-3 py-2.5" style={{background:st.bg,borderColor:st.border}}>
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex min-w-0 items-center gap-2"><span className="truncate text-sm font-semibold" style={{color:st.text}}>{g.name}</span>{g.party_size>1&&<span className="text-xs font-semibold" style={{color:st.text}}>+{g.party_size-1}</span>}</div>
-                    <div className="flex items-center gap-2"><span className="text-xs font-semibold" style={{color:st.text}}>{st.label}</span><button onClick={()=>onRemoveGuest(seat.id,g.name)} className="opacity-40 hover:opacity-100" style={{color:st.text}}><X width={12} height={12}/></button></div>
-                  </div>
-                  {g.party_members.length>0&&<div className="mt-1.5 flex flex-col gap-1 border-t pt-1.5" style={{borderColor:st.border}}>{g.party_members.map(m=><div key={m.id} className="flex items-center justify-between"><div className="flex items-center gap-1.5"><div className="h-3 w-[2px] rounded-full opacity-30" style={{background:st.text}}/><span className="text-xs" style={{color:st.text}}>{m.name||'Acompañante'}</span></div><span className="text-[11px]" style={{color:STATUS_COLORS[m.rsvp_status].text}}>{STATUS_COLORS[m.rsvp_status].label}</span></div>)}</div>}
+    <Modal open onClose={onClose} size="md">
+      <Modal.Header
+        title={`#${table.number} ${table.name||`Mesa ${table.number}`}`}
+        subtitle={`${SHAPE_LABELS[table.shape as TableShape]||table.shape} · ${occ}/${table.capacity} asientos${full?' · Llena':''}`}
+      />
+      <Modal.Body>
+        {!table.seats.some(s=>s.guest)?<p className="py-6 text-center text-sm text-[#bbb]">Sin invitados asignados</p>:(
+          <div className="flex flex-col gap-2">
+            {table.seats.map(seat=>{const g=seat.guest;if(!g)return null;const st=STATUS_COLORS[g.rsvp_status];return(
+              <div key={seat.id} className="rounded-xl border px-3 py-2.5" style={{background:st.bg,borderColor:st.border}}>
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex min-w-0 items-center gap-2"><span className="truncate text-sm font-semibold" style={{color:st.text}}>{g.name}</span>{g.party_size>1&&<span className="text-xs font-semibold" style={{color:st.text}}>+{g.party_size-1}</span>}</div>
+                  <div className="flex items-center gap-2"><span className="text-xs font-semibold" style={{color:st.text}}>{st.label}</span><button onClick={()=>onRemoveGuest(seat.id,g.name)} className="opacity-40 hover:opacity-100" style={{color:st.text}}><X width={12} height={12}/></button></div>
                 </div>
-              )})}
-            </div>
-          )}
-        </div>
-        <div className="flex gap-2 border-t border-[#f0f0f0] px-5 py-3">
-          <button onClick={()=>{onDeleteTable(table);onClose()}} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[#ffe0e0] bg-[#fff5f5] text-[#cc3333] hover:bg-[#ffe8e8]"><Trash2 width={14} height={14}/></button>
-          <button onClick={()=>{onEditTable(table);onClose()}} className="flex-1 rounded-lg border border-[#e0e0e0] py-2 text-sm text-[#666] hover:border-[#48C9B0] hover:text-[#48C9B0]">Editar mesa</button>
-          {!full&&<button onClick={()=>{onAssign(table.id,table.capacity);onClose()}} className="flex-1 rounded-lg bg-[#48C9B0] py-2 text-sm font-semibold text-white hover:bg-[#3ab89f]">+ Asignar</button>}
-        </div>
-      </div>
-    </div>
+                {g.party_members.length>0&&<div className="mt-1.5 flex flex-col gap-1 border-t pt-1.5" style={{borderColor:st.border}}>{g.party_members.map(m=><div key={m.id} className="flex items-center justify-between"><div className="flex items-center gap-1.5"><div className="h-3 w-[2px] rounded-full opacity-30" style={{background:st.text}}/><span className="text-xs" style={{color:st.text}}>{m.name||'Acompañante'}</span></div><span className="text-[11px]" style={{color:STATUS_COLORS[m.rsvp_status].text}}>{STATUS_COLORS[m.rsvp_status].label}</span></div>)}</div>}
+              </div>
+            )})}
+          </div>
+        )}
+      </Modal.Body>
+      <Modal.Footer>
+        <button onClick={()=>{onDeleteTable(table);onClose()}} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[#ffe0e0] bg-[#fff5f5] text-[#cc3333] hover:bg-[#ffe8e8]"><Trash2 width={14} height={14}/></button>
+        <button onClick={()=>{onEditTable(table);onClose()}} className="flex-1 rounded-lg border border-[#e0e0e0] py-2 text-sm text-[#666] hover:border-[#48C9B0] hover:text-[#48C9B0]">Editar mesa</button>
+        {!full&&<button onClick={()=>{onAssign(table.id,table.capacity);onClose()}} className="flex-1 rounded-lg bg-[#48C9B0] py-2 text-sm font-semibold text-white hover:bg-[#3ab89f]">+ Asignar</button>}
+      </Modal.Footer>
+    </Modal>
   )
 }
 
@@ -1087,9 +1075,9 @@ function MembersEditor({ value, onChange }: { value:EditMember[]; onChange:(v:Ed
           <div key={i} className="rounded-lg border border-[#e8e8e8] bg-[#f8f8f8] p-3">
             <div className="mb-2 text-[11px] font-semibold text-[#aaa]">+{i+1}</div>
             <div className="flex flex-col gap-2">
-              <input type="text" value={m.name} onChange={e=>onChange(value.map((x,j)=>j===i?{...x,name:e.target.value}:x))} placeholder="Nombre (opcional)" style={{...inpStyle,fontSize:'13px',padding:'8px 12px'}}/>
-              <input type="tel" value={m.phone} onChange={e=>onChange(value.map((x,j)=>j===i?{...x,phone:e.target.value}:x))} placeholder="WhatsApp (opcional)" style={{...inpStyle,fontSize:'13px',padding:'8px 12px'}}/>
-              <select value={m.rsvp_status} onChange={e=>onChange(value.map((x,j)=>j===i?{...x,rsvp_status:e.target.value as EditMember['rsvp_status']}:x))} style={{...inpStyle,fontSize:'13px',padding:'8px 12px',cursor:'pointer'}}>
+              <input type="text" value={m.name} onChange={e=>onChange(value.map((x,j)=>j===i?{...x,name:e.target.value}:x))} placeholder="Nombre (opcional)" className="w-full rounded-lg border border-[#e0e0e0] bg-[#f8f8f8] px-3 py-2 text-base text-[#1D1E20] outline-none"/>
+              <input type="tel" value={m.phone} onChange={e=>onChange(value.map((x,j)=>j===i?{...x,phone:e.target.value}:x))} placeholder="WhatsApp (opcional)" className="w-full rounded-lg border border-[#e0e0e0] bg-[#f8f8f8] px-3 py-2 text-base text-[#1D1E20] outline-none"/>
+              <select value={m.rsvp_status} onChange={e=>onChange(value.map((x,j)=>j===i?{...x,rsvp_status:e.target.value as EditMember['rsvp_status']}:x))} className="w-full cursor-pointer rounded-lg border border-[#e0e0e0] bg-[#f8f8f8] px-3 py-2 text-base text-[#1D1E20] outline-none">
                 <option value="pending">Pendiente</option><option value="confirmed">Confirmado</option><option value="declined">Declinó</option>
               </select>
               <button type="button" onClick={()=>onChange(value.filter((_,j)=>j!==i))} className="w-full rounded-lg border border-[#ffe0e0] bg-[#fff5f5] py-1.5 text-xs font-semibold text-[#cc3333] hover:bg-[#ffe8e8]">Eliminar acompañante</button>
@@ -1676,9 +1664,9 @@ function MesasPageInner() {
 
       {/* Modal editar invitado */}
       {editGuest&&(
-        <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-md overflow-y-auto rounded-2xl border border-[#e8e8e8] bg-white p-6 shadow-xl sm:p-8" style={{maxHeight:'90vh'}}>
-            <div className="mb-6 flex items-center justify-between"><h2 className="text-lg font-bold text-[#1D1E20] sm:text-xl">Editar invitado</h2><button onClick={()=>setEditGuest(null)} className="text-xl text-[#aaa]">✕</button></div>
+        <Modal open onClose={()=>setEditGuest(null)} size="md">
+          <Modal.Header title="Editar invitado" />
+          <Modal.Body>
             {/* Aviso de mesa asignada */}
             {gSeatMap.get(editGuest.id)&&(()=>{
               const sr=gSeatMap.get(editGuest.id)
@@ -1695,20 +1683,20 @@ function MesasPageInner() {
               )
             })()}
             <div className="flex flex-col gap-4">
-              <div><label className="mb-1.5 block text-xs font-medium text-[#555]">Nombre *</label><input type="text" value={eName} onChange={e=>setEName(e.target.value)} style={inpStyle}/></div>
-              <div><label className="mb-1.5 block text-xs font-medium text-[#555]">WhatsApp</label><input type="tel" value={ePhone} onChange={e=>setEPhone(e.target.value)} placeholder="+52 81 1234 5678" style={inpStyle}/></div>
-              <div><label className="mb-1.5 block text-xs font-medium text-[#555]">Email</label><input type="email" value={eEmail} onChange={e=>setEEmail(e.target.value)} style={inpStyle}/></div>
-              <div><label className="mb-1.5 block text-xs font-medium text-[#555]">Notas</label><textarea value={eNotes} onChange={e=>setENotes(e.target.value)} rows={2} style={{...inpStyle,resize:'vertical'}}/></div>
+              <div><label className="mb-1.5 block text-xs font-medium text-[#555]">Nombre *</label><input type="text" value={eName} onChange={e=>setEName(e.target.value)} className={EDIT_GUEST_INPUT_CLASS}/></div>
+              <div><label className="mb-1.5 block text-xs font-medium text-[#555]">WhatsApp</label><input type="tel" value={ePhone} onChange={e=>setEPhone(e.target.value)} placeholder="+52 81 1234 5678" className={EDIT_GUEST_INPUT_CLASS}/></div>
+              <div><label className="mb-1.5 block text-xs font-medium text-[#555]">Email</label><input type="email" value={eEmail} onChange={e=>setEEmail(e.target.value)} className={EDIT_GUEST_INPUT_CLASS}/></div>
+              <div><label className="mb-1.5 block text-xs font-medium text-[#555]">Notas</label><textarea value={eNotes} onChange={e=>setENotes(e.target.value)} rows={2} className={`${EDIT_GUEST_INPUT_CLASS} resize-y`}/></div>
               {eventTags.length>0&&<div><label className="mb-1.5 block text-xs font-medium text-[#555]">Tags</label><TagSelector availableTags={eventTags} selectedTags={eTags} onChange={setETags}/></div>}
               <div className="border-t border-[#f0f0f0] pt-4"><MembersEditor value={eMembers} onChange={setEMembers}/></div>
             </div>
             {eError&&<div className="mt-3 rounded-lg border border-[#ffc0c0] bg-[#fff0f0] p-2.5 text-xs text-[#cc3333]">{eError}</div>}
-            <div className="mt-6 flex gap-2.5">
-              <button onClick={()=>setEditGuest(null)} className="flex-1 rounded-lg border border-[#e0e0e0] py-3 text-sm text-[#888]">Cancelar</button>
-              <button onClick={handleEditSave} disabled={eSaving} className="flex-[2] rounded-lg bg-[#48C9B0] py-3 text-sm font-semibold text-white disabled:opacity-60">{eSaving?'Guardando…':'Guardar cambios'}</button>
-            </div>
-          </div>
-        </div>
+          </Modal.Body>
+          <Modal.Footer>
+            <button onClick={()=>setEditGuest(null)} className="flex-1 rounded-lg border border-[#e0e0e0] py-3 text-sm text-[#888]">Cancelar</button>
+            <button onClick={handleEditSave} disabled={eSaving} className="flex-[2] rounded-lg bg-[#48C9B0] py-3 text-sm font-semibold text-white disabled:opacity-60">{eSaving?'Guardando…':'Guardar cambios'}</button>
+          </Modal.Footer>
+        </Modal>
       )}
 
       <ModalMesa visible={showModal} editTable={editTable} mNum={mNum} setMNum={setMNum} mName={mName} setMName={setMName} mCap={mCap} setMCap={setMCap} mShape={mShape} setMShape={setMShape} mError={mError} mSaving={mSaving} onSave={handleSaveTable} onClose={()=>setShowModal(false)} inp={inp}/>
