@@ -1,0 +1,17 @@
+name: Recordatorios
+
+# De momento solo manual. El disparo cada 15 minutos se habilita despues de
+# verificar en produccion (ver el plan de despliegue).
+on:
+  workflow_dispatch:
+
+jobs:
+  disparar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Llamar al cron de recordatorios
+        run: |
+          curl --fail --silent --show-error --max-time 60 \
+            -X POST \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            https://anfiora.com/api/cron/reminders

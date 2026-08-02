@@ -30,7 +30,8 @@ export async function notifyInboundRsvp(
         url: `/events/${a.eventId}/mensajes`,
         tag: `event-${a.eventId}-accion-${a.guestId}`,
         renotify: true,
-      })
+        topic: a.guestId.replace(/-/g, ''),
+      }, 'guest_replies')
       return
     }
 
@@ -58,7 +59,8 @@ export async function notifyInboundRsvp(
       url: `/events/${a.eventId}/mensajes`,
       tag: `event-${a.eventId}`,
       renotify: true,
-    })
+      topic: a.eventId.replace(/-/g, ''),
+    }, 'guest_replies')
   } catch (e) {
     console.error('[notify] notifyInboundRsvp fallo:', e instanceof Error ? e.message : e)
   }

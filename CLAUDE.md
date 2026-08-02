@@ -157,8 +157,8 @@ tables (id, event_id, number, name, capacity, shape TEXT, position_x, position_y
 -- table_seats: asignación invitado ↔ mesa
 table_seats (id, table_id, event_id, seat_number, guest_id, party_size, created_at)
 
--- timeline_tasks: tareas y recordatorios del evento
-timeline_tasks (
+-- event_timeline_tasks: tareas y recordatorios del evento
+event_timeline_tasks (
   id, event_id, title, emoji, category,
   task_date, task_time, notes,
   is_highlighted, is_completed,

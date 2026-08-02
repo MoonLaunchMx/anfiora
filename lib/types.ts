@@ -780,3 +780,13 @@ export interface GuestItineraryItem {
   title: string
   location: string | null
 }
+
+export type PushType = 'guest_replies' | 'task_reminders' | 'payment_due'
+
+export type NotificationPrefs = Partial<Record<PushType, boolean>>
+
+export const PUSH_TYPES: { type: PushType; label: string; hint: string }[] = [
+  { type: 'guest_replies',  label: 'Respuestas de invitados', hint: 'Cuando alguien contesta tu invitación' },
+  { type: 'task_reminders', label: 'Recordatorios de tareas', hint: 'A la hora que programaste en el timeline' },
+  { type: 'payment_due',    label: 'Pagos por vencer',        hint: 'Recordatorios de tareas de tipo pago' },
+]

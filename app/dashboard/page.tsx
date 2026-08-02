@@ -149,6 +149,12 @@ export default function Dashboard() {
 
     if (remindersRes.error) console.error('recordatorios:', remindersRes.error)
 
+    // Sin este log, un error de la consulta (tabla inexistente, RLS) se vuelve
+    // "no hay recordatorios" y el bug queda invisible durante meses.
+    if (remindersRes.error) {
+      console.error('[dashboard] recordatorios no cargaron:', remindersRes.error.message)
+    }
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const reminderData = (remindersRes.data || []) as any[]
 
