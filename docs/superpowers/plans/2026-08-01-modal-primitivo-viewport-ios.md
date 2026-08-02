@@ -1166,6 +1166,58 @@ git commit -m "fix(viewport): pantallas de alto completo a dvh y trampa de foco 
 
 ---
 
+## Task 11.5: Tanda 4 — los 23 diálogos que el inventario original no vio
+
+**Por qué existe esta tarea:** el inventario del spec se armó buscando paneles con tope de
+altura (`max-h-[NNvh]`). Todo diálogo chico y centrado, sin tope de altura, quedó fuera del
+barrido — son 13 diálogos en archivos nunca inventariados y 10 más dentro de archivos que
+las tandas 1-3 sí tocaron pero migraron solo en parte.
+
+**Va antes del candado a propósito:** el candado solo marca `vh`, `h-screen` y hojas a mano
+(`rounded-t-2xl`). De estos 23, solo 3 lo dispararían; los otros 20 pasarían el build en
+silencio y la app quedaría con dos anatomías bajo un guardián que dice que todo está limpio.
+
+Aplica el mismo **procedimiento por archivo** de la Task 8.
+
+- [ ] **Grupo A: mesas e invitados (8 diálogos)**
+
+`app/events/[id]/mesas/page.tsx`: nueva/editar mesa, detalle de mesa, mover a otra mesa,
+agregar en bulk.
+`app/events/[id]/page.tsx`: hoja de cambiar estatus (`rounded-t-2xl`, la ve el candado),
+eliminar grupo, eliminar etiqueta, borrar invitado con conversación.
+
+- [ ] **Grupo B: dinero y timeline (5 diálogos)**
+
+`app/events/[id]/pagos/page.tsx`: nuevo pago (hoja, la ve el candado).
+`app/events/[id]/presupuesto/page.tsx`: generar presupuesto de boda.
+`app/events/[id]/proveedores/SupplierDetailModal.tsx`: el "Próximamente PRO" anidado.
+`app/events/[id]/timeline/page.tsx`: el diálogo y la hoja de filtros (la ve el candado).
+
+- [ ] **Grupo C: invitación (4 diálogos)**
+
+`app/components/ui/ColorPicker.tsx`, `app/events/[id]/invitacion/ColorControls.tsx`,
+`app/events/[id]/invitacion/page.tsx` (descartar cambios),
+`app/events/[id]/SalidaGuardProvider.tsx` (salir sin guardar).
+
+- [ ] **Grupo D: globales (6 diálogos)**
+
+`app/components/auth/AuthModal.tsx` (el más delicado: captura con teclado en móvil),
+`app/components/WhatsNewModal.tsx`, `app/components/FeedbackModal.tsx`,
+`app/components/LegalGate.tsx`, `app/components/ui/ImportStepsModal.tsx`,
+`app/admin/DeleteUserModal.tsx`.
+
+**No son modales — no tocar:** los cajones de navegación (`events/[id]/layout.tsx`,
+`mensajes/page.tsx`), la vista previa a pantalla completa de la invitación
+(`invitacion/page.tsx:452`), el zoom del código de vestimenta, el panel de `WhatsAppFAB`, y
+`ConfirmModal` (por spec, solo se le corrige el foco).
+
+- [ ] **Verificación y commit por grupo**
+
+Un commit por grupo, verificando en el navegador antes de cada uno. Nunca `git add app/` a
+secas: hay otros agentes en este checkout.
+
+---
+
 ## Task 12: El candado — script de auditoría
 
 **Files:**
