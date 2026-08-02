@@ -84,6 +84,12 @@ Se escribe con el mismo `upsert` que ya usa la app (`onConflict: 'event_id'`), q
 
 **Las herramientas reales** son siete: `album`, `comida`, `invitacion`, `mesas`, `playlist`, `regalos`, `vestimenta`. Solo 16 de 51 filas tienen `enabled_features`, y los objetos guardados vienen incompletos — **llave ausente no significa apagada**. El acomodo inicial tiene que pasar por `resolveFeatures(event_type, enabled_features)` de `lib/event-access-context.tsx`, nunca leer el JSON crudo.
 
+## La cuadrícula
+
+Se resuelve con **`react-grid-layout`** (aprobado por Diego el 2-ago; falta instalarlo). Versión 2.2.4, peer `react >= 16.3.0` — compatible con el React 19.2.3 del proyecto. 447 KB desempaquetado y 6 dependencias transitivas: `clsx`, `prop-types`, `fast-equals`, `react-draggable`, `react-resizable` y `resize-observer-polyfill`.
+
+Se descartó armarlo con `@dnd-kit` —que ya está instalado y se usa en la playlist— porque hace arrastre pero no redimensión, y sobre todo porque el trabajo caro no es ni el arrastre ni las manijas: es la **compactación**, decidir a dónde se corren las demás cajas al agrandar una para que no se encimen ni dejen huecos. Eso viene resuelto y probado en la librería.
+
 ## Abierto antes de escribir el plan
 
-- **La librería de la cuadrícula.** Si se resuelve con CSS grid y arrastre propio o con una dependencia. Instalar paquete requiere autorización.
+Nada. El diseño está cerrado — sigue el plan de implementación.
