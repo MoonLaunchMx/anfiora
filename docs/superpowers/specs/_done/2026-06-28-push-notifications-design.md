@@ -46,9 +46,9 @@ push_subscriptions (
 -- RLS: el usuario solo ve/gestiona sus propias suscripciones; el envio usa service role
 ```
 
-### Columna nueva `timeline_tasks.reminder_sent_at`
+### Columna nueva `event_timeline_tasks.reminder_sent_at`
 ```sql
-ALTER TABLE timeline_tasks ADD COLUMN reminder_sent_at TIMESTAMPTZ;
+ALTER TABLE event_timeline_tasks ADD COLUMN reminder_sent_at TIMESTAMPTZ;
 -- el cron solo envia donde reminder_date <= now() AND reminder_sent_at IS NULL AND is_completed = false
 ```
 
