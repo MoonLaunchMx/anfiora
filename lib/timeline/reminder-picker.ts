@@ -63,6 +63,18 @@ export function computeCustomInstant(date: string, time: string): string | null 
   return instant ? instant.toISOString() : null
 }
 
+// Compara instantes, no texto: lo guardado viene como "...+00:00" y lo recien
+// calculado como "...Z". Comparar las cadenas daria "cambio" siempre y
+// reenviaria avisos ya entregados con solo reescribir el titulo.
+export function reminderChanged(previous: string | null, next: string | null): boolean {
+  if (!previous && !next) return false
+  if (!previous || !next) return true
+  const a = new Date(previous).getTime()
+  const b = new Date(next).getTime()
+  if (Number.isNaN(a) || Number.isNaN(b)) return true
+  return a !== b
+}
+
 // Los campos de "fecha personalizada" se llenan con la hora local, no con la
 // UTC que trae el ISO guardado.
 export function localDateTimeParts(iso: string): { date: string; time: string } | null {

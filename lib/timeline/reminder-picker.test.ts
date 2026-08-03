@@ -6,6 +6,7 @@ import {
   detectReminderKey,
   formatReminderLabel,
   localDateTimeParts,
+  reminderChanged,
 } from './reminder-picker'
 
 describe('reminderPresetsFor', () => {
@@ -74,6 +75,25 @@ describe('computeCustomInstant', () => {
 
   it('devuelve null sin fecha', () => {
     expect(computeCustomInstant('', '11:06')).toBeNull()
+  })
+})
+
+describe('reminderChanged', () => {
+  it('el mismo instante escrito de dos formas no cuenta como cambio', () => {
+    expect(reminderChanged('2026-08-03T02:00:00+00:00', '2026-08-03T02:00:00.000Z')).toBe(false)
+  })
+
+  it('detecta que el recordatorio se movio', () => {
+    expect(reminderChanged('2026-08-03T02:00:00+00:00', '2026-08-04T02:00:00.000Z')).toBe(true)
+  })
+
+  it('sin recordatorio antes ni despues, no hay cambio', () => {
+    expect(reminderChanged(null, null)).toBe(false)
+  })
+
+  it('agregar o quitar el recordatorio cuenta como cambio', () => {
+    expect(reminderChanged(null, '2026-08-03T02:00:00.000Z')).toBe(true)
+    expect(reminderChanged('2026-08-03T02:00:00+00:00', null)).toBe(true)
   })
 })
 

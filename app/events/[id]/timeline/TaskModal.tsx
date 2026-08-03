@@ -13,6 +13,7 @@ import {
   computeCustomInstant,
   detectReminderKey,
   localDateTimeParts,
+  reminderChanged,
 } from '@/lib/timeline/reminder-picker'
 
 // ─── CONSTANTS ───────────────────────────────────────────────────────────────
@@ -172,7 +173,12 @@ export function TaskModal({ editTask, prefillDate, eventId, onClose, onSaved }: 
     }
 
     if (editTask) {
-      await supabase.from('event_timeline_tasks').update(payload).eq('id', editTask.id)
+      // Mover el recordatorio de una tarea ya avisada tiene que volver a
+      // ponerla en la fila del cron: si no, el aviso nuevo no sale nunca.
+      const update = reminderChanged(editTask.reminder_date, computedReminderDate)
+        ? { ...payload, reminder_sent_at: null }
+        : payload
+      await supabase.from('event_timeline_tasks').update(update).eq('id', editTask.id)
     } else {
       await supabase.from('event_timeline_tasks').insert(payload)
     }
