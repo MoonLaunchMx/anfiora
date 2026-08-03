@@ -54,13 +54,16 @@ export default function ColorEditor({
   }
 
   return (
-    <div className={`w-full rounded-2xl border border-[#e8e8e8] bg-white shadow-sm ${fluid ? 'max-w-sm p-4' : 'max-w-[260px] p-3'}`}>
-      <div className="mb-2 flex items-center justify-between">
-        <span className="text-xs font-semibold text-[#1D1E20]">{label}</span>
-        <button type="button" onClick={onClose} className="text-[#bbb] transition hover:text-[#666]" aria-label="Cerrar">
-          <X size={14} />
-        </button>
-      </div>
+    // fluid = va dentro del primitivo Modal: el marco y el encabezado los pone el modal
+    <div className={`w-full ${fluid ? '' : 'max-w-[260px] rounded-2xl border border-[#e8e8e8] bg-white p-3 shadow-sm'}`}>
+      {!fluid && (
+        <div className="mb-2 flex items-center justify-between">
+          <span className="text-xs font-semibold text-[#1D1E20]">{label}</span>
+          <button type="button" onClick={onClose} className="text-[#bbb] transition hover:text-[#666]" aria-label="Cerrar">
+            <X size={14} />
+          </button>
+        </div>
+      )}
 
       <div className="mb-3 flex overflow-hidden rounded-lg border border-[#e0e0e0]">
         <button
