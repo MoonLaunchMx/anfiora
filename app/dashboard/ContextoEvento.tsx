@@ -1,21 +1,15 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import {
-  Activity, Briefcase, Check, CircleAlert, CircleCheck, Copy, Gift, LayoutGrid,
-  PencilLine, Settings, UserPlus, Users,
-} from 'lucide-react'
+import { Activity, LayoutGrid, Settings, UserPlus, Users } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
-import { formatCurrency, formatEventDate } from '@/lib/types'
-import { slugifyEvent } from '@/lib/invite'
-import { ACCESS_MODES, resolveAccessMode } from '@/lib/features'
 import { AUDIT_ACTION_LABEL, type AuditAction } from '@/lib/audit'
 import { haceCuanto } from '@/lib/dashboard/salud'
 import { buildUrgencias } from '@/lib/dashboard/urgencias'
+import { CIFRAS_BASE, cifrasDisponibles, type CifraId } from '@/lib/dashboard/tablero'
+import BannerEvento from './BannerEvento'
 import FeedAtencion from './FeedAtencion'
 import type { ColaboradorRow, EventMetrics, Rol, TaskRow } from '@/lib/dashboard/types'
-
-type ConFecha = { event_date: string | null; event_time: string | null }
 
 type ActividadRow = {
   id: string
@@ -23,50 +17,6 @@ type ActividadRow = {
   entity_label: string | null
   user_name: string | null
   created_at: string
-}
-
-function getEventDateTime(event: ConFecha): Date {
-  if (!event.event_date) return new Date()
-  const [year, month, day] = event.event_date.split('T')[0].split('-').map(Number)
-  const base = new Date(year, month - 1, day)
-  if (event.event_time) {
-    const [h, m] = event.event_time.split(':').map(Number)
-    base.setHours(h, m, 0, 0)
-  } else {
-    base.setHours(0, 0, 0, 0)
-  }
-  return base
-}
-
-function formatTime(time: string | null): string {
-  if (!time) return ''
-  const [h, m] = time.split(':').map(Number)
-  const ampm = h >= 12 ? 'pm' : 'am'
-  const h12 = h % 12 || 12
-  return h12 + ':' + m.toString().padStart(2, '0') + ' ' + ampm
-}
-
-function getCountdown(event: ConFecha, now: Date) {
-  const diff = getEventDateTime(event).getTime() - now.getTime()
-  if (diff <= 0) return { grande: '¡Hoy!', unidad: '', chico: '' }
-  const totalDays = Math.floor(diff / 86400000)
-  const hours   = Math.floor((diff % 86400000) / 3600000)
-  const minutes = Math.floor((diff % 3600000) / 60000)
-  const seconds = Math.floor((diff % 60000) / 1000)
-  if (totalDays >= 1) {
-    return { grande: String(totalDays), unidad: totalDays === 1 ? 'día' : 'días', chico: `${hours} h · ${minutes} min` }
-  }
-  return { grande: `${hours}`, unidad: 'horas', chico: `${minutes} min · ${seconds} s` }
-}
-
-// Promedio simple de las cuatro dimensiones que el planner ya mueve a mano.
-// Deliberadamente sin pesos: cualquier ponderacion seria inventada.
-function pctOrganizacion(m: EventMetrics): number {
-  const cabezas = m.mesas.conLugar + m.mesas.sinLugar
-  const acomodado = cabezas > 0 ? (m.mesas.conLugar / cabezas) * 100 : 0
-  const totalTareas = m.tareas.vencidas + m.tareas.hoy + m.tareas.proximas
-  const alDia = totalTareas > 0 ? ((totalTareas - m.tareas.vencidas) / totalTareas) * 100 : 0
-  return Math.round((m.invitados.pctConfirmado + Math.min(100, m.dinero.pctContratado) + acomodado + alDia) / 4)
 }
 
 const CHIP_BASE = 'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[12px] font-semibold whitespace-nowrap'
@@ -91,39 +41,14 @@ const ICONO_ACTIVIDAD: Record<string, React.ElementType> = {
   settings: Settings, collaborator: UserPlus,
 }
 
-const ESTADO_LABEL: Record<string, string> = {
-  active: 'Activo', paused: 'Pausado', cancelled: 'Cancelado', completed: 'Completado',
-}
-
 const ROL_LABEL: Record<string, string> = { admin: 'Admin', editor: 'Editor', viewer: 'Viewer' }
 
-// Cada dato del hero se distingue por tratamiento, no por una pill identica:
-// el tipo y el estado van de antetitulo, la invitacion y el acceso de icono.
-const INVITACION_CHIP: Record<string, { color: string; texto: string; Icono: React.ElementType }> = {
-  publicada: { color: 'text-[#1A9E88]', texto: 'Invitación publicada',  Icono: CircleCheck },
-  cambios:   { color: 'text-[#B8860B]', texto: 'Cambios sin publicar',  Icono: CircleAlert },
-  borrador:  { color: 'text-[#999]',    texto: 'Invitación en borrador', Icono: PencilLine },
-}
-
 // Escala tipografica del tablero. Un solo lugar donde cambiarla.
-const T_LABEL   = 'text-[12px] font-semibold uppercase tracking-[0.07em] text-[#999]'
-const T_METRICA = 'font-display text-[32px] font-extrabold leading-none tracking-[-0.025em]'
 const T_SECCION = 'font-display text-[18px] font-bold tracking-[-0.015em] sm:text-[20px]'
-const T_CUERPO  = 'text-[13.5px] text-[#666]'
 const T_META    = 'text-[12.5px] text-[#888]'
 
 const CARD = 'rounded-2xl border border-[#E8E8E8] bg-white px-5 py-4'
 const BTN_SEC = 'rounded-[10px] border border-[#E0E0E0] bg-[#F8F8F8] px-3.5 py-2 text-[13px] font-semibold text-[#1D1E20] transition hover:border-[#48C9B0]'
-
-function Barra({ tramos, alto = 'h-2' }: { tramos: { pct: number; color: string }[]; alto?: string }) {
-  return (
-    <div className={`my-3 flex ${alto} overflow-hidden rounded-full bg-[#F0F0F0]`}>
-      {tramos.filter(t => t.pct > 0).map((t, i) => (
-        <span key={i} className="block h-full transition-all duration-500" style={{ width: `${t.pct}%`, background: t.color }} />
-      ))}
-    </div>
-  )
-}
 
 function Ficha({ valor, label, tono }: { valor: number | string; label: string; tono?: 'aviso' | 'teal' }) {
   const fondo = tono === 'aviso' ? 'bg-[#FFF8E8]' : tono === 'teal' ? 'bg-[#F0FDFB]' : 'bg-[#F8F8F8]'
@@ -145,15 +70,16 @@ type Props = {
   onAbrirEvento: () => void
 }
 
-export default function ContextoEvento({ m, colaboradores, rol, puedeVerDinero, usuarioEmail, onAbrirEvento }: Props) {
+export default function ContextoEvento({ m, colaboradores, puedeVerDinero, usuarioEmail, onAbrirEvento }: Props) {
   const [now, setNow] = useState(new Date())
-  const [copiado, setCopiado] = useState(false)
   const [tareas, setTareas] = useState<TaskRow[]>(m.tareasProximas)
   const [fallo, setFallo] = useState<string | null>(null)
   const [actividad, setActividad] = useState<ActividadRow[]>([])
 
+  // Un tic por minuto alcanza: la urgencia de una tarea y el "hace cuanto" de la
+  // actividad se miden en minutos y horas, no en segundos.
   useEffect(() => {
-    const interval = setInterval(() => setNow(new Date()), 1000)
+    const interval = setInterval(() => setNow(new Date()), 60000)
     return () => clearInterval(interval)
   }, [])
 
@@ -181,21 +107,13 @@ export default function ContextoEvento({ m, colaboradores, rol, puedeVerDinero, 
   }, [m.event.id])
 
   const ev = m.event
-  const cd = getCountdown(ev, now)
-  const org = pctOrganizacion(m)
-  const inv = INVITACION_CHIP[m.invitacion] ?? INVITACION_CHIP.borrador
-  const acceso = ACCESS_MODES.find(a => a.key === resolveAccessMode(ev.event_type, m.accessMode))
   const urgencias = buildUrgencias([m], { puedeVerDinero })
 
-  // El origin se lee al hacer clic, no en un efecto: guardarlo en estado
-  // desincroniza el render del servidor con el del cliente.
-  const copiarLink = async () => {
-    if (!m.sharedToken) return
-    const slug = slugifyEvent({ name: ev.name, host_name: ev.host_name, host_name_2: ev.host_name_2 })
-    await navigator.clipboard.writeText(`${window.location.origin}/invitacion/${slug}/${m.sharedToken}`)
-    setCopiado(true)
-    setTimeout(() => setCopiado(false), 2000)
-  }
+  // Paso intermedio: las cifras del banner todavia no se guardan por evento.
+  // Se muestran las de fabrica que apliquen; el selector se enciende cuando
+  // aterrice la columna dashboard_layout.
+  const cifrasDisp = cifrasDisponibles(ev.event_type, null, puedeVerDinero)
+  const cifras: CifraId[] = CIFRAS_BASE.filter(c => cifrasDisp.includes(c))
 
   const marcarHecha = async (id: string) => {
     const previas = tareas
@@ -208,119 +126,6 @@ export default function ContextoEvento({ m, colaboradores, rol, puedeVerDinero, 
     }
   }
 
-  const totalInv = m.invitados.total || 1
-  const tarjetaInvitados = (
-    <div key="invitados" className={CARD}>
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <span className={T_LABEL}>Invitados</span>
-        <span className="grid h-8 w-8 place-items-center rounded-[10px] bg-[#F0FDFB]">
-          <Users size={16} className="text-[#1A9E88]" />
-        </span>
-      </div>
-      <p className={T_METRICA}>
-        {m.invitados.confirmados}
-        <span className="ml-1.5 text-[14px] font-medium tracking-normal text-[#888]">de {m.invitados.total}</span>
-      </p>
-      <Barra tramos={[
-        { pct: (m.invitados.confirmados / totalInv) * 100, color: '#48C9B0' },
-        { pct: (m.invitados.pendientes  / totalInv) * 100, color: '#D4A853' },
-        { pct: (m.invitados.declinados  / totalInv) * 100, color: '#E4E4E4' },
-      ]} />
-      <p className={T_CUERPO}>{m.invitados.pendientes} pendientes · {m.invitados.declinados} no asisten</p>
-      {m.invitados.atencion > 0 && (
-        <span className={`mt-3 ${CHIP_BAD}`}>
-          {m.invitados.atencion} {m.invitados.atencion === 1 ? 'requiere' : 'requieren'} atención
-        </span>
-      )}
-    </div>
-  )
-
-  const pista = Math.max(m.dinero.estimado, m.dinero.contratado) || 1
-  const tarjetaPresupuesto = (
-    <div key="presupuesto" className={CARD}>
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <span className={T_LABEL}>Presupuesto</span>
-        <span className="grid h-8 w-8 place-items-center rounded-[10px] bg-[#FFFBF0]">
-          <Briefcase size={16} className="text-[#8A6A1E]" />
-        </span>
-      </div>
-      <p className={T_METRICA}>
-        {formatCurrency(m.dinero.estimado, ev.currency)}
-        <span className="ml-1.5 text-[14px] font-medium tracking-normal text-[#888]">estimado</span>
-      </p>
-      {m.dinero.excedido ? (
-        <Barra tramos={[{ pct: 100, color: '#CC3333' }]} />
-      ) : (
-        <Barra tramos={[
-          { pct: (m.dinero.pagado   / pista) * 100, color: '#1A9E88' },
-          { pct: (m.dinero.porPagar / pista) * 100, color: '#48C9B0' },
-        ]} />
-      )}
-      <div className="flex flex-col gap-1.5 text-[13px]">
-        <div className="flex items-center justify-between gap-3">
-          <span className="flex items-center gap-2 text-[#666]"><i className="h-2 w-2 rounded-full bg-[#1A9E88]" />Pagado</span>
-          <b className="font-semibold">{formatCurrency(m.dinero.pagado, ev.currency)}</b>
-        </div>
-        <div className="flex items-center justify-between gap-3">
-          <span className="flex items-center gap-2 text-[#666]"><i className="h-2 w-2 rounded-full bg-[#48C9B0]" />Contratado por pagar</span>
-          <b className="font-semibold">{formatCurrency(m.dinero.porPagar, ev.currency)}</b>
-        </div>
-        <div className="flex items-center justify-between gap-3 text-[#999]">
-          <span className="flex items-center gap-2"><i className="h-2 w-2 rounded-full bg-[#EFEFEF]" />Sin contratar</span>
-          <b className="font-semibold">{formatCurrency(m.dinero.sinContratar, ev.currency)}</b>
-        </div>
-      </div>
-      {m.dinero.excedido && (
-        <span className={`mt-3 ${CHIP_BAD}`}>
-          Excedido en {formatCurrency(m.dinero.contratado - m.dinero.estimado, ev.currency)}
-        </span>
-      )}
-    </div>
-  )
-
-  const totalProv = m.proveedores.total || 1
-  const tarjetaProveedores = (
-    <div key="proveedores" className={CARD}>
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <span className={T_LABEL}>Proveedores</span>
-        <span className="grid h-8 w-8 place-items-center rounded-[10px] bg-[#F5F5F5]">
-          <Briefcase size={16} className="text-[#777]" />
-        </span>
-      </div>
-      <p className={T_METRICA}>
-        {m.proveedores.contratados}
-        <span className="ml-1.5 text-[14px] font-medium tracking-normal text-[#888]">de {m.proveedores.total} contratados</span>
-      </p>
-      <Barra tramos={[
-        { pct: (m.proveedores.contratados / totalProv) * 100, color: '#48C9B0' },
-        { pct: (m.proveedores.cotizados   / totalProv) * 100, color: '#D4A853' },
-      ]} />
-      <p className={T_CUERPO}>{m.proveedores.cotizados} cotizados · {m.proveedores.nuevos} sin cotizar</p>
-    </div>
-  )
-
-  const tarjetaRegalos = (
-    <div key="regalos" className={CARD}>
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <span className={T_LABEL}>Mesa de regalos</span>
-        <span className="grid h-8 w-8 place-items-center rounded-[10px] bg-[#FFFBF0]">
-          <Gift size={16} className="text-[#8A6A1E]" />
-        </span>
-      </div>
-      <p className={T_METRICA}>{formatCurrency(m.regalos.recibido, ev.currency)}</p>
-      <Barra tramos={[
-        { pct: m.regalos.totalItems > 0 ? (m.regalos.apartados / m.regalos.totalItems) * 100 : 0, color: '#D4A853' },
-      ]} />
-      <p className={T_CUERPO}>{m.regalos.apartados} de {m.regalos.totalItems} apartados</p>
-    </div>
-  )
-
-  const tarjetas = puedeVerDinero
-    ? (rol === 'planner'
-        ? [tarjetaPresupuesto, tarjetaProveedores, tarjetaInvitados, tarjetaRegalos]
-        : [tarjetaInvitados, tarjetaRegalos, tarjetaPresupuesto, tarjetaProveedores])
-    : [tarjetaInvitados, tarjetaRegalos]
-
   const pctAcomodado = m.mesas.conLugar + m.mesas.sinLugar > 0
     ? Math.round((m.mesas.conLugar / (m.mesas.conLugar + m.mesas.sinLugar)) * 100)
     : 0
@@ -328,88 +133,14 @@ export default function ContextoEvento({ m, colaboradores, rol, puedeVerDinero, 
   return (
     <div className="flex flex-col gap-4">
 
-      <div className={'grid gap-4 ' + (puedeVerDinero ? 'xl:grid-cols-[1.05fr_1fr]' : 'xl:grid-cols-[1.4fr_1fr]')}>
-
-        <div className="relative overflow-hidden rounded-2xl border border-[#e8e8e8] bg-gradient-to-br from-white via-white to-[#f3fbf9] px-4 py-5 sm:px-6 sm:py-6">
-          <div className="pointer-events-none absolute -right-16 -top-24 h-[320px] w-[320px] rounded-full bg-[#48C9B0]/15 blur-3xl" />
-          <div className="relative z-10 flex h-full flex-col">
-
-            <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[12px] font-semibold uppercase tracking-[0.09em] text-[#999]">
-              {ev.event_type && (
-                <>
-                  <span>{ev.event_type}</span>
-                  <span className="text-[#DDD]">/</span>
-                </>
-              )}
-              <span className={'flex items-center gap-1.5 ' + (ev.event_status === 'active' ? 'text-[#1A9E88]' : 'text-[#B8860B]')}>
-                <i className={'h-[7px] w-[7px] rounded-full ' + (ev.event_status === 'active' ? 'bg-[#48C9B0]' : 'bg-[#D4A853]')} />
-                {ESTADO_LABEL[ev.event_status] ?? ev.event_status}
-              </span>
-            </div>
-
-            <h2 className="mt-2 font-display text-[27px] font-black leading-[1.03] tracking-[-0.03em] sm:text-[34px] xl:text-[40px]">
-              {ev.name}
-            </h2>
-            <p className="mt-2 text-[13px] text-[#777] sm:text-[14px]">
-              {formatEventDate(ev.event_date, ev.event_end_date)}
-              {ev.event_time && ` · ${formatTime(ev.event_time)}`}
-              {ev.venue && ` · ${ev.venue}`}
-            </p>
-
-            <div className="mt-3.5 flex flex-wrap items-center gap-x-5 gap-y-2 text-[13px]">
-              <span className={'flex items-center gap-2 font-medium ' + inv.color}>
-                <inv.Icono size={15} />
-                {inv.texto}
-              </span>
-              {acceso && (
-                <span className="flex items-center gap-2 text-[#999]">
-                  <acceso.icon size={15} />
-                  {acceso.label}
-                </span>
-              )}
-            </div>
-
-            <div className="mt-6 flex flex-wrap items-end gap-x-8 gap-y-4">
-              <div>
-                <p className={T_LABEL}>Faltan</p>
-                <p className="mt-1 flex items-baseline gap-2">
-                  <b className="font-display text-[42px] font-black leading-[0.85] tracking-[-0.04em] text-[#1A9E88] sm:text-[52px]">{cd.grande}</b>
-                  <span className="text-[14px] font-semibold text-[#888] sm:text-[15px]">{cd.unidad}</span>
-                </p>
-                {cd.chico && <p className="mt-1.5 text-[13px] text-[#999]">{cd.chico}</p>}
-              </div>
-              <div className="min-w-[160px] flex-1">
-                <div className="mb-2 flex items-center justify-between gap-3">
-                  <span className={T_LABEL}>Organización</span>
-                  <span className="font-display text-[15px] font-extrabold text-[#1A9E88]">{org}%</span>
-                </div>
-                <div className="h-2.5 overflow-hidden rounded-full bg-[#EDEDED]">
-                  <div className="h-full rounded-full bg-gradient-to-r from-[#48C9B0] to-[#1A9E88] transition-all duration-700" style={{ width: `${org}%` }} />
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-6 flex flex-wrap gap-2">
-              <button
-                onClick={onAbrirEvento}
-                className="flex-1 rounded-[10px] bg-[#48C9B0] px-4 py-2.5 text-[13.5px] font-semibold text-white transition hover:bg-[#3ab89f] active:scale-95 sm:flex-none"
-              >
-                Abrir evento
-              </button>
-              {m.sharedToken && (
-                <button onClick={copiarLink} className={BTN_SEC + ' flex flex-1 items-center justify-center gap-2 sm:flex-none'}>
-                  {copiado ? <Check size={14} className="text-[#1A9E88]" /> : <Copy size={14} />}
-                  {copiado ? 'Copiado' : 'Copiar link'}
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-
-        <div className={'grid gap-4 ' + (puedeVerDinero ? 'sm:grid-cols-2' : 'sm:grid-cols-2 xl:grid-cols-1')}>
-          {tarjetas}
-        </div>
-      </div>
+      <BannerEvento
+        m={m}
+        cifras={cifras}
+        cifrasDisp={cifrasDisp}
+        modoPersonalizar={false}
+        onCambiarCifra={() => {}}
+        onAbrirEvento={onAbrirEvento}
+      />
 
       <FeedAtencion urgencias={urgencias} titulo="Requiere tu atención" mostrarEvento={false} />
 
