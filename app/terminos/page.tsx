@@ -6,7 +6,7 @@ import { CURRENT_LEGAL_VERSION, LEGAL_EFFECTIVE_DATE } from '@/lib/legal'
 
 export default function TerminosPage() {
   return (
-    <div className="min-h-screen" style={{ background: 'var(--bg)', color: 'var(--text)' }}>
+    <div className="min-h-[100dvh]" style={{ background: 'var(--bg)', color: 'var(--text)' }}>
       <header
         className="border-b px-6 py-4 flex items-center justify-between"
         style={{ borderColor: 'var(--border)', background: 'var(--bg)' }}

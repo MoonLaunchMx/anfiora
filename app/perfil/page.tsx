@@ -375,14 +375,14 @@ export default function PerfilPage() {
 
   if (loading) {
     return (
-      <div className="flex h-screen items-center justify-center bg-white">
+      <div className="flex h-[100dvh] items-center justify-center bg-white">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#e8e8e8] border-t-[#48C9B0]" />
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-[#f8f5f0] font-sans text-[#1D1E20]">
+    <div className="min-h-[100dvh] bg-[#f8f5f0] font-sans text-[#1D1E20]">
 
       {/* Header */}
       <header className="sticky top-0 z-10 border-b border-[#e8e8e8] bg-white">

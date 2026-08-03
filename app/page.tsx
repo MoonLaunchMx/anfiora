@@ -320,7 +320,7 @@ export default function LandingPage() {
         </AnimatePresence>
       </nav>
 
-      <div className="min-h-screen overflow-x-hidden bg-white text-[#1D1E20]">
+      <div className="min-h-[100dvh] overflow-x-hidden bg-white text-[#1D1E20]">
 
         {/* HERO */}
         <section className="mx-auto max-w-6xl px-5 pb-16 pt-16 md:pt-24">
@@ -601,7 +601,7 @@ export default function LandingPage() {
         {/* FOOTER */}
         <footer className="border-t border-white/10 bg-[#1D1E20] px-5 py-4">
           <div className="mx-auto flex max-w-6xl items-center justify-between gap-4">
-            <img src="/images/isotipologo.svg" alt="Anfiora" className="h-6 shrink-0 brightness-0 invert" />
+            <img src="/images/isotipoylogo.svg" alt="Anfiora" className="h-6 shrink-0 brightness-0 invert" />
             <div className="flex shrink-0 gap-5">
               {t.footer.links.map(link => (
                 <a key={link} href="#" className="whitespace-nowrap text-[10px] text-white/30 no-underline">{link}</a>

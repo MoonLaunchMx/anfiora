@@ -315,7 +315,7 @@ export default function MensajesGlobalPage() {
   // ── Layout ─────────────────────────────────────────────────────────────────
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden bg-white font-sans text-[#1D1E20]">
+    <div className="flex flex-col h-[100dvh] overflow-hidden bg-white font-sans text-[#1D1E20]">
 
       {/* Header global */}
       <header className="shrink-0 border-b border-[#e8e8e8] bg-white">

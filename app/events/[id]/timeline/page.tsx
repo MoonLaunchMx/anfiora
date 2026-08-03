@@ -17,6 +17,7 @@ import { ItineraryView } from './ItineraryView'
 import { ItineraryToolbar } from './ItineraryToolbar'
 import { useItinerary } from './useItinerary'
 import { TabToggle, type TabItem } from '@/app/components/ui/TabToggle'
+import { Modal } from '@/app/components/ui/Modal'
 
 // ─── CONSTANTS ───────────────────────────────────────────────────────────────
 
@@ -61,18 +62,12 @@ interface DayModalProps {
 function DayModal({ dateKey, tasks, onClose, onEdit, onToggleCompleted, onAddNew }: DayModalProps) {
   const [year, month, day] = dateKey.split('-').map(Number)
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
-      <div className="bg-white w-full max-w-sm rounded-2xl shadow-xl overflow-hidden" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-5 py-4 border-b border-[#e8e8e8]">
-          <div>
-            <p className="text-sm font-semibold text-[#1D1E20]">{day} de {MONTH_NAMES[month - 1]} {year}</p>
-            <p className="text-[11px] text-[#aaa] mt-0.5">
-              {tasks.length === 0 ? 'Sin tareas' : `${tasks.length} tarea${tasks.length !== 1 ? 's' : ''}`}
-            </p>
-          </div>
-          <button onClick={onClose} className="text-[#aaa] hover:text-[#555]"><X size={16} /></button>
-        </div>
-        <div className="max-h-80 overflow-y-auto px-4 py-3 flex flex-col gap-2">
+    <Modal open onClose={onClose} size="sm">
+      <Modal.Header
+        title={`${day} de ${MONTH_NAMES[month - 1]} ${year}`}
+        subtitle={tasks.length === 0 ? 'Sin tareas' : `${tasks.length} tarea${tasks.length !== 1 ? 's' : ''}`}
+      />
+      <Modal.Body className="flex flex-col gap-2">
           {tasks.length === 0 ? (
             <div className="py-6 text-center"><p className="text-sm text-[#888]">Sin tareas este día</p></div>
           ) : tasks.map(t => {
@@ -98,15 +93,14 @@ function DayModal({ dateKey, tasks, onClose, onEdit, onToggleCompleted, onAddNew
               </div>
             )
           })}
-        </div>
-        <div className="px-4 pb-4 pt-2 border-t border-[#e8e8e8]">
-          <button onClick={() => onAddNew(dateKey)}
-            className="flex items-center gap-1.5 w-full justify-center py-2.5 text-sm font-medium text-[#48C9B0] border border-dashed border-[#48C9B0] rounded-xl hover:bg-[#f0fdfb] transition-colors">
-            <Plus size={13} />Agregar tarea este día
-          </button>
-        </div>
-      </div>
-    </div>
+      </Modal.Body>
+      <Modal.Footer>
+        <button onClick={() => onAddNew(dateKey)}
+          className="flex items-center gap-1.5 w-full justify-center py-2.5 text-sm font-medium text-[#48C9B0] border border-dashed border-[#48C9B0] rounded-xl hover:bg-[#f0fdfb] transition-colors">
+          <Plus size={13} />Agregar tarea este día
+        </button>
+      </Modal.Footer>
+    </Modal>
   )
 }
 
@@ -124,19 +118,16 @@ interface FilterDrawerProps {
 function FilterDrawer({ search, category, onSearch, onCategory, onClose, onClear }: FilterDrawerProps) {
   const hasFilters = search.trim() !== '' || category !== ''
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40" onClick={onClose}>
-      <div className="bg-white w-full rounded-t-2xl p-5 pb-8" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between mb-5">
-          <h2 className="text-base font-semibold text-[#1D1E20]">Filtrar</h2>
-          <button onClick={onClose} className="text-[#aaa] hover:text-[#555]"><X size={18} /></button>
-        </div>
+    <Modal open onClose={onClose} size="md">
+      <Modal.Header title="Filtrar" />
+      <Modal.Body>
         <div className="mb-4">
           <label className="text-xs font-medium text-[#555] mb-1.5 block">Buscar</label>
           <div className="relative">
             <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#bbb]" />
             <input type="text" value={search} onChange={e => onSearch(e.target.value)}
               placeholder="Título o notas..."
-              className="w-full border border-[#e0e0e0] rounded-xl pl-8 pr-3 py-2.5 text-sm focus:outline-none focus:border-[#48C9B0] bg-[#f8f8f8]" />
+              className="w-full border border-[#e0e0e0] rounded-xl pl-8 pr-3 py-2.5 text-base focus:outline-none focus:border-[#48C9B0] bg-[#f8f8f8]" />
             {search && (
               <button onClick={() => onSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#bbb]">
                 <X size={13} />
@@ -144,29 +135,29 @@ function FilterDrawer({ search, category, onSearch, onCategory, onClose, onClear
             )}
           </div>
         </div>
-        <div className="mb-6">
+        <div>
           <label className="text-xs font-medium text-[#555] mb-1.5 block">Categoría</label>
           <div className="relative">
             <select value={category} onChange={e => onCategory(e.target.value)}
-              className="w-full border border-[#e0e0e0] rounded-xl px-3 py-2.5 text-sm appearance-none focus:outline-none focus:border-[#48C9B0] bg-[#f8f8f8]">
+              className="w-full border border-[#e0e0e0] rounded-xl px-3 py-2.5 text-base appearance-none focus:outline-none focus:border-[#48C9B0] bg-[#f8f8f8]">
               <option value="">Todas las categorías</option>
               {CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
             </select>
-            <ChevronDown size={14} className="absolute right-3 top-3 text-[#aaa] pointer-events-none" />
+            <ChevronDown size={14} className="absolute right-3 top-3.5 text-[#aaa] pointer-events-none" />
           </div>
         </div>
-        <div className="flex gap-2.5">
-          {hasFilters && (
-            <button onClick={onClear} className="flex-1 py-2.5 text-sm border border-[#e0e0e0] rounded-xl text-[#888] hover:bg-[#f8f8f8]">
-              Limpiar
-            </button>
-          )}
-          <button onClick={onClose} className="flex-[2] py-2.5 text-sm bg-[#48C9B0] text-white rounded-xl font-semibold hover:bg-[#3ab89f]">
-            Aplicar
+      </Modal.Body>
+      <Modal.Footer>
+        {hasFilters && (
+          <button onClick={onClear} className="flex-1 py-2.5 text-sm border border-[#e0e0e0] rounded-xl text-[#888] hover:bg-[#f8f8f8]">
+            Limpiar
           </button>
-        </div>
-      </div>
-    </div>
+        )}
+        <button onClick={onClose} className="flex-[2] py-2.5 text-sm bg-[#48C9B0] text-white rounded-xl font-semibold hover:bg-[#3ab89f]">
+          Aplicar
+        </button>
+      </Modal.Footer>
+    </Modal>
   )
 }
 

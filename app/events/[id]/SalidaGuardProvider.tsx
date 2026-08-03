@@ -1,7 +1,7 @@
 'use client'
 
 import { createContext, useCallback, useContext, useRef, useState } from 'react'
-import { AnimatePresence, motion } from 'framer-motion'
+import { Modal } from '@/app/components/ui/Modal'
 
 // Guardian de salida del editor de invitacion. El editor registra si tiene
 // cambios sin publicar y como publicarlos; el nav pide permiso antes de navegar.
@@ -54,41 +54,35 @@ export function SalidaGuardProvider({ children }: { children: React.ReactNode })
   return (
     <SalidaCtx.Provider value={{ registrar, salir }}>
       {children}
-      <AnimatePresence>
-        {pendiente && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.15 }}
-            className="fixed inset-0 z-[70] flex items-center justify-center bg-[#1D1E20]/40 px-6"
-            onClick={() => { if (!publicando) setPendiente(null) }}
-          >
-            <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl" onClick={e => e.stopPropagation()}>
-              <h3 className="text-base font-bold text-[#1D1E20]">Tienes cambios sin publicar</h3>
-              <p className="mt-2 text-sm leading-relaxed text-[#666]">
-                Lo que editaste todavía no lo ven tus invitados. ¿Publicarlo antes de salir?
-              </p>
-              <div className="mt-5 flex flex-col gap-2">
-                <button
-                  onClick={publicarYSalir}
-                  disabled={publicando}
-                  className="rounded-lg bg-[#48C9B0] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#3ab89f] disabled:opacity-60"
-                >
-                  {publicando ? 'Publicando...' : 'Publicar cambios'}
-                </button>
-                <button
-                  onClick={salirSinPublicar}
-                  disabled={publicando}
-                  className="rounded-lg px-4 py-2 text-xs font-medium text-[#999] transition hover:bg-[#f5f5f5] disabled:opacity-60"
-                >
-                  Salir sin publicar
-                </button>
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <Modal
+        open={!!pendiente}
+        onClose={() => { if (!publicando) setPendiente(null) }}
+        size="sm"
+      >
+        <Modal.Header
+          title="Tienes cambios sin publicar"
+          subtitle="Lo que editaste todavía no lo ven tus invitados. ¿Publicarlo antes de salir?"
+          onClose={() => { if (!publicando) setPendiente(null) }}
+        />
+        <Modal.Footer>
+          <div className="flex w-full flex-col gap-2">
+            <button
+              onClick={publicarYSalir}
+              disabled={publicando}
+              className="rounded-lg bg-[#48C9B0] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#3ab89f] disabled:opacity-60"
+            >
+              {publicando ? 'Publicando...' : 'Publicar cambios'}
+            </button>
+            <button
+              onClick={salirSinPublicar}
+              disabled={publicando}
+              className="rounded-lg px-4 py-2 text-xs font-medium text-[#999] transition hover:bg-[#f5f5f5] disabled:opacity-60"
+            >
+              Salir sin publicar
+            </button>
+          </div>
+        </Modal.Footer>
+      </Modal>
     </SalidaCtx.Provider>
   )
 }

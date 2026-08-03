@@ -266,7 +266,7 @@ export default function ProveedoresPage() {
         {filtered.length === 0 && items.length === 0 ? (
           <EmptyState onAdd={() => setModalOpen(true)} />
         ) : filtered.length === 0 ? (
-          <div className="flex min-h-[30vh] items-center justify-center rounded-xl border border-dashed border-[#e0e0e0] bg-[#fafafa]">
+          <div className="flex min-h-[30dvh] items-center justify-center rounded-xl border border-dashed border-[#e0e0e0] bg-[#fafafa]">
             <p className="text-sm text-[#888]">Sin resultados con los filtros actuales</p>
           </div>
         ) : (
@@ -460,7 +460,7 @@ function StatCard({ label, value, color, small }: {
 
 function EmptyState({ onAdd }: { onAdd: () => void }) {
   return (
-    <div className="flex min-h-[40vh] flex-col items-center justify-center rounded-xl border border-dashed border-[#e0e0e0] bg-[#fafafa] p-6 text-center">
+    <div className="flex min-h-[40dvh] flex-col items-center justify-center rounded-xl border border-dashed border-[#e0e0e0] bg-[#fafafa] p-6 text-center">
       <p className="text-sm font-semibold text-[#1D1E20]">Sin proveedores aún</p>
       <p className="mt-1 max-w-xs text-xs text-[#888]">
         Empieza agregando los proveedores con los que estás en contacto.

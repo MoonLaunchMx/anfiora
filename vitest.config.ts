@@ -5,7 +5,7 @@ export default defineConfig({
   test: {
     environment: 'node',
     env: { TZ: 'America/Mexico_City' },
-    include: ['lib/**/*.test.ts', 'app/**/*.test.ts'],
+    include: ['lib/**/*.test.ts', 'app/**/*.test.ts', 'scripts/**/*.test.mjs'],
   },
   resolve: {
     alias: { '@': path.resolve(__dirname, '.') },

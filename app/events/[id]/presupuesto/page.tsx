@@ -20,6 +20,7 @@ import { buildBudgetItems, BudgetTier } from './lib/templates'
 import { exportToExcel, exportToPDF, downloadImportTemplate } from './lib/exports'
 import SupplierDetailModal from '../proveedores/SupplierDetailModal'
 import SupplierReviewModal from '../proveedores/SupplierReviewModal'
+import { Modal } from '@/app/components/ui/Modal'
 
 type EventSupplierWithName = EventSupplier & {
   supplier: Pick<Supplier, 'id' | 'name' | 'category'>
@@ -601,13 +602,13 @@ export default function PresupuestoPage() {
       </div>
 
       {showTierModal && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 p-4" onClick={() => { if (!generating) setShowTierModal(false) }}>
-          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl" onClick={e => e.stopPropagation()}>
-            <div className="mb-1 flex items-center justify-between">
-              <h2 className="text-base font-bold text-[#1D1E20]">Generar presupuesto de boda</h2>
-              <button onClick={() => { if (!generating) setShowTierModal(false) }} className="text-[#aaa] hover:text-[#555]"><X size={18} /></button>
-            </div>
-            <p className="mb-4 text-xs text-[#888]">Elige el nivel. A mayor nivel, más categorías y conceptos. Sin montos: tú los defines.</p>
+        <Modal open onClose={() => { if (!generating) setShowTierModal(false) }} size="md">
+          <Modal.Header
+            title="Generar presupuesto de boda"
+            subtitle="Elige el nivel. A mayor nivel, más categorías y conceptos. Sin montos: tú los defines."
+            onClose={() => { if (!generating) setShowTierModal(false) }}
+          />
+          <Modal.Body>
             <div className="flex flex-col gap-2.5">
               {([
                 { tier: 'esencial' as BudgetTier, label: 'Esencial', desc: 'Lo indispensable para tu boda.' },
@@ -624,8 +625,8 @@ export default function PresupuestoPage() {
                 </button>
               ))}
             </div>
-          </div>
-        </div>
+          </Modal.Body>
+        </Modal>
       )}
 
       {showCategoriesModal && (
@@ -666,122 +667,98 @@ export default function PresupuestoPage() {
       />
 
       {/* ── MODAL DE IMPORT ── */}
-      {importModalOpen && (
-        <>
-          <div
-            onClick={() => setImportModalOpen(false)}
-            className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm"
-          />
-          <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4">
-            <div className="flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-t-2xl bg-white shadow-xl sm:rounded-2xl">
-
-              <div className="flex shrink-0 items-center justify-between border-b border-[#f0f0f0] px-5 py-4">
-                <div>
-                  <h2 className="text-base font-bold text-[#1D1E20]">Importar presupuesto</h2>
-                  <p className="text-xs text-[#888]">
-                    {importRows.length} concepto{importRows.length !== 1 ? 's' : ''} encontrado{importRows.length !== 1 ? 's' : ''}
-                    {duplicateCount > 0 && ` · ${duplicateCount} duplicado${duplicateCount !== 1 ? 's' : ''}`}
-                  </p>
-                </div>
+      <Modal open={importModalOpen} onClose={() => setImportModalOpen(false)} size="lg">
+        <Modal.Header
+          title="Importar presupuesto"
+          subtitle={`${importRows.length} concepto${importRows.length !== 1 ? 's' : ''} encontrado${importRows.length !== 1 ? 's' : ''}${duplicateCount > 0 ? ` · ${duplicateCount} duplicado${duplicateCount !== 1 ? 's' : ''}` : ''}`}
+        />
+        <Modal.Body>
+          {duplicateCount > 0 && (
+            <div className="-mx-5 -mt-4 mb-4 border-b border-[#f0f0f0] bg-amber-50 px-5 py-3">
+              <p className="mb-2 text-xs font-semibold text-amber-700">
+                {duplicateCount} concepto{duplicateCount !== 1 ? 's' : ''} ya existe{duplicateCount === 1 ? '' : 'n'} en tu presupuesto
+              </p>
+              <div className="flex gap-2">
                 <button
-                  onClick={() => setImportModalOpen(false)}
-                  className="flex h-8 w-8 items-center justify-center rounded-full text-[#aaa] hover:bg-[#f5f5f5] hover:text-[#1D1E20]"
+                  onClick={() => setImportMode('nuevos')}
+                  className={`flex-1 rounded-lg border px-3 py-2 text-xs font-medium transition ${
+                    importMode === 'nuevos'
+                      ? 'border-[#1D1E20] bg-[#1D1E20] text-white'
+                      : 'border-[#e0e0e0] bg-white text-[#555] hover:border-[#1D1E20]'
+                  }`}
                 >
-                  <X size={16} />
-                </button>
-              </div>
-
-              {duplicateCount > 0 && (
-                <div className="shrink-0 border-b border-[#f0f0f0] bg-amber-50 px-5 py-3">
-                  <p className="mb-2 text-xs font-semibold text-amber-700">
-                    {duplicateCount} concepto{duplicateCount !== 1 ? 's' : ''} ya existe{duplicateCount === 1 ? '' : 'n'} en tu presupuesto
-                  </p>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => setImportMode('nuevos')}
-                      className={`flex-1 rounded-lg border px-3 py-2 text-xs font-medium transition ${
-                        importMode === 'nuevos'
-                          ? 'border-[#1D1E20] bg-[#1D1E20] text-white'
-                          : 'border-[#e0e0e0] bg-white text-[#555] hover:border-[#1D1E20]'
-                      }`}
-                    >
-                      Solo importar nuevos ({newCount})
-                    </button>
-                    <button
-                      onClick={() => setImportMode('todos')}
-                      className={`flex-1 rounded-lg border px-3 py-2 text-xs font-medium transition ${
-                        importMode === 'todos'
-                          ? 'border-[#1D1E20] bg-[#1D1E20] text-white'
-                          : 'border-[#e0e0e0] bg-white text-[#555] hover:border-[#1D1E20]'
-                      }`}
-                    >
-                      Importar todos ({importRows.length})
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              <div className="flex-1 overflow-y-auto px-5 py-3">
-                <div className="space-y-1">
-                  {importRows.map((row, idx) => {
-                    const skip = importMode === 'nuevos' && row.isDuplicate
-                    return (
-                      <div
-                        key={idx}
-                        className={`flex items-center gap-3 rounded-lg px-3 py-2 text-xs ${
-                          skip ? 'opacity-40' : 'bg-[#fafafa]'
-                        }`}
-                      >
-                        <div className="shrink-0">
-                          {row.isDuplicate ? (
-                            <span title="Duplicado" className="text-amber-500">
-                              <AlertTriangle size={13} />
-                            </span>
-                          ) : (
-                            <Check size={13} className="text-[#48C9B0]" />
-                          )}
-                        </div>
-                        <span className="w-28 shrink-0 text-[#888]">
-                          {categoryLabel(row.category)}
-                        </span>
-                        <span className="flex-1 font-medium text-[#1D1E20]">{row.subcategory}</span>
-                        <span className="shrink-0 tabular-nums text-[#888]">
-                          {row.budget_amount > 0 ? `$${row.budget_amount.toLocaleString('es-MX')}` : '—'}
-                        </span>
-                        {row.isDuplicate && (
-                          <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
-                            duplicado
-                          </span>
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-
-              <div className="flex shrink-0 items-center justify-end gap-2 border-t border-[#f0f0f0] bg-[#fafafa] px-5 py-3">
-                <button
-                  onClick={() => setImportModalOpen(false)}
-                  disabled={importing}
-                  className="rounded-lg px-4 py-2 text-xs font-medium text-[#666] hover:bg-[#f0f0f0] disabled:opacity-50"
-                >
-                  Cancelar
+                  Solo importar nuevos ({newCount})
                 </button>
                 <button
-                  onClick={handleImport}
-                  disabled={importing || (importMode === 'nuevos' && newCount === 0)}
-                  className="rounded-lg bg-[#48C9B0] px-4 py-2 text-xs font-semibold text-white hover:bg-[#3aa896] disabled:opacity-50"
+                  onClick={() => setImportMode('todos')}
+                  className={`flex-1 rounded-lg border px-3 py-2 text-xs font-medium transition ${
+                    importMode === 'todos'
+                      ? 'border-[#1D1E20] bg-[#1D1E20] text-white'
+                      : 'border-[#e0e0e0] bg-white text-[#555] hover:border-[#1D1E20]'
+                  }`}
                 >
-                  {importing
-                    ? 'Importando...'
-                    : `Importar ${importMode === 'nuevos' ? newCount : importRows.length} concepto${(importMode === 'nuevos' ? newCount : importRows.length) !== 1 ? 's' : ''}`
-                  }
+                  Importar todos ({importRows.length})
                 </button>
               </div>
             </div>
+          )}
+
+          <div className="space-y-1">
+            {importRows.map((row, idx) => {
+              const skip = importMode === 'nuevos' && row.isDuplicate
+              return (
+                <div
+                  key={idx}
+                  className={`flex items-center gap-3 rounded-lg px-3 py-2 text-xs ${
+                    skip ? 'opacity-40' : 'bg-[#fafafa]'
+                  }`}
+                >
+                  <div className="shrink-0">
+                    {row.isDuplicate ? (
+                      <span title="Duplicado" className="text-amber-500">
+                        <AlertTriangle size={13} />
+                      </span>
+                    ) : (
+                      <Check size={13} className="text-[#48C9B0]" />
+                    )}
+                  </div>
+                  <span className="w-28 shrink-0 text-[#888]">
+                    {categoryLabel(row.category)}
+                  </span>
+                  <span className="flex-1 font-medium text-[#1D1E20]">{row.subcategory}</span>
+                  <span className="shrink-0 tabular-nums text-[#888]">
+                    {row.budget_amount > 0 ? `$${row.budget_amount.toLocaleString('es-MX')}` : '—'}
+                  </span>
+                  {row.isDuplicate && (
+                    <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
+                      duplicado
+                    </span>
+                  )}
+                </div>
+              )
+            })}
           </div>
-        </>
-      )}
+        </Modal.Body>
+        <Modal.Footer>
+          <button
+            onClick={() => setImportModalOpen(false)}
+            disabled={importing}
+            className="ml-auto rounded-lg px-4 py-2 text-xs font-medium text-[#666] hover:bg-[#f0f0f0] disabled:opacity-50"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={handleImport}
+            disabled={importing || (importMode === 'nuevos' && newCount === 0)}
+            className="rounded-lg bg-[#48C9B0] px-4 py-2 text-xs font-semibold text-white hover:bg-[#3aa896] disabled:opacity-50"
+          >
+            {importing
+              ? 'Importando...'
+              : `Importar ${importMode === 'nuevos' ? newCount : importRows.length} concepto${(importMode === 'nuevos' ? newCount : importRows.length) !== 1 ? 's' : ''}`
+            }
+          </button>
+        </Modal.Footer>
+      </Modal>
 
       {/* ── SUPPLIER DETAIL DESDE PRESUPUESTO ── */}
       {selectedSupplier && (

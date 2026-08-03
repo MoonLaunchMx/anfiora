@@ -4,9 +4,10 @@ import { useEffect, useState, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
 import { TimelineTask, TimelinePriority, EventCollaborator } from '@/lib/types'
 import {
-  X, Plus, ChevronDown, Bell, Building2, User, Star, AlertTriangle
+  Plus, ChevronDown, Bell, Building2, User, Star, AlertTriangle
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { Modal } from '@/app/components/ui/Modal'
 import {
   reminderPresetsFor,
   computeReminderInstant,
@@ -196,20 +197,10 @@ export function TaskModal({ editTask, prefillDate, eventId, onClose, onSaved }: 
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 p-0 sm:p-4">
-      <div className="bg-white w-full sm:max-w-lg rounded-t-2xl sm:rounded-2xl max-h-[92vh] overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-
-        {/* Header */}
-        <div className="sticky top-0 bg-white z-10 flex items-center justify-between px-5 pt-5 pb-4 border-b border-[#f0f0f0]">
-          <h2 className="text-base font-semibold text-[#1D1E20]">
-            {editTask ? 'Editar tarea' : 'Nueva tarea'}
-          </h2>
-          <button onClick={onClose} className="text-[#aaa] hover:text-[#555] transition-colors">
-            <X size={18} />
-          </button>
-        </div>
-
-        <div className="px-5 py-4 flex flex-col gap-3.5">
+    <Modal open onClose={onClose} size="lg">
+      <Modal.Header title={editTask ? 'Editar tarea' : 'Nueva tarea'} />
+      <Modal.Body className="[&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+        <div className="flex flex-col gap-3.5">
 
           {/* Fila 1: Categoría + Bloqueante en la misma línea */}
           <div className="flex items-center gap-2">
@@ -217,7 +208,7 @@ export function TaskModal({ editTask, prefillDate, eventId, onClose, onSaved }: 
               <select
                 value={form.category}
                 onChange={e => setForm(f => ({ ...f, category: e.target.value as TimelineTask['category'] }))}
-                className="w-full border border-[#e0e0e0] rounded-xl px-3 py-2 text-sm appearance-none focus:outline-none focus:border-[#48C9B0] bg-[#f8f8f8]"
+                className="w-full border border-[#e0e0e0] rounded-xl px-3 py-2 text-base appearance-none focus:outline-none focus:border-[#48C9B0] bg-[#f8f8f8]"
               >
                 {CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
               </select>
@@ -268,7 +259,7 @@ export function TaskModal({ editTask, prefillDate, eventId, onClose, onSaved }: 
               placeholder="Título de la tarea"
               value={form.title}
               onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
-              className="flex-1 border border-[#e0e0e0] rounded-xl px-3 text-sm focus:outline-none focus:border-[#48C9B0] h-10 bg-[#f8f8f8]"
+              className="flex-1 border border-[#e0e0e0] rounded-xl px-3 text-base focus:outline-none focus:border-[#48C9B0] h-10 bg-[#f8f8f8]"
             />
           </div>
 
@@ -280,7 +271,7 @@ export function TaskModal({ editTask, prefillDate, eventId, onClose, onSaved }: 
                 type="date"
                 value={form.task_date}
                 onChange={e => setForm(f => ({ ...f, task_date: e.target.value }))}
-                className="w-full border border-[#e0e0e0] rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#48C9B0] bg-[#f8f8f8]"
+                className="w-full border border-[#e0e0e0] rounded-xl px-3 py-2 text-base focus:outline-none focus:border-[#48C9B0] bg-[#f8f8f8]"
               />
             </div>
             <div>
@@ -291,7 +282,7 @@ export function TaskModal({ editTask, prefillDate, eventId, onClose, onSaved }: 
                 type="time"
                 value={form.task_time}
                 onChange={e => onTaskTimeChange(e.target.value)}
-                className="w-full border border-[#e0e0e0] rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#48C9B0] bg-[#f8f8f8]"
+                className="w-full border border-[#e0e0e0] rounded-xl px-3 py-2 text-base focus:outline-none focus:border-[#48C9B0] bg-[#f8f8f8]"
               />
             </div>
           </div>
@@ -306,7 +297,7 @@ export function TaskModal({ editTask, prefillDate, eventId, onClose, onSaved }: 
                 value={form.reminder_key}
                 onChange={e => setForm(f => ({ ...f, reminder_key: e.target.value }))}
                 disabled={!form.task_date}
-                className="w-full border border-[#e0e0e0] rounded-xl px-3 py-2 text-sm appearance-none focus:outline-none focus:border-[#48C9B0] bg-[#f8f8f8] disabled:opacity-40"
+                className="w-full border border-[#e0e0e0] rounded-xl px-3 py-2 text-base appearance-none focus:outline-none focus:border-[#48C9B0] bg-[#f8f8f8] disabled:opacity-40"
               >
                 <option value="">Sin recordatorio</option>
                 {reminderPresetsFor(form.task_time || null).map(o => (
@@ -332,13 +323,13 @@ export function TaskModal({ editTask, prefillDate, eventId, onClose, onSaved }: 
                   <label className="text-[11px] font-medium text-[#0F6E56] mb-1 block">Fecha</label>
                   <input type="date" value={form.reminder_custom_date}
                     onChange={e => setForm(f => ({ ...f, reminder_custom_date: e.target.value }))}
-                    className="w-full border border-[#9FE1CB] rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:border-[#48C9B0] bg-white" />
+                    className="w-full border border-[#9FE1CB] rounded-lg px-2 py-1.5 text-base focus:outline-none focus:border-[#48C9B0] bg-white" />
                 </div>
                 <div>
                   <label className="text-[11px] font-medium text-[#0F6E56] mb-1 block">Hora</label>
                   <input type="time" value={form.reminder_custom_time}
                     onChange={e => setForm(f => ({ ...f, reminder_custom_time: e.target.value }))}
-                    className="w-full border border-[#9FE1CB] rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:border-[#48C9B0] bg-white" />
+                    className="w-full border border-[#9FE1CB] rounded-lg px-2 py-1.5 text-base focus:outline-none focus:border-[#48C9B0] bg-white" />
                 </div>
               </div>
             )}
@@ -372,7 +363,7 @@ export function TaskModal({ editTask, prefillDate, eventId, onClose, onSaved }: 
               <select
                 value={form.event_supplier_id || ''}
                 onChange={e => setForm(f => ({ ...f, event_supplier_id: e.target.value || null }))}
-                className="w-full border border-[#e0e0e0] rounded-xl px-3 py-2 text-sm appearance-none focus:outline-none focus:border-[#48C9B0] bg-[#f8f8f8]"
+                className="w-full border border-[#e0e0e0] rounded-xl px-3 py-2 text-base appearance-none focus:outline-none focus:border-[#48C9B0] bg-[#f8f8f8]"
               >
                 <option value="">Sin proveedor</option>
                 {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
@@ -408,7 +399,7 @@ export function TaskModal({ editTask, prefillDate, eventId, onClose, onSaved }: 
                 <select
                   value={form.assigned_to_user_id || ''}
                   onChange={e => setForm(f => ({ ...f, assigned_to_user_id: e.target.value || null }))}
-                  className="w-full border border-[#e0e0e0] rounded-xl px-3 py-2 text-sm appearance-none focus:outline-none focus:border-[#48C9B0] bg-[#f8f8f8]"
+                  className="w-full border border-[#e0e0e0] rounded-xl px-3 py-2 text-base appearance-none focus:outline-none focus:border-[#48C9B0] bg-[#f8f8f8]"
                 >
                   <option value="">Sin asignar</option>
                   {collaborators.map(c => (
@@ -428,7 +419,7 @@ export function TaskModal({ editTask, prefillDate, eventId, onClose, onSaved }: 
                 placeholder="Ej: Mamá de la novia, Asistente..."
                 value={form.assigned_to_name}
                 onChange={e => setForm(f => ({ ...f, assigned_to_name: e.target.value }))}
-                className="w-full border border-[#e0e0e0] rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#48C9B0] bg-[#f8f8f8]"
+                className="w-full border border-[#e0e0e0] rounded-xl px-3 py-2 text-base focus:outline-none focus:border-[#48C9B0] bg-[#f8f8f8]"
               />
             )}
           </div>
@@ -443,7 +434,7 @@ export function TaskModal({ editTask, prefillDate, eventId, onClose, onSaved }: 
               value={form.notes}
               onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
               rows={2}
-              className="w-full border border-[#e0e0e0] rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#48C9B0] resize-none bg-[#f8f8f8]"
+              className="w-full border border-[#e0e0e0] rounded-xl px-3 py-2 text-base focus:outline-none focus:border-[#48C9B0] resize-none bg-[#f8f8f8]"
             />
           </div>
 
@@ -464,32 +455,30 @@ export function TaskModal({ editTask, prefillDate, eventId, onClose, onSaved }: 
           )}
           </AnimatePresence>
         </div>
-
-        {/* Footer sticky */}
-        <div className="sticky bottom-0 bg-white border-t border-[#f0f0f0] px-5 py-4 flex gap-2.5">
-          {editTask && (
-            <button
-              onClick={handleDelete}
-              className="px-4 py-2.5 text-sm text-[#cc3333] border border-[#ffc0c0] rounded-xl hover:bg-[#fff0f0] transition-colors"
-            >
-              Eliminar
-            </button>
-          )}
+      </Modal.Body>
+      <Modal.Footer>
+        {editTask && (
           <button
-            onClick={onClose}
-            className="flex-1 py-2.5 text-sm border border-[#e0e0e0] rounded-xl text-[#888] hover:bg-[#f8f8f8] transition-colors"
+            onClick={handleDelete}
+            className="px-4 py-2.5 text-sm text-[#cc3333] border border-[#ffc0c0] rounded-xl hover:bg-[#fff0f0] transition-colors"
           >
-            Cancelar
+            Eliminar
           </button>
-          <button
-            onClick={handleSave}
-            disabled={!form.title.trim() || !form.task_date || saving}
-            className="flex-[2] py-2.5 text-sm bg-[#48C9B0] text-white rounded-xl font-semibold disabled:opacity-40 hover:bg-[#3ab89f] transition-colors"
-          >
-            {saving ? 'Guardando...' : editTask ? 'Guardar cambios' : 'Agregar tarea'}
-          </button>
-        </div>
-      </div>
-    </div>
+        )}
+        <button
+          onClick={onClose}
+          className="flex-1 py-2.5 text-sm border border-[#e0e0e0] rounded-xl text-[#888] hover:bg-[#f8f8f8] transition-colors"
+        >
+          Cancelar
+        </button>
+        <button
+          onClick={handleSave}
+          disabled={!form.title.trim() || !form.task_date || saving}
+          className="flex-[2] py-2.5 text-sm bg-[#48C9B0] text-white rounded-xl font-semibold disabled:opacity-40 hover:bg-[#3ab89f] transition-colors"
+        >
+          {saving ? 'Guardando...' : editTask ? 'Guardar cambios' : 'Agregar tarea'}
+        </button>
+      </Modal.Footer>
+    </Modal>
   )
 }

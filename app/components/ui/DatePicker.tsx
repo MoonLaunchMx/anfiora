@@ -1,11 +1,15 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useSyncExternalStore } from 'react'
+import { createPortal } from 'react-dom'
 import { DayPicker, type DateRange } from 'react-day-picker'
 import { es } from 'react-day-picker/locale'
 import { CalendarDays, ChevronLeft, ChevronRight, X } from 'lucide-react'
 import { formatEventDate } from '@/lib/types'
+import { useModalLayer } from '@/app/components/ui/Modal'
 import 'react-day-picker/style.css'
+
+const emptySubscribe = () => () => {}
 
 type SingleProps = {
   mode?: 'single'
@@ -74,6 +78,8 @@ export default function DatePicker(props: DatePickerProps) {
   const disabled = props.disabled
   const placeholder = props.placeholder ?? 'Seleccionar fecha'
   const minDate = props.minDate
+  const mounted = useSyncExternalStore(emptySubscribe, () => true, () => false)
+  useModalLayer(open)
 
   useEffect(() => {
     document.body.style.overflow = open ? 'hidden' : ''
@@ -150,8 +156,8 @@ export default function DatePicker(props: DatePickerProps) {
         )}
       </button>
 
-      {open && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4" onClick={() => setOpen(false)}>
+      {open && mounted && createPortal(
+        <div className="fixed inset-0 z-[350] flex items-center justify-center p-4" onClick={() => setOpen(false)}>
           <div className="absolute inset-0 bg-black/40" />
           <div className="relative overflow-hidden rounded-2xl bg-white shadow-2xl" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between gap-3 border-b border-[#f0f0f0] px-4 py-3">
@@ -213,7 +219,8 @@ export default function DatePicker(props: DatePickerProps) {
               </div>
             )}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   )
