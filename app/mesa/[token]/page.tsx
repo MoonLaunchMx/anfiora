@@ -78,7 +78,7 @@ export default function MesaPublicaPage() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#FBF7F0]">
+      <div className="flex min-h-[100dvh] items-center justify-center bg-[#FBF7F0]">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#e8e8e8] border-t-[#48C9B0]" />
       </div>
     )
@@ -86,7 +86,7 @@ export default function MesaPublicaPage() {
 
   if (notFound || !event) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-[#FBF7F0] px-6 text-center">
+      <div className="flex min-h-[100dvh] flex-col items-center justify-center bg-[#FBF7F0] px-6 text-center">
         <Gift size={32} className="mb-3 text-[#bbb]" />
         <h1 className="text-lg font-semibold text-[#1D1E20]">Mesa no encontrada</h1>
         <p className="mt-1 text-sm text-[#888]">Revisa el link que te compartieron.</p>
@@ -99,7 +99,7 @@ export default function MesaPublicaPage() {
     : event.name
 
   return (
-    <div className="min-h-screen bg-[#FBF7F0]">
+    <div className="min-h-[100dvh] bg-[#FBF7F0]">
 
       {/* Hero */}
       <section className="mx-auto max-w-2xl px-6 pb-8 pt-8 text-center sm:pt-10">

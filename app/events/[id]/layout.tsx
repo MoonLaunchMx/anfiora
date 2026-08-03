@@ -418,7 +418,7 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
 
   if (!authChecked) {
     return (
-      <div className="flex h-screen items-center justify-center bg-white">
+      <div className="flex h-[100dvh] items-center justify-center bg-white">
         <div className="flex flex-col items-center gap-3">
           <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#e8e8e8] border-t-[#48C9B0]" />
           <p className="text-sm text-[#999]">Cargando...</p>
@@ -517,7 +517,7 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
   )
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-white font-sans text-[#1D1E20]">
+    <div className="flex h-[100dvh] flex-col overflow-hidden bg-white font-sans text-[#1D1E20]">
 
       {/* HEADER MOBILE */}
       <header className="flex h-12 shrink-0 items-center justify-between border-b border-[#e8e8e8] bg-white px-4 sm:hidden">
@@ -711,7 +711,7 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
         {drawerOpen && (
           <>
             <div onClick={() => setDrawerOpen(false)} className="fixed inset-0 top-16 z-40 bg-black/30 lg:hidden" />
-            <div className="fixed left-0 top-16 z-50 flex h-[calc(100vh-64px)] w-56 flex-col overflow-y-auto border-r border-[#e8e8e8] bg-[#f8f5f0] shadow-lg lg:hidden">
+            <div className="fixed left-0 top-16 z-50 flex h-[calc(100dvh-64px)] w-56 flex-col overflow-y-auto border-r border-[#e8e8e8] bg-[#f8f5f0] shadow-lg lg:hidden">
               <div className="border-b border-[#e8e8e8] px-4 py-5">
                 {event?.event_type && (
                   <p className="mb-1 text-[11px] text-[#999]">{EVENT_TYPE_LABELS[event.event_type] || event.event_type}</p>

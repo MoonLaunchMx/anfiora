@@ -199,7 +199,7 @@ export default function AdminPage() {
   if (!authed && !loading) return null
 
   if (loading) return (
-    <div className="flex h-screen items-center justify-center bg-[#f8f5f0]">
+    <div className="flex h-[100dvh] items-center justify-center bg-[#f8f5f0]">
       <div className="text-center">
         <div className="mb-3 h-8 w-8 animate-spin rounded-full border-2 border-[#48C9B0] border-t-transparent mx-auto" />
         <p className="text-sm text-[#888]">Cargando datos...</p>
@@ -216,7 +216,7 @@ export default function AdminPage() {
   ]
 
   return (
-    <div className="min-h-screen bg-[#f8f5f0]">
+    <div className="min-h-[100dvh] bg-[#f8f5f0]">
 
       {toast && (
         <div className={'fixed top-4 right-4 z-50 rounded-xl px-4 py-3 text-sm font-medium text-white shadow-lg ' + (toast.ok ? 'bg-[#48C9B0]' : 'bg-red-500')}>

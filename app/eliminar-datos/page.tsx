@@ -8,7 +8,7 @@ export default function EliminarDatosPage() {
   const fechaActualizacion = LEGAL_EFFECTIVE_DATE
 
   return (
-    <div className="min-h-screen" style={{ background: 'var(--bg)', color: 'var(--text)' }}>
+    <div className="min-h-[100dvh]" style={{ background: 'var(--bg)', color: 'var(--text)' }}>
 
       {/* Header */}
       <header
