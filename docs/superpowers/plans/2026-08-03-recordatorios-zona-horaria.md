@@ -502,6 +502,12 @@ gh pr create --base main --title "fix(recordatorios): la hora que se muestra es 
 
 ---
 
+## Ajustes hechos durante la ejecución
+
+- **Se conserva el texto "Fecha personalizada"** en vez de cambiarlo a "Personalizado...". Decisión de Diego: el cambio de copy no aportaba nada y sumaba diff.
+- **Se agregó `localDateTimeParts(iso)` al módulo**, que el plan no preveía. Sin ella, al reabrir una tarea con fecha personalizada los campos se llenaban partiendo el texto ISO —que ahora viene en UTC— y mostraban la hora corrida. Son 2 pruebas más: 19 en total.
+- Los 2 errores de `react-hooks/set-state-in-effect` que ESLint marca en `TaskModal.tsx` son **anteriores a este trabajo**: verificado lintando la versión de `HEAD`, que da exactamente los mismos 2.
+
 ## Nota de coordinación
 
 `TaskModal.tsx` lo está tocando también la rama `feat/modal-primitivo-viewport-ios` (migración al primitivo `Modal`). Las dos ramas van a chocar en ese archivo. Conviene que la de modales entre a `main` primero, porque su cambio es estructural y este es local a un bloque; rebasar este encima de aquel es más barato que al revés.
