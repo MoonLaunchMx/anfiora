@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { AnimatePresence, motion } from 'framer-motion'
 import ColorEditor from './ColorEditor'
+import { Modal } from '@/app/components/ui/Modal'
 
 type Colores = {
   fondo: string
@@ -92,34 +92,20 @@ export default function ColorControls({
         />
       )}
 
-      <AnimatePresence>
-        {modalOpen && open && (
-          <motion.div
-            className="fixed inset-0 z-50 flex items-center justify-center p-4"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.15 }}
-          >
-            <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setOpen(null)} />
-            <motion.div
-              className="relative z-10 flex w-full max-w-sm justify-center"
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              transition={{ duration: 0.15 }}
-            >
-              <ColorEditor
-                label={openLabel ?? ''}
-                value={valueOf(open)}
-                onChange={v => apply(open, v)}
-                onClose={() => setOpen(null)}
-                fluid
-              />
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {modalOpen && open && (
+        <Modal open onClose={() => setOpen(null)} size="sm">
+          <Modal.Header title={openLabel ?? 'Elegir color'} />
+          <Modal.Body>
+            <ColorEditor
+              label={openLabel ?? ''}
+              value={valueOf(open)}
+              onChange={v => apply(open, v)}
+              onClose={() => setOpen(null)}
+              fluid
+            />
+          </Modal.Body>
+        </Modal>
+      )}
     </div>
   )
 }

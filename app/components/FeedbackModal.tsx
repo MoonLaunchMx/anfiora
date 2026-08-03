@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { X, MessageSquarePlus } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { Modal } from "@/app/components/ui/Modal";
 import { FEEDBACK_TYPES, type FeedbackType } from "@/lib/feedback";
 
 type Status = "idle" | "sending" | "sent" | "error";
@@ -58,35 +58,16 @@ export default function FeedbackModal() {
     }
   };
 
-  if (!open) return null;
-
   return (
-    <div
-      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4"
-      onClick={close}
-    >
-      <div
-        className="w-full max-w-md rounded-2xl bg-white p-5 shadow-xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="mb-4 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <MessageSquarePlus size={18} className="text-[#48C9B0]" />
-            <h2 className="text-base font-semibold text-[#1D1E20]">Enviar feedback</h2>
-          </div>
-          <button
-            onClick={close}
-            aria-label="Cerrar"
-            className="rounded-md p-1 text-[#999] transition hover:bg-[#f5f5f5]"
-          >
-            <X size={18} />
-          </button>
-        </div>
-
-        {status === "sent" ? (
+    <Modal open={open} onClose={close} size="md">
+      <Modal.Header title="Enviar feedback" />
+      {status === "sent" ? (
+        <Modal.Body>
           <p className="py-6 text-center text-sm text-[#2a7a50]">Gracias, recibimos tu mensaje.</p>
-        ) : (
-          <>
+        </Modal.Body>
+      ) : (
+        <>
+          <Modal.Body>
             <label className="mb-1 block text-xs font-medium text-[#666]">Tipo</label>
             <div className="mb-3 flex gap-2">
               {FEEDBACK_TYPES.map((t) => (
@@ -112,13 +93,14 @@ export default function FeedbackModal() {
               rows={4}
               maxLength={2000}
               placeholder="Escribe tu sugerencia, nota o error..."
-              className="mb-2 w-full resize-none rounded-lg border border-[#e0e0e0] px-3 py-2 text-sm text-[#1D1E20] outline-none focus:border-[#48C9B0]"
+              className="w-full resize-none rounded-lg border border-[#e0e0e0] px-3 py-2 text-base text-[#1D1E20] outline-none focus:border-[#48C9B0]"
             />
 
             {status === "error" && (
-              <p className="mb-2 text-xs text-[#cc3333]">No se pudo enviar. Intenta de nuevo.</p>
+              <p className="mt-2 text-xs text-[#cc3333]">No se pudo enviar. Intenta de nuevo.</p>
             )}
-
+          </Modal.Body>
+          <Modal.Footer>
             <button
               onClick={submit}
               disabled={!message.trim() || status === "sending"}
@@ -126,9 +108,9 @@ export default function FeedbackModal() {
             >
               {status === "sending" ? "Enviando..." : "Enviar"}
             </button>
-          </>
-        )}
-      </div>
-    </div>
+          </Modal.Footer>
+        </>
+      )}
+    </Modal>
   );
 }

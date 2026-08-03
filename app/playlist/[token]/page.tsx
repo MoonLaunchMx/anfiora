@@ -265,13 +265,13 @@ export default function PlaylistPublicPage() {
     : event?.name || ''
 
   if (loading) return (
-    <div className="flex min-h-screen items-center justify-center bg-[#FBF7F0]">
+    <div className="flex min-h-[100dvh] items-center justify-center bg-[#FBF7F0]">
       <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#e8e8e8] border-t-[#48C9B0]" />
     </div>
   )
 
   if (notFound) return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-[#FBF7F0] px-6 text-center">
+    <div className="flex min-h-[100dvh] flex-col items-center justify-center bg-[#FBF7F0] px-6 text-center">
       <a href="/" className="mb-10 text-2xl font-bold tracking-tight text-[#1D1E20]" style={josefin}>
         Anfiora
       </a>

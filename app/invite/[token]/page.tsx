@@ -215,7 +215,7 @@ export default function InvitePage() {
   // Estados de pantalla completa (sin form)
   if (pageState === 'loading' || pageState === 'accepting') {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-white">
+      <div className="flex min-h-[100dvh] items-center justify-center bg-white">
         <div className="flex flex-col items-center gap-3">
           <Loader size={28} className="animate-spin text-[#48C9B0]" />
           <p className="text-sm text-[#888]">
@@ -228,7 +228,7 @@ export default function InvitePage() {
 
   if (pageState === 'invalid') {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-white px-4">
+      <div className="flex min-h-[100dvh] items-center justify-center bg-white px-4">
         <div className="flex max-w-sm flex-col items-center gap-4 text-center">
           <XCircle size={48} className="text-[#cc3333]" />
           <h1 className="text-lg font-bold text-[#1D1E20]">Enlace inválido</h1>
@@ -244,7 +244,7 @@ export default function InvitePage() {
 
   if (pageState === 'already_used') {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-white px-4">
+      <div className="flex min-h-[100dvh] items-center justify-center bg-white px-4">
         <div className="flex max-w-sm flex-col items-center gap-4 text-center">
           <CheckCircle size={48} className="text-[#48C9B0]" />
           <h1 className="text-lg font-bold text-[#1D1E20]">Ya tienes acceso</h1>
@@ -260,7 +260,7 @@ export default function InvitePage() {
 
   if (pageState === 'wrong_account') {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-white px-4">
+      <div className="flex min-h-[100dvh] items-center justify-center bg-white px-4">
         <div className="flex max-w-sm flex-col items-center gap-4 text-center">
           <XCircle size={48} className="text-[#cc3333]" />
           <h1 className="text-lg font-bold text-[#1D1E20]">Cuenta incorrecta</h1>
@@ -284,7 +284,7 @@ export default function InvitePage() {
 
   if (pageState === 'success') {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-white px-4">
+      <div className="flex min-h-[100dvh] items-center justify-center bg-white px-4">
         <div className="flex max-w-sm flex-col items-center gap-4 text-center">
           <CheckCircle size={48} className="text-[#48C9B0]" />
           <h1 className="text-lg font-bold text-[#1D1E20]">Acceso confirmado</h1>
@@ -296,7 +296,7 @@ export default function InvitePage() {
 
   if (pageState === 'error') {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-white px-4">
+      <div className="flex min-h-[100dvh] items-center justify-center bg-white px-4">
         <div className="flex max-w-sm flex-col items-center gap-4 text-center">
           <XCircle size={48} className="text-[#cc3333]" />
           <h1 className="text-lg font-bold text-[#1D1E20]">Algo salió mal</h1>
@@ -312,7 +312,7 @@ export default function InvitePage() {
 
   // Estado principal: auth_required
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[#f8f5f0] px-4 py-8">
+    <div className="flex min-h-[100dvh] items-center justify-center bg-[#f8f5f0] px-4 py-8">
       <div className="w-full max-w-sm">
 
         {/* Logo */}

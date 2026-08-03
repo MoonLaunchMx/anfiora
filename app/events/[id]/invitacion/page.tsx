@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Send, Check, Paintbrush, Eye, X, Maximize2, Plus, RotateCcw, AlertTriangle, Users } from 'lucide-react'
 import { TabToggle, type TabItem } from '@/app/components/ui/TabToggle'
+import { Modal } from '@/app/components/ui/Modal'
 import { supabase } from '@/lib/supabase'
 import { resolveDoc, setMeta, seedAccessFromColumns } from '@/lib/invite/doc'
 import { estadoPublicacion } from '@/lib/invite/publicacion'
@@ -470,47 +471,35 @@ export default function InvitacionPage() {
         )}
       </AnimatePresence>
 
-      <AnimatePresence>
-        {discardOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.15 }}
-            className="fixed inset-0 z-[60] flex items-center justify-center bg-[#1D1E20]/40 px-6"
-            onClick={() => setDiscardOpen(false)}
-          >
-            <div
-              className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl"
-              onClick={e => e.stopPropagation()}
-            >
-              <div className="flex items-center gap-2.5">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#fff0f0]">
-                  <AlertTriangle size={17} className="text-[#cc3333]" />
-                </div>
-                <h3 className="text-base font-bold text-[#1D1E20]">¿Descartar los cambios?</h3>
-              </div>
-              <p className="mt-3 text-sm leading-relaxed text-[#666]">
-                Tu invitación volverá a la última versión publicada. Lo que editaste desde entonces se pierde.
-              </p>
-              <div className="mt-5 flex flex-col gap-2">
-                <button
-                  onClick={handleDiscard}
-                  className="rounded-lg bg-[#cc3333] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#b82d2d]"
-                >
-                  Descartar cambios
-                </button>
-                <button
-                  onClick={() => setDiscardOpen(false)}
-                  className="rounded-lg px-4 py-2 text-xs font-medium text-[#999] transition hover:bg-[#f5f5f5]"
-                >
-                  Cancelar
-                </button>
-              </div>
+      <Modal open={discardOpen} onClose={() => setDiscardOpen(false)} size="sm">
+        <Modal.Header title="¿Descartar los cambios?" />
+        <Modal.Body>
+          <div className="flex items-start gap-2.5">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#fff0f0]">
+              <AlertTriangle size={17} className="text-[#cc3333]" />
             </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+            <p className="text-sm leading-relaxed text-[#666]">
+              Tu invitación volverá a la última versión publicada. Lo que editaste desde entonces se pierde.
+            </p>
+          </div>
+        </Modal.Body>
+        <Modal.Footer>
+          <div className="flex w-full flex-col gap-2">
+            <button
+              onClick={handleDiscard}
+              className="rounded-lg bg-[#cc3333] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#b82d2d]"
+            >
+              Descartar cambios
+            </button>
+            <button
+              onClick={() => setDiscardOpen(false)}
+              className="rounded-lg px-4 py-2 text-xs font-medium text-[#999] transition hover:bg-[#f5f5f5]"
+            >
+              Cancelar
+            </button>
+          </div>
+        </Modal.Footer>
+      </Modal>
     </div>
   )
 }

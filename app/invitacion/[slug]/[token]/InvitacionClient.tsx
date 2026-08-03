@@ -75,7 +75,7 @@ export default function InvitacionClient({ token }: { token: string }) {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#FBF7F0]">
+      <div className="flex min-h-[100dvh] items-center justify-center bg-[#FBF7F0]">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#e8e8e8] border-t-[#48C9B0]" />
       </div>
     )
@@ -84,7 +84,7 @@ export default function InvitacionClient({ token }: { token: string }) {
   if (estado !== 'ok' || !data) {
     const cerrada = estado === 'cerrada'
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-[#FBF7F0] px-6 text-center">
+      <div className="flex min-h-[100dvh] flex-col items-center justify-center bg-[#FBF7F0] px-6 text-center">
         <Heart size={28} className="mb-3 text-[#d4a853]" />
         <h1 className="text-lg font-semibold text-[#1D1E20]">
           {cerrada ? 'Los registros están cerrados' : 'Invitación no disponible'}
@@ -188,7 +188,7 @@ export default function InvitacionClient({ token }: { token: string }) {
   const agotado = data.puerta?.agotado === true
 
   return (
-    <div className="min-h-screen bg-[#FBF7F0]">
+    <div className="min-h-[100dvh] bg-[#FBF7F0]">
       <PreviewBoundary>
         <InvitacionRenderer doc={data.doc} ctx={ctx} />
 

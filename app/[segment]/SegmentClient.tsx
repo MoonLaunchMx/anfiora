@@ -224,7 +224,7 @@ export default function SegmentClient({ config }: { config: SegmentConfig }) {
         </AnimatePresence>
       </nav>
 
-      <div className="min-h-screen overflow-x-hidden bg-white text-[#1D1E20]">
+      <div className="min-h-[100dvh] overflow-x-hidden bg-white text-[#1D1E20]">
 
         {/* HERO */}
         <section className="mx-auto max-w-6xl px-5 pb-16 pt-16 md:pt-24">

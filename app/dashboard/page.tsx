@@ -532,7 +532,7 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-[#f8f8f8] font-sans text-[#1D1E20]">
+    <div className="flex h-[100dvh] flex-col overflow-hidden bg-[#f8f8f8] font-sans text-[#1D1E20]">
 
       <WhatsNewModal />
       <OnboardingModal open={showOnboarding} onCompleted={() => setShowOnboarding(false)} />

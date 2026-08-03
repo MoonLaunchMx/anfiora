@@ -1081,7 +1081,7 @@ export default function MensajesPage() {
   }, [])
 
   if (access === 'checking') {
-    return <div className="flex min-h-[75vh] items-center justify-center text-sm text-[#999]">Cargando…</div>
+    return <div className="flex min-h-[75dvh] items-center justify-center text-sm text-[#999]">Cargando…</div>
   }
   if (access === 'denied') return <ProximamenteMensajes />
   return <MensajesInbox />

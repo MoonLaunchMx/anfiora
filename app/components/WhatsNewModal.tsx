@@ -8,6 +8,7 @@ import {
   LayoutGrid, Images, Music2, Download, ListMusic,
 } from 'lucide-react'
 import { CURRENT_VERSION, changelog, Release } from '@/lib/changelog'
+import { Modal } from '@/app/components/ui/Modal'
 
 const STORAGE_KEY = 'anfiora_seen_version'
 
@@ -326,8 +327,9 @@ export function WhatsNewModal() {
   if (!release) return null
 
   return (
-    <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/50 px-4">
-      <div className="w-full max-w-2xl overflow-hidden rounded-2xl bg-white shadow-2xl">
+    <Modal open onClose={dismiss} size="xl">
+      {/* a sangre: el mockup ocupa la mitad del panel, sin el respiro lateral del cuerpo */}
+      <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="flex flex-col sm:flex-row" style={{ minHeight: '420px' }}>
 
           {/* Mockup izquierda (por version del release) */}
@@ -379,6 +381,6 @@ export function WhatsNewModal() {
           </div>
         </div>
       </div>
-    </div>
+    </Modal>
   )
 }

@@ -80,7 +80,7 @@ export default function InvitacionPreviewPage() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#FBF7F0]">
+      <div className="flex min-h-[100dvh] items-center justify-center bg-[#FBF7F0]">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#e8e8e8] border-t-[#48C9B0]" />
       </div>
     )
@@ -88,7 +88,7 @@ export default function InvitacionPreviewPage() {
 
   if (denied || !doc || !event) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-[#FBF7F0] px-6 text-center">
+      <div className="flex min-h-[100dvh] flex-col items-center justify-center bg-[#FBF7F0] px-6 text-center">
         <Heart size={28} className="mb-3 text-[#d4a853]" />
         <h1 className="text-lg font-semibold text-[#1D1E20]">Vista previa no disponible</h1>
         <p className="mt-1 text-sm text-[#888]">Inicia sesión como organizador del evento.</p>
@@ -113,7 +113,7 @@ export default function InvitacionPreviewPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#FBF7F0]">
+    <div className="min-h-[100dvh] bg-[#FBF7F0]">
       <PreviewBoundary>
         <InvitacionRenderer doc={doc} ctx={ctx} />
       </PreviewBoundary>

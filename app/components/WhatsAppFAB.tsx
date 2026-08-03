@@ -183,7 +183,7 @@ export default function WhatsAppFAB() {
         <div
           ref={panelRef}
           className="fixed bottom-24 right-6 z-50 flex flex-col overflow-hidden rounded-2xl border border-[#e8e8e8] bg-white shadow-2xl sm:bottom-24 sm:right-8"
-          style={{ width: 'min(480px, calc(100vw - 32px))', height: 'min(680px, calc(100vh - 80px))' }}
+          style={{ width: 'min(480px, calc(100vw - 32px))', height: 'min(680px, calc(100dvh - 80px))' }}
         >
           {/* Header panel */}
           <div className="flex items-center justify-between border-b border-[#e8e8e8] bg-[#48C9B0] px-4 py-3">

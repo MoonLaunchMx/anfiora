@@ -1,11 +1,10 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { createPortal } from 'react-dom'
-import { motion, AnimatePresence } from 'framer-motion'
-import { X, Star, Smile, Meh, Frown } from 'lucide-react'
+import { useState } from 'react'
+import { Star, Smile, Meh, Frown } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { SupplierMood, ResponseSpeed } from '@/lib/types'
+import { Modal } from '@/app/components/ui/Modal'
 
 interface Props {
   eventSupplierId: string
@@ -35,13 +34,6 @@ export default function SupplierReviewModal({
   const [mood, setMood]             = useState<SupplierMood | null>(initialMood)
   const [speed, setSpeed]           = useState<ResponseSpeed | null>(initialSpeed)
   const [saving, setSaving]         = useState(false)
-  const [mounted, setMounted]       = useState(false)
-
-  useEffect(() => {
-    setMounted(true)
-    document.body.style.overflow = 'hidden'
-    return () => { document.body.style.overflow = '' }
-  }, [])
 
   const handleSave = async () => {
     setSaving(true)
@@ -65,141 +57,102 @@ export default function SupplierReviewModal({
     }
   }
 
-  // No renderizar hasta que estemos en el cliente
-  if (!mounted) return null
+  return (
+    <Modal open onClose={onSkip} size="md">
+      <Modal.Header title="¿Cómo fue el proceso?" subtitle={`Tu experiencia cotizando con ${supplierName}`} />
+      <Modal.Body>
+        <div className="space-y-5">
 
-  return createPortal(
-    <AnimatePresence>
-      <motion.div
-        key="review-overlay"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 p-4"
-        onClick={onSkip}
-      >
-        <motion.div
-          key="review-modal"
-          initial={{ scale: 0.95, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          exit={{ scale: 0.95, opacity: 0 }}
-          transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-          className="flex max-h-[90vh] w-full max-w-md flex-col rounded-2xl bg-white shadow-xl"
-          onClick={e => e.stopPropagation()}
-        >
-          {/* HEADER */}
-          <div className="flex shrink-0 items-start justify-between gap-4 border-b border-[#e8e8e8] px-5 py-4">
-            <div className="min-w-0 flex-1">
-              <h2 className="text-lg font-semibold text-[#1D1E20]">¿Cómo fue el proceso?</h2>
-              <p className="mt-0.5 truncate text-xs text-[#888]">
-                Tu experiencia cotizando con <span className="font-medium">{supplierName}</span>
-              </p>
+          {/* Calificación */}
+          <div>
+            <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-[#888]">
+              Calificación
+            </label>
+            <div className="flex gap-1">
+              {[1, 2, 3, 4, 5].map(n => (
+                <button
+                  key={n}
+                  onClick={() => setRating(rating === n ? null : n)}
+                  className="p-1 transition-transform hover:scale-110"
+                >
+                  <Star
+                    size={32}
+                    className={rating !== null && n <= rating ? 'fill-amber-400 text-amber-400' : 'text-[#d4d4d4]'}
+                  />
+                </button>
+              ))}
             </div>
-            <button
-              onClick={onSkip}
-              className="-mr-2 rounded-lg p-2 text-[#aaa] transition-colors hover:bg-[#f5f5f5] hover:text-[#1D1E20]"
-            >
-              <X size={20} />
-            </button>
           </div>
 
-          {/* CONTENT */}
-          <div className="flex-1 space-y-5 overflow-y-auto px-5 py-5">
+          {/* Mood */}
+          <div>
+            <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-[#888]">
+              ¿Qué tal el trato?
+            </label>
+            <div className="flex gap-2">
+              <MoodBtn active={mood === 'no'}     onClick={() => setMood(mood === 'no'     ? null : 'no')}     icon={<Frown size={22} />} label="No"     activeClass="bg-red-50 border-red-400 text-red-600" />
+              <MoodBtn active={mood === 'normal'} onClick={() => setMood(mood === 'normal' ? null : 'normal')} icon={<Meh size={22} />}   label="Normal" activeClass="bg-amber-50 border-amber-400 text-amber-600" />
+              <MoodBtn active={mood === 'love'}   onClick={() => setMood(mood === 'love'   ? null : 'love')}   icon={<Smile size={22} />} label="Love"   activeClass="bg-emerald-50 border-emerald-400 text-emerald-600" />
+            </div>
+          </div>
 
-            {/* Calificación */}
-            <div>
-              <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-[#888]">
-                Calificación
-              </label>
-              <div className="flex gap-1">
-                {[1, 2, 3, 4, 5].map(n => (
+          {/* Velocidad */}
+          <div>
+            <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-[#888]">
+              ¿Qué tan rápido contestaba?
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              {SPEED_OPTIONS.map(opt => {
+                const active = speed === opt.value
+                return (
                   <button
-                    key={n}
-                    onClick={() => setRating(rating === n ? null : n)}
-                    className="p-1 transition-transform hover:scale-110"
+                    key={opt.value}
+                    onClick={() => setSpeed(active ? null : opt.value)}
+                    className={`rounded-lg border px-3 py-2 text-sm transition-all ${
+                      active
+                        ? 'border-[#1D1E20] bg-[#1D1E20] font-medium text-white'
+                        : 'border-[#e8e8e8] bg-white text-[#666] hover:bg-[#fafafa]'
+                    }`}
                   >
-                    <Star
-                      size={32}
-                      className={rating !== null && n <= rating ? 'fill-amber-400 text-amber-400' : 'text-[#d4d4d4]'}
-                    />
+                    {opt.label}
                   </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Mood */}
-            <div>
-              <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-[#888]">
-                ¿Qué tal el trato?
-              </label>
-              <div className="flex gap-2">
-                <MoodBtn active={mood === 'no'}     onClick={() => setMood(mood === 'no'     ? null : 'no')}     icon={<Frown size={22} />} label="No"     activeClass="bg-red-50 border-red-400 text-red-600" />
-                <MoodBtn active={mood === 'normal'} onClick={() => setMood(mood === 'normal' ? null : 'normal')} icon={<Meh size={22} />}   label="Normal" activeClass="bg-amber-50 border-amber-400 text-amber-600" />
-                <MoodBtn active={mood === 'love'}   onClick={() => setMood(mood === 'love'   ? null : 'love')}   icon={<Smile size={22} />} label="Love"   activeClass="bg-emerald-50 border-emerald-400 text-emerald-600" />
-              </div>
-            </div>
-
-            {/* Velocidad */}
-            <div>
-              <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-[#888]">
-                ¿Qué tan rápido contestaba?
-              </label>
-              <div className="grid grid-cols-2 gap-2">
-                {SPEED_OPTIONS.map(opt => {
-                  const active = speed === opt.value
-                  return (
-                    <button
-                      key={opt.value}
-                      onClick={() => setSpeed(active ? null : opt.value)}
-                      className={`rounded-lg border px-3 py-2 text-sm transition-all ${
-                        active
-                          ? 'border-[#1D1E20] bg-[#1D1E20] font-medium text-white'
-                          : 'border-[#e8e8e8] bg-white text-[#666] hover:bg-[#fafafa]'
-                      }`}
-                    >
-                      {opt.label}
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-
-            {/* Comentario */}
-            <div>
-              <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-[#888]">
-                Comentario
-              </label>
-              <textarea
-                value={reviewText}
-                onChange={e => setReviewText(e.target.value)}
-                rows={4}
-                placeholder="¿Cómo fue tu experiencia? Lo bueno, lo malo..."
-                className="w-full resize-none rounded-lg border border-[#e8e8e8] px-3 py-2 text-sm outline-none transition focus:border-[#48C9B0]"
-              />
+                )
+              })}
             </div>
           </div>
 
-          {/* FOOTER */}
-          <div className="flex shrink-0 items-center justify-end gap-2 border-t border-[#e8e8e8] bg-white px-5 py-3">
-            <button
-              onClick={onSkip}
-              disabled={saving}
-              className="px-4 py-2 text-sm text-[#666] hover:text-[#1D1E20] disabled:opacity-50"
-            >
-              Después
-            </button>
-            <button
-              onClick={handleSave}
-              disabled={saving}
-              className="rounded-lg bg-[#48C9B0] px-5 py-2 text-sm font-semibold text-white hover:bg-[#3aa896] disabled:opacity-50"
-            >
-              {saving ? 'Guardando...' : 'Guardar review'}
-            </button>
+          {/* Comentario */}
+          <div>
+            <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-[#888]">
+              Comentario
+            </label>
+            <textarea
+              value={reviewText}
+              onChange={e => setReviewText(e.target.value)}
+              rows={4}
+              placeholder="¿Cómo fue tu experiencia? Lo bueno, lo malo..."
+              className="w-full resize-none rounded-lg border border-[#e8e8e8] px-3 py-2 text-base outline-none transition focus:border-[#48C9B0]"
+            />
           </div>
-        </motion.div>
-      </motion.div>
-    </AnimatePresence>,
-    document.body
+        </div>
+      </Modal.Body>
+      <Modal.Footer>
+        <button
+          onClick={onSkip}
+          disabled={saving}
+          className="ml-auto px-4 py-2 text-sm text-[#666] hover:text-[#1D1E20] disabled:opacity-50"
+        >
+          Después
+        </button>
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          className="rounded-lg bg-[#48C9B0] px-5 py-2 text-sm font-semibold text-white hover:bg-[#3aa896] disabled:opacity-50"
+        >
+          {saving ? 'Guardando...' : 'Guardar review'}
+        </button>
+      </Modal.Footer>
+    </Modal>
   )
 }
 
