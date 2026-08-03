@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState, useRef, useMemo } from 'react'
-import { createPortal } from 'react-dom'
 import { useParams, useRouter } from 'next/navigation'
 import { motion, useMotionValue, useTransform, animate } from 'framer-motion'
 import type { PanInfo } from 'framer-motion'
@@ -80,30 +79,7 @@ function SearchBox({ onDebounced }: { onDebounced: (v: string) => void }) {
 
 function StatusDot({ value, onChange }: { value: RsvpStatus; onChange: (s: RsvpStatus) => void }) {
   const [open, setOpen] = useState(false)
-  const [mounted, setMounted] = useState(false)
-  useEffect(() => { setMounted(true) }, [])
   const s = STATUS_LABEL[value]
-
-  const sheet = open && mounted ? createPortal(
-    <div className="fixed inset-0 z-[500] flex items-end" onClick={() => setOpen(false)}>
-      <div className="w-full rounded-t-2xl border-t border-[#e8e8e8] bg-white pb-8 pt-3 shadow-2xl" onClick={e => e.stopPropagation()}>
-        <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-[#e0e0e0]" />
-        <p className="mb-2 px-5 text-xs font-semibold uppercase tracking-wider text-[#aaa]">Cambiar estatus</p>
-        {STATUS_ORDER.map(key => {
-          const opt = STATUS_LABEL[key]
-          return (
-            <button key={key} onClick={() => { onChange(key); setOpen(false) }}
-              className={'flex w-full items-center gap-3 px-5 py-3.5 transition active:bg-[#f8f8f8] ' + (value === key ? 'opacity-100' : 'opacity-70')}>
-              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border" style={{ background: opt.bg, borderColor: opt.border, color: opt.color }}>{opt.icon}</span>
-              <span className="text-sm font-medium" style={{ color: opt.color }}>{opt.label}</span>
-              {value === key && <span className="ml-auto text-xs text-[#48C9B0]">✓</span>}
-            </button>
-          )
-        })}
-      </div>
-    </div>,
-    document.body
-  ) : null
 
   return (
     <>
@@ -112,7 +88,23 @@ function StatusDot({ value, onChange }: { value: RsvpStatus; onChange: (s: RsvpS
         style={{ background: s.bg, borderColor: s.border, color: s.color }} title={s.label}>
         {s.icon}
       </button>
-      {sheet}
+      <Modal open={open} onClose={() => setOpen(false)} size="sm">
+        <Modal.Header title="Cambiar estatus" />
+        {/* lista a sangre: el primitivo no expone un cuerpo sin respiro lateral */}
+        <div className="min-h-0 flex-1 overflow-y-auto pb-[env(safe-area-inset-bottom,0px)]">
+          {STATUS_ORDER.map(key => {
+            const opt = STATUS_LABEL[key]
+            return (
+              <button key={key} onClick={() => { onChange(key); setOpen(false) }}
+                className={'flex w-full items-center gap-3 px-5 py-3.5 transition active:bg-[#f8f8f8] ' + (value === key ? 'opacity-100' : 'opacity-70')}>
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border" style={{ background: opt.bg, borderColor: opt.border, color: opt.color }}>{opt.icon}</span>
+                <span className="text-sm font-medium" style={{ color: opt.color }}>{opt.label}</span>
+                {value === key && <span className="ml-auto text-xs text-[#48C9B0]">✓</span>}
+              </button>
+            )
+          })}
+        </div>
+      </Modal>
     </>
   )
 }
@@ -218,16 +210,16 @@ function GroupInput({ availableGroups, selectedGroup, onChange, onCreateGroup, o
         </div>
       )}
       {confirmDelete && (
-        <div className="fixed inset-0 z-[400] flex items-center justify-center bg-black/40 p-4" onClick={() => setConfirmDelete(null)}>
-          <div className="w-full max-w-xs rounded-2xl border border-[#e8e8e8] bg-white p-6 text-center shadow-xl" onClick={e => e.stopPropagation()}>
+        <Modal open onClose={() => setConfirmDelete(null)} size="sm">
+          <Modal.Body className="py-6 text-center">
             <h3 className="text-base font-bold text-[#1D1E20]">¿Eliminar el grupo &quot;{confirmDelete}&quot;?</h3>
             <p className="mt-1.5 text-xs text-[#666]">Se quitará de todos los invitados del evento. Esta acción no se puede deshacer.</p>
-            <div className="mt-5 flex gap-2.5">
-              <button type="button" onClick={() => setConfirmDelete(null)} className="flex-1 rounded-lg border border-[#e0e0e0] py-2.5 text-sm text-[#888] transition hover:bg-[#f8f8f8]">Cancelar</button>
-              <button type="button" onClick={() => { onDeleteGroup(confirmDelete); setConfirmDelete(null) }} className="flex-1 rounded-lg bg-[#cc3333] py-2.5 text-sm font-semibold text-white transition hover:bg-[#b82e2e]">Eliminar</button>
-            </div>
-          </div>
-        </div>
+          </Modal.Body>
+          <Modal.Footer>
+            <button type="button" onClick={() => setConfirmDelete(null)} className="flex-1 rounded-lg border border-[#e0e0e0] py-2.5 text-sm text-[#888] transition hover:bg-[#f8f8f8]">Cancelar</button>
+            <button type="button" onClick={() => { onDeleteGroup(confirmDelete); setConfirmDelete(null) }} className="flex-1 rounded-lg bg-[#cc3333] py-2.5 text-sm font-semibold text-white transition hover:bg-[#b82e2e]">Eliminar</button>
+          </Modal.Footer>
+        </Modal>
       )}
     </div>
   )
@@ -325,16 +317,16 @@ function TagInput({ availableTags, selectedTags, onChangeSelected, onCreateTag, 
       )}
 
       {confirmDelete && (
-        <div className="fixed inset-0 z-[400] flex items-center justify-center bg-black/40 p-4" onClick={() => setConfirmDelete(null)}>
-          <div className="w-full max-w-xs rounded-2xl border border-[#e8e8e8] bg-white p-6 text-center shadow-xl" onClick={e => e.stopPropagation()}>
+        <Modal open onClose={() => setConfirmDelete(null)} size="sm">
+          <Modal.Body className="py-6 text-center">
             <h3 className="text-base font-bold text-[#1D1E20]">¿Eliminar &quot;{confirmDelete}&quot;?</h3>
             <p className="mt-1.5 text-xs text-[#666]">Se quitará de todos los invitados del evento. Esta acción no se puede deshacer.</p>
-            <div className="mt-5 flex gap-2.5">
-              <button type="button" onClick={() => setConfirmDelete(null)} className="flex-1 rounded-lg border border-[#e0e0e0] py-2.5 text-sm text-[#888] transition hover:bg-[#f8f8f8]">Cancelar</button>
-              <button type="button" onClick={() => { onDeleteTag(confirmDelete); setConfirmDelete(null) }} className="flex-1 rounded-lg bg-[#cc3333] py-2.5 text-sm font-semibold text-white transition hover:bg-[#b82e2e]">Eliminar</button>
-            </div>
-          </div>
-        </div>
+          </Modal.Body>
+          <Modal.Footer>
+            <button type="button" onClick={() => setConfirmDelete(null)} className="flex-1 rounded-lg border border-[#e0e0e0] py-2.5 text-sm text-[#888] transition hover:bg-[#f8f8f8]">Cancelar</button>
+            <button type="button" onClick={() => { onDeleteTag(confirmDelete); setConfirmDelete(null) }} className="flex-1 rounded-lg bg-[#cc3333] py-2.5 text-sm font-semibold text-white transition hover:bg-[#b82e2e]">Eliminar</button>
+          </Modal.Footer>
+        </Modal>
       )}
     </div>
   )
@@ -1959,28 +1951,27 @@ export default function EventPage() {
       )}
 
       {deleteChatModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setDeleteChatModal(null)}>
-          <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl" onClick={e => e.stopPropagation()}>
-            <h3 className="text-base font-bold text-[#1D1E20]">Este invitado tiene una conversación</h3>
-            <p className="mt-1.5 text-sm text-[#666]">¿Qué quieres hacer con el chat?</p>
-            <div className="mt-4 flex flex-col gap-2">
+        <Modal open onClose={() => setDeleteChatModal(null)} size="sm">
+          <Modal.Header title="Este invitado tiene una conversación" subtitle="¿Qué quieres hacer con el chat?" />
+          <Modal.Body>
+            <div className="flex w-full flex-col gap-2 pb-[env(safe-area-inset-bottom,0px)]">
               <button
                 onClick={async () => { const m = deleteChatModal; setDeleteChatModal(null); await performDeleteGuest(m.guestId, m.conversationIds, 'unlink') }}
-                className="rounded-lg border border-[#e0e0e0] py-2.5 text-sm font-semibold text-[#1D1E20] transition hover:border-[#48C9B0]"
+                className="w-full rounded-lg border border-[#e0e0e0] py-2.5 text-sm font-semibold text-[#1D1E20] transition hover:border-[#48C9B0]"
               >
                 Conservar el chat
                 <span className="mt-0.5 block text-xs font-normal text-[#999]">Se guarda el historial; el hilo queda sin invitado</span>
               </button>
               <button
                 onClick={async () => { const m = deleteChatModal; setDeleteChatModal(null); await performDeleteGuest(m.guestId, m.conversationIds, 'purge') }}
-                className="rounded-lg bg-[#cc3333] py-2.5 text-sm font-semibold text-white transition hover:bg-[#b82e2e]"
+                className="w-full rounded-lg bg-[#cc3333] py-2.5 text-sm font-semibold text-white transition hover:bg-[#b82e2e]"
               >
                 Eliminar también el chat
               </button>
               <button onClick={() => setDeleteChatModal(null)} className="py-1.5 text-xs font-medium text-[#999]">Cancelar</button>
             </div>
-          </div>
-        </div>
+          </Modal.Body>
+        </Modal>
       )}
 
       {showModal && (
