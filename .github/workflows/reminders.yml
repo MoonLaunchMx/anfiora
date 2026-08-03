@@ -1,8 +1,13 @@
 name: Recordatorios
 
-# De momento solo manual. El disparo cada 15 minutos se habilita despues de
-# verificar en produccion (ver el plan de despliegue).
+# Cada 15 minutos. GitHub corre los cron en UTC y puede retrasarlos varios
+# minutos cuando esta cargado: el recordatorio sale en la primera corrida
+# despues de su hora, no exactamente a su hora.
+# Interruptor de emergencia: deshabilitar el workflow desde la pestana Actions,
+# un clic y sin desplegar nada.
 on:
+  schedule:
+    - cron: '*/15 * * * *'
   workflow_dispatch:
 
 jobs:
