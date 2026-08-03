@@ -602,13 +602,13 @@ export default function PresupuestoPage() {
       </div>
 
       {showTierModal && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 p-4" onClick={() => { if (!generating) setShowTierModal(false) }}>
-          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl" onClick={e => e.stopPropagation()}>
-            <div className="mb-1 flex items-center justify-between">
-              <h2 className="text-base font-bold text-[#1D1E20]">Generar presupuesto de boda</h2>
-              <button onClick={() => { if (!generating) setShowTierModal(false) }} className="text-[#aaa] hover:text-[#555]"><X size={18} /></button>
-            </div>
-            <p className="mb-4 text-xs text-[#888]">Elige el nivel. A mayor nivel, más categorías y conceptos. Sin montos: tú los defines.</p>
+        <Modal open onClose={() => { if (!generating) setShowTierModal(false) }} size="md">
+          <Modal.Header
+            title="Generar presupuesto de boda"
+            subtitle="Elige el nivel. A mayor nivel, más categorías y conceptos. Sin montos: tú los defines."
+            onClose={() => { if (!generating) setShowTierModal(false) }}
+          />
+          <Modal.Body>
             <div className="flex flex-col gap-2.5">
               {([
                 { tier: 'esencial' as BudgetTier, label: 'Esencial', desc: 'Lo indispensable para tu boda.' },
@@ -625,8 +625,8 @@ export default function PresupuestoPage() {
                 </button>
               ))}
             </div>
-          </div>
-        </div>
+          </Modal.Body>
+        </Modal>
       )}
 
       {showCategoriesModal && (

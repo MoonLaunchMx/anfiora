@@ -586,25 +586,17 @@ export default function SupplierDetailModal({
         </div>
       </Modal.Footer>
 
-      {/* fixed (no absolute): el panel del primitivo tiene overflow-hidden, fixed cubre el viewport sin depender del containing block */}
-      <AnimatePresence>
-        {showProModal && (
-          <motion.div key="pro-modal" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[310] flex items-center justify-center bg-black/40 p-4"
-            onClick={() => setShowProModal(false)}
-          >
-            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
-              className="max-w-sm rounded-2xl bg-white p-6 text-center shadow-xl"
-              onClick={e => e.stopPropagation()}
-            >
-              <div className="mb-3 inline-block rounded-full bg-[#1D1E20] px-2.5 py-1 text-[10px] font-bold uppercase text-white">Próximamente PRO</div>
-              <h3 className="mb-2 text-base font-semibold text-[#1D1E20]">Archivos del proveedor</h3>
-              <p className="mb-5 text-sm text-[#666]">Sube contratos, cotizaciones y comprobantes. Disponible próximamente en plan PRO.</p>
-              <button onClick={() => setShowProModal(false)} className="w-full rounded-lg bg-[#1D1E20] px-4 py-2 text-sm font-semibold text-white hover:bg-black">Entendido</button>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* modal anidado: el primitivo lo portaliza fuera del panel y lleva el conteo de capas */}
+      <Modal open={showProModal} onClose={() => setShowProModal(false)} size="sm">
+        <Modal.Body className="py-6 text-center">
+          <div className="mb-3 inline-block rounded-full bg-[#1D1E20] px-2.5 py-1 text-[10px] font-bold uppercase text-white">Próximamente PRO</div>
+          <h3 className="mb-2 text-base font-semibold text-[#1D1E20]">Archivos del proveedor</h3>
+          <p className="text-sm text-[#666]">Sube contratos, cotizaciones y comprobantes. Disponible próximamente en plan PRO.</p>
+        </Modal.Body>
+        <Modal.Footer>
+          <button onClick={() => setShowProModal(false)} className="w-full rounded-lg bg-[#1D1E20] px-4 py-2 text-sm font-semibold text-white hover:bg-black">Entendido</button>
+        </Modal.Footer>
+      </Modal>
     </Modal>
   )
 }
