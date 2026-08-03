@@ -2056,12 +2056,9 @@ export default function EventPage() {
       )}
 
       {showBulkCompanionModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-xs rounded-2xl border border-[#e8e8e8] bg-white p-6 shadow-xl">
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-base font-bold text-[#1D1E20]">Agregar acompañantes</h2>
-              <button onClick={() => setShowBulkCompanionModal(false)} disabled={bulkCompanionSaving} className="text-xl text-[#aaa] disabled:opacity-40">✕</button>
-            </div>
+        <Modal open onClose={() => { if (!bulkCompanionSaving) setShowBulkCompanionModal(false) }} size="sm">
+          <Modal.Header title="Agregar acompañantes" onClose={() => { if (!bulkCompanionSaving) setShowBulkCompanionModal(false) }} />
+          <Modal.Body>
             <p className="mb-4 text-xs text-[#888]">
               Se agregará <span className="font-semibold text-[#1D1E20]">{bulkCompanionCount} acompañante{bulkCompanionCount > 1 ? 's' : ''}</span> a cada uno de los <span className="font-semibold text-[#1D1E20]">{selected.size} invitados</span> seleccionados.
             </p>
@@ -2077,27 +2074,23 @@ export default function EventPage() {
                 </div>
               </>
             )}
-            <div className="flex gap-2.5">
-              <button onClick={() => setShowBulkCompanionModal(false)} disabled={bulkCompanionSaving} className="flex-1 rounded-lg border border-[#e0e0e0] py-2.5 text-sm text-[#888] disabled:opacity-50">Cancelar</button>
-              <button onClick={bulkAddCompanions} disabled={bulkCompanionSaving || maxCanAdd === 0} className="flex flex-[2] items-center justify-center gap-2 rounded-lg bg-[#48C9B0] py-2.5 text-sm font-semibold text-white disabled:opacity-60">{bulkCompanionSaving ? <><Loader2 size={15} className="animate-spin" />Guardando...</> : 'Confirmar'}</button>
-            </div>
-          </div>
-        </div>
+          </Modal.Body>
+          <Modal.Footer>
+            <button onClick={() => setShowBulkCompanionModal(false)} disabled={bulkCompanionSaving} className="flex-1 rounded-lg border border-[#e0e0e0] py-2.5 text-sm text-[#888] disabled:opacity-50">Cancelar</button>
+            <button onClick={bulkAddCompanions} disabled={bulkCompanionSaving || maxCanAdd === 0} className="flex flex-[2] items-center justify-center gap-2 rounded-lg bg-[#48C9B0] py-2.5 text-sm font-semibold text-white disabled:opacity-60">{bulkCompanionSaving ? <><Loader2 size={15} className="animate-spin" />Guardando...</> : 'Confirmar'}</button>
+          </Modal.Footer>
+        </Modal>
       )}
 
       {showWaSheet && (
-        <div className="fixed inset-0 z-[200] flex items-end sm:hidden" onClick={() => setShowWaSheet(null)}>
-          <div className="w-full rounded-t-2xl border-t border-[#e8e8e8] bg-white pb-8 pt-4 shadow-2xl" onClick={e => e.stopPropagation()}>
-            <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-[#e0e0e0]" />
-            <div className="mb-3 px-5">
-              <p className="text-xs text-[#aaa]">Enviar a</p>
-              <p className="text-sm font-semibold text-[#1D1E20]">{showWaSheet.name}</p>
-            </div>
-            <div className="border-t border-[#f0f0f0]" />
+        <Modal open onClose={() => setShowWaSheet(null)} size="sm">
+          <Modal.Header title={showWaSheet.name} subtitle="Enviar a" />
+          {/* lista a sangre: el primitivo no expone un cuerpo sin respiro lateral */}
+          <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
             {activeTemplates.length === 0 ? (
               <p className="px-5 py-4 text-sm text-[#aaa]">No hay plantillas — configúralas en Configuración.</p>
             ) : (
-              <div className="flex max-h-[55dvh] flex-col overflow-y-auto">
+              <>
                 {activeTemplates.map((template: string, ti: number) => (
                   <button key={ti} onClick={() => { openWhatsApp(showWaSheet.phone!, buildWaText(showWaSheet, ti)); setShowWaSheet(null) }}
                     className="border-b border-[#f5f5f5] px-5 py-3.5 text-left transition active:bg-[#f0fdfb]">
@@ -2105,34 +2098,32 @@ export default function EventPage() {
                     <p className="text-sm text-[#1D1E20] line-clamp-2">{template.length > 80 ? template.substring(0, 80) + '...' : template}</p>
                   </button>
                 ))}
-              </div>
+              </>
             )}
-            <button onClick={() => setShowWaSheet(null)} className="mx-5 mt-3 w-[calc(100%-40px)] rounded-xl border border-[#e0e0e0] py-3 text-sm font-medium text-[#666]">Cancelar</button>
           </div>
-        </div>
+          <Modal.Footer>
+            <button onClick={() => setShowWaSheet(null)} className="w-full rounded-xl border border-[#e0e0e0] py-3 text-sm font-medium text-[#666]">Cancelar</button>
+          </Modal.Footer>
+        </Modal>
       )}
 
       {showMobileBulkSheet && (
-        <div className="fixed inset-0 z-[200] flex items-end sm:hidden" onClick={() => setShowMobileBulkSheet(false)}>
-          <div className="w-full rounded-t-2xl border-t border-[#e8e8e8] bg-white pb-8 pt-3 shadow-2xl" onClick={e => e.stopPropagation()}>
-            <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-[#e0e0e0]" />
-            <div className="mb-2 px-3">
-              <p className="text-xs font-semibold text-[#1D1E20]">{selected.size} invitados{selectedMembers.size > 0 ? ' · ' + selectedMembers.size + ' acompañantes' : ''} seleccionados</p>
-            </div>
-            <div className="max-h-[60dvh] overflow-y-auto">
-              <BulkMenuContent
-                onClose={() => setShowMobileBulkSheet(false)}
-                onBulkUpdateStatus={bulkUpdateStatus}
-                onBulkDelete={bulkDelete}
-                onOpenCompanionModal={() => { setBulkCompanionCount(1); setShowBulkCompanionModal(true) }}
-                hasGuests={selected.size > 0}
-              />
-            </div>
-            <div className="px-3 pt-2">
-              <button onClick={() => setShowMobileBulkSheet(false)} className="w-full rounded-xl border border-[#e0e0e0] py-3 text-sm font-medium text-[#666]">Cancelar</button>
-            </div>
+        <Modal open onClose={() => setShowMobileBulkSheet(false)} size="sm">
+          <Modal.Header title={`${selected.size} invitados${selectedMembers.size > 0 ? ' · ' + selectedMembers.size + ' acompañantes' : ''} seleccionados`} />
+          {/* lista a sangre: las filas del menu van de borde a borde */}
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            <BulkMenuContent
+              onClose={() => setShowMobileBulkSheet(false)}
+              onBulkUpdateStatus={bulkUpdateStatus}
+              onBulkDelete={bulkDelete}
+              onOpenCompanionModal={() => { setBulkCompanionCount(1); setShowBulkCompanionModal(true) }}
+              hasGuests={selected.size > 0}
+            />
           </div>
-        </div>
+          <Modal.Footer>
+            <button onClick={() => setShowMobileBulkSheet(false)} className="w-full rounded-xl border border-[#e0e0e0] py-3 text-sm font-medium text-[#666]">Cancelar</button>
+          </Modal.Footer>
+        </Modal>
       )}
 
     </div>
