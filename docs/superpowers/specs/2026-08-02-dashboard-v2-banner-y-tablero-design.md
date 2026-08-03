@@ -33,7 +33,26 @@ Esto no es una preferencia de producto, es lo que la base permite: las política
 └──────────────┴──────────────┴──────────────┴───────────┘
 ```
 
-Las cuatro cifras son **invitados por estatus** (confirmados · pendientes · declinados), **presupuesto contra pagado**, **proveedores contratados** y **tareas**. El banner es fijo: no se acomoda ni se oculta.
+Las cuatro cifras de fábrica son **invitados por estatus** (confirmados · pendientes · declinados), **presupuesto contra pagado**, **proveedores contratados** y **tareas**.
+
+**El banner no se acomoda ni se oculta, pero el planner elige qué cuatro cifras muestra** (enmienda del 3-ago-2026). Las cuatro de arriba son la base con la que nace todo evento, no un candado: un planner con una boda de presupuesto apretado quiere el dinero, y el del congreso de 600 personas quiere invitados y mesas. Se eligen cuatro exactas — ni tres ni cinco — porque la fila del banner está diseñada para cuatro columnas y un número variable la vuelve un tablero, que es justo lo que ya vive abajo.
+
+El catálogo de cifras elegibles es de ocho, todas derivadas de números que `lib/dashboard/metrics.ts` ya calcula, sin consultas nuevas:
+
+| Cifra | Qué muestra | Condición |
+|---|---|---|
+| `invitados` | confirmados de total, con desglose por estatus | siempre |
+| `presupuesto` | estimado contra pagado y por pagar | solo si el rol ve montos |
+| `proveedores` | contratados de total, cotizados y sin cotizar | solo si el rol ve montos |
+| `tareas` | vencidas, para hoy y próximas | siempre |
+| `regalos` | recibido y apartados de total | herramienta `regalos` encendida |
+| `mesas` | porcentaje acomodado, con lugar y sin lugar | herramienta `mesas` encendida |
+| `atencion` | invitados que requieren atención | siempre |
+| `organizacion` | promedio de las cuatro dimensiones que el planner ya mueve | siempre |
+
+Una cifra elegida que deje de aplicar —porque se apagó la herramienta o porque el colaborador no ve montos— cae a la siguiente cifra de fábrica disponible, para que el banner nunca quede con un hueco.
+
+La elección se guarda **junto al acomodo del tablero**, en el mismo JSON y con la misma regla de permiso: la define el dueño, el equipo la ve.
 
 **4. Debajo del banner, un tablero de cajas acomodables.** Pendientes, Requiere tu atención, Actividad reciente, Playlist, Mesa de regalos, Mesas, Equipo y las demás features dejan de estar en posiciones fijas.
 
@@ -67,6 +86,7 @@ La forma del JSON:
 ```json
 {
   "v": 1,
+  "cifras": ["invitados", "presupuesto", "mesas", "tareas"],
   "cajas": [
     { "id": "atencion", "x": 0, "y": 0, "w": 2, "h": 2 },
     { "id": "tareas",   "x": 2, "y": 0, "w": 2, "h": 2 },
@@ -75,6 +95,8 @@ La forma del JSON:
   "ocultas": ["regalos"]
 }
 ```
+
+`cifras` son las cuatro del banner, en el orden en que se muestran. Ausente o mal formado significa "las de fábrica", así que los tableros guardados antes de esta enmienda siguen abriendo bien sin migrar nada.
 
 Cuatro columnas de rejilla; `x`, `y`, `w` y `h` van en casillas, nunca en pixeles. El `v` permite cambiar la forma más adelante sin romper lo ya guardado.
 
