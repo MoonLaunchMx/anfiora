@@ -7,7 +7,13 @@ import {
   X, Plus, ChevronDown, Bell, Building2, User, Star, AlertTriangle
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { formatDate } from './TaskCard'
+import {
+  reminderPresetsFor,
+  computeReminderInstant,
+  computeCustomInstant,
+  detectReminderKey,
+  localDateTimeParts,
+} from '@/lib/timeline/reminder-picker'
 
 // ─── CONSTANTS ───────────────────────────────────────────────────────────────
 
@@ -20,17 +26,6 @@ const CATEGORIES = [
   { value: 'pago',          label: 'Pago' },
   { value: 'comunicacion',  label: 'Comunicación' },
   { value: 'otro',          label: 'Otro' },
-]
-
-export const REMINDER_OPTIONS = [
-  { value: '15min',  label: '15 minutos antes', minutes: 15 },
-  { value: '30min',  label: '30 minutos antes', minutes: 30 },
-  { value: '1h',     label: '1 hora antes',     minutes: 60 },
-  { value: '2h',     label: '2 horas antes',    minutes: 120 },
-  { value: '1d',     label: '1 día antes',      minutes: 60 * 24 },
-  { value: '2d',     label: '2 días antes',     minutes: 60 * 24 * 2 },
-  { value: '1w',     label: '1 semana antes',   minutes: 60 * 24 * 7 },
-  { value: 'custom', label: 'Fecha personalizada', minutes: null },
 ]
 
 const EMOJIS = ['📩','✅','💳','💐','🎉','🤝','📦','🔔','📅','🎊','🍽️','📸','🎶','✈️','🏨','💍','👗','💄','🌸','🎁']
@@ -48,33 +43,6 @@ interface TaskModalProps {
   eventId: string
   onClose: () => void
   onSaved: () => void
-}
-
-// ─── REMINDER HELPERS ────────────────────────────────────────────────────────
-
-function computeReminderDate(taskDate: string, taskTime: string | null, reminderKey: string): string | null {
-  if (!taskDate || reminderKey === 'custom') return null
-  const opt = REMINDER_OPTIONS.find(o => o.value === reminderKey)
-  if (!opt || opt.minutes === null) return null
-  const baseTime = taskTime || '09:00'
-  const [y, mo, d] = taskDate.split('-').map(Number)
-  const [h, min] = baseTime.split(':').map(Number)
-  const base = new Date(y, mo - 1, d, h, min, 0)
-  const reminder = new Date(base.getTime() - opt.minutes * 60000)
-  const pad = (n: number) => n.toString().padStart(2, '0')
-  return `${reminder.getFullYear()}-${pad(reminder.getMonth() + 1)}-${pad(reminder.getDate())}T${pad(reminder.getHours())}:${pad(reminder.getMinutes())}:00`
-}
-
-function detectReminderKey(reminderDate: string | null, taskDate: string, taskTime: string | null): string {
-  if (!reminderDate) return ''
-  const base = taskTime || '09:00'
-  const [y, mo, d] = taskDate.split('-').map(Number)
-  const [h, min] = base.split(':').map(Number)
-  const baseTs = new Date(y, mo - 1, d, h, min).getTime()
-  const remTs  = new Date(reminderDate).getTime()
-  const diffMin = Math.round((baseTs - remTs) / 60000)
-  const match = REMINDER_OPTIONS.find(o => o.minutes === diffMin)
-  return match ? match.value : 'custom'
 }
 
 // ─── COMPONENT ────────────────────────────────────────────────────────────────
@@ -131,6 +99,9 @@ export function TaskModal({ editTask, prefillDate, eventId, onClose, onSaved }: 
         ? detectReminderKey(editTask.reminder_date, editTask.task_date, editTask.task_time)
         : ''
       const isCustom = reminderKey === 'custom'
+      const customParts = isCustom && editTask.reminder_date
+        ? localDateTimeParts(editTask.reminder_date)
+        : null
       setForm({
         title:                editTask.title,
         emoji:                editTask.emoji || '',
@@ -144,8 +115,8 @@ export function TaskModal({ editTask, prefillDate, eventId, onClose, onSaved }: 
         assigned_to_name:     editTask.assigned_to_name || '',
         event_supplier_id:    editTask.event_supplier_id || null,
         reminder_key:         reminderKey,
-        reminder_custom_date: isCustom && editTask.reminder_date ? editTask.reminder_date.split('T')[0] : '',
-        reminder_custom_time: isCustom && editTask.reminder_date ? (editTask.reminder_date.split('T')[1]?.slice(0, 5) || '09:00') : '09:00',
+        reminder_custom_date: customParts?.date || '',
+        reminder_custom_time: customParts?.time || '09:00',
       })
       setAssignMode(editTask.assigned_to_name && !editTask.assigned_to_user_id ? 'free' : 'collab')
     } else {
@@ -165,11 +136,19 @@ export function TaskModal({ editTask, prefillDate, eventId, onClose, onSaved }: 
   const computedReminderDate = useMemo((): string | null => {
     if (!form.reminder_key) return null
     if (form.reminder_key === 'custom') {
-      if (!form.reminder_custom_date) return null
-      return form.reminder_custom_date + 'T' + (form.reminder_custom_time || '09:00') + ':00'
+      return computeCustomInstant(form.reminder_custom_date, form.reminder_custom_time)
     }
-    return computeReminderDate(form.task_date, form.task_time || null, form.reminder_key)
+    return computeReminderInstant(form.task_date, form.task_time || null, form.reminder_key)
   }, [form.reminder_key, form.task_date, form.task_time, form.reminder_custom_date, form.reminder_custom_time])
+
+  // Quitarle la hora a una tarea deja sin sentido los presets por minutos, asi
+  // que solo en ese caso se descarta la eleccion; moverla de hora la recalcula.
+  const onTaskTimeChange = (value: string) => {
+    setForm(f => {
+      const sigueValido = reminderPresetsFor(value || null).some(p => p.value === f.reminder_key)
+      return { ...f, task_time: value, reminder_key: sigueValido ? f.reminder_key : '' }
+    })
+  }
 
   // ── Save ─────────────────────────────────────────────────────────────────
   const handleSave = async () => {
@@ -294,7 +273,7 @@ export function TaskModal({ editTask, prefillDate, eventId, onClose, onSaved }: 
               <input
                 type="date"
                 value={form.task_date}
-                onChange={e => setForm(f => ({ ...f, task_date: e.target.value, reminder_key: '' }))}
+                onChange={e => setForm(f => ({ ...f, task_date: e.target.value }))}
                 className="w-full border border-[#e0e0e0] rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#48C9B0] bg-[#f8f8f8]"
               />
             </div>
@@ -305,7 +284,7 @@ export function TaskModal({ editTask, prefillDate, eventId, onClose, onSaved }: 
               <input
                 type="time"
                 value={form.task_time}
-                onChange={e => setForm(f => ({ ...f, task_time: e.target.value, reminder_key: '' }))}
+                onChange={e => onTaskTimeChange(e.target.value)}
                 className="w-full border border-[#e0e0e0] rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#48C9B0] bg-[#f8f8f8]"
               />
             </div>
@@ -324,17 +303,21 @@ export function TaskModal({ editTask, prefillDate, eventId, onClose, onSaved }: 
                 className="w-full border border-[#e0e0e0] rounded-xl px-3 py-2 text-sm appearance-none focus:outline-none focus:border-[#48C9B0] bg-[#f8f8f8] disabled:opacity-40"
               >
                 <option value="">Sin recordatorio</option>
-                {REMINDER_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                {reminderPresetsFor(form.task_time || null).map(o => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
               </select>
               <ChevronDown size={13} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#aaa] pointer-events-none" />
             </div>
             {!form.task_date && (
               <p className="text-[11px] text-[#bbb] mt-1">Elige una fecha primero</p>
             )}
-            {form.reminder_key && form.reminder_key !== 'custom' && computedReminderDate && (
+            {computedReminderDate && (
               <p className="text-[11px] text-[#48C9B0] mt-1 flex items-center gap-1">
                 <Bell size={10} />
-                Aviso el {formatDate(computedReminderDate.split('T')[0])} a las {computedReminderDate.split('T')[1]?.slice(0, 5)}
+                Aviso el {new Date(computedReminderDate).toLocaleDateString('es-MX', { day: 'numeric', month: 'long' })}
+                {' a las '}
+                {new Date(computedReminderDate).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}
               </p>
             )}
             {form.reminder_key === 'custom' && (
