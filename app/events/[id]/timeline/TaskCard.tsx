@@ -2,6 +2,7 @@
 
 import { Bell, AlertTriangle, Clock, Building2, CheckCircle2, Circle, Star, RotateCcw, Calendar } from 'lucide-react'
 import { TimelineTask } from '@/lib/types'
+import { formatReminderLabel } from '@/lib/timeline/reminder-picker'
 
 const CATEGORIES = [
   { value: 'evento',        label: 'Evento' },
@@ -15,17 +16,6 @@ const CATEGORIES = [
 ]
 
 const MONTH_NAMES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
-
-const REMINDER_OPTIONS = [
-  { value: '15min',  label: '15 minutos antes', minutes: 15 },
-  { value: '30min',  label: '30 minutos antes', minutes: 30 },
-  { value: '1h',     label: '1 hora antes',     minutes: 60 },
-  { value: '2h',     label: '2 horas antes',    minutes: 120 },
-  { value: '1d',     label: '1 día antes',      minutes: 60 * 24 },
-  { value: '2d',     label: '2 días antes',     minutes: 60 * 24 * 2 },
-  { value: '1w',     label: '1 semana antes',   minutes: 60 * 24 * 7 },
-  { value: 'custom', label: 'Fecha personalizada', minutes: null },
-]
 
 export type UrgencyLevel = 'overdue' | 'today' | 'tomorrow' | 'normal' | 'done'
 
@@ -86,18 +76,7 @@ export function getInitials(name: string | null | undefined): string {
     : name.slice(0, 2).toUpperCase()
 }
 
-export function formatReminderLabel(reminderDate: string, taskDate: string, taskTime: string | null): string {
-  const base = taskTime || '09:00'
-  const [y, mo, d] = taskDate.split('-').map(Number)
-  const [h, min] = base.split(':').map(Number)
-  const baseTs = new Date(y, mo - 1, d, h, min).getTime()
-  const remTs  = new Date(reminderDate).getTime()
-  const diffMin = Math.round((baseTs - remTs) / 60000)
-  const match = REMINDER_OPTIONS.find(o => o.minutes === diffMin)
-  if (match) return match.label
-  const rd = new Date(reminderDate)
-  return `${rd.getDate()} ${MONTH_NAMES[rd.getMonth()].slice(0, 3)} ${rd.getHours()}:${rd.getMinutes().toString().padStart(2, '0')}`
-}
+export { formatReminderLabel }
 
 function openGoogleCalendar(task: TimelineTask) {
   const [year, month, day] = task.task_date.split('-').map(Number)
