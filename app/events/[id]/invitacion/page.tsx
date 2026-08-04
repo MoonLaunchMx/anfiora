@@ -9,6 +9,7 @@ import { Modal } from '@/app/components/ui/Modal'
 import { supabase } from '@/lib/supabase'
 import { resolveDoc, setMeta, seedAccessFromColumns } from '@/lib/invite/doc'
 import { estadoPublicacion } from '@/lib/invite/publicacion'
+import { interpretarEscritura } from '@/lib/invite/persistencia'
 import type { InviteDoc } from '@/lib/invite/schema'
 import { randomToken } from '@/lib/invite'
 import { botonClass } from '@/lib/invite/theme-css'
@@ -24,6 +25,7 @@ import BlockEditor from './BlockEditor'
 import RepartoLinks from './RepartoLinks'
 import AccesoPanel from './AccesoPanel'
 import { useSalidaGuard } from '../SalidaGuardProvider'
+import { useEventAccess } from '@/lib/event-access-context'
 import EstiloPanel from './EstiloPanel'
 import PersonalizarPanel from './PersonalizarPanel'
 
@@ -45,6 +47,9 @@ type EventInfo = {
 function accessIsEmpty(access: InviteDoc['meta']['access']): boolean {
   return access.guest_cap === null && access.ticket_price === null && access.max_companions === null
 }
+
+const SOLO_LECTURA =
+  'Tienes acceso de solo lectura en este evento. Puedes ver la invitación, pero no editarla.'
 
 async function safeSingle<T>(p: PromiseLike<{ data: T | null; error: unknown }>): Promise<T | null> {
   try {
@@ -71,6 +76,7 @@ export default function InvitacionPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [fallo, setFallo] = useState<string | null>(null)
   const [publishing, setPublishing] = useState(false)
   const [activeTab, setActiveTab] = useState<TabKey>('diseno')
   const [disenoSub, setDisenoSub] = useState<'estilo' | 'personalizar' | 'contenido'>('estilo')
@@ -79,6 +85,8 @@ export default function InvitacionPage() {
   const [showPreview, setShowPreview] = useState(false)
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const salidaGuard = useSalidaGuard()
+  const { canEdit, isLoading: cargandoRol } = useEventAccess()
+  const soloLectura = !cargandoRol && !canEdit
   const publishRef = useRef<() => Promise<void>>(async () => {})
 
   useEffect(() => {
@@ -163,17 +171,32 @@ export default function InvitacionPage() {
   const persist = useCallback(async (next: InviteDoc) => {
     setSaving(true)
     try {
-      await supabase
-        .from('event_settings')
-        .upsert({ event_id: eventId, invite_draft: next, updated_at: new Date().toISOString() }, { onConflict: 'event_id' })
+      // .select() no es decorativo: un UPDATE filtrado por RLS regresa cero filas
+      // SIN error, y sin contarlas el guardado fallido se ve igual que uno exitoso.
+      const resultado = interpretarEscritura(
+        await supabase
+          .from('event_settings')
+          .upsert({ event_id: eventId, invite_draft: next, updated_at: new Date().toISOString() }, { onConflict: 'event_id' })
+          .select('event_id'),
+      )
+      if (!resultado.ok) {
+        setFallo(resultado.motivo)
+        return resultado
+      }
+      setFallo(null)
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
+      return resultado
     } finally {
       setSaving(false)
     }
   }, [eventId])
 
   const updateDoc = (next: InviteDoc) => {
+    if (soloLectura) {
+      setFallo(SOLO_LECTURA)
+      return
+    }
     setDoc(next)
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current)
     saveTimeoutRef.current = setTimeout(() => persist(next), 800)
@@ -191,17 +214,31 @@ export default function InvitacionPage() {
 
   const handlePublish = async () => {
     if (!doc) return
+    if (soloLectura) {
+      setFallo(SOLO_LECTURA)
+      return
+    }
     const next = setMeta(doc, { publicada: true })
-    setDoc(next)
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current)
     setPublishing(true)
     try {
       // Publicar copia el borrador ENCIMA de lo publicado y sincroniza ambos,
       // para que el estado vuelva a "Publicada" (draft == config).
-      await supabase
-        .from('event_settings')
-        .upsert({ event_id: eventId, invite_config: next, invite_draft: next, updated_at: new Date().toISOString() }, { onConflict: 'event_id' })
+      const publicacion = interpretarEscritura(
+        await supabase
+          .from('event_settings')
+          .upsert({ event_id: eventId, invite_config: next, invite_draft: next, updated_at: new Date().toISOString() }, { onConflict: 'event_id' })
+          .select('event_id'),
+      )
+      // El sello verde se pinta solo si la base acepto. Marcarlo antes es lo que
+      // hacia que un colaborador publicara "con exito" sin guardar nada.
+      if (!publicacion.ok) {
+        setFallo(publicacion.motivo)
+        return
+      }
+      setDoc(next)
       setPublishedDoc(next)
+      setFallo(null)
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
 
@@ -218,19 +255,31 @@ export default function InvitacionPage() {
       // por eso su valor publicado sigue viviendo en columnas ademas del doc.
       // PERO: solo cuando el evento es publica. Si es privada, las columnas son null.
       // cobro_payment_methods solo se pinta: viaja dentro de invite_config, sin columna.
-      await supabase
-        .from('events')
-        .update({
-          guest_cap: esPublica ? next.meta.access.guest_cap : null,
-          ticket_price: esPublica ? next.meta.access.ticket_price : null
-        })
-        .eq('id', eventId)
-      await supabase
-        .from('event_settings')
-        .update({
-          max_companions: esPublica ? next.meta.access.max_companions : null
-        })
-        .eq('event_id', eventId)
+      const accesos = [
+        interpretarEscritura(
+          await supabase
+            .from('events')
+            .update({
+              guest_cap: esPublica ? next.meta.access.guest_cap : null,
+              ticket_price: esPublica ? next.meta.access.ticket_price : null
+            })
+            .eq('id', eventId)
+            .select('id'),
+        ),
+        interpretarEscritura(
+          await supabase
+            .from('event_settings')
+            .update({
+              max_companions: esPublica ? next.meta.access.max_companions : null
+            })
+            .eq('event_id', eventId)
+            .select('event_id'),
+        ),
+      ]
+      const accesoFallido = accesos.find(r => !r.ok)
+      if (accesoFallido && !accesoFallido.ok) {
+        setFallo(`La invitación se publicó, pero el cupo, el precio y los acompañantes no se guardaron. ${accesoFallido.motivo}`)
+      }
 
       // El token de la puerta publica nace con la invitacion publicada. El
       // .is(null) del update es la red: si se publica dos veces (o desde dos
@@ -243,18 +292,25 @@ export default function InvitacionPage() {
           .is('shared_token', null)
       }
 
-      const { data: pending, error } = await supabase
-        .from('guests')
-        .select('id')
-        .eq('event_id', eventId)
-        .is('rsvp_token', null)
-      if (!error && pending && pending.length > 0) {
-        await Promise.all(
-          pending.map(g => supabase.from('guests').update({ rsvp_token: randomToken() }).eq('id', g.id)),
-        )
+      // Los tokens de los links personales se rellenan como cortesia. Su propio
+      // try: rsvp_token puede no existir si el SQL de la feature no se ha
+      // corrido, y eso no debe contaminar el resultado de publicar.
+      try {
+        const { data: pending, error } = await supabase
+          .from('guests')
+          .select('id')
+          .eq('event_id', eventId)
+          .is('rsvp_token', null)
+        if (!error && pending && pending.length > 0) {
+          await Promise.all(
+            pending.map(g => supabase.from('guests').update({ rsvp_token: randomToken() }).eq('id', g.id)),
+          )
+        }
+      } catch {
+        // sin tokens nuevos; los links ya repartidos siguen sirviendo
       }
-    } catch {
-      // rsvp_token puede no existir aun si el SQL de la feature no se ha corrido; no bloquea publicar
+    } catch (e) {
+      setFallo(e instanceof Error ? e.message : 'No se pudo publicar la invitación.')
     } finally {
       setPublishing(false)
     }
@@ -318,8 +374,15 @@ export default function InvitacionPage() {
                 <span className={`h-1.5 w-1.5 rounded-full ${sello.dot}`} />
                 {sello.label}
               </span>
+              {soloLectura && (
+                <span className="flex shrink-0 items-center gap-1 rounded-full border border-[#e0e0e0] bg-[#f8f8f8] px-2 py-0.5 text-[10px] font-semibold text-[#888]">
+                  <Eye size={11} /> Solo lectura
+                </span>
+              )}
             </div>
-            <p className="mt-0.5 text-xs text-[#888] sm:text-sm">Arma la invitación digital que verán tus invitados.</p>
+            <p className="mt-0.5 text-xs text-[#888] sm:text-sm">
+              {soloLectura ? 'Así se ve la invitación de este evento.' : 'Arma la invitación digital que verán tus invitados.'}
+            </p>
           </div>
 
           {/* Centro: pestanas al nivel del titulo */}
@@ -330,14 +393,14 @@ export default function InvitacionPage() {
           {/* Derecha: fecha limite + acciones */}
           <div className="flex items-center gap-2.5 sm:shrink-0">
             <span className="hidden shrink-0 text-xs text-[#888] sm:inline">Fecha límite</span>
-            <div className="flex-1 sm:w-36 sm:flex-none">
+            <div className={`flex-1 sm:w-36 sm:flex-none ${soloLectura ? 'pointer-events-none opacity-60' : ''}`}>
               <DatePicker
                 value={doc.meta.fecha_limite ?? ''}
                 onChange={v => updateDoc(setMeta(doc, { fecha_limite: v || null }))}
                 placeholder="Sin límite"
               />
             </div>
-            {estado === 'cambios' && (
+            {estado === 'cambios' && !soloLectura && (
               <button
                 onClick={() => setDiscardOpen(true)}
                 disabled={publishing}
@@ -346,26 +409,42 @@ export default function InvitacionPage() {
                 <RotateCcw size={13} /> Descartar
               </button>
             )}
-            <button
-              onClick={handlePublish}
-              disabled={publishing || estado === 'publicada'}
-              className="flex shrink-0 items-center gap-1.5 rounded-lg bg-[#48C9B0] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#3ab89f] disabled:cursor-not-allowed disabled:opacity-60 sm:px-4 sm:text-sm"
-            >
-              {publishing ? (
-                'Publicando...'
-              ) : estado === 'publicada' ? (
-                <><Check size={14} /> Publicada</>
-              ) : estado === 'cambios' ? (
-                <><Send size={14} /> Publicar cambios</>
-              ) : (
-                <><Send size={14} /> Publicar</>
-              )}
-            </button>
+            {!soloLectura && (
+              <button
+                onClick={handlePublish}
+                disabled={publishing || estado === 'publicada'}
+                className="flex shrink-0 items-center gap-1.5 rounded-lg bg-[#48C9B0] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#3ab89f] disabled:cursor-not-allowed disabled:opacity-60 sm:px-4 sm:text-sm"
+              >
+                {publishing ? (
+                  'Publicando...'
+                ) : estado === 'publicada' ? (
+                  <><Check size={14} /> Publicada</>
+                ) : estado === 'cambios' ? (
+                  <><Send size={14} /> Publicar cambios</>
+                ) : (
+                  <><Send size={14} /> Publicar</>
+                )}
+              </button>
+            )}
             <span className="hidden w-14 shrink-0 text-right text-xs text-[#aaa] sm:inline">
               {saved ? 'Guardado' : saving ? 'Guardando...' : ''}
             </span>
           </div>
         </div>
+
+        {fallo && (
+          <div className="mt-3 flex items-start gap-2 rounded-lg border border-[#ffc0c0] bg-[#fff0f0] px-3 py-2.5 text-xs text-[#cc3333]">
+            <AlertTriangle size={15} className="mt-px shrink-0" />
+            <p className="flex-1">{fallo}</p>
+            <button
+              onClick={() => setFallo(null)}
+              aria-label="Cerrar aviso"
+              className="shrink-0 rounded p-0.5 text-[#cc3333]/70 transition hover:bg-[#ffe0e0] hover:text-[#cc3333]"
+            >
+              <X size={14} />
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="flex-1 min-h-0 overflow-y-auto px-4 sm:px-6 lg:px-10 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -428,7 +507,7 @@ export default function InvitacionPage() {
             <RepartoLinks eventId={eventId} event={event} />
           </div>
         ) : (
-          <div className="pt-5 pb-6">
+          <div className={`pt-5 pb-6 ${soloLectura ? 'pointer-events-none opacity-60' : ''}`}>
             <AccesoPanel eventId={eventId} event={event} doc={doc} onChange={updateDoc} />
           </div>
         )}
