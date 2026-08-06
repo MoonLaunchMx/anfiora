@@ -1,7 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import PhoneInput from '@/app/components/ui/PhoneInput'
+import { localeCountry, DEFAULT_COUNTRY, type CountryCode } from '@/lib/phone'
 import { montoAPagar } from '@/lib/puerta'
 import { formatCurrency, type Currency } from '@/lib/types'
 import { reportError } from '@/lib/observabilidad/report'
@@ -35,9 +36,19 @@ export default function RegistroForm({ token, maxCompanions, botonClassName, tic
   // marcable. La puerta es publica y llega gente de cualquier pais: sin selector
   // de lada, un numero extranjero se rechazaba (o peor, se guardaba como mexicano).
   const [phone, setPhone] = useState('')
+  // Arranca en Mexico para que servidor y cliente rendericen igual, y adopta el
+  // pais del navegador ya montado. En una boda en Espana los invitados son
+  // espanoles: obligarlos a corregir "+52" antes de teclear es pedirles que
+  // adivinen que el campo asume otro pais.
+  const [pais, setPais] = useState<CountryCode>(DEFAULT_COUNTRY)
   const [companions, setCompanions] = useState(0)
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const detectado = localeCountry(typeof navigator !== 'undefined' ? navigator.language : null)
+    if (detectado) setPais(detectado)
+  }, [])
 
   const partySize = 1 + companions
   const hasPrice = Number(ticketPrice) > 0
@@ -96,7 +107,8 @@ export default function RegistroForm({ token, maxCompanions, botonClassName, tic
         <PhoneInput
           value={phone}
           onChange={setPhone}
-          placeholder="55 1234 5678"
+          defaultCountry={pais}
+          placeholder="Número de WhatsApp"
         />
       </div>
 

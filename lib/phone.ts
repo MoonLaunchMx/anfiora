@@ -42,6 +42,28 @@ const COUNTRY_ISOS: { iso: CountryCode; name: string }[] = [
 export const COUNTRIES: { iso: CountryCode; name: string; dial: string }[] =
   COUNTRY_ISOS.map(c => ({ ...c, dial: `+${getCountryCallingCode(c.iso)}` }))
 
+const ISOS_SOPORTADOS = new Set<string>(COUNTRY_ISOS.map(c => c.iso))
+
+// El pais que sugiere el navegador del visitante ('es-ES' -> ES). En una puerta
+// publica el default fijo a Mexico obliga a TODOS los demas a corregir el
+// selector antes de poder escribir su numero; con esto cada quien arranca en el
+// suyo. Devuelve null si el locale no trae region o no la tenemos en la lista.
+export function localeCountry(locale: string | null | undefined): CountryCode | null {
+  if (!locale) return null
+  const partes = locale.replace(/_/g, '-').split('-')
+  for (const parte of partes.slice(1)) {
+    const iso = parte.toUpperCase()
+    if (/^[A-Z]{2}$/.test(iso) && ISOS_SOPORTADOS.has(iso)) return iso as CountryCode
+  }
+  return null
+}
+
+// Para buscar paises sin pelearse con los acentos: quien escribe "España" debe
+// encontrar "Espana".
+export function sinAcentos(texto: string): string {
+  return texto.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase()
+}
+
 // Lada de cualquier pais (aunque no este en COUNTRIES); vacio si el ISO no es valido.
 export function dialCode(iso: CountryCode): string {
   try {
