@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { toE164, formatDisplay, isValidPhone, detectCountry, toWhatsApp, nationalNumber } from './phone'
+import { toE164, formatDisplay, isValidPhone, detectCountry, toWhatsApp, nationalNumber, localeCountry, sinAcentos } from './phone'
 
 describe('toE164', () => {
   it('MX local sin lada asume +52', () => {
@@ -89,5 +89,41 @@ describe('nationalNumber', () => {
   })
   it('vacio devuelve cadena vacia', () => {
     expect(nationalNumber('')).toBe('')
+  })
+})
+
+describe('localeCountry', () => {
+  it('saca el pais del locale del navegador', () => {
+    expect(localeCountry('es-ES')).toBe('ES')
+    expect(localeCountry('es-MX')).toBe('MX')
+    expect(localeCountry('en-US')).toBe('US')
+  })
+  it('aguanta el guion bajo y los locales con variante', () => {
+    expect(localeCountry('es_ES')).toBe('ES')
+    expect(localeCountry('ca-ES-valencia')).toBe('ES')
+  })
+  it('sin region no adivina', () => {
+    expect(localeCountry('es')).toBe(null)
+    expect(localeCountry('')).toBe(null)
+    expect(localeCountry(null)).toBe(null)
+    expect(localeCountry(undefined)).toBe(null)
+  })
+  it('una region que no esta en la lista no se inventa (cae al default de quien llama)', () => {
+    expect(localeCountry('es-419')).toBe(null)
+    expect(localeCountry('ja-JP')).toBe(null)
+  })
+})
+
+describe('sinAcentos', () => {
+  it('quien escribe Espana con enye encuentra Espana', () => {
+    expect(sinAcentos('España')).toBe('espana')
+    expect(sinAcentos('Espana').includes(sinAcentos('España'))).toBe(true)
+  })
+  it('quita acentos y baja a minusculas', () => {
+    expect(sinAcentos('MÉXICO')).toBe('mexico')
+    expect(sinAcentos('Perú')).toBe('peru')
+  })
+  it('un texto sin acentos no cambia mas que el case', () => {
+    expect(sinAcentos('Brasil')).toBe('brasil')
   })
 })

@@ -12,6 +12,7 @@ import {
   isValidPhone,
   nationalNumber,
   dialCode,
+  sinAcentos,
   type CountryCode,
 } from '@/lib/phone'
 import { useModalLayer } from '@/app/components/ui/Modal'
@@ -93,6 +94,15 @@ export default function PhoneInput({
     setText(formatAsYouType(value, detected))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value])
+
+  // El pais por defecto puede llegar DESPUES del primer render: la puerta publica
+  // lo deriva del navegador, que no existe al renderizar en el servidor. Mientras
+  // no haya numero escrito se adopta; si ya empezo a teclear, no se le mueve.
+  useEffect(() => {
+    if (value || text) return
+    setCountry(defaultCountry)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [defaultCountry])
 
   const computeDropdownPosition = () => {
     const vv = window.visualViewport
@@ -215,11 +225,15 @@ export default function PhoneInput({
   const current = COUNTRIES.find(c => c.iso === country)
   const showError = text.trim() !== '' && !isValidPhone(text, country)
 
-  const filteredCountries = filter.trim()
+  // Sin acentos y sin el "+" de la lada: quien escribe "España" o "+34" tiene que
+  // encontrar su pais, no una lista vacia.
+  const filtroNorm = sinAcentos(filter.trim())
+  const filtroDigitos = filter.replace(/\D/g, '')
+  const filteredCountries = filtroNorm
     ? COUNTRIES.filter(c =>
-        c.name.toLowerCase().includes(filter.toLowerCase()) ||
-        c.dial.includes(filter) ||
-        c.iso.toLowerCase().includes(filter.toLowerCase())
+        sinAcentos(c.name).includes(filtroNorm) ||
+        (filtroDigitos !== '' && c.dial.replace(/\D/g, '').startsWith(filtroDigitos)) ||
+        sinAcentos(c.iso).includes(filtroNorm)
       )
     : COUNTRIES
 
