@@ -4,7 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useId, useRef, useSt
 import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import { X } from 'lucide-react'
-import { panelMaxHeight } from '@/lib/viewport'
+import { panelMaxHeight, visualRect, type ViewportRect } from '@/lib/viewport'
 
 export type ModalSize = 'sm' | 'md' | 'lg' | 'xl' | '2xl'
 
@@ -53,15 +53,28 @@ function useModalCtx(component: string) {
   return ctx
 }
 
-function useVisualHeight(open: boolean) {
-  const [height, setHeight] = useState<number | null>(null)
+function useVisualRect(open: boolean) {
+  const [rect, setRect] = useState<ViewportRect | null>(null)
 
   useEffect(() => {
     if (!open) return
-    const read = () => {
-      const vv = window.visualViewport
-      setHeight(panelMaxHeight(vv ? vv.height : window.innerHeight))
-    }
+    const read = () =>
+      setRect(prev => {
+        const next = visualRect(window.visualViewport, {
+          width: window.innerWidth,
+          height: window.innerHeight,
+        })
+        if (
+          prev &&
+          prev.top === next.top &&
+          prev.left === next.left &&
+          prev.width === next.width &&
+          prev.height === next.height
+        ) {
+          return prev
+        }
+        return next
+      })
     read()
     const vv = window.visualViewport
     vv?.addEventListener('resize', read)
@@ -74,7 +87,7 @@ function useVisualHeight(open: boolean) {
     }
   }, [open])
 
-  return height
+  return rect
 }
 
 let scrollLockCount = 0
@@ -171,7 +184,7 @@ export function Modal({
   const panelRef = useRef<HTMLDivElement>(null)
   const generatedId = useId()
   const titleId = labelledBy ?? `${generatedId}-title`
-  const maxHeight = useVisualHeight(open)
+  const rect = useVisualRect(open)
   const [mounted, setMounted] = useState(false)
   const isTopModal = useModalLayer(open)
 
@@ -203,6 +216,18 @@ export function Modal({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
+            style={
+              rect
+                ? {
+                    top: rect.top,
+                    left: rect.left,
+                    width: rect.width,
+                    height: rect.height,
+                    right: 'auto',
+                    bottom: 'auto',
+                  }
+                : undefined
+            }
             className="fixed inset-0 z-[300] flex items-end justify-center bg-black/40 sm:items-center sm:p-4"
             onClick={onClose}
           >
@@ -216,7 +241,7 @@ export function Modal({
               animate={{ y: 0, opacity: 1 }}
               exit={{ y: '100%', opacity: 0 }}
               transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-              style={maxHeight ? { maxHeight: `${maxHeight}px` } : undefined}
+              style={rect ? { maxHeight: `${panelMaxHeight(rect.height)}px` } : undefined}
               className={`flex max-h-[92dvh] w-full flex-col overflow-hidden rounded-t-2xl bg-white shadow-xl outline-none sm:rounded-2xl ${SIZE_CLASS[size]}`}
               onClick={e => e.stopPropagation()}
             >
