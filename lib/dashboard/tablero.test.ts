@@ -2,8 +2,8 @@ import { describe, it, expect } from 'vitest'
 import {
   CATALOGO, CIFRAS_BASE, CIFRAS_EN_BANNER, COLUMNAS,
   acomodoInicial, agregarCaja, cajasDisponibles, cambiarCifra, cifrasDisponibles,
-  mezclarAcomodo, mezclarCifras, parseAcomodo, quitarCaja,
-  type Acomodo, type CajaId, type CifraId,
+  mezclarAcomodo, mezclarCifras, mismasCajas, parseAcomodo, quitarCaja,
+  type Acomodo, type Caja, type CajaId, type CifraId,
 } from './tablero'
 
 describe('cifrasDisponibles', () => {
@@ -236,5 +236,34 @@ describe('quitarCaja y agregarCaja', () => {
 
   it('mover cajas no toca las cifras', () => {
     expect(quitarCaja(base, 'equipo').cifras).toEqual(CIFRAS_BASE)
+  })
+})
+
+describe('mismasCajas', () => {
+  const cajas: Caja[] = [
+    { id: 'atencion', x: 0, y: 0, w: 2, h: 2 },
+    { id: 'equipo', x: 2, y: 0, w: 2, h: 2 },
+  ]
+
+  it('el mismo acomodo en otro objeto cuenta como igual', () => {
+    expect(mismasCajas(cajas, cajas.map(c => ({ ...c })))).toBe(true)
+  })
+
+  it('no le importa el orden de la lista', () => {
+    expect(mismasCajas(cajas, [...cajas].reverse())).toBe(true)
+  })
+
+  it('una caja movida un lugar cuenta como distinto', () => {
+    const movida = cajas.map(c => (c.id === 'equipo' ? { ...c, y: 2 } : c))
+    expect(mismasCajas(cajas, movida)).toBe(false)
+  })
+
+  it('una caja mas ancha cuenta como distinto', () => {
+    const ancha = cajas.map(c => (c.id === 'atencion' ? { ...c, w: 4 } : c))
+    expect(mismasCajas(cajas, ancha)).toBe(false)
+  })
+
+  it('quitar una caja cuenta como distinto', () => {
+    expect(mismasCajas(cajas, [cajas[0]])).toBe(false)
   })
 })

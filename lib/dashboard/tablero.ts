@@ -199,6 +199,18 @@ export function quitarCaja(a: Acomodo, id: CajaId): Acomodo {
   }
 }
 
+// La cuadricula avisa de un acomodo nuevo tambien cuando nada se movio (al
+// montar, al entrar a personalizar). Sin esta comparacion, cada aviso crearia
+// un objeto distinto y el tablero se redibujaria en circulo.
+export function mismasCajas(a: Caja[], b: Caja[]): boolean {
+  if (a.length !== b.length) return false
+  const porId = new Map(b.map(c => [c.id, c]))
+  return a.every(c => {
+    const o = porId.get(c.id)
+    return !!o && o.x === c.x && o.y === c.y && o.w === c.w && o.h === c.h
+  })
+}
+
 export function agregarCaja(a: Acomodo, id: CajaId): Acomodo {
   const ocultas = a.ocultas.filter(o => o !== id)
   if (a.cajas.some(c => c.id === id)) return { v: 1, cifras: a.cifras, cajas: a.cajas, ocultas }
