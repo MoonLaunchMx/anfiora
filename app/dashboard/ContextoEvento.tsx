@@ -2,8 +2,10 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
-import { Check, LayoutGrid, Plus } from 'lucide-react'
+import { Check, ExternalLink, LayoutDashboard, LayoutGrid, Plus } from 'lucide-react'
 import { Modal } from '@/app/components/ui/Modal'
+import { slugifyEvent } from '@/lib/invite'
+import { iniciales } from '@/lib/dashboard/iniciales'
 import {
   CATALOGO, agregarCaja, quitarCaja,
   type CajaId,
@@ -16,6 +18,12 @@ import type { ColaboradorRow, EventMetrics, Rol } from '@/lib/dashboard/types'
 const BTN_SEC = 'rounded-[10px] border border-[#E0E0E0] bg-[#F8F8F8] px-3.5 py-2 text-[13px] font-semibold text-[#1D1E20] transition hover:border-[#48C9B0]'
 
 const CAJA_POR_ID = new Map(CATALOGO.map(c => [c.id, c]))
+
+// En la barra pegada el chip lleva el tipo de evento delante, asi que el estado
+// va en una sola palabra: "Boda activa", no "Boda Activo".
+const ESTADO_CORTO: Record<string, string> = {
+  active: 'activa', paused: 'pausada', cancelled: 'cancelada', completed: 'terminada',
+}
 
 function fechaCorta(s: string | null): string {
   if (!s) return 'Sin fecha'
@@ -61,6 +69,14 @@ export default function ContextoEvento({ m, colaboradores, puedeVerDinero, usuar
   // cambiaria la vista a los demas sin avisar. La base si lo dejaria escribir
   // (las policies son is_event_editor) — el limite es de producto, no tecnico.
   const esDueno = !m.event.is_shared
+
+  // Mismo destino que el boton del hero: la invitacion como la ve un invitado.
+  const abrirInvitacion = () => {
+    if (!m.sharedToken) return
+    const ev = m.event
+    const slug = slugifyEvent({ name: ev.name, host_name: ev.host_name, host_name_2: ev.host_name_2 })
+    window.open(`${window.location.origin}/invitacion/${slug}/${m.sharedToken}`, '_blank', 'noopener')
+  }
 
   const salirDeModo = async () => {
     setModo(false)
@@ -122,28 +138,59 @@ export default function ContextoEvento({ m, colaboradores, puedeVerDinero, usuar
               animate={sinMovimiento ? { opacity: 1 } : { opacity: 1, y: 0 }}
               exit={sinMovimiento ? { opacity: 0 } : { opacity: 0, y: -14 }}
               transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
-              className="pointer-events-auto flex items-center gap-3 rounded-b-2xl border border-t-0 border-[#E8E8E8] bg-white/95 px-4 py-2.5 shadow-[0_10px_24px_-16px_rgba(29,30,32,0.35)] backdrop-blur-md sm:px-5"
+              className="pointer-events-auto flex items-center justify-between gap-4 rounded-b-2xl border border-t-0 border-[#E8E8E8] bg-white/90 px-4 py-2.5 shadow-[0_10px_30px_-10px_rgba(72,201,176,0.18)] backdrop-blur-xl sm:px-5"
             >
-              <span className={'h-2 w-2 shrink-0 rounded-full ' + (ev.event_status === 'active' ? 'bg-[#48C9B0]' : 'bg-[#D4A853]')} />
-
-              <span className="min-w-0 flex-1">
-                <span className="block truncate font-display text-[15px] font-bold tracking-[-0.02em] text-[#1D1E20] sm:text-[16px]">
-                  {ev.name}
+              <div className="flex min-w-0 items-center gap-3">
+                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-gradient-to-tr from-[#3ab89f] to-[#7fdccb] font-display text-[12px] font-bold text-white shadow-sm">
+                  {iniciales(ev.name)}
                 </span>
-                <span className="hidden truncate text-[12px] text-[#999] sm:block">
-                  {fechaCorta(ev.event_date)}
-                  {ev.venue && ` · ${ev.venue}`}
-                </span>
-              </span>
 
-              <CuentaRegresiva event={ev} compacto />
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <h3 className="truncate font-display text-[15px] font-bold tracking-[-0.02em] text-[#1D1E20] sm:text-[16px]">
+                      {ev.name}
+                    </h3>
+                    <span className={
+                      'hidden shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.05em] sm:inline-flex ' +
+                      (ev.event_status === 'active'
+                        ? 'border-[#A0E0C0] bg-[#F0FFF6] text-[#2A7A50]'
+                        : 'border-[#F0DCA8] bg-[#FFF8E8] text-[#B8860B]')
+                    }>
+                      <i className={
+                        'h-1.5 w-1.5 animate-pulse rounded-full ' +
+                        (ev.event_status === 'active' ? 'bg-[#48C9B0]' : 'bg-[#D4A853]')
+                      } />
+                      {ev.event_type ? `${ev.event_type} ${ESTADO_CORTO[ev.event_status] ?? ''}`.trim() : (ESTADO_CORTO[ev.event_status] ?? '')}
+                    </span>
+                  </div>
+                  <p className="truncate text-[12px] text-[#999]">
+                    {ev.venue ? `${ev.venue} · ` : ''}{fechaCorta(ev.event_date)}
+                  </p>
+                </div>
+              </div>
 
-              <button
-                onClick={onAbrirEvento}
-                className="hidden shrink-0 rounded-[9px] bg-[#48C9B0] px-3.5 py-1.5 text-[13px] font-semibold text-white transition hover:bg-[#3ab89f] sm:block"
-              >
-                Abrir evento
-              </button>
+              <div className="flex shrink-0 items-center gap-2">
+                <CuentaRegresiva event={ev} compacto />
+
+                <button
+                  onClick={onAbrirEvento}
+                  className="flex shrink-0 items-center gap-1.5 rounded-[10px] bg-[#48C9B0] px-3.5 py-1.5 text-[12.5px] font-bold text-white shadow-[0_6px_16px_-8px_rgba(72,201,176,0.9)] transition hover:bg-[#3ab89f] active:scale-95"
+                >
+                  <LayoutDashboard size={14} />
+                  <span className="hidden sm:inline">Abrir evento</span>
+                  <span className="sm:hidden">Abrir</span>
+                </button>
+
+                {m.sharedToken && (
+                  <button
+                    onClick={abrirInvitacion}
+                    className="hidden shrink-0 items-center gap-1.5 rounded-[10px] border border-[#E0E0E0] bg-white px-3 py-1.5 text-[12.5px] font-semibold text-[#1D1E20] transition hover:border-[#48C9B0] sm:flex"
+                  >
+                    <ExternalLink size={14} className="text-[#888]" />
+                    Invitación
+                  </button>
+                )}
+              </div>
             </motion.div>
           )}
         </AnimatePresence>

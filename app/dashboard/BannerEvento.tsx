@@ -1,7 +1,10 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Calendar, ChevronDown, CircleAlert, CircleCheck, ExternalLink, MapPin, PencilLine } from 'lucide-react'
+import {
+  Calendar, ChevronDown, CircleAlert, CircleCheck, Clock, LayoutDashboard,
+  ExternalLink, Hourglass, MapPin, PencilLine,
+} from 'lucide-react'
 import { formatCurrency, formatEventDate } from '@/lib/types'
 import { slugifyEvent } from '@/lib/invite'
 import { ACCESS_MODES, resolveAccessMode } from '@/lib/features'
@@ -19,7 +22,6 @@ const INVITACION_CHIP: Record<string, { color: string; texto: string; Icono: Rea
 }
 
 const T_LABEL = 'text-[12px] font-semibold uppercase tracking-[0.07em] text-[#999]'
-const BTN_SEC = 'rounded-[10px] border border-[#E0E0E0] bg-[#F8F8F8] px-3.5 py-2 text-[13px] font-semibold text-[#1D1E20] transition hover:border-[#48C9B0]'
 
 const TITULO_CIFRA = new Map(CIFRAS.map(c => [c.id, c.titulo]))
 
@@ -81,43 +83,69 @@ export function CuentaRegresiva({ event, compacto = false }: {
     return () => clearInterval(id)
   }, [])
 
-  if (!now) return <div className={compacto ? 'h-5' : 'h-[58px] sm:h-[66px]'} />
+  if (!now) return <div className={compacto ? 'h-5 w-[132px]' : 'h-[132px] w-full lg:w-[340px]'} />
 
   const partes = partesCuentaRegresiva(event, now)
 
-  if (!partes) {
-    return compacto ? (
-      <span className="shrink-0 font-display text-[14px] font-extrabold text-[#1A9E88]">Es hoy</span>
-    ) : (
-      <div className="shrink-0 rounded-xl border border-[#48C9B0] bg-[#F0FDFB] px-4 py-2.5">
-        <b className="font-display text-[20px] font-extrabold leading-none text-[#1A9E88] sm:text-[24px]">Es hoy</b>
-      </div>
-    )
-  }
-
-  // En la barra pegada no caben cuatro celdas: se lee corrido, con el
-  // segundero puesto, que es lo que le da la sensacion de urgencia.
   if (compacto) {
+    if (!partes) {
+      return (
+        <span className="hidden shrink-0 items-center gap-1.5 rounded-[10px] border border-[#E8E8E8] bg-[#F8F8F8] px-2.5 py-1.5 md:flex">
+          <Clock size={14} className="text-[#1A9E88]" />
+          <span className="text-[12px] font-bold tracking-[0.04em] text-[#1A9E88]">ES HOY</span>
+        </span>
+      )
+    }
     const [d, h, mi, s] = partes
     return (
-      <span className="shrink-0 font-display text-[14px] font-extrabold tabular-nums tracking-[-0.01em] text-[#1A9E88]">
-        {d.valor}d {h.valor}:{mi.valor}:{s.valor}
+      <span className="hidden shrink-0 items-center gap-1.5 rounded-[10px] border border-[#E8E8E8] bg-[#F8F8F8] px-2.5 py-1.5 md:flex">
+        <Clock size={14} className="shrink-0 text-[#1A9E88]" />
+        <span className="text-[12px] font-bold tracking-[0.04em] text-[#666]">
+          FALTAN{' '}
+          <span className="tabular-nums text-[#1A9E88]">
+            {d.valor}D : {h.valor}H : {mi.valor}M : {s.valor}S
+          </span>
+        </span>
       </span>
     )
   }
 
   return (
-    <div className="flex shrink-0 items-stretch gap-1.5" aria-label="Tiempo que falta para el evento">
-      {partes.map(p => (
-        <div key={p.unidad} className="min-w-[50px] rounded-xl border border-[#E8E8E8] bg-white/70 px-2 py-2 text-center sm:min-w-[58px]">
-          <b className="block font-display text-[19px] font-extrabold leading-none tabular-nums tracking-[-0.02em] text-[#1A9E88] sm:text-[23px]">
-            {p.valor}
-          </b>
-          <span className="mt-1 block text-[10px] font-semibold uppercase tracking-[0.06em] text-[#999]">
-            {p.unidad}
-          </span>
+    <div
+      className="w-full shrink-0 rounded-2xl border border-[#E8E8E8] bg-[#FBFBFB] p-4 lg:w-[340px]"
+      aria-label="Tiempo que falta para el evento"
+    >
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <span className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.08em] text-[#999]">
+          <Hourglass size={13} className="text-[#1A9E88]" />
+          Cuenta regresiva
+        </span>
+        <span className="rounded-md bg-[#F0FDFB] px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.04em] text-[#1A9E88]">
+          {partes ? 'Faltan' : 'Es hoy'}
+        </span>
+      </div>
+
+      {partes ? (
+        <div className="grid grid-cols-4 gap-2 text-center">
+          {partes.map((p, i) => (
+            <div key={p.unidad} className="rounded-xl border border-[#EEE] bg-white px-1 py-2.5">
+              <b className={
+                'block font-display text-[20px] font-extrabold leading-none tabular-nums tracking-[-0.02em] sm:text-[24px] ' +
+                (i === 0 ? 'text-[#1A9E88]' : 'text-[#1D1E20]')
+              }>
+                {p.valor}
+              </b>
+              <span className="mt-1.5 block text-[9px] font-bold uppercase tracking-[0.1em] text-[#BBB]">
+                {p.unidad}
+              </span>
+            </div>
+          ))}
         </div>
-      ))}
+      ) : (
+        <p className="py-3 text-center font-display text-[24px] font-extrabold leading-none text-[#1A9E88]">
+          Hoy es el día
+        </p>
+      )}
     </div>
   )
 }
@@ -318,76 +346,85 @@ export default function BannerEvento({ m, cifras, cifrasDisp, modoPersonalizar, 
 
       <div className="relative overflow-hidden bg-gradient-to-br from-white via-white to-[#f3fbf9] px-5 py-5 sm:px-6">
         <div className="pointer-events-none absolute -right-16 -top-24 h-[320px] w-[320px] rounded-full bg-[#48C9B0]/15 blur-3xl" />
-        <div className="relative z-10 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="relative z-10 flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
 
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[12px] font-semibold uppercase tracking-[0.09em] text-[#999]">
+          <div className="min-w-0 space-y-4">
+            <div className="flex items-center gap-3">
               {ev.event_type && (
                 <>
-                  <span>{ev.event_type}</span>
-                  <span className="text-[#DDD]">/</span>
+                  <span className="text-[11.5px] font-extrabold uppercase tracking-[0.12em] text-[#999]">
+                    {ev.event_type}
+                  </span>
+                  <span className="text-[#DDD]">·</span>
                 </>
               )}
-              <span className={'flex items-center gap-1.5 ' + (ev.event_status === 'active' ? 'text-[#1A9E88]' : 'text-[#B8860B]')}>
-                <i className={'h-[7px] w-[7px] rounded-full ' + (ev.event_status === 'active' ? 'bg-[#48C9B0]' : 'bg-[#D4A853]')} />
+              <span className={
+                'inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[11.5px] font-bold uppercase tracking-[0.06em] ' +
+                (ev.event_status === 'active'
+                  ? 'border-[#A0E0C0] bg-[#F0FFF6] text-[#2A7A50]'
+                  : 'border-[#F0DCA8] bg-[#FFF8E8] text-[#B8860B]')
+              }>
+                <i className={
+                  'h-2 w-2 animate-pulse rounded-full ' +
+                  (ev.event_status === 'active' ? 'bg-[#48C9B0]' : 'bg-[#D4A853]')
+                } />
                 {ESTADO_LABEL[ev.event_status] ?? ev.event_status}
               </span>
             </div>
 
-            <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-3">
-              <h2 className="min-w-0 font-display text-[26px] font-black leading-[1.03] tracking-[-0.03em] sm:text-[32px]">
-                {ev.name}
-              </h2>
-              <CuentaRegresiva event={ev} />
-            </div>
+            <h2 className="font-display text-[28px] font-black leading-[1.03] tracking-[-0.03em] sm:text-[36px]">
+              {ev.name}
+            </h2>
 
-            <p className="mt-2.5 flex items-center gap-2 text-[13px] text-[#777] sm:text-[14px]">
-              <Calendar size={15} className="shrink-0 text-[#BBB]" />
-              <span>
+            <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-[13px] font-medium text-[#666] sm:text-[14px]">
+              <span className="flex items-center gap-2">
+                <Calendar size={15} className="shrink-0 text-[#48C9B0]" />
                 {formatEventDate(ev.event_date, ev.event_end_date)}
                 {ev.event_time && ` · ${formatTime(ev.event_time)}`}
               </span>
-            </p>
+              {ev.venue && (
+                <span className="flex min-w-0 items-center gap-2">
+                  <MapPin size={15} className="shrink-0 text-[#48C9B0]" />
+                  <span className="min-w-0 truncate">{ev.venue}</span>
+                </span>
+              )}
+            </div>
 
-            {ev.venue && (
-              <p className="mt-1.5 flex items-center gap-2 text-[13px] text-[#999]">
-                <MapPin size={15} className="shrink-0 text-[#BBB]" />
-                <span className="min-w-0">{ev.venue}</span>
-              </p>
-            )}
+            <div className="flex flex-wrap items-center gap-2.5">
+              <span className={'inline-flex items-center gap-1.5 rounded-lg border border-[#E8E8E8] bg-[#F8F8F8] px-3 py-1 text-[12.5px] font-semibold ' + inv.color}>
+                <inv.Icono size={14} className="shrink-0" />
+                {inv.texto}
+              </span>
+              {acceso && (
+                <span className="inline-flex min-w-0 items-center gap-1.5 rounded-lg border border-[#E8E8E8] bg-[#F8F8F8] px-3 py-1 text-[12.5px] font-semibold text-[#777]">
+                  <acceso.icon size={14} className="shrink-0 text-[#AAA]" />
+                  <span className="truncate">{acceso.label}</span>
+                </span>
+              )}
+            </div>
 
-            <p className={'mt-3 flex items-center gap-2 text-[13px] font-medium ' + inv.color}>
-              <inv.Icono size={15} className="shrink-0" />
-              <span className="min-w-0 truncate">{inv.texto}</span>
-            </p>
-
-            {acceso && (
-              <p className="mt-1.5 flex items-center gap-2 text-[13px] text-[#999]">
-                <acceso.icon size={15} className="shrink-0" />
-                <span className="min-w-0 truncate">{acceso.label}</span>
-              </p>
-            )}
+            <div className="flex flex-wrap items-center gap-2.5 pt-1">
+              <button
+                onClick={onAbrirEvento}
+                className="flex flex-1 items-center justify-center gap-2 rounded-[12px] bg-[#48C9B0] px-5 py-2.5 text-[13.5px] font-bold text-white shadow-[0_8px_20px_-8px_rgba(72,201,176,0.7)] transition hover:bg-[#3ab89f] active:scale-95 sm:flex-none"
+              >
+                <LayoutDashboard size={15} />
+                Abrir evento
+              </button>
+              {m.sharedToken && (
+                <button
+                  onClick={abrirInvitacion}
+                  className="flex flex-1 items-center justify-center gap-2 rounded-[12px] border border-[#E0E0E0] bg-[#F8F8F8] px-4 py-2.5 text-[13.5px] font-semibold text-[#1D1E20] transition hover:border-[#48C9B0] sm:flex-none"
+                >
+                  <ExternalLink size={15} className="text-[#888]" />
+                  Abrir invitación
+                </button>
+              )}
+              {controles}
+            </div>
           </div>
 
-          <div className="flex shrink-0 flex-col gap-3 lg:items-end">
-            {controles}
-          </div>
-        </div>
-
-        {/* Pegados al pie del hero, no en la columna de la derecha. */}
-        <div className="relative z-10 mt-5 flex flex-wrap gap-2">
-          <button
-            onClick={onAbrirEvento}
-            className="flex-1 rounded-[10px] bg-[#48C9B0] px-4 py-2.5 text-[13.5px] font-semibold text-white transition hover:bg-[#3ab89f] active:scale-95 sm:flex-none"
-          >
-            Abrir evento
-          </button>
-          {m.sharedToken && (
-            <button onClick={abrirInvitacion} className={BTN_SEC + ' flex flex-1 items-center justify-center gap-2 sm:flex-none'}>
-              <ExternalLink size={14} />
-              Abrir invitación
-            </button>
-          )}
+          <CuentaRegresiva event={ev} />
         </div>
 
       </div>
