@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { ListTodo } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import type { TaskRow } from '@/lib/dashboard/types'
 import CajaShell, { CHIP_BAD, CHIP_MUTE, CHIP_WARN, T_META, type PropsCaja } from './CajaShell'
@@ -46,6 +47,7 @@ export default function CajaPendientes({ m, modoPersonalizar, onQuitar }: PropsC
     <CajaShell
       id="pendientes"
       titulo="Pendientes de la semana"
+      Icono={ListTodo}
       meta="Márcalas aquí, sin entrar al timeline"
       accion={{ label: 'Ver timeline', href: `/events/${m.event.id}/timeline` }}
       modoPersonalizar={modoPersonalizar}

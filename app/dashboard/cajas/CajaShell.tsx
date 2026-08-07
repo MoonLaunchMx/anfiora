@@ -30,9 +30,10 @@ export type PropsCaja = {
 // La manija de arrastre es la clase .caja-arrastre: react-grid-layout la recibe
 // como draggableHandle, para que dentro de la caja se pueda hacer clic sin
 // correr el tablero.
-export default function CajaShell({ id, titulo, meta, accion, modoPersonalizar, onQuitar, children }: {
+export default function CajaShell({ id, titulo, Icono, meta, accion, modoPersonalizar, onQuitar, children }: {
   id: CajaId
   titulo: string
+  Icono: React.ElementType
   meta?: string
   accion?: { label: string; href: string }
   modoPersonalizar: boolean
@@ -42,8 +43,11 @@ export default function CajaShell({ id, titulo, meta, accion, modoPersonalizar, 
   return (
     <div className="flex h-full flex-col overflow-hidden rounded-2xl border border-[#E8E8E8] bg-white">
       <div className={'flex shrink-0 items-center justify-between gap-3 border-b border-[#E8E8E8] px-5 py-4 ' + (modoPersonalizar ? 'caja-arrastre cursor-grab active:cursor-grabbing' : '')}>
-        <div className="flex min-w-0 items-center gap-2">
+        <div className="flex min-w-0 items-center gap-2.5">
           {modoPersonalizar && <GripVertical size={16} className="shrink-0 text-[#BBB]" />}
+          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[10px] border border-[#EEE] bg-[#F8F8F8]">
+            <Icono size={16} className="text-[#666]" />
+          </span>
           <div className="min-w-0">
             <h3 className={T_SECCION}>{titulo}</h3>
             {meta && <p className={T_META}>{meta}</p>}

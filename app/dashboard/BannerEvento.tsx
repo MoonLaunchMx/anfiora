@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Check, ChevronDown, CircleAlert, CircleCheck, Copy, PencilLine } from 'lucide-react'
+import { ChevronDown, CircleAlert, CircleCheck, ExternalLink, PencilLine } from 'lucide-react'
 import { formatCurrency, formatEventDate } from '@/lib/types'
 import { slugifyEvent } from '@/lib/invite'
 import { ACCESS_MODES, resolveAccessMode } from '@/lib/features'
@@ -44,13 +44,27 @@ function formatTime(time: string | null): string {
   return h12 + ':' + m.toString().padStart(2, '0') + ' ' + ampm
 }
 
-function textoCuentaRegresiva(event: { event_date: string | null; event_time: string | null }, now: Date): string {
+// Devuelve la cuenta partida en numero y unidad para poder pintar el numero
+// mas grande que la palabra. `null` significa que el evento ya llego.
+function cuentaRegresiva(
+  event: { event_date: string | null; event_time: string | null },
+  now: Date,
+): { valor: string; unidad: string } | null {
   const diff = getEventDateTime(event).getTime() - now.getTime()
-  if (diff <= 0) return '¡Hoy!'
+  if (diff <= 0) return null
+
   const dias = Math.floor(diff / 86400000)
-  if (dias >= 1) return dias === 1 ? 'en 1 día' : `en ${dias} días`
+  if (dias >= 60) {
+    const meses = Math.floor(dias / 30)
+    return { valor: String(meses), unidad: meses === 1 ? 'mes' : 'meses' }
+  }
+  if (dias >= 1) return { valor: String(dias), unidad: dias === 1 ? 'día' : 'días' }
+
   const horas = Math.floor(diff / 3600000)
-  return horas <= 1 ? 'en menos de 1 hora' : `en ${horas} horas`
+  if (horas >= 1) return { valor: String(horas), unidad: horas === 1 ? 'hora' : 'horas' }
+
+  const minutos = Math.max(1, Math.floor(diff / 60000))
+  return { valor: String(minutos), unidad: minutos === 1 ? 'minuto' : 'minutos' }
 }
 
 // Promedio simple de las cuatro dimensiones que el planner ya mueve a mano.
@@ -179,7 +193,9 @@ function Cifra({ id, indice, m, modoPersonalizar, cifrasDisp, onCambiarCifra }: 
   const [menu, setMenu] = useState(false)
   const d = PINTAR[id](m)
 
-  useEffect(() => { if (!modoPersonalizar) setMenu(false) }, [modoPersonalizar])
+  // Derivado en vez de reiniciado por efecto: al salir del modo el menu se
+  // cierra solo, sin provocar un render extra.
+  const abierto = menu && modoPersonalizar
 
   return (
     <div className="relative min-w-0 flex-1 px-4 py-4 sm:px-5">
@@ -187,13 +203,13 @@ function Cifra({ id, indice, m, modoPersonalizar, cifrasDisp, onCambiarCifra }: 
         <>
           <button
             onClick={() => setMenu(p => !p)}
-            aria-expanded={menu}
+            aria-expanded={abierto}
             className="flex items-center gap-1.5 rounded-[8px] border border-dashed border-[#CCC] px-2 py-1 transition hover:border-[#48C9B0]"
           >
             <span className={T_LABEL}>{TITULO_CIFRA.get(id) ?? id}</span>
             <ChevronDown size={13} className="text-[#BBB]" />
           </button>
-          {menu && (
+          {abierto && (
             <div className="absolute left-4 top-12 z-50 w-56 overflow-hidden rounded-xl border border-[#E8E8E8] bg-white shadow-lg">
               {cifrasDisp.map(opcion => (
                 <button
@@ -221,16 +237,16 @@ function Cifra({ id, indice, m, modoPersonalizar, cifrasDisp, onCambiarCifra }: 
   )
 }
 
-export default function BannerEvento({ m, cifras, cifrasDisp, modoPersonalizar, onCambiarCifra, onAbrirEvento }: {
+export default function BannerEvento({ m, cifras, cifrasDisp, modoPersonalizar, onCambiarCifra, onAbrirEvento, controles }: {
   m: EventMetrics
   cifras: CifraId[]
   cifrasDisp: CifraId[]
   modoPersonalizar: boolean
   onCambiarCifra: (indice: number, nueva: CifraId) => void
   onAbrirEvento: () => void
+  controles?: React.ReactNode
 }) {
   const [now, setNow] = useState(new Date())
-  const [copiado, setCopiado] = useState(false)
 
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 60000)
@@ -240,15 +256,14 @@ export default function BannerEvento({ m, cifras, cifrasDisp, modoPersonalizar, 
   const ev = m.event
   const inv = INVITACION_CHIP[m.invitacion] ?? INVITACION_CHIP.borrador
   const acceso = ACCESS_MODES.find(a => a.key === resolveAccessMode(ev.event_type, m.accessMode))
+  const cr = cuentaRegresiva(ev, now)
 
   // El origin se lee al hacer clic, no en un efecto: guardarlo en estado
   // desincroniza el render del servidor con el del cliente.
-  const copiarLink = async () => {
+  const abrirInvitacion = () => {
     if (!m.sharedToken) return
     const slug = slugifyEvent({ name: ev.name, host_name: ev.host_name, host_name_2: ev.host_name_2 })
-    await navigator.clipboard.writeText(`${window.location.origin}/invitacion/${slug}/${m.sharedToken}`)
-    setCopiado(true)
-    setTimeout(() => setCopiado(false), 2000)
+    window.open(`${window.location.origin}/invitacion/${slug}/${m.sharedToken}`, '_blank', 'noopener')
   }
 
   return (
@@ -279,10 +294,25 @@ export default function BannerEvento({ m, cifras, cifrasDisp, modoPersonalizar, 
             <p className="mt-2 text-[13px] text-[#777] sm:text-[14px]">
               {formatEventDate(ev.event_date, ev.event_end_date)}
               {ev.event_time && ` · ${formatTime(ev.event_time)}`}
-              <span className="font-semibold text-[#1A9E88]"> · {textoCuentaRegresiva(ev, now)}</span>
             </p>
 
             {ev.venue && <p className="mt-1 text-[13px] text-[#999]">{ev.venue}</p>}
+
+            <p className="mt-3 flex items-baseline gap-1.5 text-[#1A9E88]">
+              {cr ? (
+                <>
+                  <span className="text-[13px] font-medium text-[#888]">Faltan</span>
+                  <span className="font-display text-[28px] font-extrabold leading-none tracking-[-0.02em] sm:text-[32px]">
+                    {cr.valor}
+                  </span>
+                  <span className="font-display text-[16px] font-bold sm:text-[18px]">{cr.unidad}</span>
+                </>
+              ) : (
+                <span className="font-display text-[24px] font-extrabold leading-none sm:text-[28px]">
+                  Es hoy
+                </span>
+              )}
+            </p>
 
             <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-[13px]">
               <span className={'flex items-center gap-2 font-medium ' + inv.color}>
@@ -298,19 +328,22 @@ export default function BannerEvento({ m, cifras, cifrasDisp, modoPersonalizar, 
             </div>
           </div>
 
-          <div className="flex shrink-0 flex-wrap gap-2">
-            <button
-              onClick={onAbrirEvento}
-              className="flex-1 rounded-[10px] bg-[#48C9B0] px-4 py-2.5 text-[13.5px] font-semibold text-white transition hover:bg-[#3ab89f] active:scale-95 sm:flex-none"
-            >
-              Abrir evento
-            </button>
-            {m.sharedToken && (
-              <button onClick={copiarLink} className={BTN_SEC + ' flex flex-1 items-center justify-center gap-2 sm:flex-none'}>
-                {copiado ? <Check size={14} className="text-[#1A9E88]" /> : <Copy size={14} />}
-                {copiado ? 'Copiado' : 'Copiar link'}
+          <div className="flex shrink-0 flex-col gap-3 lg:items-end">
+            {controles}
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={onAbrirEvento}
+                className="flex-1 rounded-[10px] bg-[#48C9B0] px-4 py-2.5 text-[13.5px] font-semibold text-white transition hover:bg-[#3ab89f] active:scale-95 sm:flex-none"
+              >
+                Abrir evento
               </button>
-            )}
+              {m.sharedToken && (
+                <button onClick={abrirInvitacion} className={BTN_SEC + ' flex flex-1 items-center justify-center gap-2 sm:flex-none'}>
+                  <ExternalLink size={14} />
+                  Abrir invitación
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </div>

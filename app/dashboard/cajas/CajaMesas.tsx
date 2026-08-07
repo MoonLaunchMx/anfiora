@@ -1,5 +1,6 @@
 'use client'
 
+import { LayoutGrid } from 'lucide-react'
 import CajaShell, { type PropsCaja } from './CajaShell'
 
 function Ficha({ valor, label, tono }: { valor: number | string; label: string; tono?: 'aviso' | 'teal' }) {
@@ -22,7 +23,9 @@ export default function CajaMesas({ m, modoPersonalizar, onQuitar }: PropsCaja) 
     <CajaShell
       id="mesas"
       titulo="Mesas y acomodo"
+      Icono={LayoutGrid}
       meta={`${m.mesas.mesas} mesas · ${m.mesas.conGente} con gente`}
+      accion={{ label: 'Ver mesas', href: `/events/${m.event.id}/mesas` }}
       modoPersonalizar={modoPersonalizar}
       onQuitar={onQuitar}
     >

@@ -43,6 +43,11 @@ const PESO: Record<TipoUrgencia, number> = {
 
 const TIPOS_DE_DINERO = new Set<TipoUrgencia>(['presupuesto_excedido', 'proveedor_saldo'])
 
+// En el tablero de un evento, las tareas viven en su propia caja —donde se
+// palomean— asi que el feed las suelta para no decir dos veces lo mismo. En la
+// cartera no hay esa caja, y ahi si tienen que salir.
+const TIPOS_DE_TAREA = new Set<TipoUrgencia>(['tarea_bloqueante', 'tarea_vencida', 'tarea_hoy'])
+
 // Se exporta porque la cartera construye las urgencias evento por evento (cada
 // uno con su propio permiso de dinero) y necesita reordenar el concatenado.
 export function comparaUrgencias(a: Urgencia, b: Urgencia): number {
@@ -154,10 +159,11 @@ function urgenciasDeEvento(m: EventMetrics): Urgencia[] {
 
 export function buildUrgencias(
   metrics: EventMetrics[],
-  opts: { puedeVerDinero: boolean },
+  opts: { puedeVerDinero: boolean; sinTareas?: boolean },
 ): Urgencia[] {
   return metrics
     .flatMap(urgenciasDeEvento)
     .filter(u => opts.puedeVerDinero || !TIPOS_DE_DINERO.has(u.tipo))
+    .filter(u => !opts.sinTareas || !TIPOS_DE_TAREA.has(u.tipo))
     .sort(comparaUrgencias)
 }

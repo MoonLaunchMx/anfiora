@@ -3,8 +3,8 @@
 import { useState } from 'react'
 import { Check, LayoutGrid, Plus } from 'lucide-react'
 import {
-  CATALOGO, agregarCaja, cambiarCifra, quitarCaja,
-  type CajaId, type CifraId,
+  CATALOGO, agregarCaja, quitarCaja,
+  type CajaId,
 } from '@/lib/dashboard/tablero'
 import { useTablero } from './useTablero'
 import BannerEvento from './BannerEvento'
@@ -55,59 +55,63 @@ export default function ContextoEvento({ m, colaboradores, puedeVerDinero, usuar
     )
   }
 
-  return (
-    <div className="flex flex-col gap-4">
+  // Vive en la esquina superior derecha del banner, no en una barra aparte.
+  const controles = esDueno ? (
+    <div className="hidden items-center gap-2 lg:flex">
+      {error && <span className="text-[13px] text-[#CC3333]">No se pudo guardar el acomodo.</span>}
 
-      {esDueno && (
-        <div className="hidden items-center justify-end gap-2 lg:flex">
-          {error && <span className="text-[13px] text-[#CC3333]">No se pudo guardar el acomodo.</span>}
-
-          {modo && acomodo.ocultas.length > 0 && (
-            <div className="relative">
-              <button onClick={() => setMenu(p => !p)} className={BTN_SEC + ' flex items-center gap-2'}>
-                <Plus size={14} />
-                Agregar caja
-              </button>
-              {menu && (
-                <div className="absolute right-0 top-full z-50 mt-2 w-60 overflow-hidden rounded-xl border border-[#E8E8E8] bg-white shadow-lg">
-                  {acomodo.ocultas.map(id => (
-                    <button
-                      key={id}
-                      onClick={() => { setMenu(false); aplicar(agregarCaja(acomodo, id)) }}
-                      className="block w-full px-4 py-2.5 text-left text-[13.5px] text-[#1D1E20] transition hover:bg-[#F8F8F8]"
-                    >
-                      {TITULO_CAJA.get(id) ?? id}
-                    </button>
-                  ))}
-                </div>
-              )}
+      {modo && acomodo.ocultas.length > 0 && (
+        <div className="relative">
+          <button onClick={() => setMenu(p => !p)} className={BTN_SEC + ' flex items-center gap-2'}>
+            <Plus size={14} />
+            Agregar caja
+          </button>
+          {menu && (
+            <div className="absolute right-0 top-full z-50 mt-2 w-60 overflow-hidden rounded-xl border border-[#E8E8E8] bg-white shadow-lg">
+              {acomodo.ocultas.map(id => (
+                <button
+                  key={id}
+                  onClick={() => { setMenu(false); aplicar(agregarCaja(acomodo, id)) }}
+                  className="block w-full px-4 py-2.5 text-left text-[13.5px] text-[#1D1E20] transition hover:bg-[#F8F8F8]"
+                >
+                  {TITULO_CAJA.get(id) ?? id}
+                </button>
+              ))}
             </div>
-          )}
-
-          {modo ? (
-            <button
-              onClick={salirDeModo}
-              className="flex items-center gap-2 rounded-[10px] bg-[#48C9B0] px-4 py-2 text-[13px] font-semibold text-white transition hover:bg-[#3ab89f]"
-            >
-              <Check size={14} />
-              Listo
-            </button>
-          ) : (
-            <button onClick={() => setModo(true)} className={BTN_SEC + ' flex items-center gap-2'}>
-              <LayoutGrid size={14} />
-              Personalizar
-            </button>
           )}
         </div>
       )}
+
+      {modo ? (
+        <button
+          onClick={salirDeModo}
+          className="flex items-center gap-2 rounded-[10px] bg-[#48C9B0] px-4 py-2 text-[13px] font-semibold text-white transition hover:bg-[#3ab89f]"
+        >
+          <Check size={14} />
+          Listo
+        </button>
+      ) : (
+        <button onClick={() => setModo(true)} className={BTN_SEC + ' flex items-center gap-2'}>
+          <LayoutGrid size={14} />
+          Personalizar
+        </button>
+      )}
+    </div>
+  ) : null
+
+  return (
+    <div className="flex flex-col gap-4">
 
       <BannerEvento
         m={m}
         cifras={acomodo.cifras}
         cifrasDisp={cifrasDisp}
-        modoPersonalizar={modo}
-        onCambiarCifra={(i: number, nueva: CifraId) => aplicar(cambiarCifra(acomodo, i, nueva))}
+        // Las cuatro cifras son fijas por ahora: el menu por cifra existe pero
+        // se queda apagado. Personalizar solo mueve las cajas de abajo.
+        modoPersonalizar={false}
+        onCambiarCifra={() => {}}
         onAbrirEvento={onAbrirEvento}
+        controles={controles}
       />
 
       <Tablero

@@ -84,3 +84,33 @@ describe('buildUrgencias', () => {
     expect(pago?.detalle).toContain('Banquete Aurora')
   })
 })
+
+describe('buildUrgencias sin tareas', () => {
+  const conTareas = m('e1', 'X', {
+    tareas: { vencidas: 2, hoy: 1, proximas: 0, bloqueantesVencidas: 1 },
+    proximaTarea: { id: 't1', title: 'Pagar el salon', task_date: '2026-01-01' },
+    invitacion: 'borrador',
+  })
+
+  it('el tablero del evento no repite las tareas que ya viven en su caja', () => {
+    const u = buildUrgencias([conTareas], { puedeVerDinero: true, sinTareas: true })
+    expect(u.some(x => x.tipo === 'tarea_bloqueante')).toBe(false)
+    expect(u.some(x => x.tipo === 'tarea_vencida')).toBe(false)
+    expect(u.some(x => x.tipo === 'tarea_hoy')).toBe(false)
+  })
+
+  it('lo que no es tarea se conserva', () => {
+    const u = buildUrgencias([conTareas], { puedeVerDinero: true, sinTareas: true })
+    expect(u.some(x => x.tipo === 'invitacion_borrador')).toBe(true)
+  })
+
+  it('la cartera sigue viendo las tareas: ahi no hay caja de pendientes', () => {
+    const u = buildUrgencias([conTareas], { puedeVerDinero: true })
+    expect(u.some(x => x.tipo === 'tarea_bloqueante')).toBe(true)
+  })
+
+  it('omitir la opcion se comporta igual que hoy', () => {
+    expect(buildUrgencias([conTareas], { puedeVerDinero: true }))
+      .toEqual(buildUrgencias([conTareas], { puedeVerDinero: true, sinTareas: false }))
+  })
+})
