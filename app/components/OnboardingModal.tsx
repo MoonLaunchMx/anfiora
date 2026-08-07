@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { EVENT_TYPES, CATEGORIES } from '@/lib/event-types'
 import { Check, ArrowLeft } from 'lucide-react'
 import { ROLES, Role } from '@/lib/roles'
+import { Modal } from '@/app/components/ui/Modal'
 
 interface OnboardingModalProps {
   open: boolean
@@ -43,35 +44,18 @@ export function OnboardingModal({ open, onCompleted }: OnboardingModalProps) {
 
   const focusTitle = role === 'planner' ? '¿Qué tipos de eventos manejas?' : '¿Qué tipo de evento organizas?'
 
+  // El onboarding no se puede cerrar: sin onClose real, el overlay y Escape no hacen nada
   return (
-    <AnimatePresence>
-      {open && (
-        <>
-          <motion.div
-            key="ob-overlay"
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="fixed inset-0 z-[200] bg-black/50 backdrop-blur-[2px]"
-          />
-          <div className="pointer-events-none fixed inset-0 z-[201] flex items-center justify-center px-4 py-6">
-            <motion.div
-              key="ob-modal"
-              initial={{ opacity: 0, scale: 0.97, y: 12 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.97, y: 12 }}
-              transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-              className="pointer-events-auto flex w-full max-w-xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
-              style={{ maxHeight: '92vh' }}
-            >
-              <div className="shrink-0 px-6 pt-6">
-                <div className="flex items-center gap-2">
-                  <div className={'h-1.5 flex-1 rounded-full ' + (step >= 1 ? 'bg-[#48C9B0]' : 'bg-[#e0e0e0]')} />
-                  <div className={'h-1.5 flex-1 rounded-full ' + (step >= 2 ? 'bg-[#48C9B0]' : 'bg-[#e0e0e0]')} />
-                </div>
-              </div>
+    <Modal open={open} onClose={() => {}} size="xl">
+      <div className="shrink-0 px-6 pt-6">
+        <div className="flex items-center gap-2">
+          <div className={'h-1.5 flex-1 rounded-full ' + (step >= 1 ? 'bg-[#48C9B0]' : 'bg-[#e0e0e0]')} />
+          <div className={'h-1.5 flex-1 rounded-full ' + (step >= 2 ? 'bg-[#48C9B0]' : 'bg-[#e0e0e0]')} />
+        </div>
+      </div>
 
-              <div className="flex-1 overflow-y-auto px-6 py-6">
-                <AnimatePresence mode="wait">
+      <Modal.Body className="px-6 py-6">
+        <AnimatePresence mode="wait">
                   {step === 1 ? (
                     <motion.div
                       key="step1"
@@ -167,12 +151,8 @@ export function OnboardingModal({ open, onCompleted }: OnboardingModalProps) {
                       </button>
                     </motion.div>
                   )}
-                </AnimatePresence>
-              </div>
-            </motion.div>
-          </div>
-        </>
-      )}
-    </AnimatePresence>
+        </AnimatePresence>
+      </Modal.Body>
+    </Modal>
   )
 }

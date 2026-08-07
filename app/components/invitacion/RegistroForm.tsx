@@ -1,7 +1,8 @@
 'use client'
 
-import { useState } from 'react'
-import { formatAsYouType } from '@/lib/phone'
+import { useState, useEffect } from 'react'
+import PhoneInput from '@/app/components/ui/PhoneInput'
+import { localeCountry, DEFAULT_COUNTRY, type CountryCode } from '@/lib/phone'
 import { montoAPagar } from '@/lib/puerta'
 import { formatCurrency, type Currency } from '@/lib/types'
 import { reportError } from '@/lib/observabilidad/report'
@@ -31,10 +32,23 @@ function mensajeSinLugar(quedan: number): string {
 
 export default function RegistroForm({ token, maxCompanions, botonClassName, ticketPrice, currency = 'MXN', onRegistrado }: Props) {
   const [name, setName] = useState('')
+  // PhoneInput emite E.164 ya normalizado, o '' mientras el numero no sea
+  // marcable. La puerta es publica y llega gente de cualquier pais: sin selector
+  // de lada, un numero extranjero se rechazaba (o peor, se guardaba como mexicano).
   const [phone, setPhone] = useState('')
+  // Arranca en Mexico para que servidor y cliente rendericen igual, y adopta el
+  // pais del navegador ya montado. En una boda en Espana los invitados son
+  // espanoles: obligarlos a corregir "+52" antes de teclear es pedirles que
+  // adivinen que el campo asume otro pais.
+  const [pais, setPais] = useState<CountryCode>(DEFAULT_COUNTRY)
   const [companions, setCompanions] = useState(0)
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const detectado = localeCountry(typeof navigator !== 'undefined' ? navigator.language : null)
+    if (detectado) setPais(detectado)
+  }, [])
 
   const partySize = 1 + companions
   const hasPrice = Number(ticketPrice) > 0
@@ -43,6 +57,12 @@ export default function RegistroForm({ token, maxCompanions, botonClassName, tic
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
+    // Se avisa aqui y no despues del viaje al servidor: el 400 generico no podia
+    // decir cual de los dos campos estaba mal, y el invitado reintentaba a ciegas.
+    if (!phone) {
+      setError('Revisa tu WhatsApp: elige tu país y escribe el número completo.')
+      return
+    }
     setSending(true)
     try {
       const res = await fetch(`/api/invitacion/${token}/registro`, {
@@ -83,16 +103,12 @@ export default function RegistroForm({ token, maxCompanions, botonClassName, tic
       </div>
 
       <div>
-        <label htmlFor="reg-phone" className="mb-1 block text-xs font-medium text-[#666]">Tu WhatsApp</label>
-        <input
-          id="reg-phone"
+        <label className="mb-1 block text-xs font-medium text-[#666]">Tu WhatsApp</label>
+        <PhoneInput
           value={phone}
-          onChange={e => setPhone(formatAsYouType(e.target.value))}
-          required
-          inputMode="tel"
-          autoComplete="tel"
-          className={inputClass}
-          placeholder="55 1234 5678"
+          onChange={setPhone}
+          defaultCountry={pais}
+          placeholder="Número de WhatsApp"
         />
       </div>
 

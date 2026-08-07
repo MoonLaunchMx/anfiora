@@ -1,8 +1,13 @@
 name: Recordatorios
 
-# De momento solo manual. El disparo cada 15 minutos se habilita despues de
-# verificar en produccion (ver el plan de despliegue).
+# Cada 15 minutos. GitHub corre los cron en UTC y puede retrasarlos varios
+# minutos cuando esta cargado: el recordatorio sale en la primera corrida
+# despues de su hora, no exactamente a su hora.
+# Interruptor de emergencia: deshabilitar el workflow desde la pestana Actions,
+# un clic y sin desplegar nada.
 on:
+  schedule:
+    - cron: '*/15 * * * *'
   workflow_dispatch:
 
 jobs:
@@ -10,8 +15,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Llamar al cron de recordatorios
+        # El dominio canonico es el www. anfiora.com responde 307 y curl no
+        # reenvia la cabecera Authorization al saltar de host, asi que apuntar
+        # al desnudo nunca ejecuta el cron. El codigo se comprueba a mano
+        # porque --fail deja pasar los 3xx: el job salia verde sin haber
+        # llamado a nada.
         run: |
-          curl --fail --silent --show-error --max-time 60 \
+          codigo=$(curl --silent --show-error --max-time 60 \
+            -o respuesta.json -w '%{http_code}' \
             -X POST \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
-            https://anfiora.com/api/cron/reminders
+            https://www.anfiora.com/api/cron/reminders)
+          cat respuesta.json
+          echo
+          test "$codigo" = "200"

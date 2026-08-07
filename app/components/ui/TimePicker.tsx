@@ -1,7 +1,11 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useSyncExternalStore } from 'react'
+import { createPortal } from 'react-dom'
 import { Clock, X } from 'lucide-react'
+import { useModalLayer } from '@/app/components/ui/Modal'
+
+const emptySubscribe = () => () => {}
 
 interface TimePickerProps {
   value: string
@@ -104,6 +108,8 @@ export default function TimePicker({ value, onChange, disabled }: TimePickerProp
   const [h, setH]           = useState(12)
   const [m, setM]           = useState(0)
   const [period, setPeriod] = useState<'am' | 'pm'>('pm')
+  const mounted = useSyncExternalStore(emptySubscribe, () => true, () => false)
+  useModalLayer(open)
 
   useEffect(() => {
     if (value) {
@@ -150,8 +156,8 @@ export default function TimePicker({ value, onChange, disabled }: TimePickerProp
         )}
       </button>
 
-      {open && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4" onClick={() => setOpen(false)}>
+      {open && mounted && createPortal(
+        <div className="fixed inset-0 z-[350] flex items-center justify-center p-4" onClick={() => setOpen(false)}>
           <div className="absolute inset-0 bg-black/40" />
           <div className="relative w-full max-w-xs overflow-hidden rounded-2xl bg-white shadow-2xl" onClick={e => e.stopPropagation()}>
             <style jsx global>{`
@@ -198,7 +204,8 @@ export default function TimePicker({ value, onChange, disabled }: TimePickerProp
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   )

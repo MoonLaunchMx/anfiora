@@ -4,6 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "viewport-audit": "node scripts/viewport-audit.mjs",
+    "prebuild": "node scripts/viewport-audit.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",

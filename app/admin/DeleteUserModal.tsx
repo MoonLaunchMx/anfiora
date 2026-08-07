@@ -1,8 +1,9 @@
 'use client'
 
 import { useState } from 'react'
-import { AlertTriangle, X } from 'lucide-react'
+import { AlertTriangle } from 'lucide-react'
 import { AdminUser } from './lib/types'
+import { Modal } from '@/app/components/ui/Modal'
 
 interface Props {
   user: AdminUser
@@ -17,27 +18,12 @@ export default function DeleteUserModal({ user, loading, onCancel, onConfirm }: 
   const canDelete = emailConfirm.trim().toLowerCase() === user.email.trim().toLowerCase()
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onCancel}>
-      <div
-        className="w-full max-w-md rounded-2xl bg-white shadow-xl"
-        onClick={e => e.stopPropagation()}
-      >
-        <div className="flex items-start justify-between border-b border-[#f0f0f0] px-5 py-4">
-          <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-red-50">
-              <AlertTriangle size={16} className="text-red-500" />
-            </div>
-            <div>
-              <h2 className="text-base font-bold text-[#1D1E20]">Zona de riesgo</h2>
-              <p className="text-xs text-[#888]">Eliminar cuenta de forma permanente</p>
-            </div>
+    <Modal open onClose={onCancel} size="md">
+      <Modal.Header title="Zona de riesgo" subtitle="Eliminar cuenta de forma permanente" />
+      <Modal.Body>
+          <div className="mb-3 flex h-8 w-8 items-center justify-center rounded-lg bg-red-50">
+            <AlertTriangle size={16} className="text-red-500" />
           </div>
-          <button onClick={onCancel} className="rounded-lg p-1 text-[#aaa] transition hover:bg-[#f5f5f5] hover:text-[#1D1E20]">
-            <X size={18} />
-          </button>
-        </div>
-
-        <div className="px-5 py-4">
           <p className="text-sm text-[#555]">
             Vas a eliminar a <span className="font-semibold text-[#1D1E20]">{user.full_name || user.email}</span>.
             Esto borra su cuenta y <span className="font-semibold text-red-600">todos sus datos</span>: no se puede deshacer.
@@ -60,11 +46,11 @@ export default function DeleteUserModal({ user, loading, onCancel, onConfirm }: 
             value={emailConfirm}
             onChange={e => setEmailConfirm(e.target.value)}
             placeholder={user.email}
-            className="mt-1.5 w-full rounded-lg border border-[#e0e0e0] px-3 py-2 text-sm text-[#1D1E20] outline-none focus:border-red-400"
+            className="mt-1.5 w-full rounded-lg border border-[#e0e0e0] px-3 py-2 text-base text-[#1D1E20] outline-none focus:border-red-400"
           />
-        </div>
-
-        <div className="flex items-center justify-end gap-2 border-t border-[#f0f0f0] px-5 py-3">
+      </Modal.Body>
+      <Modal.Footer>
+        <div className="flex w-full items-center justify-end gap-2">
           <button
             onClick={onCancel}
             disabled={loading}
@@ -80,7 +66,7 @@ export default function DeleteUserModal({ user, loading, onCancel, onConfirm }: 
             {loading ? 'Eliminando...' : 'Eliminar definitivamente'}
           </button>
         </div>
-      </div>
-    </div>
+      </Modal.Footer>
+    </Modal>
   )
 }

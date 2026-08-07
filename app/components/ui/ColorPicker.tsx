@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { X } from 'lucide-react'
+import { Modal } from '@/app/components/ui/Modal'
 
 interface ColorPickerProps {
   value: string
@@ -122,17 +122,9 @@ export default function ColorPicker({ value, onChange, onClose }: ColorPickerPro
   const hueColor = rgbToHex(...(Object.values(hsvToRgb(h, 1, 1)) as [number, number, number]))
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4" onClick={onClose}>
-      <div className="absolute inset-0 bg-black/40" />
-      <div className="relative w-full max-w-[280px] overflow-hidden rounded-2xl bg-white shadow-2xl" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between border-b border-[#f0f0f0] px-4 py-3">
-          <p className="text-sm font-semibold text-[#1D1E20]">Elegir color</p>
-          <button onClick={onClose} className="text-[#aaa] transition hover:text-[#555]">
-            <X size={16} />
-          </button>
-        </div>
-
-        <div className="p-4">
+    <Modal open onClose={onClose} size="sm">
+      <Modal.Header title="Elegir color" />
+      <Modal.Body>
           <div
             onPointerDown={e => { e.currentTarget.setPointerCapture(e.pointerId); onSquare(e) }}
             onPointerMove={e => { if (e.buttons === 1) onSquare(e) }}
@@ -169,7 +161,7 @@ export default function ColorPicker({ value, onChange, onClose }: ColorPickerPro
               onBlur={e => commitHex(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && commitHex((e.target as HTMLInputElement).value)}
               spellCheck={false}
-              className="w-full rounded-lg border border-[#e8e8e8] px-3 py-2 text-sm uppercase text-[#1D1E20] focus:border-[#48C9B0] focus:outline-none"
+              className="w-full rounded-lg border border-[#e8e8e8] px-3 py-2 text-base uppercase text-[#1D1E20] focus:border-[#48C9B0] focus:outline-none"
             />
           </div>
 
@@ -188,17 +180,15 @@ export default function ColorPicker({ value, onChange, onClose }: ColorPickerPro
               />
             ))}
           </div>
-        </div>
-
-        <div className="border-t border-[#f0f0f0] px-4 py-3">
-          <button
-            onClick={onClose}
-            className="w-full rounded-lg bg-[#48C9B0] py-2.5 text-sm font-semibold text-white transition hover:bg-[#3ab89f]"
-          >
-            Listo
-          </button>
-        </div>
-      </div>
-    </div>
+      </Modal.Body>
+      <Modal.Footer>
+        <button
+          onClick={onClose}
+          className="w-full rounded-lg bg-[#48C9B0] py-2.5 text-sm font-semibold text-white transition hover:bg-[#3ab89f]"
+        >
+          Listo
+        </button>
+      </Modal.Footer>
+    </Modal>
   )
 }

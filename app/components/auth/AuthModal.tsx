@@ -6,6 +6,7 @@ import { Eye, EyeOff, Mail, Lock, User, Phone, ArrowLeft, CheckCircle } from 'lu
 import Image from 'next/image'
 import { supabase } from '@/lib/supabase'
 import { getAttribution } from '@/lib/attribution'
+import { Modal } from '@/app/components/ui/Modal'
 
 interface AuthModalProps {
   isOpen: boolean
@@ -103,7 +104,7 @@ function InputIcon({
         onChange={e => onChange(e.target.value)}
         placeholder={placeholder}
         onKeyDown={onKeyDown}
-        className="w-full rounded-[10px] border border-[#e0e0e0] bg-[#f8f8f8] py-2.5 pl-9 pr-10 text-sm text-[#1D1E20] outline-none transition focus:border-[#48C9B0] focus:ring-2 focus:ring-[#48C9B0]/20 placeholder:text-[#c0c0c0]"
+        className="w-full rounded-[10px] border border-[#e0e0e0] bg-[#f8f8f8] py-2.5 pl-9 pr-10 text-base text-[#1D1E20] outline-none transition focus:border-[#48C9B0] focus:ring-2 focus:ring-[#48C9B0]/20 placeholder:text-[#c0c0c0]"
       />
       {rightSlot && <span className="absolute right-3">{rightSlot}</span>}
     </div>
@@ -416,49 +417,27 @@ export default function AuthModal({ isOpen, onClose, defaultTab = 'login', lang 
   }
 
   return (
-    <AnimatePresence>
-      {isOpen && (
-        <>
-          <motion.div
-            key="overlay"
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            onClick={handleClose}
-            className="fixed inset-0 z-[100] bg-black/[0.45]"
-          />
-          <div className="pointer-events-none fixed inset-0 z-[101] flex items-center justify-center px-4">
-            <motion.div
-              key="modal"
-              initial={{ opacity: 0, y: 24, scale: 0.97 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 16, scale: 0.97 }}
-              transition={{ duration: 0.25, ease: 'easeOut' }}
-              className="pointer-events-auto w-full max-w-[460px]"
-            >
-              <div className="relative rounded-[20px] border border-[#e8e8e8] bg-white p-8 shadow-[0_8px_40px_rgba(0,0,0,0.12)]">
+    <Modal open={isOpen} onClose={handleClose} size="md">
+      <div className="relative min-h-0 flex-1 overflow-y-auto px-8 py-8">
 
-                {/* Botón cerrar */}
-                <button
-                  onClick={handleClose}
-                  className="absolute right-4 top-4 flex h-7 w-7 cursor-pointer items-center justify-center rounded-full border border-[#e8e8e8] bg-transparent text-[#bbb] transition hover:bg-[#f5f5f5] hover:text-[#555]"
-                >
-                  ✕
-                </button>
+        {/* Botón cerrar */}
+        <button
+          onClick={handleClose}
+          className="absolute right-4 top-4 flex h-7 w-7 cursor-pointer items-center justify-center rounded-full border border-[#e8e8e8] bg-transparent text-[#bbb] transition hover:bg-[#f5f5f5] hover:text-[#555]"
+        >
+          ✕
+        </button>
 
-              {/* Logo completo */}
-              <div className="mb-6 flex justify-center">
-                <Image src="/images/Logo-010526newest.svg" alt="Anfiora" width={140} height={56} priority className="object-contain" />
-              </div>
+        {/* Logo completo */}
+        <div className="mb-6 flex justify-center">
+          <Image src="/images/Logo-010526newest.svg" alt="Anfiora" width={140} height={56} priority className="object-contain" />
+        </div>
 
-                <AnimatePresence mode="wait">
-                  {renderContent()}
-                </AnimatePresence>
+        <AnimatePresence mode="wait">
+          {renderContent()}
+        </AnimatePresence>
 
-              </div>
-            </motion.div>
-          </div>
-        </>
-      )}
-    </AnimatePresence>
+      </div>
+    </Modal>
   )
 }

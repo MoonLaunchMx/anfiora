@@ -1,8 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { AnimatePresence, motion } from 'framer-motion'
-import { GripVertical, ChevronDown, Trash2, X } from 'lucide-react'
+import { GripVertical, ChevronDown, Trash2 } from 'lucide-react'
+import { Modal } from '@/app/components/ui/Modal'
 import {
   DndContext,
   closestCenter,
@@ -216,111 +216,55 @@ export default function BlockEditor({
         </DndContext>
       )}
 
-      <AnimatePresence>
-        {addOpen && (
-          <motion.div
-            className="fixed inset-0 z-50 flex items-center justify-center p-4"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.15 }}
-          >
-            <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => onAddOpenChange(false)} />
-            <motion.div
-              className="relative z-10 w-full max-w-sm overflow-hidden rounded-2xl bg-white shadow-xl sm:max-w-2xl"
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              transition={{ duration: 0.15 }}
-            >
-              <div className="flex items-center justify-between border-b border-[#f0f0f0] px-4 py-3 sm:px-5 sm:py-4">
-                <h3 className="text-sm font-semibold text-[#1D1E20] sm:text-base">Agregar sección</h3>
-                <button
-                  type="button"
-                  onClick={() => onAddOpenChange(false)}
-                  aria-label="Cerrar"
-                  className="flex h-7 w-7 items-center justify-center rounded-lg text-[#bbb] transition hover:bg-[#f5f5f5] hover:text-[#666]"
-                >
-                  <X size={16} />
-                </button>
-              </div>
-              <div className="max-h-[70vh] overflow-y-auto p-4 sm:p-5">
-                {availableTypes.length === 0 ? (
-                  <p className="py-6 text-center text-xs text-[#bbb]">No hay más secciones para agregar.</p>
-                ) : (
-                  <div className="flex flex-col gap-4 sm:gap-5">
-                    {groupSectionTypes(availableTypes).map(group => (
-                      <div key={group.key}>
-                        <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-[#999]">{group.label}</p>
-                        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3">
-                          {group.types.map(type => (
-                            <button
-                              key={type}
-                              type="button"
-                              onClick={() => handleAdd(type)}
-                              className="rounded-xl border border-[#e8e8e8] px-3 py-3 text-left text-xs font-medium text-[#1D1E20] transition hover:border-[#48C9B0] hover:bg-[#f0fdfb] sm:py-4 sm:text-sm"
-                            >
-                              {TYPE_LABELS[type]}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
+      <Modal open={addOpen} onClose={() => onAddOpenChange(false)} size="xl">
+        <Modal.Header title="Agregar sección" />
+        <Modal.Body className="p-4 sm:p-5">
+          {availableTypes.length === 0 ? (
+            <p className="py-6 text-center text-xs text-[#bbb]">No hay más secciones para agregar.</p>
+          ) : (
+            <div className="flex flex-col gap-4 sm:gap-5">
+              {groupSectionTypes(availableTypes).map(group => (
+                <div key={group.key}>
+                  <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-[#999]">{group.label}</p>
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3">
+                    {group.types.map(type => (
+                      <button
+                        key={type}
+                        type="button"
+                        onClick={() => handleAdd(type)}
+                        className="rounded-xl border border-[#e8e8e8] px-3 py-3 text-left text-xs font-medium text-[#1D1E20] transition hover:border-[#48C9B0] hover:bg-[#f0fdfb] sm:py-4 sm:text-sm"
+                      >
+                        {TYPE_LABELS[type]}
+                      </button>
                     ))}
                   </div>
-                )}
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+                </div>
+              ))}
+            </div>
+          )}
+        </Modal.Body>
+      </Modal>
 
-      <AnimatePresence>
-        {editingSection && (
-          <motion.div
-            className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.15 }}
-          >
-            <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setEditingId(null)} />
-            <motion.div
-              className="relative z-10 flex max-h-[88vh] w-full flex-col overflow-hidden rounded-t-2xl bg-white shadow-xl sm:max-h-[85vh] sm:max-w-lg sm:rounded-2xl"
-              initial={{ y: 24, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={{ y: 24, opacity: 0 }}
-              transition={{ duration: 0.18 }}
+      {editingSection && (
+        <Modal open onClose={() => setEditingId(null)} size="lg">
+          <Modal.Header title={TYPE_LABELS[editingSection.type]} />
+          <Modal.Body className="bg-[#fafafa] px-4">
+            <SectionForm
+              section={editingSection}
+              onPatch={patch => onChange(updateSectionContent(doc, editingSection.id, patch))}
+            />
+          </Modal.Body>
+          <Modal.Footer>
+            <button
+              type="button"
+              onClick={() => setEditingId(null)}
+              className="w-full rounded-xl bg-[#48C9B0] py-2.5 text-sm font-semibold text-white transition hover:bg-[#3db39d]"
             >
-              <div className="flex items-center justify-between border-b border-[#f0f0f0] px-4 py-3">
-                <h3 className="text-sm font-semibold text-[#1D1E20]">{TYPE_LABELS[editingSection.type]}</h3>
-                <button
-                  type="button"
-                  onClick={() => setEditingId(null)}
-                  aria-label="Cerrar"
-                  className="flex h-7 w-7 items-center justify-center rounded-lg text-[#bbb] transition hover:bg-[#f5f5f5] hover:text-[#666]"
-                >
-                  <X size={16} />
-                </button>
-              </div>
-              <div className="overflow-y-auto bg-[#fafafa] px-4 py-4">
-                <SectionForm
-                  section={editingSection}
-                  onPatch={patch => onChange(updateSectionContent(doc, editingSection.id, patch))}
-                />
-              </div>
-              <div className="border-t border-[#f0f0f0] px-4 py-3">
-                <button
-                  type="button"
-                  onClick={() => setEditingId(null)}
-                  className="w-full rounded-xl bg-[#48C9B0] py-2.5 text-sm font-semibold text-white transition hover:bg-[#3db39d]"
-                >
-                  Listo
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+              Listo
+            </button>
+          </Modal.Footer>
+        </Modal>
+      )}
     </div>
   )
 }

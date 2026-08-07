@@ -210,7 +210,7 @@ export default function DressCodeSection({ content, ctx }: { content: Content; c
                   if (info.offset.x < -60) go(1)
                   else if (info.offset.x > 60) go(-1)
                 }}
-                className="block max-h-[85vh] max-w-[90vw] cursor-pointer rounded-2xl object-contain shadow-2xl"
+                className="block max-h-[85dvh] max-w-[90vw] cursor-pointer rounded-2xl object-contain shadow-2xl"
                 transition={{ type: 'spring', stiffness: 280, damping: 30 }}
               />
             </div>

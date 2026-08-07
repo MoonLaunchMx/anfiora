@@ -9,6 +9,7 @@ import {
   Plus, X, Calendar, Trash2,
 } from 'lucide-react'
 import StatsCollapse, { useStatsToggle, StatsToggleButton } from '@/app/components/ui/StatsCollapse'
+import { Modal } from '@/app/components/ui/Modal'
 import { exportPagosToExcel, exportPagosToPDF } from './lib/exports'
 
 type Pago = {
@@ -656,21 +657,10 @@ export default function PagosPage() {
 
       {/* MODAL */}
       {modalOpen && (
-        <>
-          <div onClick={closeModal} className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm" />
-          <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4">
-            <div className="flex w-full max-w-md flex-col overflow-hidden rounded-t-2xl bg-white shadow-xl sm:rounded-2xl">
-              <div className="flex shrink-0 items-center justify-between border-b border-[#f0f0f0] px-5 py-4">
-                <h2 className="text-sm font-bold text-[#1D1E20]">
-                  {isEditing ? 'Editar pago' : 'Nuevo pago'}
-                </h2>
-                <button onClick={closeModal}
-                  className="flex h-7 w-7 items-center justify-center rounded-full text-[#aaa] hover:bg-[#f5f5f5] hover:text-[#1D1E20]">
-                  <X size={15} />
-                </button>
-              </div>
-
-              <div className="flex flex-col gap-4 px-5 py-4">
+        <Modal open onClose={closeModal} size="md">
+          <Modal.Header title={isEditing ? 'Editar pago' : 'Nuevo pago'} />
+          <Modal.Body>
+            <div className="flex flex-col gap-4">
                 <div>
                   <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-[#aaa]">Proveedor *</p>
                   <div ref={modalSupplierRef} className="relative">
@@ -681,8 +671,9 @@ export default function PagosPage() {
                       </span>
                       <ChevronDown size={13} className="text-[#aaa]" />
                     </button>
+                    {/* en flujo, no flotante: el cuerpo del modal tiene scroll y recortaria una lista absolute */}
                     {modalSupplierOpen && (
-                      <div className="absolute left-0 top-full z-30 mt-1 max-h-48 w-full overflow-y-auto rounded-lg border border-[#e8e8e8] bg-white shadow-lg">
+                      <div className="mt-1 max-h-48 w-full overflow-y-auto rounded-lg border border-[#e8e8e8] bg-white shadow-lg">
                         {eventSuppliers.length === 0
                           ? <p className="px-3 py-3 text-xs text-[#aaa]">No hay proveedores cotizados o contratados</p>
                           : eventSuppliers.map(es => (
@@ -702,12 +693,12 @@ export default function PagosPage() {
                     <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-[#aaa]">Monto *</p>
                     <input type="number" min="0" step="0.01" placeholder="0.00" value={newAmount}
                       onChange={e => setNewAmount(e.target.value)}
-                      className="w-full rounded-lg border border-[#e0e0e0] bg-white px-3 py-2 text-xs outline-none transition focus:border-[#48C9B0]" />
+                      className="w-full rounded-lg border border-[#e0e0e0] bg-white px-3 py-2 text-base outline-none transition focus:border-[#48C9B0]" />
                   </div>
                   <div>
                     <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-[#aaa]">Fecha *</p>
                     <input type="date" value={newDate} onChange={e => setNewDate(e.target.value)}
-                      className="w-full rounded-lg border border-[#e0e0e0] bg-white px-3 py-2 text-xs outline-none transition focus:border-[#48C9B0]" />
+                      className="w-full rounded-lg border border-[#e0e0e0] bg-white px-3 py-2 text-base outline-none transition focus:border-[#48C9B0]" />
                   </div>
                 </div>
 
@@ -715,7 +706,7 @@ export default function PagosPage() {
                   <div>
                     <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-[#aaa]">Pagado por</p>
                     <select value={newPaidBy} onChange={e => setNewPaidBy(e.target.value)}
-                      className="w-full cursor-pointer rounded-lg border border-[#e0e0e0] bg-white px-3 py-2 text-xs text-[#1D1E20] outline-none transition focus:border-[#48C9B0]">
+                      className="w-full cursor-pointer rounded-lg border border-[#e0e0e0] bg-white px-3 py-2 text-base text-[#1D1E20] outline-none transition focus:border-[#48C9B0]">
                       <option value="">Sin especificar</option>
                       {PAID_BY_VALUES.map(v => (
                         <option key={v} value={v}>{PAID_BY_LABEL[v]}</option>
@@ -725,7 +716,7 @@ export default function PagosPage() {
                   <div>
                     <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-[#aaa]">Metodo</p>
                     <select value={newMethod} onChange={e => setNewMethod(e.target.value)}
-                      className="w-full cursor-pointer rounded-lg border border-[#e0e0e0] bg-white px-3 py-2 text-xs text-[#1D1E20] outline-none transition focus:border-[#48C9B0]">
+                      className="w-full cursor-pointer rounded-lg border border-[#e0e0e0] bg-white px-3 py-2 text-base text-[#1D1E20] outline-none transition focus:border-[#48C9B0]">
                       {PAYMENT_METHODS.map(m => (
                         <option key={m} value={m}>{METHOD_LABEL[m]}</option>
                       ))}
@@ -737,32 +728,32 @@ export default function PagosPage() {
                   <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-[#aaa]">Referencia / notas</p>
                   <input type="text" placeholder="Opcional" value={newReference}
                     onChange={e => setNewReference(e.target.value)}
-                    className="w-full rounded-lg border border-[#e0e0e0] bg-white px-3 py-2 text-xs outline-none transition focus:border-[#48C9B0]" />
+                    className="w-full rounded-lg border border-[#e0e0e0] bg-white px-3 py-2 text-base outline-none transition focus:border-[#48C9B0]" />
                 </div>
-              </div>
-
-              <div className="flex shrink-0 items-center justify-between border-t border-[#f0f0f0] bg-[#fafafa] px-5 py-3">
-                {isEditing ? (
-                  <button onClick={handleDeletePago} disabled={deleting || saving}
-                    className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium text-[#cc3333] transition hover:bg-[#fff0f0] disabled:opacity-50">
-                    <Trash2 size={13} />
-                    {deleting ? 'Eliminando...' : 'Eliminar'}
-                  </button>
-                ) : <div />}
-                <div className="flex items-center gap-2">
-                  <button onClick={closeModal} disabled={saving || deleting}
-                    className="rounded-lg px-4 py-2 text-xs font-medium text-[#666] hover:bg-[#f0f0f0] disabled:opacity-50">
-                    Cancelar
-                  </button>
-                  <button onClick={handleSavePago} disabled={saving || deleting || !newSupplier || !newAmount || !newDate}
-                    className="rounded-lg bg-[#48C9B0] px-4 py-2 text-xs font-semibold text-white hover:bg-[#3aa896] disabled:opacity-50">
-                    {saving ? 'Guardando...' : isEditing ? 'Guardar cambios' : 'Guardar pago'}
-                  </button>
-                </div>
+            </div>
+          </Modal.Body>
+          <Modal.Footer>
+            <div className="flex w-full items-center justify-between">
+              {isEditing ? (
+                <button onClick={handleDeletePago} disabled={deleting || saving}
+                  className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium text-[#cc3333] transition hover:bg-[#fff0f0] disabled:opacity-50">
+                  <Trash2 size={13} />
+                  {deleting ? 'Eliminando...' : 'Eliminar'}
+                </button>
+              ) : <div />}
+              <div className="flex items-center gap-2">
+                <button onClick={closeModal} disabled={saving || deleting}
+                  className="rounded-lg px-4 py-2 text-xs font-medium text-[#666] hover:bg-[#f0f0f0] disabled:opacity-50">
+                  Cancelar
+                </button>
+                <button onClick={handleSavePago} disabled={saving || deleting || !newSupplier || !newAmount || !newDate}
+                  className="rounded-lg bg-[#48C9B0] px-4 py-2 text-xs font-semibold text-white hover:bg-[#3aa896] disabled:opacity-50">
+                  {saving ? 'Guardando...' : isEditing ? 'Guardar cambios' : 'Guardar pago'}
+                </button>
               </div>
             </div>
-          </div>
-        </>
+          </Modal.Footer>
+        </Modal>
       )}
     </div>
   )

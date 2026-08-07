@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { CURRENT_LEGAL_VERSION } from '@/lib/legal'
+import { Modal } from '@/app/components/ui/Modal'
 
 const EXCLUDED_PATHS = ['/terminos', '/privacidad']
 
@@ -63,8 +64,9 @@ export default function LegalGate() {
   if (!show || EXCLUDED_PATHS.includes(pathname)) return null
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/[0.45] px-4">
-      <div className="w-full max-w-[460px] rounded-[20px] border border-[#e8e8e8] bg-white p-8 shadow-[0_8px_40px_rgba(0,0,0,0.12)]">
+    // sin Modal.Header a proposito: esta puerta no se cierra, no debe tener tache ni cerrarse con Escape
+    <Modal open onClose={() => {}} size="md">
+      <Modal.Body className="py-6">
         <h2 className="text-lg font-bold text-[#1D1E20]">Actualizamos nuestros terminos</h2>
         <p className="mt-2 text-sm leading-relaxed text-[#777]">
           Para seguir usando Anfiora necesitas aceptar nuestros{' '}
@@ -77,22 +79,25 @@ export default function LegalGate() {
         {error && (
           <div className="mt-4 rounded-lg border border-[#ffc0c0] bg-[#fff0f0] px-3 py-2.5 text-xs text-[#cc3333]">{error}</div>
         )}
-
-        <button
-          onClick={accept}
-          disabled={submitting}
-          className={'mt-6 w-full rounded-[10px] border-none py-3 text-sm font-semibold text-white transition-colors ' +
-            (submitting ? 'cursor-not-allowed bg-[#9ee0d4]' : 'cursor-pointer bg-[#48C9B0] hover:bg-[#3ab89f]')}
-        >
-          {submitting ? 'Un momento...' : 'Acepto y continuo'}
-        </button>
-        <button
-          onClick={logout}
-          className="mt-3 w-full cursor-pointer border-none bg-transparent text-[13px] text-[#aaa] transition-colors hover:text-[#555]"
-        >
-          Cerrar sesion
-        </button>
-      </div>
-    </div>
+      </Modal.Body>
+      <Modal.Footer>
+        <div className="flex w-full flex-col">
+          <button
+            onClick={accept}
+            disabled={submitting}
+            className={'w-full rounded-[10px] border-none py-3 text-sm font-semibold text-white transition-colors ' +
+              (submitting ? 'cursor-not-allowed bg-[#9ee0d4]' : 'cursor-pointer bg-[#48C9B0] hover:bg-[#3ab89f]')}
+          >
+            {submitting ? 'Un momento...' : 'Acepto y continuo'}
+          </button>
+          <button
+            onClick={logout}
+            className="mt-3 w-full cursor-pointer border-none bg-transparent text-[13px] text-[#aaa] transition-colors hover:text-[#555]"
+          >
+            Cerrar sesion
+          </button>
+        </div>
+      </Modal.Footer>
+    </Modal>
   )
 }

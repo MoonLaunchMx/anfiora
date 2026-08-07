@@ -100,6 +100,20 @@ describe('parseo del registro', () => {
     expect(parseRegistration({ ...ok, phone: '+525544332211' }, 3)?.phone).toBe('+525544332211')
   })
 
+  it('un invitado de otro pais entra si manda su lada', () => {
+    expect(parseRegistration({ ...ok, phone: '+34612345678' }, 3)?.phone).toBe('+34612345678')
+    expect(parseRegistration({ ...ok, phone: '+573001234567' }, 3)?.phone).toBe('+573001234567')
+    expect(parseRegistration({ ...ok, phone: '+13235551234' }, 3)?.phone).toBe('+13235551234')
+  })
+
+  // Por que el formulario DEBE mandar E.164 y no lo que se tecleo: sin lada,
+  // este endpoint asume Mexico. Un movil espanol se rechazaba y uno colombiano
+  // se guardaba como mexicano, en silencio.
+  it('sin lada, un numero extranjero se rechaza o se malinterpreta como mexicano', () => {
+    expect(parseRegistration({ ...ok, phone: '612345678' }, 3)).toBe(null)
+    expect(parseRegistration({ ...ok, phone: '3001234567' }, 3)?.phone).toBe('+523001234567')
+  })
+
   it('un cuerpo que no es objeto no truena', () => {
     expect(parseRegistration(null, 3)).toBe(null)
     expect(parseRegistration('hola', 3)).toBe(null)
