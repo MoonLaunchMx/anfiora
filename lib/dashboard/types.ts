@@ -1,5 +1,6 @@
 import type { Currency, EventStatus, RsvpStatus, CollaboratorRole } from '@/lib/types'
 import type { EstadoPublicacion } from '@/lib/invite/publicacion'
+import type { DressCode } from '@/lib/dresscode'
 
 export type Contexto = { kind: 'cartera' } | { kind: 'evento'; eventId: string }
 
@@ -57,7 +58,26 @@ export type TaskRow = {
 
 export type GiftItemRow = { event_id: string }
 export type ReservationRow = { event_id: string; amount: number | null; purchased: boolean | null }
-export type TableRow = { id: string; event_id: string; capacity: number | null }
+
+export type SongRow = {
+  event_id: string
+  song_title: string | null
+  artist: string | null
+  thumbnail: string | null
+}
+
+// Trae posicion y forma porque el croquis de la caja de mesas las dibuja.
+export type TableRow = {
+  id: string
+  event_id: string
+  capacity: number | null
+  number: number | null
+  name: string | null
+  shape: string | null
+  rotation: number | null
+  position_x: number | null
+  position_y: number | null
+}
 export type SeatRow = { event_id: string; table_id: string; guest_id: string | null; party_size: number | null }
 export type SettingsRow = {
   event_id: string
@@ -65,6 +85,7 @@ export type SettingsRow = {
   invite_config: unknown
   access_mode?: string | null
   shared_token?: string | null
+  dress_code?: unknown
 }
 
 export type Invitados = {
@@ -110,6 +131,33 @@ export type Mesas = {
   sillasLibres: number
 }
 
+export type CancionPedida = {
+  titulo: string
+  artista: string | null
+  thumbnail: string | null
+  veces: number
+}
+
+// Una mesa lista para dibujar: posicion ya resuelta y ocupacion ya contada.
+export type MesaCroquis = {
+  id: string
+  numero: number | null
+  nombre: string | null
+  forma: string | null
+  rotacion: number
+  x: number
+  y: number
+  capacidad: number
+  ocupados: number
+}
+
+export type Playlist = {
+  total: number
+  // La misma cancion pedida por varios invitados cuenta como una.
+  distintas: number
+  masPedida: CancionPedida | null
+}
+
 export type EventMetrics = {
   event: EventoRow
   invitados: Invitados
@@ -118,6 +166,11 @@ export type EventMetrics = {
   tareas: Tareas
   regalos: Regalos
   mesas: Mesas
+  playlist: Playlist
+  // Crudo del evento: la caja lo pinta con los helpers de lib/dresscode.
+  vestimenta: DressCode
+  // Las mesas listas para dibujar el croquis dentro de la caja.
+  croquis: MesaCroquis[]
   invitacion: EstadoPublicacion
   // Crudos: la UI los resuelve con resolveAccessMode / slugifyEvent para no
   // meter dependencias de presentacion en la capa pura.
@@ -157,6 +210,7 @@ export type MetricsInput = {
   reservations: ReservationRow[]
   tables: TableRow[]
   seats: SeatRow[]
+  songs: SongRow[]
   settings: SettingsRow | null
   hoy: Date
 }

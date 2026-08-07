@@ -11,6 +11,8 @@ import CajaAtencion from './cajas/CajaAtencion'
 import CajaPendientes from './cajas/CajaPendientes'
 import CajaMesas from './cajas/CajaMesas'
 import CajaRegalos from './cajas/CajaRegalos'
+import CajaPlaylist from './cajas/CajaPlaylist'
+import CajaVestimenta from './cajas/CajaVestimenta'
 import CajaActividad from './cajas/CajaActividad'
 import CajaEquipo from './cajas/CajaEquipo'
 
@@ -23,6 +25,8 @@ const COMPONENTE: Record<CajaId, (p: PropsCaja) => React.JSX.Element> = {
   pendientes: CajaPendientes,
   mesas: CajaMesas,
   regalos: CajaRegalos,
+  playlist: CajaPlaylist,
+  vestimenta: CajaVestimenta,
   actividad: CajaActividad,
   equipo: CajaEquipo,
 }

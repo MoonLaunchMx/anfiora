@@ -3,7 +3,7 @@ import { computeEventMetrics } from './metrics'
 import type {
   BudgetRow, ColaboradorRow, DashboardData, EventMetrics, EventoRow, GiftItemRow,
   GuestRow, MemberRow, PaymentRow, ReservationRow, Rol, SeatRow, SettingsRow,
-  SupplierRow, TableRow, TaskRow,
+  SongRow, SupplierRow, TableRow, TaskRow,
 } from './types'
 
 const CAMPOS_EVENTO =
@@ -53,7 +53,7 @@ export async function loadDashboard(userId: string): Promise<DashboardData> {
 
   const [
     guests, members, budgets, suppliers, tasks,
-    giftItems, reservations, tables, seats, settings, colaboradores,
+    giftItems, reservations, tables, seats, settings, colaboradores, songs,
   ] = await Promise.all([
     supabase.from('guests').select('event_id, rsvp_status, party_size, needs_attention').in('event_id', ids),
     supabase.from('party_members').select('event_id, rsvp_status').in('event_id', ids),
@@ -66,14 +66,15 @@ export async function loadDashboard(userId: string): Promise<DashboardData> {
       .eq('is_completed', false),
     supabase.from('gift_registry_items').select('event_id').in('event_id', ids),
     supabase.from('gift_reservations').select('event_id, amount, purchased').in('event_id', ids),
-    supabase.from('tables').select('id, event_id, capacity').in('event_id', ids),
+    supabase.from('tables').select('id, event_id, capacity, number, name, shape, rotation, position_x, position_y').in('event_id', ids),
     supabase.from('table_seats').select('event_id, table_id, guest_id, party_size').in('event_id', ids),
-    supabase.from('event_settings').select('event_id, invite_draft, invite_config, access_mode, shared_token').in('event_id', ids),
+    supabase.from('event_settings').select('event_id, invite_draft, invite_config, access_mode, shared_token, dress_code').in('event_id', ids),
     supabase
       .from('event_collaborators')
       .select('event_id, role, email, user:user_id ( full_name )')
       .in('event_id', ids)
       .eq('status', 'active'),
+    supabase.from('song_recommendations').select('event_id, song_title, artist, thumbnail').in('event_id', ids),
   ])
 
   const supplierRows: SupplierRow[] = ((suppliers.data ?? []) as any[]).map(s => ({
@@ -106,6 +107,7 @@ export async function loadDashboard(userId: string): Promise<DashboardData> {
   const gTables = porEvento((tables.data ?? []) as TableRow[])
   const gSeats = porEvento((seats.data ?? []) as SeatRow[])
   const gSettings = porEvento((settings.data ?? []) as SettingsRow[])
+  const gSongs = porEvento((songs.data ?? []) as SongRow[])
 
   const colabRows: ColaboradorRow[] = ((colaboradores.data ?? []) as any[]).map(c => ({
     event_id: c.event_id,
@@ -131,6 +133,7 @@ export async function loadDashboard(userId: string): Promise<DashboardData> {
       reservations: gRes.get(event.id) ?? [],
       tables: gTables.get(event.id) ?? [],
       seats: gSeats.get(event.id) ?? [],
+      songs: gSongs.get(event.id) ?? [],
       settings: (gSettings.get(event.id) ?? [])[0] ?? null,
       hoy,
     })

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { computeEventMetrics } from './metrics'
-import type { EventoRow, MetricsInput } from './types'
+import { calcPlaylist, computeEventMetrics } from './metrics'
+import type { EventoRow, MetricsInput, TableRow } from './types'
 
 const evento: EventoRow = {
   id: 'e1', name: 'Ana y Rodrigo',
@@ -10,11 +10,18 @@ const evento: EventoRow = {
   is_shared: false, shared_role: null, owner_name: null,
 }
 
+function tabla(id: string, capacity: number): TableRow {
+  return {
+    id, event_id: 'e1', capacity,
+    number: 1, name: null, shape: 'round', rotation: 0, position_x: 0, position_y: 0,
+  }
+}
+
 function base(over: Partial<MetricsInput> = {}): MetricsInput {
   return {
     event: evento,
     guests: [], members: [], budgets: [], suppliers: [], payments: [],
-    tasks: [], giftItems: [], reservations: [], tables: [], seats: [],
+    tasks: [], giftItems: [], reservations: [], tables: [], seats: [], songs: [],
     settings: null, hoy: new Date(2026, 7, 1),
     ...over,
   }
@@ -137,7 +144,7 @@ describe('mesas', () => {
         { event_id: 'e1', rsvp_status: 'confirmed', party_size: 3, needs_attention: false },
         { event_id: 'e1', rsvp_status: 'confirmed', party_size: 2, needs_attention: false },
       ],
-      tables: [{ id: 'm1', event_id: 'e1', capacity: 10 }],
+      tables: [tabla('m1', 10)],
       seats: [{ event_id: 'e1', table_id: 'm1', guest_id: 'g1', party_size: 3 }],
     }))
     expect(m.mesas.mesas).toBe(1)
@@ -149,7 +156,7 @@ describe('mesas', () => {
 
   it('dos asientos en la misma mesa cuentan una sola mesa con gente', () => {
     const m = computeEventMetrics(base({
-      tables: [{ id: 'm1', event_id: 'e1', capacity: 10 }, { id: 'm2', event_id: 'e1', capacity: 10 }],
+      tables: [tabla('m1', 10), tabla('m2', 10)],
       seats: [
         { event_id: 'e1', table_id: 'm1', guest_id: 'g1', party_size: 2 },
         { event_id: 'e1', table_id: 'm1', guest_id: 'g2', party_size: 1 },
@@ -162,7 +169,7 @@ describe('mesas', () => {
 
   it('un asiento vacio no ocupa lugar ni marca la mesa como ocupada', () => {
     const m = computeEventMetrics(base({
-      tables: [{ id: 'm1', event_id: 'e1', capacity: 8 }],
+      tables: [tabla('m1', 8)],
       seats: [{ event_id: 'e1', table_id: 'm1', guest_id: null, party_size: null }],
     }))
     expect(m.mesas.conGente).toBe(0)
@@ -189,5 +196,68 @@ describe('regalos', () => {
 describe('invitacion', () => {
   it('sin settings se lee como borrador', () => {
     expect(computeEventMetrics(base()).invitacion).toBe('borrador')
+  })
+})
+
+describe('calcPlaylist', () => {
+  const cancion = (song_title: string | null, artist: string | null = 'Artista', thumbnail: string | null = null) =>
+    ({ event_id: 'e1', song_title, artist, thumbnail })
+
+  it('sin canciones no hay mas pedida', () => {
+    const p = calcPlaylist([])
+    expect(p.total).toBe(0)
+    expect(p.distintas).toBe(0)
+    expect(p.masPedida).toBeNull()
+  })
+
+  it('la mas pedida es la que mas invitados repitieron', () => {
+    const p = calcPlaylist([
+      cancion('Vivir mi vida', 'Marc Anthony'),
+      cancion('Bailando', 'Enrique Iglesias'),
+      cancion('Vivir mi vida', 'Marc Anthony'),
+    ])
+    expect(p.masPedida?.titulo).toBe('Vivir mi vida')
+    expect(p.masPedida?.veces).toBe(2)
+  })
+
+  it('cuenta todas las peticiones y las canciones distintas por separado', () => {
+    const p = calcPlaylist([
+      cancion('Una', 'A'), cancion('Una', 'A'), cancion('Otra', 'B'),
+    ])
+    expect(p.total).toBe(3)
+    expect(p.distintas).toBe(2)
+  })
+
+  it('la misma cancion escrita con acentos o mayusculas distintas es la misma', () => {
+    const p = calcPlaylist([
+      cancion('Bésame mucho', 'Consuelo Velázquez'),
+      cancion('BESAME MUCHO', 'consuelo velazquez'),
+    ])
+    expect(p.distintas).toBe(1)
+    expect(p.masPedida?.veces).toBe(2)
+  })
+
+  it('el mismo titulo de otro artista no se mezcla', () => {
+    const p = calcPlaylist([cancion('Perfect', 'Ed Sheeran'), cancion('Perfect', 'Fairground')])
+    expect(p.distintas).toBe(2)
+  })
+
+  it('una fila sin titulo no cuenta', () => {
+    const p = calcPlaylist([cancion(null), cancion('   '), cancion('Buena')])
+    expect(p.total).toBe(1)
+    expect(p.distintas).toBe(1)
+  })
+
+  it('toma la portada de la primera fila que traiga una', () => {
+    const p = calcPlaylist([
+      cancion('Una', 'A', null),
+      cancion('Una', 'A', 'https://portada.jpg'),
+    ])
+    expect(p.masPedida?.thumbnail).toBe('https://portada.jpg')
+  })
+
+  it('a igualdad de peticiones manda el orden alfabetico, para que no baile sola', () => {
+    const p = calcPlaylist([cancion('Zeta', 'A'), cancion('Alfa', 'B')])
+    expect(p.masPedida?.titulo).toBe('Alfa')
   })
 })

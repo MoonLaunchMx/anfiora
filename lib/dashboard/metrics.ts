@@ -1,7 +1,9 @@
 import { estadoPublicacion } from '@/lib/invite/publicacion'
+import { parseDressCode } from '@/lib/dresscode'
+import { posicionMesa } from './croquis'
 import type {
-  Dinero, EventMetrics, Invitados, Mesas, MetricsInput,
-  Proveedores, Regalos, Tareas, TaskRow,
+  CancionPedida, Dinero, EventMetrics, Invitados, MesaCroquis, Mesas, MetricsInput,
+  Playlist, Proveedores, Regalos, SongRow, Tareas, TaskRow,
 } from './types'
 
 function num(v: number | null | undefined): number {
@@ -143,6 +145,59 @@ function calcMesas(input: MetricsInput): Mesas {
   }
 }
 
+function calcCroquis(input: MetricsInput): MesaCroquis[] {
+  const ocupadosPorMesa = new Map<string, number>()
+  for (const s of input.seats) {
+    if (!s.guest_id) continue
+    ocupadosPorMesa.set(s.table_id, (ocupadosPorMesa.get(s.table_id) ?? 0) + Math.max(1, num(s.party_size)))
+  }
+
+  return input.tables.map((t, i) => ({
+    id: t.id,
+    numero: t.number,
+    nombre: t.name,
+    forma: t.shape,
+    rotacion: num(t.rotation),
+    ...posicionMesa(t, i),
+    capacidad: num(t.capacity),
+    ocupados: ocupadosPorMesa.get(t.id) ?? 0,
+  }))
+}
+
+// La misma cancion la pide mas de un invitado y llega como filas distintas.
+// Se agrupan por titulo y artista, sin acentos ni mayusculas, porque cada quien
+// la escribe como quiere. La portada se toma de la primera que traiga una.
+export function calcPlaylist(songs: SongRow[]): Playlist {
+  const grupos = new Map<string, CancionPedida>()
+
+  for (const s of songs) {
+    const titulo = (s.song_title ?? '').trim()
+    if (!titulo) continue
+    const artista = (s.artist ?? '').trim() || null
+    const llave = normalizar(titulo) + '|' + normalizar(artista ?? '')
+
+    const previo = grupos.get(llave)
+    if (previo) {
+      previo.veces++
+      previo.thumbnail = previo.thumbnail ?? s.thumbnail
+    } else {
+      grupos.set(llave, { titulo, artista, thumbnail: s.thumbnail, veces: 1 })
+    }
+  }
+
+  const ordenadas = [...grupos.values()].sort((a, b) => b.veces - a.veces || a.titulo.localeCompare(b.titulo))
+
+  return {
+    total: songs.filter(s => (s.song_title ?? '').trim()).length,
+    distintas: ordenadas.length,
+    masPedida: ordenadas[0] ?? null,
+  }
+}
+
+function normalizar(s: string): string {
+  return s.normalize('NFD').replace(/\p{Diacritic}/gu, '').trim().toLowerCase()
+}
+
 export function computeEventMetrics(input: MetricsInput): EventMetrics {
   const tareasProximas = calcTareasOrdenadas(input)
   return {
@@ -155,6 +210,9 @@ export function computeEventMetrics(input: MetricsInput): EventMetrics {
     tareas: calcTareas(input),
     regalos: calcRegalos(input),
     mesas: calcMesas(input),
+    playlist: calcPlaylist(input.songs),
+    vestimenta: parseDressCode(input.settings?.dress_code),
+    croquis: calcCroquis(input),
     invitacion: estadoPublicacion(input.settings?.invite_draft, input.settings?.invite_config),
     accessMode: input.settings?.access_mode ?? null,
     sharedToken: input.settings?.shared_token ?? null,

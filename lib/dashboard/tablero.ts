@@ -7,7 +7,9 @@ export type CifraId =
   | 'invitados' | 'presupuesto' | 'proveedores' | 'tareas'
   | 'regalos' | 'mesas' | 'atencion' | 'organizacion'
 
-export type CajaId = 'atencion' | 'pendientes' | 'mesas' | 'regalos' | 'actividad' | 'equipo'
+export type CajaId =
+  | 'atencion' | 'pendientes' | 'mesas' | 'regalos'
+  | 'playlist' | 'vestimenta' | 'actividad' | 'equipo'
 
 export type Caja = { id: CajaId; x: number; y: number; w: number; h: number }
 
@@ -48,12 +50,14 @@ export type CajaConfig = {
 // un renglon aqui: mezclarAcomodo se encarga de que aparezca sola en los
 // tableros ya guardados.
 export const CATALOGO: CajaConfig[] = [
-  { id: 'atencion',   titulo: 'Requiere tu atención',    feature: null,      w: 4, h: 3 },
-  { id: 'pendientes', titulo: 'Tareas de la semana',      feature: null,      w: 2, h: 4 },
-  { id: 'actividad',  titulo: 'Actividad reciente',      feature: null,      w: 2, h: 4 },
-  { id: 'mesas',      titulo: 'Mesas y acomodo',         feature: 'mesas',   w: 2, h: 2 },
-  { id: 'regalos',    titulo: 'Mesa de regalos',         feature: 'regalos', w: 2, h: 2 },
-  { id: 'equipo',     titulo: 'Equipo',                  feature: null,      w: 2, h: 3 },
+  { id: 'atencion',   titulo: 'Acciones rápidas',    feature: null,         w: 4, h: 3 },
+  { id: 'pendientes', titulo: 'Tareas de la semana', feature: null,         w: 2, h: 4 },
+  { id: 'actividad',  titulo: 'Actividad reciente',  feature: null,         w: 2, h: 4 },
+  { id: 'mesas',      titulo: 'Mesas y acomodo',     feature: 'mesas',      w: 2, h: 3 },
+  { id: 'regalos',    titulo: 'Mesa de regalos',     feature: 'regalos',    w: 2, h: 2 },
+  { id: 'playlist',   titulo: 'Playlist',            feature: 'playlist',   w: 2, h: 2 },
+  { id: 'vestimenta', titulo: 'Código de vestimenta', feature: 'vestimenta', w: 2, h: 3 },
+  { id: 'equipo',     titulo: 'Equipo',              feature: null,         w: 2, h: 3 },
 ]
 
 const CIFRA_POR_ID = new Map<CifraId, CifraConfig>(CIFRAS.map(c => [c.id, c]))
