@@ -252,7 +252,7 @@ export default function EventSelector({ metrics, contexto, onChange, onNuevoEven
           <Modal.Footer>{pie}</Modal.Footer>
         </Modal>
       ) : abierto && (
-        <div className="absolute left-0 top-[calc(100%+7px)] z-50 flex max-h-[70vh] w-[min(428px,calc(100vw-2rem))] flex-col overflow-hidden rounded-[14px] border border-[#E8E8E8] bg-white shadow-[0_20px_44px_-14px_rgba(29,30,32,0.22)]">
+        <div className="absolute left-0 top-[calc(100%+7px)] z-50 flex max-h-[70dvh] w-[min(428px,calc(100vw-2rem))] flex-col overflow-hidden rounded-[14px] border border-[#E8E8E8] bg-white shadow-[0_20px_44px_-14px_rgba(29,30,32,0.22)]">
 
           <div className="shrink-0">
             <div className="m-[10px_11px]">{buscador}</div>
