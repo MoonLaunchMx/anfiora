@@ -214,7 +214,9 @@ export default function AccesoPanel({
             </button>
           )}
 
-          <div className="grid grid-cols-2 gap-3">
+          {/* Cupo, precio y acompanantes son la misma decision: quien entra y en
+              que condiciones. En movil se apilan; el precio queda junto al cupo. */}
+          <div className={'grid grid-cols-1 gap-3 ' + (CANDADO_PRECIO_LISTO ? 'sm:grid-cols-3' : 'sm:grid-cols-2')}>
             <div>
               <label htmlFor="acc-cap" className="mb-1 block text-xs font-medium text-[#666]">Cupo máximo</label>
               <input
@@ -228,26 +230,9 @@ export default function AccesoPanel({
                 placeholder="Sin límite"
                 className="w-full rounded-lg border border-[#e8e8e8] px-3 py-2 text-sm outline-none focus:border-[#48C9B0]"
               />
+              <p className="mt-1 text-[11px] leading-snug text-[#aaa]">Vacío = sin límite.</p>
             </div>
-            <div>
-              <label htmlFor="acc-companions" className="mb-1 block text-xs font-medium text-[#666]">Acompañantes por invitado</label>
-              <input
-                id="acc-companions"
-                type="number"
-                inputMode="numeric"
-                min={0}
-                step={1}
-                value={maxCompanions}
-                onChange={e => { const v = e.target.value; setMaxCompanions(v); updateAccess({ max_companions: parseMaxCompanions(v) }) }}
-                placeholder="0"
-                className="w-full rounded-lg border border-[#e8e8e8] px-3 py-2 text-sm outline-none focus:border-[#48C9B0]"
-              />
-            </div>
-          </div>
-          <p className="-mt-1 text-[11px] text-[#aaa]">Cuántos puede llevar cada quien. 0 = va solo.</p>
-
-          {CANDADO_PRECIO_LISTO && (
-            <>
+            {CANDADO_PRECIO_LISTO && (
               <div>
                 <label htmlFor="acc-price" className="mb-1 block text-xs font-medium text-[#666]">Precio por persona</label>
                 <div className="relative">
@@ -266,9 +251,28 @@ export default function AccesoPanel({
                     MXN
                   </span>
                 </div>
+                <p className="mt-1 text-[11px] leading-snug text-[#aaa]">Anfiora no procesa el pago. Tú recibes el dinero directo.</p>
               </div>
-              <p className="-mt-1 text-[11px] text-[#aaa]">Anfiora no procesa el pago. Tú recibes el dinero directo.</p>
+            )}
+            <div>
+              <label htmlFor="acc-companions" className="mb-1 block text-xs font-medium text-[#666]">Acompañantes por invitado</label>
+              <input
+                id="acc-companions"
+                type="number"
+                inputMode="numeric"
+                min={0}
+                step={1}
+                value={maxCompanions}
+                onChange={e => { const v = e.target.value; setMaxCompanions(v); updateAccess({ max_companions: parseMaxCompanions(v) }) }}
+                placeholder="0"
+                className="w-full rounded-lg border border-[#e8e8e8] px-3 py-2 text-sm outline-none focus:border-[#48C9B0]"
+              />
+              <p className="mt-1 text-[11px] leading-snug text-[#aaa]">Cuántos puede llevar cada quien. 0 = va solo.</p>
+            </div>
+          </div>
 
+          {CANDADO_PRECIO_LISTO && (
+            <>
               <div className="rounded-xl border border-[#e8e8e8] bg-[#f8f8f8] p-3">
                 <div className="mb-1 flex items-center gap-2">
                   <Landmark size={14} className="text-[#48C9B0]" />
