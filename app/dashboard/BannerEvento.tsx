@@ -356,37 +356,38 @@ export default function BannerEvento({ m, cifras, cifrasDisp, modoPersonalizar, 
               </p>
             )}
 
-            <div className="mt-3 flex flex-nowrap items-center gap-x-4 overflow-hidden text-[13px]">
-              <span className={'flex min-w-0 items-center gap-2 font-medium ' + inv.color}>
-                <inv.Icono size={15} className="shrink-0" />
-                <span className="truncate">{inv.texto}</span>
-              </span>
-              {acceso && (
-                <span className="flex min-w-0 items-center gap-2 text-[#999]">
-                  <acceso.icon size={15} className="shrink-0" />
-                  <span className="truncate">{acceso.label}</span>
-                </span>
-              )}
-            </div>
+            <p className={'mt-3 flex items-center gap-2 text-[13px] font-medium ' + inv.color}>
+              <inv.Icono size={15} className="shrink-0" />
+              <span className="min-w-0 truncate">{inv.texto}</span>
+            </p>
+
+            {acceso && (
+              <p className="mt-1.5 flex items-center gap-2 text-[13px] text-[#999]">
+                <acceso.icon size={15} className="shrink-0" />
+                <span className="min-w-0 truncate">{acceso.label}</span>
+              </p>
+            )}
           </div>
 
           <div className="flex shrink-0 flex-col gap-3 lg:items-end">
             {controles}
-            <div className="flex flex-wrap gap-2">
-              <button
-                onClick={onAbrirEvento}
-                className="flex-1 rounded-[10px] bg-[#48C9B0] px-4 py-2.5 text-[13.5px] font-semibold text-white transition hover:bg-[#3ab89f] active:scale-95 sm:flex-none"
-              >
-                Abrir evento
-              </button>
-              {m.sharedToken && (
-                <button onClick={abrirInvitacion} className={BTN_SEC + ' flex flex-1 items-center justify-center gap-2 sm:flex-none'}>
-                  <ExternalLink size={14} />
-                  Abrir invitación
-                </button>
-              )}
-            </div>
           </div>
+        </div>
+
+        {/* Pegados al pie del hero, no en la columna de la derecha. */}
+        <div className="relative z-10 mt-5 flex flex-wrap gap-2">
+          <button
+            onClick={onAbrirEvento}
+            className="flex-1 rounded-[10px] bg-[#48C9B0] px-4 py-2.5 text-[13.5px] font-semibold text-white transition hover:bg-[#3ab89f] active:scale-95 sm:flex-none"
+          >
+            Abrir evento
+          </button>
+          {m.sharedToken && (
+            <button onClick={abrirInvitacion} className={BTN_SEC + ' flex flex-1 items-center justify-center gap-2 sm:flex-none'}>
+              <ExternalLink size={14} />
+              Abrir invitación
+            </button>
+          )}
         </div>
 
       </div>

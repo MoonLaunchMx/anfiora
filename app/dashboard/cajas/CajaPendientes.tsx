@@ -46,7 +46,7 @@ export default function CajaPendientes({ m, modoPersonalizar, onQuitar }: PropsC
   return (
     <CajaShell
       id="pendientes"
-      titulo="Pendientes de la semana"
+      titulo="Tareas de la semana"
       Icono={ListTodo}
       meta="Márcalas aquí, sin entrar al timeline"
       accion={{ label: 'Ver timeline', href: `/events/${m.event.id}/timeline` }}

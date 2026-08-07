@@ -49,7 +49,7 @@ export type CajaConfig = {
 // tableros ya guardados.
 export const CATALOGO: CajaConfig[] = [
   { id: 'atencion',   titulo: 'Requiere tu atención',    feature: null,      w: 4, h: 3 },
-  { id: 'pendientes', titulo: 'Pendientes de la semana', feature: null,      w: 2, h: 4 },
+  { id: 'pendientes', titulo: 'Tareas de la semana',      feature: null,      w: 2, h: 4 },
   { id: 'actividad',  titulo: 'Actividad reciente',      feature: null,      w: 2, h: 4 },
   { id: 'mesas',      titulo: 'Mesas y acomodo',         feature: 'mesas',   w: 2, h: 2 },
   { id: 'regalos',    titulo: 'Mesa de regalos',         feature: 'regalos', w: 2, h: 2 },
