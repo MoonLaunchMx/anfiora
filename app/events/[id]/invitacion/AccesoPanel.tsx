@@ -11,6 +11,7 @@ import {
   parseCap, parsePrice, CANDADO_PRECIO_LISTO, CANDADO_APROBACION_LISTO, type AccessMode,
 } from '@/lib/features'
 import { RegistryPaymentMethod } from '@/lib/types'
+import { useConfirm } from '@/app/components/ui/ConfirmModal'
 import PaymentMethodModal, { payTypeMeta } from '../mesa-regalos/PaymentMethodModal'
 
 type EventInfo = {
@@ -43,6 +44,7 @@ export default function AccesoPanel({
   doc: InviteDoc
   onChange: (next: InviteDoc) => void
 }) {
+  const askConfirm = useConfirm()
   const [accessMode, setAccessMode] = useState<AccessMode>('privada')
   const [requiresApproval, setRequiresApproval] = useState(false)
   const [sharedToken, setSharedToken] = useState<string | null>(null)
@@ -310,8 +312,12 @@ export default function AccesoPanel({
                             </button>
                             <button
                               type="button"
-                              onClick={() => {
-                                if (!confirm('¿Eliminar este método de pago?')) return
+                              onClick={async () => {
+                                const ok = await askConfirm({
+                                  title: '¿Eliminar esta cuenta de cobro?',
+                                  message: <>Tus invitados dejarán de ver <strong>{m.type === 'other' && m.label ? m.label : meta.label}</strong> como forma de pago.</>,
+                                })
+                                if (!ok) return
                                 updateAccess({ cobro_payment_methods: payMethods.filter(x => x.id !== m.id) })
                               }}
                               title="Eliminar"

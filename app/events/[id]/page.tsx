@@ -1067,30 +1067,40 @@ export default function EventPage() {
     const convRows = guestIds.length > 0 ? await guestConversationRowsForMany(supabase, guestIds) : []
     const conChat = new Set(convRows.map(r => r.contactGuestId)).size
 
-    // Pocos (<=5): listar nombres da confianza. Muchos: el conteo comunica mejor.
+    // Uno solo: su nombre cabe en el titulo y ahorra la lista. Pocos (2-5):
+    // listar nombres da confianza. Muchos: el conteo comunica mejor.
     const nombres = guestIds.map(gid => guests.find(g => g.id === gid)?.name).filter(Boolean) as string[]
-    const listar = guestIds.length >= 1 && guestIds.length <= 5
+    const listar = guestIds.length >= 2 && guestIds.length <= 5
+    // Solo se menciona lo que de verdad se va a borrar: un invitado sin
+    // acompanantes no debe leer "con sus acompanantes".
+    const acompCount = guestIds.reduce((n, gid) => n + (guests.find(g => g.id === gid)?.party_members.length ?? 0), 0)
     const detalle: string[] = []
-    if (guestIds.length > 0) detalle.push('con sus acompañantes')
-    if (looseMemberIds.length > 0) detalle.push(looseMemberIds.length + ' acompañante(s) más')
+    if (acompCount > 0) detalle.push(acompCount === 1 ? 'con su acompañante' : 'con sus ' + acompCount + ' acompañantes')
+    if (looseMemberIds.length > 0) detalle.push(looseMemberIds.length === 1 ? '1 acompañante más' : looseMemberIds.length + ' acompañantes más')
     if (conChat > 0) detalle.push(conChat + ' con conversación; se conservarán sus chats')
     const tituloBulk = guestIds.length === 0
-      ? '¿Eliminar ' + looseMemberIds.length + ' acompañante(s)?'
-      : listar
-        ? '¿Eliminar estos invitados?'
-        : '¿Eliminar ' + guestIds.length + ' invitados?'
+      ? (looseMemberIds.length === 1 ? '¿Eliminar este acompañante?' : '¿Eliminar ' + looseMemberIds.length + ' acompañantes?')
+      : guestIds.length === 1
+        ? '¿Eliminar a ' + (nombres[0] ?? 'este invitado') + '?'
+        : listar
+          ? '¿Eliminar estos invitados?'
+          : '¿Eliminar ' + guestIds.length + ' invitados?'
+    // Sin lista ni detalle no se pasa mensaje: un fragment vacio igual pinta su
+    // contenedor y deja un hueco muerto bajo el titulo.
     const okBulk = await askConfirm({
       title: tituloBulk,
-      message: (
-        <>
-          {listar && (
-            <ul className="mb-1.5 space-y-0.5 text-left text-[#444]">
-              {nombres.map((n, i) => <li key={i} className="truncate">· {n}</li>)}
-            </ul>
-          )}
-          {detalle.length > 0 && <p>{detalle.join(' · ')}</p>}
-        </>
-      ),
+      message: listar || detalle.length > 0
+        ? (
+          <>
+            {listar && (
+              <ul className="mb-1.5 space-y-0.5 text-left text-[#444]">
+                {nombres.map((n, i) => <li key={i} className="truncate">· {n}</li>)}
+              </ul>
+            )}
+            {detalle.length > 0 && <p>{detalle.join(' · ')}</p>}
+          </>
+        )
+        : undefined,
     })
     if (!okBulk) return
 
