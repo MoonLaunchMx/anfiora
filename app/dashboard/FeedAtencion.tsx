@@ -38,27 +38,32 @@ type Props = {
   mostrarEvento: boolean
   max?: number
   onResuelta?: (u: Urgencia) => void
+  // Dentro de una caja del tablero el marco y el titulo los pone CajaShell.
+  // Por defecto se dibuja completo, como en la vista de cartera.
+  enmarcado?: boolean
 }
 
-export default function FeedAtencion({ urgencias, titulo, mostrarEvento, max = 3 }: Props) {
+export default function FeedAtencion({ urgencias, titulo, mostrarEvento, max = 3, enmarcado = true }: Props) {
   const visibles = urgencias.slice(0, max)
 
   return (
-    <div className="rounded-2xl border border-[#E8E8E8] bg-white">
-      <div className="flex items-center justify-between gap-3 border-b border-[#E8E8E8] px-5 py-4">
-        <div className="flex items-center gap-3">
-          <span className={'h-2.5 w-2.5 rounded-full ' + (urgencias.length > 0 ? 'bg-[#CC3333]' : 'bg-[#48C9B0]')} />
-          <h3 className="font-display text-[18px] font-bold tracking-[-0.015em] sm:text-[20px]">{titulo}</h3>
-          {urgencias.length > 0 && (
-            <span className="rounded-full border border-[#FFC0C0] bg-[#FFF0F0] px-2.5 py-0.5 text-[12px] font-bold text-[#CC3333]">
-              {urgencias.length}
-            </span>
-          )}
+    <div className={enmarcado ? 'rounded-2xl border border-[#E8E8E8] bg-white' : ''}>
+      {enmarcado && (
+        <div className="flex items-center justify-between gap-3 border-b border-[#E8E8E8] px-5 py-4">
+          <div className="flex items-center gap-3">
+            <span className={'h-2.5 w-2.5 rounded-full ' + (urgencias.length > 0 ? 'bg-[#CC3333]' : 'bg-[#48C9B0]')} />
+            <h3 className="font-display text-[18px] font-bold tracking-[-0.015em] sm:text-[20px]">{titulo}</h3>
+            {urgencias.length > 0 && (
+              <span className="rounded-full border border-[#FFC0C0] bg-[#FFF0F0] px-2.5 py-0.5 text-[12px] font-bold text-[#CC3333]">
+                {urgencias.length}
+              </span>
+            )}
+          </div>
+          <span className="hidden text-[12.5px] text-[#888] sm:block">
+            {urgencias.length > max ? `Mostrando ${max} de ${urgencias.length}` : 'Ordenado por urgencia'}
+          </span>
         </div>
-        <span className="hidden text-[12.5px] text-[#888] sm:block">
-          {urgencias.length > max ? `Mostrando ${max} de ${urgencias.length}` : 'Ordenado por urgencia'}
-        </span>
-      </div>
+      )}
 
       {visibles.length === 0 ? (
         <div className="flex flex-col items-center gap-3 px-5 py-12 text-center">
