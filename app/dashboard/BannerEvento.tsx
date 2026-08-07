@@ -64,7 +64,10 @@ function partesCuentaRegresiva(
 
 // Late cada segundo, asi que vive aparte: si el intervalo estuviera en el
 // banner, la tarjeta entera se redibujaria una vez por segundo.
-function CuentaRegresiva({ event }: { event: { event_date: string | null; event_time: string | null } }) {
+export function CuentaRegresiva({ event, compacto = false }: {
+  event: { event_date: string | null; event_time: string | null }
+  compacto?: boolean
+}) {
   const [now, setNow] = useState<Date | null>(null)
 
   // Arranca en null y se llena ya montado: la hora del servidor y la del
@@ -78,15 +81,28 @@ function CuentaRegresiva({ event }: { event: { event_date: string | null; event_
     return () => clearInterval(id)
   }, [])
 
-  if (!now) return <div className="h-[58px] sm:h-[66px]" />
+  if (!now) return <div className={compacto ? 'h-5' : 'h-[58px] sm:h-[66px]'} />
 
   const partes = partesCuentaRegresiva(event, now)
 
   if (!partes) {
-    return (
+    return compacto ? (
+      <span className="shrink-0 font-display text-[14px] font-extrabold text-[#1A9E88]">Es hoy</span>
+    ) : (
       <div className="shrink-0 rounded-xl border border-[#48C9B0] bg-[#F0FDFB] px-4 py-2.5">
         <b className="font-display text-[20px] font-extrabold leading-none text-[#1A9E88] sm:text-[24px]">Es hoy</b>
       </div>
+    )
+  }
+
+  // En la barra pegada no caben cuatro celdas: se lee corrido, con el
+  // segundero puesto, que es lo que le da la sensacion de urgencia.
+  if (compacto) {
+    const [d, h, mi, s] = partes
+    return (
+      <span className="shrink-0 font-display text-[14px] font-extrabold tabular-nums tracking-[-0.01em] text-[#1A9E88]">
+        {d.valor}d {h.valor}:{mi.valor}:{s.valor}
+      </span>
     )
   }
 
@@ -340,21 +356,22 @@ export default function BannerEvento({ m, cifras, cifrasDisp, modoPersonalizar, 
               </p>
             )}
 
-            <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-[13px]">
-              <span className={'flex items-center gap-2 font-medium ' + inv.color}>
-                <inv.Icono size={15} />
-                {inv.texto}
+            <div className="mt-3 flex flex-nowrap items-center gap-x-4 overflow-hidden text-[13px]">
+              <span className={'flex min-w-0 items-center gap-2 font-medium ' + inv.color}>
+                <inv.Icono size={15} className="shrink-0" />
+                <span className="truncate">{inv.texto}</span>
               </span>
               {acceso && (
-                <span className="flex items-center gap-2 text-[#999]">
-                  <acceso.icon size={15} />
-                  {acceso.label}
+                <span className="flex min-w-0 items-center gap-2 text-[#999]">
+                  <acceso.icon size={15} className="shrink-0" />
+                  <span className="truncate">{acceso.label}</span>
                 </span>
               )}
             </div>
           </div>
 
           <div className="flex shrink-0 flex-col gap-3 lg:items-end">
+            {controles}
             <div className="flex flex-wrap gap-2">
               <button
                 onClick={onAbrirEvento}
@@ -372,11 +389,6 @@ export default function BannerEvento({ m, cifras, cifrasDisp, modoPersonalizar, 
           </div>
         </div>
 
-        {controles && (
-          <div className="relative z-10 mt-4 flex justify-end">
-            {controles}
-          </div>
-        )}
       </div>
 
       <div className="grid grid-cols-1 divide-y divide-[#EEE] border-t border-[#E8E8E8] sm:grid-cols-2 sm:divide-y-0 lg:grid-cols-4 lg:divide-x">
