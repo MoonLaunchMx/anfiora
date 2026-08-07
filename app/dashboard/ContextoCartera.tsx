@@ -50,10 +50,10 @@ function SkeletonCard() {
 
 function Global({ label, valor, sub, color }: { label: string; valor: React.ReactNode; sub: string; color: string }) {
   return (
-    <div className="rounded-2xl border border-[#E8E8E8] bg-white px-5 py-4" style={{ borderLeft: `4px solid ${color}` }}>
+    <div className="min-w-0 rounded-2xl border border-[#E8E8E8] bg-white px-3.5 py-3.5 sm:px-5 sm:py-4" style={{ borderLeft: `4px solid ${color}` }}>
       <span className={LABEL}>{label}</span>
-      <p className="mt-2 font-display text-[30px] font-extrabold leading-none tracking-[-0.025em] sm:text-[34px]">{valor}</p>
-      <p className="mt-2 text-[13px] text-[#888]">{sub}</p>
+      <p className="mt-1.5 truncate font-display text-[22px] font-extrabold leading-none tracking-[-0.025em] sm:mt-2 sm:text-[30px] xl:text-[34px]">{valor}</p>
+      <p className="mt-1.5 text-[12px] text-[#888] sm:mt-2 sm:text-[13px]">{sub}</p>
     </div>
   )
 }
@@ -236,9 +236,9 @@ export default function ContextoCartera({
 
         {verDinero && (
           <div className="mt-3">
-            <div className="mb-1.5 flex items-center justify-between gap-3">
-              <span className="text-[13px] text-[#888]">{m.dinero.excedido ? 'Contratado del estimado' : 'Pagado del estimado'}</span>
-              <span className="text-[13px] font-semibold">
+            <div className="mb-1.5 flex items-baseline justify-between gap-2">
+              <span className="shrink-0 text-[12.5px] text-[#888] sm:text-[13px]">{m.dinero.excedido ? 'Contratado' : 'Pagado'}</span>
+              <span className="min-w-0 truncate text-[12.5px] font-semibold sm:text-[13px]">
                 {formatCurrency(m.dinero.excedido ? m.dinero.contratado : m.dinero.pagado, ev.currency)} / {formatCurrency(m.dinero.estimado, ev.currency)}
               </span>
             </div>
@@ -294,12 +294,12 @@ export default function ContextoCartera({
         </p>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">{globales}</div>
+      <div className="grid grid-cols-2 gap-2.5 sm:gap-3 xl:grid-cols-4">{globales}</div>
 
       <FeedAtencion urgencias={urgencias} titulo="Lo más urgente de toda tu cartera" mostrarEvento max={3} />
 
-      <div className="flex items-center gap-2 pt-1">
-        <div className="flex flex-1 gap-1 overflow-x-auto">
+      <div className="flex flex-col gap-2 pt-1 sm:flex-row sm:items-center">
+        <div className="-mx-1 flex flex-1 gap-1 overflow-x-auto px-1 sm:mx-0 sm:px-0">
           {tabs.map(tab => (
             <button
               key={tab.key}

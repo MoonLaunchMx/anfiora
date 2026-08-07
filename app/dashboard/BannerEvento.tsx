@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { ChevronDown, CircleAlert, CircleCheck, ExternalLink, PencilLine } from 'lucide-react'
+import { Calendar, ChevronDown, CircleAlert, CircleCheck, ExternalLink, MapPin, PencilLine } from 'lucide-react'
 import { formatCurrency, formatEventDate } from '@/lib/types'
 import { slugifyEvent } from '@/lib/invite'
 import { ACCESS_MODES, resolveAccessMode } from '@/lib/features'
@@ -44,27 +44,66 @@ function formatTime(time: string | null): string {
   return h12 + ':' + m.toString().padStart(2, '0') + ' ' + ampm
 }
 
-// Devuelve la cuenta partida en numero y unidad para poder pintar el numero
-// mas grande que la palabra. `null` significa que el evento ya llego.
-function cuentaRegresiva(
+// Las cuatro celdas del countdown. `null` significa que el evento ya llego.
+function partesCuentaRegresiva(
   event: { event_date: string | null; event_time: string | null },
   now: Date,
-): { valor: string; unidad: string } | null {
+): { valor: string; unidad: string }[] | null {
   const diff = getEventDateTime(event).getTime() - now.getTime()
   if (diff <= 0) return null
 
-  const dias = Math.floor(diff / 86400000)
-  if (dias >= 60) {
-    const meses = Math.floor(dias / 30)
-    return { valor: String(meses), unidad: meses === 1 ? 'mes' : 'meses' }
+  const dosDigitos = (n: number) => String(n).padStart(2, '0')
+
+  return [
+    { valor: String(Math.floor(diff / 86400000)), unidad: 'días' },
+    { valor: dosDigitos(Math.floor(diff / 3600000) % 24), unidad: 'hrs' },
+    { valor: dosDigitos(Math.floor(diff / 60000) % 60), unidad: 'min' },
+    { valor: dosDigitos(Math.floor(diff / 1000) % 60), unidad: 'seg' },
+  ]
+}
+
+// Late cada segundo, asi que vive aparte: si el intervalo estuviera en el
+// banner, la tarjeta entera se redibujaria una vez por segundo.
+function CuentaRegresiva({ event }: { event: { event_date: string | null; event_time: string | null } }) {
+  const [now, setNow] = useState<Date | null>(null)
+
+  // Arranca en null y se llena ya montado: la hora del servidor y la del
+  // navegador no coinciden, y pintarla en el primer render desalinea el HTML.
+  // El primer valor va aqui a proposito; esperar al primer tic dejaria el
+  // countdown en blanco un segundo. Mismo patron que el primitivo Modal.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setNow(new Date())
+    const id = setInterval(() => setNow(new Date()), 1000)
+    return () => clearInterval(id)
+  }, [])
+
+  if (!now) return <div className="h-[58px] sm:h-[66px]" />
+
+  const partes = partesCuentaRegresiva(event, now)
+
+  if (!partes) {
+    return (
+      <div className="shrink-0 rounded-xl border border-[#48C9B0] bg-[#F0FDFB] px-4 py-2.5">
+        <b className="font-display text-[20px] font-extrabold leading-none text-[#1A9E88] sm:text-[24px]">Es hoy</b>
+      </div>
+    )
   }
-  if (dias >= 1) return { valor: String(dias), unidad: dias === 1 ? 'día' : 'días' }
 
-  const horas = Math.floor(diff / 3600000)
-  if (horas >= 1) return { valor: String(horas), unidad: horas === 1 ? 'hora' : 'horas' }
-
-  const minutos = Math.max(1, Math.floor(diff / 60000))
-  return { valor: String(minutos), unidad: minutos === 1 ? 'minuto' : 'minutos' }
+  return (
+    <div className="flex shrink-0 items-stretch gap-1.5" aria-label="Tiempo que falta para el evento">
+      {partes.map(p => (
+        <div key={p.unidad} className="min-w-[50px] rounded-xl border border-[#E8E8E8] bg-white/70 px-2 py-2 text-center sm:min-w-[58px]">
+          <b className="block font-display text-[19px] font-extrabold leading-none tabular-nums tracking-[-0.02em] text-[#1A9E88] sm:text-[23px]">
+            {p.valor}
+          </b>
+          <span className="mt-1 block text-[10px] font-semibold uppercase tracking-[0.06em] text-[#999]">
+            {p.unidad}
+          </span>
+        </div>
+      ))}
+    </div>
+  )
 }
 
 // Promedio simple de las cuatro dimensiones que el planner ya mueve a mano.
@@ -246,17 +285,9 @@ export default function BannerEvento({ m, cifras, cifrasDisp, modoPersonalizar, 
   onAbrirEvento: () => void
   controles?: React.ReactNode
 }) {
-  const [now, setNow] = useState(new Date())
-
-  useEffect(() => {
-    const id = setInterval(() => setNow(new Date()), 60000)
-    return () => clearInterval(id)
-  }, [])
-
   const ev = m.event
   const inv = INVITACION_CHIP[m.invitacion] ?? INVITACION_CHIP.borrador
   const acceso = ACCESS_MODES.find(a => a.key === resolveAccessMode(ev.event_type, m.accessMode))
-  const cr = cuentaRegresiva(ev, now)
 
   // El origin se lee al hacer clic, no en un efecto: guardarlo en estado
   // desincroniza el render del servidor con el del cliente.
@@ -287,32 +318,27 @@ export default function BannerEvento({ m, cifras, cifrasDisp, modoPersonalizar, 
               </span>
             </div>
 
-            <h2 className="mt-2 font-display text-[26px] font-black leading-[1.03] tracking-[-0.03em] sm:text-[32px]">
-              {ev.name}
-            </h2>
+            <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-3">
+              <h2 className="min-w-0 font-display text-[26px] font-black leading-[1.03] tracking-[-0.03em] sm:text-[32px]">
+                {ev.name}
+              </h2>
+              <CuentaRegresiva event={ev} />
+            </div>
 
-            <p className="mt-2 text-[13px] text-[#777] sm:text-[14px]">
-              {formatEventDate(ev.event_date, ev.event_end_date)}
-              {ev.event_time && ` · ${formatTime(ev.event_time)}`}
+            <p className="mt-2.5 flex items-center gap-2 text-[13px] text-[#777] sm:text-[14px]">
+              <Calendar size={15} className="shrink-0 text-[#BBB]" />
+              <span>
+                {formatEventDate(ev.event_date, ev.event_end_date)}
+                {ev.event_time && ` · ${formatTime(ev.event_time)}`}
+              </span>
             </p>
 
-            {ev.venue && <p className="mt-1 text-[13px] text-[#999]">{ev.venue}</p>}
-
-            <p className="mt-3 flex items-baseline gap-1.5 text-[#1A9E88]">
-              {cr ? (
-                <>
-                  <span className="text-[13px] font-medium text-[#888]">Faltan</span>
-                  <span className="font-display text-[28px] font-extrabold leading-none tracking-[-0.02em] sm:text-[32px]">
-                    {cr.valor}
-                  </span>
-                  <span className="font-display text-[16px] font-bold sm:text-[18px]">{cr.unidad}</span>
-                </>
-              ) : (
-                <span className="font-display text-[24px] font-extrabold leading-none sm:text-[28px]">
-                  Es hoy
-                </span>
-              )}
-            </p>
+            {ev.venue && (
+              <p className="mt-1.5 flex items-center gap-2 text-[13px] text-[#999]">
+                <MapPin size={15} className="shrink-0 text-[#BBB]" />
+                <span className="min-w-0">{ev.venue}</span>
+              </p>
+            )}
 
             <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-[13px]">
               <span className={'flex items-center gap-2 font-medium ' + inv.color}>
@@ -329,7 +355,6 @@ export default function BannerEvento({ m, cifras, cifrasDisp, modoPersonalizar, 
           </div>
 
           <div className="flex shrink-0 flex-col gap-3 lg:items-end">
-            {controles}
             <div className="flex flex-wrap gap-2">
               <button
                 onClick={onAbrirEvento}
@@ -346,6 +371,12 @@ export default function BannerEvento({ m, cifras, cifrasDisp, modoPersonalizar, 
             </div>
           </div>
         </div>
+
+        {controles && (
+          <div className="relative z-10 mt-4 flex justify-end">
+            {controles}
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 divide-y divide-[#EEE] border-t border-[#E8E8E8] sm:grid-cols-2 sm:divide-y-0 lg:grid-cols-4 lg:divide-x">

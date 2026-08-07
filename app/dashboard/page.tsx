@@ -106,7 +106,7 @@ export default function Dashboard() {
   // encolan hasta agotar el timeout de 5s en redes lentas.
   const init = async () => {
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) { window.location.href = '/'; return }
+    if (!user) { window.location.assign('/'); return }
     checkAuth(user)
     loadData(user)
   }
