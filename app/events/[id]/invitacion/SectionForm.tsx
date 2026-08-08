@@ -557,7 +557,7 @@ export default function SectionForm({
             <p className={'mt-1.5 text-xs ' + (grupoInvalido ? 'text-[#cc3333]' : 'text-[#999]')}>
               {grupoInvalido
                 ? 'Ese no es un link de invitación a grupo. En WhatsApp: Grupo → Invitar por link.'
-                : 'Aparece al confirmar, y solo a quien dijo que sí va.'}
+                : 'Le aparece a los invitados que confirman su asistencia.'}
             </p>
           </div>
         </div>
