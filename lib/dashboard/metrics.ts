@@ -95,9 +95,8 @@ function tareasVivas(input: MetricsInput): TaskRow[] {
   return input.tasks.filter(t => t.is_completed !== true && !!t.task_date)
 }
 
-function calcTareas(input: MetricsInput): Tareas {
-  const hoyMs = dia(input.hoy)
-  const vivas = tareasVivas(input)
+function contarTareas(vivas: TaskRow[], ahora: Date): Tareas {
+  const hoyMs = dia(ahora)
   let vencidas = 0, hoy = 0, proximas = 0, bloqueantesVencidas = 0
   for (const t of vivas) {
     const ms = diaDeYMD(t.task_date as string)
@@ -109,6 +108,10 @@ function calcTareas(input: MetricsInput): Tareas {
     else proximas++
   }
   return { vencidas, hoy, proximas, bloqueantesVencidas }
+}
+
+function calcTareas(input: MetricsInput): Tareas {
+  return contarTareas(tareasVivas(input), input.hoy)
 }
 
 // La tarea que el dashboard destaca: la mas atrasada; si no hay atrasadas, la
@@ -196,6 +199,20 @@ export function calcPlaylist(songs: SongRow[]): Playlist {
 
 function normalizar(s: string): string {
   return s.normalize('NFD').replace(/\p{Diacritic}/gu, '').trim().toLowerCase()
+}
+
+// Palomear una tarea tiene que mover las dos caras a la vez: la lista de la
+// caja y el contador del banner. El contador se recalcula desde la lista que
+// queda —no se le resta uno— para que no puedan discrepar nunca.
+export function sinTarea(m: EventMetrics, taskId: string, ahora: Date): EventMetrics {
+  if (!m.tareasProximas.some(t => t.id === taskId)) return m
+  const tareasProximas = m.tareasProximas.filter(t => t.id !== taskId)
+  return {
+    ...m,
+    tareasProximas,
+    proximaTarea: tareasProximas[0] ?? null,
+    tareas: contarTareas(tareasProximas, ahora),
+  }
 }
 
 export function computeEventMetrics(input: MetricsInput): EventMetrics {

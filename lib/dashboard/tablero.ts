@@ -44,6 +44,9 @@ export type CajaConfig = {
   feature: FeatureKey | null
   w: number
   h: number
+  // Fuera del tablero sin borrar nada: la caja sigue construida y vuelve
+  // quitando esta marca. Se usa para lo que todavia no tiene su pantalla.
+  oculta?: boolean
 }
 
 // El orden de este arreglo es el acomodo de fabrica. Agregar una caja nueva es
@@ -52,7 +55,7 @@ export type CajaConfig = {
 export const CATALOGO: CajaConfig[] = [
   { id: 'atencion',   titulo: 'Acciones rápidas',    feature: null,         w: 4, h: 3 },
   { id: 'pendientes', titulo: 'Tareas de la semana', feature: null,         w: 2, h: 4 },
-  { id: 'actividad',  titulo: 'Actividad reciente',  feature: null,         w: 2, h: 4 },
+  { id: 'actividad',  titulo: 'Actividad reciente',  feature: null,         w: 2, h: 4, oculta: true },
   { id: 'mesas',      titulo: 'Mesas y acomodo',     feature: 'mesas',      w: 2, h: 3 },
   { id: 'regalos',    titulo: 'Mesa de regalos',     feature: 'regalos',    w: 2, h: 2 },
   { id: 'playlist',   titulo: 'Playlist',            feature: 'playlist',   w: 2, h: 2 },
@@ -111,7 +114,7 @@ export function cambiarCifra(a: Acomodo, indice: number, nueva: CifraId): Acomod
 
 export function cajasDisponibles(eventType: string | null, enabled: EnabledFeatures | null): CajaId[] {
   const features = resolveFeatures(eventType, enabled)
-  return CATALOGO.filter(c => c.feature === null || features[c.feature]).map(c => c.id)
+  return CATALOGO.filter(c => !c.oculta && (c.feature === null || features[c.feature])).map(c => c.id)
 }
 
 // Recorre el catalogo en orden y va llenando renglones de COLUMNAS casillas.

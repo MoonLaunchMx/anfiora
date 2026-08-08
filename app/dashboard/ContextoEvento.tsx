@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
-import { Check, ExternalLink, LayoutDashboard, LayoutGrid, Plus } from 'lucide-react'
+import { ExternalLink, LayoutDashboard, Paintbrush, Plus } from 'lucide-react'
 import { Modal } from '@/app/components/ui/Modal'
 import { slugifyEvent } from '@/lib/invite'
 import { iniciales } from '@/lib/dashboard/iniciales'
@@ -11,6 +11,7 @@ import {
   type CajaId,
 } from '@/lib/dashboard/tablero'
 import { useTablero } from './useTablero'
+import { ICONO_CAJA } from './cajas/iconos'
 import BannerEvento, { CuentaRegresiva } from './BannerEvento'
 import Tablero from './Tablero'
 import type { ColaboradorRow, EventMetrics, Rol } from '@/lib/dashboard/types'
@@ -38,13 +39,14 @@ type Props = {
   rol: Rol
   puedeVerDinero: boolean
   usuarioEmail: string
+  onTareaHecha: (id: string) => Promise<boolean>
   onAbrirEvento: () => void
 }
 
 // `rol` se conserva en la firma porque page.tsx lo pasa. El orden de las cifras
 // ahora lo elige el planner, asi que el rol ya no lo decide; no se quita el
 // parametro para no tocar al llamador.
-export default function ContextoEvento({ m, colaboradores, puedeVerDinero, usuarioEmail, onAbrirEvento }: Props) {
+export default function ContextoEvento({ m, colaboradores, puedeVerDinero, usuarioEmail, onTareaHecha, onAbrirEvento }: Props) {
   const { acomodo, cifrasDisp, error, aplicar, mover, persistir } = useTablero(
     m.event.id, m.event.event_type, puedeVerDinero,
   )
@@ -94,30 +96,32 @@ export default function ContextoEvento({ m, colaboradores, puedeVerDinero, usuar
   }
 
   const controles = esDueno ? (
-    <div className="hidden items-center gap-2 lg:flex">
+    <div className="hidden items-center gap-2.5 lg:flex">
       {error && <span className="text-[13px] text-[#CC3333]">No se pudo guardar el acomodo.</span>}
 
       {modo && acomodo.ocultas.length > 0 && (
-        <button onClick={() => setMenu(true)} className={BTN_SEC + ' flex items-center gap-2'}>
+        <button onClick={() => setMenu(true)} className={BTN_SEC + ' flex items-center gap-2 py-2.5'}>
           <Plus size={14} />
-          Agregar caja
+          Agregar información
         </button>
       )}
 
-      {modo ? (
-        <button
-          onClick={salirDeModo}
-          className="flex items-center gap-2 rounded-[10px] bg-[#48C9B0] px-4 py-2 text-[13px] font-semibold text-white transition hover:bg-[#3ab89f]"
-        >
-          <Check size={14} />
-          Listo
-        </button>
-      ) : (
-        <button onClick={() => setModo(true)} className={BTN_SEC + ' flex items-center gap-2'}>
-          <LayoutGrid size={14} />
-          Personalizar
-        </button>
-      )}
+      {/* Un solo boton que se queda encendido mientras editas, en vez de un par
+          Personalizar/Listo: apagarlo es lo que guarda el acomodo. */}
+      <button
+        onClick={modo ? salirDeModo : () => setModo(true)}
+        aria-pressed={modo}
+        title={modo ? 'Terminar de personalizar' : 'Personalizar tablero'}
+        aria-label={modo ? 'Terminar de personalizar' : 'Personalizar tablero'}
+        className={
+          'grid h-[42px] w-[42px] shrink-0 place-items-center rounded-[12px] border transition ' +
+          (modo
+            ? 'border-[#48C9B0] bg-[#48C9B0] text-white shadow-[0_8px_20px_-8px_rgba(72,201,176,0.7)]'
+            : 'border-[#E0E0E0] bg-[#F8F8F8] text-[#666] hover:border-[#48C9B0] hover:text-[#1A9E88]')
+        }
+      >
+        <Paintbrush size={16} />
+      </button>
     </div>
   ) : null
 
@@ -200,6 +204,7 @@ export default function ContextoEvento({ m, colaboradores, puedeVerDinero, usuar
         m={m}
         cifras={acomodo.cifras}
         cifrasDisp={cifrasDisp}
+        puedeVerDinero={puedeVerDinero}
         // Las cuatro cifras son fijas por ahora: el menu por cifra existe pero
         // se queda apagado. Personalizar solo mueve las cajas de abajo.
         modoPersonalizar={false}
@@ -217,17 +222,21 @@ export default function ContextoEvento({ m, colaboradores, puedeVerDinero, usuar
         modoPersonalizar={modo}
         onQuitar={(id: CajaId) => aplicar(quitarCaja(acomodo, id))}
         onMover={mover}
+        onTareaHecha={onTareaHecha}
       />
 
       {/* Modal y no menu colgado: el banner recorta lo que se sale de su caja,
           y ahi el menu quedaba escondido detras del contenido. */}
       <Modal open={menu} onClose={() => setMenu(false)} size="sm">
-        <Modal.Header title="Agregar caja" subtitle="Las que quitaste del tablero" />
+        <Modal.Header title="Agregar información" subtitle="Lo que quitaste del tablero" />
         <Modal.Body className="!px-3">
           {acomodo.ocultas.length === 0 ? (
-            <p className="px-2 py-6 text-center text-[13px] text-[#888]">Ya tienes todas en el tablero.</p>
+            <p className="px-2 py-6 text-center text-[13px] text-[#888]">Ya tienes todo en el tablero.</p>
           ) : acomodo.ocultas.map(id => {
             const cfg = CAJA_POR_ID.get(id)
+            // El mismo icono que lleva la caja en el tablero: asi se reconoce
+            // lo que se esta devolviendo sin leer el nombre.
+            const Icono = ICONO_CAJA[id]
             return (
               <button
                 key={id}
@@ -235,9 +244,10 @@ export default function ContextoEvento({ m, colaboradores, puedeVerDinero, usuar
                 className="flex w-full items-center gap-3 rounded-[10px] px-3 py-3 text-left transition hover:bg-[#F8F8F8]"
               >
                 <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[10px] border border-[#EEE] bg-[#F8F8F8]">
-                  <Plus size={15} className="text-[#888]" />
+                  <Icono size={16} className="text-[#666]" />
                 </span>
-                <span className="text-[14px] font-medium text-[#1D1E20]">{cfg?.titulo ?? id}</span>
+                <span className="min-w-0 flex-1 truncate text-[14px] font-medium text-[#1D1E20]">{cfg?.titulo ?? id}</span>
+                <Plus size={16} className="shrink-0 text-[#CCC]" />
               </button>
             )
           })}

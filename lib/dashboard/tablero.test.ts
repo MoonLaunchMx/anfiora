@@ -76,7 +76,11 @@ describe('cambiarCifra', () => {
 describe('cajasDisponibles', () => {
   it('las cajas sin herramienta siempre estan', () => {
     const ids = cajasDisponibles('boda', {})
-    expect(ids).toEqual(expect.arrayContaining(['atencion', 'pendientes', 'actividad', 'equipo']))
+    expect(ids).toEqual(expect.arrayContaining(['atencion', 'pendientes', 'equipo']))
+  })
+
+  it('una caja marcada como oculta no se ofrece', () => {
+    expect(cajasDisponibles('boda', {})).not.toContain('actividad')
   })
 
   it('una herramienta apagada explicitamente saca su caja', () => {

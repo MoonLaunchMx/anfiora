@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { calcPlaylist, computeEventMetrics } from './metrics'
+import { calcPlaylist, computeEventMetrics, sinTarea } from './metrics'
 import type { EventoRow, MetricsInput, TableRow } from './types'
 
 const evento: EventoRow = {
@@ -134,6 +134,43 @@ describe('tareas', () => {
     }))
     expect(m.tareas.vencidas).toBe(0)
     expect(m.tareas.proximas).toBe(0)
+  })
+
+  describe('sinTarea', () => {
+    const conCuatro = () => computeEventMetrics(base({
+      hoy,
+      tasks: [
+        { id: 't1', event_id: 'e1', title: 'A', category: 'pago',  task_date: '2026-07-29', is_completed: false, priority: 'bloqueante',    assigned_to_name: null },
+        { id: 't2', event_id: 'e1', title: 'B', category: 'tarea', task_date: '2026-07-31', is_completed: false, priority: 'no_bloqueante', assigned_to_name: null },
+        { id: 't3', event_id: 'e1', title: 'C', category: 'tarea', task_date: '2026-08-01', is_completed: false, priority: 'no_bloqueante', assigned_to_name: null },
+        { id: 't4', event_id: 'e1', title: 'D', category: 'tarea', task_date: '2026-08-05', is_completed: false, priority: 'no_bloqueante', assigned_to_name: null },
+      ],
+    }))
+
+    it('palomear una vencida bloqueante baja su contador y el de bloqueantes', () => {
+      const r = sinTarea(conCuatro(), 't1', hoy)
+      expect(r.tareas.vencidas).toBe(1)
+      expect(r.tareas.bloqueantesVencidas).toBe(0)
+      expect(r.tareas.hoy).toBe(1)
+      expect(r.tareas.proximas).toBe(1)
+    })
+
+    it('palomear la de hoy solo baja la de hoy', () => {
+      const r = sinTarea(conCuatro(), 't3', hoy)
+      expect(r.tareas.hoy).toBe(0)
+      expect(r.tareas.vencidas).toBe(2)
+    })
+
+    it('la saca de la lista y recalcula cual es la proxima', () => {
+      const r = sinTarea(conCuatro(), 't1', hoy)
+      expect(r.tareasProximas.map(t => t.id)).toEqual(['t2', 't3', 't4'])
+      expect(r.proximaTarea?.id).toBe('t2')
+    })
+
+    it('un id que no esta devuelve el mismo objeto', () => {
+      const m = conCuatro()
+      expect(sinTarea(m, 'nope', hoy)).toBe(m)
+    })
   })
 })
 

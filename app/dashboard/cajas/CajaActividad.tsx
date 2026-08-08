@@ -46,7 +46,6 @@ export default function CajaActividad({ m, modoPersonalizar, onQuitar }: PropsCa
     <CajaShell
       id="actividad"
       titulo="Actividad reciente"
-      Icono={Activity}
       modoPersonalizar={modoPersonalizar}
       onQuitar={onQuitar}
     >

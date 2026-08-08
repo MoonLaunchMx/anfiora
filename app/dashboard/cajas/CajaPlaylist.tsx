@@ -10,7 +10,6 @@ export default function CajaPlaylist({ m, modoPersonalizar, onQuitar }: PropsCaj
     <CajaShell
       id="playlist"
       titulo="Playlist"
-      Icono={Music}
       meta={total === 0 ? 'Sin canciones todavía' : `${distintas} ${distintas === 1 ? 'canción' : 'canciones'} · ${total} ${total === 1 ? 'petición' : 'peticiones'}`}
       accion={{ label: 'Ver playlist', href: `/events/${m.event.id}/playlist` }}
       modoPersonalizar={modoPersonalizar}

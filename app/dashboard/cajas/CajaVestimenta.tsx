@@ -1,6 +1,5 @@
 'use client'
 
-import { Shirt } from 'lucide-react'
 import { resolveNivelDesc, resolveNivelLabel } from '@/lib/dresscode'
 import CajaShell, { type PropsCaja } from './CajaShell'
 
@@ -14,7 +13,6 @@ export default function CajaVestimenta({ m, modoPersonalizar, onQuitar }: PropsC
     <CajaShell
       id="vestimenta"
       titulo="Código de vestimenta"
-      Icono={Shirt}
       meta={nivel ? undefined : 'Sin definir'}
       accion={{ label: 'Editar', href: `/events/${m.event.id}/vestimenta` }}
       modoPersonalizar={modoPersonalizar}

@@ -1,8 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { ListTodo } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
+import { useState } from 'react'
 import type { TaskRow } from '@/lib/dashboard/types'
 import CajaShell, { CHIP_BAD, CHIP_MUTE, CHIP_WARN, T_META, type PropsCaja } from './CajaShell'
 
@@ -18,36 +16,23 @@ function diasDeTarea(t: TaskRow, hoy: Date): { texto: string; clase: string } {
   return { texto: `En ${dias} días`, clase: CHIP_MUTE }
 }
 
-export default function CajaPendientes({ m, modoPersonalizar, onQuitar }: PropsCaja) {
-  const [tareas, setTareas] = useState<TaskRow[]>(m.tareasProximas)
+export default function CajaPendientes({ m, modoPersonalizar, onQuitar, onTareaHecha }: PropsCaja) {
   const [fallo, setFallo] = useState<string | null>(null)
 
-  // Al cambiar de evento hay que resembrar el estado local que el marcado
-  // optimista mueve, o quedarian las tareas del evento anterior.
-  useEffect(() => {
-    setTareas(m.tareasProximas)
-    setFallo(null)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [m.event.id])
-
+  // La lista sale de las mismas cifras que pinta el banner. Tener aqui una
+  // copia propia era justo lo que dejaba el contador de arriba sin bajar.
+  const tareas = m.tareasProximas
   const hoy = new Date()
 
   const marcarHecha = async (id: string) => {
-    const previas = tareas
-    setTareas(prev => prev.filter(t => t.id !== id))
     setFallo(null)
-    const { error } = await supabase.from('event_timeline_tasks').update({ is_completed: true }).eq('id', id)
-    if (error) {
-      setTareas(previas)
-      setFallo(id)
-    }
+    if (!(await onTareaHecha(id))) setFallo(id)
   }
 
   return (
     <CajaShell
       id="pendientes"
       titulo="Tareas de la semana"
-      Icono={ListTodo}
       meta="Márcalas aquí, sin entrar al timeline"
       accion={{ label: 'Ver timeline', href: `/events/${m.event.id}/timeline` }}
       modoPersonalizar={modoPersonalizar}

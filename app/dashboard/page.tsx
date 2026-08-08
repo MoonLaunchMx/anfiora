@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase'
 import type { User } from '@supabase/supabase-js'
 import type { EventStatus } from '@/lib/types'
 import { loadDashboard } from '@/lib/dashboard/load'
+import { sinTarea } from '@/lib/dashboard/metrics'
 import type { ColaboradorRow, Contexto, EventMetrics, Rol } from '@/lib/dashboard/types'
 import EventSelector from './EventSelector'
 import ContextoEvento from './ContextoEvento'
@@ -180,17 +181,57 @@ export default function Dashboard() {
     await supabase.from('events').update({ event_status: estado }).eq('id', eventId)
   }
 
-  const markDone = async (id: string) => {
-    await supabase.from('event_timeline_tasks').update({ is_completed: true }).eq('id', id)
-    setReminders(prev => prev.filter(x => x.id !== id))
-  }
+  // Las cifras del banner y la lista de la caja salen del mismo `metrics`, asi
+  // que palomear se resuelve aqui arriba: la caja ya no guarda su propia copia.
+  // Devuelve si de verdad quedo escrito para que ella pueda revertir en pantalla.
+  const tareaHecha = async (id: string): Promise<boolean> => {
+    const previas = metrics
+    setMetrics(prev => prev.map(m => sinTarea(m, id, new Date())))
 
-  const markAllDone = async () => {
-    await supabase
+    // Con `.select()` y contando filas: un UPDATE que RLS filtra devuelve cero
+    // filas y NINGUN error, y sin esto el palomeo se veria guardado sin serlo.
+    const { data, error } = await supabase
       .from('event_timeline_tasks')
       .update({ is_completed: true })
-      .in('id', reminders.map(r => r.id))
+      .eq('id', id)
+      .select('id')
+
+    if (error || !data || data.length === 0) {
+      setMetrics(previas)
+      return false
+    }
+    setReminders(prev => prev.filter(x => x.id !== id))
+    return true
+  }
+
+  // La campana palomea la MISMA tarea que la caja del tablero, asi que pasa por
+  // el mismo camino: si escribiera por su cuenta, el contador del banner se
+  // quedaria arriba igual que antes.
+  const markDone = async (id: string) => { await tareaHecha(id) }
+
+  const markAllDone = async () => {
+    const ids = reminders.map(r => r.id)
+    if (ids.length === 0) return
+    const ahora = new Date()
+    const previas = metrics
+    const previos = reminders
+
+    setMetrics(prev => prev.map(m => ids.reduce((acc, id) => sinTarea(acc, id, ahora), m)))
     setReminders([])
+
+    const { data, error } = await supabase
+      .from('event_timeline_tasks')
+      .update({ is_completed: true })
+      .in('id', ids)
+      .select('id')
+
+    // Se reconcilia contra las filas que de verdad se escribieron: si RLS filtro
+    // algunas, esas vuelven a la lista en vez de quedarse palomeadas de mentiras.
+    const escritos = new Set((error ? [] : (data ?? [])).map(r => r.id))
+    if (escritos.size === ids.length) return
+
+    setMetrics(previas.map(m => [...escritos].reduce((acc, id) => sinTarea(acc, id, ahora), m)))
+    setReminders(previos.filter(r => !escritos.has(r.id)))
   }
 
   const elegirContexto = (c: Contexto) => {
@@ -437,6 +478,7 @@ export default function Dashboard() {
               rol={rol}
               usuarioEmail={userEmail}
               puedeVerDinero={enFoco.event.shared_role !== 'viewer'}
+              onTareaHecha={tareaHecha}
               onAbrirEvento={() => { window.location.href = '/events/' + enFoco.event.id }}
             />
           ) : (

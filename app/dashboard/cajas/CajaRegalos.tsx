@@ -1,6 +1,5 @@
 'use client'
 
-import { Gift } from 'lucide-react'
 import { formatCurrency } from '@/lib/types'
 import CajaShell, { T_CUERPO, T_METRICA, type PropsCaja } from './CajaShell'
 
@@ -23,7 +22,6 @@ export default function CajaRegalos({ m, modoPersonalizar, onQuitar }: PropsCaja
     <CajaShell
       id="regalos"
       titulo="Mesa de regalos"
-      Icono={Gift}
       accion={{ label: 'Ver mesa de regalos', href: `/events/${m.event.id}/mesa-regalos` }}
       modoPersonalizar={modoPersonalizar}
       onQuitar={onQuitar}

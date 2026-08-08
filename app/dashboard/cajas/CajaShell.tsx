@@ -3,6 +3,7 @@
 import { GripVertical, X } from 'lucide-react'
 import type { CajaId } from '@/lib/dashboard/tablero'
 import type { ColaboradorRow, EventMetrics } from '@/lib/dashboard/types'
+import { ICONO_CAJA } from './iconos'
 
 export const T_SECCION = 'font-display text-[18px] font-bold tracking-[-0.015em] sm:text-[20px]'
 export const T_META = 'text-[12.5px] text-[#888]'
@@ -25,21 +26,23 @@ export type PropsCaja = {
   puedeVerDinero: boolean
   modoPersonalizar: boolean
   onQuitar: (id: CajaId) => void
+  onTareaHecha: (id: string) => Promise<boolean>
 }
 
 // La manija de arrastre es la clase .caja-arrastre: react-grid-layout la recibe
 // como draggableHandle, para que dentro de la caja se pueda hacer clic sin
 // correr el tablero.
-export default function CajaShell({ id, titulo, Icono, meta, accion, modoPersonalizar, onQuitar, children }: {
+export default function CajaShell({ id, titulo, meta, accion, modoPersonalizar, onQuitar, children }: {
   id: CajaId
   titulo: string
-  Icono: React.ElementType
   meta?: string
   accion?: { label: string; href: string }
   modoPersonalizar: boolean
   onQuitar: (id: CajaId) => void
   children: React.ReactNode
 }) {
+  const Icono = ICONO_CAJA[id]
+
   return (
     <div className="flex h-full flex-col overflow-hidden rounded-2xl border border-[#E8E8E8] bg-white">
       <div className={'flex shrink-0 items-center justify-between gap-3 border-b border-[#E8E8E8] px-5 py-4 ' + (modoPersonalizar ? 'caja-arrastre cursor-grab active:cursor-grabbing' : '')}>

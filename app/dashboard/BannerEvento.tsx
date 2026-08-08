@@ -3,8 +3,10 @@
 import { useEffect, useState } from 'react'
 import {
   Calendar, ChevronDown, CircleAlert, CircleCheck, Clock, LayoutDashboard,
-  ExternalLink, Hourglass, MapPin, PencilLine,
+  ExternalLink, Hourglass, MapPin, PencilLine, Zap,
 } from 'lucide-react'
+import ModalAcciones from './ModalAcciones'
+import { cuentaRegresiva, fechaHoraEvento } from '@/lib/dashboard/countdown'
 import { formatCurrency, formatEventDate } from '@/lib/types'
 import { slugifyEvent } from '@/lib/invite'
 import { ACCESS_MODES, resolveAccessMode } from '@/lib/features'
@@ -25,43 +27,12 @@ const T_LABEL = 'text-[12px] font-semibold uppercase tracking-[0.07em] text-[#99
 
 const TITULO_CIFRA = new Map(CIFRAS.map(c => [c.id, c.titulo]))
 
-function getEventDateTime(event: { event_date: string | null; event_time: string | null }): Date {
-  if (!event.event_date) return new Date()
-  const [year, month, day] = event.event_date.split('T')[0].split('-').map(Number)
-  const base = new Date(year, month - 1, day)
-  if (event.event_time) {
-    const [h, m] = event.event_time.split(':').map(Number)
-    base.setHours(h, m, 0, 0)
-  } else {
-    base.setHours(0, 0, 0, 0)
-  }
-  return base
-}
-
 function formatTime(time: string | null): string {
   if (!time) return ''
   const [h, m] = time.split(':').map(Number)
   const ampm = h >= 12 ? 'pm' : 'am'
   const h12 = h % 12 || 12
   return h12 + ':' + m.toString().padStart(2, '0') + ' ' + ampm
-}
-
-// Las cuatro celdas del countdown. `null` significa que el evento ya llego.
-function partesCuentaRegresiva(
-  event: { event_date: string | null; event_time: string | null },
-  now: Date,
-): { valor: string; unidad: string }[] | null {
-  const diff = getEventDateTime(event).getTime() - now.getTime()
-  if (diff <= 0) return null
-
-  const dosDigitos = (n: number) => String(n).padStart(2, '0')
-
-  return [
-    { valor: String(Math.floor(diff / 86400000)), unidad: 'días' },
-    { valor: dosDigitos(Math.floor(diff / 3600000) % 24), unidad: 'hrs' },
-    { valor: dosDigitos(Math.floor(diff / 60000) % 60), unidad: 'min' },
-    { valor: dosDigitos(Math.floor(diff / 1000) % 60), unidad: 'seg' },
-  ]
 }
 
 // Late cada segundo, asi que vive aparte: si el intervalo estuviera en el
@@ -83,68 +54,74 @@ export function CuentaRegresiva({ event, compacto = false }: {
     return () => clearInterval(id)
   }, [])
 
-  if (!now) return <div className={compacto ? 'h-5 w-[132px]' : 'h-[132px] w-full lg:w-[340px]'} />
+  if (!now) return <div className={compacto ? 'h-5 w-[132px]' : 'h-[158px] w-full lg:w-[290px]'} />
 
-  const partes = partesCuentaRegresiva(event, now)
+  const c = cuentaRegresiva(fechaHoraEvento(event, now), now)
 
   if (compacto) {
-    if (!partes) {
-      return (
-        <span className="hidden shrink-0 items-center gap-1.5 rounded-[10px] border border-[#E8E8E8] bg-[#F8F8F8] px-2.5 py-1.5 md:flex">
-          <Clock size={14} className="text-[#1A9E88]" />
-          <span className="text-[12px] font-bold tracking-[0.04em] text-[#1A9E88]">ES HOY</span>
-        </span>
-      )
-    }
-    const [d, h, mi, s] = partes
+    if (c.estado === 'pasado') return null
     return (
       <span className="hidden shrink-0 items-center gap-1.5 rounded-[10px] border border-[#E8E8E8] bg-[#F8F8F8] px-2.5 py-1.5 md:flex">
         <Clock size={14} className="shrink-0 text-[#1A9E88]" />
         <span className="text-[12px] font-bold tracking-[0.04em] text-[#666]">
-          FALTAN{' '}
+          {c.estado === 'hoy' ? 'ES HOY' : 'FALTAN'}{' '}
           <span className="tabular-nums text-[#1A9E88]">
-            {d.valor}D : {h.valor}H : {mi.valor}M : {s.valor}S
+            {c.estado === 'faltan' && c.dias > 0 && `${c.dias}D : `}
+            {c.hrs}H : {c.min}M : {c.seg}S
           </span>
         </span>
       </span>
     )
   }
 
+  // Un solo bloque: el titular manda (los dias, o "Es hoy" el dia del evento) y
+  // el reloj va debajo en fino. La version anterior partia lo mismo en cuatro
+  // cajas y competia con el nombre del evento.
   return (
     <div
-      className="w-full shrink-0 rounded-2xl border border-[#E8E8E8] bg-[#FBFBFB] p-4 lg:w-[340px]"
+      className="w-full shrink-0 rounded-2xl border border-[#E8E8E8] bg-[#FBFBFB] px-5 py-4 lg:w-[290px]"
       aria-label="Tiempo que falta para el evento"
     >
-      <div className="mb-3 flex items-center justify-between gap-2">
-        <span className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.08em] text-[#999]">
-          <Hourglass size={13} className="text-[#1A9E88]" />
-          Cuenta regresiva
-        </span>
-        <span className="rounded-md bg-[#F0FDFB] px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.04em] text-[#1A9E88]">
-          {partes ? 'Faltan' : 'Es hoy'}
-        </span>
-      </div>
+      <span className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.08em] text-[#999]">
+        <Hourglass size={13} className="text-[#1A9E88]" />
+        Cuenta regresiva
+      </span>
 
-      {partes ? (
-        <div className="grid grid-cols-4 gap-2 text-center">
-          {partes.map((p, i) => (
-            <div key={p.unidad} className="rounded-xl border border-[#EEE] bg-white px-1 py-2.5">
-              <b className={
-                'block font-display text-[20px] font-extrabold leading-none tabular-nums tracking-[-0.02em] sm:text-[24px] ' +
-                (i === 0 ? 'text-[#1A9E88]' : 'text-[#1D1E20]')
-              }>
-                {p.valor}
-              </b>
-              <span className="mt-1.5 block text-[9px] font-bold uppercase tracking-[0.1em] text-[#BBB]">
-                {p.unidad}
-              </span>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <p className="py-3 text-center font-display text-[24px] font-extrabold leading-none text-[#1A9E88]">
-          Hoy es el día
+      {c.estado === 'pasado' ? (
+        <p className="mt-4 font-display text-[28px] font-black leading-none tracking-[-0.03em] text-[#BBB]">
+          Ya pasó
         </p>
+      ) : (
+        <>
+          {c.estado === 'hoy' ? (
+            <p className="mt-3.5 font-display text-[42px] font-black leading-[0.85] tracking-[-0.04em] text-[#1A9E88]">
+              Es hoy
+            </p>
+          ) : (
+            <p className="mt-3.5 flex items-baseline gap-2.5">
+              <b className="font-display text-[52px] font-black leading-[0.8] tracking-[-0.045em] tabular-nums text-[#1A9E88]">
+                {c.dias}
+              </b>
+              <span className="text-[13px] font-bold uppercase tracking-[0.1em] text-[#999]">
+                {c.dias === 1 ? 'día' : 'días'}
+              </span>
+            </p>
+          )}
+
+          <p className="mt-4 flex items-center gap-1.5 border-t border-[#EEE] pt-3 font-display text-[15px] font-bold tabular-nums text-[#666]">
+            {[
+              { valor: c.hrs, unidad: 'h' },
+              { valor: c.min, unidad: 'm' },
+              { valor: c.seg, unidad: 's' },
+            ].map((p, i) => (
+              <span key={p.unidad} className="flex items-baseline gap-0.5">
+                {i > 0 && <span className="mr-1 font-normal text-[#DDD]">:</span>}
+                {p.valor}
+                <span className="text-[10.5px] font-semibold text-[#BBB]">{p.unidad}</span>
+              </span>
+            ))}
+          </p>
+        </>
       )}
     </div>
   )
@@ -320,15 +297,17 @@ function Cifra({ id, indice, m, modoPersonalizar, cifrasDisp, onCambiarCifra }: 
   )
 }
 
-export default function BannerEvento({ m, cifras, cifrasDisp, modoPersonalizar, onCambiarCifra, onAbrirEvento, controles }: {
+export default function BannerEvento({ m, cifras, cifrasDisp, puedeVerDinero, modoPersonalizar, onCambiarCifra, onAbrirEvento, controles }: {
   m: EventMetrics
   cifras: CifraId[]
   cifrasDisp: CifraId[]
+  puedeVerDinero: boolean
   modoPersonalizar: boolean
   onCambiarCifra: (indice: number, nueva: CifraId) => void
   onAbrirEvento: () => void
   controles?: React.ReactNode
 }) {
+  const [acciones, setAcciones] = useState(false)
   const ev = m.event
   const inv = INVITACION_CHIP[m.invitacion] ?? INVITACION_CHIP.borrador
   const acceso = ACCESS_MODES.find(a => a.key === resolveAccessMode(ev.event_type, m.accessMode))
@@ -346,9 +325,10 @@ export default function BannerEvento({ m, cifras, cifrasDisp, modoPersonalizar, 
 
       <div className="relative overflow-hidden bg-gradient-to-br from-white via-white to-[#f3fbf9] px-5 py-5 sm:px-6">
         <div className="pointer-events-none absolute -right-16 -top-24 h-[320px] w-[320px] rounded-full bg-[#48C9B0]/15 blur-3xl" />
-        <div className="relative z-10 flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+        <div className="relative z-10 flex flex-col gap-5">
+          <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
 
-          <div className="min-w-0 space-y-4">
+            <div className="min-w-0 space-y-4">
             <div className="flex items-center gap-3">
               {ev.event_type && (
                 <>
@@ -403,28 +383,50 @@ export default function BannerEvento({ m, cifras, cifrasDisp, modoPersonalizar, 
               )}
             </div>
 
-            <div className="flex flex-wrap items-center gap-2.5 pt-1">
-              <button
-                onClick={onAbrirEvento}
-                className="flex flex-1 items-center justify-center gap-2 rounded-[12px] bg-[#48C9B0] px-5 py-2.5 text-[13.5px] font-bold text-white shadow-[0_8px_20px_-8px_rgba(72,201,176,0.7)] transition hover:bg-[#3ab89f] active:scale-95 sm:flex-none"
-              >
-                <LayoutDashboard size={15} />
-                Abrir evento
-              </button>
-              {m.sharedToken && (
-                <button
-                  onClick={abrirInvitacion}
-                  className="flex flex-1 items-center justify-center gap-2 rounded-[12px] border border-[#E0E0E0] bg-[#F8F8F8] px-4 py-2.5 text-[13.5px] font-semibold text-[#1D1E20] transition hover:border-[#48C9B0] sm:flex-none"
-                >
-                  <ExternalLink size={15} className="text-[#888]" />
-                  Abrir invitación
-                </button>
-              )}
-              {controles}
-            </div>
           </div>
 
-          <CuentaRegresiva event={ev} />
+            <CuentaRegresiva event={ev} />
+          </div>
+
+          {/* Renglon de ancho completo, fuera de la columna del titulo: solo
+              asi "Acciones rapidas" alcanza el borde derecho del banner y queda
+              en la misma vertical que Personalizar. En movil los dos botones de
+              abrir reparten el renglon en partes iguales (basis-0) y su texto se
+              acorta: con el texto largo, "Abrir invitación" se comia al otro. */}
+          <div className="flex flex-wrap items-center gap-2.5">
+            <button
+              onClick={onAbrirEvento}
+              className="flex flex-1 basis-0 items-center justify-center gap-2 whitespace-nowrap rounded-[12px] bg-[#48C9B0] px-5 py-2.5 text-[13.5px] font-bold text-white shadow-[0_8px_20px_-8px_rgba(72,201,176,0.7)] transition hover:bg-[#3ab89f] active:scale-95 sm:flex-none sm:basis-auto"
+            >
+              <LayoutDashboard size={15} className="shrink-0" />
+              {/* Una sola etiqueta por tamano y no un trozo suelto mas otro:
+                  dentro de un flex, cada trozo es un hijo y el gap le mete un
+                  espacio de mas en medio de la palabra. */}
+              <span className="sm:hidden">Abrir</span>
+              <span className="hidden sm:inline">Abrir evento</span>
+            </button>
+            {/* Solo escritorio: en el celular abre otra pestana y el planner
+                se sale de la app sin manera clara de volver. */}
+            {m.sharedToken && (
+              <button
+                onClick={abrirInvitacion}
+                className="hidden items-center justify-center gap-2 whitespace-nowrap rounded-[12px] border border-[#E0E0E0] bg-[#F8F8F8] px-4 py-2.5 text-[13.5px] font-semibold text-[#1D1E20] transition hover:border-[#48C9B0] sm:flex"
+              >
+                <ExternalLink size={15} className="shrink-0 text-[#888]" />
+                Abrir invitación
+              </button>
+            )}
+
+            <button
+              onClick={() => setAcciones(true)}
+              className="flex w-full items-center justify-center gap-2 whitespace-nowrap rounded-[12px] border border-[#C8EDE7] bg-[#F0FDFB] px-4 py-2.5 text-[13.5px] font-bold text-[#1A9E88] transition hover:border-[#48C9B0] hover:bg-[#E4F7F0] sm:ml-auto sm:w-auto"
+            >
+              <Zap size={15} className="shrink-0" />
+              Acciones rápidas
+            </button>
+
+            {controles}
+          </div>
         </div>
 
       </div>
@@ -442,6 +444,13 @@ export default function BannerEvento({ m, cifras, cifrasDisp, modoPersonalizar, 
           />
         ))}
       </div>
+
+      <ModalAcciones
+        open={acciones}
+        onClose={() => setAcciones(false)}
+        eventId={ev.id}
+        puedeVerDinero={puedeVerDinero}
+      />
     </div>
   )
 }

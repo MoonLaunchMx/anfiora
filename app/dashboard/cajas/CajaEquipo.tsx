@@ -1,6 +1,5 @@
 'use client'
 
-import { Users } from 'lucide-react'
 import CajaShell, { CHIP_MUTE, type PropsCaja } from './CajaShell'
 
 const ROL_LABEL: Record<string, string> = { admin: 'Admin', editor: 'Editor', viewer: 'Viewer' }
@@ -25,7 +24,6 @@ export default function CajaEquipo({ m, colaboradores, usuarioEmail, modoPersona
     <CajaShell
       id="equipo"
       titulo="Equipo"
-      Icono={Users}
       accion={{ label: '+ Invitar', href: `/events/${ev.id}/configuracion` }}
       modoPersonalizar={modoPersonalizar}
       onQuitar={onQuitar}

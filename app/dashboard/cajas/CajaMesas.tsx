@@ -1,6 +1,5 @@
 'use client'
 
-import { LayoutGrid } from 'lucide-react'
 import { dimensionesMesa, encuadre } from '@/lib/dashboard/croquis'
 import type { MesaCroquis } from '@/lib/dashboard/types'
 import CajaShell, { type PropsCaja } from './CajaShell'
@@ -63,7 +62,6 @@ export default function CajaMesas({ m, modoPersonalizar, onQuitar }: PropsCaja) 
     <CajaShell
       id="mesas"
       titulo="Mesas y acomodo"
-      Icono={LayoutGrid}
       meta={`${m.mesas.mesas} mesas · ${m.mesas.conGente} con gente`}
       accion={{ label: 'Ver mesas', href: `/events/${m.event.id}/mesas` }}
       modoPersonalizar={modoPersonalizar}

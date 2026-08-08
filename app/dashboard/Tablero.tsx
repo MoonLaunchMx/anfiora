@@ -32,7 +32,7 @@ const COMPONENTE: Record<CajaId, (p: PropsCaja) => React.JSX.Element> = {
 }
 
 export default function Tablero({
-  acomodo, m, colaboradores, usuarioEmail, puedeVerDinero, modoPersonalizar, onQuitar, onMover,
+  acomodo, m, colaboradores, usuarioEmail, puedeVerDinero, modoPersonalizar, onQuitar, onMover, onTareaHecha,
 }: {
   acomodo: Acomodo
   m: EventMetrics
@@ -42,6 +42,7 @@ export default function Tablero({
   modoPersonalizar: boolean
   onQuitar: (id: CajaId) => void
   onMover: (cajas: Caja[]) => void
+  onTareaHecha: (id: string) => Promise<boolean>
 }) {
   // La version 2 de la libreria cambio WidthProvider por este hook: mide el
   // contenedor y devuelve el ancho, que GridLayout ahora exige como prop.
@@ -53,7 +54,7 @@ export default function Tablero({
   )
 
   const props = (modo: boolean): PropsCaja => ({
-    m, colaboradores, usuarioEmail, puedeVerDinero, modoPersonalizar: modo, onQuitar,
+    m, colaboradores, usuarioEmail, puedeVerDinero, modoPersonalizar: modo, onQuitar, onTareaHecha,
   })
 
   const alMover = (nuevo: Layout) => {
