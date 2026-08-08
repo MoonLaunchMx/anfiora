@@ -5,12 +5,10 @@ import {
   computeEndTime,
   formatDuration,
   formatMomentRange,
-  momentOrderMinutes,
   sortMoments,
   curateForGuests,
   addDays,
   eventDays,
-  DAY_START_HOUR,
   ITINERARY_PHASES,
   PHASE_LABEL,
 } from './itinerary'
@@ -22,7 +20,7 @@ function moment(partial: Partial<ItineraryMoment>): ItineraryMoment {
     event_id: 'e',
     title: partial.title ?? 'Momento',
     start_time: partial.start_time ?? '12:00',
-    moment_date: partial.moment_date ?? '2026-01-01',
+    moment_date: partial.moment_date ?? '2026-09-13',
     duration_min: partial.duration_min ?? null,
     location: partial.location ?? null,
     phase: partial.phase ?? 'otro',
@@ -90,31 +88,26 @@ describe('formatMomentRange', () => {
   })
 })
 
-describe('momentOrderMinutes (cruce de medianoche)', () => {
-  it('la madrugada va despues de la tarde', () => {
-    expect(momentOrderMinutes('06:00')).toBe(360)
-    expect(momentOrderMinutes('18:00')).toBe(1080)
-    expect(momentOrderMinutes('01:00')).toBe(1500)
-  })
-  it('usa DAY_START_HOUR como corte', () => {
-    expect(DAY_START_HOUR).toBe(6)
-  })
-})
-
 describe('sortMoments', () => {
-  it('ordena con cruce de medianoche y desempata por position', () => {
+  it('ordena por fecha antes que por hora', () => {
     const ms = [
-      moment({ id: 'fiesta', start_time: '01:00', position: 0 }),
-      moment({ id: 'cena', start_time: '20:00', position: 0 }),
-      moment({ id: 'montaje', start_time: '06:00', position: 0 }),
-      moment({ id: 'ceremonia', start_time: '18:00', position: 0 }),
+      moment({ id: 'domingo', moment_date: '2026-09-14', start_time: '12:00' }),
+      moment({ id: 'sabado-madrugada', moment_date: '2026-09-13', start_time: '02:00' }),
+      moment({ id: 'viernes', moment_date: '2026-09-12', start_time: '20:00' }),
     ]
-    expect(sortMoments(ms).map(m => m.id)).toEqual(['montaje', 'ceremonia', 'cena', 'fiesta'])
+    expect(sortMoments(ms).map(m => m.id)).toEqual(['viernes', 'sabado-madrugada', 'domingo'])
+  })
+  it('dentro del mismo dia la madrugada va primero, sin trucos', () => {
+    const ms = [
+      moment({ id: 'cena', moment_date: '2026-09-13', start_time: '20:00' }),
+      moment({ id: 'madrugada', moment_date: '2026-09-13', start_time: '01:00' }),
+    ]
+    expect(sortMoments(ms).map(m => m.id)).toEqual(['madrugada', 'cena'])
   })
   it('mismo inicio -> respeta position', () => {
     const ms = [
-      moment({ id: 'b', start_time: '18:00', position: 2 }),
-      moment({ id: 'a', start_time: '18:00', position: 1 }),
+      moment({ id: 'b', moment_date: '2026-09-13', start_time: '18:00', position: 2 }),
+      moment({ id: 'a', moment_date: '2026-09-13', start_time: '18:00', position: 1 }),
     ]
     expect(sortMoments(ms).map(m => m.id)).toEqual(['a', 'b'])
   })
@@ -123,13 +116,13 @@ describe('sortMoments', () => {
 describe('curateForGuests', () => {
   it('filtra visibles, ordena y mapea a la superficie publica', () => {
     const ms = [
-      moment({ id: 'oculto', start_time: '06:00', visible_to_guests: false }),
-      moment({ id: 'ceremonia', title: 'Ceremonia', start_time: '18:00', location: 'Jardin', visible_to_guests: true }),
-      moment({ id: 'fiesta', title: 'Fiesta', start_time: '01:00', visible_to_guests: true }),
+      moment({ id: 'oculto', moment_date: '2026-09-13', start_time: '06:00', visible_to_guests: false }),
+      moment({ id: 'ceremonia', moment_date: '2026-09-13', title: 'Ceremonia', start_time: '18:00', location: 'Jardin', visible_to_guests: true }),
+      moment({ id: 'fiesta', moment_date: '2026-09-13', title: 'Fiesta', start_time: '01:00', visible_to_guests: true }),
     ]
     expect(curateForGuests(ms)).toEqual([
-      { start_time: '18:00', title: 'Ceremonia', location: 'Jardin' },
       { start_time: '01:00', title: 'Fiesta', location: null },
+      { start_time: '18:00', title: 'Ceremonia', location: 'Jardin' },
     ])
   })
 })

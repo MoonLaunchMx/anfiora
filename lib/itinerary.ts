@@ -1,9 +1,5 @@
 import type { ItineraryMoment, ItineraryPhase, GuestItineraryItem } from './types'
 
-// Hora de corte del "día del evento": los momentos antes de esta hora se ordenan
-// como madrugada del día siguiente (ej. la fiesta a la 01:00 va despues de la cena).
-export const DAY_START_HOUR = 6
-
 export const ITINERARY_PHASES: ItineraryPhase[] = [
   'montaje', 'ceremonia', 'social', 'cena', 'fiesta', 'otro',
 ]
@@ -66,23 +62,17 @@ export function formatMomentRange(startTime: string, durationMin: number | null)
   return end ? `${start}–${end}` : start
 }
 
-export function momentOrderMinutes(startTime: string): number {
-  const mins = parseTimeToMinutes(startTime)
-  if (mins === null) return Number.MAX_SAFE_INTEGER
-  const h = Math.floor(mins / 60)
-  return h < DAY_START_HOUR ? mins + 24 * 60 : mins
-}
-
-export function sortMoments<T extends { start_time: string; position: number }>(moments: T[]): T[] {
+export function sortMoments<T extends { moment_date: string; start_time: string; position: number }>(moments: T[]): T[] {
   return [...moments].sort((a, b) => {
-    const ka = momentOrderMinutes(a.start_time)
-    const kb = momentOrderMinutes(b.start_time)
-    if (ka !== kb) return ka - kb
+    if (a.moment_date !== b.moment_date) return a.moment_date < b.moment_date ? -1 : 1
+    const ta = parseTimeToMinutes(a.start_time) ?? Number.MAX_SAFE_INTEGER
+    const tb = parseTimeToMinutes(b.start_time) ?? Number.MAX_SAFE_INTEGER
+    if (ta !== tb) return ta - tb
     return a.position - b.position
   })
 }
 
-type CurateInput = Pick<ItineraryMoment, 'start_time' | 'title' | 'location' | 'visible_to_guests' | 'position'>
+type CurateInput = Pick<ItineraryMoment, 'moment_date' | 'start_time' | 'title' | 'location' | 'visible_to_guests' | 'position'>
 
 export function curateForGuests(moments: CurateInput[]): GuestItineraryItem[] {
   return sortMoments(moments.filter(m => m.visible_to_guests)).map(m => {
