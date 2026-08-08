@@ -22,14 +22,13 @@ import PreviewBoundary from '@/app/components/invitacion/PreviewBoundary'
 import type { InviteCtx } from '@/app/components/invitacion/types'
 import DatePicker from '@/app/components/ui/DatePicker'
 import BlockEditor from './BlockEditor'
-import RepartoLinks from './RepartoLinks'
 import AccesoPanel from './AccesoPanel'
 import { useSalidaGuard } from '../SalidaGuardProvider'
 import { useEventAccess } from '@/lib/event-access-context'
 import EstiloPanel from './EstiloPanel'
 import PersonalizarPanel from './PersonalizarPanel'
 
-type TabKey = 'diseno' | 'enviar' | 'config'
+type TabKey = 'diseno' | 'config'
 
 type EventInfo = {
   name: string
@@ -359,7 +358,6 @@ export default function InvitacionPage() {
   const INVITE_TABS: TabItem[] = [
     { key: 'config', label: 'Acceso', icon: Users },
     { key: 'diseno', label: 'Diseño', icon: Paintbrush },
-    { key: 'enviar', label: 'Enviar', icon: Send },
   ]
 
   return (
@@ -501,10 +499,6 @@ export default function InvitacionPage() {
                 </div>
               </div>
             </div>
-          </div>
-        ) : activeTab === 'enviar' ? (
-          <div className="pt-5 pb-6">
-            <RepartoLinks eventId={eventId} event={event} />
           </div>
         ) : (
           <div className={`pt-5 pb-6 ${soloLectura ? 'pointer-events-none opacity-60' : ''}`}>

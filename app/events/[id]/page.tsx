@@ -4,11 +4,12 @@ import { useEffect, useState, useRef, useMemo } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { motion, useMotionValue, useTransform, animate } from 'framer-motion'
 import type { PanInfo } from 'framer-motion'
-import { Trash2, Send, Clock, MessageSquare, AlertCircle, CheckCircle, XCircle, Download, Upload, Columns3, Search, UserPlus, Users, Wallet, Plus, Check, X, Filter, Loader2, FileSpreadsheet, FileText, AlertTriangle, ChevronDown } from 'lucide-react'
+import { Trash2, Send, Clock, MessageSquare, AlertCircle, CheckCircle, XCircle, Download, Upload, Columns3, Search, UserPlus, Users, Wallet, Plus, Check, Copy, X, Filter, Loader2, FileSpreadsheet, FileText, AlertTriangle, ChevronDown } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { buildGuestDeletionOps, executeGuestDeletion, guestConversationIds, buildBulkGuestDeletionOps, guestConversationRowsForMany, survivingGuestIds } from '@/lib/guests/delete'
 import { PartyMember, Guest, Event, EventSettings, EventStatus, RsvpStatus, Currency, formatCurrency } from '@/lib/types'
 import { estadoAcceso } from '@/lib/puerta'
+import { slugifyEvent } from '@/lib/invite'
 import { logAction } from '@/lib/audit'
 import StatsCollapse, { StatsToggleButton, useStatsToggle } from '@/app/components/ui/StatsCollapse'
 import { ImportStepsModal } from '@/app/components/ui/ImportStepsModal'
@@ -753,6 +754,7 @@ export default function EventPage() {
   const [bulkCompanionSaving, setBulkCompanionSaving] = useState(false)
 
   const [showWaMenu, setShowWaMenu] = useState<string | null>(null)
+  const [invitacionCopiada, setInvitacionCopiada] = useState<string | null>(null)
   const waMenuRef = useRef<HTMLDivElement>(null)
   const [showWaSheet, setShowWaSheet] = useState<Guest | null>(null)
   const waLongPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -1067,30 +1069,40 @@ export default function EventPage() {
     const convRows = guestIds.length > 0 ? await guestConversationRowsForMany(supabase, guestIds) : []
     const conChat = new Set(convRows.map(r => r.contactGuestId)).size
 
-    // Pocos (<=5): listar nombres da confianza. Muchos: el conteo comunica mejor.
+    // Uno solo: su nombre cabe en el titulo y ahorra la lista. Pocos (2-5):
+    // listar nombres da confianza. Muchos: el conteo comunica mejor.
     const nombres = guestIds.map(gid => guests.find(g => g.id === gid)?.name).filter(Boolean) as string[]
-    const listar = guestIds.length >= 1 && guestIds.length <= 5
+    const listar = guestIds.length >= 2 && guestIds.length <= 5
+    // Solo se menciona lo que de verdad se va a borrar: un invitado sin
+    // acompanantes no debe leer "con sus acompanantes".
+    const acompCount = guestIds.reduce((n, gid) => n + (guests.find(g => g.id === gid)?.party_members.length ?? 0), 0)
     const detalle: string[] = []
-    if (guestIds.length > 0) detalle.push('con sus acompañantes')
-    if (looseMemberIds.length > 0) detalle.push(looseMemberIds.length + ' acompañante(s) más')
+    if (acompCount > 0) detalle.push(acompCount === 1 ? 'con su acompañante' : 'con sus ' + acompCount + ' acompañantes')
+    if (looseMemberIds.length > 0) detalle.push(looseMemberIds.length === 1 ? '1 acompañante más' : looseMemberIds.length + ' acompañantes más')
     if (conChat > 0) detalle.push(conChat + ' con conversación; se conservarán sus chats')
     const tituloBulk = guestIds.length === 0
-      ? '¿Eliminar ' + looseMemberIds.length + ' acompañante(s)?'
-      : listar
-        ? '¿Eliminar estos invitados?'
-        : '¿Eliminar ' + guestIds.length + ' invitados?'
+      ? (looseMemberIds.length === 1 ? '¿Eliminar este acompañante?' : '¿Eliminar ' + looseMemberIds.length + ' acompañantes?')
+      : guestIds.length === 1
+        ? '¿Eliminar a ' + (nombres[0] ?? 'este invitado') + '?'
+        : listar
+          ? '¿Eliminar estos invitados?'
+          : '¿Eliminar ' + guestIds.length + ' invitados?'
+    // Sin lista ni detalle no se pasa mensaje: un fragment vacio igual pinta su
+    // contenedor y deja un hueco muerto bajo el titulo.
     const okBulk = await askConfirm({
       title: tituloBulk,
-      message: (
-        <>
-          {listar && (
-            <ul className="mb-1.5 space-y-0.5 text-left text-[#444]">
-              {nombres.map((n, i) => <li key={i} className="truncate">· {n}</li>)}
-            </ul>
-          )}
-          {detalle.length > 0 && <p>{detalle.join(' · ')}</p>}
-        </>
-      ),
+      message: listar || detalle.length > 0
+        ? (
+          <>
+            {listar && (
+              <ul className="mb-1.5 space-y-0.5 text-left text-[#444]">
+                {nombres.map((n, i) => <li key={i} className="truncate">· {n}</li>)}
+              </ul>
+            )}
+            {detalle.length > 0 && <p>{detalle.join(' · ')}</p>}
+          </>
+        )
+        : undefined,
     })
     if (!okBulk) return
 
@@ -1175,6 +1187,31 @@ export default function EventPage() {
     let text = templates?.[templateIndex] || 'Hola {nombre}, te escribimos de parte de {evento}.'
     for (const [token, value] of Object.entries(repl)) text = text.split(token).join(value)
     return encodeURIComponent(text)
+  }
+
+  // El link personal de la invitacion vive aqui, junto al invitado, y no en una
+  // pantalla aparte: repartirlo es una accion sobre la persona, no sobre el
+  // diseno de la invitacion. Vacio mientras la invitacion no se haya publicado
+  // (el token nace al publicar).
+  const inviteLink = (guest: Guest) => {
+    if (!guest.rsvp_token || !event) return ''
+    return `${window.location.origin}/invitacion/${slugifyEvent(event)}/${guest.rsvp_token}`
+  }
+
+  const copiarInvitacion = async (guest: Guest) => {
+    const link = inviteLink(guest)
+    if (!link) return
+    try {
+      await navigator.clipboard.writeText(link)
+      setInvitacionCopiada(guest.id)
+      setTimeout(() => setInvitacionCopiada(prev => (prev === guest.id ? null : prev)), 1800)
+    } catch {}
+  }
+
+  const enviarInvitacion = (guest: Guest) => {
+    const link = inviteLink(guest)
+    if (!link || !guest.phone) return
+    openWhatsApp(guest.phone, encodeURIComponent(`Hola ${guest.name}, te comparto la invitación: ${link}`))
   }
 
   // Abre WhatsApp reusando una sola pestana en desktop (web.whatsapp.com/send, sin la pagina
@@ -1857,6 +1894,23 @@ export default function EventPage() {
                                       <button onClick={e => { e.stopPropagation(); setWaTargetPref('web') }}
                                         className={'rounded-md px-2 py-0.5 text-[10px] font-semibold transition ' + (waTarget === 'web' ? 'bg-[#f0fdfb] text-[#1a9e88]' : 'text-[#999] hover:text-[#1D1E20]')}>Web</button>
                                     </div>
+                                    <div className="mb-1 border-b border-[#f0f0f0] pb-1">
+                                      {guest.rsvp_token ? (
+                                        <>
+                                          <button onClick={() => { enviarInvitacion(guest); setShowWaMenu(null) }}
+                                            className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-semibold text-[#1D1E20] hover:bg-[#f0fdfb]">
+                                            <Send size={13} className="shrink-0 text-[#48C9B0]" /> Enviar invitación
+                                          </button>
+                                          <button onClick={() => copiarInvitacion(guest)}
+                                            className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs text-[#666] hover:bg-[#f8f8f8]">
+                                            {invitacionCopiada === guest.id ? <Check size={13} className="shrink-0 text-[#48C9B0]" /> : <Copy size={13} className="shrink-0 text-[#bbb]" />}
+                                            {invitacionCopiada === guest.id ? 'Link copiado' : 'Copiar link de invitación'}
+                                          </button>
+                                        </>
+                                      ) : (
+                                        <p className="px-3 py-2 text-[11px] leading-snug text-[#aaa]">Publica la invitación para poder enviarla</p>
+                                      )}
+                                    </div>
                                     <div className="max-h-72 overflow-y-auto">
                                       {activeTemplates.length === 0 ? (
                                         <p className="px-3 py-2.5 text-xs text-[#aaa]">No hay plantillas — ve a Configuración</p>
@@ -2087,6 +2141,22 @@ export default function EventPage() {
           <Modal.Header title={showWaSheet.name} subtitle="Enviar a" />
           {/* lista a sangre: el primitivo no expone un cuerpo sin respiro lateral */}
           <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+            {showWaSheet.rsvp_token ? (
+              <>
+                <button onClick={() => { enviarInvitacion(showWaSheet); setShowWaSheet(null) }}
+                  className="flex items-center gap-2.5 border-b border-[#f5f5f5] px-5 py-3.5 text-left transition active:bg-[#f0fdfb]">
+                  <Send size={15} className="shrink-0 text-[#48C9B0]" />
+                  <span className="text-sm font-semibold text-[#1D1E20]">Enviar invitación</span>
+                </button>
+                <button onClick={() => copiarInvitacion(showWaSheet)}
+                  className="flex items-center gap-2.5 border-b border-[#f5f5f5] px-5 py-3.5 text-left transition active:bg-[#f8f8f8]">
+                  {invitacionCopiada === showWaSheet.id ? <Check size={15} className="shrink-0 text-[#48C9B0]" /> : <Copy size={15} className="shrink-0 text-[#bbb]" />}
+                  <span className="text-sm text-[#666]">{invitacionCopiada === showWaSheet.id ? 'Link copiado' : 'Copiar link de invitación'}</span>
+                </button>
+              </>
+            ) : (
+              <p className="border-b border-[#f5f5f5] px-5 py-3.5 text-xs text-[#aaa]">Publica la invitación para poder enviarla</p>
+            )}
             {activeTemplates.length === 0 ? (
               <p className="px-5 py-4 text-sm text-[#aaa]">No hay plantillas — configúralas en Configuración.</p>
             ) : (
