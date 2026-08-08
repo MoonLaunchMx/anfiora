@@ -100,3 +100,39 @@ export function eventDays(eventDate: string | null, eventEndDate: string | null)
   for (let cur = start; cur <= end; cur = addDays(cur, 1)) days.push(cur)
   return days
 }
+
+const DOW = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado']
+const MONTH = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
+
+export function dayLabel(iso: string): { dow: string; num: string } {
+  const d = new Date(`${iso.slice(0, 10)}T00:00:00Z`)
+  return {
+    dow: DOW[d.getUTCDay()],
+    num: `${d.getUTCDate()} ${MONTH[d.getUTCMonth()]}`,
+  }
+}
+
+export interface DayGroup<T> {
+  date: string
+  moments: T[]
+}
+
+export function groupByDay<T extends { moment_date: string; start_time: string; position: number }>(
+  moments: T[],
+  days: string[],
+): { inRange: DayGroup<T>[]; orphans: DayGroup<T>[] } {
+  const sorted = sortMoments(moments)
+  const inRange: DayGroup<T>[] = days.map(date => ({ date, moments: [] }))
+  const byDate = new Map(inRange.map(g => [g.date, g]))
+  const orphanMap = new Map<string, DayGroup<T>>()
+
+  for (const m of sorted) {
+    const target = byDate.get(m.moment_date)
+    if (target) { target.moments.push(m); continue }
+    let group = orphanMap.get(m.moment_date)
+    if (!group) { group = { date: m.moment_date, moments: [] }; orphanMap.set(m.moment_date, group) }
+    group.moments.push(m)
+  }
+
+  return { inRange, orphans: [...orphanMap.values()].sort((a, b) => a.date < b.date ? -1 : 1) }
+}

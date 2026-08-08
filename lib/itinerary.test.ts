@@ -9,6 +9,8 @@ import {
   curateForGuests,
   addDays,
   eventDays,
+  dayLabel,
+  groupByDay,
   ITINERARY_PHASES,
   PHASE_LABEL,
 } from './itinerary'
@@ -160,5 +162,48 @@ describe('eventDays', () => {
   })
   it('sin fecha de inicio no hay dias', () => {
     expect(eventDays(null, '2026-09-14')).toEqual([])
+  })
+})
+
+describe('dayLabel', () => {
+  it('devuelve dia de la semana y fecha corta en espanol', () => {
+    expect(dayLabel('2026-09-12')).toEqual({ dow: 'Sábado', num: '12 sep' })
+    expect(dayLabel('2026-09-14')).toEqual({ dow: 'Lunes', num: '14 sep' })
+  })
+})
+
+describe('groupByDay', () => {
+  const days = ['2026-09-12', '2026-09-13']
+  it('agrupa cada momento en su dia y respeta el orden', () => {
+    const ms = [
+      moment({ id: 'sab', moment_date: '2026-09-13', start_time: '18:00' }),
+      moment({ id: 'vie2', moment_date: '2026-09-12', start_time: '21:00' }),
+      moment({ id: 'vie1', moment_date: '2026-09-12', start_time: '19:00' }),
+    ]
+    const { inRange, orphans } = groupByDay(ms, days)
+    expect(inRange.map(g => g.date)).toEqual(['2026-09-12', '2026-09-13'])
+    expect(inRange[0].moments.map(m => m.id)).toEqual(['vie1', 'vie2'])
+    expect(orphans).toEqual([])
+  })
+  it('incluye los dias del rango que no tienen momentos', () => {
+    const { inRange } = groupByDay([], days)
+    expect(inRange).toEqual([
+      { date: '2026-09-12', moments: [] },
+      { date: '2026-09-13', moments: [] },
+    ])
+  })
+  it('lo que cae fuera del rango sale como huerfano', () => {
+    const ms = [
+      moment({ id: 'dom', moment_date: '2026-09-14', start_time: '12:00' }),
+      moment({ id: 'sab', moment_date: '2026-09-13', start_time: '18:00' }),
+    ]
+    const { inRange, orphans } = groupByDay(ms, days)
+    expect(orphans.map(g => g.date)).toEqual(['2026-09-14'])
+    expect(orphans[0].moments.map(m => m.id)).toEqual(['dom'])
+    expect(inRange[1].moments.map(m => m.id)).toEqual(['sab'])
+  })
+  it('sin rango todo es huerfano', () => {
+    const ms = [moment({ id: 'x', moment_date: '2026-09-13' })]
+    expect(groupByDay(ms, []).orphans.map(g => g.date)).toEqual(['2026-09-13'])
   })
 })
