@@ -170,6 +170,9 @@ describe('dayLabel', () => {
     expect(dayLabel('2026-09-12')).toEqual({ dow: 'Sábado', num: '12 sep' })
     expect(dayLabel('2026-09-14')).toEqual({ dow: 'Lunes', num: '14 sep' })
   })
+  it('dia sin cero a la izquierda se formatea sin padding', () => {
+    expect(dayLabel('2026-09-05')).toEqual({ dow: 'Sábado', num: '5 sep' })
+  })
 })
 
 describe('groupByDay', () => {

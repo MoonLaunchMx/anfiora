@@ -101,6 +101,9 @@ export function eventDays(eventDate: string | null, eventEndDate: string | null)
   return days
 }
 
+// Los nombres de días y meses se hardcodean en vez de usar toLocaleDateString porque
+// el runtime de Node en CI no siempre trae el locale 'es' completo. Esto garantiza
+// consistencia incluso en entornos de construcción minimalistas.
 const DOW = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado']
 const MONTH = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
 
