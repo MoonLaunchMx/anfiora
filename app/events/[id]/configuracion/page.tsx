@@ -7,6 +7,8 @@ import { EventStatus } from '@/lib/types'
 import { getTemplatePack } from '@/lib/message-templates'
 import DatePicker from '@/app/components/ui/DatePicker'
 import TimePicker from '@/app/components/ui/TimePicker'
+import PhoneInput from '@/app/components/ui/PhoneInput'
+import { linkGrupoWhatsapp } from '@/lib/invite/post-confirmacion'
 import { TabToggle, type TabItem } from '@/app/components/ui/TabToggle'
 import { useEventAccess } from '@/lib/event-access-context'
 import { FEATURES, ALWAYS_ON_FEATURES, getDefaultFeatures, type FeatureKey } from '@/lib/features'
@@ -260,6 +262,17 @@ export default function ConfiguracionPage() {
   const [address, setAddress]         = useState('')
   const [eventStatus, setEventStatus] = useState<EventStatus>('active')
 
+  // Datos del planner: el contacto que ve el invitado al terminar de responder.
+  // Separado a proposito del perfil de la cuenta — un planner puede querer dar
+  // un numero de atencion distinto a su celular personal, y distinto por evento.
+  const [plannerName, setPlannerName]   = useState('')
+  const [plannerPhone, setPlannerPhone] = useState('')
+  const [plannerEmail, setPlannerEmail] = useState('')
+  const [grupoWhatsapp, setGrupoWhatsapp] = useState('')
+  // Se avisa, no se bloquea: el campo guarda lo que sea y la invitacion decide
+  // si lo pinta. Asi el aviso no pelea con el autoguardado a medio teclear.
+  const grupoLinkInvalido = grupoWhatsapp.trim().length > 0 && linkGrupoWhatsapp(grupoWhatsapp) === null
+
   // Acceso
 
   // Datos de event_settings
@@ -334,6 +347,10 @@ export default function ConfiguracionPage() {
       setVenue(eventData.venue || '')
       setAddress(eventData.address || '')
       setEventStatus(eventData.event_status || 'active')
+      setPlannerName(eventData.planner_name || '')
+      setPlannerPhone(eventData.planner_phone || '')
+      setPlannerEmail(eventData.planner_email || '')
+      setGrupoWhatsapp(eventData.whatsapp_group_url || '')
     }
 
     if (settingsData) {
@@ -382,7 +399,7 @@ export default function ConfiguracionPage() {
     // El acceso (modo, aprobacion, cupo y precio) ya NO se guarda aqui: vive en
     // la pestana Enviar de la invitacion. Escribirlo desde aqui pisaria con
     // estado viejo lo que el anfitrion acabe de cambiar alla.
-    const { error: eventErr } = await supabase.from('events').update({
+    const { data: eventRows, error: eventErr } = await supabase.from('events').update({
       name,
       event_type:     eventType || null,
       event_date:     eventDate || null,
@@ -393,9 +410,25 @@ export default function ConfiguracionPage() {
       host_name:      isSocial ? (hostName || null) : null,
       host_name_2:    eventType === 'boda' ? (hostName2 || null) : null,
       organization:   isCorp ? (organization || null) : null,
-    }).eq('id', id)
+      planner_name:   plannerName.trim() || null,
+      planner_phone:  plannerPhone.trim() || null,
+      planner_email:  plannerEmail.trim() || null,
+      // Se guarda tal cual lo escribio: con autoguardado, normalizar a null cada
+      //2 segundos le borraria el texto a medio teclear. Quien decide si sirve es
+      // la invitacion al leerlo (linkGrupoWhatsapp en la API); aqui solo se avisa.
+      whatsapp_group_url: grupoWhatsapp.trim() || null,
+    }).eq('id', id).select('id')
 
     if (eventErr) { setError('Error: ' + eventErr.message); setSaving(false); return }
+    // Un UPDATE filtrado por RLS devuelve cero filas SIN error: sin contar filas
+    // la pantalla diria "guardado" habiendo escrito nada. El trigger de
+    // configuracion si lanza excepcion, pero la policy no — son dos fallos
+    // distintos y este cubre el mudo.
+    if (!eventRows || eventRows.length === 0) {
+      setError('No se guardo: tu rol no puede cambiar la configuracion de este evento.')
+      setSaving(false)
+      return
+    }
 
     const { error: settingsErr } = await supabase.from('event_settings').upsert({
       ...(settingsId ? { id: settingsId } : {}),
@@ -818,6 +851,47 @@ export default function ConfiguracionPage() {
 
                   </div>
 
+                </div>
+
+                {/* Datos del planner */}
+                <div className="mt-6">
+                  <h2 className="mb-1 text-sm font-semibold text-[#1D1E20]">Datos del planner</h2>
+                  <p className="mb-4 text-xs text-[#888]">
+                    A quien le escribe el invitado si algo cambia. Aparece en la invitación cuando ya confirmó. Si lo dejas vacío, no se muestra nada.
+                  </p>
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:items-start">
+                    <div>
+                      <label className="mb-1.5 block text-xs font-medium text-[#555]">Nombre</label>
+                      <input type="text" value={plannerName} onChange={e => { setPlannerName(e.target.value); scheduleAutoSave() }}
+                        placeholder="Ana"
+                        className="w-full rounded-lg border border-[#d0d0d0] bg-white px-3 py-2.5 text-sm text-[#1D1E20] outline-none transition focus:border-[#48C9B0]"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1.5 block text-xs font-medium text-[#555]">Número de atención</label>
+                      <PhoneInput value={plannerPhone} onChange={val => { setPlannerPhone(val); scheduleAutoSave() }} placeholder="81 1234 5678" />
+                    </div>
+                    <div>
+                      <label className="mb-1.5 block text-xs font-medium text-[#555]">Correo</label>
+                      <input type="email" value={plannerEmail} onChange={e => { setPlannerEmail(e.target.value); scheduleAutoSave() }}
+                        placeholder="ana@bodasana.mx"
+                        className="w-full rounded-lg border border-[#d0d0d0] bg-white px-3 py-2.5 text-sm text-[#1D1E20] outline-none transition focus:border-[#48C9B0]"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="mt-3">
+                    <label className="mb-1.5 block text-xs font-medium text-[#555]">Grupo de WhatsApp <span className="font-normal text-[#ccc]">(opcional)</span></label>
+                    <input type="url" value={grupoWhatsapp} onChange={e => { setGrupoWhatsapp(e.target.value); scheduleAutoSave() }}
+                      placeholder="https://chat.whatsapp.com/..."
+                      className={'w-full rounded-lg border bg-white px-3 py-2.5 text-sm text-[#1D1E20] outline-none transition sm:max-w-[calc(66.666%-0.5rem)] ' + (grupoLinkInvalido ? 'border-[#ffc0c0] focus:border-[#cc3333]' : 'border-[#d0d0d0] focus:border-[#48C9B0]')}
+                    />
+                    <p className={'mt-1.5 text-xs ' + (grupoLinkInvalido ? 'text-[#cc3333]' : 'text-[#888]')}>
+                      {grupoLinkInvalido
+                        ? 'Ese no es un link de invitación a grupo. Ábrelo en WhatsApp: Grupo → Invitar por link, y pega el que empieza con chat.whatsapp.com'
+                        : 'El botón para unirse aparece solo a quien ya confirmó que sí va.'}
+                    </p>
+                  </div>
                 </div>
               </div>
 

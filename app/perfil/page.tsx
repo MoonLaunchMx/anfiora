@@ -210,8 +210,16 @@ export default function PerfilPage() {
     } else {
       // Sincronizar metadata de auth también
       await supabase.auth.updateUser({ data: { full_name: name.trim() } })
-      // Mantener fresco el nombre denormalizado en los eventos propios
-      await supabase.from('events').update({ planner_name: name.trim() }).eq('user_id', userId)
+      // Solo RELLENA los eventos que no tengan nombre de planner. Desde el 8-ago
+      // ese campo se edita por evento en Configuracion (un planner puede
+      // presentarse distinto en cada uno), asi que pisarlo todo desde aqui le
+      // borraria lo que puso a mano. El filtro cubre null Y cadena vacia: hay
+      // filas viejas guardadas como ''.
+      await supabase
+        .from('events')
+        .update({ planner_name: name.trim() })
+        .eq('user_id', userId)
+        .or('planner_name.is.null,planner_name.eq.')
       setProfileMsg({ type: 'success', text: 'Perfil actualizado correctamente' })
     }
     setSavingProfile(false)

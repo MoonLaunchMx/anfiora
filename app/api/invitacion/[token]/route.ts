@@ -7,6 +7,7 @@ import { curateForGuests } from '@/lib/itinerary'
 import { logAction } from '@/lib/audit'
 import { resolveAccessMode, resolveMaxCompanions } from '@/lib/features'
 import { occupiedSeats, seatsLeft, ocupaLugar } from '@/lib/puerta'
+import { resolverContacto, alguienVa, linkGrupoWhatsapp } from '@/lib/invite/post-confirmacion'
 import type { Currency, RegistryPaymentMethod } from '@/lib/types'
 
 const admin = () =>
@@ -104,9 +105,11 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
       name: string; event_type: string | null; event_date: string | null; event_time: string | null
       venue: string | null; address: string | null; host_name: string | null; host_name_2: string | null
       guest_cap: number | null; ticket_price: number | null; currency: Currency | null; user_id: string
+      planner_name: string | null; planner_phone: string | null; planner_email: string | null
+      whatsapp_group_url: string | null
     }>(
       db.from('events')
-        .select('name, event_type, event_date, event_time, venue, address, host_name, host_name_2, guest_cap, ticket_price, currency, user_id')
+        .select('name, event_type, event_date, event_time, venue, address, host_name, host_name_2, guest_cap, ticket_price, currency, user_id, planner_name, planner_phone, planner_email, whatsapp_group_url')
         .eq('id', eventId).maybeSingle(),
     ),
     guest
@@ -123,13 +126,14 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
   ])
   if (!event) return NextResponse.json({ error: 'not_found' }, { status: 404 })
 
-  // El telefono del anfitrion vive en su cuenta (users.phone, E.164), no en
-  // events: la puerta publica no tiene un campo de contacto propio. Se usa
-  // solo para el boton "Ya pague" — nunca se expone el resto del perfil.
+  // El contacto que ve el invitado sale de "Datos del planner" (events.planner_*).
+  // El celular de la cuenta (users.phone) quedo como respaldo y SOLO en eventos
+  // con precio, para no romper el boton "Ya pague" de quien no ha configurado el
+  // numero de atencion. Se resuelve aqui, en el limite: asi un evento gratis sin
+  // numero configurado nunca manda el celular personal del planner al navegador.
   const hostUser = await safeSingle<{ phone: string | null }>(
     db.from('users').select('phone').eq('id', event.user_id).maybeSingle(),
   )
-  const hostPhone = hostUser?.phone ? hostUser.phone.replace(/\D/g, '') : null
   // La cuenta de cobro vive en el doc PUBLICADO (meta.access), separada de
   // registry_payment_info (Mesa de Regalos): son dos cuentas distintas.
   const paymentMethods: RegistryPaymentMethod[] = doc.meta.access.cobro_payment_methods
@@ -178,7 +182,21 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
     ticketPrice: event.ticket_price ?? null,
     currency: event.currency ?? 'MXN',
     paymentMethods,
-    hostPhone: tienePrecio ? hostPhone : null,
+    // El grupo se ofrece SOLO a quien va, y el filtro vive AQUI, no en la UI:
+    // si viajara siempre en la respuesta, cualquiera que abra la invitacion lo
+    // sacaria de la pestana de red aunque no se le pinte el boton. En modo
+    // compartida no hay invitado todavia — ahi lo entrega el endpoint de
+    // registro, cuando ya se gano el lugar.
+    grupoWhatsapp: guest && alguienVa([guest, ...members])
+      ? linkGrupoWhatsapp(event.whatsapp_group_url)
+      : null,
+    contacto: resolverContacto({
+      plannerName: event.planner_name,
+      plannerPhone: event.planner_phone,
+      plannerEmail: event.planner_email,
+      hostPhone: hostUser?.phone ?? null,
+      tienePrecio,
+    }),
     // Estado durable del link personal. En modo compartida (sin invitado
     // todavia) van null: la tarjeta de pago de esa sesion se arma con el
     // monto que acaba de calcular el cliente al registrarse, no con esto.
@@ -277,8 +295,22 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
     // silent fail — nunca debe romper la confirmacion del invitado
   }
 
+  // El invitado acaba de ganarse el grupo (o de perderlo, si cambio su respuesta
+  // a "no va"). Se recalcula con el estado RECIEN escrito, no con el que traia:
+  // el GET inicial lo mando en null porque en ese momento todavia no calificaba.
+  const yaVa = alguienVa([
+    { rsvp_status: update.guest.rsvp_status },
+    ...companionsResponse,
+  ])
+  const eventoGrupo = yaVa
+    ? await safeSingle<{ whatsapp_group_url: string | null }>(
+        db.from('events').select('whatsapp_group_url').eq('id', guest.event_id).maybeSingle(),
+      )
+    : null
+
   return NextResponse.json({
     guest: { rsvp_status: update.guest.rsvp_status, allergies: update.guest.allergies },
     companions: companionsResponse,
+    grupoWhatsapp: eventoGrupo ? linkGrupoWhatsapp(eventoGrupo.whatsapp_group_url) : null,
   })
 }

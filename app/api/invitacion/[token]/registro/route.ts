@@ -4,6 +4,7 @@ import { resolveDoc } from '@/lib/invite/doc'
 import { isInviteOpen, randomToken } from '@/lib/invite'
 import { resolveAccessMode, resolveMaxCompanions } from '@/lib/features'
 import { parseRegistration, occupiedSeats, seatsLeft, montoAPagar, ocupaLugar } from '@/lib/puerta'
+import { linkGrupoWhatsapp } from '@/lib/invite/post-confirmacion'
 
 // El alta de la puerta publica. Va por service role, igual que el resto de este
 // endpoint: guests no tiene politica RLS para anon, asi que la llave del
@@ -37,7 +38,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
 
   const { data: event } = await db
     .from('events')
-    .select('event_type, guest_cap, ticket_price')
+    .select('event_type, guest_cap, ticket_price, whatsapp_group_url')
     .eq('id', settings.event_id)
     .maybeSingle()
   if (!event) return NextResponse.json({ error: 'not_found' }, { status: 404 })
@@ -51,6 +52,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
   const reg = parseRegistration(body, maxCompanions)
   if (!reg) return NextResponse.json({ error: 'bad_request' }, { status: 400 })
 
+  // Con precio, registrarse NO es estar dentro: falta pagar, y hasta entonces no
+  // se ofrece el grupo. Se calcula antes del dedupe para que la respuesta de "ya
+  // estabas en la lista" sea IDENTICA a la de un alta nueva: si solo una de las
+  // dos trajera el link, teclear telefonos ajenos delataria quien ya se registro.
+  const grupoSiEstaDentro = Number(event.ticket_price) > 0
+    ? null
+    : linkGrupoWhatsapp(event.whatsapp_group_url)
+
   const { data: existing } = await db
     .from('guests')
     .select('id')
@@ -63,7 +72,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
   // es una llave. Quien lo teclee solo ve "ya estas dentro", igual que un alta
   // nueva — asi ni siquiera se puede sondear quien esta invitado.
   if (existing) {
-    return NextResponse.json({ ok: true })
+    return NextResponse.json({ ok: true, grupoWhatsapp: grupoSiEstaDentro })
   }
 
   const tienePrecio = Number(event.ticket_price) > 0
@@ -119,5 +128,5 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
 
   // Se crea con su rsvp_token (existe en la fila para que el planner pueda
   // mandarle su link despues), pero NO viaja al navegador anonimo.
-  return NextResponse.json({ ok: true })
+  return NextResponse.json({ ok: true, grupoWhatsapp: grupoSiEstaDentro })
 }

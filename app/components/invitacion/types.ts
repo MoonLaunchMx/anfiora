@@ -1,5 +1,6 @@
 import type { DressCode } from '@/lib/dresscode'
 import type { RegistryPaymentMethod, Currency } from '@/lib/types'
+import type { ContactoPlanner } from '@/lib/invite/post-confirmacion'
 
 export type InviteGuest = {
   name: string
@@ -33,7 +34,7 @@ export type InviteCtx = {
     maxCompanions: number
     agotado: boolean
     registrado: boolean
-    onRegistrado: (partySize: number) => void
+    onRegistrado: (partySize: number, grupoWhatsapp: string | null) => void
     // Monto que acaba de congelarse tras el registro por liga (evento con
     // precio). Vive en sesion, nunca lo devuelve el endpoint al anonimo.
     montoRegistrado: number | null
@@ -59,4 +60,11 @@ export type InviteCtx = {
   // Plazo de pago del link personal (durable): 24h desde guest.created_at,
   // topado al inicio del evento. null si no hay created_at o el evento es gratis.
   deadline?: Date | null
+  // A quien le escribe el invitado cuando ya no hay nada que llenar. Sale de
+  // "Datos del planner" (events.planner_*); null si el planner no configuro ni
+  // telefono ni correo, y entonces no se pinta ninguna tarjeta.
+  contacto?: ContactoPlanner | null
+  // Link del grupo de WhatsApp del evento. El servidor solo lo manda cuando el
+  // invitado ya califica (alguien de su grupo va), asi que si llega, se muestra.
+  grupoWhatsapp?: string | null
 }
