@@ -12,6 +12,7 @@ import {
 import { getEventCategories, categoryLabel } from './lib/categories'
 import { BudgetCategoriesModal } from './BudgetCategoriesModal'
 import { ImportStepsModal } from '@/app/components/ui/ImportStepsModal'
+import { useConfirm } from '@/app/components/ui/ConfirmModal'
 import BudgetMetricsCards from '@/app/components/ui/BudgetMetricsCards'
 import StatsCollapse, { useStatsToggle, StatsToggleButton } from '@/app/components/ui/StatsCollapse'
 import BudgetCategoryRow from './BudgetCategoryRow'
@@ -74,6 +75,7 @@ export default function PresupuestoPage() {
   const [newCategoryName, setNewCategoryName]     = useState('')
 
   const statsToggle = useStatsToggle(eventId, 'presupuesto')
+  const askConfirm  = useConfirm()
 
   useEffect(() => {
     if (!eventId) return
@@ -354,8 +356,13 @@ export default function PresupuestoPage() {
 
   const handleDeleteItem = async (itemId: string) => {
     const item = budgets.find(b => b.id === itemId)
-    const confirmText = item?.subcategory ? `¿Borrar el concepto "${item.subcategory}"?` : '¿Borrar este concepto?'
-    if (!confirm(confirmText)) return
+    const ok = await askConfirm({
+      title: item?.subcategory ? `¿Eliminar el concepto "${item.subcategory}"?` : '¿Eliminar este concepto?',
+      message: item?.event_supplier_id
+        ? 'Se pierde el monto estimado. El proveedor vinculado sigue en el evento.'
+        : 'Se pierde el monto estimado de esta partida.',
+    })
+    if (!ok) return
     setBudgets(prev => prev.filter(b => b.id !== itemId))
     const { error } = await supabase.from('event_budgets').delete().eq('id', itemId)
     if (error) { console.error('Error borrando concepto:', error?.message ?? error, error); loadAll() }
@@ -385,7 +392,12 @@ export default function PresupuestoPage() {
   const deleteCategory = async (name: string) => {
     const count = (itemsByCategory[name] || []).length
     if (count > 0) {
-      if (!confirm(`"${categoryLabel(name)}" tiene ${count} concepto(s). Se moveran a "Otro". Continuar?`)) return
+      const ok = await askConfirm({
+        title: `¿Eliminar la categoría "${categoryLabel(name)}"?`,
+        message: `Sus ${count === 1 ? 'concepto pasa' : `${count} conceptos pasan`} a "Otro". No se pierde ningún monto.`,
+        confirmLabel: 'Eliminar categoría',
+      })
+      if (!ok) return
       const next = categories.filter(c => c !== name)
       if (!next.includes('Otro')) next.push('Otro')
       await persistCategories(next)

@@ -10,6 +10,7 @@ import {
   LayoutList, Search, SlidersHorizontal, X, AlertTriangle, Clock,
 } from 'lucide-react'
 import StatsCollapse, { StatsToggleButton, useStatsToggle } from '@/app/components/ui/StatsCollapse'
+import { useConfirm } from '@/app/components/ui/ConfirmModal'
 import { TaskCard, CategoryIcon, CalendarTaskIcon, getUrgency, formatDateFull } from './TaskCard'
 import { TaskModal } from './TaskModal'
 import { buildTimelineTasks } from './lib/templates'
@@ -169,6 +170,7 @@ export default function TimelinePage() {
   const router          = useRouter()
 
   const { visible: statsVisible, toggle: toggleStats } = useStatsToggle(eventId, 'timeline')
+  const askConfirm = useConfirm()
 
   const [tasks, setTasks]             = useState<TimelineTask[]>([])
   const [loading, setLoading]         = useState(true)
@@ -256,7 +258,15 @@ export default function TimelinePage() {
 
   const handleGeneratePlan = async () => {
     if (!eventInfo?.event_date || generating) return
-    if (tasks.length > 0 && !window.confirm('Se agregarán las tareas sugeridas que falten para tu tipo de evento (las que ya existan no se duplican). ¿Continuar?')) return
+    if (tasks.length > 0) {
+      const ok = await askConfirm({
+        title: '¿Agregar las tareas sugeridas?',
+        message: 'Se suman las que falten para tu tipo de evento. Las que ya tienes no se duplican.',
+        confirmLabel: 'Agregar',
+        tone: 'default',
+      })
+      if (!ok) return
+    }
     setGenerating(true)
     const existing = new Set(tasks.map(t => t.title.toLowerCase()))
     const rows = buildTimelineTasks(eventId, eventInfo.event_type, eventInfo.event_category, eventInfo.event_date, existing)

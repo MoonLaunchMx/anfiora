@@ -10,6 +10,7 @@ import TimePicker from '@/app/components/ui/TimePicker'
 import PhoneInput from '@/app/components/ui/PhoneInput'
 
 import { TabToggle, type TabItem } from '@/app/components/ui/TabToggle'
+import { useConfirm } from '@/app/components/ui/ConfirmModal'
 import { useEventAccess } from '@/lib/event-access-context'
 import { FEATURES, ALWAYS_ON_FEATURES, getDefaultFeatures, type FeatureKey } from '@/lib/features'
 import { Copy, Check, UserPlus, X, Shield, Pencil, Eye, Settings2, MessageCircle, Users, Smartphone, Gem, Crown, Cake, GraduationCap, Sun, PartyPopper, Wine, CalendarDays, Presentation, Monitor, UsersRound, Rocket, Building2, Tent, Mic, Flame, HeartHandshake, type LucideIcon } from 'lucide-react'
@@ -271,6 +272,8 @@ export default function ConfiguracionPage() {
 
   // Acceso
 
+  const askConfirm = useConfirm()
+
   // Datos de event_settings
   const [settingsId, setSettingsId]           = useState<string | null>(null)
   const [templates, setTemplates]             = useState<string[]>(Array(10).fill(''))
@@ -475,8 +478,13 @@ export default function ConfiguracionPage() {
     scheduleAutoSave()
   }
 
-  const handleDeleteTemplate = (i: number) => {
-    if (!confirm('Eliminar esta plantilla?')) return
+  const handleDeleteTemplate = async (i: number) => {
+    const nombre = templateNames[i]?.trim() || DEFAULT_NAMES[i]
+    const ok = await askConfirm({
+      title: `¿Eliminar la plantilla "${nombre}"?`,
+      message: 'Dejará de aparecer en el menú de WhatsApp de tu lista de invitados.',
+    })
+    if (!ok) return
     const newTemplates = templates.filter((_, idx) => idx !== i)
     while (newTemplates.length < 10) newTemplates.push('')
     const newNames = templateNames.filter((_, idx) => idx !== i)
@@ -522,7 +530,16 @@ export default function ConfiguracionPage() {
   }
 
   const handleRevoke = async (collaboratorId: string) => {
-    if (!confirm('Revocar acceso a este colaborador?')) return
+    const colaborador = collaborators.find(c => c.id === collaboratorId)
+    const yaEntro = !!colaborador?.accepted_at
+    const ok = await askConfirm({
+      title: colaborador ? `¿Quitar el acceso de ${colaborador.email}?` : '¿Quitar el acceso a este colaborador?',
+      message: yaEntro
+        ? 'Dejará de ver este evento. Puedes volver a invitarlo cuando quieras.'
+        : 'Su invitación dejará de funcionar. Puedes volver a invitarlo cuando quieras.',
+      confirmLabel: 'Quitar acceso',
+    })
+    if (!ok) return
     setRevoking(collaboratorId)
     const { error: err } = await supabase
       .from('event_collaborators')
@@ -983,9 +1000,17 @@ export default function ConfiguracionPage() {
                 </p>
                 {eventType && (
                   <button
-                    onClick={() => {
+                    onClick={async () => {
                       const label = EVENT_TYPES.find(t => t.value === eventType)?.label ?? 'este evento'
-                      if (!templatesArePristine(eventType) && !window.confirm('Esto reemplazara tus plantillas por las recomendadas para ' + label + '. Continuar?')) return
+                      if (!templatesArePristine(eventType)) {
+                        const ok = await askConfirm({
+                          title: '¿Reemplazar tus plantillas?',
+                          message: `Se pierde lo que escribiste y quedan las recomendadas para ${label}.`,
+                          confirmLabel: 'Reemplazar',
+                          tone: 'default',
+                        })
+                        if (!ok) return
+                      }
                       applyPack(getTemplatePack(eventType))
                       scheduleAutoSave()
                     }}
