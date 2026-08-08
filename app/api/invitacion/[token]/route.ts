@@ -7,6 +7,7 @@ import { curateForGuests } from '@/lib/itinerary'
 import { logAction } from '@/lib/audit'
 import { resolveAccessMode, resolveMaxCompanions } from '@/lib/features'
 import { occupiedSeats, seatsLeft, ocupaLugar } from '@/lib/puerta'
+import { resolverContacto } from '@/lib/invite/post-confirmacion'
 import type { Currency, RegistryPaymentMethod } from '@/lib/types'
 
 const admin = () =>
@@ -104,9 +105,10 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
       name: string; event_type: string | null; event_date: string | null; event_time: string | null
       venue: string | null; address: string | null; host_name: string | null; host_name_2: string | null
       guest_cap: number | null; ticket_price: number | null; currency: Currency | null; user_id: string
+      planner_name: string | null; planner_phone: string | null; planner_email: string | null
     }>(
       db.from('events')
-        .select('name, event_type, event_date, event_time, venue, address, host_name, host_name_2, guest_cap, ticket_price, currency, user_id')
+        .select('name, event_type, event_date, event_time, venue, address, host_name, host_name_2, guest_cap, ticket_price, currency, user_id, planner_name, planner_phone, planner_email')
         .eq('id', eventId).maybeSingle(),
     ),
     guest
@@ -123,13 +125,14 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
   ])
   if (!event) return NextResponse.json({ error: 'not_found' }, { status: 404 })
 
-  // El telefono del anfitrion vive en su cuenta (users.phone, E.164), no en
-  // events: la puerta publica no tiene un campo de contacto propio. Se usa
-  // solo para el boton "Ya pague" — nunca se expone el resto del perfil.
+  // El contacto que ve el invitado sale de "Datos del planner" (events.planner_*).
+  // El celular de la cuenta (users.phone) quedo como respaldo y SOLO en eventos
+  // con precio, para no romper el boton "Ya pague" de quien no ha configurado el
+  // numero de atencion. Se resuelve aqui, en el limite: asi un evento gratis sin
+  // numero configurado nunca manda el celular personal del planner al navegador.
   const hostUser = await safeSingle<{ phone: string | null }>(
     db.from('users').select('phone').eq('id', event.user_id).maybeSingle(),
   )
-  const hostPhone = hostUser?.phone ? hostUser.phone.replace(/\D/g, '') : null
   // La cuenta de cobro vive en el doc PUBLICADO (meta.access), separada de
   // registry_payment_info (Mesa de Regalos): son dos cuentas distintas.
   const paymentMethods: RegistryPaymentMethod[] = doc.meta.access.cobro_payment_methods
@@ -178,7 +181,13 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
     ticketPrice: event.ticket_price ?? null,
     currency: event.currency ?? 'MXN',
     paymentMethods,
-    hostPhone: tienePrecio ? hostPhone : null,
+    contacto: resolverContacto({
+      plannerName: event.planner_name,
+      plannerPhone: event.planner_phone,
+      plannerEmail: event.planner_email,
+      hostPhone: hostUser?.phone ?? null,
+      tienePrecio,
+    }),
     // Estado durable del link personal. En modo compartida (sin invitado
     // todavia) van null: la tarjeta de pago de esa sesion se arma con el
     // monto que acaba de calcular el cliente al registrarse, no con esto.

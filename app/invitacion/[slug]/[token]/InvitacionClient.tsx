@@ -1,18 +1,20 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Heart, Check } from 'lucide-react'
+import { Heart } from 'lucide-react'
 import { isInviteOpen, type RsvpSubmission } from '@/lib/invite'
 import type { InviteDoc } from '@/lib/invite/schema'
 import { botonClass } from '@/lib/invite/theme-css'
 import type { DressCode } from '@/lib/dresscode'
 import type { RegistryPaymentMethod, Currency } from '@/lib/types'
 import { montoAPagar, plazoPago } from '@/lib/puerta'
+import type { ContactoPlanner } from '@/lib/invite/post-confirmacion'
 import type { InviteCtx, InviteGuest, InviteCompanion } from '@/app/components/invitacion/types'
 import InvitacionRenderer from '@/app/components/invitacion/InvitacionRenderer'
 import PreviewBoundary from '@/app/components/invitacion/PreviewBoundary'
 import RegistroForm from '@/app/components/invitacion/RegistroForm'
 import PagoPendiente from '@/app/components/invitacion/PagoPendiente'
+import { PuertaExito } from '@/app/components/invitacion/sections/RsvpSection'
 
 type ApiData = {
   event: InviteCtx['event']
@@ -27,7 +29,7 @@ type ApiData = {
   ticketPrice: number | null
   currency: Currency
   paymentMethods: RegistryPaymentMethod[]
-  hostPhone: string | null
+  contacto: ContactoPlanner | null
   amountDue: number | null
   paidAt: string | null
   guestCreatedAt: string | null
@@ -115,11 +117,12 @@ export default function InvitacionClient({ token }: { token: string }) {
 
   const compartida = data.mode === 'compartida'
 
-  // hostPhone ya viene solo digitos (sin +) desde la API. Sin telefono capturado,
-  // wa.me sin numero abre igual el selector de contacto — mismo patron que ya
-  // usan mesa de regalos, comida y playlist para compartir sin destinatario fijo.
+  // El telefono ya viene resuelto y en digitos desde la API (numero de atencion
+  // del evento, o el celular de la cuenta como respaldo solo si hay precio). Sin
+  // numero, wa.me abre igual el selector de contacto — mismo patron que ya usan
+  // mesa de regalos, comida y playlist para compartir sin destinatario fijo.
   const waMensaje = `¡Hola! Ya transferí para "${data.event.name}". Aquí va mi comprobante:`
-  const waHref = `https://wa.me/${data.hostPhone || ''}?text=${encodeURIComponent(waMensaje)}`
+  const waHref = `https://wa.me/${data.contacto?.telefono || ''}?text=${encodeURIComponent(waMensaje)}`
 
   // Reporta el partySize (1 + acompanantes) que acaba de registrarse: el
   // endpoint no devuelve el monto al navegador anonimo, asi que se congela
@@ -178,6 +181,7 @@ export default function InvitacionClient({ token }: { token: string }) {
     amountDue: data.amountDue,
     paidAt: data.paidAt,
     deadline: deadlinePersonal,
+    contacto: data.contacto,
   }
 
   // El registro vive en el slot del bloque RSVP, donde el anfitrion lo puso.
@@ -205,13 +209,7 @@ export default function InvitacionClient({ token }: { token: string }) {
                   deadline={deadlineRegistrado}
                 />
               ) : (
-                <div className="mx-auto max-w-sm rounded-xl border border-[#a0e0c0] bg-[#f0fff6] px-5 py-6 text-center">
-                  <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-[#2a7a50]">
-                    <Check size={22} className="text-white" />
-                  </div>
-                  <h2 className="text-base font-semibold text-[#1a5c3a]">¡Listo, ya estás dentro!</h2>
-                  <p className="mt-1 text-sm text-[#2a7a50]">Explora la invitación, descubre todo lo que preparamos para ti... esto apenas empieza.</p>
-                </div>
+                <PuertaExito contacto={data.contacto} eventName={data.event.name} />
               )
             ) : agotado ? (
               <div className="mx-auto max-w-sm rounded-xl border border-[#e8e8e8] bg-white/70 px-5 py-6 text-center">

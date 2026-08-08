@@ -6,11 +6,15 @@ import type { RsvpSubmission } from '@/lib/invite'
 import type { Theme } from '@/lib/invite/theme'
 import { Check, X } from 'lucide-react'
 import { estadoAcceso } from '@/lib/puerta'
+import { estadoRespuesta, respondio } from '@/lib/invite/post-confirmacion'
+import type { ContactoPlanner as Contacto } from '@/lib/invite/post-confirmacion'
 import { reportError } from '@/lib/observabilidad/report'
 import SectionShell from '../SectionShell'
 import RsvpAnimation from '../RsvpAnimation'
 import RegistroForm from '../RegistroForm'
 import PagoPendiente from '../PagoPendiente'
+import ContactoPlannerCard from '../ContactoPlanner'
+import ResumenConfirmado, { type ResumenFila } from '../ResumenConfirmado'
 
 const SI_MSG = '¡Nos vemos ahí!'
 const NO_MSG = '¡Te vamos a extrañar!'
@@ -106,7 +110,7 @@ function PuertaAviso({ titulo, texto }: { titulo: string; texto: string }) {
 
 // El estado final del registro. Hoy solo "dentro"; es el molde que despues
 // dira "falta que te aprueben" o "falta tu pago" segun los candados.
-export function PuertaExito() {
+export function PuertaExito({ contacto, eventName }: { contacto?: Contacto | null; eventName?: string }) {
   return (
     <div className="mx-auto max-w-sm rounded-2xl border border-[#a0e0c0] bg-[#f0fff6] px-5 py-6 text-center">
       <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-[#2a7a50]">
@@ -114,6 +118,7 @@ export function PuertaExito() {
       </div>
       <p className="text-base font-semibold text-[#1a5c3a]">¡Listo, ya estás dentro!</p>
       <p className="mt-1 text-sm text-[#2a7a50]">Explora la invitación, descubre todo lo que preparamos para ti... esto apenas empieza.</p>
+      <ContactoPlannerCard contacto={contacto ?? null} eventName={eventName ?? ''} />
     </div>
   )
 }
@@ -121,7 +126,9 @@ export function PuertaExito() {
 export default function RsvpSection({ content, ctx, anim }: { content: Content; ctx: InviteCtx; anim: Theme['anim'] }) {
   const [rows, setRows] = useState<Row[]>(() => buildRows(ctx))
   const [submitting, setSubmitting] = useState(false)
-  const [submitted, setSubmitted] = useState(false)
+  // Reabre el formulario desde el resumen. Solo vive en esta sesion: al recargar
+  // se vuelve a mostrar el resumen, que es el estado durable.
+  const [editando, setEditando] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [playing, setPlaying] = useState<'si' | 'no' | null>(null)
   const [playKey, setPlayKey] = useState(0)
@@ -154,7 +161,7 @@ export default function RsvpSection({ content, ctx, anim }: { content: Content; 
           </SectionShell>
         )
       }
-      return <SectionShell variant="form"><PuertaExito /></SectionShell>
+      return <SectionShell variant="form"><PuertaExito contacto={ctx.contacto} eventName={ctx.event.name} /></SectionShell>
     }
     if (p.agotado) {
       return (
@@ -217,12 +224,38 @@ export default function RsvpSection({ content, ctx, anim }: { content: Content; 
         </SectionShell>
       )
     }
-    return <SectionShell variant="form"><PuertaExito /></SectionShell>
+    return <SectionShell variant="form"><PuertaExito contacto={ctx.contacto} eventName={ctx.event.name} /></SectionShell>
   }
 
   const isPreview = ctx.mode === 'preview'
   const locked = Boolean(ctx.deadlinePassed)
   const disabled = locked
+
+  // El estado durable manda: si todos ya respondieron, el formulario cede su
+  // lugar al resumen. En preview no aplica — el planner esta disenando y
+  // necesita ver el formulario, no la respuesta de un invitado de mentiras.
+  const integrantes = [ctx.guest, ...ctx.companions]
+  const estado = estadoRespuesta(integrantes, locked)
+  if (!isPreview && !editando && !playing && estado !== 'formulario') {
+    const filas: ResumenFila[] = integrantes
+      .filter(i => respondio(i.rsvp_status))
+      .map((i, idx) => ({
+        key: `resumen-${idx}`,
+        name: i.name,
+        attends: i.rsvp_status === 'confirmed',
+        allergies: i.allergies,
+      }))
+    return (
+      <SectionShell variant="form">
+        <ResumenConfirmado
+          filas={filas}
+          contacto={ctx.contacto ?? null}
+          eventName={ctx.event.name}
+          onCambiar={estado === 'resumen_cerrado' ? null : () => setEditando(true)}
+        />
+      </SectionShell>
+    )
+  }
   const note = isPreview
     ? 'Vista previa — toca Sí o No para ver la animación'
     : ctx.deadlinePassed
@@ -322,20 +355,14 @@ export default function RsvpSection({ content, ctx, anim }: { content: Content; 
       {note && <p className="mt-5 text-center text-xs text-[#999]">{note}</p>}
       {error && <p className="mt-3 text-center text-xs text-[#cc3333]">{error}</p>}
 
-      {!submitted && (
-        <button
-          type="button"
-          onClick={handleSubmit}
-          disabled={disabled || !allChosen || submitting}
-          className={`${ctx.botonClassName ?? 'inv-btn inv-btn-elevado'} mt-6 block w-full px-6 py-3 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50`}
-        >
-          {submitting ? 'Enviando…' : 'Confirmar asistencia'}
-        </button>
-      )}
-
-      {submitted && (
-        <p className="mt-6 text-center text-sm font-medium text-[#2a7a50]">¡Gracias por confirmar!</p>
-      )}
+      <button
+        type="button"
+        onClick={handleSubmit}
+        disabled={disabled || !allChosen || submitting}
+        className={`${ctx.botonClassName ?? 'inv-btn inv-btn-elevado'} mt-6 block w-full px-6 py-3 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50`}
+      >
+        {submitting ? 'Enviando…' : 'Confirmar asistencia'}
+      </button>
 
       {playing && (
         <RsvpAnimation
@@ -346,7 +373,10 @@ export default function RsvpSection({ content, ctx, anim }: { content: Content; 
           message={playing === 'si' ? SI_MSG : NO_MSG}
           onDone={() => {
             setPlaying(null)
-            if (!isPreview) setSubmitted(true)
+            // Al cerrar la animacion el estado ya viajo a la base y volvio en
+            // ctx, asi que soltar "editando" deja salir el resumen. El cartel
+            // de "gracias por confirmar" ya no hace falta: el resumen lo dice.
+            setEditando(false)
           }}
         />
       )}

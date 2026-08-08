@@ -1,5 +1,6 @@
 import type { DressCode } from '@/lib/dresscode'
 import type { RegistryPaymentMethod, Currency } from '@/lib/types'
+import type { ContactoPlanner } from '@/lib/invite/post-confirmacion'
 
 export type InviteGuest = {
   name: string
@@ -59,4 +60,8 @@ export type InviteCtx = {
   // Plazo de pago del link personal (durable): 24h desde guest.created_at,
   // topado al inicio del evento. null si no hay created_at o el evento es gratis.
   deadline?: Date | null
+  // A quien le escribe el invitado cuando ya no hay nada que llenar. Sale de
+  // "Datos del planner" (events.planner_*); null si el planner no configuro ni
+  // telefono ni correo, y entonces no se pinta ninguna tarjeta.
+  contacto?: ContactoPlanner | null
 }
