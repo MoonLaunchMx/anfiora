@@ -94,3 +94,19 @@ export function curateForGuests(moments: CurateInput[]): GuestItineraryItem[] {
     }
   })
 }
+
+export function addDays(iso: string, n: number): string {
+  const d = new Date(`${iso}T00:00:00Z`)
+  d.setUTCDate(d.getUTCDate() + n)
+  return d.toISOString().slice(0, 10)
+}
+
+export function eventDays(eventDate: string | null, eventEndDate: string | null): string[] {
+  if (!eventDate) return []
+  const start = eventDate.slice(0, 10)
+  const end = eventEndDate ? eventEndDate.slice(0, 10) : start
+  if (end <= start) return [start]
+  const days: string[] = []
+  for (let cur = start; cur <= end; cur = addDays(cur, 1)) days.push(cur)
+  return days
+}

@@ -8,6 +8,8 @@ import {
   momentOrderMinutes,
   sortMoments,
   curateForGuests,
+  addDays,
+  eventDays,
   DAY_START_HOUR,
   ITINERARY_PHASES,
   PHASE_LABEL,
@@ -20,6 +22,7 @@ function moment(partial: Partial<ItineraryMoment>): ItineraryMoment {
     event_id: 'e',
     title: partial.title ?? 'Momento',
     start_time: partial.start_time ?? '12:00',
+    moment_date: partial.moment_date ?? '2026-01-01',
     duration_min: partial.duration_min ?? null,
     location: partial.location ?? null,
     phase: partial.phase ?? 'otro',
@@ -137,5 +140,32 @@ describe('constantes de fase', () => {
       expect(typeof PHASE_LABEL[p]).toBe('string')
     }
     expect(ITINERARY_PHASES).toHaveLength(6)
+  })
+})
+
+describe('addDays', () => {
+  it('suma y resta dias sin correrse por zona horaria', () => {
+    expect(addDays('2026-09-12', 1)).toBe('2026-09-13')
+    expect(addDays('2026-09-30', 1)).toBe('2026-10-01')
+    expect(addDays('2026-01-01', -1)).toBe('2025-12-31')
+    expect(addDays('2026-09-12', 0)).toBe('2026-09-12')
+  })
+})
+
+describe('eventDays', () => {
+  it('rango de varios dias devuelve cada fecha', () => {
+    expect(eventDays('2026-09-12', '2026-09-14')).toEqual(['2026-09-12', '2026-09-13', '2026-09-14'])
+  })
+  it('sin fecha de fin es un solo dia', () => {
+    expect(eventDays('2026-09-12', null)).toEqual(['2026-09-12'])
+  })
+  it('fecha de fin igual a la de inicio es un solo dia', () => {
+    expect(eventDays('2026-09-12', '2026-09-12')).toEqual(['2026-09-12'])
+  })
+  it('fecha de fin anterior a la de inicio se ignora', () => {
+    expect(eventDays('2026-09-12', '2026-09-10')).toEqual(['2026-09-12'])
+  })
+  it('sin fecha de inicio no hay dias', () => {
+    expect(eventDays(null, '2026-09-14')).toEqual([])
   })
 })
