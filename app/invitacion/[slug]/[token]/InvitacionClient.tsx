@@ -30,6 +30,7 @@ type ApiData = {
   currency: Currency
   paymentMethods: RegistryPaymentMethod[]
   contacto: ContactoPlanner | null
+  grupoWhatsapp: string | null
   amountDue: number | null
   paidAt: string | null
   guestCreatedAt: string | null
@@ -107,11 +108,18 @@ export default function InvitacionClient({ token }: { token: string }) {
       body: JSON.stringify(payload),
     })
     if (!res.ok) throw new Error('rsvp_failed')
-    const result = await res.json() as { guest: { rsvp_status: string; allergies: string[] }; companions: InviteCompanion[] }
+    const result = await res.json() as {
+      guest: { rsvp_status: string; allergies: string[] }
+      companions: InviteCompanion[]
+      grupoWhatsapp: string | null
+    }
+    // El grupo llega (o se va) con la respuesta: el GET inicial lo mando en null
+    // porque en ese momento el invitado todavia no calificaba.
     setData(prev => prev && prev.guest ? {
       ...prev,
       guest: { ...prev.guest, rsvp_status: result.guest.rsvp_status, allergies: result.guest.allergies },
       companions: result.companions,
+      grupoWhatsapp: result.grupoWhatsapp ?? null,
     } : prev)
   }
 
@@ -129,8 +137,11 @@ export default function InvitacionClient({ token }: { token: string }) {
   // aqui con la misma funcion pura que uso el servidor (montoAPagar). El
   // plazo de pago tambien se congela AHORA (desde = este instante): no se
   // recalcula en cada render, o el "paga antes de" se iria corriendo.
-  const handleRegistrado = (partySize: number) => {
+  const handleRegistrado = (partySize: number, grupoWhatsapp: string | null) => {
     const tienePrecio = Number(data.ticketPrice) > 0
+    // Solo el endpoint de registro sabe si este anonimo quedo dentro; el GET
+    // publico nunca trae el grupo.
+    setData(prev => prev ? { ...prev, grupoWhatsapp } : prev)
     setMontoRegistrado(tienePrecio ? montoAPagar(data.ticketPrice, partySize) : null)
     setPartySizeRegistrado(tienePrecio ? partySize : null)
     setDeadlineRegistrado(tienePrecio ? plazoPago(new Date(), data.event.event_date, data.event.event_time) : null)
@@ -182,6 +193,7 @@ export default function InvitacionClient({ token }: { token: string }) {
     paidAt: data.paidAt,
     deadline: deadlinePersonal,
     contacto: data.contacto,
+    grupoWhatsapp: data.grupoWhatsapp,
   }
 
   // El registro vive en el slot del bloque RSVP, donde el anfitrion lo puso.
@@ -209,7 +221,7 @@ export default function InvitacionClient({ token }: { token: string }) {
                   deadline={deadlineRegistrado}
                 />
               ) : (
-                <PuertaExito contacto={data.contacto} eventName={data.event.name} />
+                <PuertaExito contacto={data.contacto} eventName={data.event.name} grupoUrl={data.grupoWhatsapp} />
               )
             ) : agotado ? (
               <div className="mx-auto max-w-sm rounded-xl border border-[#e8e8e8] bg-white/70 px-5 py-6 text-center">

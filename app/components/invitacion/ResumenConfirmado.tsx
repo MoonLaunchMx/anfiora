@@ -15,6 +15,7 @@ type Props = {
   filas: ResumenFila[]
   contacto: Contacto | null
   eventName: string
+  grupoUrl?: string | null
   // null cuando ya cerraron las confirmaciones: el resumen se queda sin salida
   // y la unica via es escribirle al planner.
   onCambiar: (() => void) | null
@@ -23,7 +24,7 @@ type Props = {
 // Lo que ve el invitado que ya respondio por todos. Reemplaza al formulario, que
 // hasta el 8-ago se quedaba abierto para siempre: se podia seguir cambiando el
 // Si/No y agregando alergias sin limite, y al recargar reaparecia en blanco.
-export default function ResumenConfirmado({ filas, contacto, eventName, onCambiar }: Props) {
+export default function ResumenConfirmado({ filas, contacto, eventName, grupoUrl, onCambiar }: Props) {
   const alguienVa = filas.some(f => f.attends)
 
   return (
@@ -55,7 +56,8 @@ export default function ResumenConfirmado({ filas, contacto, eventName, onCambia
         ))}
       </div>
 
-      <ContactoPlannerCard contacto={contacto} eventName={eventName} />
+      {/* El grupo solo para quien va: quien dijo que no, no lo ve. */}
+      <ContactoPlannerCard contacto={contacto} eventName={eventName} grupoUrl={alguienVa ? grupoUrl : null} />
 
       {onCambiar && (
         <button

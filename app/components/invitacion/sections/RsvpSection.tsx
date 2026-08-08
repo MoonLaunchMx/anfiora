@@ -110,7 +110,7 @@ function PuertaAviso({ titulo, texto }: { titulo: string; texto: string }) {
 
 // El estado final del registro. Hoy solo "dentro"; es el molde que despues
 // dira "falta que te aprueben" o "falta tu pago" segun los candados.
-export function PuertaExito({ contacto, eventName }: { contacto?: Contacto | null; eventName?: string }) {
+export function PuertaExito({ contacto, eventName, grupoUrl }: { contacto?: Contacto | null; eventName?: string; grupoUrl?: string | null }) {
   return (
     <div className="mx-auto max-w-sm rounded-2xl border border-[#a0e0c0] bg-[#f0fff6] px-5 py-6 text-center">
       <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-[#2a7a50]">
@@ -118,7 +118,7 @@ export function PuertaExito({ contacto, eventName }: { contacto?: Contacto | nul
       </div>
       <p className="text-base font-semibold text-[#1a5c3a]">¡Listo, ya estás dentro!</p>
       <p className="mt-1 text-sm text-[#2a7a50]">Explora la invitación, descubre todo lo que preparamos para ti... esto apenas empieza.</p>
-      <ContactoPlannerCard contacto={contacto ?? null} eventName={eventName ?? ''} />
+      <ContactoPlannerCard contacto={contacto ?? null} eventName={eventName ?? ''} grupoUrl={grupoUrl} />
     </div>
   )
 }
@@ -161,7 +161,7 @@ export default function RsvpSection({ content, ctx, anim }: { content: Content; 
           </SectionShell>
         )
       }
-      return <SectionShell variant="form"><PuertaExito contacto={ctx.contacto} eventName={ctx.event.name} /></SectionShell>
+      return <SectionShell variant="form"><PuertaExito contacto={ctx.contacto} eventName={ctx.event.name} grupoUrl={ctx.grupoWhatsapp} /></SectionShell>
     }
     if (p.agotado) {
       return (
@@ -224,7 +224,7 @@ export default function RsvpSection({ content, ctx, anim }: { content: Content; 
         </SectionShell>
       )
     }
-    return <SectionShell variant="form"><PuertaExito contacto={ctx.contacto} eventName={ctx.event.name} /></SectionShell>
+    return <SectionShell variant="form"><PuertaExito contacto={ctx.contacto} eventName={ctx.event.name} grupoUrl={ctx.grupoWhatsapp} /></SectionShell>
   }
 
   const isPreview = ctx.mode === 'preview'
@@ -251,6 +251,7 @@ export default function RsvpSection({ content, ctx, anim }: { content: Content; 
           filas={filas}
           contacto={ctx.contacto ?? null}
           eventName={ctx.event.name}
+          grupoUrl={ctx.grupoWhatsapp}
           onCambiar={estado === 'resumen_cerrado' ? null : () => setEditando(true)}
         />
       </SectionShell>

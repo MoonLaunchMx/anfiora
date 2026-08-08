@@ -16,7 +16,7 @@ type Props = {
   // Reporta cuantas cabezas (1 + acompanantes) quedaron registradas: quien
   // llama arma el monto congelado con montoAPagar, porque el endpoint no
   // devuelve el monto al navegador anonimo (ni el token).
-  onRegistrado: (partySize: number) => void
+  onRegistrado: (partySize: number, grupoWhatsapp: string | null) => void
 }
 
 const ERRORES: Record<string, string> = {
@@ -76,7 +76,7 @@ export default function RegistroForm({ token, maxCompanions, botonClassName, tic
         else setError(ERRORES[json?.error as string] || 'No pudimos registrarte. Intenta de nuevo.')
         return
       }
-      onRegistrado(partySize)
+      onRegistrado(partySize, typeof json?.grupoWhatsapp === 'string' ? json.grupoWhatsapp : null)
     } catch (err) {
       reportError(err, { zona: 'invitacion-publica' })
       setError('No pudimos registrarte. Intenta de nuevo.')

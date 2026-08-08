@@ -22,7 +22,8 @@ BEGIN;
 -- users.phone y guests.phone — lo garantiza PhoneInput en la captura.
 ALTER TABLE public.events
   ADD COLUMN IF NOT EXISTS planner_phone text,
-  ADD COLUMN IF NOT EXISTS planner_email text;
+  ADD COLUMN IF NOT EXISTS planner_email text,
+  ADD COLUMN IF NOT EXISTS whatsapp_group_url text;
 
 -- ============ 2) El candado de configuracion ============
 -- guard_event_config recibe las columnas protegidas como argumentos del
@@ -38,7 +39,7 @@ CREATE TRIGGER guard_events_config
     'user_id', 'name', 'event_type', 'event_category', 'event_date', 'event_end_date',
     'event_time', 'venue', 'address', 'host_name', 'host_name_2', 'organization',
     'currency', 'event_status', 'planner_name', 'planner_phone', 'planner_email',
-    'plan_tier', 'over_limit', 'locked'
+    'whatsapp_group_url', 'plan_tier', 'over_limit', 'locked'
   );
 
 COMMIT;

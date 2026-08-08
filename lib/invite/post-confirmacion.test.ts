@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { estadoRespuesta, resolverContacto, waDigits } from './post-confirmacion'
+import { estadoRespuesta, resolverContacto, waDigits, alguienVa, linkGrupoWhatsapp } from './post-confirmacion'
 
 const si = { rsvp_status: 'confirmed' }
 const no = { rsvp_status: 'declined' }
@@ -124,6 +124,55 @@ describe('resolverContacto', () => {
       tienePrecio: false,
     })
     expect(c?.nombre).toBe('Ana')
+  })
+})
+
+describe('alguienVa', () => {
+  it('basta con que vaya uno del party', () => {
+    expect(alguienVa([si, no])).toBe(true)
+  })
+
+  it('es falso si todos dijeron que no', () => {
+    expect(alguienVa([no, no])).toBe(false)
+  })
+
+  it('no cuenta a los que no han respondido', () => {
+    expect(alguienVa([{ rsvp_status: 'pending' }, { rsvp_status: 'respondio' }])).toBe(false)
+  })
+
+  it('es falso sin integrantes', () => {
+    expect(alguienVa([])).toBe(false)
+  })
+})
+
+describe('linkGrupoWhatsapp', () => {
+  it('acepta una invitacion de grupo', () => {
+    expect(linkGrupoWhatsapp('https://chat.whatsapp.com/AbC123')).toBe('https://chat.whatsapp.com/AbC123')
+  })
+
+  it('completa el https faltante', () => {
+    expect(linkGrupoWhatsapp('chat.whatsapp.com/AbC123')).toBe('https://chat.whatsapp.com/AbC123')
+  })
+
+  // Un boton que lleva a la nada en la invitacion de un cliente es peor que no
+  // tener boton.
+  it.each([
+    'https://wa.me/5218112345678',
+    'https://chat.whatsapp.com',
+    'https://chat.whatsapp.com/',
+    'https://evil.com/chat.whatsapp.com/AbC',
+    'https://chat.whatsapp.com.evil.com/AbC',
+    'javascript:alert(1)',
+    'no soy un link',
+    '',
+    '   ',
+  ])('rechaza %s', v => {
+    expect(linkGrupoWhatsapp(v)).toBeNull()
+  })
+
+  it('rechaza null y undefined', () => {
+    expect(linkGrupoWhatsapp(null)).toBeNull()
+    expect(linkGrupoWhatsapp(undefined)).toBeNull()
   })
 })
 

@@ -25,6 +25,33 @@ export function estadoRespuesta(
   return confirmacionesCerradas ? 'resumen_cerrado' : 'resumen'
 }
 
+// El grupo se ofrece SOLO a quien va. Basta con que vaya uno del grupo familiar:
+// la tarjeta es una sola para todo el party, asi que si el invitado dice si y su
+// acompanante no, el boton sale igual.
+export function alguienVa(integrantes: { rsvp_status: string }[]): boolean {
+  return integrantes.some(i => i.rsvp_status === 'confirmed')
+}
+
+// Un planner puede pegar cualquier cosa en el campo. Un boton que lleva a la nada
+// en la invitacion de un cliente es peor que no tener boton, asi que solo pasa lo
+// que de verdad es una invitacion de grupo de WhatsApp.
+export function linkGrupoWhatsapp(v: string | null | undefined): string | null {
+  const t = (v ?? '').trim()
+  if (!t) return null
+  let u: URL
+  try {
+    u = new URL(/^https?:\/\//i.test(t) ? t : `https://${t}`)
+  } catch {
+    return null
+  }
+  if (u.protocol !== 'https:') return null
+  if (u.hostname.toLowerCase() !== 'chat.whatsapp.com') return null
+  // chat.whatsapp.com a secas es la home, no una invitacion: el codigo del grupo
+  // vive en la ruta.
+  if (!u.pathname.replace(/\//g, '')) return null
+  return u.toString()
+}
+
 export type ContactoPlanner = {
   nombre: string | null
   telefono: string | null
