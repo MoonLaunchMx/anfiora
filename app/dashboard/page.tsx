@@ -6,6 +6,7 @@ import type { User } from '@supabase/supabase-js'
 import type { EventStatus } from '@/lib/types'
 import { loadDashboard } from '@/lib/dashboard/load'
 import { sinTarea } from '@/lib/dashboard/metrics'
+import { eventoDeArranque } from '@/lib/dashboard/arranque'
 import type { ColaboradorRow, Contexto, EventMetrics, Rol } from '@/lib/dashboard/types'
 import EventSelector from './EventSelector'
 import ContextoEvento from './ContextoEvento'
@@ -74,14 +75,14 @@ export default function Dashboard() {
   const [contexto, setContexto]           = useState<Contexto>({ kind: 'cartera' })
   const [ultimoEvento, setUltimoEvento]   = useState<string | null>(null)
 
-  // El anfitrion tiene un solo evento: arrancar en cartera le muestra una
-  // tarjeta sola. El planner necesita ver el panorama primero.
+  // Se abre siempre en el evento mas cercano, planner o anfitrion: es donde se
+  // trabaja. La cartera esta a un clic (boton de cartera y selector) para el
+  // que quiera el panorama, pero deja de ser la puerta de entrada.
   useEffect(() => {
     if (loading || metrics.length === 0) return
-    const activos = metrics.filter(m => m.event.event_status === 'active')
-    if (rol === 'planner' || activos.length > 1) setContexto({ kind: 'cartera' })
-    else if (activos[0]) setContexto({ kind: 'evento', eventId: activos[0].event.id })
-  }, [loading, metrics, rol])
+    const inicio = eventoDeArranque(metrics, new Date())
+    setContexto(inicio ? { kind: 'evento', eventId: inicio } : { kind: 'cartera' })
+  }, [loading, metrics])
 
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
@@ -239,16 +240,9 @@ export default function Dashboard() {
     setContexto(c)
   }
 
-  // El proximo evento activo por fecha: es el destino por default cuando sales
-  // de la cartera y todavia no habias entrado a ninguno.
-  const proximoEvento = metrics
-    .filter(m => m.event.event_status === 'active')
-    .slice()
-    .sort((a, b) => {
-      const fa = a.event.event_date ?? '9999'
-      const fb = b.event.event_date ?? '9999'
-      return fa.localeCompare(fb)
-    })[0]?.event.id ?? null
+  // El mismo criterio del arranque: al salir de la cartera sin haber entrado a
+  // ningun evento, se cae al mas cercano.
+  const proximoEvento = eventoDeArranque(metrics, new Date())
 
   // El boton de cartera alterna: entra a la cartera y, al volver a picarlo,
   // regresa al evento donde estabas (o al mas proximo).
