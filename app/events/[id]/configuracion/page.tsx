@@ -8,7 +8,7 @@ import { getTemplatePack } from '@/lib/message-templates'
 import DatePicker from '@/app/components/ui/DatePicker'
 import TimePicker from '@/app/components/ui/TimePicker'
 import PhoneInput from '@/app/components/ui/PhoneInput'
-import { linkGrupoWhatsapp } from '@/lib/invite/post-confirmacion'
+
 import { TabToggle, type TabItem } from '@/app/components/ui/TabToggle'
 import { useEventAccess } from '@/lib/event-access-context'
 import { FEATURES, ALWAYS_ON_FEATURES, getDefaultFeatures, type FeatureKey } from '@/lib/features'
@@ -268,10 +268,6 @@ export default function ConfiguracionPage() {
   const [plannerName, setPlannerName]   = useState('')
   const [plannerPhone, setPlannerPhone] = useState('')
   const [plannerEmail, setPlannerEmail] = useState('')
-  const [grupoWhatsapp, setGrupoWhatsapp] = useState('')
-  // Se avisa, no se bloquea: el campo guarda lo que sea y la invitacion decide
-  // si lo pinta. Asi el aviso no pelea con el autoguardado a medio teclear.
-  const grupoLinkInvalido = grupoWhatsapp.trim().length > 0 && linkGrupoWhatsapp(grupoWhatsapp) === null
 
   // Acceso
 
@@ -350,7 +346,6 @@ export default function ConfiguracionPage() {
       setPlannerName(eventData.planner_name || '')
       setPlannerPhone(eventData.planner_phone || '')
       setPlannerEmail(eventData.planner_email || '')
-      setGrupoWhatsapp(eventData.whatsapp_group_url || '')
     }
 
     if (settingsData) {
@@ -413,10 +408,6 @@ export default function ConfiguracionPage() {
       planner_name:   plannerName.trim() || null,
       planner_phone:  plannerPhone.trim() || null,
       planner_email:  plannerEmail.trim() || null,
-      // Se guarda tal cual lo escribio: con autoguardado, normalizar a null cada
-      //2 segundos le borraria el texto a medio teclear. Quien decide si sirve es
-      // la invitacion al leerlo (linkGrupoWhatsapp en la API); aqui solo se avisa.
-      whatsapp_group_url: grupoWhatsapp.trim() || null,
     }).eq('id', id).select('id')
 
     if (eventErr) { setError('Error: ' + eventErr.message); setSaving(false); return }
@@ -651,9 +642,11 @@ export default function ConfiguracionPage() {
           )}
         </div>
 
-        {/* Mobile: toggle full width */}
+        {/* Mobile: toggle full width. Reparte por flex-1 y no por columnas fijas:
+            era grid-cols-4 con 3 pestanas —quedo asi cuando Acceso se mudo a la
+            invitacion— y la columna fantasma recorria los botones a la izquierda. */}
         <div className="mt-3 sm:hidden">
-          <div className="grid grid-cols-4 gap-0.5 rounded-lg border border-[#e8e8e8] bg-[#f4f4f4] p-0.5">
+          <div className="flex gap-0.5 rounded-lg border border-[#e8e8e8] bg-[#f4f4f4] p-0.5">
             {TABS.map(tab => {
               const Icon = tab.icon
               const isActive = tab.key === activeTab
@@ -661,7 +654,7 @@ export default function ConfiguracionPage() {
                 <button
                   key={tab.key}
                   onClick={() => setActiveTab(tab.key)}
-                  className={'flex items-center justify-center gap-1.5 rounded-md py-2 text-xs transition ' +
+                  className={'flex flex-1 items-center justify-center gap-1.5 rounded-md py-2 text-xs transition ' +
                     (isActive ? 'bg-white font-medium text-[#1D1E20] shadow-[0_1px_3px_rgba(0,0,0,0.08)] border border-[#e8e8e8]' : 'font-normal text-[#888]')}
                 >
                   <Icon size={13} className={isActive ? 'text-[#48C9B0]' : 'text-[#bbb]'} />
@@ -880,18 +873,6 @@ export default function ConfiguracionPage() {
                     </div>
                   </div>
 
-                  <div className="mt-3">
-                    <label className="mb-1.5 block text-xs font-medium text-[#555]">Grupo de WhatsApp <span className="font-normal text-[#ccc]">(opcional)</span></label>
-                    <input type="url" value={grupoWhatsapp} onChange={e => { setGrupoWhatsapp(e.target.value); scheduleAutoSave() }}
-                      placeholder="https://chat.whatsapp.com/..."
-                      className={'w-full rounded-lg border bg-white px-3 py-2.5 text-sm text-[#1D1E20] outline-none transition sm:max-w-[calc(66.666%-0.5rem)] ' + (grupoLinkInvalido ? 'border-[#ffc0c0] focus:border-[#cc3333]' : 'border-[#d0d0d0] focus:border-[#48C9B0]')}
-                    />
-                    <p className={'mt-1.5 text-xs ' + (grupoLinkInvalido ? 'text-[#cc3333]' : 'text-[#888]')}>
-                      {grupoLinkInvalido
-                        ? 'Ese no es un link de invitación a grupo. Ábrelo en WhatsApp: Grupo → Invitar por link, y pega el que empieza con chat.whatsapp.com'
-                        : 'El botón para unirse aparece solo a quien ya confirmó que sí va.'}
-                    </p>
-                  </div>
                 </div>
               </div>
 

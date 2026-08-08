@@ -4,7 +4,7 @@ import { resolveDoc } from '@/lib/invite/doc'
 import { isInviteOpen, randomToken } from '@/lib/invite'
 import { resolveAccessMode, resolveMaxCompanions } from '@/lib/features'
 import { parseRegistration, occupiedSeats, seatsLeft, montoAPagar, ocupaLugar } from '@/lib/puerta'
-import { linkGrupoWhatsapp } from '@/lib/invite/post-confirmacion'
+import { linkGrupoWhatsapp, grupoDelDoc } from '@/lib/invite/post-confirmacion'
 
 // El alta de la puerta publica. Va por service role, igual que el resto de este
 // endpoint: guests no tiene politica RLS para anon, asi que la llave del
@@ -38,7 +38,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
 
   const { data: event } = await db
     .from('events')
-    .select('event_type, guest_cap, ticket_price, whatsapp_group_url')
+    .select('event_type, guest_cap, ticket_price')
     .eq('id', settings.event_id)
     .maybeSingle()
   if (!event) return NextResponse.json({ error: 'not_found' }, { status: 404 })
@@ -58,7 +58,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
   // dos trajera el link, teclear telefonos ajenos delataria quien ya se registro.
   const grupoSiEstaDentro = Number(event.ticket_price) > 0
     ? null
-    : linkGrupoWhatsapp(event.whatsapp_group_url)
+    : linkGrupoWhatsapp(grupoDelDoc(doc))
 
   const { data: existing } = await db
     .from('guests')

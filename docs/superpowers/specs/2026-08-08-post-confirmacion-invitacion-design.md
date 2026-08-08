@@ -111,6 +111,21 @@ Vitest sobre la logica pura: la regla de estado (incluido el acompanante agregad
 
 Lo visual y el guardado se verifican a mano en local, luego preview, luego main.
 
+## Enmienda del 8-ago: el grupo de WhatsApp NO es configuracion del evento
+
+El link del grupo se construyo primero como cuarto campo de "Datos del planner", en Configuracion. **Mal.** Diego lo corrigio el mismo dia: *"es por los usuarios que quieran compartir el whatsapp group en la invitacion, por que chingados deberia de ponerla en la configuracion?"*
+
+El error de lectura fue mio: agrupe el grupo con el contacto del planner porque los dos son "formas de contactar". Pero el criterio que separa Configuracion de la invitacion no es el tipo de dato, es **quien decide y cada cuando**:
+
+- **Configuracion del evento** = datos que el planner pone una vez y valen para todo (su nombre, su numero de atencion). Se escriben en vivo sobre `events`.
+- **Contenido de la invitacion** = lo que el anfitrion decide poner *en esa invitacion*, opt-in, y que respeta borrador/publicado.
+
+El grupo es lo segundo. Vive en `doc.sections[type='rsvp'].content.grupo_whatsapp`, se captura en el editor de la invitacion junto al titulo y el texto del bloque —donde se pinta el boton— y `events.whatsapp_group_url` se tira (`2026-08-08-grupo-whatsapp-al-doc.sql`).
+
+El comportamiento no cambio: sigue apareciendo solo a quien confirmo que va.
+
+**Regla para la proxima vez:** antes de meter un campo a Configuracion, preguntar si el anfitrion querria ponerlo distinto en dos invitaciones del mismo evento. Si la respuesta es si, es contenido, no configuracion.
+
 ## Fuera de alcance
 
 Moneda hardcodeada en el panel de Acceso, aprobacion de solicitudes (`CANDADO_APROBACION_LISTO`), y el epic de edicion completa de la invitacion. Los tres tienen chat propio.

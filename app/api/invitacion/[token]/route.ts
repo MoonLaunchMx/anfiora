@@ -7,7 +7,7 @@ import { curateForGuests } from '@/lib/itinerary'
 import { logAction } from '@/lib/audit'
 import { resolveAccessMode, resolveMaxCompanions } from '@/lib/features'
 import { occupiedSeats, seatsLeft, ocupaLugar } from '@/lib/puerta'
-import { resolverContacto, alguienVa, linkGrupoWhatsapp } from '@/lib/invite/post-confirmacion'
+import { resolverContacto, alguienVa, linkGrupoWhatsapp, grupoDelDoc } from '@/lib/invite/post-confirmacion'
 import type { Currency, RegistryPaymentMethod } from '@/lib/types'
 
 const admin = () =>
@@ -106,10 +106,9 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
       venue: string | null; address: string | null; host_name: string | null; host_name_2: string | null
       guest_cap: number | null; ticket_price: number | null; currency: Currency | null; user_id: string
       planner_name: string | null; planner_phone: string | null; planner_email: string | null
-      whatsapp_group_url: string | null
     }>(
       db.from('events')
-        .select('name, event_type, event_date, event_time, venue, address, host_name, host_name_2, guest_cap, ticket_price, currency, user_id, planner_name, planner_phone, planner_email, whatsapp_group_url')
+        .select('name, event_type, event_date, event_time, venue, address, host_name, host_name_2, guest_cap, ticket_price, currency, user_id, planner_name, planner_phone, planner_email')
         .eq('id', eventId).maybeSingle(),
     ),
     guest
@@ -188,7 +187,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
     // compartida no hay invitado todavia — ahi lo entrega el endpoint de
     // registro, cuando ya se gano el lugar.
     grupoWhatsapp: guest && alguienVa([guest, ...members])
-      ? linkGrupoWhatsapp(event.whatsapp_group_url)
+      ? linkGrupoWhatsapp(grupoDelDoc(doc))
       : null,
     contacto: resolverContacto({
       plannerName: event.planner_name,
@@ -302,15 +301,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
     { rsvp_status: update.guest.rsvp_status },
     ...companionsResponse,
   ])
-  const eventoGrupo = yaVa
-    ? await safeSingle<{ whatsapp_group_url: string | null }>(
-        db.from('events').select('whatsapp_group_url').eq('id', guest.event_id).maybeSingle(),
-      )
-    : null
-
   return NextResponse.json({
     guest: { rsvp_status: update.guest.rsvp_status, allergies: update.guest.allergies },
     companions: companionsResponse,
-    grupoWhatsapp: eventoGrupo ? linkGrupoWhatsapp(eventoGrupo.whatsapp_group_url) : null,
+    grupoWhatsapp: yaVa ? linkGrupoWhatsapp(grupoDelDoc(doc)) : null,
   })
 }

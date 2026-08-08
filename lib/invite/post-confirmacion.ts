@@ -32,6 +32,15 @@ export function alguienVa(integrantes: { rsvp_status: string }[]): boolean {
   return integrantes.some(i => i.rsvp_status === 'confirmed')
 }
 
+// El link vive en el bloque de RSVP del documento, que es donde se pinta el
+// boton. Si el anfitrion borro ese bloque, no hay grupo que ofrecer.
+export function grupoDelDoc(doc: { sections: { type: string; content: unknown }[] }): string | null {
+  const rsvp = doc.sections.find(s => s.type === 'rsvp')
+  if (!rsvp) return null
+  const v = (rsvp.content as { grupo_whatsapp?: unknown }).grupo_whatsapp
+  return typeof v === 'string' ? v : null
+}
+
 // Un planner puede pegar cualquier cosa en el campo. Un boton que lleva a la nada
 // en la invitacion de un cliente es peor que no tener boton, asi que solo pasa lo
 // que de verdad es una invitacion de grupo de WhatsApp.
