@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { estadoRespuesta, resolverContacto, waDigits, alguienVa, linkGrupoWhatsapp } from './post-confirmacion'
+import { estadoRespuesta, resolverContacto, waDigits, alguienVa, linkGrupoWhatsapp, grupoDelDoc } from './post-confirmacion'
 
 const si = { rsvp_status: 'confirmed' }
 const no = { rsvp_status: 'declined' }
@@ -173,6 +173,32 @@ describe('linkGrupoWhatsapp', () => {
   it('rechaza null y undefined', () => {
     expect(linkGrupoWhatsapp(null)).toBeNull()
     expect(linkGrupoWhatsapp(undefined)).toBeNull()
+  })
+})
+
+describe('grupoDelDoc', () => {
+  const conRsvp = (grupo: unknown) => ({
+    sections: [
+      { type: 'portada', content: { titulo: 'x' } },
+      { type: 'rsvp', content: { titulo: 'y', grupo_whatsapp: grupo } },
+    ],
+  })
+
+  it('saca el link del bloque de rsvp', () => {
+    expect(grupoDelDoc(conRsvp('https://chat.whatsapp.com/AbC'))).toBe('https://chat.whatsapp.com/AbC')
+  })
+
+  // Si el anfitrion borro el bloque de RSVP no hay donde pintar el boton.
+  it('devuelve null si no hay bloque de rsvp', () => {
+    expect(grupoDelDoc({ sections: [{ type: 'portada', content: {} }] })).toBeNull()
+  })
+
+  it('tolera documentos viejos sin el campo', () => {
+    expect(grupoDelDoc({ sections: [{ type: 'rsvp', content: { titulo: 'y' } }] })).toBeNull()
+  })
+
+  it('ignora un valor que no sea texto', () => {
+    expect(grupoDelDoc(conRsvp(42))).toBeNull()
   })
 })
 

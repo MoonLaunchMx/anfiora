@@ -8,6 +8,7 @@ import { parseVideoUrl } from '@/lib/invite/video'
 import { parseDriveUrl } from '@/lib/invite/drive'
 import { pickAudioMime, extForMime, formatTimer } from '@/lib/invite/audio-recording'
 import { addFotos, removeFotoAt, moveFoto, MAX_GALERIA_FOTOS } from '@/lib/invite/galeria'
+import { linkGrupoWhatsapp } from '@/lib/invite/post-confirmacion'
 import { supabase } from '@/lib/supabase'
 import GifSearch from './GifSearch'
 
@@ -539,13 +540,29 @@ export default function SectionForm({
           <p className="text-xs text-[#999]">El contenido se toma del itinerario del evento.</p>
         </div>
       )
-    case 'rsvp':
+    case 'rsvp': {
+      const grupo = section.content.grupo_whatsapp
+      const grupoInvalido = grupo.trim().length > 0 && linkGrupoWhatsapp(grupo) === null
       return (
         <div className="flex flex-col gap-3">
           <TextField label="Título" value={section.content.titulo} onChange={v => onPatch({ titulo: v })} />
           <TextAreaField label="Texto" value={section.content.texto} onChange={v => onPatch({ texto: v })} />
+          <div>
+            <TextField
+              label="Grupo de WhatsApp (opcional)"
+              value={grupo}
+              onChange={v => onPatch({ grupo_whatsapp: v })}
+              placeholder="https://chat.whatsapp.com/..."
+            />
+            <p className={'mt-1.5 text-xs ' + (grupoInvalido ? 'text-[#cc3333]' : 'text-[#999]')}>
+              {grupoInvalido
+                ? 'Ese no es un link de invitación a grupo. En WhatsApp: Grupo → Invitar por link.'
+                : 'Aparece al confirmar, y solo a quien dijo que sí va.'}
+            </p>
+          </div>
         </div>
       )
+    }
     case 'enganche':
       return (
         <div className="flex flex-col gap-3">

@@ -24,6 +24,10 @@ const ItinerarioContent = z.object({
 const RsvpContent = z.object({
   titulo: z.string().default('Confirma tu asistencia'),
   texto: z.string().default('Ayúdanos a organizar todo confirmando si nos acompañas.'),
+  // Opt-in: vacio por defecto. Vive en el documento y no en events porque es
+  // contenido de la invitacion —el anfitrion lo agrega si quiere— y asi respeta
+  // borrador/publicado como el resto. El boton solo se le pinta a quien va.
+  grupo_whatsapp: z.string().default(''),
 })
 const EngancheContent = z.object({
   titulo: z.string().default('Sé parte de la fiesta'),
