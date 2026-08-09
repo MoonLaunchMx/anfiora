@@ -8,7 +8,7 @@ import { Sparkles, Clock } from 'lucide-react'
 
 export function ItineraryView({ itin }: { itin: ItineraryController }) {
   const {
-    eventInfo, canEdit, moments, sorted, suppliers, visibleCount,
+    eventInfo, canEdit, moments, sorted, suppliers, visibleCount, days, newDate,
     guestPreview, showModal, editMoment, showGenerate, setShowGenerate,
     openNew, openEdit, closeModal, handleSave, handleDelete, toggleVisible,
     applyGenerated,
@@ -28,6 +28,8 @@ export function ItineraryView({ itin }: { itin: ItineraryController }) {
     <MomentModal
       editMoment={editMoment}
       suppliers={suppliers}
+      days={days}
+      defaultDate={editMoment?.moment_date || newDate}
       onClose={closeModal}
       onSave={handleSave}
       onDelete={handleDelete}

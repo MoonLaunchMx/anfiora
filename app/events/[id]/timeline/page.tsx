@@ -187,7 +187,7 @@ export default function TimelinePage() {
   const [search, setSearch]           = useState('')
   const [filterCat, setFilterCat]     = useState('')
   const [showFilters, setShowFilters] = useState(false)
-  const [eventInfo, setEventInfo]     = useState<{ event_date: string | null; event_type: string | null; event_category: string | null; event_time: string | null } | null>(null)
+  const [eventInfo, setEventInfo]     = useState<{ event_date: string | null; event_end_date: string | null; event_type: string | null; event_category: string | null; event_time: string | null } | null>(null)
   const [generating, setGenerating]   = useState(false)
 
   const itinEventInfo = useMemo(
@@ -234,7 +234,7 @@ export default function TimelinePage() {
   useEffect(() => {
     supabase
       .from('events')
-      .select('event_date, event_type, event_category, event_time')
+      .select('event_date, event_end_date, event_type, event_category, event_time')
       .eq('id', eventId)
       .single()
       .then(({ data }) => { if (data) setEventInfo(data) })

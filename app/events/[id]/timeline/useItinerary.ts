@@ -3,13 +3,14 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { ItineraryMoment } from '@/lib/types'
-import { sortMoments } from '@/lib/itinerary'
+import { eventDays, groupByDay } from '@/lib/itinerary'
 import { useEventAccess } from '@/lib/event-access-context'
-import type { GeneratedMoment } from '@/lib/itinerary-ai'
+import type { TemplateMoment } from '@/lib/itinerary-templates'
 import type { MomentDraft } from './MomentModal'
 
 export interface ItineraryEventInfo {
   event_date: string | null
+  event_end_date: string | null
   event_type: string | null
   event_category: string | null
   event_time?: string | null
@@ -28,12 +29,15 @@ export function useItinerary(eventId: string, eventInfo: ItineraryEventInfo | nu
   const [editMoment, setEditMoment] = useState<ItineraryMoment | null>(null)
   const [showGenerate, setShowGenerate] = useState(false)
   const [guestPreview, setGuestPreview] = useState(false)
+  const [newDate, setNewDate] = useState<string>('')
+  const [templateDate, setTemplateDate] = useState<string>('')
 
   const fetchMoments = useCallback(async () => {
     const { data } = await supabase
       .from('event_itinerary_moments')
       .select('*, event_supplier:event_supplier_id(id, supplier:supplier_id(id, name))')
       .eq('event_id', eventId)
+      .order('moment_date', { ascending: true })
       .order('position', { ascending: true })
     setMoments((data || []) as ItineraryMoment[])
   }, [eventId])
@@ -50,7 +54,11 @@ export function useItinerary(eventId: string, eventInfo: ItineraryEventInfo | nu
       })
   }, [active, eventId, fetchMoments])
 
-  const sorted = useMemo(() => sortMoments(moments), [moments])
+  const days = useMemo(
+    () => eventDays(eventInfo?.event_date ?? null, eventInfo?.event_end_date ?? null),
+    [eventInfo?.event_date, eventInfo?.event_end_date],
+  )
+  const { inRange, orphans } = useMemo(() => groupByDay(moments, days), [moments, days])
   const visibleCount = moments.filter(m => m.visible_to_guests).length
 
   // ── Persistencia en event_itinerary_moments ────────────────────────────────
@@ -58,6 +66,7 @@ export function useItinerary(eventId: string, eventInfo: ItineraryEventInfo | nu
     await supabase.from('event_itinerary_moments').insert({
       event_id: eventId,
       title: data.title,
+      moment_date: data.moment_date,
       start_time: data.start_time,
       duration_min: data.duration_min,
       location: data.location,
@@ -74,6 +83,7 @@ export function useItinerary(eventId: string, eventInfo: ItineraryEventInfo | nu
   const updateMoment = async (id: string, data: MomentDraft) => {
     await supabase.from('event_itinerary_moments').update({
       title: data.title,
+      moment_date: data.moment_date,
       start_time: data.start_time,
       duration_min: data.duration_min,
       location: data.location,
@@ -96,18 +106,19 @@ export function useItinerary(eventId: string, eventInfo: ItineraryEventInfo | nu
     await supabase.from('event_itinerary_moments').update({ visible_to_guests: !m.visible_to_guests }).eq('id', m.id)
   }
 
-  const applyGenerated = async (gen: GeneratedMoment[]) => {
+  const applyTemplate = async (gen: TemplateMoment[]) => {
     const base = moments.length
     const rows = gen.map((g, i) => ({
       event_id: eventId,
+      moment_date: g.moment_date,
       title: g.title,
       start_time: g.start_time,
       duration_min: g.duration_min,
-      location: g.location,
+      location: null,
       phase: g.phase,
       event_supplier_id: null,
       assigned_to_name: null,
-      notes: g.notes,
+      notes: null,
       visible_to_guests: g.visible_to_guests,
       position: base + i,
     }))
@@ -116,10 +127,16 @@ export function useItinerary(eventId: string, eventInfo: ItineraryEventInfo | nu
     await fetchMoments()
   }
 
+  const deleteDay = async (date: string) => {
+    await supabase.from('event_itinerary_moments').delete().eq('event_id', eventId).eq('moment_date', date)
+    await fetchMoments()
+  }
+
   // ── Handlers UI ─────────────────────────────────────────────────────────────
-  const openNew    = () => { setEditMoment(null); setShowModal(true) }
+  const openNew    = (date?: string) => { setEditMoment(null); setNewDate(date || days[0] || ''); setShowModal(true) }
   const openEdit   = (m: ItineraryMoment) => { setEditMoment(m); setShowModal(true) }
   const closeModal = () => { setShowModal(false); setEditMoment(null) }
+  const openTemplate = (date?: string) => { setTemplateDate(date || days[0] || ''); setShowGenerate(true) }
 
   const handleSave = async (data: MomentDraft) => {
     if (editMoment) await updateMoment(editMoment.id, data)
@@ -134,22 +151,28 @@ export function useItinerary(eventId: string, eventInfo: ItineraryEventInfo | nu
     eventInfo,
     canEdit,
     moments,
-    sorted,
+    days,
+    inRange,
+    orphans,
     suppliers,
     visibleCount,
     guestPreview,
     setGuestPreview,
     showModal,
     editMoment,
+    newDate,
+    templateDate,
     showGenerate,
     setShowGenerate,
     openNew,
     openEdit,
+    openTemplate,
     closeModal,
     handleSave,
     handleDelete,
     toggleVisible,
-    applyGenerated,
+    applyTemplate,
+    deleteDay,
   }
 }
 

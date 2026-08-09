@@ -2,12 +2,13 @@
 
 import { useEffect, useState } from 'react'
 import { ItineraryMoment, ItineraryPhase } from '@/lib/types'
-import { ITINERARY_PHASES, PHASE_LABEL, computeEndTime } from '@/lib/itinerary'
+import { ITINERARY_PHASES, PHASE_LABEL, computeEndTime, dayLabel } from '@/lib/itinerary'
 import { ChevronDown, Eye, EyeOff } from 'lucide-react'
 import { Modal } from '@/app/components/ui/Modal'
 
 export interface MomentDraft {
   title: string
+  moment_date: string
   start_time: string
   duration_min: number | null
   location: string | null
@@ -21,14 +22,17 @@ export interface MomentDraft {
 interface MomentModalProps {
   editMoment: ItineraryMoment | null
   suppliers: { id: string; name: string }[]
+  days: string[]
+  defaultDate: string
   onClose: () => void
   onSave: (data: MomentDraft) => void
   onDelete: (m: ItineraryMoment) => void
 }
 
-export function MomentModal({ editMoment, suppliers, onClose, onSave, onDelete }: MomentModalProps) {
+export function MomentModal({ editMoment, suppliers, days, defaultDate, onClose, onSave, onDelete }: MomentModalProps) {
   const [form, setForm] = useState({
     title: '',
+    moment_date: defaultDate,
     start_time: '',
     duration_min: '' as string,
     location: '',
@@ -43,6 +47,7 @@ export function MomentModal({ editMoment, suppliers, onClose, onSave, onDelete }
     if (editMoment) {
       setForm({
         title: editMoment.title,
+        moment_date: editMoment.moment_date,
         start_time: editMoment.start_time.slice(0, 5),
         duration_min: editMoment.duration_min !== null ? String(editMoment.duration_min) : '',
         location: editMoment.location || '',
@@ -54,20 +59,21 @@ export function MomentModal({ editMoment, suppliers, onClose, onSave, onDelete }
       })
     } else {
       setForm({
-        title: '', start_time: '', duration_min: '', location: '',
+        title: '', moment_date: defaultDate, start_time: '', duration_min: '', location: '',
         phase: 'otro', event_supplier_id: '', assigned_to_name: '', notes: '',
         visible_to_guests: true,
       })
     }
-  }, [editMoment])
+  }, [editMoment, defaultDate])
 
   const durationNum = form.duration_min.trim() === '' ? null : Math.max(0, parseInt(form.duration_min, 10) || 0)
   const endPreview = form.start_time ? computeEndTime(form.start_time, durationNum) : null
 
   const handleSave = () => {
-    if (!form.title.trim() || !form.start_time) return
+    if (!form.title.trim() || !form.start_time || !form.moment_date) return
     onSave({
       title: form.title.trim(),
+      moment_date: form.moment_date,
       start_time: form.start_time,
       duration_min: durationNum,
       location: form.location.trim() || null,
@@ -92,6 +98,28 @@ export function MomentModal({ editMoment, suppliers, onClose, onSave, onDelete }
             onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
             className="w-full border border-[#e0e0e0] rounded-xl px-3 py-2.5 text-base focus:outline-none focus:border-[#d4a853] bg-[#f8f8f8]"
           />
+
+          {days.length > 1 && (
+            <div>
+              <label className="text-xs font-medium text-[#555] mb-1 block">Día</label>
+              <div className="relative">
+                <select
+                  value={form.moment_date}
+                  onChange={e => setForm(f => ({ ...f, moment_date: e.target.value }))}
+                  className="w-full cursor-pointer appearance-none rounded-xl border border-[#e0e0e0] bg-[#f8f8f8] px-3 py-2 text-base focus:border-[#d4a853] focus:outline-none"
+                >
+                  {days.map(d => {
+                    const { dow, num } = dayLabel(d)
+                    return <option key={d} value={d}>{dow} {num}</option>
+                  })}
+                  {form.moment_date && !days.includes(form.moment_date) && (
+                    <option value={form.moment_date}>{dayLabel(form.moment_date).dow} {dayLabel(form.moment_date).num} (fuera del rango)</option>
+                  )}
+                </select>
+                <ChevronDown size={13} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[#aaa]" />
+              </div>
+            </div>
+          )}
 
           {/* Hora + Duracion */}
           <div className="grid grid-cols-2 gap-3">
