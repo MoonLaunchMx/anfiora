@@ -5,14 +5,30 @@ import { MomentCard } from './MomentCard'
 import { MomentModal } from './MomentModal'
 import { DayLine } from './DayLine'
 import type { ItineraryController } from './useItinerary'
-import { CalendarPlus, Clock } from 'lucide-react'
+import { CalendarPlus, Clock, Trash2 } from 'lucide-react'
+import { dayLabel, type DayGroup } from '@/lib/itinerary'
+import type { ItineraryMoment } from '@/lib/types'
+import { useConfirm } from '@/app/components/ui/ConfirmModal'
 
 export function ItineraryView({ itin }: { itin: ItineraryController }) {
   const {
-    eventInfo, canEdit, moments, days, inRange, suppliers, visibleCount, newDate,
+    eventInfo, canEdit, moments, days, inRange, orphans, suppliers, visibleCount, newDate,
     guestPreview, showModal, editMoment,
-    openNew, openEdit, openTemplate, closeModal, handleSave, handleDelete, toggleVisible,
+    openNew, openEdit, openTemplate, closeModal, handleSave, handleDelete, toggleVisible, deleteDay,
   } = itin
+
+  const confirm = useConfirm()
+
+  const askDeleteDay = async (group: DayGroup<ItineraryMoment>) => {
+    const { dow, num } = dayLabel(group.date)
+    const ok = await confirm({
+      title: 'Eliminar el día',
+      message: `Se borran los ${group.moments.length} momentos del ${dow} ${num}. No se puede deshacer.`,
+      confirmLabel: 'Eliminar el día',
+      tone: 'danger',
+    })
+    if (ok) await deleteDay(group.date)
+  }
 
   // El scroll vive en el contenedor de la pagina (el main del layout de evento
   // es overflow-hidden): el dia activo es el ultimo cuya linea ya llego al tope.
@@ -122,6 +138,39 @@ export function ItineraryView({ itin }: { itin: ItineraryController }) {
                     ))}
                   </div>
                 )}
+              </section>
+            )
+          })}
+          {!guestPreview && orphans.map(group => {
+            const { dow, num } = dayLabel(group.date)
+            return (
+              <section key={group.date} className="relative mt-4">
+                <div className="flex h-14 items-center gap-3">
+                  <span className="flex items-baseline gap-2 whitespace-nowrap text-[#cc3333]">
+                    <span className="text-[11px] font-semibold uppercase tracking-[0.14em]">{dow}</span>
+                    <span className="text-[13px] font-semibold tabular-nums">{num}</span>
+                  </span>
+                  <span className="h-px min-w-3 flex-1 bg-[#ffc0c0]" />
+                  <span className="whitespace-nowrap text-[11px] text-[#cc3333]">Fuera del rango</span>
+                </div>
+                <div className="mb-2 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#ffc0c0] bg-[#fff0f0] px-3.5 py-3">
+                  <p className="max-w-[52ch] text-[13px] text-[#cc3333]">
+                    Este día ya no está dentro de las fechas del evento. Sus {group.moments.length} momentos no se muestran a los invitados.
+                  </p>
+                  {canEdit && (
+                    <button
+                      onClick={() => askDeleteDay(group)}
+                      className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg border border-[#ffc0c0] bg-white px-3 py-1.5 text-xs font-semibold text-[#cc3333] transition hover:bg-[#fff0f0]"
+                    >
+                      <Trash2 size={13} />Eliminar el día
+                    </button>
+                  )}
+                </div>
+                <div className="flex flex-col pb-2">
+                  {group.moments.map(m => (
+                    <MomentCard key={m.id} moment={m} canEdit={canEdit} guestPreview={false} onEdit={openEdit} onToggleVisible={toggleVisible} />
+                  ))}
+                </div>
               </section>
             )
           })}
