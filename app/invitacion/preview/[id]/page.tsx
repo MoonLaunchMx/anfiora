@@ -8,7 +8,7 @@ import { resolveDoc } from '@/lib/invite/doc'
 import { botonClass } from '@/lib/invite/theme-css'
 import { parseDressCode, type DressCode } from '@/lib/dresscode'
 import { getGuestItinerary } from '@/lib/guest-itinerary'
-import type { GuestItineraryItem } from '@/lib/types'
+import type { GuestItineraryDay } from '@/lib/types'
 import type { InviteDoc } from '@/lib/invite/schema'
 import type { InviteCtx } from '@/app/components/invitacion/types'
 import InvitacionRenderer from '@/app/components/invitacion/InvitacionRenderer'
@@ -34,7 +34,7 @@ export default function InvitacionPreviewPage() {
   const [dressCode, setDressCode] = useState<DressCode | null>(null)
   const [playlistToken, setPlaylistToken] = useState<string | null>(null)
   const [registryToken, setRegistryToken] = useState<string | null>(null)
-  const [itinerary, setItinerary] = useState<GuestItineraryItem[]>([])
+  const [itinerary, setItinerary] = useState<GuestItineraryDay[]>([])
   const [loading, setLoading] = useState(true)
   const [denied, setDenied] = useState(false)
 
@@ -47,10 +47,10 @@ export default function InvitacionPreviewPage() {
         return
       }
 
-      const [ev, inviteRow, dressRow, itinRows] = await Promise.all([
+      const [ev, inviteRow, dressRow] = await Promise.all([
         supabase
           .from('events')
-          .select('name, event_type, event_date, event_time, venue, address, host_name, host_name_2')
+          .select('name, event_type, event_date, event_end_date, event_time, venue, address, host_name, host_name_2')
           .eq('id', eventId)
           .single(),
         safeSingle<{ invite_config: unknown; invite_draft: unknown; playlist_token: string | null; registry_token: string | null }>(
@@ -59,13 +59,13 @@ export default function InvitacionPreviewPage() {
         safeSingle<{ dress_code: unknown }>(
           supabase.from('event_settings').select('dress_code').eq('event_id', eventId).maybeSingle(),
         ),
-        getGuestItinerary(eventId),
       ])
       if (!ev.data) {
         setDenied(true)
         setLoading(false)
         return
       }
+      const itinRows = await getGuestItinerary(eventId, ev.data.event_date, ev.data.event_end_date)
       setEvent(ev.data)
       setDressCode(parseDressCode(dressRow?.dress_code))
       setPlaylistToken(inviteRow?.playlist_token ?? null)

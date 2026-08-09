@@ -16,7 +16,7 @@ import { botonClass } from '@/lib/invite/theme-css'
 import { parseDressCode, type DressCode } from '@/lib/dresscode'
 import { getGuestItinerary } from '@/lib/guest-itinerary'
 import { resolveAccessMode } from '@/lib/features'
-import type { GuestItineraryItem } from '@/lib/types'
+import type { GuestItineraryDay } from '@/lib/types'
 import InvitacionRenderer from '@/app/components/invitacion/InvitacionRenderer'
 import PreviewBoundary from '@/app/components/invitacion/PreviewBoundary'
 import type { InviteCtx } from '@/app/components/invitacion/types'
@@ -71,7 +71,7 @@ export default function InvitacionPage() {
   const [dressCode, setDressCode] = useState<DressCode | null>(null)
   const [playlistToken, setPlaylistToken] = useState<string | null>(null)
   const [registryToken, setRegistryToken] = useState<string | null>(null)
-  const [itinerary, setItinerary] = useState<GuestItineraryItem[]>([])
+  const [itinerary, setItinerary] = useState<GuestItineraryDay[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -90,10 +90,10 @@ export default function InvitacionPage() {
 
   useEffect(() => {
     const load = async () => {
-      const [ev, inviteRow, dressRow, itinRows] = await Promise.all([
+      const [ev, inviteRow, dressRow] = await Promise.all([
         supabase
           .from('events')
-          .select('name, event_type, event_date, event_time, venue, address, host_name, host_name_2, guest_cap, ticket_price')
+          .select('name, event_type, event_date, event_end_date, event_time, venue, address, host_name, host_name_2, guest_cap, ticket_price')
           .eq('id', eventId)
           .single(),
         safeSingle<{ invite_config: unknown; invite_draft: unknown; playlist_token: string | null; registry_token: string | null; max_companions: number | null }>(
@@ -102,8 +102,10 @@ export default function InvitacionPage() {
         safeSingle<{ dress_code: unknown }>(
           supabase.from('event_settings').select('dress_code').eq('event_id', eventId).maybeSingle(),
         ),
-        getGuestItinerary(eventId),
       ])
+      const itinRows = ev.data
+        ? await getGuestItinerary(eventId, ev.data.event_date, ev.data.event_end_date)
+        : []
       if (ev.data) setEvent(ev.data)
       setDressCode(parseDressCode(dressRow?.dress_code))
       setPlaylistToken(inviteRow?.playlist_token ?? null)

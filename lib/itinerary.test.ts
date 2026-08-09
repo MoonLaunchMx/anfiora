@@ -116,16 +116,26 @@ describe('sortMoments', () => {
 })
 
 describe('curateForGuests', () => {
-  it('filtra visibles, ordena y mapea a la superficie publica', () => {
+  it('agrupa por dia, filtra ocultos y omite los dias vacios', () => {
     const ms = [
-      moment({ id: 'oculto', moment_date: '2026-09-13', start_time: '06:00', visible_to_guests: false }),
-      moment({ id: 'ceremonia', moment_date: '2026-09-13', title: 'Ceremonia', start_time: '18:00', location: 'Jardin', visible_to_guests: true }),
-      moment({ id: 'fiesta', moment_date: '2026-09-13', title: 'Fiesta', start_time: '01:00', visible_to_guests: true }),
+      moment({ id: 'oculto', moment_date: '2026-09-12', start_time: '09:00', visible_to_guests: false }),
+      moment({ id: 'cena', title: 'Cena', moment_date: '2026-09-13', start_time: '20:30', location: 'Salon', visible_to_guests: true }),
+      moment({ id: 'rompe', title: 'Rompehielos', moment_date: '2026-09-12', start_time: '20:00', visible_to_guests: true }),
+      moment({ id: 'cierre', title: 'Cierre', moment_date: '2026-09-14', start_time: '03:00', visible_to_guests: true }),
     ]
-    expect(curateForGuests(ms)).toEqual([
-      { start_time: '01:00', title: 'Fiesta', location: null },
-      { start_time: '18:00', title: 'Ceremonia', location: 'Jardin' },
+    expect(curateForGuests(ms, ['2026-09-12', '2026-09-13', '2026-09-14'])).toEqual([
+      { date: '2026-09-12', label: 'Sábado 12', items: [{ start_time: '20:00', title: 'Rompehielos', location: null }] },
+      { date: '2026-09-13', label: 'Domingo 13', items: [{ start_time: '20:30', title: 'Cena', location: 'Salon' }] },
+      { date: '2026-09-14', label: 'Lunes 14', items: [{ start_time: '03:00', title: 'Cierre', location: null }] },
     ])
+  })
+  it('un dia huerfano no se le muestra al invitado', () => {
+    const ms = [moment({ id: 'fuera', title: 'Tornaboda', moment_date: '2026-09-20', start_time: '12:00', visible_to_guests: true })]
+    expect(curateForGuests(ms, ['2026-09-12'])).toEqual([])
+  })
+  it('sin momentos visibles devuelve vacio', () => {
+    const ms = [moment({ moment_date: '2026-09-12', visible_to_guests: false })]
+    expect(curateForGuests(ms, ['2026-09-12'])).toEqual([])
   })
 })
 

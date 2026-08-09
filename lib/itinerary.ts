@@ -1,4 +1,4 @@
-import type { ItineraryMoment, ItineraryPhase, GuestItineraryItem } from './types'
+import type { ItineraryMoment, ItineraryPhase, GuestItineraryDay } from './types'
 
 export const ITINERARY_PHASES: ItineraryPhase[] = [
   'montaje', 'ceremonia', 'social', 'cena', 'fiesta', 'otro',
@@ -74,15 +74,25 @@ export function sortMoments<T extends { moment_date: string; start_time: string;
 
 type CurateInput = Pick<ItineraryMoment, 'moment_date' | 'start_time' | 'title' | 'location' | 'visible_to_guests' | 'position'>
 
-export function curateForGuests(moments: CurateInput[]): GuestItineraryItem[] {
-  return sortMoments(moments.filter(m => m.visible_to_guests)).map(m => {
-    const mins = parseTimeToMinutes(m.start_time)
-    return {
-      start_time: mins === null ? m.start_time : formatMinutesToHHMM(mins),
-      title: m.title,
-      location: m.location,
-    }
-  })
+export function curateForGuests(moments: CurateInput[], days: string[]): GuestItineraryDay[] {
+  const { inRange } = groupByDay(moments.filter(m => m.visible_to_guests), days)
+  return inRange
+    .filter(g => g.moments.length > 0)
+    .map(g => {
+      const { dow, num } = dayLabel(g.date)
+      return {
+        date: g.date,
+        label: `${dow} ${num.split(' ')[0]}`,
+        items: g.moments.map(m => {
+          const mins = parseTimeToMinutes(m.start_time)
+          return {
+            start_time: mins === null ? m.start_time : formatMinutesToHHMM(mins),
+            title: m.title,
+            location: m.location,
+          }
+        }),
+      }
+    })
 }
 
 export function addDays(iso: string, n: number): string {

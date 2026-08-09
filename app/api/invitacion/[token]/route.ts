@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 import { isInviteOpen, buildRsvpUpdate, type RsvpSubmission } from '@/lib/invite'
 import { resolveDoc } from '@/lib/invite/doc'
 import { parseDressCode } from '@/lib/dresscode'
-import { curateForGuests } from '@/lib/itinerary'
+import { curateForGuests, eventDays } from '@/lib/itinerary'
 import { logAction } from '@/lib/audit'
 import { resolveAccessMode, resolveMaxCompanions } from '@/lib/features'
 import { occupiedSeats, seatsLeft, ocupaLugar } from '@/lib/puerta'
@@ -102,13 +102,13 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
 
   const [event, members, settingsExtra, itin] = await Promise.all([
     safeSingle<{
-      name: string; event_type: string | null; event_date: string | null; event_time: string | null
+      name: string; event_type: string | null; event_date: string | null; event_end_date: string | null; event_time: string | null
       venue: string | null; address: string | null; host_name: string | null; host_name_2: string | null
       guest_cap: number | null; ticket_price: number | null; currency: Currency | null; user_id: string
       planner_name: string | null; planner_phone: string | null; planner_email: string | null
     }>(
       db.from('events')
-        .select('name, event_type, event_date, event_time, venue, address, host_name, host_name_2, guest_cap, ticket_price, currency, user_id, planner_name, planner_phone, planner_email')
+        .select('name, event_type, event_date, event_end_date, event_time, venue, address, host_name, host_name_2, guest_cap, ticket_price, currency, user_id, planner_name, planner_phone, planner_email')
         .eq('id', eventId).maybeSingle(),
     ),
     guest
@@ -119,8 +119,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
     safeSingle<{ dress_code: unknown }>(
       db.from('event_settings').select('dress_code').eq('event_id', eventId).maybeSingle(),
     ),
-    safeList<{ start_time: string; title: string; location: string | null; visible_to_guests: boolean; position: number }>(
-      db.from('event_itinerary_moments').select('start_time, title, location, visible_to_guests, position').eq('event_id', eventId).eq('visible_to_guests', true),
+    safeList<{ moment_date: string; start_time: string; title: string; location: string | null; visible_to_guests: boolean; position: number }>(
+      db.from('event_itinerary_moments').select('moment_date, start_time, title, location, visible_to_guests, position').eq('event_id', eventId).eq('visible_to_guests', true),
     ),
   ])
   if (!event) return NextResponse.json({ error: 'not_found' }, { status: 404 })
@@ -174,7 +174,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
     companions: members.map(m => ({ id: m.id, name: m.name, rsvp_status: m.rsvp_status, allergies: m.allergies || [] })),
     doc,
     dressCode: parseDressCode(settingsExtra?.dress_code),
-    itinerary: curateForGuests(itin),
+    itinerary: curateForGuests(itin, eventDays(event.event_date, event.event_end_date)),
     tokens: { playlist: settings?.playlist_token ?? null, registry: settings?.registry_token ?? null },
     mode: found.kind === 'compartida' ? 'compartida' : 'personal',
     puerta,

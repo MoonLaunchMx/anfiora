@@ -6,7 +6,7 @@ import { isInviteOpen, type RsvpSubmission } from '@/lib/invite'
 import type { InviteDoc } from '@/lib/invite/schema'
 import { botonClass } from '@/lib/invite/theme-css'
 import type { DressCode } from '@/lib/dresscode'
-import type { RegistryPaymentMethod, Currency } from '@/lib/types'
+import type { RegistryPaymentMethod, Currency, GuestItineraryDay } from '@/lib/types'
 import { montoAPagar, plazoPago } from '@/lib/puerta'
 import type { ContactoPlanner } from '@/lib/invite/post-confirmacion'
 import type { InviteCtx, InviteGuest, InviteCompanion } from '@/app/components/invitacion/types'
@@ -22,7 +22,7 @@ type ApiData = {
   companions: InviteCompanion[]
   doc: InviteDoc
   dressCode: DressCode | null
-  itinerary: { start_time: string; title: string; location: string | null }[]
+  itinerary: GuestItineraryDay[]
   tokens: { playlist: string | null; registry: string | null }
   mode: 'personal' | 'compartida'
   puerta: { seatsLeft: number | null; maxCompanions: number; agotado: boolean } | null
