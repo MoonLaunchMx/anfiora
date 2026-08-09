@@ -25,7 +25,7 @@ export function ItineraryToolbar({ itin }: { itin: ItineraryController }) {
       )}
       {!guestPreview && (
         <button
-          onClick={openNew}
+          onClick={() => openNew()}
           className="flex items-center gap-1.5 rounded-lg bg-[#48C9B0] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#3ab89f] sm:px-4 sm:text-sm"
         >
           <Plus width={14} height={14} />Momento
