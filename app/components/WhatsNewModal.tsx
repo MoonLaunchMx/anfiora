@@ -6,6 +6,7 @@ import {
   Bell, Clock, Gift, Link2, Coins, Landmark, Heart, LucideIcon,
   SlidersHorizontal, Sparkles, Settings2, UtensilsCrossed,
   LayoutGrid, Images, Music2, Download, ListMusic,
+  CalendarDays, CalendarPlus, Eye, Moon,
 } from 'lucide-react'
 import { CURRENT_VERSION, changelog, Release } from '@/lib/changelog'
 import { Modal } from '@/app/components/ui/Modal'
@@ -15,6 +16,7 @@ const STORAGE_KEY = 'anfiora_seen_version'
 const ICON_MAP: Record<string, LucideIcon> = {
   LayoutList, User, Building2, AlertTriangle, Bell, Clock, Gift, Link2, Coins, Landmark, Heart,
   SlidersHorizontal, Sparkles, Settings2, UtensilsCrossed, Music2, Download, ListMusic,
+  CalendarDays, CalendarPlus, Eye, Moon,
 }
 
 function HerramientasMockup() {

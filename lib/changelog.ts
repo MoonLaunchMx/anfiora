@@ -1,4 +1,4 @@
-export const CURRENT_VERSION = '2026-06-15'
+export const CURRENT_VERSION = '2026-08-10'
 
 export type Release = {
   version: string
@@ -10,6 +10,19 @@ export type Release = {
 }
 
 export const changelog: Release[] = [
+  {
+    version: '2026-08-10',
+    date: '10 de agosto, 2026',
+    title: 'Itinerario de varios días',
+    subtitle: 'Planea cada día de tu evento por separado y tus invitados lo ven agrupado por día.',
+    features: [
+      { icon: 'CalendarDays', text: 'Si tu evento dura varios días, el itinerario se organiza por día — rompehielos el viernes, boda el sábado, tornaboda el domingo' },
+      { icon: 'CalendarPlus', text: 'Arma cada día con plantillas: eliges qué pasa ese día y a qué hora empieza, y todo lo demás se acomoda solo' },
+      { icon: 'Eye',          text: 'La invitación muestra el itinerario agrupado por día, solo con los momentos visibles' },
+      { icon: 'Moon',         text: 'Lo que pasa de medianoche cae en el día que le toca — la tornafiesta de la 1 am ya no se pierde' },
+      { icon: 'AlertTriangle', text: 'Si acortas las fechas del evento, los días que quedan fuera se marcan y puedes eliminarlos con un clic' },
+    ],
+  },
   {
     version: '2026-06-15',
     date: '15 de junio, 2026',
