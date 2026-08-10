@@ -31,6 +31,7 @@ export function useItinerary(eventId: string, eventInfo: ItineraryEventInfo | nu
   const [guestPreview, setGuestPreview] = useState(false)
   const [newDate, setNewDate] = useState<string>('')
   const [templateDate, setTemplateDate] = useState<string>('')
+  const [activeDay, setActiveDay] = useState<string>('')
 
   const fetchMoments = useCallback(async () => {
     const { data } = await supabase
@@ -136,7 +137,7 @@ export function useItinerary(eventId: string, eventInfo: ItineraryEventInfo | nu
   const openNew    = (date?: string) => { setEditMoment(null); setNewDate(date || days[0] || ''); setShowModal(true) }
   const openEdit   = (m: ItineraryMoment) => { setEditMoment(m); setShowModal(true) }
   const closeModal = () => { setShowModal(false); setEditMoment(null) }
-  const openTemplate = (date?: string) => { setTemplateDate(date || days[0] || ''); setShowGenerate(true) }
+  const openTemplate = (date?: string) => { setTemplateDate(date || activeDay || days[0] || ''); setShowGenerate(true) }
 
   const handleSave = async (data: MomentDraft) => {
     if (editMoment) await updateMoment(editMoment.id, data)
@@ -162,6 +163,8 @@ export function useItinerary(eventId: string, eventInfo: ItineraryEventInfo | nu
     editMoment,
     newDate,
     templateDate,
+    activeDay,
+    setActiveDay,
     showGenerate,
     setShowGenerate,
     openNew,

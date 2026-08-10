@@ -1,9 +1,10 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 import { MomentCard } from './MomentCard'
 import { MomentModal } from './MomentModal'
 import { DayLine } from './DayLine'
+import { DayTemplateModal } from './DayTemplateModal'
 import type { ItineraryController } from './useItinerary'
 import { CalendarPlus, Clock, Trash2 } from 'lucide-react'
 import { dayLabel, type DayGroup } from '@/lib/itinerary'
@@ -13,8 +14,10 @@ import { useConfirm } from '@/app/components/ui/ConfirmModal'
 export function ItineraryView({ itin }: { itin: ItineraryController }) {
   const {
     eventInfo, canEdit, moments, days, inRange, orphans, suppliers, visibleCount, newDate,
-    guestPreview, showModal, editMoment,
+    guestPreview, showModal, editMoment, showGenerate, setShowGenerate, templateDate,
+    activeDay, setActiveDay,
     openNew, openEdit, openTemplate, closeModal, handleSave, handleDelete, toggleVisible, deleteDay,
+    applyTemplate,
   } = itin
 
   const confirm = useConfirm()
@@ -34,7 +37,6 @@ export function ItineraryView({ itin }: { itin: ItineraryController }) {
   // es overflow-hidden): el dia activo es el ultimo cuya linea ya llego al tope.
   const rootRef = useRef<HTMLDivElement | null>(null)
   const secRefs = useRef<Record<string, HTMLElement | null>>({})
-  const [activeDay, setActiveDay] = useState<string>('')
 
   useEffect(() => {
     const stage = rootRef.current?.parentElement
@@ -54,7 +56,16 @@ export function ItineraryView({ itin }: { itin: ItineraryController }) {
     stage.addEventListener('scroll', onScroll, { passive: true })
     sync()
     return () => stage.removeEventListener('scroll', onScroll)
-  }, [inRange, days.length])
+  }, [inRange, days.length, setActiveDay])
+
+  const templateModal = showGenerate && templateDate && (
+    <DayTemplateModal
+      eventType={eventInfo?.event_type ?? null}
+      date={templateDate}
+      onClose={() => setShowGenerate(false)}
+      onApply={applyTemplate}
+    />
+  )
 
   const momentModal = showModal && (
     <MomentModal
@@ -89,6 +100,7 @@ export function ItineraryView({ itin }: { itin: ItineraryController }) {
             <p className="mt-3 text-xs text-[#bbb]">El organizador aun no ha creado el itinerario</p>
           )}
         </div>
+        {templateModal}
         {momentModal}
       </>
     )
@@ -178,6 +190,7 @@ export function ItineraryView({ itin }: { itin: ItineraryController }) {
         </>
       )}
 
+      {templateModal}
       {momentModal}
     </div>
   )

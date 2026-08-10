@@ -1,14 +1,14 @@
 'use client'
 
-import { Plus, Eye } from 'lucide-react'
+import { Plus, Eye, CalendarPlus } from 'lucide-react'
 import type { ItineraryController } from './useItinerary'
 
 // Acciones del itinerario en la barra superior (como "Agregar" en Tareas):
 // - Preview RSVP: previsualiza el itinerario como lo ve el invitado en la invitacion.
+// - Armar el dia: plantilla sobre el dia activo (el que va creciendo con el scroll).
 // - Momento: alta manual (se oculta mientras previsualizas).
-// Autogenerar vive en el estado vacio (es accion de arranque, no de edicion).
 export function ItineraryToolbar({ itin }: { itin: ItineraryController }) {
-  const { canEdit, guestPreview, setGuestPreview, openNew, moments } = itin
+  const { canEdit, guestPreview, setGuestPreview, openNew, openTemplate, moments, days } = itin
 
   if (!canEdit) return null
 
@@ -21,6 +21,15 @@ export function ItineraryToolbar({ itin }: { itin: ItineraryController }) {
         >
           <Eye width={13} height={13} />
           <span className="hidden sm:inline">{guestPreview ? 'Vista organizador' : 'Preview RSVP'}</span>
+        </button>
+      )}
+      {!guestPreview && moments.length > 0 && days.length > 0 && (
+        <button
+          onClick={() => openTemplate()}
+          className="flex items-center gap-1.5 rounded-lg border border-[#e0e0e0] px-3 py-1.5 text-xs font-medium text-[#666] transition hover:border-[#48C9B0] hover:text-[#48C9B0]"
+        >
+          <CalendarPlus width={13} height={13} />
+          <span className="hidden sm:inline">Armar el día</span>
         </button>
       )}
       {!guestPreview && (
