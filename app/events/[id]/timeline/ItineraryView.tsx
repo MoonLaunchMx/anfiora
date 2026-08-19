@@ -6,7 +6,7 @@ import { MomentModal } from './MomentModal'
 import { DayLine } from './DayLine'
 import { DayTemplateModal } from './DayTemplateModal'
 import type { ItineraryController } from './useItinerary'
-import { CalendarPlus, Clock, Trash2 } from 'lucide-react'
+import { AlertTriangle, CalendarPlus, Clock, Trash2, X } from 'lucide-react'
 import { dayLabel, type DayGroup } from '@/lib/itinerary'
 import type { ItineraryMoment } from '@/lib/types'
 import { useConfirm } from '@/app/components/ui/ConfirmModal'
@@ -15,7 +15,7 @@ export function ItineraryView({ itin }: { itin: ItineraryController }) {
   const {
     eventInfo, canEdit, moments, days, inRange, orphans, suppliers, visibleCount, newDate,
     guestPreview, showModal, editMoment, showGenerate, setShowGenerate, templateDate,
-    activeDay, setActiveDay,
+    activeDay, setActiveDay, fallo, descartarFallo,
     openNew, openEdit, openTemplate, closeModal, handleSave, handleDelete, toggleVisible, deleteDay,
     applyTemplate,
   } = itin
@@ -58,13 +58,33 @@ export function ItineraryView({ itin }: { itin: ItineraryController }) {
     return () => stage.removeEventListener('scroll', onScroll)
   }, [inRange, days.length, setActiveDay])
 
+  const countByDate = Object.fromEntries(inRange.map(g => [g.date, g.moments.length]))
+
   const templateModal = showGenerate && templateDate && (
     <DayTemplateModal
       eventType={eventInfo?.event_type ?? null}
       date={templateDate}
+      days={days}
+      countByDate={countByDate}
       onClose={() => setShowGenerate(false)}
       onApply={applyTemplate}
     />
+  )
+
+  // Va por encima del modal (z-300) a proposito: cuando una escritura falla el modal
+  // se queda abierto con lo que el usuario escribio, y el aviso tiene que verse igual.
+  const avisoFallo = fallo && (
+    <div className="fixed inset-x-3 top-3 z-[400] mx-auto flex max-w-md items-start gap-2 rounded-lg border border-[#ffc0c0] bg-[#fff0f0] px-3 py-2.5 text-xs text-[#cc3333] shadow-lg">
+      <AlertTriangle size={15} className="mt-px shrink-0" />
+      <p className="flex-1">{fallo}</p>
+      <button
+        onClick={descartarFallo}
+        aria-label="Cerrar aviso"
+        className="shrink-0 rounded p-0.5 text-[#cc3333]/70 transition hover:bg-[#ffe0e0] hover:text-[#cc3333]"
+      >
+        <X size={14} />
+      </button>
+    </div>
   )
 
   const momentModal = showModal && (
@@ -85,9 +105,13 @@ export function ItineraryView({ itin }: { itin: ItineraryController }) {
       <>
         <div className="mt-5 rounded-xl border border-dashed border-[#ecdcb8] px-6 py-14 text-center">
           <Clock size={22} className="mx-auto text-[#d4a853]" />
-          <p className="mt-3 text-sm text-[#888]">Aun no tienes el itinerario del dia</p>
+          {/* Con un fallo de lectura la lista tambien llega vacia: afirmar que no hay
+              itinerario seria mentir, y el planner lo armaria encima del que si existe. */}
+          <p className="mt-3 text-sm text-[#888]">
+            {fallo ? 'No pudimos mostrar el itinerario' : 'Aún no armas el itinerario de este evento'}
+          </p>
           {!eventInfo?.event_date ? (
-            <p className="mt-3 text-xs text-[#bbb]">Primero define la fecha del evento en Configuracion</p>
+            <p className="mt-3 text-xs text-[#bbb]">Primero define la fecha del evento en Configuración</p>
           ) : canEdit ? (
             <div className="mt-4 flex flex-col items-center gap-3">
               <button onClick={() => openTemplate()}
@@ -97,9 +121,10 @@ export function ItineraryView({ itin }: { itin: ItineraryController }) {
               <button onClick={() => openNew()} className="text-sm text-[#888] hover:text-[#d4a853]">o agrega un momento manual</button>
             </div>
           ) : (
-            <p className="mt-3 text-xs text-[#bbb]">El organizador aun no ha creado el itinerario</p>
+            <p className="mt-3 text-xs text-[#bbb]">El organizador aún no ha creado el itinerario</p>
           )}
         </div>
+        {avisoFallo}
         {templateModal}
         {momentModal}
       </>
@@ -190,6 +215,7 @@ export function ItineraryView({ itin }: { itin: ItineraryController }) {
         </>
       )}
 
+      {avisoFallo}
       {templateModal}
       {momentModal}
     </div>

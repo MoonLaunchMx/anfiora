@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase'
 import { ItineraryMoment } from '@/lib/types'
 import { eventDays, groupByDay } from '@/lib/itinerary'
 import { useEventAccess } from '@/lib/event-access-context'
+import { interpretarEscritura } from '@/lib/invite/persistencia'
 import type { TemplateMoment } from '@/lib/itinerary-templates'
 import type { MomentDraft } from './MomentModal'
 
@@ -16,6 +17,11 @@ export interface ItineraryEventInfo {
   event_time?: string | null
   venue?: string | null
 }
+
+const NO_SE_PUDO_LEER = 'No se pudo cargar el itinerario. Revisa tu conexión y vuelve a intentarlo.'
+
+// Lo que devuelve cualquier consulta de Supabase una vez que le pedimos .select().
+type RespuestaSupabase = { error: { code?: string; message?: string } | null; data: unknown[] | null }
 
 // Estado compartido del itinerario: lo consumen tanto la barra superior
 // (ItineraryToolbar, montada en el header de la pagina) como el cuerpo
@@ -32,14 +38,19 @@ export function useItinerary(eventId: string, eventInfo: ItineraryEventInfo | nu
   const [newDate, setNewDate] = useState<string>('')
   const [templateDate, setTemplateDate] = useState<string>('')
   const [activeDay, setActiveDay] = useState<string>('')
+  const [fallo, setFallo] = useState<string | null>(null)
 
   const fetchMoments = useCallback(async () => {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('event_itinerary_moments')
       .select('*, event_supplier:event_supplier_id(id, supplier:supplier_id(id, name))')
       .eq('event_id', eventId)
       .order('moment_date', { ascending: true })
       .order('position', { ascending: true })
+    // Una lectura fallida y un itinerario vacio se ven igual si no separamos los casos:
+    // el planner creeria que no hay nada y lo armaria encima de lo que si existe.
+    if (error) { setFallo(NO_SE_PUDO_LEER); return }
+    setFallo(null)
     setMoments((data || []) as ItineraryMoment[])
   }, [eventId])
 
@@ -51,7 +62,8 @@ export function useItinerary(eventId: string, eventInfo: ItineraryEventInfo | nu
       .select('id, supplier:supplier_id(id, name)')
       .eq('event_id', eventId)
       .then(({ data }) => {
-        setSuppliers((data || []).map((s: any) => ({ id: s.id, name: s.supplier?.name || 'Proveedor' })))
+        const filas = (data || []) as unknown as { id: string; supplier: { name?: string } | null }[]
+        setSuppliers(filas.map(s => ({ id: s.id, name: s.supplier?.name || 'Proveedor' })))
       })
   }, [active, eventId, fetchMoments])
 
@@ -63,8 +75,18 @@ export function useItinerary(eventId: string, eventInfo: ItineraryEventInfo | nu
   const visibleCount = moments.filter(m => m.visible_to_guests).length
 
   // ── Persistencia en event_itinerary_moments ────────────────────────────────
+  // Toda escritura pasa por aqui. El .select() de cada llamada no es decorativo:
+  // un UPDATE o un DELETE filtrado por RLS devuelve cero filas y NINGUN error, asi
+  // que sin contar las filas un guardado rechazado se ve igual que uno exitoso.
+  const escribir = async (op: PromiseLike<RespuestaSupabase>): Promise<boolean> => {
+    const resultado = interpretarEscritura(await op)
+    if (!resultado.ok) { setFallo(resultado.motivo); return false }
+    setFallo(null)
+    return true
+  }
+
   const createMoment = async (data: MomentDraft) => {
-    await supabase.from('event_itinerary_moments').insert({
+    const ok = await escribir(supabase.from('event_itinerary_moments').insert({
       event_id: eventId,
       title: data.title,
       moment_date: data.moment_date,
@@ -77,12 +99,13 @@ export function useItinerary(eventId: string, eventInfo: ItineraryEventInfo | nu
       notes: data.notes,
       visible_to_guests: data.visible_to_guests,
       position: moments.length,
-    })
-    await fetchMoments()
+    }).select('id'))
+    if (ok) await fetchMoments()
+    return ok
   }
 
   const updateMoment = async (id: string, data: MomentDraft) => {
-    await supabase.from('event_itinerary_moments').update({
+    const ok = await escribir(supabase.from('event_itinerary_moments').update({
       title: data.title,
       moment_date: data.moment_date,
       start_time: data.start_time,
@@ -93,18 +116,26 @@ export function useItinerary(eventId: string, eventInfo: ItineraryEventInfo | nu
       assigned_to_name: data.assigned_to_name,
       notes: data.notes,
       visible_to_guests: data.visible_to_guests,
-    }).eq('id', id)
-    await fetchMoments()
+    }).eq('id', id).select('id'))
+    if (ok) await fetchMoments()
+    return ok
   }
 
   const deleteMoment = async (id: string) => {
-    await supabase.from('event_itinerary_moments').delete().eq('id', id)
-    await fetchMoments()
+    const ok = await escribir(supabase.from('event_itinerary_moments').delete().eq('id', id).select('id'))
+    if (ok) await fetchMoments()
+    return ok
   }
 
   const toggleVisible = async (m: ItineraryMoment) => {
-    setMoments(prev => prev.map(x => x.id === m.id ? { ...x, visible_to_guests: !x.visible_to_guests } : x))
-    await supabase.from('event_itinerary_moments').update({ visible_to_guests: !m.visible_to_guests }).eq('id', m.id)
+    const siguiente = !m.visible_to_guests
+    setMoments(prev => prev.map(x => x.id === m.id ? { ...x, visible_to_guests: siguiente } : x))
+    const ok = await escribir(
+      supabase.from('event_itinerary_moments').update({ visible_to_guests: siguiente }).eq('id', m.id).select('id'),
+    )
+    // El ojo ya se pinto: si la escritura no paso hay que devolverlo a como estaba,
+    // o la pantalla se queda diciendo algo que la base nunca guardo.
+    if (!ok) setMoments(prev => prev.map(x => x.id === m.id ? { ...x, visible_to_guests: !siguiente } : x))
   }
 
   const applyTemplate = async (gen: TemplateMoment[]) => {
@@ -123,14 +154,20 @@ export function useItinerary(eventId: string, eventInfo: ItineraryEventInfo | nu
       visible_to_guests: g.visible_to_guests,
       position: base + i,
     }))
-    if (rows.length > 0) await supabase.from('event_itinerary_moments').insert(rows)
+    if (rows.length === 0) { setShowGenerate(false); return true }
+    const ok = await escribir(supabase.from('event_itinerary_moments').insert(rows).select('id'))
+    if (!ok) return false
     setShowGenerate(false)
     await fetchMoments()
+    return true
   }
 
   const deleteDay = async (date: string) => {
-    await supabase.from('event_itinerary_moments').delete().eq('event_id', eventId).eq('moment_date', date)
-    await fetchMoments()
+    const ok = await escribir(
+      supabase.from('event_itinerary_moments').delete().eq('event_id', eventId).eq('moment_date', date).select('id'),
+    )
+    if (ok) await fetchMoments()
+    return ok
   }
 
   // ── Handlers UI ─────────────────────────────────────────────────────────────
@@ -139,14 +176,14 @@ export function useItinerary(eventId: string, eventInfo: ItineraryEventInfo | nu
   const closeModal = () => { setShowModal(false); setEditMoment(null) }
   const openTemplate = (date?: string) => { setTemplateDate(date || activeDay || days[0] || ''); setShowGenerate(true) }
 
+  // El modal solo se cierra si la escritura paso. Si no, se queda abierto con lo que
+  // el usuario escribio y el aviso flota encima explicando por que no se guardo.
   const handleSave = async (data: MomentDraft) => {
-    if (editMoment) await updateMoment(editMoment.id, data)
-    else await createMoment(data)
-    closeModal()
+    const ok = editMoment ? await updateMoment(editMoment.id, data) : await createMoment(data)
+    if (ok) closeModal()
   }
   const handleDelete = async (m: ItineraryMoment) => {
-    await deleteMoment(m.id)
-    closeModal()
+    if (await deleteMoment(m.id)) closeModal()
   }
   return {
     eventInfo,
@@ -167,6 +204,8 @@ export function useItinerary(eventId: string, eventInfo: ItineraryEventInfo | nu
     setActiveDay,
     showGenerate,
     setShowGenerate,
+    fallo,
+    descartarFallo: () => setFallo(null),
     openNew,
     openEdit,
     openTemplate,
