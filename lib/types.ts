@@ -95,7 +95,7 @@ export function formatEventDate(start: string | null | undefined, end?: string |
 
 // ─── EVENT ───────────────────────────────────────────────────────────────────
 
-export type EventStatus = 'active' | 'paused' | 'cancelled' | 'completed'
+export type EventStatus = 'active' | 'archived'
 
 export type Event = {
   id: string
