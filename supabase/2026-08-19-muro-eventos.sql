@@ -3,15 +3,45 @@
 -- Spec: docs/superpowers/specs/2026-08-19-muro-un-evento-a-la-vez-design.md
 --
 -- ORDEN OBLIGATORIO:
---   BLOQUE 1 (cupo)          -> se puede correr cuando sea, es inerte hasta que
---                               alguien intente crear el evento que no cabe.
---   BLOQUE 2 (solo lectura)  -> correr DESPUES del deploy, no antes: bloquea
---                               escrituras sobre eventos archivados.
+--   BLOQUE 0 (preflight)     -> correr PRIMERO, a mano, de solo lectura. Revisa
+--                               si hay un CHECK sobre events.event_status que
+--                               impida el valor 'archived'.
+--   BLOQUE 1 (cupo)          -> correr DESPUES del deploy, NO antes. No es
+--                               inerte: NewEventModal.tsx muestra el mensaje de
+--                               error de Postgres tal cual. Si este bloque corre
+--                               antes del deploy, un free con un evento vigente
+--                               que intenta crear el segundo ve literalmente
+--                               "Error al crear el evento: EVENT_LIMIT_EXCEEDED:2:1"
+--                               en el modal, sin muro ni explicacion, hasta que
+--                               el deploy aterrice.
+--   BLOQUE 2 (solo lectura)  -> correr DESPUES del deploy, no antes. Tampoco es
+--                               inerte: evento_editable ya devuelve false para
+--                               'paused'/'cancelled'/'completed', y esas filas
+--                               existen HOY en produccion, editables ahora mismo.
+--                               "pausado = solo lectura" entra en vigor apenas
+--                               corre este bloque, no cuando el BLOQUE 3 migre
+--                               los datos: quien este a media edicion de un
+--                               evento pausado se topa con EVENTO_ARCHIVADO en
+--                               su proximo guardado.
 --   BLOQUE 3 (migracion)     -> correr AL FINAL. Convierte paused/cancelled/
 --                               completed en archived.
 -- ============================================================================
 
+-- ========================= BLOQUE 0 — PRE-FLIGHT (A MANO) ===================
+-- Correr PRIMERO, de solo lectura. No es parte de la migracion, no modifica nada.
+--
+-- select conname, pg_get_constraintdef(oid) from pg_constraint where conrelid = 'events'::regclass;
+--
+-- Si aparece un CHECK que restringe event_status a los valores viejos
+-- ('active','paused','cancelled','completed'), hay que tirarlo o ampliarlo para
+-- permitir 'archived' ANTES de correr cualquier otra cosa de este archivo. Si
+-- no se hace, el BLOQUE 3 aborta Y las escrituras de 'archived' que ya hace la
+-- app desplegada empiezan a fallar: la feature nace muerta.
+
 -- ====================== BLOQUE 1 — CUPO DE EVENTOS ==========================
+-- Correr DESPUES de que el deploy este arriba (ver nota de orden obligatorio
+-- arriba): antes de eso, el error crudo de Postgres se le muestra al usuario
+-- en el modal de crear evento.
 
 -- Cuantos eventos vigentes lleva la cuenta y cuantos puede llevar.
 -- lim NULL = sin limite.
@@ -81,7 +111,9 @@ create trigger trg_events_gate_cupo
 grant execute on function get_account_capacity(uuid) to authenticated;
 
 -- ================== BLOQUE 2 — EVENTO ARCHIVADO = SOLO LECTURA ==============
--- Correr DESPUES de que el deploy este arriba.
+-- Correr DESPUES de que el deploy este arriba. No es inerte: paused/cancelled/
+-- completed ya existen en produccion y se vuelven de solo lectura apenas corre
+-- este bloque, no hasta que el BLOQUE 3 los migre a 'archived' mas tarde.
 
 create or replace function evento_editable(p_event_id uuid)
 returns boolean
@@ -118,6 +150,12 @@ end $$;
 -- asumia el spec, SI cuelga directo de event_id (columna NOT NULL en el
 -- schema de ANF-049, no via join a gift_registry_items). Verificado en
 -- app/api/mesa/[token]/route.ts y en el SQL original de la tabla.
+
+-- El loop toma ACCESS EXCLUSIVE sobre las 13 tablas y lo retiene hasta el
+-- commit. Si se atora esperando una consulta larga sobre alguna de ellas,
+-- falla rapido en vez de encolar todo detras: el remedio es volver a correr
+-- este bloque completo, es idempotente (drop trigger if exists + create).
+set lock_timeout = '3s';
 do $$
 declare t text;
 begin
