@@ -79,12 +79,16 @@ describe('reminderSkipReason', () => {
     expect(reminderSkipReason(task(), evento({ event_status: 'completed' }), now)).toBe('evento_no_activo')
   })
 
-  it('evento pausado: SI se envia, igual que hoy en los webhooks', () => {
-    expect(reminderSkipReason(task(), evento({ event_status: 'paused' }), now)).toBeNull()
+  it('evento pausado: se trata como archivado, no se envia', () => {
+    expect(reminderSkipReason(task(), evento({ event_status: 'paused' }), now)).toBe('evento_no_activo')
   })
 
   it('evento que no existe: no se envia', () => {
     expect(reminderSkipReason(task(), null, now)).toBe('evento_no_activo')
+  })
+
+  it('evento archivado: no se envia', () => {
+    expect(reminderSkipReason(task(), evento({ event_status: 'archived' }), now)).toBe('evento_no_activo')
   })
 
   it('tarea que ya paso: no se envia', () => {
