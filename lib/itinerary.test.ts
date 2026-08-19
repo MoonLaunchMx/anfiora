@@ -5,6 +5,7 @@ import {
   computeEndTime,
   formatDuration,
   formatMomentRange,
+  formatStartTime,
   sortMoments,
   curateForGuests,
   addDays,
@@ -87,6 +88,19 @@ describe('formatMomentRange', () => {
   })
   it('sin duracion muestra solo el inicio', () => {
     expect(formatMomentRange('18:00', null)).toBe('18:00')
+  })
+})
+
+describe('formatStartTime', () => {
+  it('solo la hora de inicio, nunca el rango', () => {
+    expect(formatStartTime('18:00')).toBe('18:00')
+    expect(formatStartTime('23:30')).toBe('23:30')
+  })
+  it('normaliza los segundos que vienen de postgres', () => {
+    expect(formatStartTime('09:05:00')).toBe('09:05')
+  })
+  it('una hora que no se puede leer se devuelve tal cual', () => {
+    expect(formatStartTime('abc')).toBe('abc')
   })
 })
 

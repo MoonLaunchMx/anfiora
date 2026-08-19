@@ -62,6 +62,13 @@ export function formatMomentRange(startTime: string, durationMin: number | null)
   return end ? `${start}–${end}` : start
 }
 
+// El movil no tiene ancho para el rango completo: la columna de hora se aprieta
+// a 44 px y ahi solo cabe el inicio. La duracion se muestra como chip en la tarjeta.
+export function formatStartTime(startTime: string): string {
+  const mins = parseTimeToMinutes(startTime)
+  return mins === null ? startTime : formatMinutesToHHMM(mins)
+}
+
 export function sortMoments<T extends { moment_date: string; start_time: string; position: number }>(moments: T[]): T[] {
   return [...moments].sort((a, b) => {
     if (a.moment_date !== b.moment_date) return a.moment_date < b.moment_date ? -1 : 1
