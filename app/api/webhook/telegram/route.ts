@@ -13,6 +13,7 @@ import {
   type TelegramUpdate,
 } from '@/lib/telegram/adapter'
 import { resolveStart, resolveByChat, type TelegramRoute } from '@/lib/telegram/routing'
+import { esArchivado } from '@/lib/events/estado'
 import { applyExtraction, resolveEscalation } from '@/lib/agent/apply'
 import { extractFromMessage, executeWritePlan } from '@/lib/agent/extraction'
 import { getAgentConfig } from '@/lib/agent/config'
@@ -74,7 +75,7 @@ async function processTelegramUpdate(
 
     if (!route) return await markProcessed(supabase, webhookEventId, 'sin clasificar')
 
-    if (route.eventStatus === 'cancelled' || route.eventStatus === 'completed') {
+    if (esArchivado(route.eventStatus)) {
       return await markProcessed(supabase, webhookEventId, `evento ${route.eventStatus}`)
     }
 
