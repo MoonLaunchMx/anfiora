@@ -15,7 +15,7 @@ import { TaskCard, CategoryIcon, CalendarTaskIcon, getUrgency, formatDateFull } 
 import { TaskModal } from './TaskModal'
 import { buildTimelineTasks } from './lib/templates'
 import { ItineraryView } from './ItineraryView'
-import { ItineraryToolbar } from './ItineraryToolbar'
+import { ItineraryAddButton, ItineraryToolbar } from './ItineraryToolbar'
 import { useItinerary } from './useItinerary'
 import { TabToggle, type TabItem } from '@/app/components/ui/TabToggle'
 import { Modal } from '@/app/components/ui/Modal'
@@ -510,8 +510,13 @@ export default function TimelinePage() {
           </div>
         </StatsCollapse>
 
-        <div className="mb-3 flex justify-center overflow-x-auto sm:justify-start">
+        <div className="mb-3 flex items-center justify-between gap-2 overflow-x-auto sm:justify-start">
           <TabToggle tabs={TIMELINE_SECTIONS} active={section} onChange={(k) => setSection(k as 'tareas' | 'itinerario')} />
+          {section === 'itinerario' && (
+            <div className="sm:hidden">
+              <ItineraryAddButton itin={itinerary} />
+            </div>
+          )}
         </div>
 
         {section === 'tareas' ? (
@@ -577,7 +582,7 @@ export default function TimelinePage() {
             </div>
           </div>
         ) : (
-          <div className="mb-3 flex items-center">
+          <div className="mb-3 hidden items-center sm:flex">
             <ItineraryToolbar itin={itinerary} />
           </div>
         )}
