@@ -11,6 +11,7 @@ import {
 import { FaWhatsapp } from 'react-icons/fa'
 import { GiftRegistryItem, GiftReservation, RegistryPaymentMethod, RegistryExternalLink, RegistryShippingAddress, normalizePaymentMethods } from '@/lib/types'
 import { TabToggle, type TabItem } from '@/app/components/ui/TabToggle'
+import { useConfirm } from '@/app/components/ui/ConfirmModal'
 import StatsCollapse, { useStatsToggle, StatsToggleButton } from '@/app/components/ui/StatsCollapse'
 import AddGiftModal, { NewGiftData, GIFT_CATEGORIES } from './AddGiftModal'
 import PaymentMethodModal, { payTypeMeta } from './PaymentMethodModal'
@@ -72,6 +73,7 @@ function MesaRegalosPageInner() {
   const { id } = useParams()
   const eventId = id as string
   const statsToggle = useStatsToggle(eventId, 'mesa-regalos')
+  const askConfirm  = useConfirm()
 
   const [items, setItems]               = useState<GiftRegistryItem[]>([])
   const [reservations, setReservations] = useState<GiftReservation[]>([])
@@ -139,7 +141,13 @@ function MesaRegalosPageInner() {
   }
 
   const handleDeleteMethod = async (id: string) => {
-    if (!confirm('¿Eliminar este método de pago?')) return
+    const metodo = payMethods.find(x => x.id === id)
+    const nombre = metodo ? (metodo.label?.trim() || metodo.bank?.trim() || payTypeMeta(metodo.type).label) : null
+    const ok = await askConfirm({
+      title: nombre ? `¿Eliminar ${nombre}?` : '¿Eliminar esta forma de regalar?',
+      message: 'Tus invitados dejarán de verla como opción para mandar su regalo en efectivo.',
+    })
+    if (!ok) return
     await persistMethods(payMethods.filter(x => x.id !== id))
   }
 
@@ -215,7 +223,15 @@ function MesaRegalosPageInner() {
   const closeModal = () => { setShowAdd(false); setEditing(null) }
 
   const handleDeleteGift = async (itemId: string) => {
-    if (!confirm('¿Eliminar este regalo de la mesa?')) return
+    const regalo = items.find(i => i.id === itemId)
+    const apartados = reservations.filter(r => r.item_id === itemId).length
+    const ok = await askConfirm({
+      title: regalo ? `¿Eliminar "${regalo.title}" de la mesa?` : '¿Eliminar este regalo de la mesa?',
+      message: apartados > 0
+        ? `${apartados === 1 ? 'Un invitado ya lo apartó' : `${apartados} invitados ya lo apartaron`}. También se borra ese registro.`
+        : 'Tus invitados dejarán de verlo en la mesa de regalos.',
+    })
+    if (!ok) return
     await supabase.from('gift_registry_items').delete().eq('id', itemId)
     setItems(prev => prev.filter(i => i.id !== itemId))
     setReservations(prev => prev.filter(r => r.item_id !== itemId))

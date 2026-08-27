@@ -1,5 +1,5 @@
 import type { DressCode } from '@/lib/dresscode'
-import type { RegistryPaymentMethod, Currency } from '@/lib/types'
+import type { RegistryPaymentMethod, Currency, GuestItineraryDay } from '@/lib/types'
 import type { ContactoPlanner } from '@/lib/invite/post-confirmacion'
 
 export type InviteGuest = {
@@ -20,7 +20,7 @@ export type InviteCtx = {
   guest: InviteGuest | null
   companions: InviteCompanion[]
   dressCode: DressCode | null
-  itinerary: { start_time: string; title: string; location: string | null }[]
+  itinerary: GuestItineraryDay[]
   tokens: { playlist: string | null; registry: string | null }
   mode: 'preview' | 'public' | 'compartida'
   onSubmit?: (payload: import('@/lib/invite').RsvpSubmission) => Promise<void>

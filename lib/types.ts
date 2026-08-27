@@ -763,6 +763,7 @@ export interface ItineraryMoment {
   event_id: string
   title: string
   start_time: string            // 'HH:MM' o 'HH:MM:SS'
+  moment_date: string           // 'YYYY-MM-DD'
   duration_min: number | null   // null = "hasta cierre"
   location: string | null
   phase: ItineraryPhase
@@ -779,6 +780,12 @@ export interface GuestItineraryItem {
   start_time: string
   title: string
   location: string | null
+}
+
+export interface GuestItineraryDay {
+  date: string                  // 'YYYY-MM-DD'
+  label: string                 // 'Sábado 13'
+  items: GuestItineraryItem[]
 }
 
 export type PushType = 'guest_replies' | 'task_reminders' | 'payment_due'

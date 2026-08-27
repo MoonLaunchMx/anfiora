@@ -10,11 +10,12 @@ import {
   LayoutList, Search, SlidersHorizontal, X, AlertTriangle, Clock,
 } from 'lucide-react'
 import StatsCollapse, { StatsToggleButton, useStatsToggle } from '@/app/components/ui/StatsCollapse'
+import { useConfirm } from '@/app/components/ui/ConfirmModal'
 import { TaskCard, CategoryIcon, CalendarTaskIcon, getUrgency, formatDateFull } from './TaskCard'
 import { TaskModal } from './TaskModal'
 import { buildTimelineTasks } from './lib/templates'
 import { ItineraryView } from './ItineraryView'
-import { ItineraryToolbar } from './ItineraryToolbar'
+import { ItineraryAddButton, ItineraryToolbar } from './ItineraryToolbar'
 import { useItinerary } from './useItinerary'
 import { TabToggle, type TabItem } from '@/app/components/ui/TabToggle'
 import { Modal } from '@/app/components/ui/Modal'
@@ -169,6 +170,7 @@ export default function TimelinePage() {
   const router          = useRouter()
 
   const { visible: statsVisible, toggle: toggleStats } = useStatsToggle(eventId, 'timeline')
+  const askConfirm = useConfirm()
 
   const [tasks, setTasks]             = useState<TimelineTask[]>([])
   const [loading, setLoading]         = useState(true)
@@ -185,7 +187,7 @@ export default function TimelinePage() {
   const [search, setSearch]           = useState('')
   const [filterCat, setFilterCat]     = useState('')
   const [showFilters, setShowFilters] = useState(false)
-  const [eventInfo, setEventInfo]     = useState<{ event_date: string | null; event_type: string | null; event_category: string | null; event_time: string | null } | null>(null)
+  const [eventInfo, setEventInfo]     = useState<{ event_date: string | null; event_end_date: string | null; event_type: string | null; event_category: string | null; event_time: string | null } | null>(null)
   const [generating, setGenerating]   = useState(false)
 
   const itinEventInfo = useMemo(
@@ -232,7 +234,7 @@ export default function TimelinePage() {
   useEffect(() => {
     supabase
       .from('events')
-      .select('event_date, event_type, event_category, event_time')
+      .select('event_date, event_end_date, event_type, event_category, event_time')
       .eq('id', eventId)
       .single()
       .then(({ data }) => { if (data) setEventInfo(data) })
@@ -256,7 +258,15 @@ export default function TimelinePage() {
 
   const handleGeneratePlan = async () => {
     if (!eventInfo?.event_date || generating) return
-    if (tasks.length > 0 && !window.confirm('Se agregarán las tareas sugeridas que falten para tu tipo de evento (las que ya existan no se duplican). ¿Continuar?')) return
+    if (tasks.length > 0) {
+      const ok = await askConfirm({
+        title: '¿Agregar las tareas sugeridas?',
+        message: 'Se suman las que falten para tu tipo de evento. Las que ya tienes no se duplican.',
+        confirmLabel: 'Agregar',
+        tone: 'default',
+      })
+      if (!ok) return
+    }
     setGenerating(true)
     const existing = new Set(tasks.map(t => t.title.toLowerCase()))
     const rows = buildTimelineTasks(eventId, eventInfo.event_type, eventInfo.event_category, eventInfo.event_date, existing)
@@ -500,8 +510,13 @@ export default function TimelinePage() {
           </div>
         </StatsCollapse>
 
-        <div className="mb-3 flex justify-center overflow-x-auto sm:justify-start">
+        <div className="mb-3 flex items-center justify-between gap-2 overflow-x-auto sm:justify-start">
           <TabToggle tabs={TIMELINE_SECTIONS} active={section} onChange={(k) => setSection(k as 'tareas' | 'itinerario')} />
+          {section === 'itinerario' && (
+            <div className="sm:hidden">
+              <ItineraryAddButton itin={itinerary} />
+            </div>
+          )}
         </div>
 
         {section === 'tareas' ? (
@@ -567,7 +582,7 @@ export default function TimelinePage() {
             </div>
           </div>
         ) : (
-          <div className="mb-3 flex items-center">
+          <div className="mb-3 hidden items-center sm:flex">
             <ItineraryToolbar itin={itinerary} />
           </div>
         )}

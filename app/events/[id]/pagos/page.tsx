@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import StatsCollapse, { useStatsToggle, StatsToggleButton } from '@/app/components/ui/StatsCollapse'
 import { Modal } from '@/app/components/ui/Modal'
+import { useConfirm } from '@/app/components/ui/ConfirmModal'
 import { exportPagosToExcel, exportPagosToPDF } from './lib/exports'
 
 type Pago = {
@@ -127,6 +128,8 @@ export default function PagosPage() {
   const [collapsed, setCollapsed]           = useState<Set<string>>(new Set())
   const [sortField, setSortField]           = useState<SortField>('payment_date')
   const [sortDir, setSortDir]               = useState<SortDir>('desc')
+
+  const askConfirm = useConfirm()
 
   const [modalOpen, setModalOpen]           = useState(false)
   const [editingPago, setEditingPago]       = useState<Pago | null>(null)
@@ -357,7 +360,11 @@ export default function PagosPage() {
 
   const handleDeletePago = async () => {
     if (!editingPago) return
-    if (!confirm('¿Eliminar este pago? Esta accion no se puede deshacer.')) return
+    const ok = await askConfirm({
+      title: `¿Eliminar el pago de ${fmt(editingPago.amount, currency)}?`,
+      message: `Bajará el total pagado a ${editingPago.supplier_name}. No se puede deshacer.`,
+    })
+    if (!ok) return
     setDeleting(true)
     try {
       const { error } = await supabase.from('supplier_payments').delete().eq('id', editingPago.id)

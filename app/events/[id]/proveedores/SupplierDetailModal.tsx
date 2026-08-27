@@ -19,6 +19,7 @@ import {
 import PhoneInput from '@/app/components/ui/PhoneInput'
 import { toWhatsApp, detectCountry, dialCode } from '@/lib/phone'
 import { Modal } from '@/app/components/ui/Modal'
+import { useConfirm } from '@/app/components/ui/ConfirmModal'
 
 const INPUT_CLASS = 'rounded-lg border border-[#e8e8e8] bg-white px-3 py-2 text-base text-[#1D1E20] outline-none transition-colors focus:border-[#48C9B0]'
 
@@ -40,6 +41,7 @@ export default function SupplierDetailModal({
   item, eventId, currency, budgets, onClose, onSaved, onDeleted, onReviewNeeded,
 }: Props) {
   const router = useRouter()
+  const askConfirm = useConfirm()
 
   const [name, setName]             = useState(item.supplier.name)
   const [category, setCategory]     = useState<BudgetCategory>(item.supplier.category)
@@ -189,7 +191,14 @@ export default function SupplierDetailModal({
   }
 
   const handleDelete = async () => {
-    if (!confirm(`¿Eliminar a ${item.supplier.name} de este evento?`)) return
+    const ok = await askConfirm({
+      title: `¿Quitar a ${item.supplier.name} de este evento?`,
+      message: payments.length > 0
+        ? `Se borran ${payments.length === 1 ? 'el pago registrado' : `los ${payments.length} pagos registrados`} y su vínculo con el presupuesto. El proveedor sigue en tu catálogo para otros eventos.`
+        : 'Se borra su vínculo con el presupuesto de este evento. El proveedor sigue en tu catálogo para otros eventos.',
+      confirmLabel: 'Quitar del evento',
+    })
+    if (!ok) return
     setDeleting(true)
     try {
       const { error } = await supabase.from('event_suppliers').delete().eq('id', item.id)
@@ -225,7 +234,12 @@ export default function SupplierDetailModal({
       const projectedTotal = totalPaid - previousAmount + amt
       if (projectedTotal > contractNum) {
         const excess = projectedTotal - contractNum
-        const ok = confirm(`Este pago hará que excedas el monto contratado por ${formatCurrency(excess, currency)}.\n\n¿Continuar de todos modos?`)
+        const ok = await askConfirm({
+          title: 'Este pago rebasa lo contratado',
+          message: `Vas a pagar ${formatCurrency(excess, currency)} de más a ${item.supplier.name}. Registra el pago si el monto acordado cambió.`,
+          confirmLabel: 'Registrar de todos modos',
+          tone: 'default',
+        })
         if (!ok) return
       }
     }
@@ -251,7 +265,12 @@ export default function SupplierDetailModal({
   }
 
   const handleDeletePayment = async (paymentId: string) => {
-    if (!confirm('¿Eliminar este pago?')) return
+    const pago = payments.find(p => p.id === paymentId)
+    const ok = await askConfirm({
+      title: pago ? `¿Eliminar el pago de ${formatCurrency(pago.amount, currency)}?` : '¿Eliminar este pago?',
+      message: `Bajará el total pagado a ${item.supplier.name}. No se puede deshacer.`,
+    })
+    if (!ok) return
     const { error } = await supabase.from('supplier_payments').delete().eq('id', paymentId)
     if (error) { alert('No se pudo eliminar'); return }
     setPayments(prev => prev.filter(p => p.id !== paymentId))

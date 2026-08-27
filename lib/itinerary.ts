@@ -1,8 +1,4 @@
-import type { ItineraryMoment, ItineraryPhase, GuestItineraryItem } from './types'
-
-// Hora de corte del "día del evento": los momentos antes de esta hora se ordenan
-// como madrugada del día siguiente (ej. la fiesta a la 01:00 va despues de la cena).
-export const DAY_START_HOUR = 6
+import type { ItineraryMoment, ItineraryPhase, GuestItineraryDay } from './types'
 
 export const ITINERARY_PHASES: ItineraryPhase[] = [
   'montaje', 'ceremonia', 'social', 'cena', 'fiesta', 'otro',
@@ -66,31 +62,97 @@ export function formatMomentRange(startTime: string, durationMin: number | null)
   return end ? `${start}–${end}` : start
 }
 
-export function momentOrderMinutes(startTime: string): number {
+// El movil no tiene ancho para el rango completo: la columna de hora se aprieta
+// a 44 px y ahi solo cabe el inicio. La duracion se muestra como chip en la tarjeta.
+export function formatStartTime(startTime: string): string {
   const mins = parseTimeToMinutes(startTime)
-  if (mins === null) return Number.MAX_SAFE_INTEGER
-  const h = Math.floor(mins / 60)
-  return h < DAY_START_HOUR ? mins + 24 * 60 : mins
+  return mins === null ? startTime : formatMinutesToHHMM(mins)
 }
 
-export function sortMoments<T extends { start_time: string; position: number }>(moments: T[]): T[] {
+export function sortMoments<T extends { moment_date: string; start_time: string; position: number }>(moments: T[]): T[] {
   return [...moments].sort((a, b) => {
-    const ka = momentOrderMinutes(a.start_time)
-    const kb = momentOrderMinutes(b.start_time)
-    if (ka !== kb) return ka - kb
+    if (a.moment_date !== b.moment_date) return a.moment_date < b.moment_date ? -1 : 1
+    const ta = parseTimeToMinutes(a.start_time) ?? Number.MAX_SAFE_INTEGER
+    const tb = parseTimeToMinutes(b.start_time) ?? Number.MAX_SAFE_INTEGER
+    if (ta !== tb) return ta - tb
     return a.position - b.position
   })
 }
 
-type CurateInput = Pick<ItineraryMoment, 'start_time' | 'title' | 'location' | 'visible_to_guests' | 'position'>
+type CurateInput = Pick<ItineraryMoment, 'moment_date' | 'start_time' | 'title' | 'location' | 'visible_to_guests' | 'position'>
 
-export function curateForGuests(moments: CurateInput[]): GuestItineraryItem[] {
-  return sortMoments(moments.filter(m => m.visible_to_guests)).map(m => {
-    const mins = parseTimeToMinutes(m.start_time)
-    return {
-      start_time: mins === null ? m.start_time : formatMinutesToHHMM(mins),
-      title: m.title,
-      location: m.location,
-    }
-  })
+export function curateForGuests(moments: CurateInput[], days: string[]): GuestItineraryDay[] {
+  const { inRange } = groupByDay(moments.filter(m => m.visible_to_guests), days)
+  return inRange
+    .filter(g => g.moments.length > 0)
+    .map(g => {
+      const { dow, num } = dayLabel(g.date)
+      return {
+        date: g.date,
+        label: `${dow} ${num.split(' ')[0]}`,
+        items: g.moments.map(m => {
+          const mins = parseTimeToMinutes(m.start_time)
+          return {
+            start_time: mins === null ? m.start_time : formatMinutesToHHMM(mins),
+            title: m.title,
+            location: m.location,
+          }
+        }),
+      }
+    })
+}
+
+export function addDays(iso: string, n: number): string {
+  const d = new Date(`${iso}T00:00:00Z`)
+  d.setUTCDate(d.getUTCDate() + n)
+  return d.toISOString().slice(0, 10)
+}
+
+export function eventDays(eventDate: string | null, eventEndDate: string | null): string[] {
+  if (!eventDate) return []
+  const start = eventDate.slice(0, 10)
+  const end = eventEndDate ? eventEndDate.slice(0, 10) : start
+  if (end <= start) return [start]
+  const days: string[] = []
+  for (let cur = start; cur <= end; cur = addDays(cur, 1)) days.push(cur)
+  return days
+}
+
+// Los nombres de días y meses se hardcodean en vez de usar toLocaleDateString porque
+// el runtime de Node en CI no siempre trae el locale 'es' completo. Esto garantiza
+// consistencia incluso en entornos de construcción minimalistas.
+const DOW = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado']
+const MONTH = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
+
+export function dayLabel(iso: string): { dow: string; num: string } {
+  const d = new Date(`${iso.slice(0, 10)}T00:00:00Z`)
+  return {
+    dow: DOW[d.getUTCDay()],
+    num: `${d.getUTCDate()} ${MONTH[d.getUTCMonth()]}`,
+  }
+}
+
+export interface DayGroup<T> {
+  date: string
+  moments: T[]
+}
+
+export function groupByDay<T extends { moment_date: string; start_time: string; position: number }>(
+  moments: T[],
+  days: string[],
+): { inRange: DayGroup<T>[]; orphans: DayGroup<T>[] } {
+  const sorted = sortMoments(moments)
+  const inRange: DayGroup<T>[] = days.map(date => ({ date, moments: [] }))
+  const byDate = new Map(inRange.map(g => [g.date, g]))
+  const orphanMap = new Map<string, DayGroup<T>>()
+
+  for (const m of sorted) {
+    const target = byDate.get(m.moment_date)
+    if (target) { target.moments.push(m); continue }
+    let group = orphanMap.get(m.moment_date)
+    if (!group) { group = { date: m.moment_date, moments: [] }; orphanMap.set(m.moment_date, group) }
+    group.moments.push(m)
+  }
+
+  return { inRange, orphans: [...orphanMap.values()].sort((a, b) => a.date < b.date ? -1 : 1) }
 }

@@ -8,6 +8,7 @@ import { Guest } from '@/lib/types'
 import { Plus, Trash2, ChevronDown, ChevronUp, X, List, Map as MapIcon, Printer, Search, LayoutGrid, ArrowLeft, LayoutPanelLeft, RotateCw } from 'lucide-react'
 import StatsCollapse, { StatsToggleButton, useStatsToggle } from '@/app/components/ui/StatsCollapse'
 import { Modal } from '@/app/components/ui/Modal'
+import { useConfirm } from '@/app/components/ui/ConfirmModal'
 
 // ─── CONSTANTES ───────────────────────────────
 const STATUS_COLORS: Record<string, { bg: string; border: string; text: string; label: string }> = {
@@ -1215,6 +1216,7 @@ function MesasPageInner() {
 
   // Toggle de estadísticas en mobile (persiste por evento en localStorage)
   const { visible: statsVisible, toggle: toggleStats } = useStatsToggle(eventId as string, 'tables')
+  const askConfirm = useConfirm()
 
   const [tables,setTables]=useState<TableRecord[]>([])
   const [guests,setGuests]=useState<GuestFull[]>([])
@@ -1437,7 +1439,17 @@ function MesasPageInner() {
     else await supabase.from('tables').insert({event_id:eventId,number:num,name:mName||null,capacity:cap,shape:mShape,rotation:0})
     await loadTables();setShowModal(false);setMSaving(false)
   }
-  const handleDeleteTable=async(t:TableRecord)=>{if(!confirm(`¿Eliminar Mesa ${t.number}${t.name?' — '+t.name:''}?`))return;await supabase.from('tables').delete().eq('id',t.id);setTables(p=>p.filter(x=>x.id!==t.id))}
+  const handleDeleteTable=async(t:TableRecord)=>{
+    const sentados=getOccupied(t)
+    const ok=await askConfirm({
+      title:`¿Eliminar la Mesa ${t.number}${t.name?' — '+t.name:''}?`,
+      message:sentados>0
+        ?`${sentados===1?'La persona sentada ahí vuelve':`Las ${sentados} personas sentadas ahí vuelven`} a la lista sin mesa. Nadie se borra del evento.`
+        :'La mesa está vacía, no afecta a ningún invitado.',
+    })
+    if(!ok)return
+    await supabase.from('tables').delete().eq('id',t.id);setTables(p=>p.filter(x=>x.id!==t.id))
+  }
 
   const previewNums=(count:number)=>{const u=new Set(tables.map(t=>t.number));const r:number[]=[];let n=1;while(r.length<count){if(!u.has(n))r.push(n);n++};return r}
   const handleBulk=async()=>{
@@ -1471,7 +1483,15 @@ function MesasPageInner() {
     await supabase.from('table_seats').insert({table_id:toTableId,event_id:eventId,seat_number:next,guest_id:guest.id,party_size:need})
     await loadTables();setMoveModal(null);setMoveSaving(false)
   }
-  const removeGuest=async(seatId:string,name:string)=>{if(!confirm(`¿Quitar a ${name}?`))return;await supabase.from('table_seats').delete().eq('id',seatId);await loadTables()}
+  const removeGuest=async(seatId:string,name:string)=>{
+    const ok=await askConfirm({
+      title:`¿Quitar a ${name} de esta mesa?`,
+      message:'Vuelve a la lista de invitados sin mesa. No se borra del evento.',
+      confirmLabel:'Quitar',
+    })
+    if(!ok)return
+    await supabase.from('table_seats').delete().eq('id',seatId);await loadTables()
+  }
   const handlePosSave=async(id:string,x:number,y:number)=>{
     await supabase.from('tables').update({position_x:x,position_y:y}).eq('id',id)
     setTables(p=>p.map(t=>t.id===id?{...t,position_x:x,position_y:y}:t))
