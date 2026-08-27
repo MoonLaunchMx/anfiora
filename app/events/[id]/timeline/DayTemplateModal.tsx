@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { Modal } from '@/app/components/ui/Modal'
+import TimePicker from '@/app/components/ui/TimePicker'
 import { dayLabel } from '@/lib/itinerary'
 import { dayTypesFor, templateFor, expandTemplate, type DayTypeKey, type TemplateMoment } from '@/lib/itinerary-templates'
 
@@ -146,12 +147,9 @@ export function DayTemplateModal({ eventType, date, days, countByDate, onClose, 
         <p className="pb-2 pt-5 text-xs font-semibold text-[#666]">¿A qué hora empieza?</p>
         <div className="flex items-center gap-2">
           <div className="flex-1 rounded-xl border border-[#e0e0e0] bg-[#f8f8f8] px-3 py-2 text-sm text-[#666]">{tpl.anchorLabel}</div>
-          <input
-            type="time"
-            value={anchor}
-            onChange={e => setAnchor(e.target.value)}
-            className="w-[108px] shrink-0 rounded-xl border border-[#e0e0e0] bg-[#f8f8f8] px-2 py-2 text-center text-base tabular-nums focus:border-[#d4a853] focus:outline-none"
-          />
+          <div className="w-[150px] shrink-0">
+            <TimePicker value={anchor} onChange={setAnchor} />
+          </div>
         </div>
         <p className="pt-2 text-[11px] text-[#bbb]">Todo lo demás se acomoda solo a partir de esa hora.</p>
       </Modal.Body>
