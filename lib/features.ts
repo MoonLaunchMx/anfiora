@@ -33,14 +33,21 @@ export interface FeatureConfig {
   navPaths: string[]
 }
 
+// Mismo orden en que aparecen en el nav del evento
 export const FEATURES: FeatureConfig[] = [
+  { key: 'invitacion', label: 'Invitación',           description: 'Invitación digital por invitado con confirmación de asistencia', icon: MailOpen,      navPaths: ['/invitacion'] },
   { key: 'mesas',    label: 'Mesas y check-in',      description: 'Asigna lugares y registra llegadas el día del evento',        icon: LayoutGrid,      navPaths: ['/mesas'] },
   { key: 'regalos',  label: 'Mesa de regalos',        description: 'Regalos, fondos y sobres con un link público para invitados', icon: Gift,            navPaths: ['/mesa-regalos'] },
   { key: 'album',    label: 'Álbum de fotos',         description: 'Tus invitados suben fotos escaneando un QR',                  icon: Images,          navPaths: ['/album'] },
   { key: 'playlist', label: 'Playlist',               description: 'Playlist colaborativa con sugerencias de los invitados',      icon: Music2,          navPaths: ['/playlist'] },
-  { key: 'comida',   label: 'Planificador de comida', description: 'Planea menú y compras por persona y por día',                 icon: UtensilsCrossed, navPaths: ['/comida'] },
   { key: 'vestimenta', label: 'Dress code',           description: 'Comparte qué ponerse: nivel, colores y recomendaciones',      icon: Shirt,           navPaths: ['/vestimenta'] },
-  { key: 'invitacion', label: 'Invitación',           description: 'Invitación digital por invitado con confirmación de asistencia', icon: MailOpen,      navPaths: ['/invitacion'] },
+]
+
+// Comida esta retirada del catalogo (1-sep-2026): no se ofrece ni se puede
+// activar, pero la ruta y los datos quedan intactos para el futuro feature de
+// banquete. resolveFeatures la fuerza apagada aunque la DB la tenga en true.
+export const HIDDEN_FEATURES: FeatureConfig[] = [
+  { key: 'comida',   label: 'Planificador de comida', description: 'Planea menú y compras por persona y por día',                 icon: UtensilsCrossed, navPaths: ['/comida'] },
 ]
 
 export const ALWAYS_ON_FEATURES = ['Invitados', 'Mensajes', 'Timeline', 'Finanzas'] as const
@@ -60,7 +67,7 @@ export function getDefaultFeatures(eventTypeValue: string | null): Record<Featur
     regalos:  defaults.includes('regalos'),
     album:    defaults.includes('album'),
     playlist: defaults.includes('playlist'),
-    comida:   defaults.includes('comida'),
+    comida:   false,
     vestimenta: defaults.includes('vestimenta'),
     invitacion: defaults.includes('invitacion'),
   }
@@ -77,7 +84,7 @@ export function resolveFeatures(
     regalos:  enabled.regalos  ?? defaults.regalos,
     album:    enabled.album    ?? defaults.album,
     playlist: enabled.playlist ?? defaults.playlist,
-    comida:   enabled.comida   ?? defaults.comida,
+    comida:   false,
     vestimenta: enabled.vestimenta ?? defaults.vestimenta,
     invitacion: enabled.invitacion ?? defaults.invitacion,
   }

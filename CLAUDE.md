@@ -83,7 +83,7 @@ El nav usa un sistema de **NavEntry** con dos tipos: `item` simple y `group` con
 - **Sidebar desktop expandido:** grupos muestran header de texto + sub-items indentados
 - **Sidebar desktop colapsado:** grupos colapsan en un ícono → navega a `defaultPath`
 - **Bottom nav mobile:** grupos colapsan igual, navega a `defaultPath`
-- `Comida` está disponible en ruta pero **no aparece en el nav** (acceso directo o legacy)
+- `Comida` está **retirada del catálogo** (`HIDDEN_FEATURES` en `lib/features.ts`): no se ofrece al crear evento ni en Configuración, `resolveFeatures` la fuerza apagada aunque la DB la tenga en true, y la ruta `/comida` sigue viva pero sin botón de activar. Se conserva para el futuro feature de banquete — no borrar página ni datos.
 
 ## Data Layer
 
