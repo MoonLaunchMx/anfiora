@@ -481,7 +481,6 @@ export function NewEventModal({ open, onClose, onCreated }: NewEventModalProps) 
 
   const renderStep4 = () => {
     if (!eventType) return null
-    const defaults = getDefaultFeatures(eventType.value)
 
     return (
       <div className="flex flex-col gap-4">
@@ -520,14 +519,7 @@ export function NewEventModal({ open, onClose, onCreated }: NewEventModalProps) 
                     <Icon size={18} className={on ? 'text-[#0F6E56]' : 'text-[#888]'} />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-medium text-[#1D1E20]">{f.label}</p>
-                      {defaults[f.key] && (
-                        <span className="rounded-full border border-[#f0e2c0] bg-[#fffbf0] px-2 py-0.5 text-[10px] font-semibold text-[#c49a3a]">
-                          Recomendado
-                        </span>
-                      )}
-                    </div>
+                    <p className="text-sm font-medium text-[#1D1E20]">{f.label}</p>
                     <p className="mt-0.5 text-xs text-[#888]">{f.description}</p>
                   </div>
                   <div className={'relative h-6 w-11 shrink-0 rounded-full transition ' + (on ? 'bg-[#48C9B0]' : 'bg-[#e0e0e0]')}>

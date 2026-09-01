@@ -12,7 +12,7 @@ import PhoneInput from '@/app/components/ui/PhoneInput'
 import { TabToggle, type TabItem } from '@/app/components/ui/TabToggle'
 import { useConfirm } from '@/app/components/ui/ConfirmModal'
 import { useEventAccess } from '@/lib/event-access-context'
-import { FEATURES, ALWAYS_ON_FEATURES, getDefaultFeatures, type FeatureKey } from '@/lib/features'
+import { FEATURES, ALWAYS_ON_FEATURES, type FeatureKey } from '@/lib/features'
 import { Copy, Check, UserPlus, X, Shield, Pencil, Eye, Settings2, MessageCircle, Users, Smartphone, Gem, Crown, Cake, GraduationCap, Sun, PartyPopper, Wine, CalendarDays, Presentation, Monitor, UsersRound, Rocket, Building2, Tent, Mic, Flame, HeartHandshake, type LucideIcon } from 'lucide-react'
 
 // ─── Constantes ──────────────────────────────────────────────────────────────
@@ -914,7 +914,6 @@ export default function ConfiguracionPage() {
                     {FEATURES.map(f => {
                       const Icon = f.icon
                       const on = features[f.key]
-                      const recommended = getDefaultFeatures(eventType)[f.key]
                       return (
                         <button
                           key={f.key}
@@ -930,14 +929,7 @@ export default function ConfiguracionPage() {
                             <Icon size={18} className={on ? 'text-[#0F6E56]' : 'text-[#888]'} />
                           </div>
                           <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-2">
-                              <p className="text-sm font-medium text-[#1D1E20]">{f.label}</p>
-                              {recommended && (
-                                <span className="rounded-full border border-[#f0e2c0] bg-[#fffbf0] px-2 py-0.5 text-[10px] font-semibold text-[#c49a3a]">
-                                  Recomendado
-                                </span>
-                              )}
-                            </div>
+                            <p className="text-sm font-medium text-[#1D1E20]">{f.label}</p>
                             <p className="mt-0.5 text-xs text-[#888]">{f.description}</p>
                           </div>
                           {featureSaving === f.key ? (
