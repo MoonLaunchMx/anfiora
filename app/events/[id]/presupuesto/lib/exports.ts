@@ -206,8 +206,9 @@ export function downloadImportTemplate(opts: { categories: string[]; eventType: 
     [],
     ['Notas:'],
     ['- La columna "Categoria" agrupa tus conceptos; usa las que ya vienen en la lista.'],
-    ['- Puedes dejar el monto en blanco; lo defines despues en la app.'],
-    ['- Al importar no se duplican los conceptos que ya tengas.'],
+    ['- Un concepto que ya tengas NO se duplica: el import te ofrece actualizarle el monto.'],
+    ['- Si dejas el monto en blanco, el que ya tengas en la app no se toca.'],
+    ['- Antes de guardar veras la lista completa con el monto anterior y el nuevo.'],
   ]
   const wsInstr = XLSX.utils.aoa_to_sheet(instrucciones)
   wsInstr['!cols'] = [{ wch: 70 }]
