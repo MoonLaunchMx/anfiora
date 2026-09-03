@@ -62,7 +62,6 @@ export default function PresupuestoPage() {
   const [importSuccess, setImportSuccess]     = useState('')
   const [avisoArchivo, setAvisoArchivo]       = useState('')
   const [importing, setImporting]             = useState(false)
-  const [importMode, setImportMode]           = useState<'todos' | 'nuevos'>('todos')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const [selectedSupplier, setSelectedSupplier] = useState<EventSupplierWithName | null>(null)
@@ -260,7 +259,6 @@ export default function PresupuestoPage() {
         const bajan = resumenImport(plan).bajan > 0
         setAvisoArchivo(avisoArchivoViejo(fechaDelArchivo(todasLasFilas), new Date(), bajan) ?? '')
         setImportPlan(plan)
-        setImportMode('todos')
         setImportModalOpen(true)
       } catch (err: any) {
         setImportError('Error leyendo el archivo. Asegúrate de que sea un .xlsx válido.')
@@ -281,9 +279,7 @@ export default function PresupuestoPage() {
     setImportSuccess('')
     try {
       const nuevos = importPlan.filter(f => f.accion === 'agregar')
-      const cambios = importMode === 'todos'
-        ? importPlan.filter(f => f.accion === 'actualizar')
-        : []
+      const cambios = importPlan.filter(f => f.accion === 'actualizar')
 
       if (nuevos.length === 0 && cambios.length === 0) { setImportModalOpen(false); return }
 
@@ -473,16 +469,14 @@ export default function PresupuestoPage() {
 
   const currency: Currency = event.currency || 'MXN'
   const conteoImport   = resumenImport(importPlan)
-  const porEscribir    = importMode === 'todos'
-    ? conteoImport.agregar + conteoImport.actualizar
-    : conteoImport.agregar
+  const porEscribir    = conteoImport.agregar + conteoImport.actualizar
   const pesos          = (n: number) => `$${Math.abs(n).toLocaleString('es-MX')}`
   const titularImport  = (() => {
     const partes: string[] = []
     if (conteoImport.agregar > 0) {
       partes.push(`agregar ${conteoImport.agregar} concepto${conteoImport.agregar !== 1 ? 's' : ''}`)
     }
-    if (importMode === 'todos' && conteoImport.actualizar > 0) {
+    if (conteoImport.actualizar > 0) {
       partes.push(`cambiar ${conteoImport.actualizar} monto${conteoImport.actualizar !== 1 ? 's' : ''}`)
     }
     if (partes.length === 0) return 'Con este archivo no cambia nada de tu presupuesto.'
@@ -738,7 +732,7 @@ export default function PresupuestoPage() {
 
             <p className="text-xs font-medium text-[#1D1E20]">{titularImport}</p>
 
-            {importMode === 'todos' && (conteoImport.bajan > 0 || conteoImport.suben > 0) && (
+            {(conteoImport.bajan > 0 || conteoImport.suben > 0) && (
               <p className="text-xs text-[#666]">
                 {conteoImport.bajan > 0 && (
                   <span className="font-semibold text-amber-700">
@@ -758,35 +752,11 @@ export default function PresupuestoPage() {
               </p>
             )}
 
-            {conteoImport.actualizar > 0 && (
-              <div className="flex gap-2 pt-1">
-                <button
-                  onClick={() => setImportMode('todos')}
-                  className={`flex-1 rounded-lg border px-3 py-2 text-xs font-medium transition ${
-                    importMode === 'todos'
-                      ? 'border-[#1D1E20] bg-[#1D1E20] text-white'
-                      : 'border-[#e0e0e0] bg-white text-[#555] hover:border-[#1D1E20]'
-                  }`}
-                >
-                  Agregar y actualizar montos
-                </button>
-                <button
-                  onClick={() => setImportMode('nuevos')}
-                  className={`flex-1 rounded-lg border px-3 py-2 text-xs font-medium transition ${
-                    importMode === 'nuevos'
-                      ? 'border-[#1D1E20] bg-[#1D1E20] text-white'
-                      : 'border-[#e0e0e0] bg-white text-[#555] hover:border-[#1D1E20]'
-                  }`}
-                >
-                  Solo agregar los nuevos
-                </button>
-              </div>
-            )}
           </div>
 
           <div className="space-y-1">
             {importPlan.map((fila, idx) => {
-              const omitida  = fila.accion === 'sin_cambios' || (importMode === 'nuevos' && fila.accion === 'actualizar')
+              const omitida  = fila.accion === 'sin_cambios'
               const monto    = (n: number) => n > 0 ? `$${n.toLocaleString('es-MX')}` : '—'
 
               if (fila.candidato) {

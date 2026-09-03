@@ -210,7 +210,7 @@ export function downloadImportTemplate(opts: { categories: string[]; eventType: 
     [],
     ['Notas:'],
     ['- La columna "Categoria" agrupa tus conceptos; usa las que ya vienen en la lista.'],
-    ['- Un concepto que ya tengas NO se duplica: el import te ofrece actualizarle el monto.'],
+    ['- Un concepto que ya tengas NO se duplica: se le actualiza el monto.'],
     ['- Si dejas el monto en blanco, el que ya tengas en la app no se toca.'],
     ['- Borrar filas aqui NO borra nada en la app; eso se hace desde Anfiora.'],
     ['- Si le cambias el nombre a un concepto, el import te preguntara si es el mismo.'],
