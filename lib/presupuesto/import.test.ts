@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest'
-import { leerMonto, planearImport, resumenImport, mensajeImportado } from './import'
+import {
+  leerMonto, planearImport, resumenImport, mensajeImportado,
+  sonParecidos, decidirRenombre, fechaDelArchivo, avisoArchivoViejo, selloDeFecha,
+} from './import'
 
 const partida = (id: string, category: string, subcategory: string, budget_amount: number) =>
   ({ id, category, subcategory, budget_amount })
@@ -209,6 +212,139 @@ describe('planearImport', () => {
   })
 })
 
+describe('sonParecidos', () => {
+  it('reconoce cuando uno esta contenido en el otro', () => {
+    expect(sonParecidos('Vestido', 'Vestido de novia')).toBe(true)
+    expect(sonParecidos('DJ y audio', 'DJ')).toBe(true)
+  })
+
+  it('reconoce cuando comparten la mayoria de las palabras', () => {
+    expect(sonParecidos('Vestdio de novia', 'Vestido de novia')).toBe(true)
+    expect(sonParecidos('Menú 3 tiempos', 'Menu de 3 tiempos')).toBe(true)
+  })
+
+  it('no confunde conceptos distintos', () => {
+    expect(sonParecidos('Vestido de novia', 'Ramo de novia')).toBe(false)
+    expect(sonParecidos('Pastel', 'Mesa de dulces')).toBe(false)
+    expect(sonParecidos('DJ', 'Mariachi')).toBe(false)
+  })
+
+  it('no se engancha de palabras cortas o vacias', () => {
+    expect(sonParecidos('Renta de sillas', 'Renta de mesas')).toBe(false)
+    expect(sonParecidos('', 'Vestido')).toBe(false)
+  })
+})
+
+describe('planearImport: conceptos que se parecen a uno que ya existe', () => {
+  it('propone el candidato en vez de meterlo callado', () => {
+    const plan = planearImport(
+      [{ categoria: 'Imagen', concepto: 'Vestido', monto: 45000 }],
+      [partida('p1', 'Imagen', 'Vestido de novia', 30000)],
+      ['Imagen'],
+    )
+    expect(plan[0].accion).toBe('agregar')
+    expect(plan[0].candidato).toEqual({
+      id: 'p1', categoria: 'Imagen', concepto: 'Vestido de novia', montoActual: 30000,
+    })
+  })
+
+  it('no propone nada cuando el concepto es de verdad nuevo', () => {
+    const plan = planearImport(
+      [{ categoria: 'Imagen', concepto: 'Ramo de novia', monto: 3000 }],
+      [partida('p1', 'Imagen', 'Vestido de novia', 30000)],
+      ['Imagen'],
+    )
+    expect(plan[0].candidato).toBeNull()
+  })
+
+  it('no cruza categorias: solo propone dentro de la misma', () => {
+    const plan = planearImport(
+      [{ categoria: 'Venue', concepto: 'Vestido', monto: 45000 }],
+      [partida('p1', 'Imagen', 'Vestido de novia', 30000)],
+      ['Venue', 'Imagen'],
+    )
+    expect(plan[0].candidato).toBeNull()
+  })
+
+  it('no ofrece un concepto que otra fila del archivo ya reclamo', () => {
+    const plan = planearImport(
+      [
+        { categoria: 'Imagen', concepto: 'Vestido de novia', monto: 45000 },
+        { categoria: 'Imagen', concepto: 'Vestido', monto: 12000 },
+      ],
+      [partida('p1', 'Imagen', 'Vestido de novia', 30000)],
+      ['Imagen'],
+    )
+    expect(plan[0].accion).toBe('actualizar')
+    expect(plan[1].accion).toBe('agregar')
+    expect(plan[1].candidato).toBeNull()
+  })
+
+  it('ofrece cada concepto existente una sola vez', () => {
+    const plan = planearImport(
+      [
+        { categoria: 'Imagen', concepto: 'Vestido', monto: 45000 },
+        { categoria: 'Imagen', concepto: 'Vestido novia', monto: 12000 },
+      ],
+      [partida('p1', 'Imagen', 'Vestido de novia', 30000)],
+      ['Imagen'],
+    )
+    expect(plan[0].candidato?.id).toBe('p1')
+    expect(plan[1].candidato).toBeNull()
+  })
+})
+
+describe('decidirRenombre', () => {
+  const conCandidato = () => planearImport(
+    [{ categoria: 'Imagen', concepto: 'Vestido', monto: 45000 }],
+    [partida('p1', 'Imagen', 'Vestido de novia', 30000)],
+    ['Imagen'],
+  )[0]
+
+  it('al decir que es el mismo, actualiza esa partida y conserva el nombre del planner', () => {
+    const fila = decidirRenombre(conCandidato(), true)
+    expect(fila.accion).toBe('actualizar')
+    expect(fila.partidaId).toBe('p1')
+    expect(fila.concepto).toBe('Vestido de novia')
+    expect(fila.montoNuevo).toBe(45000)
+    expect(fila.montoActual).toBe(30000)
+  })
+
+  it('al decir que es otro, vuelve a entrar como concepto nuevo', () => {
+    const fila = decidirRenombre(decidirRenombre(conCandidato(), true), false)
+    expect(fila.accion).toBe('agregar')
+    expect(fila.partidaId).toBeNull()
+    expect(fila.concepto).toBe('Vestido')
+    expect(fila.montoNuevo).toBe(45000)
+    expect(fila.candidato?.id).toBe('p1')
+  })
+
+  it('si es el mismo y el monto coincide, no hay nada que escribir', () => {
+    const fila = decidirRenombre(
+      planearImport(
+        [{ categoria: 'Imagen', concepto: 'Vestido', monto: 30000 }],
+        [partida('p1', 'Imagen', 'Vestido de novia', 30000)],
+        ['Imagen'],
+      )[0],
+      true,
+    )
+    expect(fila.accion).toBe('sin_cambios')
+  })
+
+  it('si es el mismo y el Excel venia sin monto, no toca el monto', () => {
+    const fila = decidirRenombre(
+      planearImport(
+        [{ categoria: 'Imagen', concepto: 'Vestido', monto: null }],
+        [partida('p1', 'Imagen', 'Vestido de novia', 30000)],
+        ['Imagen'],
+      )[0],
+      true,
+    )
+    expect(fila.accion).toBe('sin_cambios')
+    expect(fila.montoNuevo).toBe(30000)
+  })
+})
+
 describe('el caso que reporto Diego', () => {
   it('un presupuesto sin montos + un Excel con montos no marca todo como duplicado muerto', () => {
     const existentes = [
@@ -226,7 +362,7 @@ describe('el caso que reporto Diego', () => {
       ['Venue', 'Banquete', 'Imagen'],
     )
 
-    expect(resumenImport(plan)).toEqual({ agregar: 0, actualizar: 3, sinCambios: 0 })
+    expect(resumenImport(plan)).toMatchObject({ agregar: 0, actualizar: 3, sinCambios: 0 })
     expect(plan.map(f => f.partidaId)).toEqual(['p1', 'p2', 'p3'])
     expect(plan.map(f => f.montoNuevo)).toEqual([180000, 950, 45000])
   })
@@ -245,8 +381,105 @@ describe('el caso que reporto Diego', () => {
       ['Venue', 'Banquete'],
     )
 
-    expect(resumenImport(plan)).toEqual({ agregar: 0, actualizar: 0, sinCambios: 2 })
+    expect(resumenImport(plan)).toMatchObject({ agregar: 0, actualizar: 0, sinCambios: 2 })
     expect(plan.map(f => f.montoNuevo)).toEqual([180000, 950])
+  })
+})
+
+describe('resumenImport: cuanto sube y cuanto baja', () => {
+  it('separa los montos que bajan de los que suben', () => {
+    const plan = planearImport(
+      [
+        { categoria: 'Venue', concepto: 'Jardín', monto: 150000 },
+        { categoria: 'Venue', concepto: 'Mobiliario', monto: 40000 },
+      ],
+      [
+        partida('p1', 'Venue', 'Jardín', 180000),
+        partida('p2', 'Venue', 'Mobiliario', 25000),
+      ],
+      ['Venue'],
+    )
+    expect(resumenImport(plan)).toMatchObject({
+      actualizar: 2, bajan: 1, suben: 1, totalBaja: 30000, totalSube: 15000,
+    })
+  })
+
+  it('cuenta aparte los conceptos que hay que revisar', () => {
+    const plan = planearImport(
+      [{ categoria: 'Imagen', concepto: 'Vestido', monto: 45000 }],
+      [partida('p1', 'Imagen', 'Vestido de novia', 30000)],
+      ['Imagen'],
+    )
+    expect(resumenImport(plan)).toMatchObject({ agregar: 1, porRevisar: 1 })
+  })
+
+  it('deja de contarlo por revisar una vez que el planner decide', () => {
+    const plan = planearImport(
+      [{ categoria: 'Imagen', concepto: 'Vestido', monto: 45000 }],
+      [partida('p1', 'Imagen', 'Vestido de novia', 30000)],
+      ['Imagen'],
+    ).map(f => decidirRenombre(f, true))
+    expect(resumenImport(plan)).toMatchObject({ actualizar: 1, porRevisar: 0 })
+  })
+})
+
+describe('selloDeFecha', () => {
+  it('escribe la fecha en un formato que un humano entiende y nosotros podemos leer', () => {
+    expect(selloDeFecha(new Date(2026, 8, 3, 14, 32))).toBe('2026-09-03 14:32')
+    expect(selloDeFecha(new Date(2026, 0, 9, 7, 5))).toBe('2026-01-09 07:05')
+  })
+
+  it('lo que sellamos es exactamente lo que volvemos a leer', () => {
+    const cuando = new Date(2026, 7, 13, 9, 15)
+    const leida = fechaDelArchivo([['Generado', selloDeFecha(cuando)]])
+    expect(leida?.getTime()).toBe(cuando.getTime())
+  })
+})
+
+describe('fechaDelArchivo', () => {
+  it('encuentra el sello que ponemos al generar el archivo', () => {
+    const filas = [
+      ['Anfiora'],
+      ['Presupuesto del evento'],
+      ['Generado', '2026-08-01 09:15'],
+      [],
+      ['Categoría', 'Concepto', 'Estimado'],
+    ]
+    expect(fechaDelArchivo(filas)?.getFullYear()).toBe(2026)
+    expect(fechaDelArchivo(filas)?.getMonth()).toBe(7)
+    expect(fechaDelArchivo(filas)?.getDate()).toBe(1)
+  })
+
+  it('devuelve null cuando el archivo no trae sello', () => {
+    expect(fechaDelArchivo([['Categoría', 'Concepto', 'Estimado']])).toBeNull()
+    expect(fechaDelArchivo([['Generado', 'ayer']])).toBeNull()
+    expect(fechaDelArchivo([])).toBeNull()
+  })
+})
+
+describe('avisoArchivoViejo', () => {
+  const ahora = new Date('2026-09-03T12:00:00')
+
+  it('avisa cuando el archivo tiene semanas y ademas baja montos', () => {
+    const aviso = avisoArchivoViejo(new Date('2026-08-13T12:00:00'), ahora, true)
+    expect(aviso).toContain('hace 3 semanas')
+    expect(aviso).toContain('revertir')
+  })
+
+  it('no avisa si el archivo es de esta semana', () => {
+    expect(avisoArchivoViejo(new Date('2026-09-01T12:00:00'), ahora, true)).toBeNull()
+  })
+
+  it('no avisa si nada baja, por viejo que sea el archivo', () => {
+    expect(avisoArchivoViejo(new Date('2026-05-01T12:00:00'), ahora, false)).toBeNull()
+  })
+
+  it('no avisa cuando no hay sello que leer', () => {
+    expect(avisoArchivoViejo(null, ahora, true)).toBeNull()
+  })
+
+  it('habla en meses cuando el archivo es muy viejo', () => {
+    expect(avisoArchivoViejo(new Date('2026-06-03T12:00:00'), ahora, true)).toContain('hace 3 meses')
   })
 })
 
@@ -283,6 +516,6 @@ describe('resumenImport', () => {
       ],
       ['Venue', 'Imagen'],
     )
-    expect(resumenImport(plan)).toEqual({ agregar: 1, actualizar: 1, sinCambios: 1 })
+    expect(resumenImport(plan)).toMatchObject({ agregar: 1, actualizar: 1, sinCambios: 1 })
   })
 })

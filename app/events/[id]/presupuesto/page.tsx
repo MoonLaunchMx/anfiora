@@ -9,7 +9,10 @@ import {
   Event, EventBudget, Currency, EventSupplier, Supplier,
 } from '@/lib/types'
 import { getEventCategories, categoryLabel } from './lib/categories'
-import { leerMonto, planearImport, resumenImport, mensajeImportado, FilaPlan } from '@/lib/presupuesto/import'
+import {
+  leerMonto, planearImport, resumenImport, mensajeImportado,
+  decidirRenombre, fechaDelArchivo, avisoArchivoViejo, FilaPlan,
+} from '@/lib/presupuesto/import'
 import { interpretarEscritura } from '@/lib/invite/persistencia'
 import { BudgetCategoriesModal } from './BudgetCategoriesModal'
 import { ImportStepsModal } from '@/app/components/ui/ImportStepsModal'
@@ -57,6 +60,7 @@ export default function PresupuestoPage() {
   const [importPlan, setImportPlan]           = useState<FilaPlan[]>([])
   const [importError, setImportError]         = useState('')
   const [importSuccess, setImportSuccess]     = useState('')
+  const [avisoArchivo, setAvisoArchivo]       = useState('')
   const [importing, setImporting]             = useState(false)
   const [importMode, setImportMode]           = useState<'todos' | 'nuevos'>('todos')
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -194,11 +198,15 @@ export default function PresupuestoPage() {
         const data = new Uint8Array(ev.target?.result as ArrayBuffer)
         const wb   = XLSX.read(data, { type: 'array' })
 
-        // Buscar entre TODAS las hojas la que tenga la fila de encabezados (Categoria)
+        // Buscar entre TODAS las hojas la que tenga la fila de encabezados (Categoria).
+        // Se guardan todas las filas porque el sello de fecha puede vivir en otra hoja.
         let raw: any[] = []
         let headerIdx = -1
+        const todasLasFilas: any[][] = []
         for (const sheetName of wb.SheetNames) {
           const sheetRows = XLSX.utils.sheet_to_json<any>(wb.Sheets[sheetName], { header: 1 })
+          todasLasFilas.push(...sheetRows)
+          if (headerIdx !== -1) continue
           for (let i = 0; i < sheetRows.length; i++) {
             const row = (sheetRows[i] || []).map((c: any) => String(c || '').toLowerCase())
             if (row.includes('categoria') || row.includes('categoría')) {
@@ -207,7 +215,6 @@ export default function PresupuestoPage() {
               break
             }
           }
-          if (headerIdx !== -1) break
         }
 
         if (headerIdx === -1) {
@@ -250,6 +257,8 @@ export default function PresupuestoPage() {
           return
         }
 
+        const bajan = resumenImport(plan).bajan > 0
+        setAvisoArchivo(avisoArchivoViejo(fechaDelArchivo(todasLasFilas), new Date(), bajan) ?? '')
         setImportPlan(plan)
         setImportMode('todos')
         setImportModalOpen(true)
@@ -260,6 +269,10 @@ export default function PresupuestoPage() {
     }
     reader.readAsArrayBuffer(file)
     e.target.value = ''
+  }
+
+  const decidirFila = (indice: number, esElMismo: boolean) => {
+    setImportPlan(prev => prev.map((f, i) => i === indice ? decidirRenombre(f, esElMismo) : f))
   }
 
   const handleImport = async () => {
@@ -463,6 +476,18 @@ export default function PresupuestoPage() {
   const porEscribir    = importMode === 'todos'
     ? conteoImport.agregar + conteoImport.actualizar
     : conteoImport.agregar
+  const pesos          = (n: number) => `$${Math.abs(n).toLocaleString('es-MX')}`
+  const titularImport  = (() => {
+    const partes: string[] = []
+    if (conteoImport.agregar > 0) {
+      partes.push(`agregar ${conteoImport.agregar} concepto${conteoImport.agregar !== 1 ? 's' : ''}`)
+    }
+    if (importMode === 'todos' && conteoImport.actualizar > 0) {
+      partes.push(`cambiar ${conteoImport.actualizar} monto${conteoImport.actualizar !== 1 ? 's' : ''}`)
+    }
+    if (partes.length === 0) return 'Con este archivo no cambia nada de tu presupuesto.'
+    return `Vas a ${partes.join(' y ')}.`
+  })()
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -700,19 +725,41 @@ export default function PresupuestoPage() {
       <Modal open={importModalOpen} onClose={() => setImportModalOpen(false)} size="lg">
         <Modal.Header
           title="Importar presupuesto"
-          subtitle={[
-            conteoImport.agregar > 0    && `${conteoImport.agregar} por agregar`,
-            conteoImport.actualizar > 0 && `${conteoImport.actualizar} con monto nuevo`,
-            conteoImport.sinCambios > 0 && `${conteoImport.sinCambios} sin cambios`,
-          ].filter(Boolean).join(' · ')}
+          subtitle={`${importPlan.length} concepto${importPlan.length !== 1 ? 's' : ''} en el archivo`}
         />
         <Modal.Body>
-          {conteoImport.actualizar > 0 && (
-            <div className="-mx-5 -mt-4 mb-4 border-b border-[#f0f0f0] bg-[#fafafa] px-5 py-3">
-              <p className="mb-2 text-xs text-[#666]">
-                {conteoImport.actualizar} concepto{conteoImport.actualizar !== 1 ? 's' : ''} que ya tienes trae{conteoImport.actualizar !== 1 ? 'n' : ''} un monto distinto en el Excel.
+          <div className="-mx-5 -mt-4 mb-4 space-y-2 border-b border-[#f0f0f0] bg-[#fafafa] px-5 py-3">
+            {avisoArchivo && (
+              <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+                <AlertTriangle size={14} className="mt-px shrink-0 text-amber-500" />
+                <p className="text-xs text-amber-800">{avisoArchivo}</p>
+              </div>
+            )}
+
+            <p className="text-xs font-medium text-[#1D1E20]">{titularImport}</p>
+
+            {importMode === 'todos' && (conteoImport.bajan > 0 || conteoImport.suben > 0) && (
+              <p className="text-xs text-[#666]">
+                {conteoImport.bajan > 0 && (
+                  <span className="font-semibold text-amber-700">
+                    {conteoImport.bajan} baja{conteoImport.bajan !== 1 ? 'n' : ''} (−{pesos(conteoImport.totalBaja)})
+                  </span>
+                )}
+                {conteoImport.bajan > 0 && conteoImport.suben > 0 && <span className="text-[#ccc]"> · </span>}
+                {conteoImport.suben > 0 && (
+                  <span>{conteoImport.suben} sube{conteoImport.suben !== 1 ? 'n' : ''} (+{pesos(conteoImport.totalSube)})</span>
+                )}
               </p>
-              <div className="flex gap-2">
+            )}
+
+            {conteoImport.porRevisar > 0 && (
+              <p className="text-xs text-amber-800">
+                {conteoImport.porRevisar} concepto{conteoImport.porRevisar !== 1 ? 's se parecen' : ' se parece'} a algo que ya tienes. Revísalo{conteoImport.porRevisar !== 1 ? 's' : ''} abajo antes de guardar.
+              </p>
+            )}
+
+            {conteoImport.actualizar > 0 && (
+              <div className="flex gap-2 pt-1">
                 <button
                   onClick={() => setImportMode('todos')}
                   className={`flex-1 rounded-lg border px-3 py-2 text-xs font-medium transition ${
@@ -734,13 +781,61 @@ export default function PresupuestoPage() {
                   Solo agregar los nuevos
                 </button>
               </div>
-            </div>
-          )}
+            )}
+          </div>
 
           <div className="space-y-1">
             {importPlan.map((fila, idx) => {
               const omitida  = fila.accion === 'sin_cambios' || (importMode === 'nuevos' && fila.accion === 'actualizar')
               const monto    = (n: number) => n > 0 ? `$${n.toLocaleString('es-MX')}` : '—'
+
+              if (fila.candidato) {
+                const esElMismo = fila.partidaId !== null
+                return (
+                  <div key={idx} className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+                    <div className="flex items-center gap-3 text-xs">
+                      <AlertTriangle size={13} className="shrink-0 text-amber-500" />
+                      <span className="w-28 shrink-0 truncate text-[#888]">{categoryLabel(fila.categoria)}</span>
+                      <span className="flex-1 truncate font-medium text-[#1D1E20]">{fila.concepto}</span>
+                      {esElMismo && fila.accion === 'actualizar' ? (
+                        <span className="flex shrink-0 items-center gap-1.5 tabular-nums">
+                          <span className="text-[#bbb] line-through">{monto(fila.montoActual ?? 0)}</span>
+                          <ArrowRight size={11} className="text-[#ccc]" />
+                          <span className="font-semibold text-[#1D1E20]">{monto(fila.montoNuevo)}</span>
+                        </span>
+                      ) : (
+                        <span className="shrink-0 tabular-nums text-[#888]">{monto(fila.montoNuevo)}</span>
+                      )}
+                    </div>
+                    <div className="mt-2 flex flex-wrap items-center gap-2 pl-6">
+                      <span className="text-[11px] text-amber-800">
+                        ¿Es el mismo que <strong className="font-semibold">{fila.candidato.concepto}</strong>?
+                      </span>
+                      <button
+                        onClick={() => decidirFila(idx, true)}
+                        className={`rounded-full border px-2.5 py-1 text-[11px] font-medium transition ${
+                          esElMismo
+                            ? 'border-[#1D1E20] bg-[#1D1E20] text-white'
+                            : 'border-amber-300 bg-white text-amber-800 hover:border-[#1D1E20]'
+                        }`}
+                      >
+                        Es el mismo
+                      </button>
+                      <button
+                        onClick={() => decidirFila(idx, false)}
+                        className={`rounded-full border px-2.5 py-1 text-[11px] font-medium transition ${
+                          !esElMismo
+                            ? 'border-[#1D1E20] bg-[#1D1E20] text-white'
+                            : 'border-amber-300 bg-white text-amber-800 hover:border-[#1D1E20]'
+                        }`}
+                      >
+                        Es otro concepto
+                      </button>
+                    </div>
+                  </div>
+                )
+              }
+
               return (
                 <div
                   key={idx}
