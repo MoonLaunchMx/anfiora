@@ -7,6 +7,10 @@ import { MoreHorizontal, AlertTriangle } from 'lucide-react'
 import { activas, cargarCategorias, type Categoria } from '@/lib/rolodex/categorias-store'
 import { parecidas, puedeEliminarse, type CategoriaConUso } from '@/lib/rolodex/vocabulario-admin'
 
+function plural(n: number, singular: string, otros: string): string {
+  return `${n} ${n === 1 ? singular : otros}`
+}
+
 function contarPor(filas: { category_id: string | null }[]): Map<string, number> {
   const conteo = new Map<string, number>()
   for (const fila of filas) {
@@ -120,7 +124,7 @@ export default function CategoriasPage() {
               <p className={`text-xs ${c.oculta ? 'text-[#bbb]' : 'text-[#888]'}`}>
                 {puedeEliminarse(c.uso)
                   ? 'Nadie la usa'
-                  : `${c.uso.proveedores} proveedores · ${c.uso.partidas} partidas`}
+                  : `${plural(c.uso.proveedores, 'proveedor', 'proveedores')} · ${plural(c.uso.partidas, 'partida', 'partidas')}`}
               </p>
               <button
                 type="button"
