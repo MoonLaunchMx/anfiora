@@ -1,11 +1,12 @@
 'use client'
 
+import { ChevronDown } from 'lucide-react'
 import { MODULOS_CONFIG, NIVELES, type Modulo, type Nivel, type PermisosEvento } from '@/lib/permisos/catalogo'
 import type { FeatureKey } from '@/lib/features'
 
 const GRUPOS = [
-  { key: 'boda'         as const, label: 'Esenciales de la boda' },
-  { key: 'herramientas' as const, label: 'Experiencia del evento' },
+  { key: 'boda'         as const, label: 'Esenciales' },
+  { key: 'herramientas' as const, label: 'Herramientas' },
   { key: 'finanzas'     as const, label: 'Finanzas' },
 ]
 
@@ -36,67 +37,62 @@ export function PermisosEditor({ permisos, features, onChange }: Props) {
   }
 
   return (
-    <div className="flex flex-col gap-3">
-      {GRUPOS.map(grupo => {
+    <div>
+      {GRUPOS.map((grupo, i) => {
         const modulos = MODULOS_CONFIG.filter(m => m.grupo === grupo.key)
         if (modulos.length === 0) return null
 
         return (
-          <div key={grupo.key} className="overflow-hidden rounded-xl border border-[#e8e8e8] bg-white">
-            <div className="flex items-center justify-between border-b border-[#f0f0f0] bg-[#fafafa] px-4 py-2">
-              <span className="text-[10px] font-bold uppercase tracking-[0.09em] text-[#999]">
-                {grupo.label}
-              </span>
-              <span className="text-[10px] font-bold uppercase tracking-[0.09em] text-[#bbb]">
-                Permiso
-              </span>
-            </div>
+          <div key={grupo.key}>
+            <p className={`pb-1 text-[10.5px] font-bold uppercase tracking-[0.1em] text-[#c2c1bb] ${i === 0 ? 'pt-1' : 'pt-5'}`}>
+              {grupo.label}
+            </p>
 
-            <div className="divide-y divide-[#f4f4f4]">
-              {modulos.map(m => {
-                const Icono = m.icon
-                const prendida = estaPrendida(m.key)
-                const nivel: Nivel = prendida ? (permisos[m.key] ?? 'ninguno') : 'ninguno'
+            {modulos.map(m => {
+              const prendida = estaPrendida(m.key)
+              const nivel: Nivel = prendida ? (permisos[m.key] ?? 'ninguno') : 'ninguno'
 
-                return (
-                  <div
-                    key={m.key}
-                    className={`flex items-center justify-between gap-3 px-4 py-2.5 ${prendida ? '' : 'opacity-55'}`}
-                  >
-                    <div className="flex min-w-0 items-center gap-2.5">
-                      <Icono size={15} className="shrink-0 text-[#999]" />
-                      <div className="min-w-0">
-                        <p className="text-[13px] font-semibold leading-tight text-[#0a0a0a]">{m.label}</p>
-                        <p className="truncate text-[11px] leading-tight text-[#999]">{m.descripcion}</p>
-                      </div>
-                    </div>
+              return (
+                <div
+                  key={m.key}
+                  className="flex items-center gap-3 border-b border-[#f4f4f4] py-1.5 last:border-b-0"
+                >
+                  <span className={`min-w-0 flex-1 truncate text-[13.5px] ${prendida ? 'text-[#0a0a0a]' : 'text-[#c2c1bb]'}`}>
+                    {m.label}
+                  </span>
 
-                    {prendida ? (
+                  {prendida ? (
+                    <span className="relative shrink-0">
                       <select
                         value={nivel}
                         onChange={e => poner(m.key, e.target.value as Nivel)}
                         aria-label={`Permiso de ${m.label}`}
                         className={[
-                          'shrink-0 cursor-pointer rounded-lg border px-2.5 py-1 text-[12px] font-semibold',
-                          'focus:outline-none focus:ring-2 focus:ring-[#48C9B0]/30',
+                          'cursor-pointer appearance-none rounded-md border border-transparent bg-transparent',
+                          'py-1 pl-2 pr-6 text-right text-[13px] font-medium',
+                          'hover:border-[#e8e8e8] focus:border-[#48C9B0] focus:outline-none',
                           nivel === 'total'
-                            ? 'border-[#d4a853] bg-[#fffbf0] text-[#b0842c]'
+                            ? 'font-semibold text-[#9a7220]'
                             : nivel === 'ninguno'
-                              ? 'border-[#e8e8e8] bg-white text-[#999]'
-                              : 'border-[#e8e8e8] bg-white text-[#0a0a0a]',
+                              ? 'text-[#c2c1bb]'
+                              : 'text-[#666]',
                         ].join(' ')}
                       >
                         {NIVELES.map(n => (
                           <option key={n} value={n}>{ETIQUETA_NIVEL[n]}</option>
                         ))}
                       </select>
-                    ) : (
-                      <span className="shrink-0 text-[11px] text-[#bbb]">No está activa en esta boda</span>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
+                      <ChevronDown
+                        size={11}
+                        className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 text-[#c2c1bb]"
+                      />
+                    </span>
+                  ) : (
+                    <span className="shrink-0 text-[12px] text-[#c2c1bb]">Apagada en esta boda</span>
+                  )}
+                </div>
+              )
+            })}
           </div>
         )
       })}

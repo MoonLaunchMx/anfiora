@@ -17,7 +17,8 @@ import { logAction } from '@/lib/audit'
 import { PermisosEditor } from './PermisosEditor'
 import { normalizarPermisos, resumir } from '@/lib/permisos/resolver'
 import type { PermisosEvento } from '@/lib/permisos/catalogo'
-import { Copy, Check, UserPlus, X, Shield, Pencil, Eye, Settings2, MessageCircle, Users, Smartphone, Gem, Crown, Cake, GraduationCap, Sun, PartyPopper, Wine, CalendarDays, Presentation, Monitor, UsersRound, Rocket, Building2, Tent, Mic, Flame, HeartHandshake, SlidersHorizontal, ChevronDown, type LucideIcon } from 'lucide-react'
+import { Modal } from '@/app/components/ui/Modal'
+import { Copy, Check, UserPlus, X, Shield, Pencil, Eye, Settings2, MessageCircle, Users, Smartphone, Gem, Crown, Cake, GraduationCap, Sun, PartyPopper, Wine, CalendarDays, Presentation, Monitor, UsersRound, Rocket, Building2, Tent, Mic, Flame, HeartHandshake, ChevronRight, type LucideIcon } from 'lucide-react'
 
 // ─── Constantes ──────────────────────────────────────────────────────────────
 
@@ -1164,50 +1165,31 @@ export default function ConfiguracionPage() {
                         </div>
 
                         {(() => {
-                          const permisos = normalizarPermisos(c.permisos)
-                          const r = resumir({ esDuenoDelEvento: false, rolCuenta: null, permisos, features })
-                          const abierto = editandoPermisos === c.id
+                          const r = resumir({
+                            esDuenoDelEvento: false,
+                            rolCuenta: null,
+                            permisos: normalizarPermisos(c.permisos),
+                            features,
+                          })
 
                           return (
-                            <div className="mt-2">
-                              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                                <span className="text-[12px] font-semibold text-[#0a0a0a]">{r.etiqueta}</span>
-                                <span className="text-[12px] text-[#bbb]">·</span>
-                                <span className="text-[12px] text-[#666]">
-                                  {r.entra === 0 ? 'No entra a esta boda' : `${r.entra} de 12 herramientas`}
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setBorrador(permisos)
-                                    setEditandoPermisos(abierto ? null : c.id)
-                                  }}
-                                  className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-[#e8e8e8] bg-white px-2.5 py-1 text-[12px] font-semibold text-[#666] hover:bg-[#f8f8f8]"
-                                >
-                                  <SlidersHorizontal size={12} className="text-[#999]" />
-                                  {abierto ? 'Cerrar' : 'Ajustar permisos'}
-                                  <ChevronDown size={12} className={`text-[#bbb] transition-transform ${abierto ? 'rotate-180' : ''}`} />
-                                </button>
-                              </div>
-
-                              {abierto && (
-                                <div className="mt-3 rounded-xl border border-[#e8e8e8] bg-[#fafafa] p-3">
-                                  <PermisosEditor permisos={borrador} features={features} onChange={setBorrador} />
-                                  <div className="mt-3 flex items-center justify-between gap-3">
-                                    <span className="text-[11px] text-[#999]">
-                                      Los cambios se guardan hasta que aprietes el botón.
-                                    </span>
-                                    <button
-                                      type="button"
-                                      disabled={guardando}
-                                      onClick={() => guardarPermisos(c.id)}
-                                      className="rounded-lg bg-[#48C9B0] px-4 py-2 text-[13px] font-semibold text-[#08312a] disabled:opacity-60"
-                                    >
-                                      {guardando ? 'Guardando…' : 'Guardar accesos'}
-                                    </button>
-                                  </div>
-                                </div>
-                              )}
+                            <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1">
+                              <span className="text-[12.5px] font-semibold text-[#0a0a0a]">{r.etiqueta}</span>
+                              <span className="text-[12.5px] text-[#ccc]">·</span>
+                              <span className="text-[12.5px] text-[#666]">
+                                {r.entra === 0 ? 'No entra a esta boda' : `${r.entra} de 12 herramientas`}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setBorrador(normalizarPermisos(c.permisos))
+                                  setEditandoPermisos(c.id)
+                                }}
+                                className="ml-auto inline-flex items-center gap-1 text-[12.5px] font-semibold text-[#666] transition hover:text-[#0a0a0a]"
+                              >
+                                Ajustar
+                                <ChevronRight size={12} className="text-[#bbb]" />
+                              </button>
                             </div>
                           )
                         })()}
@@ -1216,6 +1198,40 @@ export default function ConfiguracionPage() {
                   })}
                 </div>
               )}
+
+              {(() => {
+                const c = collaborators.find(x => x.id === editandoPermisos)
+                if (!c) return null
+
+                return (
+                  <Modal open onClose={() => setEditandoPermisos(null)} size="md">
+                    <Modal.Header
+                      title={`Accesos de ${c.email}`}
+                      subtitle="Se guarda hasta que aprietes el botón"
+                    />
+                    <Modal.Body>
+                      <PermisosEditor permisos={borrador} features={features} onChange={setBorrador} />
+                    </Modal.Body>
+                    <Modal.Footer>
+                      <button
+                        type="button"
+                        onClick={() => setEditandoPermisos(null)}
+                        className="rounded-lg border border-[#e0e0e0] px-4 py-2 text-sm text-[#888] transition hover:bg-[#f5f5f5]"
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        type="button"
+                        disabled={guardando}
+                        onClick={() => guardarPermisos(c.id)}
+                        className="ml-auto rounded-lg bg-[#48C9B0] px-4 py-2 text-sm font-semibold text-[#08312a] transition disabled:opacity-60"
+                      >
+                        {guardando ? 'Guardando…' : 'Guardar accesos'}
+                      </button>
+                    </Modal.Footer>
+                  </Modal>
+                )
+              })()}
             </div>
           )}
 
