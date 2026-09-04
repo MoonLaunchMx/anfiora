@@ -37,13 +37,13 @@ SELECT
   c.status
 FROM event_collaborators c
 JOIN events e ON e.id = c.event_id
-WHERE c.status <> 'revoked'
+WHERE c.status IS DISTINCT FROM 'revoked'
 ORDER BY e.name, c.email;
 
 -- 3. El semaforo: si esto no da cero, hay filas que la migracion no sabe mapear
 SELECT count(*) AS filas_sin_mapeo
 FROM event_collaborators
-WHERE status <> 'revoked'
+WHERE status IS DISTINCT FROM 'revoked'
   AND (role IS NULL OR role NOT IN ('admin', 'editor', 'viewer'));
 
 -- 4. Eventos sin dueno valido: tienen que ser cero
@@ -51,3 +51,8 @@ SELECT count(*) AS eventos_sin_dueno
 FROM events e
 LEFT JOIN users u ON u.id = e.user_id
 WHERE u.id IS NULL;
+
+-- 5. Colaboradores con status nulo: tienen que ser cero, o quedarian invisibles
+--    para la migracion Y para su propia verificacion
+SELECT count(*) AS colaboradores_status_nulo
+FROM event_collaborators WHERE status IS NULL;
