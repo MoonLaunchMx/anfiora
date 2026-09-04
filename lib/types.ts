@@ -516,6 +516,7 @@ export type EventBudget = {
   id: string
   event_id: string
   category: string
+  category_id?: string | null
   subcategory: string
   budget_amount: number
   event_supplier_id: string | null

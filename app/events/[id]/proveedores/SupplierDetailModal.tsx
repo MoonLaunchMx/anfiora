@@ -45,8 +45,8 @@ export default function SupplierDetailModal({
   const router = useRouter()
   const askConfirm = useConfirm()
 
-  // Este modal tambien lo abre Presupuesto, que todavia no migro a categorias
-  // por id: ahi categoria_propia se resuelve por nombre, no por id.
+  // category_id puede faltar en un proveedor viejo (de antes de que categories
+  // existiera): buscarPorNombre lo resuelve por el texto que ya tenia.
   const categoriaPropia = categorias.find(c => c.id === item.supplier.category_id)
     ?? buscarPorNombre(categorias, item.supplier.category)
 
@@ -94,11 +94,7 @@ export default function SupplierDetailModal({
 
   const selectedCategoria = opciones.find(c => c.id === categoryId) ?? categoriaPropia ?? null
   const categoryName      = selectedCategoria?.name ?? item.supplier.category
-  // El vocabulario de Presupuesto no trae id real: si categoryId no es un
-  // UUID, se eligio de ese vocabulario y no hay que pisar el id verdadero.
-  const categoryIdToSave  = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(categoryId)
-    ? categoryId
-    : item.supplier.category_id
+  const categoryIdToSave  = categoryId || item.supplier.category_id
 
   const budgetsForCategory = budgets.filter(b => b.category === categoryName)
   const selectedBudget     = eventBudgetId ? budgets.find(b => b.id === eventBudgetId) : null
