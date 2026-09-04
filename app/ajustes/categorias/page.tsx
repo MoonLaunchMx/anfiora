@@ -1,11 +1,12 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { MoreHorizontal, AlertTriangle } from 'lucide-react'
+import { AlertTriangle } from 'lucide-react'
 import { activas, cargarCategorias, type Categoria } from '@/lib/rolodex/categorias-store'
 import { parecidas, puedeEliminarse, type CategoriaConUso } from '@/lib/rolodex/vocabulario-admin'
+import AccionesCategoria from './AccionesCategoria'
 
 function plural(n: number, singular: string, otros: string): string {
   return `${n} ${n === 1 ? singular : otros}`
@@ -22,48 +23,51 @@ function contarPor(filas: { category_id: string | null }[]): Map<string, number>
 
 export default function CategoriasPage() {
   const router = useRouter()
+  const [userId, setUserId] = useState<string | null>(null)
+  const [categoriasRaw, setCategoriasRaw] = useState<Categoria[]>([])
   const [categorias, setCategorias] = useState<CategoriaConUso[]>([])
   const [pares, setPares] = useState<[string, string][]>([])
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    const load = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { router.replace('/'); return }
+  const load = useCallback(async () => {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) { router.replace('/'); return }
+    setUserId(user.id)
 
-      const cats = await cargarCategorias(user.id)
+    const cats = await cargarCategorias(user.id)
 
-      const [{ data: proveedores }, { data: eventos }] = await Promise.all([
-        supabase.from('suppliers').select('category_id').eq('user_id', user.id),
-        supabase.from('events').select('id').eq('user_id', user.id),
-      ])
+    const [{ data: proveedores }, { data: eventos }] = await Promise.all([
+      supabase.from('suppliers').select('category_id').eq('user_id', user.id),
+      supabase.from('events').select('id').eq('user_id', user.id),
+    ])
 
-      const eventIds = (eventos ?? []).map(e => e.id)
-      const { data: partidas } = eventIds.length > 0
-        ? await supabase.from('event_budgets').select('category_id').in('event_id', eventIds)
-        : { data: [] as { category_id: string | null }[] }
+    const eventIds = (eventos ?? []).map(e => e.id)
+    const { data: partidas } = eventIds.length > 0
+      ? await supabase.from('event_budgets').select('category_id').in('event_id', eventIds)
+      : { data: [] as { category_id: string | null }[] }
 
-      const porProveedores = contarPor(proveedores ?? [])
-      const porPartidas = contarPor(partidas ?? [])
+    const porProveedores = contarPor(proveedores ?? [])
+    const porPartidas = contarPor(partidas ?? [])
 
-      const conUso: CategoriaConUso[] = cats
-        .map(c => ({
-          id: c.id,
-          nombre: c.name,
-          uso: {
-            proveedores: porProveedores.get(c.id) ?? 0,
-            partidas: porPartidas.get(c.id) ?? 0,
-          },
-          oculta: c.archived_at !== null,
-        }))
-        .sort((a, b) => Number(a.oculta) - Number(b.oculta))
+    const conUso: CategoriaConUso[] = cats
+      .map(c => ({
+        id: c.id,
+        nombre: c.name,
+        uso: {
+          proveedores: porProveedores.get(c.id) ?? 0,
+          partidas: porPartidas.get(c.id) ?? 0,
+        },
+        oculta: c.archived_at !== null,
+      }))
+      .sort((a, b) => Number(a.oculta) - Number(b.oculta))
 
-      setCategorias(conUso)
-      setPares(parecidas(activas(cats).map((c: Categoria) => c.name)))
-      setLoading(false)
-    }
-    load()
+    setCategoriasRaw(cats)
+    setCategorias(conUso)
+    setPares(parecidas(activas(cats).map((c: Categoria) => c.name)))
+    setLoading(false)
   }, [router])
+
+  useEffect(() => { load() }, [load])
 
   if (loading) {
     return (
@@ -126,12 +130,14 @@ export default function CategoriasPage() {
                   ? 'Nadie la usa'
                   : `${plural(c.uso.proveedores, 'proveedor', 'proveedores')} · ${plural(c.uso.partidas, 'partida', 'partidas')}`}
               </p>
-              <button
-                type="button"
-                className="rounded-lg p-1.5 text-[#bbb] transition hover:bg-[#f8f8f8] hover:text-[#888]"
-              >
-                <MoreHorizontal size={16} />
-              </button>
+              {userId && (
+                <AccionesCategoria
+                  categoria={c}
+                  todas={categoriasRaw}
+                  userId={userId}
+                  onCambiado={load}
+                />
+              )}
             </div>
           </div>
         ))}

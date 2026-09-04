@@ -439,14 +439,6 @@ export default function PresupuestoPage() {
     setNewCategoryName(''); setAddingCategory(false)
   }
 
-  const renameCategory = async (oldName: string, raw: string) => {
-    const name = raw.trim()
-    if (!name || name === oldName) return
-    await persistCategories(categories.map(c => c === oldName ? name : c))
-    await supabase.from('event_budgets').update({ category: name }).eq('event_id', eventId).eq('category', oldName)
-    loadAll()
-  }
-
   const deleteCategory = async (name: string) => {
     const count = (itemsByCategory[name] || []).length
     if (count > 0) {
@@ -727,7 +719,6 @@ export default function PresupuestoPage() {
           categories={categories}
           itemCountByCategory={Object.fromEntries(categories.map(c => [c, (itemsByCategory[c] || []).length]))}
           onAdd={addCategory}
-          onRename={renameCategory}
           onDelete={deleteCategory}
           onReorder={reorderCategories}
           onClose={() => setShowCategoriesModal(false)}
