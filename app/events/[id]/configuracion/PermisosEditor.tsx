@@ -1,6 +1,5 @@
 'use client'
 
-import { ChevronDown } from 'lucide-react'
 import { MODULOS_CONFIG, NIVELES, type Modulo, type Nivel, type PermisosEvento } from '@/lib/permisos/catalogo'
 import type { FeatureKey } from '@/lib/features'
 
@@ -11,10 +10,10 @@ const GRUPOS = [
 ]
 
 const ETIQUETA_NIVEL: Record<Nivel, string> = {
-  ninguno: 'Sin acceso',
-  ver:     'Solo ver',
-  editar:  'Puede editar',
-  total:   'Control total',
+  ninguno: 'Ninguno',
+  ver:     'Ver',
+  editar:  'Editar',
+  total:   'Total',
 }
 
 interface Props {
@@ -55,40 +54,40 @@ export function PermisosEditor({ permisos, features, onChange }: Props) {
               return (
                 <div
                   key={m.key}
-                  className="flex items-center gap-3 border-b border-[#f4f4f4] py-1.5 last:border-b-0"
+                  className="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-b border-[#f4f4f4] py-2 last:border-b-0"
                 >
-                  <span className={`min-w-0 flex-1 truncate text-[13.5px] ${prendida ? 'text-[#0a0a0a]' : 'text-[#c2c1bb]'}`}>
+                  <span className={`min-w-0 flex-1 basis-full truncate text-[13.5px] sm:basis-auto ${prendida ? 'text-[#0a0a0a]' : 'text-[#c2c1bb]'}`}>
                     {m.label}
                   </span>
 
                   {prendida ? (
-                    <span className="relative shrink-0">
-                      <select
-                        value={nivel}
-                        onChange={e => poner(m.key, e.target.value as Nivel)}
-                        aria-label={`Permiso de ${m.label}`}
-                        className={[
-                          'cursor-pointer appearance-none rounded-md border border-transparent bg-transparent',
-                          'py-1 pl-2 pr-6 text-right text-[13px] font-medium',
-                          'hover:border-[#e8e8e8] focus:border-[#48C9B0] focus:outline-none',
-                          nivel === 'total'
-                            ? 'font-semibold text-[#9a7220]'
-                            : nivel === 'ninguno'
-                              ? 'text-[#c2c1bb]'
-                              : 'text-[#666]',
-                        ].join(' ')}
-                      >
-                        {NIVELES.map(n => (
-                          <option key={n} value={n}>{ETIQUETA_NIVEL[n]}</option>
-                        ))}
-                      </select>
-                      <ChevronDown
-                        size={11}
-                        className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 text-[#c2c1bb]"
-                      />
+                    <span className="flex w-full shrink-0 rounded-lg bg-[#f4f4f2] p-0.5 sm:w-auto">
+                      {NIVELES.map(n => {
+                        const activo = n === nivel
+                        return (
+                          <button
+                            key={n}
+                            type="button"
+                            aria-pressed={activo}
+                            onClick={() => poner(m.key, n)}
+                            className={[
+                              'flex-1 whitespace-nowrap rounded-md px-2.5 py-1 text-[12px] font-semibold transition sm:flex-none',
+                              !activo
+                                ? 'text-[#9a9993] hover:text-[#6b6a66]'
+                                : n === 'total'
+                                  ? 'bg-[#fdf5e4] text-[#9a7220] shadow-sm'
+                                  : n === 'ninguno'
+                                    ? 'bg-white text-[#9a9993] shadow-sm'
+                                    : 'bg-white text-[#0a0a0a] shadow-sm',
+                            ].join(' ')}
+                          >
+                            {ETIQUETA_NIVEL[n]}
+                          </button>
+                        )
+                      })}
                     </span>
                   ) : (
-                    <span className="shrink-0 text-[12px] text-[#c2c1bb]">Apagada en esta boda</span>
+                    <span className="shrink-0 text-[12.5px] text-[#c2c1bb]">Desactivado</span>
                   )}
                 </div>
               )
