@@ -10,34 +10,47 @@ type Props = {
   valorId: string | null
   onChange: (categoria: Categoria) => void
   userId: string
-  className?: string
+  className: string
 }
 
 type Item =
   | { tipo: 'categoria'; categoria: Categoria }
   | { tipo: 'crear' }
 
-export default function CategoriaPicker({ categorias, valorId, onChange, userId, className = '' }: Props) {
+export default function CategoriaPicker({ categorias, valorId, onChange, userId, className }: Props) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [highlight, setHighlight] = useState(0)
   const [creando, setCreando] = useState(false)
   const [error, setError] = useState('')
+  // Categorias creadas en esta sesion del control que el padre todavia no
+  // refleja en su prop. Sin esto, elegir "Crear" deja seleccionado un id que
+  // no aparece en `categorias` y el campo vuelve a verse vacio aunque la
+  // fila ya exista en la base de datos.
+  const [creadas, setCreadas] = useState<Categoria[]>([])
 
   const wrapperRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  const propia = categorias.find(c => c.id === valorId) ?? null
+  // El prop manda cuando trae la misma fila (el padre ya se actualizo);
+  // `creadas` solo llena el hueco mientras eso no pasa.
+  const todas = useMemo(() => {
+    const vistas = new Set(categorias.map(c => c.id))
+    const extra = creadas.filter(c => !vistas.has(c.id))
+    return [...categorias, ...extra]
+  }, [categorias, creadas])
+
+  const propia = todas.find(c => c.id === valorId) ?? null
 
   // La propia categoria del proveedor siempre se ofrece, aunque este archivada:
   // si no, el campo saldria vacio y guardar le cambiaria la categoria sin querer.
   const opciones = useMemo(() => {
-    const act = activas(categorias)
+    const act = activas(todas)
     if (propia && propia.archived_at !== null && !act.some(c => c.id === propia.id)) {
       return [...act, propia]
     }
     return act
-  }, [categorias, propia])
+  }, [todas, propia])
 
   const filtradas = useMemo(() => {
     const q = normalizarCategoria(query)
@@ -46,9 +59,10 @@ export default function CategoriaPicker({ categorias, valorId, onChange, userId,
   }, [opciones, query])
 
   const nombreTecleado = query.trim()
-  // Busca entre TODAS las categorias (incluidas archivadas ajenas), no solo las
-  // ofrecidas: si ya existe con ese nombre no hay nada que crear.
-  const coincideExacta = nombreTecleado !== '' && buscarPorNombre(categorias, nombreTecleado) !== null
+  // Busca entre TODAS las categorias (incluidas archivadas ajenas y las
+  // creadas en esta sesion), no solo las ofrecidas: si ya existe con ese
+  // nombre no hay nada que crear.
+  const coincideExacta = nombreTecleado !== '' && buscarPorNombre(todas, nombreTecleado) !== null
   const puedeCrear = nombreTecleado !== '' && !coincideExacta
 
   const items: Item[] = useMemo(() => [
@@ -93,12 +107,13 @@ export default function CategoriaPicker({ categorias, valorId, onChange, userId,
     if (!nombre) return
     setCreando(true)
     setError('')
-    const { categoria, error: err } = await crearCategoria(userId, nombre, categorias)
+    const { categoria, error: err } = await crearCategoria(userId, nombre, todas)
     setCreando(false)
     if (err || !categoria) {
       setError(err ?? 'No se pudo crear la categoría.')
       return
     }
+    setCreadas(prev => prev.some(c => c.id === categoria.id) ? prev : [...prev, categoria])
     onChange(categoria)
     cerrar()
   }
@@ -121,12 +136,12 @@ export default function CategoriaPicker({ categorias, valorId, onChange, userId,
   }
 
   return (
-    <div ref={wrapperRef} className={`relative ${className}`}>
+    <div ref={wrapperRef} className="relative">
       {!open ? (
         <button
           type="button"
           onClick={abrir}
-          className="flex w-full items-center justify-between gap-2 rounded-lg border border-[#e0e0e0] bg-white px-3 py-2 text-left text-base text-[#1D1E20] outline-none transition focus:border-[#48C9B0]"
+          className={`flex w-full items-center justify-between gap-2 rounded-lg border ${className} bg-white px-3 py-2 text-left text-base text-[#1D1E20] outline-none transition focus:border-[#48C9B0]`}
         >
           <span className="truncate">{propia ? propia.name : 'Selecciona categoría'}</span>
           <ChevronDown size={14} className="shrink-0 text-[#aaa]" />

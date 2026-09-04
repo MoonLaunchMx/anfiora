@@ -118,6 +118,7 @@ export default function SupplierModal({ isOpen, onClose, currency, budgets, cate
               valorId={categoryId || null}
               onChange={c => { setCategoryId(c.id); setEventBudgetId('') }}
               userId={userId}
+              className="border-[#e0e0e0]"
             />
           </div>
 

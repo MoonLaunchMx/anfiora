@@ -356,6 +356,7 @@ export default function SupplierDetailModal({
                 valorId={categoryId || null}
                 onChange={c => { setCategoryId(c.id); setEventBudgetId('') }}
                 userId={userId}
+                className="border-[#e8e8e8]"
               />
             </Field>
             <Field label="Concepto del presupuesto" className="sm:col-span-2">
