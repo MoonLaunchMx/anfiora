@@ -14,12 +14,12 @@ export const CATEGORIAS_BASE: string[] = [...DEFAULT_CATEGORIES_BY_TYPE.boda]
 // La normalizacion tambien junta la ene con tilde (n~) con la ene simple: es
 // a proposito, ya que un dedazo sin tilde es mucho mas probable que dos
 // categorias que solo se distingan por ella.
-function normalizar(s: string): string {
+export function normalizarCategoria(s: string): string {
   return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase()
 }
 
 export function mismaCategoria(a: string, b: string): boolean {
-  return normalizar(a) === normalizar(b)
+  return normalizarCategoria(a) === normalizarCategoria(b)
 }
 
 export function resolverVocabulario(guardado: string[] | null | undefined): string[] {
