@@ -46,6 +46,13 @@ describe('MODULOS_CONFIG', () => {
       expect(MODULOS_CONFIG.find(m => m.key === key)!.feature).toBeNull()
     }
   })
+
+  it('toda entrada trae icono y descripcion', () => {
+    for (const m of MODULOS_CONFIG) {
+      expect(m.icon).toBeTruthy()
+      expect(m.descripcion.length).toBeGreaterThan(0)
+    }
+  })
 })
 
 describe('moduloDeRuta', () => {

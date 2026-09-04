@@ -1,19 +1,20 @@
 'use client'
 
-import { MODULOS_CONFIG, type Modulo, type Nivel, type PermisosEvento } from '@/lib/permisos/catalogo'
+import { MODULOS_CONFIG, NIVELES, type Modulo, type Nivel, type PermisosEvento } from '@/lib/permisos/catalogo'
 import type { FeatureKey } from '@/lib/features'
 
-const GRUPOS: { key: 'boda' | 'herramientas' | 'finanzas'; label: string }[] = [
-  { key: 'boda',         label: 'Siempre parte de la boda' },
-  { key: 'herramientas', label: 'Herramientas de esta boda' },
-  { key: 'finanzas',     label: 'Finanzas' },
+const GRUPOS = [
+  { key: 'boda'         as const, label: 'Esenciales de la boda' },
+  { key: 'herramientas' as const, label: 'Experiencia del evento' },
+  { key: 'finanzas'     as const, label: 'Finanzas' },
 ]
 
-const NIVELES_VISIBLES: { valor: Nivel; label: string }[] = [
-  { valor: 'ver',    label: 'Ver' },
-  { valor: 'editar', label: 'Editar' },
-  { valor: 'total',  label: 'Total' },
-]
+const ETIQUETA_NIVEL: Record<Nivel, string> = {
+  ninguno: 'Sin acceso',
+  ver:     'Solo ver',
+  editar:  'Puede editar',
+  total:   'Control total',
+}
 
 interface Props {
   permisos: PermisosEvento
@@ -35,71 +36,62 @@ export function PermisosEditor({ permisos, features, onChange }: Props) {
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-3">
       {GRUPOS.map(grupo => {
         const modulos = MODULOS_CONFIG.filter(m => m.grupo === grupo.key)
         if (modulos.length === 0) return null
+
         return (
-          <div key={grupo.key} className="flex flex-col gap-2">
-            <p className="text-[10px] font-bold uppercase tracking-[0.09em] text-[#999]">
-              {grupo.label}
-            </p>
-            <div className="grid gap-1.5 sm:grid-cols-2">
+          <div key={grupo.key} className="overflow-hidden rounded-xl border border-[#e8e8e8] bg-white">
+            <div className="flex items-center justify-between border-b border-[#f0f0f0] bg-[#fafafa] px-4 py-2">
+              <span className="text-[10px] font-bold uppercase tracking-[0.09em] text-[#999]">
+                {grupo.label}
+              </span>
+              <span className="text-[10px] font-bold uppercase tracking-[0.09em] text-[#bbb]">
+                Permiso
+              </span>
+            </div>
+
+            <div className="divide-y divide-[#f4f4f4]">
               {modulos.map(m => {
+                const Icono = m.icon
                 const prendida = estaPrendida(m.key)
                 const nivel: Nivel = prendida ? (permisos[m.key] ?? 'ninguno') : 'ninguno'
-                const activo = nivel !== 'ninguno'
+
                 return (
                   <div
                     key={m.key}
-                    className={[
-                      'flex items-center gap-2 rounded-lg border px-2.5 py-1.5',
-                      !prendida ? 'border-dashed border-[#e8e8e8] opacity-60'
-                        : nivel === 'total' ? 'border-[#d4a853] bg-[#fffbf0]'
-                        : activo ? 'border-[#48C9B0] bg-[#f0fdfa]'
-                        : 'border-[#e8e8e8] bg-white',
-                    ].join(' ')}
+                    className={`flex items-center justify-between gap-3 px-4 py-2.5 ${prendida ? '' : 'opacity-55'}`}
                   >
-                    <button
-                      type="button"
-                      disabled={!prendida}
-                      onClick={() => poner(m.key, activo ? 'ninguno' : 'ver')}
-                      className="flex flex-1 items-center gap-2 text-left text-[13px] text-[#0a0a0a] disabled:cursor-not-allowed"
-                    >
-                      <span
-                        className={[
-                          'h-4 w-4 flex-none rounded border',
-                          nivel === 'total' ? 'border-[#d4a853] bg-[#d4a853]'
-                            : activo ? 'border-[#48C9B0] bg-[#48C9B0]'
-                            : 'border-[#e0e0e0] bg-white',
-                        ].join(' ')}
-                      />
-                      {m.label}
-                    </button>
+                    <div className="flex min-w-0 items-center gap-2.5">
+                      <Icono size={15} className="shrink-0 text-[#999]" />
+                      <div className="min-w-0">
+                        <p className="text-[13px] font-semibold leading-tight text-[#0a0a0a]">{m.label}</p>
+                        <p className="truncate text-[11px] leading-tight text-[#999]">{m.descripcion}</p>
+                      </div>
+                    </div>
 
                     {prendida ? (
-                      <span className="flex flex-none overflow-hidden rounded-md border border-[#e8e8e8]">
-                        {NIVELES_VISIBLES.map(n => (
-                          <button
-                            key={n.valor}
-                            type="button"
-                            onClick={() => poner(m.key, n.valor)}
-                            className={[
-                              'px-2 py-0.5 text-[11px] font-semibold',
-                              nivel !== n.valor ? 'text-[#999]'
-                                : n.valor === 'total' ? 'bg-[#d4a853] text-[#3a2a08]'
-                                : 'bg-[#48C9B0] text-[#08312a]',
-                              nivel === 'ninguno' ? 'invisible' : '',
-                            ].join(' ')}
-                          >
-                            {n.label}
-                          </button>
+                      <select
+                        value={nivel}
+                        onChange={e => poner(m.key, e.target.value as Nivel)}
+                        aria-label={`Permiso de ${m.label}`}
+                        className={[
+                          'shrink-0 cursor-pointer rounded-lg border px-2.5 py-1 text-[12px] font-semibold',
+                          'focus:outline-none focus:ring-2 focus:ring-[#48C9B0]/30',
+                          nivel === 'total'
+                            ? 'border-[#d4a853] bg-[#fffbf0] text-[#b0842c]'
+                            : nivel === 'ninguno'
+                              ? 'border-[#e8e8e8] bg-white text-[#999]'
+                              : 'border-[#e8e8e8] bg-white text-[#0a0a0a]',
+                        ].join(' ')}
+                      >
+                        {NIVELES.map(n => (
+                          <option key={n} value={n}>{ETIQUETA_NIVEL[n]}</option>
                         ))}
-                      </span>
+                      </select>
                     ) : (
-                      <span className="flex-none text-[10.5px] text-[#999]">
-                        apagada en esta boda
-                      </span>
+                      <span className="shrink-0 text-[11px] text-[#bbb]">No está activa en esta boda</span>
                     )}
                   </div>
                 )

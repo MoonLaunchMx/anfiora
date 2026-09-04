@@ -17,7 +17,7 @@ import { logAction } from '@/lib/audit'
 import { PermisosEditor } from './PermisosEditor'
 import { normalizarPermisos, resumir } from '@/lib/permisos/resolver'
 import type { PermisosEvento } from '@/lib/permisos/catalogo'
-import { Copy, Check, UserPlus, X, Shield, Pencil, Eye, Settings2, MessageCircle, Users, Smartphone, Gem, Crown, Cake, GraduationCap, Sun, PartyPopper, Wine, CalendarDays, Presentation, Monitor, UsersRound, Rocket, Building2, Tent, Mic, Flame, HeartHandshake, type LucideIcon } from 'lucide-react'
+import { Copy, Check, UserPlus, X, Shield, Pencil, Eye, Settings2, MessageCircle, Users, Smartphone, Gem, Crown, Cake, GraduationCap, Sun, PartyPopper, Wine, CalendarDays, Presentation, Monitor, UsersRound, Rocket, Building2, Tent, Mic, Flame, HeartHandshake, SlidersHorizontal, ChevronDown, type LucideIcon } from 'lucide-react'
 
 // ─── Constantes ──────────────────────────────────────────────────────────────
 
@@ -1165,23 +1165,16 @@ export default function ConfiguracionPage() {
 
                         {(() => {
                           const permisos = normalizarPermisos(c.permisos)
-                          const r = resumir({
-                            esDuenoDelEvento: false,
-                            rolCuenta: null,
-                            permisos,
-                            features,
-                          })
+                          const r = resumir({ esDuenoDelEvento: false, rolCuenta: null, permisos, features })
                           const abierto = editandoPermisos === c.id
+
                           return (
-                            <div className="mt-2 flex flex-col gap-2">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <span className="rounded-full border border-[#e8e8e8] bg-[#f8f8f8] px-2 py-0.5 text-[11px] font-semibold text-[#666]">
-                                  {r.etiqueta}
-                                </span>
-                                <span className="text-[11px] text-[#999]">
-                                  {r.entra === 0
-                                    ? 'No entra a esta boda'
-                                    : `${r.entra} ${r.entra === 1 ? 'herramienta' : 'herramientas'}`}
+                            <div className="mt-2">
+                              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                                <span className="text-[12px] font-semibold text-[#0a0a0a]">{r.etiqueta}</span>
+                                <span className="text-[12px] text-[#bbb]">·</span>
+                                <span className="text-[12px] text-[#666]">
+                                  {r.entra === 0 ? 'No entra a esta boda' : `${r.entra} de 12 herramientas`}
                                 </span>
                                 <button
                                   type="button"
@@ -1189,16 +1182,21 @@ export default function ConfiguracionPage() {
                                     setBorrador(permisos)
                                     setEditandoPermisos(abierto ? null : c.id)
                                   }}
-                                  className="text-[12px] font-semibold text-[#2f9e8a]"
+                                  className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-[#e8e8e8] bg-white px-2.5 py-1 text-[12px] font-semibold text-[#666] hover:bg-[#f8f8f8]"
                                 >
-                                  {abierto ? 'Cancelar' : 'Editar accesos'}
+                                  <SlidersHorizontal size={12} className="text-[#999]" />
+                                  {abierto ? 'Cerrar' : 'Ajustar permisos'}
+                                  <ChevronDown size={12} className={`text-[#bbb] transition-transform ${abierto ? 'rotate-180' : ''}`} />
                                 </button>
                               </div>
 
                               {abierto && (
-                                <div className="rounded-xl border border-[#e8e8e8] bg-white p-3">
+                                <div className="mt-3 rounded-xl border border-[#e8e8e8] bg-[#fafafa] p-3">
                                   <PermisosEditor permisos={borrador} features={features} onChange={setBorrador} />
-                                  <div className="mt-3 flex justify-end">
+                                  <div className="mt-3 flex items-center justify-between gap-3">
+                                    <span className="text-[11px] text-[#999]">
+                                      Los cambios se guardan hasta que aprietes el botón.
+                                    </span>
                                     <button
                                       type="button"
                                       disabled={guardando}
