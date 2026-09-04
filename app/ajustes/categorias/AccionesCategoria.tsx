@@ -77,7 +77,7 @@ export default function AccionesCategoria({ categoria, todas, userId, onCambiado
     setError('')
     const resultado = await ocultar(categoria.id)
     setGuardando(false)
-    if (!resultado.ok) { setError(resultado.error ?? 'No se pudo ocultar la categoría.'); return }
+    if (!resultado.ok) { setError(resultado.error ?? 'No se pudo archivar la categoría.'); return }
     setModal(null)
     onCambiado()
   }
@@ -87,7 +87,7 @@ export default function AccionesCategoria({ categoria, todas, userId, onCambiado
     setError('')
     const resultado = await reactivar(categoria.id)
     setGuardando(false)
-    if (!resultado.ok) { setError(resultado.error ?? 'No se pudo reactivar la categoría.'); return }
+    if (!resultado.ok) { setError(resultado.error ?? 'No se pudo restaurar la categoría.'); return }
     setModal(null)
     onCambiado()
   }
@@ -124,7 +124,7 @@ export default function AccionesCategoria({ categoria, todas, userId, onCambiado
             onClick={abrirOcultar}
             className="block w-full border-t border-[#f0f0f0] px-4 py-2.5 text-left text-sm text-[#1D1E20] hover:bg-[#f8f8f8]"
           >
-            {categoria.oculta ? 'Volver a usarla' : 'Ya no la uso'}
+            {categoria.oculta ? 'Restaurar' : 'Archivar'}
           </button>
           <button
             type="button"
@@ -190,7 +190,7 @@ export default function AccionesCategoria({ categoria, todas, userId, onCambiado
 
       {modal === 'ocultar' && !categoria.oculta && (
         <Modal open onClose={cerrarModal} size="sm">
-          <Modal.Header title={`Ocultar "${categoria.nombre}"`} onClose={cerrarModal} />
+          <Modal.Header title={`Archivar "${categoria.nombre}"`} onClose={cerrarModal} />
           <Modal.Body>
             <div className="flex flex-col gap-3">
               <p className="rounded-lg bg-[#f0fdfb] px-3 py-2 text-xs text-[#555]">
@@ -217,7 +217,7 @@ export default function AccionesCategoria({ categoria, todas, userId, onCambiado
               disabled={guardando}
               className="rounded-lg bg-[#48C9B0] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#3aa896] disabled:opacity-50"
             >
-              {guardando ? 'Guardando...' : 'Ocultar'}
+              {guardando ? 'Guardando...' : 'Archivar'}
             </button>
           </Modal.Footer>
         </Modal>
@@ -225,7 +225,7 @@ export default function AccionesCategoria({ categoria, todas, userId, onCambiado
 
       {modal === 'ocultar' && categoria.oculta && (
         <Modal open onClose={cerrarModal} size="sm">
-          <Modal.Header title={`Volver a usar "${categoria.nombre}"`} onClose={cerrarModal} />
+          <Modal.Header title={`Restaurar "${categoria.nombre}"`} onClose={cerrarModal} />
           <Modal.Body>
             <div className="flex flex-col gap-3">
               <p className="rounded-lg bg-[#f0fdfb] px-3 py-2 text-xs text-[#555]">
@@ -249,7 +249,7 @@ export default function AccionesCategoria({ categoria, todas, userId, onCambiado
               disabled={guardando}
               className="rounded-lg bg-[#48C9B0] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#3aa896] disabled:opacity-50"
             >
-              {guardando ? 'Guardando...' : 'Volver a usarla'}
+              {guardando ? 'Guardando...' : 'Restaurar'}
             </button>
           </Modal.Footer>
         </Modal>

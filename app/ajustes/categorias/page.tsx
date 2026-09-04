@@ -120,7 +120,7 @@ export default function CategoriasPage() {
               </p>
               {c.oculta && (
                 <span className="shrink-0 rounded-full border border-[#e0e0e0] bg-[#f8f8f8] px-2 py-0.5 text-[10px] font-semibold text-[#999]">
-                  Oculta
+                  Archivada
                 </span>
               )}
             </div>
