@@ -19,6 +19,11 @@ describe('resolverVocabulario', () => {
     const v = resolverVocabulario(['Venue', 'Ambulancia y paramedicos'])
     expect(v.filter(c => c === 'Venue')).toHaveLength(1)
   })
+
+  it('tampoco repite si la base viene guardada con otra caja', () => {
+    const v = resolverVocabulario([' venue '])
+    expect(v.filter(c => c.trim().toLowerCase() === 'venue')).toHaveLength(1)
+  })
 })
 
 describe('agregarAlVocabulario', () => {

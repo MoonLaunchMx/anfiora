@@ -26,6 +26,7 @@ import { exportToExcel, exportToPDF, downloadImportTemplate } from './lib/export
 import SupplierDetailModal from '../proveedores/SupplierDetailModal'
 import SupplierReviewModal from '../proveedores/SupplierReviewModal'
 import { Modal } from '@/app/components/ui/Modal'
+import { categoriasParaGuardar } from '@/lib/rolodex/vocabulario-store'
 
 type EventSupplierWithName = EventSupplier & {
   supplier: Pick<Supplier, 'id' | 'name' | 'category'>
@@ -386,6 +387,15 @@ export default function PresupuestoPage() {
   const persistCategories = async (next: string[]) => {
     setStoredCategories(next)
     await supabase.from('event_settings').update({ budget_categories: next }).eq('event_id', eventId)
+
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+    const { data: perfil } = await supabase
+      .from('users').select('categories').eq('id', user.id).single()
+    const vocabulario = categoriasParaGuardar((perfil?.categories as string[]) ?? [], next)
+    if (vocabulario) {
+      await supabase.from('users').update({ categories: vocabulario }).eq('id', user.id)
+    }
   }
 
   const addCategory = async (raw: string) => {
