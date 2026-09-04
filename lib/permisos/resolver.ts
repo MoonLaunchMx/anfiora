@@ -98,3 +98,11 @@ export function permisosDesdeRolLegado(role: string | null | undefined): Permiso
   if (nivel === null) return {}
   return Object.fromEntries(MODULOS.map(m => [m, nivel])) as PermisosEvento
 }
+
+// El punto de partida de alguien recien invitado. Tiene que dar exactamente lo
+// mismo que escribio -migracion-aplicar.sql para ese rol, o la primera persona
+// que invites despues de migrar queda con permisos distintos a sus companeros.
+export function permisosDeRol(role: 'admin' | 'editor' | 'viewer'): PermisosEvento {
+  const nivel: Nivel = role === 'admin' ? 'total' : role === 'editor' ? 'editar' : 'ver'
+  return Object.fromEntries(MODULOS.map(m => [m, nivel])) as PermisosEvento
+}

@@ -15,10 +15,10 @@ import { useEventAccess } from '@/lib/event-access-context'
 import { FEATURES, ALWAYS_ON_FEATURES, type FeatureKey } from '@/lib/features'
 import { logAction } from '@/lib/audit'
 import { PermisosEditor } from './PermisosEditor'
-import { normalizarPermisos, resumir } from '@/lib/permisos/resolver'
+import { aplicarKit, normalizarPermisos, permisosDeRol, resumir } from '@/lib/permisos/resolver'
 import type { PermisosEvento } from '@/lib/permisos/catalogo'
 import { Modal } from '@/app/components/ui/Modal'
-import { Copy, Check, UserPlus, X, Shield, Pencil, Eye, Settings, Settings2, MessageCircle, Users, Smartphone, Gem, Crown, Cake, GraduationCap, Sun, PartyPopper, Wine, CalendarDays, Presentation, Monitor, UsersRound, Rocket, Building2, Tent, Mic, Flame, HeartHandshake, type LucideIcon } from 'lucide-react'
+import { Copy, Check, UserPlus, X, Pencil, Eye, Settings, Settings2, MessageCircle, Users, Smartphone, Gem, Crown, Cake, GraduationCap, Sun, PartyPopper, Wine, CalendarDays, Presentation, Monitor, UsersRound, Rocket, Building2, Tent, Mic, Flame, HeartHandshake, type LucideIcon } from 'lucide-react'
 
 // ─── Constantes ──────────────────────────────────────────────────────────────
 
@@ -98,9 +98,8 @@ const STATUS_OPTIONS: { status: EventStatus; label: string; dot: string }[] = [
 ]
 
 const ROLES = [
-  { value: 'admin',  label: 'Admin',  description: 'Edita e invita colaboradores', icon: Shield },
-  { value: 'editor', label: 'Editor', description: 'Edita invitados y mesas',      icon: Pencil },
-  { value: 'viewer', label: 'Viewer', description: 'Solo lectura',                 icon: Eye },
+  { value: 'viewer', label: 'Solo lectura', description: 'Ve todo, no toca nada', icon: Eye },
+  { value: 'editor', label: 'Puede editar', description: 'Agrega y corrige, no borra', icon: Pencil },
 ]
 
 const TABS: TabItem[] = [
@@ -295,7 +294,7 @@ export default function ConfiguracionPage() {
   // Colaboradores
   const [collaborators, setCollaborators] = useState<Collaborator[]>([])
   const [inviteEmail, setInviteEmail]     = useState('')
-  const [inviteRole, setInviteRole]       = useState<'admin' | 'editor' | 'viewer'>('editor')
+  const [inviteRole, setInviteRole]       = useState<'editor' | 'viewer'>('editor')
   const [inviting, setInviting]           = useState(false)
   const [inviteError, setInviteError]     = useState('')
   const [copiedToken, setCopiedToken]     = useState<string | null>(null)
@@ -524,7 +523,11 @@ export default function ConfiguracionPage() {
     if (!user) { setInviteError('Sesion expirada'); setInviting(false); return }
     const { data, error: err } = await supabase
       .from('event_collaborators')
-      .insert({ event_id: id, invited_by: user.id, email, role: inviteRole, status: 'pending' })
+      .insert({
+        event_id: id, invited_by: user.id, email, role: inviteRole, status: 'pending',
+        permisos: aplicarKit(permisosDeRol(inviteRole), features),
+        tipo: 'equipo',
+      })
       .select().single()
     if (err) { setInviteError('Error al crear invitacion'); setInviting(false); return }
     setCollaborators(prev => [...prev, data as Collaborator])
@@ -1096,13 +1099,14 @@ export default function ConfiguracionPage() {
                   placeholder="email@ejemplo.com"
                   className="w-full rounded-lg border border-[#d0d0d0] bg-white px-3 py-2.5 text-sm text-[#1D1E20] outline-none transition focus:border-[#48C9B0]"
                 />
-                <div className="grid grid-cols-3 gap-1.5">
+                <p className="text-[11px] font-semibold text-[#888]">Empieza como</p>
+                <div className="grid grid-cols-2 gap-1.5">
                   {ROLES.map(r => {
                     const Icon = r.icon
                     return (
                       <button
                         key={r.value}
-                        onClick={() => setInviteRole(r.value as 'admin' | 'editor' | 'viewer')}
+                        onClick={() => setInviteRole(r.value as 'editor' | 'viewer')}
                         className={'flex flex-col items-center gap-1 rounded-lg border px-2 py-2.5 text-center transition ' +
                           (inviteRole === r.value
                             ? 'border-[#48C9B0] bg-[#f0fdfb] text-[#1a9e88]'
