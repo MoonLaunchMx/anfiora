@@ -5,6 +5,11 @@
 --   2. El codigo del Tramo 1 ya esta en produccion
 --   3. La salida de -previo.sql ya la reviso y aprobo Diego
 --
+-- CORRERLO DESDE EL EDITOR SQL DE SUPABASE (o con service role), no con una
+-- sesion de usuario: el paso 3 escribe events.workspace_id y el trigger
+-- guard_events_workspace solo deja pasar al dueno de cada evento. Con auth.uid()
+-- nulo el trigger no estorba, que es como esta pensado.
+--
 -- Es idempotente: se puede correr dos veces sin duplicar nada.
 -- Es reversible: no borra ni modifica event_collaborators.role, solo agrega.
 
