@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   normalizarPermisos, nivelDe, puede, nivelEfectivo, resumir, aplicarKit,
+  permisosDesdeRolLegado,
   type ContextoPermiso,
 } from './resolver'
 import { MODULOS, NIVELES, type Nivel, type PermisosEvento } from './catalogo'
@@ -161,5 +162,24 @@ describe('aplicarKit', () => {
 describe('cobertura', () => {
   it('la tabla de verdad cubre los cuatro niveles', () => {
     expect(NIVELES).toHaveLength(4)
+  })
+})
+
+describe('permisosDesdeRolLegado', () => {
+  it('admin y editor conservan lo que hoy pueden hacer, borrar incluido', () => {
+    for (const role of ['admin', 'editor']) {
+      const p = permisosDesdeRolLegado(role)
+      expect(Object.keys(p)).toHaveLength(12)
+      expect(p.pagos).toBe('total')
+    }
+  })
+
+  it('viewer solo mira', () => {
+    expect(permisosDesdeRolLegado('viewer').mesas).toBe('ver')
+  })
+
+  it('un rol desconocido no otorga nada', () => {
+    expect(permisosDesdeRolLegado(null)).toEqual({})
+    expect(permisosDesdeRolLegado('inventado')).toEqual({})
   })
 })

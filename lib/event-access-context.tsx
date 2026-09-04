@@ -4,6 +4,11 @@ import { createContext, useContext, useState, useEffect, ReactNode } from 'react
 import { supabase } from '@/lib/supabase'
 import { resolveFeatures, type FeatureKey } from '@/lib/features'
 import { logAction } from '@/lib/audit'
+import {
+  normalizarPermisos, nivelEfectivo, puede, permisosDesdeRolLegado,
+  type RolCuenta, type ContextoPermiso,
+} from '@/lib/permisos/resolver'
+import type { Modulo, Nivel, PermisosEvento } from '@/lib/permisos/catalogo'
 
 // ============================================
 // Roles disponibles — owner es implícito (events.user_id)
@@ -23,6 +28,9 @@ interface EventAccessContextType {
   hasAccess: boolean
   features: Record<FeatureKey, boolean> | null   // null mientras carga
   updateFeatures: (next: Record<FeatureKey, boolean>) => Promise<boolean>
+  rolCuenta: RolCuenta
+  permisos: PermisosEvento | null
+  nivelDeModulo: (modulo: Modulo) => Nivel
 }
 
 const EventAccessContext = createContext<EventAccessContextType>({
@@ -35,6 +43,9 @@ const EventAccessContext = createContext<EventAccessContextType>({
   hasAccess: false,
   features: null,
   updateFeatures: async () => false,
+  rolCuenta: null,
+  permisos: null,
+  nivelDeModulo: () => 'ninguno',
 })
 
 // ============================================
@@ -51,6 +62,8 @@ export function EventAccessProvider({
   const [role, setRole] = useState<CollaboratorRole | null>(null)
   const [features, setFeatures] = useState<Record<FeatureKey, boolean> | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [rolCuenta, setRolCuenta] = useState<RolCuenta>(null)
+  const [permisos, setPermisos] = useState<PermisosEvento | null>(null)
 
   useEffect(() => {
     async function checkAccess() {
@@ -71,6 +84,7 @@ export function EventAccessProvider({
 
         if (event?.user_id === user.id) {
           setRole('owner')
+          setRolCuenta('dueno')
           return
         }
 
@@ -85,6 +99,40 @@ export function EventAccessProvider({
         if (collaborator) {
           setRole(collaborator.role as CollaboratorRole)
         }
+
+        // Membresia de despacho y permisos por herramienta: consultas aparte,
+        // tolerantes a que workspaces/workspace_members/permisos aun no existan.
+        // Si fallan, data llega null y se cae al respaldo legado (comportamiento de hoy).
+        const { data: ev } = await supabase
+          .from('events')
+          .select('workspace_id')
+          .eq('id', eventId)
+          .maybeSingle()
+
+        if (ev?.workspace_id) {
+          const { data: miembro } = await supabase
+            .from('workspace_members')
+            .select('rol')
+            .eq('workspace_id', ev.workspace_id)
+            .eq('user_id', user.id)
+            .eq('status', 'active')
+            .maybeSingle()
+          setRolCuenta((miembro?.rol as RolCuenta) ?? null)
+        }
+
+        const { data: fila } = await supabase
+          .from('event_collaborators')
+          .select('permisos')
+          .eq('event_id', eventId)
+          .eq('user_id', user.id)
+          .eq('status', 'active')
+          .maybeSingle()
+
+        setPermisos(
+          fila?.permisos != null
+            ? normalizarPermisos(fila.permisos)
+            : permisosDesdeRolLegado(collaborator?.role),
+        )
       } catch {
         console.error('[event-access] Error verificando acceso')
       } finally {
@@ -127,6 +175,15 @@ export function EventAccessProvider({
   const canInvite = role === 'owner' || role === 'admin'
   const hasAccess = role !== null
 
+  const ctxPermiso: ContextoPermiso = {
+    esDuenoDelEvento: isOwner,
+    rolCuenta,
+    permisos,
+    features,
+  }
+
+  const nivelDeModulo = (modulo: Modulo): Nivel => nivelEfectivo(ctxPermiso, modulo)
+
   return (
     <EventAccessContext.Provider value={{
       role,
@@ -138,6 +195,9 @@ export function EventAccessProvider({
       hasAccess,
       features,
       updateFeatures,
+      rolCuenta,
+      permisos,
+      nivelDeModulo,
     }}>
       {children}
     </EventAccessContext.Provider>
@@ -149,4 +209,15 @@ export function EventAccessProvider({
 // ============================================
 export function useEventAccess() {
   return useContext(EventAccessContext)
+}
+
+export function usePermiso(modulo: Modulo) {
+  const { nivelDeModulo } = useEventAccess()
+  const nivel = nivelDeModulo(modulo)
+  return {
+    nivel,
+    ver: puede(nivel, 'ver'),
+    editar: puede(nivel, 'editar'),
+    borrar: puede(nivel, 'borrar'),
+  }
 }

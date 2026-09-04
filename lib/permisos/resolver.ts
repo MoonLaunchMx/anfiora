@@ -85,3 +85,16 @@ export function aplicarKit(
   }
   return out
 }
+
+// Puente para el periodo en que el codigo ya esta arriba y el SQL no ha corrido.
+// Reproduce EXACTAMENTE lo que la app hace hoy, para que nada cambie antes de
+// tiempo: hoy admin y editor pueden borrar. La migracion es la que baja al
+// editor a 'editar'.
+export function permisosDesdeRolLegado(role: string | null | undefined): PermisosEvento {
+  const nivel: Nivel | null =
+    role === 'admin' || role === 'editor' ? 'total' :
+    role === 'viewer' ? 'ver' :
+    null
+  if (nivel === null) return {}
+  return Object.fromEntries(MODULOS.map(m => [m, nivel])) as PermisosEvento
+}
