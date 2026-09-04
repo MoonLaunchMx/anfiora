@@ -761,6 +761,8 @@ Aditivo puro: crea cosas nuevas y **no toca ni una policy ni una función que ya
 
 - [ ] **Step 1: Escribir el archivo**
 
+> El bloque de abajo es el original del plan. La fuente de verdad es `docs/superpowers/plans/sql/2026-09-04-accesos-cimiento.sql`, que la revisión final dejó por delante: `pg_temp` en el `search_path`, los `REVOKE`/`GRANT`, `permisos_validos()` con su `CHECK` y los comentarios nuevos. Leer el archivo, no este bloque.
+
 ```sql
 -- Cimiento de accesos por herramienta — Tramo 1.
 --
@@ -954,6 +956,8 @@ Solo la función genérica. **Colgarla de cada tabla pasa en el tramo de su mód
 - Produces: `public.log_borrado()` — función de disparador que se cuelga con `AFTER DELETE ... FOR EACH ROW EXECUTE FUNCTION public.log_borrado('<modulo>', '<entity_type>', '<columna_label>')`
 
 - [ ] **Step 1: Escribir el archivo**
+
+> El bloque de abajo es el original del plan. La fuente de verdad es `docs/superpowers/plans/sql/2026-09-04-accesos-bitacora.sql`, que la revisión final dejó por delante: `pg_temp` en el `search_path` y el aviso ampliado del encabezado.
 
 ```sql
 -- Bitacora de borrados — la funcion generica.
@@ -1219,3 +1223,30 @@ Al terminar, esto es cierto:
 - **Ninguna pantalla cambió de comportamiento.** Los tres huecos del §1 del spec siguen abiertos: se cierran en los Tramos 2 y 3.
 
 **Lo que desbloquea el Tramo 2:** antes de mover la primera policy hay que leer las que existen. Pedirle a Diego `select * from pg_policies where schemaname = 'public'` y un `pg_dump --schema-only`. Sin eso no se escribe SQL que modifique nada.
+
+### Bloqueantes del Tramo 2
+
+Cinco cosas que el Tramo 1 deja abiertas a propósito y que el Tramo 2 **no puede** empezar sin cerrar. No son mejoras: son las que reintroducen el defecto que todo esto existe para matar.
+
+**1. El flujo de invitación tiene que escribir `permisos`.**
+Hoy `app/events/[id]/configuracion/page.tsx` inserta el colaborador sin esa columna. Después de correr la migración, eso deja de ser inofensivo: cada persona nueva nace con `permisos = NULL`, cae en el respaldo legado, y el respaldo le da **`total` en los doce módulos** si su rol es admin o editor — incluido borrar, que es justo lo que la migración le quita al editor. Del otro lado, `nivel_en()` le responde `'ninguno'` porque en la base no hay nada que leer. Resultado: la persona ve los doce módulos con todos los controles encendidos y la base le niega cada acción. Es el defecto del §1 del spec, reintroducido por la puerta de atrás en cada invitación nueva. Se cierra escribiendo `permisos` (y `tipo`) en el insert, antes de la primera policy.
+
+**2. `permisosDesdeRolLegado()` se borra o se acota.**
+Es un puente para la ventana entre desplegar el código y correr la migración, no un respaldo permanente. Hoy no distingue "la columna todavía no existe" de "esta fila no tiene permisos", y esos dos casos dejan de significar lo mismo en cuanto la migración corra: después de migrar, una fila sin permisos es una fila mal escrita, no una base vieja. O se borra la función, o se acota a que solo aplique cuando la consulta falló de verdad.
+
+**3. `hasAccess` tiene que derivarse de los permisos.**
+Hoy es `role !== null`, y el §6 del spec dice que el acceso a la boda es la suma de las herramientas: quien no tenga ni un módulo en `ver` no tiene acceso. `resumir()` ya existe en `lib/permisos/resolver.ts` para exactamente eso y hoy no lo usa nadie.
+
+**4. El secuestro de `user_id` deja de ser un pendiente heredado.**
+Un colaborador con rol admin de evento puede apropiarse de la boda cambiando el dueño. La raíz es preexistente, pero desde el Tramo 2 el premio crece: la primera rama de `nivel_en()` le responde `'total'` en los doce módulos por ser dueño del evento, y ahí ya no hay UI que lo module. Es bloqueante nombrado del Tramo 2, no algo que "se cierra solo" cuando lleguen las policies.
+
+**5. Las lecturas de schema que hay que pedirle a Diego antes de la primera policy.**
+Ninguna se puede sustituir por inferencia:
+- `select * from pg_policies where schemaname = 'public'` completo.
+- Un `pg_dump --schema-only`.
+- Si existe índice único en `event_collaborators(event_id, user_id)`. Sin él, `nivel_en()` con su `LIMIT 1` elige una fila arbitraria entre duplicados.
+- Las tres comprobaciones de `event_audit_log` del encabezado de `2026-09-04-accesos-bitacora.sql`: la acción de la llave foránea `event_id -> events.id`, si `action` o `entity_type` tienen `CHECK`, y si `user_id` o `user_name` son `NOT NULL`.
+
+### Nota para el Tramo 5
+
+`set_event_workspace` elige el despacho por `primary_owner_id`, lo cual asume **una persona = un despacho**. Cuando el Tramo 5 permita que alguien sea miembro de varios despachos, ese trigger deja de tener una respuesta correcta y hay que rehacerlo: tendrá que elegir por membresía (y el alta de evento tendrá que decir a cuál despacho va), no por quién es dueño principal de qué.
