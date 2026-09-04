@@ -66,11 +66,16 @@ FROM users u
 WHERE EXISTS (SELECT 1 FROM events e WHERE e.user_id = u.id)
   AND COALESCE(u.full_name, u.email) IS NULL;
 
--- 7. Duenos sin correo: tienen que ser cero. El paso 2 del aplicar escribe
---    workspace_members.email, que es NOT NULL. Ya no aborta la migracion (ese
---    paso usa COALESCE(email, id::text) como respaldo), pero cada fila que
---    salga aqui queda con un UUID donde deberia ir un correo, y ese correo es
---    la identidad del miembro. Hay que arreglarlos.
+-- 7. Duenos sin correo: deberian ser cero, pero NO bloquea la migracion. El
+--    paso 2 del aplicar escribe workspace_members.email, que es NOT NULL, con
+--    COALESCE(email, id::text) de respaldo: no aborta, y el bloque de aborto
+--    del -aplicar tampoco mira este chequeo. Se puede correr con esto en rojo.
+--    El costo de dejarlo: cada fila que salga aqui queda con un UUID donde
+--    deberia ir un correo, y ese correo es la identidad del miembro.
+--    Arreglarlo despues cuesta DOS tablas: hay que actualizar users.email Y el
+--    workspace_members.email que quedo con el UUID. Si solo se arregla el
+--    primero, una invitacion futura al correo real crea una fila distinta y al
+--    aceptarla choca con workspace_members_un_usuario (23505).
 SELECT count(*) AS duenos_sin_correo
 FROM users u
 WHERE EXISTS (SELECT 1 FROM events e WHERE e.user_id = u.id)
