@@ -4,11 +4,12 @@
 --
 -- QUE CREA: dos tablas nuevas (workspaces, workspace_members), cinco columnas
 -- nuevas (events.workspace_id; event_collaborators.permisos y tipo;
--- event_audit_log.modulo y batch_id), siete funciones (es_miembro_de,
--- guard_events_workspace, set_event_workspace, nivel_en, puede_ver,
--- puede_editar, puede_borrar), dos triggers sobre events
--- (guard_events_workspace, set_event_workspace), cinco indices y dos policies
--- SELECT sobre las dos tablas nuevas. Enciende RLS en esas dos tablas.
+-- event_audit_log.modulo y batch_id), ocho funciones (es_miembro_de,
+-- guard_events_workspace, set_event_workspace, permisos_validos, nivel_en,
+-- puede_ver, puede_editar, puede_borrar), dos triggers sobre events
+-- (guard_events_workspace, set_event_workspace), una restriccion CHECK sobre
+-- event_collaborators.permisos, cinco indices y dos policies SELECT sobre las
+-- dos tablas nuevas. Enciende RLS en esas dos tablas.
 --
 -- QUE TOCA DE LO QUE YA EXISTE: no modifica ninguna policy, ninguna funcion ni
 -- ningun dato que ya exista. Lo unico que cambia el comportamiento actual son
@@ -41,6 +42,12 @@
 -- events.workspace_id queda con UUID que ya no apuntan a nada. Eso es peor que
 -- NULL: la verificacion final de -migracion-aplicar.sql busca workspace_id IS
 -- NULL y no lo detecta.
+--
+-- LOS DROP DE ESTE ARCHIVO NO BORRAN NADA TUYO: los unicos que hay son
+-- DROP TRIGGER IF EXISTS, DROP POLICY IF EXISTS y DROP CONSTRAINT IF EXISTS,
+-- siempre sobre un objeto que el propio archivo vuelve a crear dos lineas
+-- despues. Estan ahi para que el archivo se pueda re-correr. No los quites
+-- "para limpiar": sin ellos, la segunda corrida falla.
 --
 -- Modelo (ver §2 del spec):
 --   Arriba, el despacho: dueno / admin / colaborador.
@@ -117,7 +124,7 @@ ALTER TABLE public.workspace_members ENABLE ROW LEVEL SECURITY;
 -- workspace_members dentro de su propio USING recursa (42P17) y deja las dos
 -- tablas ilegibles. Misma tecnica que is_event_member en anf-053.
 CREATE OR REPLACE FUNCTION public.es_miembro_de(ws uuid)
-RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public
+RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp
 AS $$
   SELECT EXISTS (
     SELECT 1 FROM workspace_members m
@@ -140,7 +147,7 @@ ALTER TABLE public.events
 -- regresa 'total' en los doce modulos. Va como trigger aparte para no tocar
 -- guard_events_config: este archivo no modifica nada que ya exista.
 CREATE OR REPLACE FUNCTION public.guard_events_workspace()
-RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp
 AS $$
 BEGIN
   IF auth.uid() IS NULL THEN
@@ -180,7 +187,7 @@ CREATE TRIGGER guard_events_workspace
 -- escribe en workspaces. Se crea aqui la primera vez que hace falta, para que
 -- el invariante se sostenga solo en vez de degradarse en silencio.
 CREATE OR REPLACE FUNCTION public.set_event_workspace()
-RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp
 AS $$
 DECLARE
   v_ws uuid;
@@ -227,6 +234,34 @@ ALTER TABLE public.event_collaborators
   ADD COLUMN IF NOT EXISTS permisos jsonb,
   ADD COLUMN IF NOT EXISTS tipo text CHECK (tipo IN ('equipo', 'cliente'));
 
+-- El nombre del modulo no se valida en nivel_en(): un typo en una policy del
+-- proximo tramo devolveria "sin acceso" y la tabla entera regresaria cero filas
+-- sin ruido. Se cierra desde el dato, que es donde no se puede esquivar.
+CREATE OR REPLACE FUNCTION public.permisos_validos(p jsonb)
+RETURNS boolean LANGUAGE sql IMMUTABLE
+SET search_path = public, pg_temp
+AS $$
+  SELECT p IS NULL OR (
+    jsonb_typeof(p) = 'object'
+    AND NOT EXISTS (
+      SELECT 1 FROM jsonb_each_text(p) AS e(k, v)
+      WHERE k NOT IN ('invitados','invitacion','mensajes','mesas','timeline',
+                      'regalos','album','playlist','vestimenta',
+                      'presupuesto','proveedores','pagos')
+         OR v NOT IN ('ninguno','ver','editar','total')
+    )
+  )
+$$;
+
+-- Un CHECK no puede llevar subconsultas directas, por eso va envuelto en
+-- funcion. La columna permisos esta vacia cuando este archivo corre, asi que la
+-- restriccion entra sin conflicto y valida las escrituras de -migracion-aplicar.
+ALTER TABLE public.event_collaborators
+  DROP CONSTRAINT IF EXISTS event_collaborators_permisos_validos;
+ALTER TABLE public.event_collaborators
+  ADD CONSTRAINT event_collaborators_permisos_validos
+  CHECK (public.permisos_validos(permisos));
+
 -- La bitacora necesita saber de que modulo fue el movimiento, y poder agrupar
 -- un borrado en cascada para regresarlo completo.
 ALTER TABLE public.event_audit_log
@@ -237,12 +272,19 @@ ALTER TABLE public.event_audit_log
 -- 3. La unica funcion que decide un permiso
 -- ============================================================
 
+-- OJO, divergencia deliberada con nivelEfectivo() de lib/permisos/resolver.ts:
+-- la app devuelve 'ninguno' cuando la herramienta esta apagada en la boda
+-- (event_settings.enabled_features) y esta funcion NO mira esa bandera. Es
+-- decision tomada: apagar una herramienta es estado de producto, no frontera de
+-- seguridad, y nadie gana acceso que su dueno no le haya dado. Si algun dia
+-- "apagar" se vende como ocultarle algo al cliente, esta funcion tiene que
+-- empezar a mirar enabled_features.
 CREATE OR REPLACE FUNCTION public.nivel_en(evento uuid, modulo text)
 RETURNS text
 LANGUAGE sql
 STABLE
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, pg_temp
 AS $$
   SELECT CASE
     WHEN EXISTS (
@@ -274,16 +316,31 @@ AS $$
 $$;
 
 CREATE OR REPLACE FUNCTION public.puede_ver(evento uuid, modulo text)
-RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public
+RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp
 AS $$ SELECT public.nivel_en(evento, modulo) <> 'ninguno' $$;
 
 CREATE OR REPLACE FUNCTION public.puede_editar(evento uuid, modulo text)
-RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public
+RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp
 AS $$ SELECT public.nivel_en(evento, modulo) IN ('editar', 'total') $$;
 
 CREATE OR REPLACE FUNCTION public.puede_borrar(evento uuid, modulo text)
-RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public
+RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp
 AS $$ SELECT public.nivel_en(evento, modulo) = 'total' $$;
+
+-- Postgres le da EXECUTE a PUBLIC por default en cada funcion nueva. Estas
+-- cinco son SECURITY DEFINER y leen tablas sin RLS: solo las llama quien ya
+-- esta autenticado.
+REVOKE EXECUTE ON FUNCTION public.es_miembro_de(uuid)        FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION public.nivel_en(uuid, text)       FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION public.puede_ver(uuid, text)      FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION public.puede_editar(uuid, text)   FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION public.puede_borrar(uuid, text)   FROM PUBLIC;
+
+GRANT EXECUTE ON FUNCTION public.es_miembro_de(uuid)        TO authenticated;
+GRANT EXECUTE ON FUNCTION public.nivel_en(uuid, text)       TO authenticated;
+GRANT EXECUTE ON FUNCTION public.puede_ver(uuid, text)      TO authenticated;
+GRANT EXECUTE ON FUNCTION public.puede_editar(uuid, text)   TO authenticated;
+GRANT EXECUTE ON FUNCTION public.puede_borrar(uuid, text)   TO authenticated;
 
 -- ============================================================
 -- 4. Las policies de las tablas nuevas
