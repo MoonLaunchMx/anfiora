@@ -42,7 +42,7 @@ WHERE EXISTS (SELECT 1 FROM events e WHERE e.user_id = u.id)
 
 -- 2. El dueno principal como miembro de su propio despacho
 INSERT INTO workspace_members (workspace_id, user_id, email, rol, es_dueno_principal, status, accepted_at)
-SELECT w.id, u.id, u.email, 'dueno', true, 'active', now()
+SELECT w.id, u.id, COALESCE(u.email, u.id::text), 'dueno', true, 'active', now()
 FROM workspaces w
 JOIN users u ON u.id = w.primary_owner_id
 WHERE NOT EXISTS (
