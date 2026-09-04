@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Trash2, Plus, GripVertical } from 'lucide-react'
+import { Trash2, Plus, GripVertical, AlertTriangle } from 'lucide-react'
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
@@ -15,6 +15,7 @@ interface Props {
   onDelete: (name: string) => void
   onReorder: (next: string[]) => void
   onClose: () => void
+  error?: string
 }
 
 function Row({ name, count, onDelete }: { name: string; count: number; onDelete: (n: string) => void }) {
@@ -30,7 +31,7 @@ function Row({ name, count, onDelete }: { name: string; count: number; onDelete:
   )
 }
 
-export function BudgetCategoriesModal({ categories, itemCountByCategory, onAdd, onDelete, onReorder, onClose }: Props) {
+export function BudgetCategoriesModal({ categories, itemCountByCategory, onAdd, onDelete, onReorder, onClose, error }: Props) {
   const [adding, setAdding] = useState(false)
   const [newName, setNewName] = useState('')
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
@@ -48,6 +49,12 @@ export function BudgetCategoriesModal({ categories, itemCountByCategory, onAdd, 
     <Modal open onClose={onClose} size="md">
       <Modal.Header title="Categorías" subtitle="Para cambiar el nombre de una categoría, ve a Ajustes › Categorías" />
       <Modal.Body>
+        {error && (
+          <div className="mb-3 flex items-start gap-2 rounded-lg border p-3" style={{ background: 'var(--error-bg)', borderColor: 'var(--error-border)' }}>
+            <AlertTriangle size={14} className="mt-0.5 shrink-0" style={{ color: 'var(--error-text)' }} />
+            <p className="text-xs" style={{ color: 'var(--error-text)' }}>{error}</p>
+          </div>
+        )}
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
           <SortableContext items={categories} strategy={verticalListSortingStrategy}>
             <div className="flex flex-col gap-1.5">

@@ -72,6 +72,7 @@ export default function PresupuestoPage() {
   const [storedCategories, setStoredCategories]   = useState<string[] | null>(null)
   const [categorias, setCategorias]               = useState<Categoria[]>([])
   const [showCategoriesModal, setShowCategoriesModal] = useState(false)
+  const [categoryDeleteError, setCategoryDeleteError] = useState('')
   const [addingCategory, setAddingCategory]       = useState(false)
   const [newCategoryName, setNewCategoryName]     = useState('')
 
@@ -453,6 +454,7 @@ export default function PresupuestoPage() {
         confirmLabel: 'Eliminar categoría',
       })
       if (!ok) return
+      setCategoryDeleteError('')
 
       // La reasignacion tiene que quedar hecha ANTES de quitar la seccion de la
       // lista: si aborta aqui, las partidas siguen visibles donde estaban en vez
@@ -460,12 +462,12 @@ export default function PresupuestoPage() {
       const deletedId = buscarPorNombre(categorias, name)?.id ?? null
       const otroId     = buscarPorNombre(categorias, 'Otro')?.id ?? null
       if (!deletedId || !otroId) {
-        setImportError('No se pudo eliminar la categoría: falta su registro interno. Intenta de nuevo.')
+        setCategoryDeleteError('No se pudo mover los conceptos a "Otro", así que la categoría no se eliminó. Tus partidas siguen donde estaban.')
         return
       }
       const { error } = await supabase.from('event_budgets').update({ category_id: otroId }).eq('event_id', eventId).eq('category_id', deletedId)
       if (error) {
-        setImportError('No se pudieron mover los conceptos a "Otro". La categoría sigue igual.')
+        setCategoryDeleteError('No se pudieron mover los conceptos a "Otro", así que la categoría no se eliminó. Tus partidas siguen donde estaban.')
         return
       }
 
@@ -747,7 +749,8 @@ export default function PresupuestoPage() {
           onAdd={addCategory}
           onDelete={deleteCategory}
           onReorder={reorderCategories}
-          onClose={() => setShowCategoriesModal(false)}
+          error={categoryDeleteError}
+          onClose={() => { setShowCategoriesModal(false); setCategoryDeleteError('') }}
         />
       )}
 
