@@ -11,7 +11,7 @@ import { FiInstagram, FiGlobe, FiMail, FiFacebook } from 'react-icons/fi'
 import { supabase } from '@/lib/supabase'
 import {
   EventSupplier, Supplier, SupplierPayment, EventBudget, Currency, formatCurrency,
-  BUDGET_CATEGORIES, BUDGET_CATEGORY_LABELS, BudgetCategory, budgetCategoryLabel,
+  BUDGET_CATEGORIES, BUDGET_CATEGORY_LABELS, budgetCategoryLabel,
   SupplierStatus, SUPPLIER_STATUSES, SUPPLIER_STATUS_LABELS,
   PAYMENT_METHODS, PAYMENT_METHOD_LABELS, PaymentMethod,
   PAID_BY_OPTIONS, PAID_BY_LABELS, PaidBy,
@@ -44,7 +44,7 @@ export default function SupplierDetailModal({
   const askConfirm = useConfirm()
 
   const [name, setName]             = useState(item.supplier.name)
-  const [category, setCategory]     = useState<BudgetCategory>(item.supplier.category)
+  const [category, setCategory]     = useState<string>(item.supplier.category)
   const [phone, setPhone]           = useState(item.supplier.phone ?? '')
   const [instagram, setInstagram]   = useState(item.supplier.instagram ?? '')
   const [facebook, setFacebook]     = useState((item.supplier as any).facebook ?? '')
@@ -317,7 +317,7 @@ export default function SupplierDetailModal({
 
   return (
     <Modal open onClose={onClose} size="2xl">
-      <Modal.Header title={name || 'Sin nombre'} subtitle={BUDGET_CATEGORY_LABELS[category]} />
+      <Modal.Header title={name || 'Sin nombre'} subtitle={budgetCategoryLabel(category)} />
       <Modal.Body className="space-y-7 py-5">
 
         {/* ① ESTADO */}
@@ -342,7 +342,7 @@ export default function SupplierDetailModal({
               <input type="text" value={name} onChange={e => setName(e.target.value)} className={`${INPUT_CLASS} w-full`} />
             </Field>
             <Field label="Categoría">
-              <select value={category} onChange={e => { setCategory(e.target.value as BudgetCategory); setEventBudgetId('') }} className={`${INPUT_CLASS} w-full`}>
+              <select value={category} onChange={e => { setCategory(e.target.value); setEventBudgetId('') }} className={`${INPUT_CLASS} w-full`}>
                 {BUDGET_CATEGORIES.map(c => <option key={c} value={c}>{BUDGET_CATEGORY_LABELS[c]}</option>)}
               </select>
             </Field>
@@ -365,7 +365,7 @@ export default function SupplierDetailModal({
               ) : (
                 <div className="flex items-center gap-2 rounded-lg border border-dashed border-[#e0e0e0] bg-[#fafafa] px-3 py-3">
                   <Wallet size={14} className="shrink-0 text-[#aaa]" />
-                  <p className="text-xs text-[#888]">No hay conceptos de {BUDGET_CATEGORY_LABELS[category]} — créalos en Presupuesto</p>
+                  <p className="text-xs text-[#888]">No hay conceptos de {budgetCategoryLabel(category)} — créalos en Presupuesto</p>
                 </div>
               )}
             </Field>

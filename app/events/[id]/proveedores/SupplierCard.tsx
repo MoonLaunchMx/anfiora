@@ -2,7 +2,7 @@
 
 import { Mail, Globe } from 'lucide-react'
 import {
-  Currency, formatCurrency, BUDGET_CATEGORY_LABELS, budgetCategoryLabel,
+  Currency, formatCurrency, budgetCategoryLabel,
   EventSupplier, Supplier, EventBudget,
   SUPPLIER_STATUS_LABELS, SUPPLIER_STATUS_COLORS,
 } from '@/lib/types'
@@ -58,7 +58,7 @@ export default function SupplierCard({ item, budgets, currency, onClick }: Props
       {/* Header: categoría + badge status */}
       <div className="mb-2 flex items-center justify-between gap-2">
         <span className="text-[10px] font-semibold uppercase tracking-wider text-[#888]">
-          {BUDGET_CATEGORY_LABELS[s.category]}
+          {budgetCategoryLabel(s.category)}
         </span>
         <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${SUPPLIER_STATUS_COLORS[item.status]}`}>
           {SUPPLIER_STATUS_LABELS[item.status]}

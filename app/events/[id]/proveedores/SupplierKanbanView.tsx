@@ -7,7 +7,7 @@ import {
 } from '@dnd-kit/core'
 import { Frown, Meh, Smile } from 'lucide-react'
 import {
-  Currency, formatCurrency, BUDGET_CATEGORY_LABELS, budgetCategoryLabel,
+  Currency, formatCurrency, budgetCategoryLabel,
   EventSupplier, Supplier, EventBudget, SupplierStatus,
   SUPPLIER_STATUSES, SUPPLIER_STATUS_LABELS, SUPPLIER_STATUS_COLORS,
   SUPPLIER_MOOD_COLORS,
@@ -220,7 +220,7 @@ function KanbanCard({
       {/* Categoría + mood */}
       <div className="mb-1 flex items-center justify-between gap-1">
         <p className="text-[10px] font-semibold uppercase tracking-wider text-[#888]">
-          {BUDGET_CATEGORY_LABELS[item.supplier.category]}
+          {budgetCategoryLabel(item.supplier.category)}
         </p>
         {MoodIcon}
       </div>

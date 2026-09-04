@@ -61,7 +61,7 @@ export default function ProveedoresPage() {
 
   const handleCreateSupplier = async (data: {
     name: string
-    category: BudgetCategory
+    category: string
     subcategory: string | null
     phone: string | null
     phone_country_code: string | null
@@ -140,7 +140,7 @@ export default function ProveedoresPage() {
       const q = search.toLowerCase()
       const match = s.name.toLowerCase().includes(q) ||
                     (s.subcategory || '').toLowerCase().includes(q) ||
-                    BUDGET_CATEGORY_LABELS[s.category].toLowerCase().includes(q)
+                    budgetCategoryLabel(s.category).toLowerCase().includes(q)
       if (!match) return false
     }
     if (filterCategory && s.category !== filterCategory) return false
@@ -379,7 +379,7 @@ function CardsView({ items, budgets, currency, groupBy, onSelect }: {
   const seen = new Map<string, SupplierWithDetails[]>()
   items.forEach(item => {
     let key = ''
-    if (groupBy === 'categoria') key = BUDGET_CATEGORY_LABELS[item.supplier.category] || 'Sin categoría'
+    if (groupBy === 'categoria') key = budgetCategoryLabel(item.supplier.category) || 'Sin categoría'
     if (groupBy === 'estatus')   key = SUPPLIER_STATUS_LABELS[item.status] || item.status
     if (groupBy === 'partida') {
       const budget = budgets.find(b => b.id === item.event_budget_id)

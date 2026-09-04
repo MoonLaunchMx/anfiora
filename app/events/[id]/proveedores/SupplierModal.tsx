@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import {
-  BudgetCategory, BUDGET_CATEGORIES, BUDGET_CATEGORY_LABELS, budgetCategoryLabel,
+  BUDGET_CATEGORIES, BUDGET_CATEGORY_LABELS, budgetCategoryLabel,
   EventBudget, Currency, formatCurrency,
 } from '@/lib/types'
 import { FiInstagram, FiGlobe, FiFacebook } from 'react-icons/fi'
@@ -18,7 +18,7 @@ type Props = {
   budgets: EventBudget[]
   onSubmit: (data: {
     name: string
-    category: BudgetCategory
+    category: string
     subcategory: string | null
     phone: string | null
     phone_country_code: string | null
@@ -31,7 +31,7 @@ type Props = {
 
 export default function SupplierModal({ isOpen, onClose, currency, budgets, onSubmit }: Props) {
   const [name, setName]                   = useState('')
-  const [category, setCategory]           = useState<BudgetCategory>('Venue')
+  const [category, setCategory]           = useState<string>('Venue')
   const [eventBudgetId, setEventBudgetId] = useState('')
   const [phone, setPhone]                 = useState('')
   const [instagram, setInstagram]         = useState('')
@@ -109,7 +109,7 @@ export default function SupplierModal({ isOpen, onClose, currency, budgets, onSu
             </label>
             <select
               value={category}
-              onChange={e => { setCategory(e.target.value as BudgetCategory); setEventBudgetId('') }}
+              onChange={e => { setCategory(e.target.value); setEventBudgetId('') }}
               className="w-full rounded-lg border border-[#e0e0e0] bg-white px-3 py-2 text-base text-[#1D1E20] outline-none transition focus:border-[#48C9B0]"
             >
               {BUDGET_CATEGORIES.map(cat => (
@@ -140,7 +140,7 @@ export default function SupplierModal({ isOpen, onClose, currency, budgets, onSu
             ) : (
               <div className="rounded-lg border border-dashed border-[#e0e0e0] bg-[#fafafa] px-3 py-2.5 text-center">
                 <p className="text-xs text-[#aaa]">
-                  No hay conceptos de {BUDGET_CATEGORY_LABELS[category]} — créalos en Presupuesto
+                  No hay conceptos de {budgetCategoryLabel(category)} — créalos en Presupuesto
                 </p>
               </div>
             )}
