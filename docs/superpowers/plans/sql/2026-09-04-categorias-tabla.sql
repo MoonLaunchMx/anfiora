@@ -51,29 +51,33 @@ CREATE POLICY categories_delete_own ON public.categories
 -- con lower(name) se queda con una sola grafia cuando hay varias — la primera
 -- por orden alfabetico, que es arbitrario pero estable. Las repetidas de verdad
 -- las junta el planner despues, desde la pantalla.
+-- El select va envuelto en una subconsulta porque ON CONFLICT no puede ir despues del ORDER BY que exige DISTINCT ON.
 
 INSERT INTO public.categories (user_id, name)
-SELECT DISTINCT ON (user_id, lower(nombre)) user_id, nombre
+SELECT user_id, nombre
 FROM (
-  SELECT u.id AS user_id, cat AS nombre
-  FROM public.users u
-  CROSS JOIN LATERAL jsonb_array_elements_text(COALESCE(u.categories, '[]'::jsonb)) AS cat
+  SELECT DISTINCT ON (user_id, lower(nombre)) user_id, nombre
+  FROM (
+    SELECT u.id AS user_id, cat AS nombre
+    FROM public.users u
+    CROSS JOIN LATERAL jsonb_array_elements_text(COALESCE(u.categories, '[]'::jsonb)) AS cat
 
-  UNION ALL
+    UNION ALL
 
-  SELECT s.user_id, s.category
-  FROM public.suppliers s
-  WHERE s.category IS NOT NULL AND s.category <> ''
+    SELECT s.user_id, s.category
+    FROM public.suppliers s
+    WHERE s.category IS NOT NULL AND s.category <> ''
 
-  UNION ALL
+    UNION ALL
 
-  SELECT e.user_id, b.category
-  FROM public.event_budgets b
-  JOIN public.events e ON e.id = b.event_id
-  WHERE b.category IS NOT NULL AND b.category <> ''
-) fuentes
-WHERE nombre IS NOT NULL AND btrim(nombre) <> ''
-ORDER BY user_id, lower(nombre), nombre
+    SELECT e.user_id, b.category
+    FROM public.event_budgets b
+    JOIN public.events e ON e.id = b.event_id
+    WHERE b.category IS NOT NULL AND b.category <> ''
+  ) fuentes
+  WHERE nombre IS NOT NULL AND btrim(nombre) <> ''
+  ORDER BY user_id, lower(nombre), nombre
+) dedup
 ON CONFLICT DO NOTHING;
 
 COMMIT;
