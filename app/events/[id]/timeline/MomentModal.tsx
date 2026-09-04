@@ -6,6 +6,7 @@ import { ITINERARY_PHASES, PHASE_LABEL, computeEndTime, dayLabel } from '@/lib/i
 import { ChevronDown, Eye, EyeOff } from 'lucide-react'
 import { Modal } from '@/app/components/ui/Modal'
 import TimePicker from '@/app/components/ui/TimePicker'
+import { Puede } from '@/lib/permisos/Puede'
 
 export interface MomentDraft {
   title: string
@@ -268,12 +269,14 @@ export function MomentModal({ editMoment, suppliers, days, defaultDate, onClose,
       </Modal.Body>
       <Modal.Footer>
         {editMoment && (
-          <button
-            onClick={() => onDelete(editMoment)}
-            className="px-4 py-2.5 text-sm text-[#cc3333] border border-[#ffc0c0] rounded-xl hover:bg-[#fff0f0] transition-colors"
-          >
-            Eliminar
-          </button>
+          <Puede modulo="timeline" accion="borrar">
+            <button
+              onClick={() => onDelete(editMoment)}
+              className="px-4 py-2.5 text-sm text-[#cc3333] border border-[#ffc0c0] rounded-xl hover:bg-[#fff0f0] transition-colors"
+            >
+              Eliminar
+            </button>
+          </Puede>
         )}
         <button
           onClick={onClose}
@@ -281,13 +284,15 @@ export function MomentModal({ editMoment, suppliers, days, defaultDate, onClose,
         >
           Cancelar
         </button>
-        <button
-          onClick={handleSave}
-          disabled={!form.title.trim() || !form.start_time}
-          className="flex-[2] py-2.5 text-sm bg-[#48C9B0] text-white rounded-xl font-semibold disabled:opacity-40 hover:bg-[#3ab89f] transition-colors"
-        >
-          {editMoment ? 'Guardar cambios' : 'Agregar momento'}
-        </button>
+        <Puede modulo="timeline" accion="editar">
+          <button
+            onClick={handleSave}
+            disabled={!form.title.trim() || !form.start_time}
+            className="flex-[2] py-2.5 text-sm bg-[#48C9B0] text-white rounded-xl font-semibold disabled:opacity-40 hover:bg-[#3ab89f] transition-colors"
+          >
+            {editMoment ? 'Guardar cambios' : 'Agregar momento'}
+          </button>
+        </Puede>
       </Modal.Footer>
     </Modal>
   )

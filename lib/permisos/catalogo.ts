@@ -1,4 +1,9 @@
+import type React from 'react'
 import type { FeatureKey } from '@/lib/features'
+import {
+  Users, MailOpen, MessageCircle, LayoutGrid, Clock,
+  Gift, Images, Music2, Shirt, PieChart, Store, CreditCard,
+} from 'lucide-react'
 
 export const MODULOS = [
   'invitados', 'invitacion', 'mensajes', 'mesas', 'timeline',
@@ -25,21 +30,35 @@ export interface ModuloConfig {
   feature: FeatureKey | null
   // sufijos bajo /events/[id]; '' es la raiz (lista de invitados)
   rutas: string[]
+  icon: React.ElementType
+  descripcion: string
 }
 
 export const MODULOS_CONFIG: ModuloConfig[] = [
-  { key: 'invitados',   label: 'Invitados',        grupo: 'boda',         feature: null,         rutas: [''] },
-  { key: 'invitacion',  label: 'Invitación',       grupo: 'herramientas', feature: 'invitacion', rutas: ['/invitacion'] },
-  { key: 'mensajes',    label: 'Mensajes',         grupo: 'boda',         feature: null,         rutas: ['/mensajes'] },
-  { key: 'mesas',       label: 'Mesas y check-in', grupo: 'herramientas', feature: 'mesas',      rutas: ['/mesas'] },
-  { key: 'timeline',    label: 'Timeline',         grupo: 'boda',         feature: null,         rutas: ['/timeline'] },
-  { key: 'regalos',     label: 'Mesa de regalos',  grupo: 'herramientas', feature: 'regalos',    rutas: ['/mesa-regalos'] },
-  { key: 'album',       label: 'Álbum de fotos',   grupo: 'herramientas', feature: 'album',      rutas: ['/album'] },
-  { key: 'playlist',    label: 'Playlist',         grupo: 'herramientas', feature: 'playlist',   rutas: ['/playlist'] },
-  { key: 'vestimenta',  label: 'Dress code',       grupo: 'herramientas', feature: 'vestimenta', rutas: ['/vestimenta'] },
-  { key: 'presupuesto', label: 'Presupuesto',      grupo: 'finanzas',     feature: null,         rutas: ['/presupuesto'] },
-  { key: 'proveedores', label: 'Proveedores',      grupo: 'finanzas',     feature: null,         rutas: ['/proveedores'] },
-  { key: 'pagos',       label: 'Pagos',            grupo: 'finanzas',     feature: null,         rutas: ['/pagos'] },
+  { key: 'invitados',   label: 'Invitados',        grupo: 'boda',         feature: null,         rutas: [''],
+    icon: Users,        descripcion: 'Lista, acompañantes y confirmaciones' },
+  { key: 'invitacion',  label: 'Invitación',       grupo: 'herramientas', feature: 'invitacion', rutas: ['/invitacion'],
+    icon: MailOpen,     descripcion: 'La invitación digital y su contenido' },
+  { key: 'mensajes',    label: 'Mensajes',         grupo: 'boda',         feature: null,         rutas: ['/mensajes'],
+    icon: MessageCircle, descripcion: 'Conversaciones de WhatsApp con los invitados' },
+  { key: 'mesas',       label: 'Mesas y check-in', grupo: 'herramientas', feature: 'mesas',      rutas: ['/mesas'],
+    icon: LayoutGrid,   descripcion: 'Acomodo de mesas y registro de llegadas' },
+  { key: 'timeline',    label: 'Timeline',         grupo: 'boda',         feature: null,         rutas: ['/timeline'],
+    icon: Clock,        descripcion: 'Tareas, recordatorios e itinerario del día' },
+  { key: 'regalos',     label: 'Mesa de regalos',  grupo: 'herramientas', feature: 'regalos',    rutas: ['/mesa-regalos'],
+    icon: Gift,         descripcion: 'Regalos, fondos y sobres' },
+  { key: 'album',       label: 'Álbum de fotos',   grupo: 'herramientas', feature: 'album',      rutas: ['/album'],
+    icon: Images,       descripcion: 'Las fotos que suben los invitados' },
+  { key: 'playlist',    label: 'Playlist',         grupo: 'herramientas', feature: 'playlist',   rutas: ['/playlist'],
+    icon: Music2,       descripcion: 'Canciones sugeridas y su orden' },
+  { key: 'vestimenta',  label: 'Dress code',       grupo: 'herramientas', feature: 'vestimenta', rutas: ['/vestimenta'],
+    icon: Shirt,        descripcion: 'Qué ponerse: nivel, colores y ejemplos' },
+  { key: 'presupuesto', label: 'Presupuesto',      grupo: 'finanzas',     feature: null,         rutas: ['/presupuesto'],
+    icon: PieChart,     descripcion: 'Partidas, montos y avance del gasto' },
+  { key: 'proveedores', label: 'Proveedores',      grupo: 'finanzas',     feature: null,         rutas: ['/proveedores'],
+    icon: Store,        descripcion: 'Fichas, cotizaciones y contratos' },
+  { key: 'pagos',       label: 'Pagos',            grupo: 'finanzas',     feature: null,         rutas: ['/pagos'],
+    icon: CreditCard,   descripcion: 'Historial de pagos y saldos' },
 ]
 
 const RE_EVENTO = /^\/events\/[^/]+(\/.*)?$/

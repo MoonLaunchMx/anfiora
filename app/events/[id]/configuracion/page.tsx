@@ -13,7 +13,12 @@ import { TabToggle, type TabItem } from '@/app/components/ui/TabToggle'
 import { useConfirm } from '@/app/components/ui/ConfirmModal'
 import { useEventAccess } from '@/lib/event-access-context'
 import { FEATURES, ALWAYS_ON_FEATURES, type FeatureKey } from '@/lib/features'
-import { Copy, Check, UserPlus, X, Shield, Pencil, Eye, Settings2, MessageCircle, Users, Smartphone, Gem, Crown, Cake, GraduationCap, Sun, PartyPopper, Wine, CalendarDays, Presentation, Monitor, UsersRound, Rocket, Building2, Tent, Mic, Flame, HeartHandshake, type LucideIcon } from 'lucide-react'
+import { logAction } from '@/lib/audit'
+import { PermisosEditor } from './PermisosEditor'
+import { aplicarKit, normalizarPermisos, permisosDeRol, resumir } from '@/lib/permisos/resolver'
+import type { PermisosEvento } from '@/lib/permisos/catalogo'
+import { Modal } from '@/app/components/ui/Modal'
+import { Copy, Check, UserPlus, X, Pencil, Eye, Settings, Settings2, MessageCircle, Users, Smartphone, Gem, Crown, Cake, GraduationCap, Sun, PartyPopper, Wine, CalendarDays, Presentation, Monitor, UsersRound, Rocket, Building2, Tent, Mic, Flame, HeartHandshake, type LucideIcon } from 'lucide-react'
 
 // ─── Constantes ──────────────────────────────────────────────────────────────
 
@@ -93,9 +98,8 @@ const STATUS_OPTIONS: { status: EventStatus; label: string; dot: string }[] = [
 ]
 
 const ROLES = [
-  { value: 'admin',  label: 'Admin',  description: 'Edita e invita colaboradores', icon: Shield },
-  { value: 'editor', label: 'Editor', description: 'Edita invitados y mesas',      icon: Pencil },
-  { value: 'viewer', label: 'Viewer', description: 'Solo lectura',                 icon: Eye },
+  { value: 'viewer', label: 'Solo lectura', description: 'Ve todo, no toca nada', icon: Eye },
+  { value: 'editor', label: 'Puede editar', description: 'Agrega y corrige, no borra', icon: Pencil },
 ]
 
 const TABS: TabItem[] = [
@@ -115,6 +119,8 @@ interface Collaborator {
   invited_at: string
   accepted_at: string | null
   user_id: string | null
+  permisos: PermisosEvento | null
+  tipo: 'equipo' | 'cliente' | null
 }
 
 // ─── TemplateInput ───────────────────────────────────────────────────────────
@@ -288,11 +294,14 @@ export default function ConfiguracionPage() {
   // Colaboradores
   const [collaborators, setCollaborators] = useState<Collaborator[]>([])
   const [inviteEmail, setInviteEmail]     = useState('')
-  const [inviteRole, setInviteRole]       = useState<'admin' | 'editor' | 'viewer'>('editor')
+  const [inviteRole, setInviteRole]       = useState<'editor' | 'viewer'>('editor')
   const [inviting, setInviting]           = useState(false)
   const [inviteError, setInviteError]     = useState('')
   const [copiedToken, setCopiedToken]     = useState<string | null>(null)
   const [revoking, setRevoking]           = useState<string | null>(null)
+  const [editandoPermisos, setEditandoPermisos] = useState<string | null>(null)
+  const [borrador, setBorrador]           = useState<PermisosEvento>({})
+  const [guardando, setGuardando]         = useState(false)
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -514,7 +523,11 @@ export default function ConfiguracionPage() {
     if (!user) { setInviteError('Sesion expirada'); setInviting(false); return }
     const { data, error: err } = await supabase
       .from('event_collaborators')
-      .insert({ event_id: id, invited_by: user.id, email, role: inviteRole, status: 'pending' })
+      .insert({
+        event_id: id, invited_by: user.id, email, role: inviteRole, status: 'pending',
+        permisos: aplicarKit(permisosDeRol(inviteRole), features),
+        tipo: 'equipo',
+      })
       .select().single()
     if (err) { setInviteError('Error al crear invitacion'); setInviting(false); return }
     setCollaborators(prev => [...prev, data as Collaborator])
@@ -547,6 +560,34 @@ export default function ConfiguracionPage() {
       .eq('id', collaboratorId)
     if (!err) setCollaborators(prev => prev.filter(c => c.id !== collaboratorId))
     setRevoking(null)
+  }
+
+  const guardarPermisos = async (colaboradorId: string) => {
+    setGuardando(true)
+    const { data, error: err } = await supabase
+      .from('event_collaborators')
+      .update({ permisos: borrador })
+      .eq('id', colaboradorId)
+      .select('id')
+
+    setGuardando(false)
+    if (err || !data || data.length === 0) {
+      alert('No se pudieron guardar los permisos. Vuelve a intentar.')
+      return
+    }
+
+    setCollaborators(prev =>
+      prev.map(c => (c.id === colaboradorId ? { ...c, permisos: borrador } : c)),
+    )
+    setEditandoPermisos(null)
+    logAction({
+      eventId: id as string,
+      action: 'collaborator.permissions_updated',
+      entityType: 'collaborator',
+      entityId: colaboradorId,
+      entityLabel: collaborators.find(c => c.id === colaboradorId)?.email ?? '',
+      newValue: borrador,
+    })
   }
 
   const eventDays = eventDate && eventEndDate
@@ -1058,13 +1099,14 @@ export default function ConfiguracionPage() {
                   placeholder="email@ejemplo.com"
                   className="w-full rounded-lg border border-[#d0d0d0] bg-white px-3 py-2.5 text-sm text-[#1D1E20] outline-none transition focus:border-[#48C9B0]"
                 />
-                <div className="grid grid-cols-3 gap-1.5">
+                <p className="text-[11px] font-semibold text-[#888]">Empieza como</p>
+                <div className="grid grid-cols-2 gap-1.5">
                   {ROLES.map(r => {
                     const Icon = r.icon
                     return (
                       <button
                         key={r.value}
-                        onClick={() => setInviteRole(r.value as 'admin' | 'editor' | 'viewer')}
+                        onClick={() => setInviteRole(r.value as 'editor' | 'viewer')}
                         className={'flex flex-col items-center gap-1 rounded-lg border px-2 py-2.5 text-center transition ' +
                           (inviteRole === r.value
                             ? 'border-[#48C9B0] bg-[#f0fdfb] text-[#1a9e88]'
@@ -1092,42 +1134,125 @@ export default function ConfiguracionPage() {
                 <div className="flex flex-col gap-2">
                   <p className="text-[11px] font-semibold uppercase tracking-wide text-[#bbb]">Con acceso</p>
                   {collaborators.map(c => {
-                    const roleInfo = ROLES.find(r => r.value === c.role)
-                    const Icon     = roleInfo?.icon || Eye
-                    const isCopied = copiedToken === c.invite_token
                     return (
-                      <div key={c.id} className="flex items-center gap-3 rounded-lg border border-[#e8e8e8] bg-white px-3 py-2.5">
-                        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#f0fdfb] text-[11px] font-bold text-[#48C9B0]">
-                          {c.email[0].toUpperCase()}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-xs font-medium text-[#1D1E20]">{c.email}</p>
-                          <div className="mt-0.5 flex items-center gap-1.5">
-                            <Icon size={10} className="text-[#aaa]" />
-                            <span className="text-[10px] text-[#aaa]">{roleInfo?.label}</span>
-                            <span className="text-[10px] text-[#ccc]">·</span>
-                            <span className={'text-[10px] font-medium ' + (c.status === 'active' ? 'text-[#48C9B0]' : 'text-[#f0a500]')}>
-                              {c.status === 'active' ? 'Activo' : 'Pendiente'}
+                      <div key={c.id} className="rounded-lg border border-[#e8e8e8] bg-white px-3 py-2.5">
+                        {(() => {
+                          const r = resumir({
+                            esDuenoDelEvento: false,
+                            rolCuenta: null,
+                            permisos: normalizarPermisos(c.permisos),
+                            features,
+                          })
+                          const pendiente = c.status !== 'active'
+                          const etiqueta  = r.entra === 0 ? 'Sin acceso' : r.etiqueta
+
+                          const resumenTexto = pendiente ? (
+                            <span className="text-[12px] font-medium text-[#c08a2e]">Invitación pendiente</span>
+                          ) : (
+                            <span className="text-[12px] text-[#666]">
+                              <span className="font-semibold text-[#1D1E20]">{etiqueta}</span>
+                              {r.entra > 0 && ` · ${r.entra} de 12`}
                             </span>
-                          </div>
-                        </div>
-                        <div className="flex shrink-0 items-center gap-1">
-                          {c.status === 'pending' && (
-                            <button onClick={() => handleCopyLink(c.invite_token)}
-                              className="flex h-7 w-7 items-center justify-center rounded-md border border-[#e0e0e0] text-[#888] transition hover:border-[#48C9B0] hover:text-[#48C9B0]">
-                              {isCopied ? <Check size={12} className="text-[#48C9B0]" /> : <Copy size={12} />}
-                            </button>
-                          )}
-                          <button onClick={() => handleRevoke(c.id)} disabled={revoking === c.id}
-                            className="flex h-7 w-7 items-center justify-center rounded-md border border-[#e0e0e0] text-[#888] transition hover:border-[#cc3333] hover:text-[#cc3333] disabled:opacity-40">
-                            <X size={12} />
-                          </button>
-                        </div>
+                          )
+
+                          return (
+                            <div className="flex items-center gap-3">
+                              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#f0fdfb] text-[11px] font-bold text-[#48C9B0]">
+                                {c.email[0].toUpperCase()}
+                              </div>
+
+                              <div className="min-w-0 flex-1">
+                                <p className="truncate text-xs font-medium text-[#1D1E20]">{c.email}</p>
+
+                                <div className="mt-0.5 flex items-center gap-1.5">
+                                  <span className={'h-1.5 w-1.5 shrink-0 rounded-full ' + (pendiente ? 'bg-[#f0a500]' : 'bg-[#48C9B0]')} />
+                                  <span className="text-[10px] text-[#aaa]">{pendiente ? 'Sin aceptar' : 'Activo'}</span>
+                                  {pendiente && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleCopyLink(c.invite_token)}
+                                      title="Copiar enlace de invitación"
+                                      aria-label="Copiar enlace de invitación"
+                                      className="rounded p-0.5 text-[#bbb] transition hover:bg-[#f5f5f5] hover:text-[#888]"
+                                    >
+                                      {copiedToken === c.invite_token
+                                        ? <Check size={11} className="text-[#48C9B0]" />
+                                        : <Copy size={11} />}
+                                    </button>
+                                  )}
+                                </div>
+
+                                <div className="mt-1 sm:hidden">{resumenTexto}</div>
+                              </div>
+
+                              <div className="hidden shrink-0 sm:block">{resumenTexto}</div>
+
+                              <div className="flex shrink-0 items-center gap-0.5">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setBorrador(normalizarPermisos(c.permisos))
+                                    setEditandoPermisos(c.id)
+                                  }}
+                                  title="Ajustar permisos"
+                                  aria-label="Ajustar permisos"
+                                  className="flex h-7 w-7 items-center justify-center rounded-md text-[#888] transition hover:bg-[#f5f5f5] hover:text-[#1D1E20]"
+                                >
+                                  <Settings size={14} />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleRevoke(c.id)}
+                                  disabled={revoking === c.id}
+                                  title="Quitar acceso"
+                                  aria-label="Quitar acceso"
+                                  className="flex h-7 w-7 items-center justify-center rounded-md text-[#888] transition hover:text-[#cc3333] disabled:opacity-40"
+                                >
+                                  <X size={14} />
+                                </button>
+                              </div>
+                            </div>
+                          )
+                        })()}
                       </div>
                     )
                   })}
                 </div>
               )}
+
+              {(() => {
+                const c = collaborators.find(x => x.id === editandoPermisos)
+                if (!c) return null
+
+                return (
+                  <Modal open onClose={() => setEditandoPermisos(null)} size="md">
+                    <Modal.Header
+                      title={`Accesos de ${c.email}`}
+                      subtitle="Se guarda hasta que aprietes el botón"
+                    />
+                    <Modal.Body>
+                      <PermisosEditor permisos={borrador} features={features} onChange={setBorrador} />
+                    </Modal.Body>
+                    <Modal.Footer>
+                      <button
+                        type="button"
+                        onClick={() => setEditandoPermisos(null)}
+                        className="rounded-lg border border-[#e0e0e0] px-4 py-2 text-sm text-[#888] transition hover:bg-[#f5f5f5]"
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        type="button"
+                        disabled={guardando}
+                        onClick={() => guardarPermisos(c.id)}
+                        className="ml-auto rounded-lg bg-[#48C9B0] px-4 py-2 text-sm font-semibold text-[#08312a] transition disabled:opacity-60"
+                      >
+                        {guardando ? 'Guardando…' : 'Guardar accesos'}
+                      </button>
+                    </Modal.Footer>
+                  </Modal>
+                )
+              })()}
             </div>
           )}
 

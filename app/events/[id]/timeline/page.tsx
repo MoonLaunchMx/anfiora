@@ -11,6 +11,8 @@ import {
 } from 'lucide-react'
 import StatsCollapse, { StatsToggleButton, useStatsToggle } from '@/app/components/ui/StatsCollapse'
 import { useConfirm } from '@/app/components/ui/ConfirmModal'
+import { usePermiso } from '@/lib/event-access-context'
+import { Puede } from '@/lib/permisos/Puede'
 import { TaskCard, CategoryIcon, CalendarTaskIcon, getUrgency, formatDateFull } from './TaskCard'
 import { TaskModal } from './TaskModal'
 import { buildTimelineTasks } from './lib/templates'
@@ -62,6 +64,7 @@ interface DayModalProps {
 
 function DayModal({ dateKey, tasks, onClose, onEdit, onToggleCompleted, onAddNew }: DayModalProps) {
   const [year, month, day] = dateKey.split('-').map(Number)
+  const permiso = usePermiso('timeline')
   return (
     <Modal open onClose={onClose} size="sm">
       <Modal.Header
@@ -74,8 +77,8 @@ function DayModal({ dateKey, tasks, onClose, onEdit, onToggleCompleted, onAddNew
           ) : tasks.map(t => {
             const urgency = getUrgency(t)
             return (
-              <div key={t.id} onClick={() => onEdit(t)}
-                className={['bg-white border rounded-xl p-3 cursor-pointer hover:border-[#c8c8c8] transition-all border-[#e8e8e8]', t.is_completed ? 'opacity-50' : ''].join(' ')}>
+              <div key={t.id} onClick={() => { if (permiso.editar) onEdit(t) }}
+                className={['bg-white border rounded-xl p-3 transition-all border-[#e8e8e8]', permiso.editar ? 'cursor-pointer hover:border-[#c8c8c8]' : '', t.is_completed ? 'opacity-50' : ''].join(' ')}>
                 <div className="flex items-start gap-2">
                   <div className="flex-1 min-w-0">
                     <p className={['text-sm font-medium', t.is_completed ? 'line-through text-[#bbb]' : 'text-[#1D1E20]'].join(' ')}>
@@ -85,22 +88,26 @@ function DayModal({ dateKey, tasks, onClose, onEdit, onToggleCompleted, onAddNew
                       {formatDateFull(t.task_date, t.task_time, urgency)}
                     </span>
                   </div>
-                  <button onClick={e => { e.stopPropagation(); onToggleCompleted(t) }} className="flex-shrink-0 mt-0.5">
-                    {t.is_completed
-                      ? <CheckCircle2 size={16} className="text-[#48C9B0]" />
-                      : <Circle size={16} className="text-[#ccc]" />}
-                  </button>
+                  <Puede modulo="timeline" accion="editar">
+                    <button onClick={e => { e.stopPropagation(); onToggleCompleted(t) }} className="flex-shrink-0 mt-0.5">
+                      {t.is_completed
+                        ? <CheckCircle2 size={16} className="text-[#48C9B0]" />
+                        : <Circle size={16} className="text-[#ccc]" />}
+                    </button>
+                  </Puede>
                 </div>
               </div>
             )
           })}
       </Modal.Body>
-      <Modal.Footer>
-        <button onClick={() => onAddNew(dateKey)}
-          className="flex items-center gap-1.5 w-full justify-center py-2.5 text-sm font-medium text-[#48C9B0] border border-dashed border-[#48C9B0] rounded-xl hover:bg-[#f0fdfb] transition-colors">
-          <Plus size={13} />Agregar tarea este día
-        </button>
-      </Modal.Footer>
+      <Puede modulo="timeline" accion="editar">
+        <Modal.Footer>
+          <button onClick={() => onAddNew(dateKey)}
+            className="flex items-center gap-1.5 w-full justify-center py-2.5 text-sm font-medium text-[#48C9B0] border border-dashed border-[#48C9B0] rounded-xl hover:bg-[#f0fdfb] transition-colors">
+            <Plus size={13} />Agregar tarea este día
+          </button>
+        </Modal.Footer>
+      </Puede>
     </Modal>
   )
 }
@@ -171,6 +178,7 @@ export default function TimelinePage() {
 
   const { visible: statsVisible, toggle: toggleStats } = useStatsToggle(eventId, 'timeline')
   const askConfirm = useConfirm()
+  const permiso = usePermiso('timeline')
 
   const [tasks, setTasks]             = useState<TimelineTask[]>([])
   const [loading, setLoading]         = useState(true)
@@ -257,6 +265,7 @@ export default function TimelinePage() {
   const handleSaved = () => { closeModal(); fetchTasks(); setSelectedDay(null) }
 
   const handleGeneratePlan = async () => {
+    if (!permiso.editar) return
     if (!eventInfo?.event_date || generating) return
     if (tasks.length > 0) {
       const ok = await askConfirm({
@@ -276,6 +285,7 @@ export default function TimelinePage() {
   }
 
   const toggleCompleted = async (t: TimelineTask) => {
+    if (!permiso.editar) return
     await supabase.from('event_timeline_tasks').update({ is_completed: !t.is_completed }).eq('id', t.id)
     setTasks(prev => prev.map(x => x.id === t.id ? { ...x, is_completed: !x.is_completed } : x))
   }
@@ -332,16 +342,22 @@ export default function TimelinePage() {
             ? <button onClick={clearFilters} className="mt-3 text-sm text-[#48C9B0] font-medium hover:underline">Limpiar filtros</button>
             : (
               <div className="mt-4 flex flex-col items-center gap-3">
-                <button
-                  onClick={handleGeneratePlan}
-                  disabled={!eventInfo?.event_date || generating}
-                  className="rounded-lg bg-[#48C9B0] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#3ab89f] disabled:opacity-50"
-                >
-                  {generating ? 'Generando...' : 'Generar plan sugerido'}
-                </button>
+                <Puede modulo="timeline" accion="editar">
+                  <button
+                    onClick={handleGeneratePlan}
+                    disabled={!eventInfo?.event_date || generating}
+                    className="rounded-lg bg-[#48C9B0] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#3ab89f] disabled:opacity-50"
+                  >
+                    {generating ? 'Generando...' : 'Generar plan sugerido'}
+                  </button>
+                </Puede>
                 {!eventInfo?.event_date
                   ? <p className="text-xs text-[#bbb]">Primero define la fecha del evento</p>
-                  : <button onClick={() => openNew()} className="text-sm text-[#888] hover:text-[#48C9B0]">o agrega una tarea manual</button>}
+                  : (
+                    <Puede modulo="timeline" accion="editar">
+                      <button onClick={() => openNew()} className="text-sm text-[#888] hover:text-[#48C9B0]">o agrega una tarea manual</button>
+                    </Puede>
+                  )}
               </div>
             )
           }
@@ -570,15 +586,19 @@ export default function TimelinePage() {
             </button>
 
             <div className="ml-auto flex items-center gap-2">
-              <button onClick={handleGeneratePlan}
-                disabled={!eventInfo?.event_date || generating}
-                className="hidden sm:flex items-center gap-1.5 rounded-lg border border-[#e0e0e0] px-3 py-1.5 text-xs font-medium text-[#666] transition hover:border-[#48C9B0] hover:text-[#48C9B0] disabled:opacity-50">
-                <CalendarDays width={13} height={13} />{generating ? 'Generando...' : 'Generar plan'}
-              </button>
-              <button onClick={() => openNew()}
-                className="flex items-center gap-1.5 rounded-lg bg-[#48C9B0] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#3ab89f] sm:px-4 sm:text-sm">
-                <Plus width={14} height={14} />Agregar
-              </button>
+              <Puede modulo="timeline" accion="editar">
+                <button onClick={handleGeneratePlan}
+                  disabled={!eventInfo?.event_date || generating}
+                  className="hidden sm:flex items-center gap-1.5 rounded-lg border border-[#e0e0e0] px-3 py-1.5 text-xs font-medium text-[#666] transition hover:border-[#48C9B0] hover:text-[#48C9B0] disabled:opacity-50">
+                  <CalendarDays width={13} height={13} />{generating ? 'Generando...' : 'Generar plan'}
+                </button>
+              </Puede>
+              <Puede modulo="timeline" accion="editar">
+                <button onClick={() => openNew()}
+                  className="flex items-center gap-1.5 rounded-lg bg-[#48C9B0] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#3ab89f] sm:px-4 sm:text-sm">
+                  <Plus width={14} height={14} />Agregar
+                </button>
+              </Puede>
             </div>
           </div>
         ) : (

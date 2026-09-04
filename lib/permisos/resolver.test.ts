@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   normalizarPermisos, nivelDe, puede, nivelEfectivo, resumir, aplicarKit,
-  permisosDesdeRolLegado,
+  permisosDesdeRolLegado, permisosDeRol,
   type ContextoPermiso,
 } from './resolver'
 import { MODULOS, NIVELES, type Nivel, type PermisosEvento } from './catalogo'
@@ -181,5 +181,22 @@ describe('permisosDesdeRolLegado', () => {
   it('un rol desconocido no otorga nada', () => {
     expect(permisosDesdeRolLegado(null)).toEqual({})
     expect(permisosDesdeRolLegado('inventado')).toEqual({})
+  })
+})
+
+describe('permisosDeRol', () => {
+  it('un editor nace pudiendo editar, nunca borrar', () => {
+    const p = permisosDeRol('editor')
+    expect(Object.keys(p)).toHaveLength(12)
+    expect(new Set(Object.values(p))).toEqual(new Set(['editar']))
+  })
+
+  it('un viewer nace solo mirando', () => {
+    expect(new Set(Object.values(permisosDeRol('viewer')))).toEqual(new Set(['ver']))
+  })
+
+  it('coincide con lo que la migracion escribio para ese rol', () => {
+    expect(permisosDeRol('editor').pagos).toBe('editar')
+    expect(permisosDeRol('admin').pagos).toBe('total')
   })
 })

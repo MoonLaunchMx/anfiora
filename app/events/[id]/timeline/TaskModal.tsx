@@ -8,6 +8,8 @@ import {
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Modal } from '@/app/components/ui/Modal'
+import { usePermiso } from '@/lib/event-access-context'
+import { Puede } from '@/lib/permisos/Puede'
 import {
   reminderPresetsFor,
   computeReminderInstant,
@@ -50,6 +52,7 @@ interface TaskModalProps {
 // ─── COMPONENT ────────────────────────────────────────────────────────────────
 
 export function TaskModal({ editTask, prefillDate, eventId, onClose, onSaved }: TaskModalProps) {
+  const permiso = usePermiso('timeline')
   const [form, setForm] = useState({
     title:                '',
     emoji:                '',
@@ -154,6 +157,7 @@ export function TaskModal({ editTask, prefillDate, eventId, onClose, onSaved }: 
 
   // ── Save ─────────────────────────────────────────────────────────────────
   const handleSave = async () => {
+    if (!permiso.editar) return
     if (!form.title.trim() || !form.task_date) return
     setSaving(true)
 
@@ -190,6 +194,7 @@ export function TaskModal({ editTask, prefillDate, eventId, onClose, onSaved }: 
 
   // ── Delete ────────────────────────────────────────────────────────────────
   const handleDelete = async () => {
+    if (!permiso.borrar) return
     if (!editTask) return
     await supabase.from('event_timeline_tasks').delete().eq('id', editTask.id)
     onSaved()
@@ -458,12 +463,14 @@ export function TaskModal({ editTask, prefillDate, eventId, onClose, onSaved }: 
       </Modal.Body>
       <Modal.Footer>
         {editTask && (
-          <button
-            onClick={handleDelete}
-            className="px-4 py-2.5 text-sm text-[#cc3333] border border-[#ffc0c0] rounded-xl hover:bg-[#fff0f0] transition-colors"
-          >
-            Eliminar
-          </button>
+          <Puede modulo="timeline" accion="borrar">
+            <button
+              onClick={handleDelete}
+              className="px-4 py-2.5 text-sm text-[#cc3333] border border-[#ffc0c0] rounded-xl hover:bg-[#fff0f0] transition-colors"
+            >
+              Eliminar
+            </button>
+          </Puede>
         )}
         <button
           onClick={onClose}
