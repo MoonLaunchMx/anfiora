@@ -2,10 +2,23 @@
 --
 -- Spec: docs/superpowers/specs/2026-09-04-accesos-por-herramienta-design.md
 --
--- Es ADITIVO: crea dos tablas, cuatro columnas y cuatro funciones. No modifica
--- ninguna policy ni ninguna funcion existente, asi que no cambia el
--- comportamiento de nada que hoy este corriendo. Las policies se mueven modulo
--- por modulo a partir del Tramo 2.
+-- QUE CREA: dos tablas nuevas (workspaces, workspace_members), cinco columnas
+-- nuevas (events.workspace_id; event_collaborators.permisos y tipo;
+-- event_audit_log.modulo y batch_id), siete funciones (es_miembro_de,
+-- guard_events_workspace, set_event_workspace, nivel_en, puede_ver,
+-- puede_editar, puede_borrar), cinco indices y dos policies SELECT sobre las
+-- dos tablas nuevas.
+--
+-- QUE TOCA DE LO QUE YA EXISTE: no modifica ninguna policy, ninguna funcion ni
+-- ningun dato que ya exista. Lo unico que cambia el comportamiento actual son
+-- dos triggers NUEVOS sobre events, la tabla mas usada de la app:
+--   - guard_events_workspace (BEFORE INSERT OR UPDATE): solo gobierna la
+--     columna nueva workspace_id. Si nadie la manda, no estorba.
+--   - set_event_workspace (BEFORE INSERT): rellena el despacho al crear un
+--     evento, y si el dueno no tiene despacho se lo crea.
+-- Ningun otro campo de events se lee ni se escribe. Aun asi, esto NO es
+-- inocuo: son dos triggers en el camino de alta y edicion de todo evento.
+-- Las policies se mueven modulo por modulo a partir del Tramo 2.
 --
 -- ORDEN OBLIGATORIO: ninguna policy puede llamar a puede_ver/puede_editar/
 -- puede_borrar antes de correr -migracion-aplicar.sql. Antes de la migracion
@@ -17,11 +30,16 @@
 -- las funciones, triggers y policies se reemplazan solas. Dos salvedades:
 --   1. Las acciones ON DELETE de las llaves foraneas NO se reaplican si las
 --      tablas ya existen. Si corriste una version anterior, revisalas a mano.
---   2. Si una corrida previa dejo dos despachos con el mismo dueno, el indice
---      unico workspaces_un_dueno aborta el script entero. Hay que limpiar el
---      duplicado antes.
+--   2. Si alguien creo despachos a mano y quedaron dos con el mismo dueno, el
+--      indice unico workspaces_un_dueno aborta el script entero. Hay que
+--      limpiar el duplicado antes. (Este archivo por si solo no puede producir
+--      ese estado: la tabla y su indice nacen en la misma transaccion.)
 -- NO borres las tablas para re-correr si -migracion-aplicar.sql ya corrio: eso
--- tira membresias reales y deja events.workspace_id en NULL.
+-- tira membresias reales, y ademas DROP TABLE workspaces CASCADE elimina la
+-- llave foranea en vez de disparar su ON DELETE SET NULL, asi que
+-- events.workspace_id queda con UUID que ya no apuntan a nada. Eso es peor que
+-- NULL: la verificacion final de -migracion-aplicar.sql busca workspace_id IS
+-- NULL y no lo detecta.
 --
 -- Modelo (ver §2 del spec):
 --   Arriba, el despacho: dueno / admin / colaborador.
@@ -31,27 +49,6 @@
 -- Correr DESPUES de que el codigo del Tramo 1 este en produccion.
 
 BEGIN;
-
--- ============================================================
--- 0. La funcion que rompe la recursion de RLS
---    Va primero porque el trigger de la seccion 2 y las policies de la 4 la
---    llaman: corrido por secciones, definirla despues deja el trigger vivo
---    sin la funcion y todo INSERT en events muere con 42883.
--- ============================================================
-
--- SECURITY DEFINER evalua sin RLS: sin esto, una policy que consulta
--- workspace_members dentro de su propio USING recursa (42P17) y deja las dos
--- tablas ilegibles. Misma tecnica que is_event_member en anf-053.
-CREATE OR REPLACE FUNCTION public.es_miembro_de(ws uuid)
-RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public
-AS $$
-  SELECT EXISTS (
-    SELECT 1 FROM workspace_members m
-    WHERE m.workspace_id = ws
-      AND m.user_id = auth.uid()
-      AND m.status  = 'active'
-  )
-$$;
 
 -- ============================================================
 -- 1. El despacho
@@ -97,6 +94,29 @@ CREATE UNIQUE INDEX IF NOT EXISTS workspace_members_un_principal
 
 CREATE UNIQUE INDEX IF NOT EXISTS workspace_members_un_usuario
   ON public.workspace_members (workspace_id, user_id) WHERE user_id IS NOT NULL;
+
+-- ============================================================
+-- 1.b La funcion que rompe la recursion de RLS
+--     Va aqui, y no al principio: es LANGUAGE sql, asi que Postgres valida su
+--     cuerpo al crearla y necesita que workspace_members ya exista. Y va antes
+--     de la seccion 2 porque el trigger de esa seccion la llama: corrido por
+--     secciones, definirla despues deja el trigger vivo sin la funcion y todo
+--     INSERT en events muere con 42883.
+-- ============================================================
+
+-- SECURITY DEFINER evalua sin RLS: sin esto, una policy que consulta
+-- workspace_members dentro de su propio USING recursa (42P17) y deja las dos
+-- tablas ilegibles. Misma tecnica que is_event_member en anf-053.
+CREATE OR REPLACE FUNCTION public.es_miembro_de(ws uuid)
+RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM workspace_members m
+    WHERE m.workspace_id = ws
+      AND m.user_id = auth.uid()
+      AND m.status  = 'active'
+  )
+$$;
 
 -- ============================================================
 -- 2. Las columnas nuevas
