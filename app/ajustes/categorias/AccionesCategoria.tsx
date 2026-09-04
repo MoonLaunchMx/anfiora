@@ -3,14 +3,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { MoreHorizontal } from 'lucide-react'
 import { Modal } from '@/app/components/ui/Modal'
-import { renombrar, archivar, restaurar } from '@/lib/rolodex/aplicar-cambios'
-import { buscarPorNombre, type Categoria } from '@/lib/rolodex/categorias-store'
+import { archivar, restaurar } from '@/lib/rolodex/aplicar-cambios'
 import { type CategoriaConUso } from '@/lib/rolodex/vocabulario-admin'
 
 type Props = {
   categoria: CategoriaConUso
-  todas: Categoria[]
-  userId: string
   onCambiado: () => void
 }
 
@@ -18,12 +15,11 @@ function plural(n: number, singular: string, otros: string): string {
   return `${n} ${n === 1 ? singular : otros}`
 }
 
-type ModalAbierto = 'renombrar' | 'archivar' | null
+type ModalAbierto = 'archivar' | null
 
-export default function AccionesCategoria({ categoria, todas, userId, onCambiado }: Props) {
+export default function AccionesCategoria({ categoria, onCambiado }: Props) {
   const [open, setOpen] = useState(false)
   const [modal, setModal] = useState<ModalAbierto>(null)
-  const [nombre, setNombre] = useState(categoria.nombre)
   const [guardando, setGuardando] = useState(false)
   const [error, setError] = useState('')
   const wrapperRef = useRef<HTMLDivElement>(null)
@@ -37,13 +33,6 @@ export default function AccionesCategoria({ categoria, todas, userId, onCambiado
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [open])
 
-  const abrirRenombrar = () => {
-    setNombre(categoria.nombre)
-    setError('')
-    setModal('renombrar')
-    setOpen(false)
-  }
-
   const abrirArchivar = () => {
     setError('')
     setModal('archivar')
@@ -51,26 +40,6 @@ export default function AccionesCategoria({ categoria, todas, userId, onCambiado
   }
 
   const cerrarModal = () => { if (!guardando) setModal(null) }
-
-  const nombreLimpio = nombre.trim()
-  const duplicada = (() => {
-    if (!nombreLimpio) return false
-    const encontrada = buscarPorNombre(todas, nombreLimpio)
-    return encontrada !== null && encontrada.id !== categoria.id
-  })()
-  const sinCambio = nombreLimpio === '' || nombreLimpio === categoria.nombre
-  const sinUso = categoria.uso.proveedores === 0 && categoria.uso.partidas === 0
-
-  const handleRenombrar = async () => {
-    if (sinCambio || duplicada) return
-    setGuardando(true)
-    setError('')
-    const resultado = await renombrar(userId, categoria.id, categoria.nombre, nombreLimpio)
-    setGuardando(false)
-    if (!resultado.ok) { setError(resultado.error ?? 'No se pudo cambiar el nombre.'); return }
-    setModal(null)
-    onCambiado()
-  }
 
   const handleArchivar = async () => {
     setGuardando(true)
@@ -106,15 +75,8 @@ export default function AccionesCategoria({ categoria, todas, userId, onCambiado
         <div className="absolute right-0 top-full z-30 mt-1 w-56 overflow-hidden rounded-xl border border-[#e8e8e8] bg-white shadow-lg">
           <button
             type="button"
-            onClick={abrirRenombrar}
-            className="block w-full px-4 py-2.5 text-left text-sm text-[#1D1E20] hover:bg-[#f8f8f8]"
-          >
-            Cambiar nombre
-          </button>
-          <button
-            type="button"
             disabled
-            className="block w-full cursor-not-allowed border-t border-[#f0f0f0] px-4 py-2.5 text-left text-sm text-[#bbb]"
+            className="block w-full cursor-not-allowed px-4 py-2.5 text-left text-sm text-[#bbb]"
           >
             Juntar con otra…
             <span className="mt-0.5 block text-[11px] text-[#ccc]">Disponible en el siguiente paso</span>
@@ -135,57 +97,6 @@ export default function AccionesCategoria({ categoria, todas, userId, onCambiado
             <span className="mt-0.5 block text-[11px] text-[#ccc]">Disponible en el siguiente paso</span>
           </button>
         </div>
-      )}
-
-      {modal === 'renombrar' && (
-        <Modal open onClose={cerrarModal} size="sm">
-          <Modal.Header title="Cambiar nombre" onClose={cerrarModal} />
-          <Modal.Body>
-            <div className="flex flex-col gap-3">
-              <input
-                autoFocus
-                value={nombre}
-                onChange={e => setNombre(e.target.value)}
-                className="w-full rounded-lg border border-[#e0e0e0] px-3 py-2 text-sm outline-none transition focus:border-[#48C9B0]"
-              />
-              {duplicada ? (
-                <p className="rounded-lg bg-[#fff0f0] px-3 py-2 text-xs text-[#cc3333]">
-                  Ya tienes una categoría que se llama así. Júntalas en vez de renombrar
-                </p>
-              ) : (
-                <p className="rounded-lg bg-[#f0fdfb] px-3 py-2 text-xs text-[#555]">
-                  {sinUso ? (
-                    'Nadie la usa todavía'
-                  ) : (
-                    <>
-                      Se va a actualizar en <strong className="text-[#1D1E20]">{plural(categoria.uso.proveedores, 'proveedor', 'proveedores')}</strong> y{' '}
-                      <strong className="text-[#1D1E20]">{plural(categoria.uso.partidas, 'partida', 'partidas')} de presupuesto</strong>, en todas tus bodas.
-                    </>
-                  )}
-                </p>
-              )}
-              {error && <p className="text-xs text-[#cc3333]">{error}</p>}
-            </div>
-          </Modal.Body>
-          <Modal.Footer>
-            <button
-              type="button"
-              onClick={cerrarModal}
-              disabled={guardando}
-              className="px-4 py-2 text-sm text-[#666] transition hover:text-[#1D1E20] disabled:opacity-50"
-            >
-              Cancelar
-            </button>
-            <button
-              type="button"
-              onClick={handleRenombrar}
-              disabled={guardando || sinCambio || duplicada}
-              className="rounded-lg bg-[#48C9B0] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#3aa896] disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {guardando ? 'Guardando...' : 'Cambiar nombre'}
-            </button>
-          </Modal.Footer>
-        </Modal>
       )}
 
       {modal === 'archivar' && !categoria.archivada && (
