@@ -11,7 +11,7 @@ import { FiInstagram, FiGlobe, FiMail, FiFacebook } from 'react-icons/fi'
 import { supabase } from '@/lib/supabase'
 import {
   EventSupplier, Supplier, SupplierPayment, EventBudget, Currency, formatCurrency,
-  BUDGET_CATEGORIES, BUDGET_CATEGORY_LABELS, budgetCategoryLabel,
+  budgetCategoryLabel,
   SupplierStatus, SUPPLIER_STATUSES, SUPPLIER_STATUS_LABELS,
   PAYMENT_METHODS, PAYMENT_METHOD_LABELS, PaymentMethod,
   PAID_BY_OPTIONS, PAID_BY_LABELS, PaidBy,
@@ -30,6 +30,7 @@ interface Props {
   eventId: string
   currency: Currency
   budgets: EventBudget[]
+  categorias: string[]
   onClose: () => void
   onSaved: (updated: SupplierWithDetails) => void
   onDeleted: (id: string) => void
@@ -38,7 +39,7 @@ interface Props {
 }
 
 export default function SupplierDetailModal({
-  item, eventId, currency, budgets, onClose, onSaved, onDeleted, onReviewNeeded,
+  item, eventId, currency, budgets, categorias, onClose, onSaved, onDeleted, onReviewNeeded,
 }: Props) {
   const router = useRouter()
   const askConfirm = useConfirm()
@@ -79,6 +80,10 @@ export default function SupplierDetailModal({
   const overpaidAmount = isOverpaid ? totalPaid - contractNum : 0
   const payProgress    = contractNum > 0 ? Math.min((totalPaid / contractNum) * 100, 100) : 0
   const hasReview      = item.rating !== null || (item.review_text && item.review_text.length > 0)
+
+  const opciones = categorias.some(c => c.toLowerCase() === (item.supplier.category ?? '').toLowerCase())
+    ? categorias
+    : [...categorias, item.supplier.category].filter(Boolean) as string[]
 
   const budgetsForCategory = budgets.filter(b => b.category === category)
   const selectedBudget     = eventBudgetId ? budgets.find(b => b.id === eventBudgetId) : null
@@ -343,7 +348,7 @@ export default function SupplierDetailModal({
             </Field>
             <Field label="Categoría">
               <select value={category} onChange={e => { setCategory(e.target.value); setEventBudgetId('') }} className={`${INPUT_CLASS} w-full`}>
-                {BUDGET_CATEGORIES.map(c => <option key={c} value={c}>{BUDGET_CATEGORY_LABELS[c]}</option>)}
+                {opciones.map(c => <option key={c} value={c}>{budgetCategoryLabel(c)}</option>)}
               </select>
             </Field>
             <Field label="Concepto del presupuesto" className="sm:col-span-2">

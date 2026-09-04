@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import {
-  BUDGET_CATEGORIES, BUDGET_CATEGORY_LABELS, budgetCategoryLabel,
+  budgetCategoryLabel,
   EventBudget, Currency, formatCurrency,
 } from '@/lib/types'
 import { FiInstagram, FiGlobe, FiFacebook } from 'react-icons/fi'
@@ -16,6 +16,7 @@ type Props = {
   onClose: () => void
   currency: Currency
   budgets: EventBudget[]
+  categorias: string[]
   onSubmit: (data: {
     name: string
     category: string
@@ -29,7 +30,7 @@ type Props = {
   }) => Promise<void>
 }
 
-export default function SupplierModal({ isOpen, onClose, currency, budgets, onSubmit }: Props) {
+export default function SupplierModal({ isOpen, onClose, currency, budgets, categorias, onSubmit }: Props) {
   const [name, setName]                   = useState('')
   const [category, setCategory]           = useState<string>('Venue')
   const [eventBudgetId, setEventBudgetId] = useState('')
@@ -112,8 +113,8 @@ export default function SupplierModal({ isOpen, onClose, currency, budgets, onSu
               onChange={e => { setCategory(e.target.value); setEventBudgetId('') }}
               className="w-full rounded-lg border border-[#e0e0e0] bg-white px-3 py-2 text-base text-[#1D1E20] outline-none transition focus:border-[#48C9B0]"
             >
-              {BUDGET_CATEGORIES.map(cat => (
-                <option key={cat} value={cat}>{BUDGET_CATEGORY_LABELS[cat]}</option>
+              {categorias.map(cat => (
+                <option key={cat} value={cat}>{budgetCategoryLabel(cat)}</option>
               ))}
             </select>
           </div>

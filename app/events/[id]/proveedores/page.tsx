@@ -5,10 +5,11 @@ import { useParams } from 'next/navigation'
 import { Search, Plus, LayoutGrid, List, Columns3 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import {
-  Event, EventBudget, EventSupplier, Supplier, BudgetCategory,
-  BUDGET_CATEGORIES, BUDGET_CATEGORY_LABELS, budgetCategoryLabel,
+  Event, EventBudget, EventSupplier, Supplier,
+  budgetCategoryLabel,
   SUPPLIER_STATUSES, SUPPLIER_STATUS_LABELS, SupplierStatus, Currency, formatCurrency,
 } from '@/lib/types'
+import { resolverVocabulario } from '@/lib/rolodex/categorias'
 import StatsCollapse, { useStatsToggle, StatsToggleButton } from '@/app/components/ui/StatsCollapse'
 import SupplierModal from './SupplierModal'
 import SupplierCard from './SupplierCard'
@@ -30,7 +31,8 @@ export default function ProveedoresPage() {
   const [budgets, setBudgets] = useState<EventBudget[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch]   = useState('')
-  const [filterCategory, setFilterCategory] = useState<BudgetCategory | ''>('')
+  const [filterCategory, setFilterCategory] = useState<string>('')
+  const [vocabulario, setVocabulario] = useState<string[]>([])
   const [viewMode, setViewMode] = useState<ViewMode>('cards')
   const [groupBy, setGroupBy]   = useState<GroupBy>('categoria')
   const [modalOpen, setModalOpen]       = useState(false)
@@ -52,6 +54,15 @@ export default function ProveedoresPage() {
       if (eventRes.data)     setEvent(eventRes.data as Event)
       if (suppliersRes.data) setItems(suppliersRes.data as SupplierWithDetails[])
       if (budgetsRes.data)   setBudgets(budgetsRes.data as EventBudget[])
+
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        const { data: perfil } = await supabase
+          .from('users').select('categories').eq('id', user.id).single()
+        setVocabulario(resolverVocabulario(perfil?.categories as string[] | null))
+      } else {
+        setVocabulario(resolverVocabulario(null))
+      }
     } catch (err: any) {
       console.error('Error cargando proveedores:', err?.message ?? err, err)
     } finally {
@@ -147,6 +158,16 @@ export default function ProveedoresPage() {
     return true
   })
 
+  const categoriasDelFiltro = (() => {
+    const lista = [...vocabulario]
+    const vistas = new Set(lista.map(c => c.toLowerCase()))
+    items.forEach(it => {
+      const c = it.supplier?.category
+      if (c && !vistas.has(c.toLowerCase())) { lista.push(c); vistas.add(c.toLowerCase()) }
+    })
+    return lista
+  })()
+
   const totalNuevos      = items.filter(i => i.status === 'nuevo').length
   const totalCotizando   = items.filter(i => i.status === 'cotizado').length
   const totalContratados = items.filter(i => i.status === 'contratado').length
@@ -229,11 +250,11 @@ export default function ProveedoresPage() {
           {/* Filtro categoría — solo desktop */}
           <select
             value={filterCategory}
-            onChange={e => setFilterCategory(e.target.value as BudgetCategory | '')}
+            onChange={e => setFilterCategory(e.target.value)}
             className="hidden shrink-0 rounded-lg border border-[#e0e0e0] bg-white px-3 py-1.5 text-xs outline-none transition focus:border-[#48C9B0] lg:block"
           >
             <option value="">Todas las categorías</option>
-            {BUDGET_CATEGORIES.map(c => <option key={c} value={c}>{BUDGET_CATEGORY_LABELS[c]}</option>)}
+            {categoriasDelFiltro.map(c => <option key={c} value={c}>{budgetCategoryLabel(c)}</option>)}
           </select>
 
           {/* Agrupación — solo en tarjetas, solo desktop */}
@@ -311,6 +332,7 @@ export default function ProveedoresPage() {
         onClose={() => setModalOpen(false)}
         currency={currency}
         budgets={budgets}
+        categorias={vocabulario}
         onSubmit={handleCreateSupplier}
       />
 
@@ -320,6 +342,7 @@ export default function ProveedoresPage() {
           eventId={eventId}
           currency={currency}
           budgets={budgets}
+          categorias={vocabulario}
           onClose={() => setSelectedItem(null)}
           onSaved={handleSavedItem}
           onDeleted={handleDeletedItem}

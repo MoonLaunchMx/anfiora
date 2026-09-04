@@ -890,6 +890,7 @@ export default function PresupuestoPage() {
           eventId={eventId}
           currency={currency}
           budgets={budgets}
+          categorias={categories}
           onClose={() => setSelectedSupplier(null)}
           onSaved={updated => {
             setEventSuppliers(prev => prev.map(es => es.id === updated.id ? { ...es, ...updated } : es))
