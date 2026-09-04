@@ -35,7 +35,7 @@ END $$;
 
 -- 1. Un despacho por cada dueno de eventos
 INSERT INTO workspaces (name, primary_owner_id)
-SELECT COALESCE(u.full_name, u.email), u.id
+SELECT COALESCE(u.full_name, u.email, 'Mi despacho'), u.id
 FROM users u
 WHERE EXISTS (SELECT 1 FROM events e WHERE e.user_id = u.id)
   AND NOT EXISTS (SELECT 1 FROM workspaces w WHERE w.primary_owner_id = u.id);
