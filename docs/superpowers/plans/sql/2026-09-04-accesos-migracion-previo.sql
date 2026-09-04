@@ -57,9 +57,21 @@ WHERE u.id IS NULL;
 SELECT count(*) AS colaboradores_status_nulo
 FROM event_collaborators WHERE status IS NULL;
 
--- 6. Duenos sin nombre ni correo: tienen que ser cero. El paso 1 del aplicar
---    escribe workspaces.name, que es NOT NULL, con COALESCE(full_name, email).
+-- 6. Duenos sin nombre ni correo: no tumban la migracion (el paso 1 del aplicar
+--    escribe workspaces.name con COALESCE(full_name, email, 'Mi despacho')),
+--    pero los que salgan aqui van a quedar con un despacho llamado
+--    "Mi despacho". Es la lista de despachos a renombrar despues.
 SELECT count(*) AS duenos_sin_nombre_ni_correo
 FROM users u
 WHERE EXISTS (SELECT 1 FROM events e WHERE e.user_id = u.id)
   AND COALESCE(u.full_name, u.email) IS NULL;
+
+-- 7. Duenos sin correo: tienen que ser cero. El paso 2 del aplicar escribe
+--    workspace_members.email, que es NOT NULL. Ya no aborta la migracion (ese
+--    paso usa COALESCE(email, id::text) como respaldo), pero cada fila que
+--    salga aqui queda con un UUID donde deberia ir un correo, y ese correo es
+--    la identidad del miembro. Hay que arreglarlos.
+SELECT count(*) AS duenos_sin_correo
+FROM users u
+WHERE EXISTS (SELECT 1 FROM events e WHERE e.user_id = u.id)
+  AND u.email IS NULL;
