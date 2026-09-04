@@ -31,7 +31,10 @@ DECLARE
 BEGIN
   -- El evento sale de la fila cuando la trae; si no, el disparador no se cuelga
   -- de esa tabla (se resuelve en el tramo de su modulo).
-  v_evento := NULLIF(v_fila ->> 'event_id', '')::uuid;
+  v_evento := COALESCE(
+    NULLIF(v_fila ->> 'event_id', ''),
+    CASE WHEN TG_TABLE_NAME = 'events' THEN v_fila ->> 'id' END
+  )::uuid;
   IF v_evento IS NULL THEN
     RETURN OLD;
   END IF;
