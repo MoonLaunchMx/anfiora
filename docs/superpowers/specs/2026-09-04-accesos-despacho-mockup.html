@@ -1,0 +1,1082 @@
+<title>Accesos del despacho</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@300..900&family=Josefin+Sans:wght@600;700&display=swap">
+<style>
+:root{
+  --ground:#faf8f4;
+  --panel:#ffffff;
+  --panel-2:#f5f2ec;
+  --line:#e6e1d6;
+  --line-soft:#efebe3;
+  --ink:#16150f;
+  --ink-2:#6d6759;
+  --ink-3:#9c9585;
+  --gold:#b0842c;
+  --gold-fill:#d4a853;
+  --gold-wash:#fbf5e6;
+  --teal:#1f8a76;
+  --teal-fill:#48c9b0;
+  --teal-wash:#eaf8f4;
+  --good:#2a7a50;
+  --bad:#b5352f;
+  --bad-wash:#fdf0ee;
+  --shadow:0 1px 2px rgba(22,21,15,.05), 0 8px 24px -18px rgba(22,21,15,.35);
+  --radius:10px;
+  --font:'Figtree',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --brand:'Josefin Sans','Figtree',sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --ground:#121110;
+    --panel:#1b1a18;
+    --panel-2:#232120;
+    --line:#33302c;
+    --line-soft:#282624;
+    --ink:#f2efe8;
+    --ink-2:#a8a294;
+    --ink-3:#767061;
+    --gold:#e0b464;
+    --gold-fill:#d4a853;
+    --gold-wash:#2b2317;
+    --teal:#5fd8c0;
+    --teal-fill:#48c9b0;
+    --teal-wash:#132a26;
+    --good:#63c191;
+    --bad:#e0736c;
+    --bad-wash:#2c1b1a;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 30px -20px rgba(0,0,0,.9);
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#121110;
+  --panel:#1b1a18;
+  --panel-2:#232120;
+  --line:#33302c;
+  --line-soft:#282624;
+  --ink:#f2efe8;
+  --ink-2:#a8a294;
+  --ink-3:#767061;
+  --gold:#e0b464;
+  --gold-fill:#d4a853;
+  --gold-wash:#2b2317;
+  --teal:#5fd8c0;
+  --teal-fill:#48c9b0;
+  --teal-wash:#132a26;
+  --good:#63c191;
+  --bad:#e0736c;
+  --bad-wash:#2c1b1a;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 30px -20px rgba(0,0,0,.9);
+}
+
+*{box-sizing:border-box}
+body{
+  margin:0;
+  background:var(--ground);
+  color:var(--ink);
+  font-family:var(--font);
+  font-size:15px;
+  line-height:1.6;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:1060px;margin:0 auto;padding:44px 22px 100px}
+
+h1,h2,h3,h4{margin:0;text-wrap:balance;letter-spacing:-.015em}
+h1{font-size:clamp(30px,4.4vw,44px);line-height:1.12;font-weight:600}
+h2{font-size:clamp(21px,2.6vw,26px);font-weight:600;line-height:1.25}
+h3{font-size:17px;font-weight:600}
+h4{font-size:14px;font-weight:600}
+p{margin:0}
+.eyebrow{
+  font-family:var(--brand);
+  font-size:11px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--gold);
+}
+.lede{font-size:17px;color:var(--ink-2);max-width:62ch}
+.muted{color:var(--ink-2)}
+.dim{color:var(--ink-3)}
+.small{font-size:13px}
+.tiny{font-size:12px}
+strong{font-weight:600;color:var(--ink)}
+em{font-style:italic}
+code{
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+  font-size:.88em;background:var(--panel-2);border:1px solid var(--line-soft);
+  padding:1px 5px;border-radius:4px;color:var(--ink-2)
+}
+
+header.top{display:flex;flex-direction:column;gap:14px;padding-bottom:34px;border-bottom:1px solid var(--line)}
+.meta{display:flex;flex-wrap:wrap;gap:8px 20px;font-size:12.5px;color:var(--ink-3)}
+section{padding-top:52px;display:flex;flex-direction:column;gap:18px}
+.sec-head{display:flex;flex-direction:column;gap:7px}
+.sec-num{
+  font-family:var(--brand);font-size:11px;font-weight:700;letter-spacing:.16em;
+  color:var(--ink-3);text-transform:uppercase
+}
+.note{
+  border-left:2px solid var(--gold-fill);padding:2px 0 2px 16px;
+  color:var(--ink-2);font-size:14.5px;max-width:66ch
+}
+.w66{max-width:66ch}
+
+.screen{
+  background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+  box-shadow:var(--shadow);overflow:hidden
+}
+.screen-bar{
+  display:flex;align-items:center;gap:10px;
+  padding:11px 16px;background:var(--panel-2);border-bottom:1px solid var(--line);
+}
+.dots{display:flex;gap:5px;flex:none}
+.dots i{width:8px;height:8px;border-radius:50%;background:var(--line);display:block}
+.crumb{font-size:12.5px;color:var(--ink-2);font-weight:500}
+.crumb b{color:var(--ink);font-weight:600}
+.screen-body{padding:20px}
+.screen-cap{font-size:12.5px;color:var(--ink-3);padding:0 2px;max-width:74ch}
+
+.panel-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:18px}
+.btn{
+  font-family:inherit;font-size:13px;font-weight:600;border-radius:7px;
+  padding:8px 14px;border:1px solid transparent;cursor:pointer;line-height:1.2
+}
+.btn-primary{background:var(--teal-fill);color:#08312a;border-color:var(--teal-fill)}
+.btn-ghost{background:transparent;color:var(--ink-2);border-color:var(--line)}
+.btn:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+
+.tbl{width:100%;border-collapse:collapse;font-size:14px}
+.tbl th{
+  text-align:left;font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;
+  color:var(--ink-3);padding:0 12px 9px;border-bottom:1px solid var(--line)
+}
+.tbl td{padding:13px 12px;border-bottom:1px solid var(--line-soft);vertical-align:middle}
+.tbl tbody tr:last-child td{border-bottom:0}
+.tbl td:first-child,.tbl th:first-child{padding-left:2px}
+.tbl td:last-child,.tbl th:last-child{padding-right:2px;text-align:right}
+.who{display:flex;align-items:center;gap:11px}
+.av{
+  width:31px;height:31px;border-radius:50%;flex:none;display:grid;place-items:center;
+  font-size:12px;font-weight:700;
+  background:var(--panel-2);color:var(--ink-2);border:1px solid var(--line)
+}
+.av.is-gold{background:var(--gold-wash);color:var(--gold);border-color:var(--gold-fill)}
+.av.is-teal{background:var(--teal-wash);color:var(--teal);border-color:var(--teal-fill)}
+.who-txt{display:flex;flex-direction:column;line-height:1.35;min-width:0}
+.who-txt b{font-weight:600}
+.who-txt span{font-size:12px;color:var(--ink-3);overflow:hidden;text-overflow:ellipsis}
+.tabnum{font-variant-numeric:tabular-nums}
+
+.pill{
+  display:inline-flex;align-items:center;gap:6px;white-space:nowrap;
+  font-size:12px;font-weight:600;padding:3px 9px;border-radius:999px;
+  border:1px solid var(--line);color:var(--ink-2);background:var(--panel-2)
+}
+.pill.gold{background:var(--gold-wash);border-color:var(--gold-fill);color:var(--gold)}
+.pill.teal{background:var(--teal-wash);border-color:var(--teal-fill);color:var(--teal)}
+.pill.plain{background:transparent}
+.pill.free{border-style:dashed;color:var(--ink-3);background:transparent}
+
+.linkish{color:var(--teal);font-weight:600;font-size:13px;cursor:pointer;background:none;border:0;font-family:inherit;padding:0}
+.linkish:hover{text-decoration:underline}
+
+.layers{display:flex;flex-direction:column}
+.layer{
+  border:1px solid var(--line);background:var(--panel);border-radius:var(--radius);
+  padding:18px 20px;display:flex;flex-direction:column;gap:12px
+}
+.connector{height:26px;display:grid;place-items:center}
+.connector::before{content:"";width:1px;height:100%;background:var(--line);display:block}
+.layer-top{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.roles-row{display:flex;flex-wrap:wrap;gap:8px}
+.role-chip{
+  border:1px solid var(--line);border-radius:8px;padding:9px 13px;
+  display:flex;flex-direction:column;gap:2px;background:var(--panel-2);min-width:170px;flex:1 1 170px
+}
+.role-chip b{font-size:13.5px}
+.role-chip span{font-size:12px;color:var(--ink-2);line-height:1.45}
+.role-chip.accent{background:var(--gold-wash);border-color:var(--gold-fill)}
+.role-chip.accent b{color:var(--gold)}
+
+.mwrap{overflow-x:auto}
+.matrix{width:100%;border-collapse:collapse;font-size:14px;min-width:520px}
+.matrix th{
+  font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-3);
+  font-weight:700;padding:0 10px 9px;border-bottom:1px solid var(--line);text-align:center
+}
+.matrix th:first-child{text-align:left;width:44%}
+.matrix td{padding:11px 10px;border-bottom:1px solid var(--line-soft);text-align:center}
+.matrix td:first-child{text-align:left;color:var(--ink-2)}
+.matrix tbody tr:last-child td{border-bottom:0}
+.yes{color:var(--good);font-weight:700}
+.no{color:var(--ink-3)}
+.nope{color:var(--bad);font-weight:700}
+
+.person-block{border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+.person-block + .person-block{margin-top:12px}
+.person-head{
+  display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;
+  padding:13px 15px;background:var(--panel-2);border-bottom:1px solid var(--line)
+}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:7px;overflow:hidden;background:var(--panel)}
+.seg button{
+  font-family:inherit;font-size:12.5px;font-weight:600;padding:6px 14px;border:0;
+  background:transparent;color:var(--ink-2);cursor:pointer;line-height:1.3
+}
+.seg button + button{border-left:1px solid var(--line)}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--ground)}
+.seg button:not([aria-pressed="true"]):hover{background:var(--panel-2)}
+.seg button:focus-visible{outline:2px solid var(--gold);outline-offset:-2px}
+.seg.bulk button{font-size:11.5px;padding:5px 11px;color:var(--ink-3)}
+.head-right{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+
+.tools{padding:14px 15px 16px;display:flex;flex-direction:column;gap:14px}
+.tool-group{display:flex;flex-direction:column;gap:9px}
+.tool-group h4{
+  font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-3);font-weight:700
+}
+.tool-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(350px,1fr));gap:7px}
+.tool-row{
+  display:flex;align-items:center;gap:8px;padding:5px 7px 5px 10px;
+  border:1px solid var(--line-soft);border-radius:8px;background:var(--panel)
+}
+.tool-row[data-level="ver"],.tool-row[data-level="editar"]{border-color:var(--teal-fill);background:var(--teal-wash)}
+.tool-row[data-level="total"]{border-color:var(--gold-fill);background:var(--gold-wash)}
+.tool-row.is-off{border-style:dashed;opacity:.62}
+.tool{
+  display:flex;align-items:center;gap:9px;padding:4px 0;border:0;flex:1 1 auto;min-width:0;
+  background:transparent;cursor:pointer;font-size:13.5px;
+  color:var(--ink-2);text-align:left;font-family:inherit;line-height:1.35
+}
+.tool-row[data-level="ver"] .tool,.tool-row[data-level="editar"] .tool,.tool-row[data-level="total"] .tool{color:var(--ink)}
+.tool:focus-visible{outline:2px solid var(--gold);outline-offset:2px;border-radius:5px}
+.tool-row.is-off .tool{cursor:not-allowed}
+.box{
+  width:17px;height:17px;flex:none;border-radius:5px;border:1.5px solid var(--line);
+  display:grid;place-items:center;background:var(--panel)
+}
+.box svg{width:11px;height:11px;opacity:0;stroke:#08312a;stroke-width:3;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.tool-row[data-level="ver"] .box,.tool-row[data-level="editar"] .box{background:var(--teal-fill);border-color:var(--teal-fill)}
+.tool-row[data-level="total"] .box{background:var(--gold-fill);border-color:var(--gold-fill)}
+.tool-row[data-level="total"] .box svg{stroke:#3a2a08}
+.tool-row[data-level="ver"] .box svg,.tool-row[data-level="editar"] .box svg,.tool-row[data-level="total"] .box svg{opacity:1}
+.lvl{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden;background:var(--panel);flex:none}
+.lvl button{
+  font-family:inherit;font-size:11.5px;font-weight:600;padding:4px 9px;border:0;
+  background:transparent;color:var(--ink-3);cursor:pointer;line-height:1.35
+}
+.lvl button + button{border-left:1px solid var(--line)}
+.lvl button[aria-pressed="true"]{background:var(--teal-fill);color:#08312a}
+.tool-row[data-level="total"] .lvl button[aria-pressed="true"]{background:var(--gold-fill);color:#3a2a08}
+.lvl button:focus-visible{outline:2px solid var(--gold);outline-offset:-2px}
+.tool-row[data-level="none"] .lvl{visibility:hidden}
+.tool-row .off{font-size:11px;color:var(--ink-3);white-space:nowrap;padding-right:4px}
+
+.tally{
+  display:block;padding:11px 15px;border-top:1px solid var(--line-soft);
+  background:var(--panel-2);font-size:13px;color:var(--ink-2)
+}
+.tally b{color:var(--ink)}
+
+.duo{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media (max-width:760px){.duo{grid-template-columns:1fr}}
+.col-card{
+  border:1px solid var(--line);border-radius:var(--radius);background:var(--panel);
+  padding:17px 18px;display:flex;flex-direction:column;gap:11px
+}
+.col-card.bad{border-color:var(--bad);background:var(--bad-wash)}
+.col-card.good{border-color:var(--teal-fill);background:var(--teal-wash)}
+.tagline{font-size:11px;letter-spacing:.09em;text-transform:uppercase;font-weight:700;color:var(--ink-3)}
+.col-card.bad .tagline{color:var(--bad)}
+.col-card.good .tagline{color:var(--teal)}
+.rows{display:flex;flex-direction:column}
+.switch-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px solid var(--line-soft);font-size:13.5px}
+.switch-row:last-child{border-bottom:0}
+.sw{width:34px;height:19px;border-radius:999px;background:var(--line);flex:none;position:relative}
+.sw::after{content:"";position:absolute;top:2px;left:2px;width:15px;height:15px;border-radius:50%;background:var(--panel);box-shadow:0 1px 2px rgba(0,0,0,.25)}
+.sw.on{background:var(--teal-fill)}
+.sw.on::after{left:auto;right:2px}
+
+.dec{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;background:var(--panel)}
+.dec-item{display:flex;gap:15px;padding:16px 18px;border-bottom:1px solid var(--line-soft)}
+.dec-item:last-child{border-bottom:0}
+.dec-n{
+  flex:none;width:23px;height:23px;border-radius:6px;display:grid;place-items:center;
+  font-size:12px;font-weight:700;background:var(--gold-wash);color:var(--gold);
+  border:1px solid var(--gold-fill)
+}
+.dec-item.ask .dec-n{background:var(--panel-2);color:var(--ink-2);border-color:var(--line)}
+.dec-txt{display:flex;flex-direction:column;gap:4px}
+.dec-txt b{font-size:14.5px}
+.dec-txt p{font-size:13.5px;color:var(--ink-2);max-width:72ch}
+
+.code{
+  background:var(--panel-2);border:1px solid var(--line);border-radius:8px;
+  padding:14px 16px;overflow-x:auto;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+  font-size:12.5px;line-height:1.75;color:var(--ink-2);white-space:pre;margin:0
+}
+.code b{color:var(--ink);font-weight:600}
+.code i{color:var(--ink-3);font-style:normal}
+.code u{color:var(--teal);text-decoration:none;font-weight:600}
+.step-h{font-size:14px;font-weight:600;margin-top:6px}
+
+.stair{display:flex;flex-direction:column;gap:8px}
+.step{border:1px solid var(--line);border-radius:8px;padding:12px 15px;background:var(--panel);display:flex;gap:14px;align-items:flex-start}
+.step.top{border-color:var(--gold-fill);background:var(--gold-wash)}
+.step.zero{border-style:dashed;background:transparent}
+.step-k{font-size:11px;letter-spacing:.09em;text-transform:uppercase;font-weight:700;color:var(--ink-3);flex:none;width:82px;padding-top:3px}
+.step.top .step-k{color:var(--gold)}
+.step-d{font-size:13.5px;color:var(--ink-2)}
+.step-d b{display:block;font-size:14.5px;margin-bottom:2px;color:var(--ink)}
+
+.broken{display:grid;grid-template-columns:repeat(auto-fit,minmax(235px,1fr));gap:12px}
+.brk{border:1px solid var(--line);border-left:3px solid var(--bad);border-radius:8px;padding:14px 15px;background:var(--panel);display:flex;flex-direction:column;gap:5px}
+.brk b{font-size:14px}
+.brk span.d{font-size:13px;color:var(--ink-2)}
+.brk .where{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--bad);font-weight:700}
+
+footer{margin-top:66px;padding-top:22px;border-top:1px solid var(--line);color:var(--ink-3);font-size:12.5px;display:flex;flex-wrap:wrap;gap:6px 18px}
+
+@media (max-width:640px){
+  .wrap{padding:30px 16px 70px}
+  .screen-body{padding:15px}
+  .tbl thead{display:none}
+  .tbl,.tbl tbody,.tbl tr,.tbl td{display:block;width:100%}
+  .tbl tr{border-bottom:1px solid var(--line);padding:12px 0}
+  .tbl tbody tr:last-child{border-bottom:0}
+  .tbl td{border:0;padding:4px 0}
+  .tbl td:last-child{text-align:left;padding-top:8px}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+
+<div class="wrap">
+
+<header class="top">
+  <p class="eyebrow">Anfiora &middot; Cimiento de accesos</p>
+  <h1>Quién entra, a qué, y quién lo reparte</h1>
+  <p class="lede">El modelo de dos capas para el despacho: una cuenta que se administra arriba, bodas que se reparten abajo. Las herramientas dicen dónde entra una persona; una palomita dice si puede tocar.</p>
+  <div class="meta">
+    <span>4 de septiembre, 2026</span>
+    <span>Mockup para revisión &mdash; nada de esto está construido</span>
+    <span>Cierra <code>rbac-a-medias-mapa-real</code> + <code>workspace-dos-capas-asientos</code></span>
+  </div>
+</header>
+
+<section>
+  <div class="sec-head">
+    <p class="sec-num">Punto de partida</p>
+    <h2>Lo que hoy está roto en producción</h2>
+  </div>
+  <p class="muted w66">No es un rediseño por gusto. Ayer, al abrir la app por primera vez con una sesión de colaborador de verdad, salieron tres huecos. Los tres se cierran con el mismo cimiento.</p>
+  <div class="broken">
+    <div class="brk">
+      <span class="where">Se ve vacío</span>
+      <b>Finanzas no existe para nadie más que tú</b>
+      <span class="d">Presupuesto, Proveedores y Pagos devuelven cero filas a cualquier colaborador. Sin error: la pantalla se ve igual que una boda sin datos.</span>
+    </div>
+    <div class="brk">
+      <span class="where">Se ve normal y miente</span>
+      <b>El Timeline lee pero no guarda</b>
+      <span class="d">El colaborador ve las tareas, las edita, la app dice que sí. Al refrescar, nada. Es el más difícil de detectar.</span>
+    </div>
+    <div class="brk">
+      <span class="where">Ofrece lo que no puede</span>
+      <b>El viewer ve botones de borrar</b>
+      <span class="d">Los aprieta, el cambio aparece en pantalla y desaparece al refrescar. No debería ni verlos.</span>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <p class="sec-num">El modelo</p>
+    <h2>Dos capas, y una sola pregunta en cada una</h2>
+  </div>
+
+  <div class="layers">
+    <div class="layer">
+      <div class="layer-top">
+        <h3>Arriba: el despacho</h3>
+        <span class="pill plain">¿Quién existe en tu cuenta?</span>
+      </div>
+      <p class="muted small w66">Una lista de personas, independiente de las bodas. Aquí no se decide en qué boda entra nadie &mdash; se decide quién puede repartir bodas.</p>
+      <div class="roles-row">
+        <div class="role-chip accent">
+          <b>Dueño</b>
+          <span>Todo. Facturación, plan, borrar la cuenta. Pueden ser varios; uno es el principal y es al único al que le llega el cobro.</span>
+        </div>
+        <div class="role-chip">
+          <b>Administrador</b>
+          <span>Todo lo del dueño menos dinero y destruir. Da de alta gente, reparte accesos, entra a todas las bodas.</span>
+        </div>
+        <div class="role-chip">
+          <b>Colaborador</b>
+          <span>Por sí solo no entra a nada. Solo llega a donde lo metan, boda por boda.</span>
+        </div>
+        <div class="role-chip">
+          <b>Cliente</b>
+          <span>Una sola boda. No es miembro del despacho y no ocupa asiento.</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="connector"></div>
+
+    <div class="layer">
+      <div class="layer-top">
+        <h3>Abajo: cada boda</h3>
+        <span class="pill plain">¿A qué entra, y puede tocar?</span>
+      </div>
+      <p class="muted small w66">Aquí <strong>ya no hay roles</strong>. Hay una lista de herramientas y, en cada una, cuatro estados: <strong>sin acceso</strong>, <strong>Ver</strong>, <strong>Editar</strong> o <strong>Total</strong>. "Editor" y "Viewer" dejan de ser puestos que hay que definir bien y pasan a ser lo que la pantalla te resume sola. <strong>Administrador desaparece de este nivel</strong> &mdash; "admin de la boda de los Pérez" siempre fue raro: esa persona es tu socio en el despacho, no un puesto de esa boda.</p>
+    </div>
+  </div>
+
+  <div class="note">La regla que evita que esto se enrede: <strong>arriba se reparte poder, abajo se reparte trabajo.</strong> Si la pregunta es "¿puede dar de alta gente?", es de arriba. Si es "¿puede mover una mesa?", es de abajo.</div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <p class="sec-num">La frontera</p>
+    <h2>Dueño y administrador se separan en dos cosas: dinero y destrucción</h2>
+  </div>
+  <p class="muted w66">Es donde la trazan Slack, Notion, Figma y Google Workspace, sin excepción. Copiarla nos ahorra tener que explicarla.</p>
+  <div class="screen">
+    <div class="screen-body">
+      <div class="mwrap">
+        <table class="matrix">
+          <thead>
+            <tr><th>Puede</th><th>Dueño</th><th>Admin</th><th>Colaborador</th><th>Cliente</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Ver y editar las bodas donde tiene acceso</td><td class="yes">Sí</td><td class="yes">Sí</td><td class="yes">Sí</td><td class="yes">Sí</td></tr>
+            <tr><td>Entrar a <strong>todas</strong> las bodas sin que lo inviten</td><td class="yes">Sí</td><td class="yes">Sí</td><td class="no">&mdash;</td><td class="no">&mdash;</td></tr>
+            <tr><td>Dar de alta y quitar gente del despacho</td><td class="yes">Sí</td><td class="yes">Sí</td><td class="no">&mdash;</td><td class="no">&mdash;</td></tr>
+            <tr><td>Repartir los accesos de una boda</td><td class="yes">Sí</td><td class="yes">Sí</td><td class="no">&mdash;</td><td class="no">&mdash;</td></tr>
+            <tr><td>Crear y archivar bodas</td><td class="yes">Sí</td><td class="yes">Sí</td><td class="no">&mdash;</td><td class="no">&mdash;</td></tr>
+            <tr><td>Ver el Rolodex completo del despacho</td><td class="yes">Sí</td><td class="yes">Sí</td><td class="no">Solo si se lo dan</td><td class="no">&mdash;</td></tr>
+            <tr><td>Ver la factura, cambiar el plan, la tarjeta</td><td class="yes">Sí</td><td class="nope">No</td><td class="no">&mdash;</td><td class="no">&mdash;</td></tr>
+            <tr><td>Quitar a un dueño o borrar el despacho</td><td class="yes">Sí</td><td class="nope">No</td><td class="no">&mdash;</td><td class="no">&mdash;</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <p class="screen-cap">Al <strong>dueño principal</strong> nadie lo puede quitar y es el único con cobro. Los demás dueños tienen poder idéntico. Así "somos dos planners socios" no significa pagar dos veces: la cuenta paga, no la persona.</p>
+</section>
+
+<section>
+  <div class="sec-head">
+    <p class="sec-num">Pantalla 1</p>
+    <h2>Despacho &rsaquo; Equipo</h2>
+  </div>
+  <p class="muted w66">La lista de quién existe. Vive fuera de cualquier boda &mdash; se llega desde el menú de tu cuenta, junto a Perfil y al Rolodex.</p>
+
+  <div class="screen">
+    <div class="screen-bar">
+      <span class="dots"><i></i><i></i><i></i></span>
+      <span class="crumb">Mi cuenta &rsaquo; <b>Equipo</b></span>
+    </div>
+    <div class="screen-body">
+      <div class="panel-head">
+        <div>
+          <h3>Equipo del despacho</h3>
+          <p class="small muted">5 personas en tu despacho &middot; 1 cliente invitado, que no cuenta como miembro</p>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-ghost">Invitar cliente</button>
+          <button class="btn btn-primary">Agregar persona</button>
+        </div>
+      </div>
+
+      <table class="tbl">
+        <thead>
+          <tr><th>Persona</th><th>En el despacho</th><th>Bodas</th><th>Kit habitual</th><th></th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><div class="who"><span class="av is-gold">DG</span><span class="who-txt"><b>Diego Garza</b><span>diego@moonlaunch.mx</span></span></div></td>
+            <td><span class="pill gold">Dueño principal</span></td>
+            <td class="muted tabnum">Todas (12)</td>
+            <td class="muted small">Todo</td>
+            <td><span class="dim tiny">Eres tú</span></td>
+          </tr>
+          <tr>
+            <td><div class="who"><span class="av is-gold">WR</span><span class="who-txt"><b>Wilson Ruiz</b><span>wilson@anfiora.com</span></span></div></td>
+            <td><span class="pill gold">Dueño</span></td>
+            <td class="muted tabnum">Todas (12)</td>
+            <td class="muted small">Todo</td>
+            <td><button class="linkish">Editar</button></td>
+          </tr>
+          <tr>
+            <td><div class="who"><span class="av">DP</span><span class="who-txt"><b>Daniela Ponce</b><span>daniela@anfiora.com</span></span></div></td>
+            <td><span class="pill">Administradora</span></td>
+            <td class="muted tabnum">Todas (12)</td>
+            <td class="muted small">Todo</td>
+            <td><button class="linkish">Editar</button></td>
+          </tr>
+          <tr>
+            <td><div class="who"><span class="av">JM</span><span class="who-txt"><b>Juan Mendoza</b><span>juan@anfiora.com</span></span></div></td>
+            <td><span class="pill">Colaborador</span></td>
+            <td class="muted tabnum">4 bodas</td>
+            <td class="muted small">Invitados, Invitación, Mesas, Dress code</td>
+            <td><button class="linkish">Editar</button></td>
+          </tr>
+          <tr>
+            <td><div class="who"><span class="av">RO</span><span class="who-txt"><b>Regina Ortiz</b><span>regina@anfiora.com</span></span></div></td>
+            <td><span class="pill">Colaboradora</span></td>
+            <td class="muted tabnum">2 bodas</td>
+            <td class="muted small">Presupuesto, Proveedores, Pagos</td>
+            <td><button class="linkish">Editar</button></td>
+          </tr>
+          <tr>
+            <td><div class="who"><span class="av is-teal">MC</span><span class="who-txt"><b>Maria Fernanda Cruz</b><span>La novia</span></span></div></td>
+            <td><span class="pill teal">Cliente</span></td>
+            <td class="muted small">Cruz &ndash; Alonso</td>
+            <td class="muted small">&mdash;</td>
+            <td><span class="pill free">No ocupa asiento</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <p class="screen-cap">El <strong>kit habitual</strong> es la respuesta a "no voy a palomear ocho herramientas en sesenta bodas". Es lo que esa persona hace normalmente; al meterla a una boda las palomitas ya vienen puestas y solo corriges la excepción.</p>
+</section>
+
+<section>
+  <div class="sec-head">
+    <p class="sec-num">El nivel</p>
+    <h2>Cuatro estados por herramienta, y el último es borrar</h2>
+  </div>
+  <p class="muted w66">Es el modelo de Odoo, traído a nuestro tamaño: cada módulo guarda qué puede hacer cada persona, y <strong>borrar es un permiso aparte</strong>, no una consecuencia de poder editar. Ahí está la diferencia entre "la novia movió invitados de mesa" y "la novia se llevó la lista de invitados el jueves".</p>
+  <div class="stair">
+    <div class="step zero">
+      <span class="step-k">Sin acceso</span>
+      <span class="step-d"><b>La herramienta no existe para esa persona</b>No aparece en el menú, y entrar por URL la manda a su lista de bodas. Cualquier herramienta puede quedar así, Invitados incluido.</span>
+    </div>
+    <div class="step">
+      <span class="step-k">Ver</span>
+      <span class="step-d"><b>Lee y nada más</b>Filtros, búsqueda y exportar sí &mdash; explorar no es tocar. Ningún botón de agregar, editar, mover o borrar se dibuja.</span>
+    </div>
+    <div class="step">
+      <span class="step-k">Editar</span>
+      <span class="step-d"><b>Agrega y modifica, no destruye</b>Da de alta, corrige, mueve, marca. El bote de basura no existe para esa persona en esa herramienta. Es donde va a vivir casi todo el equipo.</span>
+    </div>
+    <div class="step top">
+      <span class="step-k">Total</span>
+      <span class="step-d"><b>Todo lo anterior, más borrar y configurar</b>Se da a propósito, persona por persona, herramienta por herramienta. Cada borrado queda firmado con quién, cuándo y qué se llevó.</span>
+    </div>
+  </div>
+  <div class="note">En un despacho el error caro nunca es "lo editó mal" &mdash; eso se corrige en un minuto. Es <strong>"ya no está"</strong>. Con esta escalera le das a la novia el control de sus mesas sin darle jamás la posibilidad de vaciarlas, y a Juan la lista de invitados completa porque él sí sabe lo que hace.</div>
+  <p class="screen-cap">Nota de nombre: le puse <strong>Total</strong> y no "Administrador" a propósito, porque ya hay un Administrador arriba, en el despacho, y son cosas distintas. Si prefieres que se llame igual, se cambia &mdash; pero entonces "admin" significa dos cosas en la misma app.</p>
+</section>
+
+<section>
+  <div class="sec-head">
+    <p class="sec-num">Pantalla 2</p>
+    <h2>Boda &rsaquo; Equipo</h2>
+  </div>
+  <p class="muted w66">Aquí se reparte el trabajo de <em>esta</em> boda. La palomita prende la herramienta en <strong>Ver</strong>; el selector de la derecha sube el nivel. <strong>Dorado quiere decir que esa persona puede borrar ahí.</strong> Está vivo &mdash; pícale.</p>
+
+  <div class="screen">
+    <div class="screen-bar">
+      <span class="dots"><i></i><i></i><i></i></span>
+      <span class="crumb">Cruz &ndash; Alonso &rsaquo; Configuración &rsaquo; <b>Equipo</b></span>
+    </div>
+    <div class="screen-body">
+      <div class="panel-head">
+        <div>
+          <h3>Quién trabaja esta boda</h3>
+          <p class="small muted">Diego, Wilson y Daniela entran por ser dueños o admin. Aquí solo aparece a quien invitaste.</p>
+        </div>
+        <button class="btn btn-primary">Invitar a la boda</button>
+      </div>
+
+      <div class="person-block" data-person>
+        <div class="person-head">
+          <div class="who"><span class="av ">JM</span><span class="who-txt"><b>Juan Mendoza</b><span>Coordinador &middot; kit habitual aplicado</span></span></div>
+          <div class="head-right"><span class="pill" data-badge>&nbsp;</span><span class="seg bulk"><button type="button" data-bulk="ver">Todo a ver</button><button type="button" data-bulk="none">Quitar todo</button></span></div>
+        </div>
+        <div class="tools">
+          <div class="tool-group">
+            <h4>Siempre parte de la boda</h4>
+            <div class="tool-grid">
+              <div class="tool-row" data-level="total">
+                <button type="button" class="tool"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.5 4.6 9 10 3.2"/></svg></span>Invitados</button>
+                <span class="lvl"><button type="button" aria-pressed="false">Ver</button><button type="button" aria-pressed="false">Editar</button><button type="button" aria-pressed="true">Total</button></span>
+              </div>
+              <div class="tool-row" data-level="editar">
+                <button type="button" class="tool"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.5 4.6 9 10 3.2"/></svg></span>Timeline</button>
+                <span class="lvl"><button type="button" aria-pressed="false">Ver</button><button type="button" aria-pressed="true">Editar</button><button type="button" aria-pressed="false">Total</button></span>
+              </div>
+              <div class="tool-row" data-level="none">
+                <button type="button" class="tool"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.5 4.6 9 10 3.2"/></svg></span>Mensajes</button>
+                <span class="lvl"><button type="button" aria-pressed="false">Ver</button><button type="button" aria-pressed="false">Editar</button><button type="button" aria-pressed="false">Total</button></span>
+              </div>
+            </div>
+          </div>
+          <div class="tool-group">
+            <h4>Herramientas activas en esta boda</h4>
+            <div class="tool-grid">
+              <div class="tool-row" data-level="editar">
+                <button type="button" class="tool"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.5 4.6 9 10 3.2"/></svg></span>Invitaci&oacute;n</button>
+                <span class="lvl"><button type="button" aria-pressed="false">Ver</button><button type="button" aria-pressed="true">Editar</button><button type="button" aria-pressed="false">Total</button></span>
+              </div>
+              <div class="tool-row" data-level="total">
+                <button type="button" class="tool"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.5 4.6 9 10 3.2"/></svg></span>Mesas y check-in</button>
+                <span class="lvl"><button type="button" aria-pressed="false">Ver</button><button type="button" aria-pressed="false">Editar</button><button type="button" aria-pressed="true">Total</button></span>
+              </div>
+              <div class="tool-row" data-level="editar">
+                <button type="button" class="tool"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.5 4.6 9 10 3.2"/></svg></span>Dress code</button>
+                <span class="lvl"><button type="button" aria-pressed="false">Ver</button><button type="button" aria-pressed="true">Editar</button><button type="button" aria-pressed="false">Total</button></span>
+              </div>
+              <div class="tool-row" data-level="none">
+                <button type="button" class="tool"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.5 4.6 9 10 3.2"/></svg></span>Mesa de regalos</button>
+                <span class="lvl"><button type="button" aria-pressed="false">Ver</button><button type="button" aria-pressed="false">Editar</button><button type="button" aria-pressed="false">Total</button></span>
+              </div>
+              <div class="tool-row" data-level="none">
+                <button type="button" class="tool"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.5 4.6 9 10 3.2"/></svg></span>&Aacute;lbum de fotos</button>
+                <span class="lvl"><button type="button" aria-pressed="false">Ver</button><button type="button" aria-pressed="false">Editar</button><button type="button" aria-pressed="false">Total</button></span>
+              </div>
+              <div class="tool-row is-off" data-level="none">
+                <button type="button" class="tool" disabled><span class="box"></span>Playlist</button>
+                <span class="off">apagada en esta boda</span>
+              </div>
+            </div>
+          </div>
+          <div class="tool-group">
+            <h4>Finanzas</h4>
+            <div class="tool-grid">
+              <div class="tool-row" data-level="none">
+                <button type="button" class="tool"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.5 4.6 9 10 3.2"/></svg></span>Presupuesto</button>
+                <span class="lvl"><button type="button" aria-pressed="false">Ver</button><button type="button" aria-pressed="false">Editar</button><button type="button" aria-pressed="false">Total</button></span>
+              </div>
+              <div class="tool-row" data-level="none">
+                <button type="button" class="tool"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.5 4.6 9 10 3.2"/></svg></span>Proveedores</button>
+                <span class="lvl"><button type="button" aria-pressed="false">Ver</button><button type="button" aria-pressed="false">Editar</button><button type="button" aria-pressed="false">Total</button></span>
+              </div>
+              <div class="tool-row" data-level="none">
+                <button type="button" class="tool"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.5 4.6 9 10 3.2"/></svg></span>Pagos</button>
+                <span class="lvl"><button type="button" aria-pressed="false">Ver</button><button type="button" aria-pressed="false">Editar</button><button type="button" aria-pressed="false">Total</button></span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="tally" data-tally>&nbsp;</p>
+      </div>
+
+      <div class="person-block" data-person>
+        <div class="person-head">
+          <div class="who"><span class="av ">RO</span><span class="who-txt"><b>Regina Ortiz</b><span>Finanzas del despacho &middot; kit habitual aplicado</span></span></div>
+          <div class="head-right"><span class="pill" data-badge>&nbsp;</span><span class="seg bulk"><button type="button" data-bulk="ver">Todo a ver</button><button type="button" data-bulk="none">Quitar todo</button></span></div>
+        </div>
+        <div class="tools">
+          <div class="tool-group">
+            <h4>Siempre parte de la boda</h4>
+            <div class="tool-grid">
+              <div class="tool-row" data-level="none">
+                <button type="button" class="tool"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.5 4.6 9 10 3.2"/></svg></span>Invitados</button>
+                <span class="lvl"><button type="button" aria-pressed="false">Ver</button><button type="button" aria-pressed="false">Editar</button><button type="button" aria-pressed="false">Total</button></span>
+              </div>
+              <div class="tool-row" data-level="editar">
+                <button type="button" class="tool"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.5 4.6 9 10 3.2"/></svg></span>Timeline</button>
+                <span class="lvl"><button type="button" aria-pressed="false">Ver</button><button type="button" aria-pressed="true">Editar</button><button type="button" aria-pressed="false">Total</button></span>
+              </div>
+              <div class="tool-row" data-level="none">
+                <button type="button" class="tool"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.5 4.6 9 10 3.2"/></svg></span>Mensajes</button>
+                <span class="lvl"><button type="button" aria-pressed="false">Ver</button><button type="button" aria-pressed="false">Editar</button><button type="button" aria-pressed="false">Total</button></span>
+              </div>
+            </div>
+          </div>
+          <div class="tool-group">
+            <h4>Finanzas</h4>
+            <div class="tool-grid">
+              <div class="tool-row" data-level="total">
+                <button type="button" class="tool"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.5 4.6 9 10 3.2"/></svg></span>Presupuesto</button>
+                <span class="lvl"><button type="button" aria-pressed="false">Ver</button><button type="button" aria-pressed="false">Editar</button><button type="button" aria-pressed="true">Total</button></span>
+              </div>
+              <div class="tool-row" data-level="editar">
+                <button type="button" class="tool"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.5 4.6 9 10 3.2"/></svg></span>Proveedores</button>
+                <span class="lvl"><button type="button" aria-pressed="false">Ver</button><button type="button" aria-pressed="true">Editar</button><button type="button" aria-pressed="false">Total</button></span>
+              </div>
+              <div class="tool-row" data-level="editar">
+                <button type="button" class="tool"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.5 4.6 9 10 3.2"/></svg></span>Pagos</button>
+                <span class="lvl"><button type="button" aria-pressed="false">Ver</button><button type="button" aria-pressed="true">Editar</button><button type="button" aria-pressed="false">Total</button></span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="tally" data-tally>&nbsp;</p>
+      </div>
+
+      <div class="person-block" data-person>
+        <div class="person-head">
+          <div class="who"><span class="av is-teal">MC</span><span class="who-txt"><b>Maria Fernanda Cruz</b><span>Cliente &middot; solo existe en esta boda &middot; no ocupa asiento</span></span></div>
+          <div class="head-right"><span class="pill" data-badge>&nbsp;</span><span class="seg bulk"><button type="button" data-bulk="ver">Todo a ver</button><button type="button" data-bulk="none">Quitar todo</button></span></div>
+        </div>
+        <div class="tools">
+          <div class="tool-group">
+            <h4>Lo que puede la novia</h4>
+            <div class="tool-grid">
+              <div class="tool-row" data-level="ver">
+                <button type="button" class="tool"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.5 4.6 9 10 3.2"/></svg></span>Invitados</button>
+                <span class="lvl"><button type="button" aria-pressed="true">Ver</button><button type="button" aria-pressed="false">Editar</button><button type="button" aria-pressed="false">Total</button></span>
+              </div>
+              <div class="tool-row" data-level="ver">
+                <button type="button" class="tool"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.5 4.6 9 10 3.2"/></svg></span>Invitaci&oacute;n</button>
+                <span class="lvl"><button type="button" aria-pressed="true">Ver</button><button type="button" aria-pressed="false">Editar</button><button type="button" aria-pressed="false">Total</button></span>
+              </div>
+              <div class="tool-row" data-level="editar">
+                <button type="button" class="tool"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.5 4.6 9 10 3.2"/></svg></span>Mesas y check-in</button>
+                <span class="lvl"><button type="button" aria-pressed="false">Ver</button><button type="button" aria-pressed="true">Editar</button><button type="button" aria-pressed="false">Total</button></span>
+              </div>
+              <div class="tool-row" data-level="ver">
+                <button type="button" class="tool"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.5 4.6 9 10 3.2"/></svg></span>Dress code</button>
+                <span class="lvl"><button type="button" aria-pressed="true">Ver</button><button type="button" aria-pressed="false">Editar</button><button type="button" aria-pressed="false">Total</button></span>
+              </div>
+              <div class="tool-row" data-level="ver">
+                <button type="button" class="tool"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.5 4.6 9 10 3.2"/></svg></span>Presupuesto</button>
+                <span class="lvl"><button type="button" aria-pressed="true">Ver</button><button type="button" aria-pressed="false">Editar</button><button type="button" aria-pressed="false">Total</button></span>
+              </div>
+              <div class="tool-row" data-level="ver">
+                <button type="button" class="tool"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.5 4.6 9 10 3.2"/></svg></span>Proveedores</button>
+                <span class="lvl"><button type="button" aria-pressed="true">Ver</button><button type="button" aria-pressed="false">Editar</button><button type="button" aria-pressed="false">Total</button></span>
+              </div>
+              <div class="tool-row" data-level="ver">
+                <button type="button" class="tool"><span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.5 4.6 9 10 3.2"/></svg></span>Pagos</button>
+                <span class="lvl"><button type="button" aria-pressed="true">Ver</button><button type="button" aria-pressed="false">Editar</button><button type="button" aria-pressed="false">Total</button></span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="tally" data-tally>&nbsp;</p>
+      </div>
+
+
+    </div>
+  </div>
+  <p class="screen-cap">Tres cosas que leer en esta pantalla. <strong>La novia:</strong> Mesas en Editar, el dinero en Ver &mdash; toca sus mesas, no borra nada, y el día que quiera capturar sus pagos le mueves Pagos a Editar, un clic. <strong>Regina:</strong> Invitados en <em>sin acceso</em>, porque tú decides hasta eso; y Presupuesto en Total, que es la única en dorado. <strong>Juan:</strong> Total en Invitados y Mesas, que es su chamba, y ni asomo del dinero. La herramienta apagada en la boda (Playlist) sale en gris y no se puede prender desde aquí &mdash; no se esconde, porque desaparecer se lee como que la app se comió una opción.</p>
+</section>
+
+<section>
+  <div class="sec-head">
+    <p class="sec-num">La confusión que hay que evitar</p>
+    <h2>Dos switches que se parecen y no son lo mismo</h2>
+  </div>
+  <p class="muted w66">Este fue el punto que cortó la sesión del 2 de septiembre. La solución no es explicarlo mejor: es que <strong>nunca aparezcan en la misma pantalla</strong>.</p>
+  <div class="duo">
+    <div class="col-card">
+      <p class="tagline">Configuración de la boda</p>
+      <h3>¿Esta boda usa&hellip;?</h3>
+      <p class="small muted">Prende o apaga la herramienta para <em>todos</em>. Si la apagas, desaparece del menú de la boda para cualquiera, tú incluido.</p>
+      <div class="rows">
+        <div class="switch-row"><span>Mesa de regalos</span><span class="sw on"></span></div>
+        <div class="switch-row"><span>Álbum de fotos</span><span class="sw on"></span></div>
+        <div class="switch-row"><span>Playlist</span><span class="sw"></span></div>
+      </div>
+    </div>
+    <div class="col-card">
+      <p class="tagline">Equipo de la boda</p>
+      <h3>¿Juan entra a&hellip;?</h3>
+      <p class="small muted">Reparte una herramienta ya activa entre las personas. Solo puedes repartir lo que la boda tiene prendido.</p>
+      <div class="rows">
+        <div class="switch-row"><span>Mesas y check-in</span><span class="pill teal">Editar</span></div>
+        <div class="switch-row"><span>Mesa de regalos</span><span class="pill">Ver</span></div>
+        <div class="switch-row"><span>Álbum de fotos</span><span class="pill free">Sin acceso</span></div>
+        <div class="switch-row"><span>Playlist</span><span class="pill free">Apagada en la boda</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="note">Regla de pantalla: la de la izquierda usa <strong>switches</strong> y vive en Configuración. La de la derecha usa <strong>palomitas</strong> y vive en Equipo. Distinto control, distinta pantalla, distinta palabra: <em>activar</em> contra <em>dar acceso</em>.</div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <p class="sec-num">El detalle que hoy falla</p>
+    <h2>En una herramienta de solo ver, los botones no salen apagados. No salen.</h2>
+  </div>
+  <div class="duo">
+    <div class="col-card bad">
+      <p class="tagline">Hoy</p>
+      <p class="small">La novia abre Invitados y ve <strong>Agregar invitado</strong>, <strong>Importar CSV</strong>, la casilla de selección múltiple y el bote de basura en cada fila. Le pica a borrar, el invitado desaparece de la pantalla, refresca y ahí sigue. Le escribe al planner preguntando si la app está fallando.</p>
+    </div>
+    <div class="col-card good">
+      <p class="tagline">Después</p>
+      <p class="small">La novia abre Invitados y ve <strong>la lista</strong>. Filtros y búsqueda sí &mdash; explorar no es tocar. Exportar sí. Nada que empiece con agregar, editar, mover o borrar. La pantalla no le ofrece nada que no pueda hacer.</p>
+    </div>
+  </div>
+  <p class="screen-cap">Regla dura para el código: <strong>si el permiso es de lectura, la mutación ni se dibuja</strong> &mdash; no se dibuja deshabilitada. Y ninguna pantalla aplica un cambio en la interfaz antes de que la base lo confirme, que es de donde viene el "se vio guardado y no se guardó".</p>
+</section>
+
+<section>
+  <div class="sec-head">
+    <p class="sec-num">El cimiento</p>
+    <h2>Una sola puerta, llamada desde todos lados</h2>
+  </div>
+  <p class="muted w66">Lo que <em>no</em> vamos a hacer es ir pantalla por pantalla escribiendo condiciones. Eso es exactamente lo que produjo el estado de hoy: el permiso se fue agregando tabla por tabla, se saltó cuatro, y nadie se dio cuenta en meses. La regla vive en <strong>un solo lugar de cada lado</strong> &mdash; uno en la app, uno en la base &mdash; y todo lo demás la llama.</p>
+
+  <p class="step-h">1. Un catálogo de módulos</p>
+  <p class="muted small w66">Agregar una herramienta nueva a Anfiora es agregar un renglón aquí. Nada más. La pantalla de Equipo se dibuja sola a partir de esta lista.</p>
+  <pre class="code"><i>// lib/permisos/catalogo.ts</i>
+export const <b>MODULOS</b> = [
+  'invitados', 'invitacion', 'mensajes', 'mesas', 'timeline',
+  'regalos', 'album', 'playlist', 'vestimenta',
+  'presupuesto', 'proveedores', 'pagos',
+] as const
+
+export type <b>Nivel</b> = 'ninguno' | 'ver' | 'editar' | 'total'</pre>
+
+  <p class="step-h">2. Una sola pregunta, en la app</p>
+  <pre class="code">const { <b>ver</b>, <b>editar</b>, <b>borrar</b> } = <u>usePermiso</u>('mesas')</pre>
+
+  <p class="step-h">3. Un componente que envuelve, no una condición que se repite</p>
+  <p class="muted small w66">Nadie escribe <code>if</code> en una pantalla. Se envuelve el botón y listo: si no puede, no se dibuja. Ese es el componente que pediste, y es lo que hace que aplicarlo a 12 módulos sea trabajo mecánico y no una decisión nueva cada vez.</p>
+  <pre class="code"><i>// esconder una acción</i>
+&lt;<u>Puede</u> modulo="mesas" accion="<b>borrar</b>"&gt;
+  &lt;button onClick={eliminarMesa}&gt;Eliminar mesa&lt;/button&gt;
+&lt;/<u>Puede</u>&gt;
+
+<i>// proteger una página entera, con su pantalla de "no tienes acceso"</i>
+&lt;<u>Puede</u> modulo="pagos" accion="<b>ver</b>" siNo={&lt;SinAcceso /&gt;}&gt;
+  &lt;PaginaPagos /&gt;
+&lt;/<u>Puede</u>&gt;</pre>
+
+  <p class="step-h">4. La misma pregunta, otra vez, en Postgres</p>
+  <p class="muted small w66">Un botón escondido no es seguridad: es cortesía. La app dibuja menos, pero quien sabe escribir una petición a mano entra igual. La verdad tiene que vivir en la base &mdash; y hoy no vive ahí, por eso Finanzas se ve vacía y el Timeline no guarda.</p>
+  <pre class="code"><i>-- una función, no una condición repetida en 40 policies</i>
+create function <b>puede_borrar</b>(evento uuid, modulo text)
+  returns boolean ...
+
+<i>-- y cada policy es un renglón que la llama</i>
+create policy "borrar partidas" on event_budgets <b>for delete</b>
+  using ( <u>puede_borrar</u>(event_id, 'presupuesto') );</pre>
+
+  <div class="note">El día que agregues una herramienta nueva: un renglón en el catálogo, y sus policies llaman a la misma función. El día que cambies el modelo de accesos completo &mdash; porque llegue el despacho, los asientos o lo que sea &mdash; cambias <strong>dos funciones</strong>, no cuarenta archivos.</div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <p class="sec-num">El borrado</p>
+    <h2>Quién movió qué, cuándo, y qué se llevó</h2>
+  </div>
+  <p class="muted w66">Dar permiso de borrar sin bitácora es regalar el problema. Anfiora ya tiene la tabla del registro &mdash; lo que no tiene es que <em>todo</em> borrado pase por ahí, ni una pantalla donde leerlo.</p>
+
+  <div class="screen">
+    <div class="screen-bar">
+      <span class="dots"><i></i><i></i><i></i></span>
+      <span class="crumb">Cruz &ndash; Alonso &rsaquo; <b>Actividad</b></span>
+    </div>
+    <div class="screen-body">
+      <div class="panel-head">
+        <div>
+          <h3>Actividad de la boda</h3>
+          <p class="small muted">Todo lo que pasó, quién lo hizo y desde cuándo. Lo borrado se puede regresar.</p>
+        </div>
+        <button class="btn btn-ghost">Filtrar</button>
+      </div>
+      <table class="tbl">
+        <thead>
+          <tr><th>Cuándo</th><th>Quién</th><th>Qué pasó</th><th></th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="muted small tabnum">Hoy, 14:32</td>
+            <td><div class="who"><span class="av">JM</span><span class="who-txt"><b>Juan Mendoza</b><span>Invitados</span></span></div></td>
+            <td><strong>Eliminó</strong> a "Familia Treviño" y sus 3 acompañantes</td>
+            <td><button class="linkish">Restaurar</button></td>
+          </tr>
+          <tr>
+            <td class="muted small tabnum">Hoy, 11:07</td>
+            <td><div class="who"><span class="av">RO</span><span class="who-txt"><b>Regina Ortiz</b><span>Presupuesto</span></span></div></td>
+            <td>Cambió "Banquete" de $180,000 a $210,000</td>
+            <td></td>
+          </tr>
+          <tr>
+            <td class="muted small tabnum">Ayer, 19:44</td>
+            <td><div class="who"><span class="av is-teal">MC</span><span class="who-txt"><b>Maria Fernanda Cruz</b><span>Mesas</span></span></div></td>
+            <td>Movió a "Tío Beto" de la Mesa 3 a la Mesa 7</td>
+            <td></td>
+          </tr>
+          <tr>
+            <td class="muted small tabnum">Ayer, 09:12</td>
+            <td><div class="who"><span class="av is-gold">DG</span><span class="who-txt"><b>Diego Garza</b><span>Equipo</span></span></div></td>
+            <td>Le dio a Regina acceso <strong>Total</strong> a Presupuesto</td>
+            <td></td>
+          </tr>
+          <tr>
+            <td class="muted small tabnum">2 sep, 16:20</td>
+            <td><div class="who"><span class="av">JM</span><span class="who-txt"><b>Juan Mendoza</b><span>Timeline</span></span></div></td>
+            <td><strong>Eliminó</strong> la tarea "Confirmar DJ &mdash; 12 sep"</td>
+            <td><button class="linkish">Restaurar</button></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="duo">
+    <div class="col-card">
+      <p class="tagline">Dónde se lee</p>
+      <p class="small muted"><strong>Por boda:</strong> una pestaña Actividad, para saber qué pasó en esa boda esta semana. <strong>Por cuenta:</strong> en tu perfil, la actividad de todo el despacho &mdash; ahí ves de un jalón todo lo que se borró en las 12 bodas, sin entrar a cada una.</p>
+    </div>
+    <div class="col-card">
+      <p class="tagline">Por qué se puede restaurar</p>
+      <p class="small muted">Porque el registro no guarda "borró un invitado": guarda <strong>la fila completa</strong> antes de irse. Regresarla es volver a meterla. No necesitamos papelera ni marcar 27 tablas como "borrado" &mdash; la bitácora <em>es</em> la papelera.</p>
+    </div>
+  </div>
+
+  <div class="note">Y una decisión de fondo, de las que se pagan caro si se toman mal: <strong>el borrado no se registra desde la pantalla.</strong> Hoy el registro se llama desde el código de la interfaz y está escrito para fallar en silencio &mdash; que está bien para "cambió un nombre" y es inaceptable para "desapareció la lista". Los borrados se registran con un disparador dentro de Postgres: si la fila se fue, la bitácora lo supo, venga de donde venga el borrado.</div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <p class="sec-num">Lo que este mockup ya decide</p>
+    <h2>Cinco decisiones metidas en el dibujo</h2>
+  </div>
+  <div class="dec">
+    <div class="dec-item">
+      <span class="dec-n">1</span>
+      <span class="dec-txt"><b>El permiso vive en la herramienta, no en la persona</b><p>Nadie es "editor de la boda". Cada herramienta guarda su propio nivel &mdash; sin acceso, Ver, Editar o Total &mdash; y tú decides hasta el último. Es lo único que permite que la novia edite las mesas y solo mire el presupuesto, y que mañana capture sus pagos sin volverse editora de todo. El rol admin, por su parte, sube al despacho y desaparece de este nivel.</p></span>
+    </div>
+    <div class="dec-item">
+      <span class="dec-n">2</span>
+      <span class="dec-txt"><b>Cada persona trae un kit habitual</b><p>Al meterla a una boda, sus palomitas vienen puestas. Corriges la excepción; no armas ocho palomitas sesenta veces.</p></span>
+    </div>
+    <div class="dec-item">
+      <span class="dec-n">3</span>
+      <span class="dec-txt"><b>Finanzas son tres palomitas, no una</b><p>Presupuesto, Proveedores y Pagos por separado, agrupados visualmente. Permite "Regina ve el presupuesto pero no los pagos". <em>Es la decisión que menos me convence: si nunca las vas a separar, una sola palomita deja la pantalla más limpia.</em></p></span>
+    </div>
+    <div class="dec-item">
+      <span class="dec-n">4</span>
+      <span class="dec-txt"><b>El Rolodex no viene amarrado a ser admin</b><p>Es palomita propia del despacho. Si va pegado a admin, para que Regina vea proveedores tendrías que darle el poder de dar de alta gente y tocar la cuenta.</p></span>
+    </div>
+    <div class="dec-item">
+      <span class="dec-n">5</span>
+      <span class="dec-txt"><b>Activar y dar acceso nunca comparten pantalla</b><p>Switches en Configuración, palomitas en Equipo. Es la única forma de que no se confundan.</p></span>
+    </div>
+    <div class="dec-item">
+      <span class="dec-n">6</span>
+      <span class="dec-txt"><b>Borrar es su propio nivel</b><p>No se hereda de poder editar. Se da a propósito, herramienta por herramienta. El equipo entero puede trabajar en Editar y nadie destruye nada.</p></span>
+    </div>
+    <div class="dec-item">
+      <span class="dec-n">7</span>
+      <span class="dec-txt"><b>Una función en la app, una función en Postgres, un componente</b><p>Ninguna pantalla decide permisos por su cuenta. Aplicar esto a los 12 módulos se vuelve trabajo mecánico, y el próximo cambio de modelo toca dos funciones, no cuarenta archivos.</p></span>
+    </div>
+    <div class="dec-item">
+      <span class="dec-n">8</span>
+      <span class="dec-txt"><b>Los borrados se registran desde la base, no desde la pantalla</b><p>Con un disparador en Postgres que guarda la fila completa. Así la bitácora no depende de que la interfaz se acuerde de avisar, y "restaurar" es volver a meter lo que quedó guardado.</p></span>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <p class="sec-num">Lo que falta cerrar</p>
+    <h2>Una cerrada y dos que se fueron a su propio documento</h2>
+  </div>
+  <div class="dec">
+    <div class="dec-item">
+      <span class="dec-n">9</span>
+      <span class="dec-txt"><b>El Administrador sí puede otorgar el nivel Total</b><p>Cerrado el 4-sep. Llegué recomendando que solo el dueño pudiera darlo; Diego lo abrió, y con razón: un administrador que no puede repartir las herramientas que su equipo necesita no está administrando nada. La delegación es el punto de que exista el puesto. El control no está en amarrarle la mano &mdash; está en que cada borrado queda firmado.</p></span>
+    </div>
+    <div class="dec-item ask">
+      <span class="dec-n">B</span>
+      <span class="dec-txt"><b>¿Quién puede invitar, y a quién?</b><p>Resultó que "invitar" son tres cosas distintas y por eso no cerraba. Está desarmada, con opciones y referencias, en el documento <strong>"Quién invita, y quién hereda"</strong>.</p></span>
+    </div>
+    <div class="dec-item ask">
+      <span class="dec-n">C</span>
+      <span class="dec-txt"><b>¿Dónde amanece la gente que ya está trabajando?</b><p>Cada colaborador de hoy tiene que caer en algún lado el día del cambio, sin perder acceso a su boda. Mismo documento, segunda mitad.</p></span>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <span>Anfiora &middot; mockup de accesos</span>
+  <span>4-sep-2026</span>
+  <span>Para revisión &mdash; ningún dato de esta página es real</span>
+</footer>
+
+</div>
+
+<script>
+(function(){
+  var NIVELES = ['ver', 'editar', 'total'];
+
+  function setLevel(row, level){
+    row.setAttribute('data-level', level);
+    var btns = row.querySelectorAll('.lvl button');
+    btns.forEach(function(b, i){
+      b.setAttribute('aria-pressed', String(NIVELES[i] === level));
+    });
+  }
+
+  function plural(n, uno, varios){ return n + ' ' + (n === 1 ? uno : varios); }
+
+  function refresh(block){
+    if(!block) return;
+    var rows = block.querySelectorAll('.tool-row:not(.is-off)');
+    var ve = 0, ed = 0, to = 0;
+    rows.forEach(function(r){
+      var l = r.getAttribute('data-level');
+      if(l === 'ver') ve++;
+      if(l === 'editar') ed++;
+      if(l === 'total') to++;
+    });
+    var total = ve + ed + to;
+
+    var badge = block.querySelector('[data-badge]');
+    if(badge){
+      badge.className = 'pill';
+      if(total === 0){ badge.textContent = 'Fuera de esta boda'; }
+      else if(to > 0){ badge.textContent = 'Puede borrar'; badge.className = 'pill gold'; }
+      else if(ed > 0){ badge.textContent = 'Edita, no borra'; badge.className = 'pill teal'; }
+      else { badge.textContent = 'Solo lectura'; }
+    }
+
+    var el = block.querySelector('[data-tally]');
+    if(!el) return;
+    if(total === 0){
+      el.innerHTML = 'Sin una sola herramienta, <b>esta persona no entra a la boda</b>: no le aparece en su lista.';
+      return;
+    }
+    var partes = [];
+    if(to) partes.push('<b>borra en ' + plural(to, 'herramienta', 'herramientas') + '</b>');
+    if(ed) partes.push('edita ' + plural(ed, 'herramienta', 'herramientas') + ' sin poder borrar');
+    if(ve) partes.push('solo mira ' + plural(ve, 'herramienta', 'herramientas'));
+    el.innerHTML = 'Entra a <b>' + plural(total, 'herramienta', 'herramientas') + '</b> &middot; ' +
+      partes.join(' &middot; ') + '.' +
+      (to ? ' Cada borrado suyo queda firmado en la bitácora.' : '');
+  }
+
+  document.querySelectorAll('.tool-row').forEach(function(row){
+    if(row.classList.contains('is-off')) return;
+    var toggle = row.querySelector('.tool');
+    if(toggle){
+      toggle.addEventListener('click', function(){
+        setLevel(row, row.getAttribute('data-level') === 'none' ? 'ver' : 'none');
+        refresh(row.closest('[data-person]'));
+      });
+    }
+    var lvl = row.querySelector('.lvl');
+    if(lvl){
+      lvl.addEventListener('click', function(e){
+        var b = e.target.closest('button');
+        if(!b) return;
+        var t = b.textContent.trim();
+        setLevel(row, t === 'Total' ? 'total' : (t === 'Editar' ? 'editar' : 'ver'));
+        refresh(row.closest('[data-person]'));
+      });
+    }
+  });
+
+  document.querySelectorAll('[data-bulk]').forEach(function(b){
+    b.addEventListener('click', function(){
+      var block = b.closest('[data-person]');
+      block.querySelectorAll('.tool-row:not(.is-off)').forEach(function(r){
+        setLevel(r, b.getAttribute('data-bulk'));
+      });
+      refresh(block);
+    });
+  });
+
+  document.querySelectorAll('[data-person]').forEach(refresh);
+})();
+</script>
