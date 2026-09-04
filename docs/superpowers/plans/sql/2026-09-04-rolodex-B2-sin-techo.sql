@@ -20,6 +20,10 @@
 
 BEGIN;
 
+-- suppliers_category_check es el nombre que Postgres pone por convencion.
+-- Si el select del diagnostico de arriba muestra otro nombre para suppliers,
+-- usar ese en el DROP de abajo: un DROP ... IF EXISTS con el nombre
+-- equivocado no falla, simplemente no hace nada, y la restriccion se queda.
 ALTER TABLE public.suppliers
   DROP CONSTRAINT IF EXISTS suppliers_category_check;
 
