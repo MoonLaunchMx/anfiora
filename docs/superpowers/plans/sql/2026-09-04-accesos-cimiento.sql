@@ -13,11 +13,15 @@
 -- cablearlas antes deja a todo el equipo fuera de golpe. La app usa mientras
 -- tanto permisosDesdeRolLegado() en lib/permisos/resolver.ts.
 --
--- SI YA CORRISTE UNA VERSION ANTERIOR DE ESTE ARCHIVO: las sentencias son
--- IF NOT EXISTS, asi que volver a correrlo NO cambia las acciones de las llaves
--- foraneas (el ON DELETE CASCADE de workspaces.primary_owner_id y el ON DELETE
--- SET NULL de events.workspace_id). En ese caso hay que borrar las dos tablas
--- nuevas y la columna antes de re-correr.
+-- RE-CORRER ESTE ARCHIVO: las tablas, columnas e indices son IF NOT EXISTS, y
+-- las funciones, triggers y policies se reemplazan solas. Dos salvedades:
+--   1. Las acciones ON DELETE de las llaves foraneas NO se reaplican si las
+--      tablas ya existen. Si corriste una version anterior, revisalas a mano.
+--   2. Si una corrida previa dejo dos despachos con el mismo dueno, el indice
+--      unico workspaces_un_dueno aborta el script entero. Hay que limpiar el
+--      duplicado antes.
+-- NO borres las tablas para re-correr si -migracion-aplicar.sql ya corrio: eso
+-- tira membresias reales y deja events.workspace_id en NULL.
 --
 -- Modelo (ver §2 del spec):
 --   Arriba, el despacho: dueno / admin / colaborador.
@@ -27,6 +31,27 @@
 -- Correr DESPUES de que el codigo del Tramo 1 este en produccion.
 
 BEGIN;
+
+-- ============================================================
+-- 0. La funcion que rompe la recursion de RLS
+--    Va primero porque el trigger de la seccion 2 y las policies de la 4 la
+--    llaman: corrido por secciones, definirla despues deja el trigger vivo
+--    sin la funcion y todo INSERT en events muere con 42883.
+-- ============================================================
+
+-- SECURITY DEFINER evalua sin RLS: sin esto, una policy que consulta
+-- workspace_members dentro de su propio USING recursa (42P17) y deja las dos
+-- tablas ilegibles. Misma tecnica que is_event_member en anf-053.
+CREATE OR REPLACE FUNCTION public.es_miembro_de(ws uuid)
+RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM workspace_members m
+    WHERE m.workspace_id = ws
+      AND m.user_id = auth.uid()
+      AND m.status  = 'active'
+  )
+$$;
 
 -- ============================================================
 -- 1. El despacho
@@ -101,10 +126,15 @@ BEGIN
     RETURN NEW;
   END IF;
 
-  IF NEW.workspace_id IS DISTINCT FROM OLD.workspace_id
-     AND OLD.user_id IS DISTINCT FROM auth.uid() THEN
-    RAISE EXCEPTION 'Solo el dueno del evento puede cambiar su despacho'
-      USING ERRCODE = '42501';
+  IF NEW.workspace_id IS DISTINCT FROM OLD.workspace_id THEN
+    IF OLD.user_id IS DISTINCT FROM auth.uid() THEN
+      RAISE EXCEPTION 'Solo el dueno del evento puede cambiar su despacho'
+        USING ERRCODE = '42501';
+    END IF;
+    IF NEW.workspace_id IS NOT NULL AND NOT public.es_miembro_de(NEW.workspace_id) THEN
+      RAISE EXCEPTION 'No puedes mover un evento a un despacho al que no perteneces'
+        USING ERRCODE = '42501';
+    END IF;
   END IF;
 
   RETURN NEW;
@@ -134,19 +164,20 @@ BEGIN
 
   IF v_ws IS NULL THEN
     INSERT INTO workspaces (name, primary_owner_id)
-    SELECT COALESCE(u.full_name, u.email), u.id
+    SELECT COALESCE(u.full_name, u.email, 'Mi despacho'), u.id
       FROM users u WHERE u.id = NEW.user_id
     ON CONFLICT (primary_owner_id) DO NOTHING;
 
     INSERT INTO workspace_members (workspace_id, user_id, email, rol, es_dueno_principal, status, accepted_at)
-    SELECT w.id, u.id, u.email, 'dueno', true, 'active', now()
+    SELECT w.id, u.id, COALESCE(u.email, u.id::text), 'dueno', true, 'active', now()
       FROM workspaces w
       JOIN users u ON u.id = w.primary_owner_id
      WHERE w.primary_owner_id = NEW.user_id
        AND NOT EXISTS (
          SELECT 1 FROM workspace_members m
           WHERE m.workspace_id = w.id AND m.user_id = u.id
-       );
+       )
+    ON CONFLICT DO NOTHING;
 
     SELECT w.id INTO v_ws FROM workspaces w WHERE w.primary_owner_id = NEW.user_id;
   END IF;
@@ -228,20 +259,6 @@ AS $$ SELECT public.nivel_en(evento, modulo) = 'total' $$;
 -- ============================================================
 -- 4. RLS de las tablas nuevas
 -- ============================================================
-
--- SECURITY DEFINER evalua sin RLS: sin esto, una policy que consulta
--- workspace_members dentro de su propio USING recursa (42P17) y deja las dos
--- tablas ilegibles. Misma tecnica que is_event_member en anf-053.
-CREATE OR REPLACE FUNCTION public.es_miembro_de(ws uuid)
-RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public
-AS $$
-  SELECT EXISTS (
-    SELECT 1 FROM workspace_members m
-    WHERE m.workspace_id = ws
-      AND m.user_id = auth.uid()
-      AND m.status  = 'active'
-  )
-$$;
 
 ALTER TABLE public.workspaces        ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.workspace_members ENABLE ROW LEVEL SECURITY;
