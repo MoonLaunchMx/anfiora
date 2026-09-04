@@ -65,9 +65,9 @@ export async function renombrar(
   return { ok: true }
 }
 
-// ocultar y reactivar solo tocan archived_at: ni proveedores ni partidas se mueven,
+// archivar y restaurar solo tocan archived_at: ni proveedores ni partidas se mueven,
 // por eso son reversibles.
-export async function ocultar(categoriaId: string): Promise<Resultado> {
+export async function archivar(categoriaId: string): Promise<Resultado> {
   const { error } = await supabase
     .from('categories')
     .update({ archived_at: new Date().toISOString() })
@@ -76,7 +76,7 @@ export async function ocultar(categoriaId: string): Promise<Resultado> {
   return { ok: true }
 }
 
-export async function reactivar(categoriaId: string): Promise<Resultado> {
+export async function restaurar(categoriaId: string): Promise<Resultado> {
   const { error } = await supabase
     .from('categories')
     .update({ archived_at: null })

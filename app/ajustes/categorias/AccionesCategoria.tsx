@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { MoreHorizontal } from 'lucide-react'
 import { Modal } from '@/app/components/ui/Modal'
-import { renombrar, ocultar, reactivar } from '@/lib/rolodex/aplicar-cambios'
+import { renombrar, archivar, restaurar } from '@/lib/rolodex/aplicar-cambios'
 import { buscarPorNombre, type Categoria } from '@/lib/rolodex/categorias-store'
 import { type CategoriaConUso } from '@/lib/rolodex/vocabulario-admin'
 
@@ -18,7 +18,7 @@ function plural(n: number, singular: string, otros: string): string {
   return `${n} ${n === 1 ? singular : otros}`
 }
 
-type ModalAbierto = 'renombrar' | 'ocultar' | null
+type ModalAbierto = 'renombrar' | 'archivar' | null
 
 export default function AccionesCategoria({ categoria, todas, userId, onCambiado }: Props) {
   const [open, setOpen] = useState(false)
@@ -44,9 +44,9 @@ export default function AccionesCategoria({ categoria, todas, userId, onCambiado
     setOpen(false)
   }
 
-  const abrirOcultar = () => {
+  const abrirArchivar = () => {
     setError('')
-    setModal('ocultar')
+    setModal('archivar')
     setOpen(false)
   }
 
@@ -72,20 +72,20 @@ export default function AccionesCategoria({ categoria, todas, userId, onCambiado
     onCambiado()
   }
 
-  const handleOcultar = async () => {
+  const handleArchivar = async () => {
     setGuardando(true)
     setError('')
-    const resultado = await ocultar(categoria.id)
+    const resultado = await archivar(categoria.id)
     setGuardando(false)
     if (!resultado.ok) { setError(resultado.error ?? 'No se pudo archivar la categoría.'); return }
     setModal(null)
     onCambiado()
   }
 
-  const handleReactivar = async () => {
+  const handleRestaurar = async () => {
     setGuardando(true)
     setError('')
-    const resultado = await reactivar(categoria.id)
+    const resultado = await restaurar(categoria.id)
     setGuardando(false)
     if (!resultado.ok) { setError(resultado.error ?? 'No se pudo restaurar la categoría.'); return }
     setModal(null)
@@ -121,10 +121,10 @@ export default function AccionesCategoria({ categoria, todas, userId, onCambiado
           </button>
           <button
             type="button"
-            onClick={abrirOcultar}
+            onClick={abrirArchivar}
             className="block w-full border-t border-[#f0f0f0] px-4 py-2.5 text-left text-sm text-[#1D1E20] hover:bg-[#f8f8f8]"
           >
-            {categoria.oculta ? 'Restaurar' : 'Archivar'}
+            {categoria.archivada ? 'Restaurar' : 'Archivar'}
           </button>
           <button
             type="button"
@@ -188,7 +188,7 @@ export default function AccionesCategoria({ categoria, todas, userId, onCambiado
         </Modal>
       )}
 
-      {modal === 'ocultar' && !categoria.oculta && (
+      {modal === 'archivar' && !categoria.archivada && (
         <Modal open onClose={cerrarModal} size="sm">
           <Modal.Header title={`Archivar "${categoria.nombre}"`} onClose={cerrarModal} />
           <Modal.Body>
@@ -213,7 +213,7 @@ export default function AccionesCategoria({ categoria, todas, userId, onCambiado
             </button>
             <button
               type="button"
-              onClick={handleOcultar}
+              onClick={handleArchivar}
               disabled={guardando}
               className="rounded-lg bg-[#48C9B0] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#3aa896] disabled:opacity-50"
             >
@@ -223,7 +223,7 @@ export default function AccionesCategoria({ categoria, todas, userId, onCambiado
         </Modal>
       )}
 
-      {modal === 'ocultar' && categoria.oculta && (
+      {modal === 'archivar' && categoria.archivada && (
         <Modal open onClose={cerrarModal} size="sm">
           <Modal.Header title={`Restaurar "${categoria.nombre}"`} onClose={cerrarModal} />
           <Modal.Body>
@@ -245,7 +245,7 @@ export default function AccionesCategoria({ categoria, todas, userId, onCambiado
             </button>
             <button
               type="button"
-              onClick={handleReactivar}
+              onClick={handleRestaurar}
               disabled={guardando}
               className="rounded-lg bg-[#48C9B0] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#3aa896] disabled:opacity-50"
             >

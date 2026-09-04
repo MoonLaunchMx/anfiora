@@ -6,7 +6,7 @@ export type CategoriaConUso = {
   id: string
   nombre: string
   uso: Uso
-  oculta: boolean
+  archivada: boolean
 }
 
 // Distancia de edicion acotada: pasando de 3 ya no nos interesa, y salir

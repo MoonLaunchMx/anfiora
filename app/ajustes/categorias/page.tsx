@@ -57,9 +57,9 @@ export default function CategoriasPage() {
           proveedores: porProveedores.get(c.id) ?? 0,
           partidas: porPartidas.get(c.id) ?? 0,
         },
-        oculta: c.archived_at !== null,
+        archivada: c.archived_at !== null,
       }))
-      .sort((a, b) => Number(a.oculta) - Number(b.oculta))
+      .sort((a, b) => Number(a.archivada) - Number(b.archivada))
 
     setCategoriasRaw(cats)
     setCategorias(conUso)
@@ -115,17 +115,17 @@ export default function CategoriasPage() {
               ${i !== categorias.length - 1 ? 'border-b border-[#f0f0f0]' : ''}`}
           >
             <div className="flex min-w-0 items-center gap-2">
-              <p className={`truncate text-sm font-medium ${c.oculta ? 'text-[#aaa]' : 'text-[#1D1E20]'}`}>
+              <p className={`truncate text-sm font-medium ${c.archivada ? 'text-[#aaa]' : 'text-[#1D1E20]'}`}>
                 {c.nombre}
               </p>
-              {c.oculta && (
+              {c.archivada && (
                 <span className="shrink-0 rounded-full border border-[#e0e0e0] bg-[#f8f8f8] px-2 py-0.5 text-[10px] font-semibold text-[#999]">
                   Archivada
                 </span>
               )}
             </div>
             <div className="flex shrink-0 items-center gap-3">
-              <p className={`text-xs ${c.oculta ? 'text-[#bbb]' : 'text-[#888]'}`}>
+              <p className={`text-xs ${c.archivada ? 'text-[#bbb]' : 'text-[#888]'}`}>
                 {puedeEliminarse(c.uso)
                   ? 'Nadie la usa'
                   : `${plural(c.uso.proveedores, 'proveedor', 'proveedores')} · ${plural(c.uso.partidas, 'partida', 'partidas')}`}
