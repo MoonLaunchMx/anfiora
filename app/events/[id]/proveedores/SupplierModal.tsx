@@ -94,20 +94,6 @@ export default function SupplierModal({ isOpen, onClose, currency, budgets, cate
       <Modal.Body>
         <div className="space-y-4">
 
-          {/* Nombre */}
-          <div>
-            <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-[#888]">
-              Nombre <span className="text-red-400">*</span>
-            </label>
-            <input
-              type="text"
-              value={name}
-              onChange={e => setName(e.target.value)}
-              placeholder="Ej. DJ Ultra Mix"
-              className="w-full rounded-lg border border-[#e0e0e0] bg-white px-3 py-2 text-base text-[#1D1E20] outline-none transition focus:border-[#48C9B0]"
-            />
-          </div>
-
           {/* Categoría */}
           <div>
             <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-[#888]">
@@ -119,6 +105,20 @@ export default function SupplierModal({ isOpen, onClose, currency, budgets, cate
               onChange={c => { setCategoryId(c.id); setEventBudgetId('') }}
               userId={userId}
               className="border-[#e0e0e0]"
+            />
+          </div>
+
+          {/* Nombre */}
+          <div>
+            <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-[#888]">
+              Nombre <span className="text-red-400">*</span>
+            </label>
+            <input
+              type="text"
+              value={name}
+              onChange={e => setName(e.target.value)}
+              placeholder="Ej. DJ Ultra Mix"
+              className="w-full rounded-lg border border-[#e0e0e0] bg-white px-3 py-2 text-base text-[#1D1E20] outline-none transition focus:border-[#48C9B0]"
             />
           </div>
 
