@@ -121,7 +121,7 @@ const AccionesCategoria = forwardRef<AccionesCategoriaHandle, Props>(function Ac
   const handleEliminar = async () => {
     setGuardando(true)
     setError('')
-    const resultado = await eliminar(categoria.id)
+    const resultado = await eliminar(userId, categoria.id)
     setGuardando(false)
     if (!resultado.ok) { setError(resultado.error ?? 'No se pudo eliminar la categoría.'); return }
     setModal(null)

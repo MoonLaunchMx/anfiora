@@ -83,10 +83,10 @@ export async function juntar(
     .eq('id', sobraId)
     .eq('user_id', userId)
     .single()
-  if (errorSobra || !sobra) return { ok: false, error: errorSobra?.message ?? 'No se encontro la categoria.' }
+  if (errorSobra || !sobra) return { ok: false, error: errorSobra?.message ?? 'No se encontró la categoría.' }
 
   if (mismaCategoria(sobra.name, nombreQueda)) {
-    return { ok: false, error: 'No puedes juntar una categoria consigo misma.' }
+    return { ok: false, error: 'No puedes juntar una categoría consigo misma.' }
   }
 
   const nombreSobra = sobra.name as string
@@ -143,7 +143,7 @@ export async function juntar(
   if (errorCategoria) {
     return {
       ok: false,
-      error: 'No se pudo borrar la categoria porque un paso anterior no movio todo lo que la usaba. Vuelve a intentar juntarla.',
+      error: 'No se pudo borrar la categoría porque un paso anterior no movió todo lo que la usaba. Vuelve a intentar juntarla.',
     }
   }
 
@@ -155,26 +155,38 @@ export async function juntar(
 // pestana -por eso se vuelve a contar aqui antes de escribir. Si aun asi
 // ON DELETE RESTRICT rechaza el borrado, el mensaje le dice al planner que
 // alguien la esta usando y le sugiere juntarla en vez de mostrarle el error crudo.
-export async function eliminar(categoriaId: string): Promise<Resultado> {
+export async function eliminar(userId: string, categoriaId: string): Promise<Resultado> {
   const { count: proveedores, error: errorProveedores } = await supabase
     .from('suppliers')
     .select('id', { count: 'exact', head: true })
+    .eq('user_id', userId)
     .eq('category_id', categoriaId)
   if (errorProveedores) return { ok: false, error: errorProveedores.message }
 
-  const { count: partidas, error: errorPartidas } = await supabase
-    .from('event_budgets')
-    .select('id', { count: 'exact', head: true })
-    .eq('category_id', categoriaId)
+  const { data: eventos, error: errorEventos } = await supabase
+    .from('events')
+    .select('id')
+    .eq('user_id', userId)
+  if (errorEventos) return { ok: false, error: errorEventos.message }
+
+  const eventIds = (eventos ?? []).map(e => e.id)
+
+  const { count: partidas, error: errorPartidas } = eventIds.length > 0
+    ? await supabase
+        .from('event_budgets')
+        .select('id', { count: 'exact', head: true })
+        .in('event_id', eventIds)
+        .eq('category_id', categoriaId)
+    : { count: 0, error: null }
   if (errorPartidas) return { ok: false, error: errorPartidas.message }
 
   if ((proveedores ?? 0) > 0 || (partidas ?? 0) > 0) {
-    return { ok: false, error: 'Alguien la esta usando. Juntala con otra categoria en vez de eliminarla.' }
+    return { ok: false, error: 'Alguien la está usando. Júntala con otra categoría en vez de eliminarla.' }
   }
 
-  const { error } = await supabase.from('categories').delete().eq('id', categoriaId)
+  const { error } = await supabase.from('categories').delete().eq('id', categoriaId).eq('user_id', userId)
   if (error) {
-    return { ok: false, error: 'Alguien la esta usando. Juntala con otra categoria en vez de eliminarla.' }
+    return { ok: false, error: 'Alguien la está usando. Júntala con otra categoría en vez de eliminarla.' }
   }
 
   return { ok: true }
