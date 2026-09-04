@@ -11,6 +11,11 @@
 --
 -- Este script solo crea la funcion. Colgarla de cada tabla pasa en el tramo de
 -- su modulo.
+--
+-- ANTES DE COLGAR ESTE DISPARADOR DE events: revisar la accion de la llave
+-- foranea event_audit_log.event_id -> events.id. Con CASCADE, el registro del
+-- borrado se autodestruye en el mismo statement; con RESTRICT, el borrado del
+-- evento falla. Hay que resolverlo en el tramo que lo cuelgue.
 
 BEGIN;
 
