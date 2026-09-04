@@ -6,6 +6,7 @@ import {
 } from '@/lib/types'
 import { getSuggestedItems } from './templates'
 import { categoryLabel } from './categories'
+import { selloDeFecha } from '@/lib/presupuesto/import'
 
 type ExportData = {
   eventName: string
@@ -61,6 +62,8 @@ export function exportToExcel(data: ExportData) {
   if (data.eventDate) rows.push(['Fecha', data.eventDate])
   if (data.venue) rows.push(['Lugar', data.venue])
   rows.push(['Moneda', data.currency])
+  // Sirve para avisar si alguien reimporta un archivo viejo (lib/presupuesto/import.ts)
+  rows.push(['Generado', selloDeFecha()])
   rows.push([])
   rows.push(['Categoría', 'Concepto', 'Estimado', 'Cotizado', 'Pagado', 'Por pagar'])
 
@@ -197,17 +200,21 @@ export function downloadImportTemplate(opts: { categories: string[]; eventType: 
   const instrucciones: any[] = [
     ['Plantilla de presupuesto - Anfiora'],
     [],
+    ['Generado', selloDeFecha()],
+    [],
     ['Como usar esta plantilla:'],
     ['1) Ve a la hoja "Presupuesto".'],
     ['2) Escribe el monto estimado de cada concepto en la columna "Presupuesto".'],
-    ['3) Borra las filas que no apliquen a tu evento.'],
-    ['4) Agrega tus propios conceptos en filas nuevas (respeta las 3 columnas).'],
-    ['5) Guarda el archivo y subelo en el boton "Importar" dentro de Presupuesto.'],
+    ['3) Agrega tus propios conceptos en filas nuevas (respeta las 3 columnas).'],
+    ['4) Guarda el archivo y subelo en el boton "Importar" dentro de Presupuesto.'],
     [],
     ['Notas:'],
     ['- La columna "Categoria" agrupa tus conceptos; usa las que ya vienen en la lista.'],
-    ['- Puedes dejar el monto en blanco; lo defines despues en la app.'],
-    ['- Al importar no se duplican los conceptos que ya tengas.'],
+    ['- Un concepto que ya tengas NO se duplica: se le actualiza el monto.'],
+    ['- Si dejas el monto en blanco, el que ya tengas en la app no se toca.'],
+    ['- Borrar filas aqui NO borra nada en la app; eso se hace desde Anfiora.'],
+    ['- Si le cambias el nombre a un concepto, el import te preguntara si es el mismo.'],
+    ['- Antes de guardar veras la lista completa con el monto anterior y el nuevo.'],
   ]
   const wsInstr = XLSX.utils.aoa_to_sheet(instrucciones)
   wsInstr['!cols'] = [{ wch: 70 }]

@@ -2,14 +2,18 @@
 
 import { useEffect, useState, useRef } from 'react'
 import { useParams } from 'next/navigation'
-import { Search, FileSpreadsheet, FileText, Plus, Upload, X, AlertTriangle, Check, ChevronDown, Sparkles, SlidersHorizontal } from 'lucide-react'
+import { Search, FileSpreadsheet, FileText, Plus, Upload, X, AlertTriangle, Check, ChevronDown, Sparkles, SlidersHorizontal, ArrowRight, Minus } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { supabase } from '@/lib/supabase'
 import {
-  Event, EventBudget, BudgetCategory, BUDGET_CATEGORIES, BUDGET_CATEGORY_LABELS,
-  Currency, EventSupplier, Supplier,
+  Event, EventBudget, Currency, EventSupplier, Supplier,
 } from '@/lib/types'
 import { getEventCategories, categoryLabel } from './lib/categories'
+import {
+  leerMonto, planearImport, resumenImport, mensajeImportado,
+  decidirRenombre, fechaDelArchivo, avisoArchivoViejo, FilaPlan,
+} from '@/lib/presupuesto/import'
+import { interpretarEscritura } from '@/lib/invite/persistencia'
 import { BudgetCategoriesModal } from './BudgetCategoriesModal'
 import { ImportStepsModal } from '@/app/components/ui/ImportStepsModal'
 import { useConfirm } from '@/app/components/ui/ConfirmModal'
@@ -33,13 +37,6 @@ type SupplierPaymentRow = {
   amount: number
 }
 
-type ImportRow = {
-  category: string
-  subcategory: string
-  budget_amount: number
-  isDuplicate: boolean
-}
-
 export default function PresupuestoPage() {
   const { id } = useParams()
   const eventId = id as string
@@ -60,10 +57,11 @@ export default function PresupuestoPage() {
   const [modalCategory, setModalCategory] = useState<string | null>(null)
 
   const [importModalOpen, setImportModalOpen] = useState(false)
-  const [importRows, setImportRows]           = useState<ImportRow[]>([])
+  const [importPlan, setImportPlan]           = useState<FilaPlan[]>([])
   const [importError, setImportError]         = useState('')
+  const [importSuccess, setImportSuccess]     = useState('')
+  const [avisoArchivo, setAvisoArchivo]       = useState('')
   const [importing, setImporting]             = useState(false)
-  const [importMode, setImportMode]           = useState<'todos' | 'nuevos'>('nuevos')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const [selectedSupplier, setSelectedSupplier] = useState<EventSupplierWithName | null>(null)
@@ -187,16 +185,11 @@ export default function PresupuestoPage() {
     setModalOpen(true)
   }
 
-  const LABEL_TO_CATEGORY: Record<string, BudgetCategory> = {}
-  BUDGET_CATEGORIES.forEach(cat => {
-    LABEL_TO_CATEGORY[BUDGET_CATEGORY_LABELS[cat].toLowerCase()] = cat
-    LABEL_TO_CATEGORY[cat.toLowerCase()] = cat
-  })
-
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
     setImportError('')
+    setImportSuccess('')
 
     const reader = new FileReader()
     reader.onload = (ev) => {
@@ -204,11 +197,15 @@ export default function PresupuestoPage() {
         const data = new Uint8Array(ev.target?.result as ArrayBuffer)
         const wb   = XLSX.read(data, { type: 'array' })
 
-        // Buscar entre TODAS las hojas la que tenga la fila de encabezados (Categoria)
+        // Buscar entre TODAS las hojas la que tenga la fila de encabezados (Categoria).
+        // Se guardan todas las filas porque el sello de fecha puede vivir en otra hoja.
         let raw: any[] = []
         let headerIdx = -1
+        const todasLasFilas: any[][] = []
         for (const sheetName of wb.SheetNames) {
           const sheetRows = XLSX.utils.sheet_to_json<any>(wb.Sheets[sheetName], { header: 1 })
+          todasLasFilas.push(...sheetRows)
+          if (headerIdx !== -1) continue
           for (let i = 0; i < sheetRows.length; i++) {
             const row = (sheetRows[i] || []).map((c: any) => String(c || '').toLowerCase())
             if (row.includes('categoria') || row.includes('categoría')) {
@@ -217,7 +214,6 @@ export default function PresupuestoPage() {
               break
             }
           }
-          if (headerIdx !== -1) break
         }
 
         if (headerIdx === -1) {
@@ -235,34 +231,34 @@ export default function PresupuestoPage() {
           return
         }
 
-        const parsed: ImportRow[] = []
-        const existingKeys = new Set(
-          budgets.map(b => `${b.category}||${b.subcategory.toLowerCase().trim()}`)
-        )
-
+        const filas = []
         for (let i = headerIdx + 1; i < raw.length; i++) {
           const row = raw[i]
           if (!row || row.length === 0) continue
 
-          const catRaw = String(row[catIdx] || '').trim()
-          const conRaw = String(row[conIdx] || '').trim()
-          const amtRaw = amtIdx >= 0 ? Number(row[amtIdx]) || 0 : 0
+          const catRaw = String(row[catIdx] ?? '').trim()
+          const conRaw = String(row[conIdx] ?? '').trim()
 
           if (!catRaw || !conRaw) continue
           if (conRaw.toLowerCase().startsWith('ejemplo:')) continue
 
-          const category = LABEL_TO_CATEGORY[catRaw.toLowerCase()] ?? catRaw
-
-          const isDuplicate = existingKeys.has(`${category}||${conRaw.toLowerCase()}`)
-          parsed.push({ category, subcategory: conRaw, budget_amount: amtRaw, isDuplicate })
+          filas.push({
+            categoria: catRaw,
+            concepto:  conRaw,
+            monto:     amtIdx >= 0 ? leerMonto(row[amtIdx]) : null,
+          })
         }
 
-        if (parsed.length === 0) {
+        const plan = planearImport(filas, budgets, categories)
+
+        if (plan.length === 0) {
           setImportError('No se encontraron conceptos válidos en el archivo.')
           return
         }
 
-        setImportRows(parsed)
+        const bajan = resumenImport(plan).bajan > 0
+        setAvisoArchivo(avisoArchivoViejo(fechaDelArchivo(todasLasFilas), new Date(), bajan) ?? '')
+        setImportPlan(plan)
         setImportModalOpen(true)
       } catch (err: any) {
         setImportError('Error leyendo el archivo. Asegúrate de que sea un .xlsx válido.')
@@ -273,43 +269,62 @@ export default function PresupuestoPage() {
     e.target.value = ''
   }
 
+  const decidirFila = (indice: number, esElMismo: boolean) => {
+    setImportPlan(prev => prev.map((f, i) => i === indice ? decidirRenombre(f, esElMismo) : f))
+  }
+
   const handleImport = async () => {
     setImporting(true)
+    setImportError('')
+    setImportSuccess('')
     try {
-      const news = importRows.filter(r => !r.isDuplicate)
-      const dups = importMode === 'todos' ? importRows.filter(r => r.isDuplicate) : []
+      const nuevos = importPlan.filter(f => f.accion === 'agregar')
+      const cambios = importPlan.filter(f => f.accion === 'actualizar')
 
-      if (news.length === 0 && dups.length === 0) { setImportModalOpen(false); return }
+      if (nuevos.length === 0 && cambios.length === 0) { setImportModalOpen(false); return }
 
-      if (news.length > 0) {
+      if (nuevos.length > 0) {
         const { error } = await supabase
           .from('event_budgets')
-          .insert(news.map(r => ({
+          .insert(nuevos.map(f => ({
             event_id:          eventId,
-            category:          r.category,
-            subcategory:       r.subcategory,
-            budget_amount:     r.budget_amount,
+            category:          f.categoria,
+            subcategory:       f.concepto,
+            budget_amount:     f.montoNuevo,
             event_supplier_id: null,
             notes:             null,
           })))
         if (error) throw error
       }
 
-      // Modo "todos": actualizar el monto de los conceptos que ya existen (no re-insertar)
-      for (const r of dups) {
-        const { error } = await supabase
+      // Se actualiza por id: el texto ya no se vuelve a comparar contra la base.
+      // Y se piden las filas con .select() porque un UPDATE filtrado por RLS
+      // devuelve cero filas SIN error (ver lib/invite/persistencia.ts).
+      let actualizados = 0
+      for (const f of cambios) {
+        const res = await supabase
           .from('event_budgets')
-          .update({ budget_amount: r.budget_amount })
-          .eq('event_id', eventId).eq('category', r.category).eq('subcategory', r.subcategory)
-        if (error) throw error
+          .update({ budget_amount: f.montoNuevo })
+          .eq('id', f.partidaId!)
+          .select('id')
+
+        const resultado = interpretarEscritura(res)
+        if (!resultado.ok) throw new Error(resultado.motivo)
+        actualizados++
       }
 
       setImportModalOpen(false)
-      setImportRows([])
+      setImportPlan([])
+      setImportSuccess(mensajeImportado(nuevos.length, actualizados))
       await loadAll()
     } catch (err: any) {
       console.error('Error importando:', err?.message ?? err)
-      alert(`Error importando: ${err?.message ?? 'Intenta de nuevo'}`)
+      setImportModalOpen(false)
+      setImportPlan([])
+      setImportError(err?.message ?? 'No se pudo terminar la importación. Revisa tu presupuesto e inténtalo de nuevo.')
+      // La importacion pudo quedar a medias: se recarga para que la pantalla
+      // muestre lo que de verdad quedo guardado.
+      await loadAll()
     } finally {
       setImporting(false)
     }
@@ -453,8 +468,20 @@ export default function PresupuestoPage() {
   }
 
   const currency: Currency = event.currency || 'MXN'
-  const duplicateCount = importRows.filter(r => r.isDuplicate).length
-  const newCount       = importRows.filter(r => !r.isDuplicate).length
+  const conteoImport   = resumenImport(importPlan)
+  const porEscribir    = conteoImport.agregar + conteoImport.actualizar
+  const pesos          = (n: number) => `$${Math.abs(n).toLocaleString('es-MX')}`
+  const titularImport  = (() => {
+    const partes: string[] = []
+    if (conteoImport.agregar > 0) {
+      partes.push(`agregar ${conteoImport.agregar} concepto${conteoImport.agregar !== 1 ? 's' : ''}`)
+    }
+    if (conteoImport.actualizar > 0) {
+      partes.push(`cambiar ${conteoImport.actualizar} monto${conteoImport.actualizar !== 1 ? 's' : ''}`)
+    }
+    if (partes.length === 0) return 'Con este archivo no cambia nada de tu presupuesto.'
+    return `Vas a ${partes.join(' y ')}.`
+  })()
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -508,7 +535,7 @@ export default function PresupuestoPage() {
 
           <button
             onClick={() => setShowImportHelp(true)}
-            className="hidden items-center gap-1.5 rounded-lg border border-[#e0e0e0] bg-white px-3 py-1.5 text-xs font-medium text-[#555] transition hover:border-[#48C9B0] hover:text-[#48C9B0] sm:flex"
+            className="flex items-center gap-1.5 rounded-lg border border-[#e0e0e0] bg-white px-3 py-1.5 text-xs font-medium text-[#555] transition hover:border-[#48C9B0] hover:text-[#48C9B0]"
           >
             <Upload size={14} /><span className="hidden sm:inline">Importar</span>
           </button>
@@ -560,6 +587,16 @@ export default function PresupuestoPage() {
             <AlertTriangle size={14} className="shrink-0 text-amber-500" />
             <p className="text-xs text-amber-700">{importError}</p>
             <button onClick={() => setImportError('')} className="ml-auto text-amber-400 hover:text-amber-600">
+              <X size={14} />
+            </button>
+          </div>
+        )}
+
+        {importSuccess && (
+          <div className="mb-4 flex items-center gap-2 rounded-lg border border-[#a0e0c0] bg-[#f0fff6] px-3 py-2">
+            <Check size={14} className="shrink-0 text-[#2a7a50]" />
+            <p className="text-xs text-[#2a7a50]">{importSuccess}</p>
+            <button onClick={() => setImportSuccess('')} className="ml-auto text-[#8ccdb0] hover:text-[#2a7a50]">
               <X size={14} />
             </button>
           </div>
@@ -682,68 +719,130 @@ export default function PresupuestoPage() {
       <Modal open={importModalOpen} onClose={() => setImportModalOpen(false)} size="lg">
         <Modal.Header
           title="Importar presupuesto"
-          subtitle={`${importRows.length} concepto${importRows.length !== 1 ? 's' : ''} encontrado${importRows.length !== 1 ? 's' : ''}${duplicateCount > 0 ? ` · ${duplicateCount} duplicado${duplicateCount !== 1 ? 's' : ''}` : ''}`}
+          subtitle={`${importPlan.length} concepto${importPlan.length !== 1 ? 's' : ''} en el archivo`}
         />
         <Modal.Body>
-          {duplicateCount > 0 && (
-            <div className="-mx-5 -mt-4 mb-4 border-b border-[#f0f0f0] bg-amber-50 px-5 py-3">
-              <p className="mb-2 text-xs font-semibold text-amber-700">
-                {duplicateCount} concepto{duplicateCount !== 1 ? 's' : ''} ya existe{duplicateCount === 1 ? '' : 'n'} en tu presupuesto
-              </p>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setImportMode('nuevos')}
-                  className={`flex-1 rounded-lg border px-3 py-2 text-xs font-medium transition ${
-                    importMode === 'nuevos'
-                      ? 'border-[#1D1E20] bg-[#1D1E20] text-white'
-                      : 'border-[#e0e0e0] bg-white text-[#555] hover:border-[#1D1E20]'
-                  }`}
-                >
-                  Solo importar nuevos ({newCount})
-                </button>
-                <button
-                  onClick={() => setImportMode('todos')}
-                  className={`flex-1 rounded-lg border px-3 py-2 text-xs font-medium transition ${
-                    importMode === 'todos'
-                      ? 'border-[#1D1E20] bg-[#1D1E20] text-white'
-                      : 'border-[#e0e0e0] bg-white text-[#555] hover:border-[#1D1E20]'
-                  }`}
-                >
-                  Importar todos ({importRows.length})
-                </button>
+          <div className="-mx-5 -mt-4 mb-4 space-y-2 border-b border-[#f0f0f0] bg-[#fafafa] px-5 py-3">
+            {avisoArchivo && (
+              <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+                <AlertTriangle size={14} className="mt-px shrink-0 text-amber-500" />
+                <p className="text-xs text-amber-800">{avisoArchivo}</p>
               </div>
-            </div>
-          )}
+            )}
+
+            <p className="text-xs font-medium text-[#1D1E20]">{titularImport}</p>
+
+            {(conteoImport.bajan > 0 || conteoImport.suben > 0) && (
+              <p className="text-xs text-[#666]">
+                {conteoImport.bajan > 0 && (
+                  <span className="font-semibold text-amber-700">
+                    {conteoImport.bajan} baja{conteoImport.bajan !== 1 ? 'n' : ''} (−{pesos(conteoImport.totalBaja)})
+                  </span>
+                )}
+                {conteoImport.bajan > 0 && conteoImport.suben > 0 && <span className="text-[#ccc]"> · </span>}
+                {conteoImport.suben > 0 && (
+                  <span>{conteoImport.suben} sube{conteoImport.suben !== 1 ? 'n' : ''} (+{pesos(conteoImport.totalSube)})</span>
+                )}
+              </p>
+            )}
+
+            {conteoImport.porRevisar > 0 && (
+              <p className="text-xs text-amber-800">
+                {conteoImport.porRevisar} concepto{conteoImport.porRevisar !== 1 ? 's se parecen' : ' se parece'} a algo que ya tienes. Revísalo{conteoImport.porRevisar !== 1 ? 's' : ''} abajo antes de guardar.
+              </p>
+            )}
+
+          </div>
 
           <div className="space-y-1">
-            {importRows.map((row, idx) => {
-              const skip = importMode === 'nuevos' && row.isDuplicate
+            {importPlan.map((fila, idx) => {
+              const omitida  = fila.accion === 'sin_cambios'
+              const monto    = (n: number) => n > 0 ? `$${n.toLocaleString('es-MX')}` : '—'
+
+              if (fila.candidato) {
+                const esElMismo = fila.partidaId !== null
+                return (
+                  <div key={idx} className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+                    <div className="flex items-center gap-3 text-xs">
+                      <AlertTriangle size={13} className="shrink-0 text-amber-500" />
+                      <span className="w-28 shrink-0 truncate text-[#888]">{categoryLabel(fila.categoria)}</span>
+                      <span className="flex-1 truncate font-medium text-[#1D1E20]">{fila.concepto}</span>
+                      {esElMismo && fila.accion === 'actualizar' ? (
+                        <span className="flex shrink-0 items-center gap-1.5 tabular-nums">
+                          <span className="text-[#bbb] line-through">{monto(fila.montoActual ?? 0)}</span>
+                          <ArrowRight size={11} className="text-[#ccc]" />
+                          <span className="font-semibold text-[#1D1E20]">{monto(fila.montoNuevo)}</span>
+                        </span>
+                      ) : (
+                        <span className="shrink-0 tabular-nums text-[#888]">{monto(fila.montoNuevo)}</span>
+                      )}
+                    </div>
+                    <div className="mt-2 flex flex-wrap items-center gap-2 pl-6">
+                      <span className="text-[11px] text-amber-800">
+                        ¿Es el mismo que <strong className="font-semibold">{fila.candidato.concepto}</strong>?
+                      </span>
+                      <button
+                        onClick={() => decidirFila(idx, true)}
+                        className={`rounded-full border px-2.5 py-1 text-[11px] font-medium transition ${
+                          esElMismo
+                            ? 'border-[#1D1E20] bg-[#1D1E20] text-white'
+                            : 'border-amber-300 bg-white text-amber-800 hover:border-[#1D1E20]'
+                        }`}
+                      >
+                        Es el mismo
+                      </button>
+                      <button
+                        onClick={() => decidirFila(idx, false)}
+                        className={`rounded-full border px-2.5 py-1 text-[11px] font-medium transition ${
+                          !esElMismo
+                            ? 'border-[#1D1E20] bg-[#1D1E20] text-white'
+                            : 'border-amber-300 bg-white text-amber-800 hover:border-[#1D1E20]'
+                        }`}
+                      >
+                        Es otro concepto
+                      </button>
+                    </div>
+                  </div>
+                )
+              }
+
               return (
                 <div
                   key={idx}
                   className={`flex items-center gap-3 rounded-lg px-3 py-2 text-xs ${
-                    skip ? 'opacity-40' : 'bg-[#fafafa]'
+                    omitida ? 'opacity-40' : 'bg-[#fafafa]'
                   }`}
                 >
                   <div className="shrink-0">
-                    {row.isDuplicate ? (
-                      <span title="Duplicado" className="text-amber-500">
-                        <AlertTriangle size={13} />
-                      </span>
-                    ) : (
-                      <Check size={13} className="text-[#48C9B0]" />
-                    )}
+                    {fila.accion === 'agregar'
+                      ? <Check size={13} className="text-[#48C9B0]" />
+                      : fila.accion === 'actualizar'
+                        ? <ArrowRight size={13} className="text-[#48C9B0]" />
+                        : <Minus size={13} className="text-[#bbb]" />}
                   </div>
-                  <span className="w-28 shrink-0 text-[#888]">
-                    {categoryLabel(row.category)}
+                  <span className="w-28 shrink-0 truncate text-[#888]">
+                    {categoryLabel(fila.categoria)}
                   </span>
-                  <span className="flex-1 font-medium text-[#1D1E20]">{row.subcategory}</span>
-                  <span className="shrink-0 tabular-nums text-[#888]">
-                    {row.budget_amount > 0 ? `$${row.budget_amount.toLocaleString('es-MX')}` : '—'}
-                  </span>
-                  {row.isDuplicate && (
-                    <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
-                      duplicado
+                  <span className="flex-1 truncate font-medium text-[#1D1E20]">{fila.concepto}</span>
+
+                  {fila.accion === 'actualizar' ? (
+                    <span className="flex shrink-0 items-center gap-1.5 tabular-nums">
+                      <span className="text-[#bbb] line-through">{monto(fila.montoActual ?? 0)}</span>
+                      <ArrowRight size={11} className="text-[#ccc]" />
+                      <span className="font-semibold text-[#1D1E20]">{monto(fila.montoNuevo)}</span>
+                    </span>
+                  ) : (
+                    <span className="shrink-0 tabular-nums text-[#888]">{monto(fila.montoNuevo)}</span>
+                  )}
+
+                  {fila.accion === 'sin_cambios' && (
+                    <span className="shrink-0 rounded-full bg-[#f0f0f0] px-2 py-0.5 text-[10px] font-semibold text-[#888]">
+                      sin cambios
+                    </span>
+                  )}
+                  {fila.accion === 'agregar' && (
+                    <span className="shrink-0 rounded-full bg-[#e8f8f4] px-2 py-0.5 text-[10px] font-semibold text-[#1a9e88]">
+                      nuevo
                     </span>
                   )}
                 </div>
@@ -761,12 +860,14 @@ export default function PresupuestoPage() {
           </button>
           <button
             onClick={handleImport}
-            disabled={importing || (importMode === 'nuevos' && newCount === 0)}
+            disabled={importing || porEscribir === 0}
             className="rounded-lg bg-[#48C9B0] px-4 py-2 text-xs font-semibold text-white hover:bg-[#3aa896] disabled:opacity-50"
           >
             {importing
               ? 'Importando...'
-              : `Importar ${importMode === 'nuevos' ? newCount : importRows.length} concepto${(importMode === 'nuevos' ? newCount : importRows.length) !== 1 ? 's' : ''}`
+              : porEscribir === 0
+                ? 'Nada que cambiar'
+                : `Guardar ${porEscribir} cambio${porEscribir !== 1 ? 's' : ''}`
             }
           </button>
         </Modal.Footer>
