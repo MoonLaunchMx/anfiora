@@ -5,7 +5,7 @@ import {
   budgetCategoryLabel,
   EventBudget, Currency, formatCurrency,
 } from '@/lib/types'
-import { Categoria, activas } from '@/lib/rolodex/categorias-store'
+import { Categoria, activas, buscarPorNombre } from '@/lib/rolodex/categorias-store'
 import { FiInstagram, FiGlobe, FiFacebook } from 'react-icons/fi'
 import { FaWhatsapp } from 'react-icons/fa'
 import PhoneInput from '@/app/components/ui/PhoneInput'
@@ -45,7 +45,8 @@ export default function SupplierModal({ isOpen, onClose, currency, budgets, cate
 
   useEffect(() => {
     if (isOpen) {
-      setName(''); setCategoryId(opciones[0]?.id ?? ''); setEventBudgetId('')
+      const porDefecto = buscarPorNombre(opciones, 'Venue') ?? opciones[0] ?? null
+      setName(''); setCategoryId(porDefecto?.id ?? ''); setEventBudgetId('')
       setPhone(''); setInstagram(''); setFacebook('')
       setSubmitting(false)
     }
