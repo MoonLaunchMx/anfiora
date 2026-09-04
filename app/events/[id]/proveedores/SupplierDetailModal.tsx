@@ -21,6 +21,7 @@ import { toWhatsApp, detectCountry, dialCode } from '@/lib/phone'
 import { Modal } from '@/app/components/ui/Modal'
 import { useConfirm } from '@/app/components/ui/ConfirmModal'
 import { Categoria, activas, buscarPorNombre } from '@/lib/rolodex/categorias-store'
+import { mismaCategoria } from '@/lib/rolodex/categorias'
 
 const INPUT_CLASS = 'rounded-lg border border-[#e8e8e8] bg-white px-3 py-2 text-base text-[#1D1E20] outline-none transition-colors focus:border-[#48C9B0]'
 
@@ -96,7 +97,7 @@ export default function SupplierDetailModal({
   const categoryName      = selectedCategoria?.name ?? item.supplier.category
   const categoryIdToSave  = categoryId || item.supplier.category_id
 
-  const budgetsForCategory = budgets.filter(b => b.category === categoryName)
+  const budgetsForCategory = budgets.filter(b => mismaCategoria(b.category, categoryName))
   const selectedBudget     = eventBudgetId ? budgets.find(b => b.id === eventBudgetId) : null
   const budgetMeta         = selectedBudget?.budget_amount || 0
 
