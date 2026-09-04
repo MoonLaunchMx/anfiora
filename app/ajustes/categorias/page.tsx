@@ -7,7 +7,7 @@ import { AlertTriangle } from 'lucide-react'
 import { activas, buscarPorNombre, cargarCategorias, type Categoria } from '@/lib/rolodex/categorias-store'
 import { parecidas, puedeEliminarse, type CategoriaConUso } from '@/lib/rolodex/vocabulario-admin'
 import { renombrar } from '@/lib/rolodex/aplicar-cambios'
-import AccionesCategoria from './AccionesCategoria'
+import AccionesCategoria, { type AccionesCategoriaHandle } from './AccionesCategoria'
 
 function plural(n: number, singular: string, otros: string): string {
   return `${n} ${n === 1 ? singular : otros}`
@@ -41,6 +41,7 @@ export default function CategoriasPage() {
   const evitarBlurRef = useRef(false)
   const guardandoRef = useRef(false)
   const mensajeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const accionesRefs = useRef(new Map<string, AccionesCategoriaHandle>())
 
   useEffect(() => () => { if (mensajeTimeoutRef.current) clearTimeout(mensajeTimeoutRef.current) }, [])
 
@@ -160,6 +161,12 @@ export default function CategoriasPage() {
               </div>
               <button
                 type="button"
+                onClick={() => {
+                  const queda = categorias.find(c => c.nombre === a)
+                  const sobra = categorias.find(c => c.nombre === b)
+                  if (!queda || !sobra) return
+                  accionesRefs.current.get(sobra.id)?.abrirJuntarCon(queda.id)
+                }}
                 className="shrink-0 rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-xs font-semibold text-amber-700 transition hover:bg-amber-100"
               >
                 Revisar
@@ -222,7 +229,13 @@ export default function CategoriasPage() {
               </p>
               {userId && (
                 <AccionesCategoria
+                  ref={el => {
+                    if (el) accionesRefs.current.set(c.id, el)
+                    else accionesRefs.current.delete(c.id)
+                  }}
                   categoria={c}
+                  otrasActivas={categorias.filter(cat => !cat.archivada)}
+                  userId={userId}
                   onCambiado={load}
                 />
               )}

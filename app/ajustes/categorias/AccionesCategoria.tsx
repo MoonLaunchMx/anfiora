@@ -1,28 +1,51 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react'
 import { MoreHorizontal } from 'lucide-react'
 import { Modal } from '@/app/components/ui/Modal'
-import { archivar, restaurar } from '@/lib/rolodex/aplicar-cambios'
-import { type CategoriaConUso } from '@/lib/rolodex/vocabulario-admin'
+import { archivar, restaurar, juntar, eliminar } from '@/lib/rolodex/aplicar-cambios'
+import { puedeEliminarse, type CategoriaConUso } from '@/lib/rolodex/vocabulario-admin'
 
 type Props = {
   categoria: CategoriaConUso
+  otrasActivas: CategoriaConUso[]
+  userId: string
   onCambiado: () => void
+}
+
+export type AccionesCategoriaHandle = {
+  abrirJuntarCon: (quedaId: string) => void
 }
 
 function plural(n: number, singular: string, otros: string): string {
   return `${n} ${n === 1 ? singular : otros}`
 }
 
-type ModalAbierto = 'archivar' | null
+// Solo menciona lo que de verdad la usa: si nada mas hay partidas sin
+// proveedores (o al reves) decir "0 proveedores" seria confuso.
+function razonUso(uso: CategoriaConUso['uso']): string {
+  const partes: string[] = []
+  if (uso.proveedores > 0) partes.push(plural(uso.proveedores, 'proveedor', 'proveedores'))
+  if (uso.partidas > 0) partes.push(plural(uso.partidas, 'partida', 'partidas'))
+  return `La están usando ${partes.join(' y ')}`
+}
 
-export default function AccionesCategoria({ categoria, onCambiado }: Props) {
+type ModalAbierto = 'archivar' | 'juntar' | 'eliminar' | null
+
+const AccionesCategoria = forwardRef<AccionesCategoriaHandle, Props>(function AccionesCategoria(
+  { categoria, otrasActivas, userId, onCambiado },
+  ref,
+) {
   const [open, setOpen] = useState(false)
   const [modal, setModal] = useState<ModalAbierto>(null)
   const [guardando, setGuardando] = useState(false)
   const [error, setError] = useState('')
+  const [quedaId, setQuedaId] = useState('')
   const wrapperRef = useRef<HTMLDivElement>(null)
+
+  const puedeBorrar = puedeEliminarse(categoria.uso)
+  const opciones = otrasActivas.filter(c => c.id !== categoria.id)
+  const destino = opciones.find(c => c.id === quedaId) ?? null
 
   useEffect(() => {
     if (!open) return
@@ -33,9 +56,32 @@ export default function AccionesCategoria({ categoria, onCambiado }: Props) {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [open])
 
+  useImperativeHandle(ref, () => ({
+    abrirJuntarCon: (id: string) => {
+      setError('')
+      setQuedaId(id)
+      setModal('juntar')
+      setOpen(false)
+    },
+  }))
+
   const abrirArchivar = () => {
     setError('')
     setModal('archivar')
+    setOpen(false)
+  }
+
+  const abrirJuntar = () => {
+    setError('')
+    setQuedaId(opciones[0]?.id ?? '')
+    setModal('juntar')
+    setOpen(false)
+  }
+
+  const abrirEliminar = () => {
+    if (!puedeBorrar) return
+    setError('')
+    setModal('eliminar')
     setOpen(false)
   }
 
@@ -61,6 +107,38 @@ export default function AccionesCategoria({ categoria, onCambiado }: Props) {
     onCambiado()
   }
 
+  const handleJuntar = async () => {
+    if (!destino) { setError('Elige con cuál se queda.'); return }
+    setGuardando(true)
+    setError('')
+    const resultado = await juntar(userId, categoria.id, destino.id, destino.nombre)
+    setGuardando(false)
+    if (!resultado.ok) { setError(resultado.error ?? 'No se pudo juntar la categoría.'); return }
+    setModal(null)
+    onCambiado()
+  }
+
+  const handleEliminar = async () => {
+    setGuardando(true)
+    setError('')
+    const resultado = await eliminar(categoria.id)
+    setGuardando(false)
+    if (!resultado.ok) { setError(resultado.error ?? 'No se pudo eliminar la categoría.'); return }
+    setModal(null)
+    onCambiado()
+  }
+
+  const consecuencia = destino
+    ? puedeEliminarse(categoria.uso)
+      ? `"${categoria.nombre}" no la usa nadie; solo desaparecerá de tus menús.`
+      : (() => {
+          const partes: string[] = []
+          if (categoria.uso.proveedores > 0) partes.push(plural(categoria.uso.proveedores, 'proveedor', 'proveedores'))
+          if (categoria.uso.partidas > 0) partes.push(plural(categoria.uso.partidas, 'partida', 'partidas'))
+          return `${partes.join(' y ')} pasan de "${categoria.nombre}" a "${destino.nombre}". La categoría "${categoria.nombre}" desaparece de tus menús.`
+        })()
+    : ''
+
   return (
     <div ref={wrapperRef} className="relative">
       <button
@@ -75,11 +153,11 @@ export default function AccionesCategoria({ categoria, onCambiado }: Props) {
         <div className="absolute right-0 top-full z-30 mt-1 w-56 overflow-hidden rounded-xl border border-[#e8e8e8] bg-white shadow-lg">
           <button
             type="button"
-            disabled
-            className="block w-full cursor-not-allowed px-4 py-2.5 text-left text-sm text-[#bbb]"
+            onClick={abrirJuntar}
+            disabled={opciones.length === 0}
+            className={`block w-full px-4 py-2.5 text-left text-sm ${opciones.length === 0 ? 'cursor-not-allowed text-[#bbb]' : 'text-[#1D1E20] hover:bg-[#f8f8f8]'}`}
           >
             Juntar con otra…
-            <span className="mt-0.5 block text-[11px] text-[#ccc]">Disponible en el siguiente paso</span>
           </button>
           <button
             type="button"
@@ -90,11 +168,14 @@ export default function AccionesCategoria({ categoria, onCambiado }: Props) {
           </button>
           <button
             type="button"
-            disabled
-            className="block w-full cursor-not-allowed border-t border-[#f0f0f0] px-4 py-2.5 text-left text-sm text-[#bbb]"
+            onClick={abrirEliminar}
+            disabled={!puedeBorrar}
+            className={`block w-full border-t border-[#f0f0f0] px-4 py-2.5 text-left text-sm ${puedeBorrar ? 'text-[#1D1E20] hover:bg-[#f8f8f8]' : 'cursor-not-allowed text-[#bbb]'}`}
           >
             Eliminar
-            <span className="mt-0.5 block text-[11px] text-[#ccc]">Disponible en el siguiente paso</span>
+            {!puedeBorrar && (
+              <span className="mt-0.5 block text-[11px] text-[#ccc]">{razonUso(categoria.uso)}</span>
+            )}
           </button>
         </div>
       )}
@@ -165,6 +246,85 @@ export default function AccionesCategoria({ categoria, onCambiado }: Props) {
           </Modal.Footer>
         </Modal>
       )}
+
+      {modal === 'juntar' && (
+        <Modal open onClose={cerrarModal} size="sm">
+          <Modal.Header title={`Juntar "${categoria.nombre}" con otra`} onClose={cerrarModal} />
+          <Modal.Body>
+            <div className="flex flex-col gap-3">
+              <div>
+                <label className="mb-1 block text-xs font-medium text-[#666]">¿Cuál se queda?</label>
+                <select
+                  value={quedaId}
+                  onChange={e => setQuedaId(e.target.value)}
+                  className="w-full rounded-lg border border-[#e0e0e0] px-3 py-2 text-sm outline-none focus:border-[#48C9B0]"
+                >
+                  {opciones.map(c => (
+                    <option key={c.id} value={c.id}>{c.nombre}</option>
+                  ))}
+                </select>
+              </div>
+              {destino && (
+                <p className="rounded-lg bg-[#f0fdfb] px-3 py-2 text-xs text-[#555]">{consecuencia}</p>
+              )}
+              <p className="text-xs font-medium text-[#cc3333]">Esto no se puede deshacer.</p>
+              {error && <p className="text-xs text-[#cc3333]">{error}</p>}
+            </div>
+          </Modal.Body>
+          <Modal.Footer>
+            <button
+              type="button"
+              onClick={cerrarModal}
+              disabled={guardando}
+              className="px-4 py-2 text-sm text-[#666] transition hover:text-[#1D1E20] disabled:opacity-50"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              onClick={handleJuntar}
+              disabled={guardando || !destino}
+              className="rounded-lg bg-[#48C9B0] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#3aa896] disabled:opacity-50"
+            >
+              {guardando ? 'Juntando...' : 'Juntar'}
+            </button>
+          </Modal.Footer>
+        </Modal>
+      )}
+
+      {modal === 'eliminar' && (
+        <Modal open onClose={cerrarModal} size="sm">
+          <Modal.Header title={`Eliminar "${categoria.nombre}"`} onClose={cerrarModal} />
+          <Modal.Body>
+            <div className="flex flex-col gap-3">
+              <p className="rounded-lg bg-[#f0fdfb] px-3 py-2 text-xs text-[#555]">
+                Nadie la usa: {categoria.uso.proveedores} proveedores, {categoria.uso.partidas} partidas. Se puede quitar sin consecuencias.
+              </p>
+              {error && <p className="text-xs text-[#cc3333]">{error}</p>}
+            </div>
+          </Modal.Body>
+          <Modal.Footer>
+            <button
+              type="button"
+              onClick={cerrarModal}
+              disabled={guardando}
+              className="px-4 py-2 text-sm text-[#666] transition hover:text-[#1D1E20] disabled:opacity-50"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              onClick={handleEliminar}
+              disabled={guardando}
+              className="rounded-lg bg-[#cc3333] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#b82e2e] disabled:opacity-50"
+            >
+              {guardando ? 'Eliminando...' : 'Eliminar'}
+            </button>
+          </Modal.Footer>
+        </Modal>
+      )}
     </div>
   )
-}
+})
+
+export default AccionesCategoria

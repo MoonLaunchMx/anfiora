@@ -65,6 +65,121 @@ export async function renombrar(
   return { ok: true }
 }
 
+// Igual que renombrar: los datos primero, la fila de categories al final. Si algo
+// truena a la mitad, los proveedores y partidas ya quedaron en la que se queda y
+// la que sobra sigue existiendo -se puede reintentar juntar y termina-, nunca al
+// reves. El borrado final puede fallar de verdad si algo todavia la apunta
+// (ON DELETE RESTRICT): si un paso anterior no la vacio del todo, se lo decimos
+// al planner en espanol en vez de mostrarle el mensaje crudo de Postgres.
+export async function juntar(
+  userId: string,
+  sobraId: string,
+  quedaId: string,
+  nombreQueda: string,
+): Promise<Resultado> {
+  const { data: sobra, error: errorSobra } = await supabase
+    .from('categories')
+    .select('id, name')
+    .eq('id', sobraId)
+    .eq('user_id', userId)
+    .single()
+  if (errorSobra || !sobra) return { ok: false, error: errorSobra?.message ?? 'No se encontro la categoria.' }
+
+  if (mismaCategoria(sobra.name, nombreQueda)) {
+    return { ok: false, error: 'No puedes juntar una categoria consigo misma.' }
+  }
+
+  const nombreSobra = sobra.name as string
+
+  const { error: errorProveedores } = await supabase
+    .from('suppliers')
+    .update({ category_id: quedaId, category: nombreQueda })
+    .eq('user_id', userId)
+    .eq('category_id', sobraId)
+  if (errorProveedores) return { ok: false, error: errorProveedores.message }
+
+  const { data: eventos, error: errorEventos } = await supabase
+    .from('events')
+    .select('id')
+    .eq('user_id', userId)
+  if (errorEventos) return { ok: false, error: errorEventos.message }
+
+  const eventIds = (eventos ?? []).map(e => e.id)
+
+  if (eventIds.length > 0) {
+    const { error: errorPartidas } = await supabase
+      .from('event_budgets')
+      .update({ category_id: quedaId, category: nombreQueda })
+      .in('event_id', eventIds)
+      .eq('category_id', sobraId)
+    if (errorPartidas) return { ok: false, error: errorPartidas.message }
+
+    const { data: settingsRows, error: errorSettings } = await supabase
+      .from('event_settings')
+      .select('event_id, budget_categories')
+      .in('event_id', eventIds)
+    if (errorSettings) return { ok: false, error: errorSettings.message }
+
+    for (const fila of settingsRows ?? []) {
+      const lista = (fila.budget_categories as string[] | null) ?? []
+      if (!lista.some(nombre => mismaCategoria(nombre, nombreSobra))) continue
+      const sinSobra = lista.filter(nombre => !mismaCategoria(nombre, nombreSobra))
+      const actualizada = sinSobra.some(nombre => mismaCategoria(nombre, nombreQueda))
+        ? sinSobra
+        : [...sinSobra, nombreQueda]
+      const { error: errorLista } = await supabase
+        .from('event_settings')
+        .update({ budget_categories: actualizada })
+        .eq('event_id', fila.event_id)
+      if (errorLista) return { ok: false, error: errorLista.message }
+    }
+  }
+
+  const { error: errorCategoria } = await supabase
+    .from('categories')
+    .delete()
+    .eq('id', sobraId)
+    .eq('user_id', userId)
+  if (errorCategoria) {
+    return {
+      ok: false,
+      error: 'No se pudo borrar la categoria porque un paso anterior no movio todo lo que la usaba. Vuelve a intentar juntarla.',
+    }
+  }
+
+  return { ok: true }
+}
+
+// El boton "Eliminar" ya viene apagado cuando hay uso, pero entre que la pantalla
+// cargo y el planner hizo clic alguien pudo asignarle un proveedor desde otra
+// pestana -por eso se vuelve a contar aqui antes de escribir. Si aun asi
+// ON DELETE RESTRICT rechaza el borrado, el mensaje le dice al planner que
+// alguien la esta usando y le sugiere juntarla en vez de mostrarle el error crudo.
+export async function eliminar(categoriaId: string): Promise<Resultado> {
+  const { count: proveedores, error: errorProveedores } = await supabase
+    .from('suppliers')
+    .select('id', { count: 'exact', head: true })
+    .eq('category_id', categoriaId)
+  if (errorProveedores) return { ok: false, error: errorProveedores.message }
+
+  const { count: partidas, error: errorPartidas } = await supabase
+    .from('event_budgets')
+    .select('id', { count: 'exact', head: true })
+    .eq('category_id', categoriaId)
+  if (errorPartidas) return { ok: false, error: errorPartidas.message }
+
+  if ((proveedores ?? 0) > 0 || (partidas ?? 0) > 0) {
+    return { ok: false, error: 'Alguien la esta usando. Juntala con otra categoria en vez de eliminarla.' }
+  }
+
+  const { error } = await supabase.from('categories').delete().eq('id', categoriaId)
+  if (error) {
+    return { ok: false, error: 'Alguien la esta usando. Juntala con otra categoria en vez de eliminarla.' }
+  }
+
+  return { ok: true }
+}
+
 // archivar y restaurar solo tocan archived_at: ni proveedores ni partidas se mueven,
 // por eso son reversibles.
 export async function archivar(categoriaId: string): Promise<Resultado> {
