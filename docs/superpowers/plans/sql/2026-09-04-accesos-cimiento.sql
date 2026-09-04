@@ -7,6 +7,12 @@
 -- comportamiento de nada que hoy este corriendo. Las policies se mueven modulo
 -- por modulo a partir del Tramo 2.
 --
+-- ORDEN OBLIGATORIO: ninguna policy puede llamar a puede_ver/puede_editar/
+-- puede_borrar antes de correr -migracion-aplicar.sql. Antes de la migracion
+-- permisos es NULL y nivel_en devuelve 'ninguno' para todos los colaboradores;
+-- cablearlas antes deja a todo el equipo fuera de golpe. La app usa mientras
+-- tanto permisosDesdeRolLegado() en lib/permisos/resolver.ts.
+--
 -- Modelo (ver §2 del spec):
 --   Arriba, el despacho: dueno / admin / colaborador.
 --   Abajo, cada boda: por modulo, ninguno / ver / editar / total.
@@ -23,7 +29,7 @@ BEGIN;
 CREATE TABLE IF NOT EXISTS public.workspaces (
   id               uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   name             text NOT NULL,
-  primary_owner_id uuid NOT NULL REFERENCES public.users(id) ON DELETE RESTRICT,
+  primary_owner_id uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
   created_at       timestamptz NOT NULL DEFAULT now()
 );
 
@@ -55,12 +61,60 @@ CREATE INDEX IF NOT EXISTS workspace_members_user_idx
 CREATE UNIQUE INDEX IF NOT EXISTS workspace_members_un_principal
   ON public.workspace_members (workspace_id) WHERE es_dueno_principal;
 
+CREATE UNIQUE INDEX IF NOT EXISTS workspace_members_un_usuario
+  ON public.workspace_members (workspace_id, user_id) WHERE user_id IS NOT NULL;
+
 -- ============================================================
 -- 2. Las columnas nuevas
 -- ============================================================
 
 ALTER TABLE public.events
-  ADD COLUMN IF NOT EXISTS workspace_id uuid REFERENCES public.workspaces(id);
+  ADD COLUMN IF NOT EXISTS workspace_id uuid REFERENCES public.workspaces(id) ON DELETE SET NULL;
+
+-- La columna nueva no esta en la lista negra de guard_events_config, y la
+-- policy events_editor_update deja escribir events a cualquier editor. Sin
+-- este candado, un editor apunta la boda a un despacho suyo y nivel_en() le
+-- regresa 'total' en los doce modulos. Va como trigger aparte para no tocar
+-- guard_events_config: este archivo no modifica nada que ya exista.
+CREATE OR REPLACE FUNCTION public.guard_events_workspace()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
+AS $$
+BEGIN
+  IF auth.uid() IS NULL THEN
+    RETURN NEW;
+  END IF;
+  IF NEW.workspace_id IS DISTINCT FROM OLD.workspace_id
+     AND OLD.user_id <> auth.uid() THEN
+    RAISE EXCEPTION 'Solo el dueno del evento puede cambiar su despacho'
+      USING ERRCODE = '42501';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS guard_events_workspace ON public.events;
+CREATE TRIGGER guard_events_workspace
+  BEFORE UPDATE ON public.events
+  FOR EACH ROW EXECUTE FUNCTION public.guard_events_workspace();
+
+-- Sin esto, cada evento creado despues de la migracion nace sin despacho y los
+-- admin no lo ven; el invariante se degrada solo, en silencio.
+CREATE OR REPLACE FUNCTION public.set_event_workspace()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
+AS $$
+BEGIN
+  IF NEW.workspace_id IS NULL THEN
+    SELECT w.id INTO NEW.workspace_id
+    FROM workspaces w WHERE w.primary_owner_id = NEW.user_id LIMIT 1;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS set_event_workspace ON public.events;
+CREATE TRIGGER set_event_workspace
+  BEFORE INSERT ON public.events
+  FOR EACH ROW EXECUTE FUNCTION public.set_event_workspace();
 
 CREATE INDEX IF NOT EXISTS events_workspace_idx ON public.events (workspace_id);
 
@@ -102,7 +156,8 @@ AS $$
     ) THEN 'total'
 
     ELSE COALESCE(
-      (SELECT c.permisos ->> modulo
+      (SELECT CASE WHEN c.permisos ->> modulo IN ('ver', 'editar', 'total')
+                   THEN c.permisos ->> modulo END
          FROM event_collaborators c
         WHERE c.event_id = evento
           AND c.user_id  = auth.uid()
@@ -129,30 +184,30 @@ AS $$ SELECT public.nivel_en(evento, modulo) = 'total' $$;
 -- 4. RLS de las tablas nuevas
 -- ============================================================
 
+-- SECURITY DEFINER evalua sin RLS: sin esto, una policy que consulta
+-- workspace_members dentro de su propio USING recursa (42P17) y deja las dos
+-- tablas ilegibles. Misma tecnica que is_event_member en anf-053.
+CREATE OR REPLACE FUNCTION public.es_miembro_de(ws uuid)
+RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM workspace_members m
+    WHERE m.workspace_id = ws
+      AND m.user_id = auth.uid()
+      AND m.status  = 'active'
+  )
+$$;
+
 ALTER TABLE public.workspaces        ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.workspace_members ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "ver mi despacho" ON public.workspaces;
 CREATE POLICY "ver mi despacho" ON public.workspaces FOR SELECT
-  USING (
-    primary_owner_id = auth.uid()
-    OR EXISTS (
-      SELECT 1 FROM workspace_members m
-      WHERE m.workspace_id = workspaces.id
-        AND m.user_id = auth.uid()
-        AND m.status  = 'active'
-    )
-  );
+  USING ( primary_owner_id = auth.uid() OR public.es_miembro_de(id) );
 
+DROP POLICY IF EXISTS "ver a mis companeros" ON public.workspace_members;
 CREATE POLICY "ver a mis companeros" ON public.workspace_members FOR SELECT
-  USING (
-    user_id = auth.uid()
-    OR EXISTS (
-      SELECT 1 FROM workspace_members yo
-      WHERE yo.workspace_id = workspace_members.workspace_id
-        AND yo.user_id = auth.uid()
-        AND yo.status  = 'active'
-    )
-  );
+  USING ( user_id = auth.uid() OR public.es_miembro_de(workspace_id) );
 
 -- La escritura de miembros llega en el Tramo 5, con la pantalla del despacho.
 -- Mientras tanto solo escribe el service role, que se salta RLS.
