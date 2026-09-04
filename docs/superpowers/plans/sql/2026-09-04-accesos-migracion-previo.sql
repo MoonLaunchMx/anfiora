@@ -56,3 +56,10 @@ WHERE u.id IS NULL;
 --    para la migracion Y para su propia verificacion
 SELECT count(*) AS colaboradores_status_nulo
 FROM event_collaborators WHERE status IS NULL;
+
+-- 6. Duenos sin nombre ni correo: tienen que ser cero. El paso 1 del aplicar
+--    escribe workspaces.name, que es NOT NULL, con COALESCE(full_name, email).
+SELECT count(*) AS duenos_sin_nombre_ni_correo
+FROM users u
+WHERE EXISTS (SELECT 1 FROM events e WHERE e.user_id = u.id)
+  AND COALESCE(u.full_name, u.email) IS NULL;
