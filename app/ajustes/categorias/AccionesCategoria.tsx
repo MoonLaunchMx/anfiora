@@ -3,7 +3,7 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react'
 import { MoreHorizontal } from 'lucide-react'
 import { Modal } from '@/app/components/ui/Modal'
-import { archivar, restaurar, juntar, eliminar } from '@/lib/rolodex/aplicar-cambios'
+import { archivar, restaurar, fusionar, eliminar } from '@/lib/rolodex/aplicar-cambios'
 import { puedeEliminarse, type CategoriaConUso } from '@/lib/rolodex/vocabulario-admin'
 
 type Props = {
@@ -14,7 +14,7 @@ type Props = {
 }
 
 export type AccionesCategoriaHandle = {
-  abrirJuntarCon: (quedaId: string) => void
+  abrirFusionarCon: (quedaId: string) => void
 }
 
 function plural(n: number, singular: string, otros: string): string {
@@ -30,7 +30,7 @@ function razonUso(uso: CategoriaConUso['uso']): string {
   return `La están usando ${partes.join(' y ')}`
 }
 
-type ModalAbierto = 'archivar' | 'juntar' | 'eliminar' | null
+type ModalAbierto = 'archivar' | 'fusionar' | 'eliminar' | null
 
 const AccionesCategoria = forwardRef<AccionesCategoriaHandle, Props>(function AccionesCategoria(
   { categoria, otrasActivas, userId, onCambiado },
@@ -57,10 +57,10 @@ const AccionesCategoria = forwardRef<AccionesCategoriaHandle, Props>(function Ac
   }, [open])
 
   useImperativeHandle(ref, () => ({
-    abrirJuntarCon: (id: string) => {
+    abrirFusionarCon: (id: string) => {
       setError('')
       setQuedaId(id)
-      setModal('juntar')
+      setModal('fusionar')
       setOpen(false)
     },
   }))
@@ -71,10 +71,10 @@ const AccionesCategoria = forwardRef<AccionesCategoriaHandle, Props>(function Ac
     setOpen(false)
   }
 
-  const abrirJuntar = () => {
+  const abrirFusionar = () => {
     setError('')
     setQuedaId(opciones[0]?.id ?? '')
-    setModal('juntar')
+    setModal('fusionar')
     setOpen(false)
   }
 
@@ -107,13 +107,13 @@ const AccionesCategoria = forwardRef<AccionesCategoriaHandle, Props>(function Ac
     onCambiado()
   }
 
-  const handleJuntar = async () => {
+  const handleFusionar = async () => {
     if (!destino) { setError('Elige con cuál se queda.'); return }
     setGuardando(true)
     setError('')
-    const resultado = await juntar(userId, categoria.id, destino.id, destino.nombre)
+    const resultado = await fusionar(userId, categoria.id, destino.id, destino.nombre)
     setGuardando(false)
-    if (!resultado.ok) { setError(resultado.error ?? 'No se pudo juntar la categoría.'); return }
+    if (!resultado.ok) { setError(resultado.error ?? 'No se pudo fusionar la categoría.'); return }
     setModal(null)
     onCambiado()
   }
@@ -153,11 +153,11 @@ const AccionesCategoria = forwardRef<AccionesCategoriaHandle, Props>(function Ac
         <div className="absolute right-0 top-full z-30 mt-1 w-56 overflow-hidden rounded-xl border border-[#e8e8e8] bg-white shadow-lg">
           <button
             type="button"
-            onClick={abrirJuntar}
+            onClick={abrirFusionar}
             disabled={opciones.length === 0}
             className={`block w-full px-4 py-2.5 text-left text-sm ${opciones.length === 0 ? 'cursor-not-allowed text-[#bbb]' : 'text-[#1D1E20] hover:bg-[#f8f8f8]'}`}
           >
-            Juntar con otra…
+            Fusionar
           </button>
           <button
             type="button"
@@ -247,9 +247,9 @@ const AccionesCategoria = forwardRef<AccionesCategoriaHandle, Props>(function Ac
         </Modal>
       )}
 
-      {modal === 'juntar' && (
+      {modal === 'fusionar' && (
         <Modal open onClose={cerrarModal} size="sm">
-          <Modal.Header title={`Juntar "${categoria.nombre}" con otra`} onClose={cerrarModal} />
+          <Modal.Header title={`Fusionar "${categoria.nombre}"`} onClose={cerrarModal} />
           <Modal.Body>
             <div className="flex flex-col gap-3">
               <div>
@@ -282,11 +282,11 @@ const AccionesCategoria = forwardRef<AccionesCategoriaHandle, Props>(function Ac
             </button>
             <button
               type="button"
-              onClick={handleJuntar}
+              onClick={handleFusionar}
               disabled={guardando || !destino}
               className="rounded-lg bg-[#48C9B0] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#3aa896] disabled:opacity-50"
             >
-              {guardando ? 'Juntando...' : 'Juntar'}
+              {guardando ? 'Fusionando...' : 'Fusionar'}
             </button>
           </Modal.Footer>
         </Modal>

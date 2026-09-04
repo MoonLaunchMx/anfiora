@@ -67,11 +67,11 @@ export async function renombrar(
 
 // Igual que renombrar: los datos primero, la fila de categories al final. Si algo
 // truena a la mitad, los proveedores y partidas ya quedaron en la que se queda y
-// la que sobra sigue existiendo -se puede reintentar juntar y termina-, nunca al
+// la que sobra sigue existiendo -se puede reintentar fusionar y termina-, nunca al
 // reves. El borrado final puede fallar de verdad si algo todavia la apunta
 // (ON DELETE RESTRICT): si un paso anterior no la vacio del todo, se lo decimos
 // al planner en espanol en vez de mostrarle el mensaje crudo de Postgres.
-export async function juntar(
+export async function fusionar(
   userId: string,
   sobraId: string,
   quedaId: string,
@@ -86,7 +86,7 @@ export async function juntar(
   if (errorSobra || !sobra) return { ok: false, error: errorSobra?.message ?? 'No se encontró la categoría.' }
 
   if (mismaCategoria(sobra.name, nombreQueda)) {
-    return { ok: false, error: 'No puedes juntar una categoría consigo misma.' }
+    return { ok: false, error: 'No puedes fusionar una categoría consigo misma.' }
   }
 
   const nombreSobra = sobra.name as string
@@ -143,7 +143,7 @@ export async function juntar(
   if (errorCategoria) {
     return {
       ok: false,
-      error: 'No se pudo borrar la categoría porque un paso anterior no movió todo lo que la usaba. Vuelve a intentar juntarla.',
+      error: 'No se pudo borrar la categoría porque un paso anterior no movió todo lo que la usaba. Vuelve a intentar fusionarla.',
     }
   }
 
@@ -154,7 +154,7 @@ export async function juntar(
 // cargo y el planner hizo clic alguien pudo asignarle un proveedor desde otra
 // pestana -por eso se vuelve a contar aqui antes de escribir. Si aun asi
 // ON DELETE RESTRICT rechaza el borrado, el mensaje le dice al planner que
-// alguien la esta usando y le sugiere juntarla en vez de mostrarle el error crudo.
+// alguien la esta usando y le sugiere fusionarla en vez de mostrarle el error crudo.
 export async function eliminar(userId: string, categoriaId: string): Promise<Resultado> {
   const { count: proveedores, error: errorProveedores } = await supabase
     .from('suppliers')
@@ -181,12 +181,12 @@ export async function eliminar(userId: string, categoriaId: string): Promise<Res
   if (errorPartidas) return { ok: false, error: errorPartidas.message }
 
   if ((proveedores ?? 0) > 0 || (partidas ?? 0) > 0) {
-    return { ok: false, error: 'Alguien la está usando. Júntala con otra categoría en vez de eliminarla.' }
+    return { ok: false, error: 'Alguien la está usando. Fusiónala con otra categoría en vez de eliminarla.' }
   }
 
   const { error } = await supabase.from('categories').delete().eq('id', categoriaId).eq('user_id', userId)
   if (error) {
-    return { ok: false, error: 'Alguien la está usando. Júntala con otra categoría en vez de eliminarla.' }
+    return { ok: false, error: 'Alguien la está usando. Fusiónala con otra categoría en vez de eliminarla.' }
   }
 
   return { ok: true }

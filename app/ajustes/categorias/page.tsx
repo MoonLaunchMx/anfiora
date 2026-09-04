@@ -106,7 +106,7 @@ export default function CategoriasPage() {
     const encontrada = buscarPorNombre(categoriasRaw, nombreLimpio)
     if (encontrada && encontrada.id !== c.id) {
       evitarBlurRef.current = false
-      setErrorEdicion('Ya tienes una categoría que se llama así. Júntalas en vez de renombrar')
+      setErrorEdicion('Ya tienes una categoría que se llama así. Fusiónalas en vez de renombrar')
       return
     }
     if (!userId) return
@@ -165,7 +165,7 @@ export default function CategoriasPage() {
                   const queda = categorias.find(c => c.nombre === a)
                   const sobra = categorias.find(c => c.nombre === b)
                   if (!queda || !sobra) return
-                  accionesRefs.current.get(sobra.id)?.abrirJuntarCon(queda.id)
+                  accionesRefs.current.get(sobra.id)?.abrirFusionarCon(queda.id)
                 }}
                 className="shrink-0 rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-xs font-semibold text-amber-700 transition hover:bg-amber-100"
               >
