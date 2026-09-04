@@ -26,7 +26,7 @@ import { exportToExcel, exportToPDF, downloadImportTemplate } from './lib/export
 import SupplierDetailModal from '../proveedores/SupplierDetailModal'
 import SupplierReviewModal from '../proveedores/SupplierReviewModal'
 import { Modal } from '@/app/components/ui/Modal'
-import { Categoria, cargarCategorias, buscarPorNombre, nombrePorId } from '@/lib/rolodex/categorias-store'
+import { Categoria, cargarCategorias, buscarPorNombre, nombrePorId, crearCategoria } from '@/lib/rolodex/categorias-store'
 import { mismaCategoria } from '@/lib/rolodex/categorias'
 
 type EventSupplierWithName = EventSupplier & {
@@ -411,36 +411,16 @@ export default function PresupuestoPage() {
     await supabase.from('event_settings').update({ budget_categories: next }).eq('event_id', eventId)
   }
 
-  // Si dos pestanas crean la misma categoria a la vez, el indice unico
-  // rechaza la segunda; se relee y se usa la que gano, sin mostrar error.
-  const crearCategoriaSiNoExiste = async (name: string) => {
-    if (buscarPorNombre(categorias, name)) return
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
-    const { data, error } = await supabase
-      .from('categories')
-      .insert({ user_id: user.id, name })
-      .select('id, name, archived_at')
-      .single()
-    if (error) {
-      if (error.code === '23505') {
-        const { data: recargadas } = await supabase
-          .from('categories').select('id, name, archived_at')
-          .eq('user_id', user.id).order('name')
-        if (recargadas) setCategorias(recargadas as Categoria[])
-        return
-      }
-      console.error('Error creando categoria:', error.message)
-      return
-    }
-    if (data) setCategorias(prev => [...prev, data as Categoria])
-  }
-
   const addCategory = async (raw: string) => {
     const name = raw.trim()
     if (!name) return
     if (categories.some(c => c.toLowerCase() === name.toLowerCase())) return
-    await crearCategoriaSiNoExiste(name)
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+    const { categoria } = await crearCategoria(user.id, name, categorias)
+    if (categoria && !categorias.some(c => c.id === categoria.id)) {
+      setCategorias(prev => [...prev, categoria])
+    }
     await persistCategories([...categories, name])
     setNewCategoryName(''); setAddingCategory(false)
   }

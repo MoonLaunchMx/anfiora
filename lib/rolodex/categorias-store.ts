@@ -38,3 +38,38 @@ export async function cargarCategorias(userId: string): Promise<Categoria[]> {
   }
   return (data ?? []) as Categoria[]
 }
+
+// Si dos pestanas crean la misma categoria a la vez, el indice unico
+// rechaza la segunda; se relee y se devuelve la que gano, sin mostrar error.
+export async function crearCategoria(
+  userId: string,
+  nombre: string,
+  yaCargadas: Categoria[],
+): Promise<{ categoria?: Categoria; error?: string }> {
+  const existente = buscarPorNombre(yaCargadas, nombre)
+  if (existente) return { categoria: existente }
+
+  const { supabase } = await import('@/lib/supabase')
+  const { data, error } = await supabase
+    .from('categories')
+    .insert({ user_id: userId, name: nombre })
+    .select('id, name, archived_at')
+    .single()
+
+  if (error) {
+    if (error.code === '23505') {
+      const { data: recargadas } = await supabase
+        .from('categories')
+        .select('id, name, archived_at')
+        .eq('user_id', userId)
+        .order('name')
+      const ganadora = recargadas ? buscarPorNombre(recargadas as Categoria[], nombre) : null
+      if (ganadora) return { categoria: ganadora }
+      return { error: 'No se pudo crear la categoría.' }
+    }
+    console.error('Error creando categoria:', error.message)
+    return { error: 'No se pudo crear la categoría.' }
+  }
+
+  return { categoria: data as Categoria }
+}

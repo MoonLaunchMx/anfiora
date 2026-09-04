@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { AlertTriangle } from 'lucide-react'
-import { activas, buscarPorNombre, cargarCategorias, type Categoria } from '@/lib/rolodex/categorias-store'
+import { activas, buscarPorNombre, cargarCategorias, crearCategoria, type Categoria } from '@/lib/rolodex/categorias-store'
 import { parecidas, puedeEliminarse, type CategoriaConUso } from '@/lib/rolodex/vocabulario-admin'
 import { renombrar } from '@/lib/rolodex/aplicar-cambios'
 import AccionesCategoria, { type AccionesCategoriaHandle } from './AccionesCategoria'
@@ -35,15 +35,26 @@ export default function CategoriasPage() {
   const [errorEdicion, setErrorEdicion] = useState('')
   const [mensajeExito, setMensajeExito] = useState<{ id: string; texto: string } | null>(null)
 
+  const [creando, setCreando] = useState(false)
+  const [valorNuevo, setValorNuevo] = useState('')
+  const [errorNuevo, setErrorNuevo] = useState('')
+  const [resaltadaId, setResaltadaId] = useState<string | null>(null)
+
   // Al confirmar con Enter o cancelar con Escape, el input se desmonta de inmediato
   // y el navegador dispara un blur "fantasma" sobre un campo que ya no existe. Sin
   // esta guarda ese blur volveria a llamar a confirmarRenombrar con datos viejos.
   const evitarBlurRef = useRef(false)
   const guardandoRef = useRef(false)
+  const evitarBlurCrearRef = useRef(false)
+  const guardandoCrearRef = useRef(false)
   const mensajeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const resaltadaTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const accionesRefs = useRef(new Map<string, AccionesCategoriaHandle>())
 
-  useEffect(() => () => { if (mensajeTimeoutRef.current) clearTimeout(mensajeTimeoutRef.current) }, [])
+  useEffect(() => () => {
+    if (mensajeTimeoutRef.current) clearTimeout(mensajeTimeoutRef.current)
+    if (resaltadaTimeoutRef.current) clearTimeout(resaltadaTimeoutRef.current)
+  }, [])
 
   const load = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser()
@@ -132,6 +143,49 @@ export default function CategoriasPage() {
     await load()
   }
 
+  const empezarCrear = () => {
+    evitarBlurCrearRef.current = false
+    setCreando(true)
+    setValorNuevo('')
+    setErrorNuevo('')
+  }
+
+  const cancelarCrear = () => {
+    setCreando(false)
+    setValorNuevo('')
+    setErrorNuevo('')
+  }
+
+  const confirmarCrear = async () => {
+    if (guardandoCrearRef.current) return
+    const nombreLimpio = valorNuevo.trim()
+    if (!nombreLimpio) { cancelarCrear(); return }
+
+    const encontrada = buscarPorNombre(categoriasRaw, nombreLimpio)
+    if (encontrada) {
+      evitarBlurCrearRef.current = false
+      setErrorNuevo('Ya tienes una categoría que se llama así')
+      if (resaltadaTimeoutRef.current) clearTimeout(resaltadaTimeoutRef.current)
+      setResaltadaId(encontrada.id)
+      resaltadaTimeoutRef.current = setTimeout(() => setResaltadaId(null), 4000)
+      return
+    }
+    if (!userId) return
+
+    guardandoCrearRef.current = true
+    const { categoria, error } = await crearCategoria(userId, nombreLimpio, categoriasRaw)
+    guardandoCrearRef.current = false
+
+    if (error || !categoria) {
+      evitarBlurCrearRef.current = false
+      setErrorNuevo(error ?? 'No se pudo crear la categoría.')
+      return
+    }
+
+    cancelarCrear()
+    await load()
+  }
+
   if (loading) {
     return (
       <div className="flex h-[50vh] items-center justify-center">
@@ -142,9 +196,18 @@ export default function CategoriasPage() {
 
   return (
     <>
-      <div className="mb-6">
-        <h1 className="text-xl font-bold text-[#1D1E20] sm:text-2xl">Mis categorías</h1>
-        <p className="mt-0.5 text-sm text-[#888]">Así están agrupados tus proveedores y partidas de presupuesto</p>
+      <div className="mb-6 flex items-center justify-between gap-4">
+        <div>
+          <h1 className="text-xl font-bold text-[#1D1E20] sm:text-2xl">Mis categorías</h1>
+          <p className="mt-0.5 text-sm text-[#888]">Así están agrupados tus proveedores y partidas de presupuesto</p>
+        </div>
+        <button
+          type="button"
+          onClick={empezarCrear}
+          className="shrink-0 rounded-lg bg-[#48C9B0] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#3db39c]"
+        >
+          Nueva categoría
+        </button>
       </div>
 
       {pares.length > 0 && (
@@ -177,11 +240,34 @@ export default function CategoriasPage() {
       )}
 
       <section className="rounded-2xl border border-[#e8e8e8] bg-white">
+        {creando && (
+          <div className="flex items-center justify-between gap-4 border-b border-[#f0f0f0] px-5 py-3.5 sm:px-6">
+            <div className="flex min-w-0 flex-1 flex-col gap-1">
+              <input
+                autoFocus
+                value={valorNuevo}
+                onChange={e => setValorNuevo(e.target.value)}
+                placeholder="Nombre de la categoría"
+                onKeyDown={e => {
+                  if (e.key === 'Enter') { evitarBlurCrearRef.current = true; confirmarCrear() }
+                  if (e.key === 'Escape') { evitarBlurCrearRef.current = true; cancelarCrear() }
+                }}
+                onBlur={() => {
+                  if (evitarBlurCrearRef.current) { evitarBlurCrearRef.current = false; return }
+                  confirmarCrear()
+                }}
+                className="w-full rounded border border-[#e0e0e0] px-2 py-1 text-sm outline-none focus:border-[#48C9B0]"
+              />
+              {errorNuevo && <p className="text-xs text-[#cc3333]">{errorNuevo}</p>}
+            </div>
+          </div>
+        )}
         {categorias.map((c, i) => (
           <div
             key={c.id}
-            className={`flex items-center justify-between gap-4 px-5 py-3.5 sm:px-6
-              ${i !== categorias.length - 1 ? 'border-b border-[#f0f0f0]' : ''}`}
+            className={`flex items-center justify-between gap-4 px-5 py-3.5 sm:px-6 transition-colors
+              ${i !== categorias.length - 1 ? 'border-b border-[#f0f0f0]' : ''}
+              ${c.id === resaltadaId ? 'bg-[#fffbf0]' : ''}`}
           >
             <div className="flex min-w-0 flex-1 items-center gap-2">
               {editandoId === c.id ? (
