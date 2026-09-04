@@ -6,8 +6,9 @@
 -- nuevas (events.workspace_id; event_collaborators.permisos y tipo;
 -- event_audit_log.modulo y batch_id), siete funciones (es_miembro_de,
 -- guard_events_workspace, set_event_workspace, nivel_en, puede_ver,
--- puede_editar, puede_borrar), cinco indices y dos policies SELECT sobre las
--- dos tablas nuevas.
+-- puede_editar, puede_borrar), dos triggers sobre events
+-- (guard_events_workspace, set_event_workspace), cinco indices y dos policies
+-- SELECT sobre las dos tablas nuevas. Enciende RLS en esas dos tablas.
 --
 -- QUE TOCA DE LO QUE YA EXISTE: no modifica ninguna policy, ninguna funcion ni
 -- ningun dato que ya exista. Lo unico que cambia el comportamiento actual son
@@ -94,6 +95,14 @@ CREATE UNIQUE INDEX IF NOT EXISTS workspace_members_un_principal
 
 CREATE UNIQUE INDEX IF NOT EXISTS workspace_members_un_usuario
   ON public.workspace_members (workspace_id, user_id) WHERE user_id IS NOT NULL;
+
+-- RLS se enciende aqui, no junto a las policies: el trigger de la seccion 2 ya
+-- escribe en estas dos tablas, y corrido por secciones cada una autocommitea.
+-- Con RLS apagado, cualquier usuario logueado podria insertarse como dueno
+-- activo y nivel_en le daria 'total' sobre todas las bodas del despacho.
+-- Sin policies de SELECT todavia nadie lee, que es el lado seguro.
+ALTER TABLE public.workspaces        ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.workspace_members ENABLE ROW LEVEL SECURITY;
 
 -- ============================================================
 -- 1.b La funcion que rompe la recursion de RLS
@@ -277,11 +286,9 @@ RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public
 AS $$ SELECT public.nivel_en(evento, modulo) = 'total' $$;
 
 -- ============================================================
--- 4. RLS de las tablas nuevas
+-- 4. Las policies de las tablas nuevas
+--    (el ENABLE ROW LEVEL SECURITY de las dos ya quedo en la seccion 1)
 -- ============================================================
-
-ALTER TABLE public.workspaces        ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.workspace_members ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "ver mi despacho" ON public.workspaces;
 CREATE POLICY "ver mi despacho" ON public.workspaces FOR SELECT
