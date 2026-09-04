@@ -38,11 +38,25 @@ describe('agregarAlVocabulario', () => {
   it('ignora un nombre vacio', () => {
     expect(agregarAlVocabulario(['Venue'], '   ')).toEqual(['Venue'])
   })
+
+  it('no agrega una base que el planner teclea con acento', () => {
+    expect(agregarAlVocabulario(['Decoracion'], 'Decoración')).toEqual(['Decoracion'])
+  })
+
+  it('guarda los acentos tal cual cuando la categoria si es nueva', () => {
+    expect(agregarAlVocabulario(['Venue'], 'Ambulancía y paramédicos'))
+      .toEqual(['Venue', 'Ambulancía y paramédicos'])
+  })
 })
 
 describe('mismaCategoria', () => {
   it('compara sin distinguir caja ni espacios', () => {
     expect(mismaCategoria('Venue', ' venue ')).toBe(true)
     expect(mismaCategoria('Venue', 'Banquete')).toBe(false)
+  })
+
+  it('trata igual una categoria con acento y sin acento', () => {
+    expect(mismaCategoria('Decoración', 'Decoracion')).toBe(true)
+    expect(mismaCategoria('Papelería', 'papeleria')).toBe(true)
   })
 })

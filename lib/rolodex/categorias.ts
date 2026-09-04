@@ -7,8 +7,19 @@ import { DEFAULT_CATEGORIES_BY_TYPE } from '@/app/events/[id]/presupuesto/lib/ca
 
 export const CATEGORIAS_BASE: string[] = [...DEFAULT_CATEGORIES_BY_TYPE.boda]
 
+// Normaliza una cadena removiendo acentos, espacios y mayusculas.
+// Las categorias base se guardan sin acento (ej: 'Decoracion') pero se muestran
+// con acento, por lo que sin esta normalizacion el planner que ve "Decoracion"
+// con acento y la tipea creyendo que falta terminaria duplicando la entrada.
+// La normalizacion tambien junta la ene con tilde (n~) con la ene simple: es
+// a proposito, ya que un dedazo sin tilde es mucho mas probable que dos
+// categorias que solo se distingan por ella.
+function normalizar(s: string): string {
+  return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase()
+}
+
 export function mismaCategoria(a: string, b: string): boolean {
-  return a.trim().toLowerCase() === b.trim().toLowerCase()
+  return normalizar(a) === normalizar(b)
 }
 
 export function resolverVocabulario(guardado: string[] | null | undefined): string[] {
