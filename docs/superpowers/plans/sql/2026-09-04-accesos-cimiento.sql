@@ -13,6 +13,12 @@
 -- cablearlas antes deja a todo el equipo fuera de golpe. La app usa mientras
 -- tanto permisosDesdeRolLegado() en lib/permisos/resolver.ts.
 --
+-- SI YA CORRISTE UNA VERSION ANTERIOR DE ESTE ARCHIVO: las sentencias son
+-- IF NOT EXISTS, asi que volver a correrlo NO cambia las acciones de las llaves
+-- foraneas (el ON DELETE CASCADE de workspaces.primary_owner_id y el ON DELETE
+-- SET NULL de events.workspace_id). En ese caso hay que borrar las dos tablas
+-- nuevas y la columna antes de re-correr.
+--
 -- Modelo (ver §2 del spec):
 --   Arriba, el despacho: dueno / admin / colaborador.
 --   Abajo, cada boda: por modulo, ninguno / ver / editar / total.
@@ -32,6 +38,9 @@ CREATE TABLE IF NOT EXISTS public.workspaces (
   primary_owner_id uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
   created_at       timestamptz NOT NULL DEFAULT now()
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS workspaces_un_dueno
+  ON public.workspaces (primary_owner_id);
 
 -- El plan, los datos fiscales y los asientos aterrizan aqui cuando llegue el
 -- chat de precios. Este script NO los agrega a proposito.
@@ -83,30 +92,66 @@ BEGIN
   IF auth.uid() IS NULL THEN
     RETURN NEW;
   END IF;
+
+  IF TG_OP = 'INSERT' THEN
+    IF NEW.workspace_id IS NOT NULL AND NOT public.es_miembro_de(NEW.workspace_id) THEN
+      RAISE EXCEPTION 'No puedes crear un evento en un despacho al que no perteneces'
+        USING ERRCODE = '42501';
+    END IF;
+    RETURN NEW;
+  END IF;
+
   IF NEW.workspace_id IS DISTINCT FROM OLD.workspace_id
-     AND OLD.user_id <> auth.uid() THEN
+     AND OLD.user_id IS DISTINCT FROM auth.uid() THEN
     RAISE EXCEPTION 'Solo el dueno del evento puede cambiar su despacho'
       USING ERRCODE = '42501';
   END IF;
+
   RETURN NEW;
 END;
 $$;
 
 DROP TRIGGER IF EXISTS guard_events_workspace ON public.events;
 CREATE TRIGGER guard_events_workspace
-  BEFORE UPDATE ON public.events
+  BEFORE INSERT OR UPDATE ON public.events
   FOR EACH ROW EXECUTE FUNCTION public.guard_events_workspace();
 
--- Sin esto, cada evento creado despues de la migracion nace sin despacho y los
--- admin no lo ven; el invariante se degrada solo, en silencio.
+-- Sin esto, cada evento creado despues de la migracion nace sin despacho: la
+-- migracion solo crea despachos para quien ya tenia eventos, y nada en la app
+-- escribe en workspaces. Se crea aqui la primera vez que hace falta, para que
+-- el invariante se sostenga solo en vez de degradarse en silencio.
 CREATE OR REPLACE FUNCTION public.set_event_workspace()
 RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
 AS $$
+DECLARE
+  v_ws uuid;
 BEGIN
-  IF NEW.workspace_id IS NULL THEN
-    SELECT w.id INTO NEW.workspace_id
-    FROM workspaces w WHERE w.primary_owner_id = NEW.user_id LIMIT 1;
+  IF NEW.workspace_id IS NOT NULL OR NEW.user_id IS NULL THEN
+    RETURN NEW;
   END IF;
+
+  SELECT w.id INTO v_ws FROM workspaces w WHERE w.primary_owner_id = NEW.user_id;
+
+  IF v_ws IS NULL THEN
+    INSERT INTO workspaces (name, primary_owner_id)
+    SELECT COALESCE(u.full_name, u.email), u.id
+      FROM users u WHERE u.id = NEW.user_id
+    ON CONFLICT (primary_owner_id) DO NOTHING;
+
+    INSERT INTO workspace_members (workspace_id, user_id, email, rol, es_dueno_principal, status, accepted_at)
+    SELECT w.id, u.id, u.email, 'dueno', true, 'active', now()
+      FROM workspaces w
+      JOIN users u ON u.id = w.primary_owner_id
+     WHERE w.primary_owner_id = NEW.user_id
+       AND NOT EXISTS (
+         SELECT 1 FROM workspace_members m
+          WHERE m.workspace_id = w.id AND m.user_id = u.id
+       );
+
+    SELECT w.id INTO v_ws FROM workspaces w WHERE w.primary_owner_id = NEW.user_id;
+  END IF;
+
+  NEW.workspace_id := v_ws;
   RETURN NEW;
 END;
 $$;
