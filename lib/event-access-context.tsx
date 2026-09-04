@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
+import { createContext, useContext, useState, useEffect, useCallback, useMemo, ReactNode } from 'react'
 import { supabase } from '@/lib/supabase'
 import { resolveFeatures, type FeatureKey } from '@/lib/features'
 import { logAction } from '@/lib/audit'
@@ -84,6 +84,14 @@ export function EventAccessProvider({
 
         if (event?.user_id === user.id) {
           setRole('owner')
+          // Atajo: 'dueno' aqui significa "dueno de ESTE evento", no un rol de
+          // despacho verificado contra workspace_members. Hoy es inocuo porque
+          // nadie decide nada con rolCuenta, pero queda expuesto en el contexto
+          // como si lo fuera: una pantalla futura que lea rolCuenta === 'dueno'
+          // para facturacion o para administrar el despacho le daria acceso de
+          // dueno a cualquiera que posea un evento, aunque en el despacho sea
+          // colaborador. El tramo del despacho tiene que resolver rolCuenta
+          // desde workspace_members tambien en este camino.
           setRolCuenta('dueno')
           return
         }
@@ -106,12 +114,27 @@ export function EventAccessProvider({
         // legado (comportamiento de hoy). Try/catch propio: si alguna truena con
         // una excepcion real (no un error tolerado), igual debe caer al respaldo
         // legado, nunca dejar permisos en null.
+        let permisosLeidos: PermisosEvento | null = null
         try {
-          const { data: ev } = await supabase
-            .from('events')
-            .select('workspace_id')
-            .eq('id', eventId)
-            .maybeSingle()
+          // Los permisos del colaborador no dependen del despacho: van en
+          // paralelo para no alargar isLoading un viaje de mas. Solo
+          // workspace_members espera, porque necesita el workspace_id.
+          const [{ data: ev }, { data: fila }] = await Promise.all([
+            supabase
+              .from('events')
+              .select('workspace_id')
+              .eq('id', eventId)
+              .maybeSingle(),
+            supabase
+              .from('event_collaborators')
+              .select('permisos')
+              .eq('event_id', eventId)
+              .eq('user_id', user.id)
+              .eq('status', 'active')
+              .maybeSingle(),
+          ])
+
+          if (fila?.permisos != null) permisosLeidos = normalizarPermisos(fila.permisos)
 
           if (ev?.workspace_id) {
             const { data: miembro } = await supabase
@@ -123,22 +146,13 @@ export function EventAccessProvider({
               .maybeSingle()
             setRolCuenta((miembro?.rol as RolCuenta) ?? null)
           }
-
-          const { data: fila } = await supabase
-            .from('event_collaborators')
-            .select('permisos')
-            .eq('event_id', eventId)
-            .eq('user_id', user.id)
-            .eq('status', 'active')
-            .maybeSingle()
-
-          setPermisos(
-            fila?.permisos != null
-              ? normalizarPermisos(fila.permisos)
-              : permisosDesdeRolLegado(collaborator?.role),
+        } catch (e) {
+          console.error(
+            '[event-access] Error leyendo el despacho o los permisos por herramienta, se cae al respaldo legado:',
+            e,
           )
-        } catch {
-          setPermisos(permisosDesdeRolLegado(collaborator?.role))
+        } finally {
+          setPermisos(permisosLeidos ?? permisosDesdeRolLegado(collaborator?.role))
         }
       } catch {
         console.error('[event-access] Error verificando acceso')
@@ -151,7 +165,7 @@ export function EventAccessProvider({
   }, [eventId])
 
   // Persiste el JSON completo (las 5 claves explicitas) y actualiza el estado local
-  const updateFeatures = async (next: Record<FeatureKey, boolean>) => {
+  const updateFeatures = useCallback(async (next: Record<FeatureKey, boolean>) => {
     const old = features
     const { error } = await supabase
       .from('event_settings')
@@ -173,7 +187,7 @@ export function EventAccessProvider({
       newValue: next,
     })
     return true
-  }
+  }, [eventId, features])
 
   // Derivar permisos del rol — una sola fuente de verdad
   const isOwner = role === 'owner'
@@ -182,17 +196,23 @@ export function EventAccessProvider({
   const canInvite = role === 'owner' || role === 'admin'
   const hasAccess = role !== null
 
-  const ctxPermiso: ContextoPermiso = {
-    esDuenoDelEvento: isOwner,
-    rolCuenta,
-    permisos,
-    features,
-  }
+  // Estable entre renders: <Puede> aparece decenas de veces por pantalla y
+  // nivelDeModulo es candidato natural a entrar en dependencias de useEffect.
+  const nivelDeModulo = useCallback(
+    (modulo: Modulo): Nivel => {
+      const ctxPermiso: ContextoPermiso = {
+        esDuenoDelEvento: isOwner,
+        rolCuenta,
+        permisos,
+        features,
+      }
+      return nivelEfectivo(ctxPermiso, modulo)
+    },
+    [isOwner, rolCuenta, permisos, features],
+  )
 
-  const nivelDeModulo = (modulo: Modulo): Nivel => nivelEfectivo(ctxPermiso, modulo)
-
-  return (
-    <EventAccessContext.Provider value={{
+  const value = useMemo<EventAccessContextType>(
+    () => ({
       role,
       isOwner,
       canEdit,
@@ -205,7 +225,12 @@ export function EventAccessProvider({
       rolCuenta,
       permisos,
       nivelDeModulo,
-    }}>
+    }),
+    [role, isOwner, canEdit, canAdmin, canInvite, isLoading, hasAccess, features, updateFeatures, rolCuenta, permisos, nivelDeModulo],
+  )
+
+  return (
+    <EventAccessContext.Provider value={value}>
       {children}
     </EventAccessContext.Provider>
   )
