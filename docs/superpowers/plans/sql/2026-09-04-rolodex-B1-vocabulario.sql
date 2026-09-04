@@ -18,6 +18,9 @@ ALTER TABLE public.users
 -- Nadie pierde una categoria que ya habia creado. Las base no se siembran aqui:
 -- resolverVocabulario() las agrega en el cliente, asi que sembrarlas duplicaria
 -- el mantenimiento el dia que cambien.
+-- Solo siembra vocabularios vacios, porque una vez que la app escribe en
+-- `users.categories` esta es la unica manera de que volver a correr el script
+-- no borre lo que el planner agrego.
 UPDATE public.users u
 SET categories = COALESCE(sub.cats, '[]'::jsonb)
 FROM (
@@ -30,11 +33,14 @@ FROM (
   ) AS cat
   GROUP BY e.user_id
 ) sub
-WHERE sub.user_id = u.id;
+WHERE sub.user_id = u.id
+  AND (u.categories IS NULL OR u.categories = '[]'::jsonb);
 
 COMMIT;
 
 -- ============ Marcha atras ============
+-- Advertencia: esto BORRA los vocabularios sembrados, no solo la columna, y
+-- que solo tiene sentido si nadie ha usado la funcion todavia.
 -- BEGIN;
 -- ALTER TABLE public.users DROP COLUMN IF EXISTS categories;
 -- COMMIT;
