@@ -9,7 +9,7 @@ import {
   budgetCategoryLabel,
   SUPPLIER_STATUSES, SUPPLIER_STATUS_LABELS, SupplierStatus, Currency, formatCurrency,
 } from '@/lib/types'
-import { resolverVocabulario } from '@/lib/rolodex/categorias'
+import { Categoria, activas, cargarCategorias } from '@/lib/rolodex/categorias-store'
 import StatsCollapse, { useStatsToggle, StatsToggleButton } from '@/app/components/ui/StatsCollapse'
 import SupplierModal from './SupplierModal'
 import SupplierCard from './SupplierCard'
@@ -32,7 +32,7 @@ export default function ProveedoresPage() {
   const [loading, setLoading] = useState(true)
   const [search, setSearch]   = useState('')
   const [filterCategory, setFilterCategory] = useState<string>('')
-  const [vocabulario, setVocabulario] = useState<string[]>([])
+  const [categorias, setCategorias] = useState<Categoria[]>([])
   const [viewMode, setViewMode] = useState<ViewMode>('cards')
   const [groupBy, setGroupBy]   = useState<GroupBy>('categoria')
   const [modalOpen, setModalOpen]       = useState(false)
@@ -56,13 +56,7 @@ export default function ProveedoresPage() {
       if (budgetsRes.data)   setBudgets(budgetsRes.data as EventBudget[])
 
       const { data: { user } } = await supabase.auth.getUser()
-      if (user) {
-        const { data: perfil } = await supabase
-          .from('users').select('categories').eq('id', user.id).single()
-        setVocabulario(resolverVocabulario(perfil?.categories as string[] | null))
-      } else {
-        setVocabulario(resolverVocabulario(null))
-      }
+      setCategorias(user ? await cargarCategorias(user.id) : [])
     } catch (err: any) {
       console.error('Error cargando proveedores:', err?.message ?? err, err)
     } finally {
@@ -73,6 +67,7 @@ export default function ProveedoresPage() {
   const handleCreateSupplier = async (data: {
     name: string
     category: string
+    category_id: string | null
     subcategory: string | null
     phone: string | null
     phone_country_code: string | null
@@ -92,6 +87,7 @@ export default function ProveedoresPage() {
         user_id:            user.id,
         name:               data.name,
         category:           data.category,
+        category_id:        data.category_id,
         subcategory:        linkedBudget?.subcategory || data.subcategory,
         phone:              data.phone,
         phone_country_code: data.phone_country_code,
@@ -154,16 +150,18 @@ export default function ProveedoresPage() {
                     budgetCategoryLabel(s.category).toLowerCase().includes(q)
       if (!match) return false
     }
-    if (filterCategory && s.category !== filterCategory) return false
+    if (filterCategory && s.category_id !== filterCategory) return false
     return true
   })
 
   const categoriasDelFiltro = (() => {
-    const lista = [...vocabulario]
-    const vistas = new Set(lista.map(c => c.toLowerCase()))
+    const lista = activas(categorias)
+    const vistas = new Set(lista.map(c => c.id))
     items.forEach(it => {
-      const c = it.supplier?.category
-      if (c && !vistas.has(c.toLowerCase())) { lista.push(c); vistas.add(c.toLowerCase()) }
+      const catId = it.supplier?.category_id
+      if (!catId || vistas.has(catId)) return
+      const cat = categorias.find(c => c.id === catId)
+      if (cat) { lista.push(cat); vistas.add(catId) }
     })
     return lista
   })()
@@ -254,7 +252,7 @@ export default function ProveedoresPage() {
             className="hidden shrink-0 rounded-lg border border-[#e0e0e0] bg-white px-3 py-1.5 text-xs outline-none transition focus:border-[#48C9B0] lg:block"
           >
             <option value="">Todas las categorías</option>
-            {categoriasDelFiltro.map(c => <option key={c} value={c}>{budgetCategoryLabel(c)}</option>)}
+            {categoriasDelFiltro.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
 
           {/* Agrupación — solo en tarjetas, solo desktop */}
@@ -332,7 +330,7 @@ export default function ProveedoresPage() {
         onClose={() => setModalOpen(false)}
         currency={currency}
         budgets={budgets}
-        categorias={vocabulario}
+        categorias={categorias}
         onSubmit={handleCreateSupplier}
       />
 
@@ -342,7 +340,7 @@ export default function ProveedoresPage() {
           eventId={eventId}
           currency={currency}
           budgets={budgets}
-          categorias={vocabulario}
+          categorias={categorias}
           onClose={() => setSelectedItem(null)}
           onSaved={handleSavedItem}
           onDeleted={handleDeletedItem}

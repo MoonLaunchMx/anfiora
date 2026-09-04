@@ -543,6 +543,7 @@ export type Supplier = {
   user_id: string
   name: string
   category: string
+  category_id: string | null
   subcategory: string | null
   contact_name: string | null
   phone: string | null

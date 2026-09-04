@@ -20,6 +20,7 @@ import PhoneInput from '@/app/components/ui/PhoneInput'
 import { toWhatsApp, detectCountry, dialCode } from '@/lib/phone'
 import { Modal } from '@/app/components/ui/Modal'
 import { useConfirm } from '@/app/components/ui/ConfirmModal'
+import { Categoria, activas, buscarPorNombre } from '@/lib/rolodex/categorias-store'
 
 const INPUT_CLASS = 'rounded-lg border border-[#e8e8e8] bg-white px-3 py-2 text-base text-[#1D1E20] outline-none transition-colors focus:border-[#48C9B0]'
 
@@ -30,7 +31,7 @@ interface Props {
   eventId: string
   currency: Currency
   budgets: EventBudget[]
-  categorias: string[]
+  categorias: Categoria[]
   onClose: () => void
   onSaved: (updated: SupplierWithDetails) => void
   onDeleted: (id: string) => void
@@ -44,8 +45,13 @@ export default function SupplierDetailModal({
   const router = useRouter()
   const askConfirm = useConfirm()
 
+  // Este modal tambien lo abre Presupuesto, que todavia no migro a categorias
+  // por id: ahi categoria_propia se resuelve por nombre, no por id.
+  const categoriaPropia = categorias.find(c => c.id === item.supplier.category_id)
+    ?? buscarPorNombre(categorias, item.supplier.category)
+
   const [name, setName]             = useState(item.supplier.name)
-  const [category, setCategory]     = useState<string>(item.supplier.category)
+  const [categoryId, setCategoryId] = useState<string>(categoriaPropia?.id ?? item.supplier.category_id ?? '')
   const [phone, setPhone]           = useState(item.supplier.phone ?? '')
   const [instagram, setInstagram]   = useState(item.supplier.instagram ?? '')
   const [facebook, setFacebook]     = useState((item.supplier as any).facebook ?? '')
@@ -81,11 +87,20 @@ export default function SupplierDetailModal({
   const payProgress    = contractNum > 0 ? Math.min((totalPaid / contractNum) * 100, 100) : 0
   const hasReview      = item.rating !== null || (item.review_text && item.review_text.length > 0)
 
-  const opciones = categorias.some(c => c.toLowerCase() === (item.supplier.category ?? '').toLowerCase())
-    ? categorias
-    : [...categorias, item.supplier.category].filter(Boolean) as string[]
+  const categoriasActivas = activas(categorias)
+  const opciones = categoriaPropia && !categoriasActivas.some(c => c.id === categoriaPropia.id)
+    ? [...categoriasActivas, categoriaPropia]
+    : categoriasActivas
 
-  const budgetsForCategory = budgets.filter(b => b.category === category)
+  const selectedCategoria = opciones.find(c => c.id === categoryId) ?? categoriaPropia ?? null
+  const categoryName      = selectedCategoria?.name ?? item.supplier.category
+  // El vocabulario de Presupuesto no trae id real: si categoryId no es un
+  // UUID, se eligio de ese vocabulario y no hay que pisar el id verdadero.
+  const categoryIdToSave  = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(categoryId)
+    ? categoryId
+    : item.supplier.category_id
+
+  const budgetsForCategory = budgets.filter(b => b.category === categoryName)
   const selectedBudget     = eventBudgetId ? budgets.find(b => b.id === eventBudgetId) : null
   const budgetMeta         = selectedBudget?.budget_amount || 0
 
@@ -131,7 +146,8 @@ export default function SupplierDetailModal({
     supplier: {
       ...item.supplier,
       name:               name.trim(),
-      category,
+      category:           categoryName,
+      category_id:        categoryIdToSave,
       subcategory:        selectedBudget?.subcategory || null,
       phone:              phone.trim() || null,
       phone_country_code: derivePhoneCountryCode(),
@@ -155,7 +171,8 @@ export default function SupplierDetailModal({
         .from('suppliers')
         .update({
           name:               name.trim(),
-          category,
+          category:           categoryName,
+          category_id:        categoryIdToSave,
           subcategory:        selectedBudget?.subcategory || null,
           phone:              phone.trim() || null,
           phone_country_code: derivePhoneCountryCode(),
@@ -322,7 +339,7 @@ export default function SupplierDetailModal({
 
   return (
     <Modal open onClose={onClose} size="2xl">
-      <Modal.Header title={name || 'Sin nombre'} subtitle={budgetCategoryLabel(category)} />
+      <Modal.Header title={name || 'Sin nombre'} subtitle={categoryName} />
       <Modal.Body className="space-y-7 py-5">
 
         {/* ① ESTADO */}
@@ -347,8 +364,8 @@ export default function SupplierDetailModal({
               <input type="text" value={name} onChange={e => setName(e.target.value)} className={`${INPUT_CLASS} w-full`} />
             </Field>
             <Field label="Categoría">
-              <select value={category} onChange={e => { setCategory(e.target.value); setEventBudgetId('') }} className={`${INPUT_CLASS} w-full`}>
-                {opciones.map(c => <option key={c} value={c}>{budgetCategoryLabel(c)}</option>)}
+              <select value={categoryId} onChange={e => { setCategoryId(e.target.value); setEventBudgetId('') }} className={`${INPUT_CLASS} w-full`}>
+                {opciones.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
             </Field>
             <Field label="Concepto del presupuesto" className="sm:col-span-2">
@@ -370,7 +387,7 @@ export default function SupplierDetailModal({
               ) : (
                 <div className="flex items-center gap-2 rounded-lg border border-dashed border-[#e0e0e0] bg-[#fafafa] px-3 py-3">
                   <Wallet size={14} className="shrink-0 text-[#aaa]" />
-                  <p className="text-xs text-[#888]">No hay conceptos de {budgetCategoryLabel(category)} — créalos en Presupuesto</p>
+                  <p className="text-xs text-[#888]">No hay conceptos de {categoryName} — créalos en Presupuesto</p>
                 </div>
               )}
             </Field>

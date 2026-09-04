@@ -5,6 +5,7 @@ import {
   budgetCategoryLabel,
   EventBudget, Currency, formatCurrency,
 } from '@/lib/types'
+import { Categoria, activas } from '@/lib/rolodex/categorias-store'
 import { FiInstagram, FiGlobe, FiFacebook } from 'react-icons/fi'
 import { FaWhatsapp } from 'react-icons/fa'
 import PhoneInput from '@/app/components/ui/PhoneInput'
@@ -16,10 +17,11 @@ type Props = {
   onClose: () => void
   currency: Currency
   budgets: EventBudget[]
-  categorias: string[]
+  categorias: Categoria[]
   onSubmit: (data: {
     name: string
     category: string
+    category_id: string | null
     subcategory: string | null
     phone: string | null
     phone_country_code: string | null
@@ -32,22 +34,25 @@ type Props = {
 
 export default function SupplierModal({ isOpen, onClose, currency, budgets, categorias, onSubmit }: Props) {
   const [name, setName]                   = useState('')
-  const [category, setCategory]           = useState<string>('Venue')
+  const [categoryId, setCategoryId]       = useState<string>('')
   const [eventBudgetId, setEventBudgetId] = useState('')
   const [phone, setPhone]                 = useState('')
   const [instagram, setInstagram]         = useState('')
   const [facebook, setFacebook]           = useState('')
   const [submitting, setSubmitting]       = useState(false)
 
+  const opciones = activas(categorias)
+
   useEffect(() => {
     if (isOpen) {
-      setName(''); setCategory('Venue'); setEventBudgetId('')
+      setName(''); setCategoryId(opciones[0]?.id ?? ''); setEventBudgetId('')
       setPhone(''); setInstagram(''); setFacebook('')
       setSubmitting(false)
     }
   }, [isOpen])
 
-  const budgetsForCategory = budgets.filter(b => b.category === category)
+  const selectedCategoria = opciones.find(c => c.id === categoryId) ?? null
+  const budgetsForCategory = budgets.filter(b => b.category === selectedCategoria?.name)
   const selectedBudget = eventBudgetId ? budgets.find(b => b.id === eventBudgetId) : null
 
   const validate = (): string | null => {
@@ -66,7 +71,8 @@ export default function SupplierModal({ isOpen, onClose, currency, budgets, cate
       const dial = cc ? dialCode(cc) || null : null
       await onSubmit({
         name:               name.trim(),
-        category,
+        category:           selectedCategoria?.name ?? '',
+        category_id:        selectedCategoria?.id ?? null,
         subcategory:        selectedBudget?.subcategory || null,
         phone:              phone.trim() || null,
         phone_country_code: phone.trim() ? dial : null,
@@ -109,12 +115,12 @@ export default function SupplierModal({ isOpen, onClose, currency, budgets, cate
               Categoría <span className="text-red-400">*</span>
             </label>
             <select
-              value={category}
-              onChange={e => { setCategory(e.target.value); setEventBudgetId('') }}
+              value={categoryId}
+              onChange={e => { setCategoryId(e.target.value); setEventBudgetId('') }}
               className="w-full rounded-lg border border-[#e0e0e0] bg-white px-3 py-2 text-base text-[#1D1E20] outline-none transition focus:border-[#48C9B0]"
             >
-              {categorias.map(cat => (
-                <option key={cat} value={cat}>{budgetCategoryLabel(cat)}</option>
+              {opciones.map(c => (
+                <option key={c.id} value={c.id}>{c.name}</option>
               ))}
             </select>
           </div>
@@ -141,7 +147,7 @@ export default function SupplierModal({ isOpen, onClose, currency, budgets, cate
             ) : (
               <div className="rounded-lg border border-dashed border-[#e0e0e0] bg-[#fafafa] px-3 py-2.5 text-center">
                 <p className="text-xs text-[#aaa]">
-                  No hay conceptos de {budgetCategoryLabel(category)} — créalos en Presupuesto
+                  No hay conceptos de {selectedCategoria?.name} — créalos en Presupuesto
                 </p>
               </div>
             )}
