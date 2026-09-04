@@ -10,6 +10,7 @@ import { FaWhatsapp } from 'react-icons/fa'
 import PhoneInput from '@/app/components/ui/PhoneInput'
 import { detectCountry, dialCode } from '@/lib/phone'
 import { Modal } from '@/app/components/ui/Modal'
+import CategoriaPicker from './CategoriaPicker'
 
 type Props = {
   isOpen: boolean
@@ -17,6 +18,7 @@ type Props = {
   currency: Currency
   budgets: EventBudget[]
   categorias: Categoria[]
+  userId: string
   onSubmit: (data: {
     name: string
     category_id: string | null
@@ -30,7 +32,7 @@ type Props = {
   }) => Promise<void>
 }
 
-export default function SupplierModal({ isOpen, onClose, currency, budgets, categorias, onSubmit }: Props) {
+export default function SupplierModal({ isOpen, onClose, currency, budgets, categorias, userId, onSubmit }: Props) {
   const [name, setName]                   = useState('')
   const [categoryId, setCategoryId]       = useState<string>('')
   const [eventBudgetId, setEventBudgetId] = useState('')
@@ -39,18 +41,17 @@ export default function SupplierModal({ isOpen, onClose, currency, budgets, cate
   const [facebook, setFacebook]           = useState('')
   const [submitting, setSubmitting]       = useState(false)
 
-  const opciones = activas(categorias)
-
   useEffect(() => {
     if (isOpen) {
-      const porDefecto = buscarPorNombre(opciones, 'Venue') ?? opciones[0] ?? null
+      const activasIniciales = activas(categorias)
+      const porDefecto = buscarPorNombre(activasIniciales, 'Venue') ?? activasIniciales[0] ?? null
       setName(''); setCategoryId(porDefecto?.id ?? ''); setEventBudgetId('')
       setPhone(''); setInstagram(''); setFacebook('')
       setSubmitting(false)
     }
   }, [isOpen])
 
-  const selectedCategoria = opciones.find(c => c.id === categoryId) ?? null
+  const selectedCategoria = categorias.find(c => c.id === categoryId) ?? null
   const budgetsForCategory = budgets.filter(b => b.category_id === selectedCategoria?.id)
   const selectedBudget = eventBudgetId ? budgets.find(b => b.id === eventBudgetId) : null
 
@@ -112,15 +113,12 @@ export default function SupplierModal({ isOpen, onClose, currency, budgets, cate
             <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-[#888]">
               Categoría <span className="text-red-400">*</span>
             </label>
-            <select
-              value={categoryId}
-              onChange={e => { setCategoryId(e.target.value); setEventBudgetId('') }}
-              className="w-full rounded-lg border border-[#e0e0e0] bg-white px-3 py-2 text-base text-[#1D1E20] outline-none transition focus:border-[#48C9B0]"
-            >
-              {opciones.map(c => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
+            <CategoriaPicker
+              categorias={categorias}
+              valorId={categoryId || null}
+              onChange={c => { setCategoryId(c.id); setEventBudgetId('') }}
+              userId={userId}
+            />
           </div>
 
           {/* Concepto del presupuesto */}

@@ -204,7 +204,7 @@ export default function CategoriasPage() {
         <button
           type="button"
           onClick={empezarCrear}
-          className="shrink-0 rounded-lg bg-[#48C9B0] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#3db39c]"
+          className="shrink-0 rounded-lg bg-[#48C9B0] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#3aa896]"
         >
           Nueva categoría
         </button>

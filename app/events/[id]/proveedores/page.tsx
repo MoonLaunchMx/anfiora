@@ -32,6 +32,7 @@ export default function ProveedoresPage() {
   const [search, setSearch]   = useState('')
   const [filterCategory, setFilterCategory] = useState<string>('')
   const [categorias, setCategorias] = useState<Categoria[]>([])
+  const [userId, setUserId] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<ViewMode>('cards')
   const [groupBy, setGroupBy]   = useState<GroupBy>('categoria')
   const [modalOpen, setModalOpen]       = useState(false)
@@ -55,6 +56,7 @@ export default function ProveedoresPage() {
       if (budgetsRes.data)   setBudgets(budgetsRes.data as EventBudget[])
 
       const { data: { user } } = await supabase.auth.getUser()
+      setUserId(user?.id ?? null)
       setCategorias(user ? await cargarCategorias(user.id) : [])
     } catch (err: any) {
       console.error('Error cargando proveedores:', err?.message ?? err, err)
@@ -332,6 +334,7 @@ export default function ProveedoresPage() {
         currency={currency}
         budgets={budgets}
         categorias={categorias}
+        userId={userId ?? ''}
         onSubmit={handleCreateSupplier}
       />
 
@@ -342,6 +345,7 @@ export default function ProveedoresPage() {
           currency={currency}
           budgets={budgets}
           categorias={categorias}
+          userId={userId ?? ''}
           onClose={() => setSelectedItem(null)}
           onSaved={handleSavedItem}
           onDeleted={handleDeletedItem}

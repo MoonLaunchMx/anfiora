@@ -71,6 +71,7 @@ export default function PresupuestoPage() {
 
   const [storedCategories, setStoredCategories]   = useState<string[] | null>(null)
   const [categorias, setCategorias]               = useState<Categoria[]>([])
+  const [userId, setUserId]                       = useState<string | null>(null)
   const [showCategoriesModal, setShowCategoriesModal] = useState(false)
   const [categoryDeleteError, setCategoryDeleteError] = useState('')
   const [addingCategory, setAddingCategory]       = useState(false)
@@ -125,6 +126,7 @@ export default function PresupuestoPage() {
       setStoredCategories((settingsRow?.budget_categories as string[] | null) ?? null)
 
       const { data: { user } } = await supabase.auth.getUser()
+      setUserId(user?.id ?? null)
       setCategorias(user ? await cargarCategorias(user.id) : [])
     } catch (err: any) {
       console.error('Error cargando presupuesto:', err?.message ?? err, err)
@@ -926,6 +928,7 @@ export default function PresupuestoPage() {
           currency={currency}
           budgets={budgets}
           categorias={categorias}
+          userId={userId ?? ''}
           onClose={() => setSelectedSupplier(null)}
           onSaved={updated => {
             setEventSuppliers(prev => prev.map(es => es.id === updated.id ? { ...es, ...updated } : es))

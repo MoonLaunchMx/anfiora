@@ -19,7 +19,8 @@ import PhoneInput from '@/app/components/ui/PhoneInput'
 import { toWhatsApp, detectCountry, dialCode } from '@/lib/phone'
 import { Modal } from '@/app/components/ui/Modal'
 import { useConfirm } from '@/app/components/ui/ConfirmModal'
-import { Categoria, activas, nombrePorId } from '@/lib/rolodex/categorias-store'
+import { Categoria, nombrePorId } from '@/lib/rolodex/categorias-store'
+import CategoriaPicker from './CategoriaPicker'
 
 const INPUT_CLASS = 'rounded-lg border border-[#e8e8e8] bg-white px-3 py-2 text-base text-[#1D1E20] outline-none transition-colors focus:border-[#48C9B0]'
 
@@ -31,6 +32,7 @@ interface Props {
   currency: Currency
   budgets: EventBudget[]
   categorias: Categoria[]
+  userId: string
   onClose: () => void
   onSaved: (updated: SupplierWithDetails) => void
   onDeleted: (id: string) => void
@@ -39,7 +41,7 @@ interface Props {
 }
 
 export default function SupplierDetailModal({
-  item, eventId, currency, budgets, categorias, onClose, onSaved, onDeleted, onReviewNeeded,
+  item, eventId, currency, budgets, categorias, userId, onClose, onSaved, onDeleted, onReviewNeeded,
 }: Props) {
   const router = useRouter()
   const askConfirm = useConfirm()
@@ -83,12 +85,7 @@ export default function SupplierDetailModal({
   const payProgress    = contractNum > 0 ? Math.min((totalPaid / contractNum) * 100, 100) : 0
   const hasReview      = item.rating !== null || (item.review_text && item.review_text.length > 0)
 
-  const categoriasActivas = activas(categorias)
-  const opciones = categoriaPropia && !categoriasActivas.some(c => c.id === categoriaPropia.id)
-    ? [...categoriasActivas, categoriaPropia]
-    : categoriasActivas
-
-  const selectedCategoria = opciones.find(c => c.id === categoryId) ?? categoriaPropia ?? null
+  const selectedCategoria = categorias.find(c => c.id === categoryId) ?? categoriaPropia ?? null
   const categoryName      = selectedCategoria?.name ?? ''
   const categoryIdToSave  = categoryId || item.supplier.category_id
 
@@ -354,9 +351,12 @@ export default function SupplierDetailModal({
               <input type="text" value={name} onChange={e => setName(e.target.value)} className={`${INPUT_CLASS} w-full`} />
             </Field>
             <Field label="Categoría">
-              <select value={categoryId} onChange={e => { setCategoryId(e.target.value); setEventBudgetId('') }} className={`${INPUT_CLASS} w-full`}>
-                {opciones.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
+              <CategoriaPicker
+                categorias={categorias}
+                valorId={categoryId || null}
+                onChange={c => { setCategoryId(c.id); setEventBudgetId('') }}
+                userId={userId}
+              />
             </Field>
             <Field label="Concepto del presupuesto" className="sm:col-span-2">
               {budgetsForCategory.length > 0 ? (
