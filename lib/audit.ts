@@ -25,6 +25,7 @@ export type AuditAction =
   | 'collaborator.invited'
   | 'collaborator.revoked'
   | 'collaborator.accepted'
+  | 'collaborator.permissions_updated'
 
 export type AuditEntityType =
   | 'guest'
@@ -126,4 +127,5 @@ export const AUDIT_ACTION_LABEL: Record<AuditAction, string> = {
   'collaborator.invited': 'Colaborador invitado',
   'collaborator.revoked': 'Acceso revocado',
   'collaborator.accepted': 'Invitación aceptada',
+  'collaborator.permissions_updated': 'Accesos del colaborador actualizados',
 }
