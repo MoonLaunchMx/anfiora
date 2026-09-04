@@ -3,6 +3,7 @@
 import { Bell, AlertTriangle, Clock, Building2, CheckCircle2, Circle, Star, RotateCcw, Calendar } from 'lucide-react'
 import { TimelineTask } from '@/lib/types'
 import { formatReminderLabel } from '@/lib/timeline/reminder-picker'
+import { Puede } from '@/lib/permisos/Puede'
 
 const CATEGORIES = [
   { value: 'evento',        label: 'Evento' },
@@ -222,27 +223,39 @@ export function TaskCard({ t, onEdit, onToggleCompleted }: TaskCardProps) {
 
         <div className="flex items-center gap-2 flex-shrink-0 mt-0.5">
           {t.is_highlighted && <Star size={13} className="text-amber-400 fill-amber-400" />}
-          <button
-            onClick={e => { e.stopPropagation(); onToggleCompleted(t) }}
-            className="flex-shrink-0"
-          >
-            {t.is_completed
-              ? <CheckCircle2 size={18} className="text-[#48C9B0]" />
-              : <Circle size={18} className="text-[#ddd] hover:text-[#48C9B0] transition-colors" />
+          <Puede
+            modulo="timeline"
+            accion="editar"
+            siNo={
+              t.is_completed
+                ? <CheckCircle2 size={18} className="text-[#48C9B0]" />
+                : <Circle size={18} className="text-[#ddd]" />
             }
-          </button>
+          >
+            <button
+              onClick={e => { e.stopPropagation(); onToggleCompleted(t) }}
+              className="flex-shrink-0"
+            >
+              {t.is_completed
+                ? <CheckCircle2 size={18} className="text-[#48C9B0]" />
+                : <Circle size={18} className="text-[#ddd] hover:text-[#48C9B0] transition-colors" />
+              }
+            </button>
+          </Puede>
         </div>
       </div>
 
       {!t.is_completed && (
         <div className="hidden sm:flex items-center border-t border-[#f5f5f5] px-4 py-1.5">
-          <button
-            onClick={e => { e.stopPropagation(); onToggleCompleted(t) }}
-            className="flex items-center gap-1.5 text-[11px] text-[#48C9B0] font-medium hover:text-[#3ab89f] pr-3 transition-colors"
-          >
-            <CheckCircle2 size={12} />Completar
-          </button>
-          <span className="text-[#e8e8e8] text-xs">|</span>
+          <Puede modulo="timeline" accion="editar">
+            <button
+              onClick={e => { e.stopPropagation(); onToggleCompleted(t) }}
+              className="flex items-center gap-1.5 text-[11px] text-[#48C9B0] font-medium hover:text-[#3ab89f] pr-3 transition-colors"
+            >
+              <CheckCircle2 size={12} />Completar
+            </button>
+            <span className="text-[#e8e8e8] text-xs">|</span>
+          </Puede>
           <button
             onClick={e => { e.stopPropagation(); onEdit(t) }}
             className="flex items-center gap-1.5 text-[11px] text-[#aaa] hover:text-[#555] px-3 transition-colors"

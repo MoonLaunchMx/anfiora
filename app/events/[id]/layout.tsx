@@ -9,6 +9,8 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { Event, formatEventDate } from '@/lib/types'
 import { EventAccessProvider, useEventAccess } from '@/lib/event-access-context'
 import { SalidaGuardProvider, useSalidaGuard } from './SalidaGuardProvider'
+import { filtrarPorPermiso, moduloDeRutaNav } from '@/lib/permisos/rutas'
+import { SinAcceso } from '@/app/components/ui/SinAcceso'
 
 const EVENT_TYPE_LABELS: Record<string, string> = {
   boda:        'Boda',
@@ -292,7 +294,7 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
   const { id } = useParams()
   const pathname = usePathname()
   const router = useRouter()
-  const { canAdmin, features } = useEventAccess()
+  const { canAdmin, features, nivelDeModulo, isLoading } = useEventAccess()
   const salidaGuard = useSalidaGuard()
 
   // Toda salida del editor pasa por aqui: si hay cambios sin publicar, el
@@ -314,11 +316,14 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
   const navScrollRef = useRef<HTMLDivElement>(null)
   const avatarRef    = useRef<HTMLDivElement>(null)
 
-  const visibleEntries = filterNavByFeatures(
-    NAV_ITEMS.filter(entry =>
-      entry.type === 'item' ? (!entry.adminOnly || canAdmin) : true
+  const visibleEntries = filtrarPorPermiso(
+    filterNavByFeatures(
+      NAV_ITEMS.filter(entry =>
+        entry.type === 'item' ? (!entry.adminOnly || canAdmin) : true
+      ),
+      features,
     ),
-    features,
+    nivelDeModulo,
   )
 
   useEffect(() => {
@@ -430,6 +435,11 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
   const initials      = getInitials(userName, userEmail)
   const displayStatus = event ? getDisplayStatus() : null
   const badgeStyle    = displayStatus ? EVENT_STATUS_STYLES[displayStatus] : null
+
+  const sufijoRuta   = pathname.replace(`/events/${id}`, '').replace(/\/+$/, '')
+  const moduloActual = moduloDeRutaNav(sufijoRuta)
+  const rutaBloqueada =
+    !isLoading && moduloActual !== null && nivelDeModulo(moduloActual) === 'ninguno'
 
   const AvatarDropdown = () => (
     <div className={`absolute bottom-full ${collapsed ? 'left-0' : 'right-0'} z-50 mb-2 w-52 overflow-hidden rounded-xl border border-[#e8e8e8] bg-white shadow-lg`}>
@@ -746,7 +756,7 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
 
         {/* MAIN */}
         <main className="flex min-h-0 flex-1 flex-col overflow-hidden bg-white pb-16 sm:pb-0">
-          {children}
+          {rutaBloqueada && moduloActual ? <SinAcceso modulo={moduloActual} /> : children}
         </main>
       </div>
 

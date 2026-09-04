@@ -296,7 +296,7 @@ export type GiftReservation = {
 // ─── COLLABORATORS ───────────────────────────────────────────────────────────
 
 export type CollaboratorRole = 'admin' | 'editor' | 'viewer'
-export type CollaboratorStatus = 'pending' | 'accepted' | 'revoked'
+export type CollaboratorStatus = 'pending' | 'active' | 'revoked'
 
 export type EventCollaborator = {
   id: string

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { ItineraryMoment } from '@/lib/types'
 import { eventDays, groupByDay } from '@/lib/itinerary'
-import { useEventAccess } from '@/lib/event-access-context'
+import { useEventAccess, usePermiso } from '@/lib/event-access-context'
 import { interpretarEscritura } from '@/lib/invite/persistencia'
 import type { TemplateMoment } from '@/lib/itinerary-templates'
 import type { MomentDraft } from './MomentModal'
@@ -28,6 +28,7 @@ type RespuestaSupabase = { error: { code?: string; message?: string } | null; da
 // (ItineraryView). Vive en el hook para que ambos vean el mismo estado.
 export function useItinerary(eventId: string, eventInfo: ItineraryEventInfo | null, active: boolean) {
   const { canEdit } = useEventAccess()
+  const permiso = usePermiso('timeline')
 
   const [moments, setMoments]       = useState<ItineraryMoment[]>([])
   const [suppliers, setSuppliers]   = useState<{ id: string; name: string }[]>([])
@@ -86,6 +87,7 @@ export function useItinerary(eventId: string, eventInfo: ItineraryEventInfo | nu
   }
 
   const createMoment = async (data: MomentDraft) => {
+    if (!permiso.editar) return false
     const ok = await escribir(supabase.from('event_itinerary_moments').insert({
       event_id: eventId,
       title: data.title,
@@ -105,6 +107,7 @@ export function useItinerary(eventId: string, eventInfo: ItineraryEventInfo | nu
   }
 
   const updateMoment = async (id: string, data: MomentDraft) => {
+    if (!permiso.editar) return false
     const ok = await escribir(supabase.from('event_itinerary_moments').update({
       title: data.title,
       moment_date: data.moment_date,
@@ -122,12 +125,14 @@ export function useItinerary(eventId: string, eventInfo: ItineraryEventInfo | nu
   }
 
   const deleteMoment = async (id: string) => {
+    if (!permiso.borrar) return false
     const ok = await escribir(supabase.from('event_itinerary_moments').delete().eq('id', id).select('id'))
     if (ok) await fetchMoments()
     return ok
   }
 
   const toggleVisible = async (m: ItineraryMoment) => {
+    if (!permiso.editar) return
     const siguiente = !m.visible_to_guests
     setMoments(prev => prev.map(x => x.id === m.id ? { ...x, visible_to_guests: siguiente } : x))
     const ok = await escribir(
@@ -139,6 +144,7 @@ export function useItinerary(eventId: string, eventInfo: ItineraryEventInfo | nu
   }
 
   const applyTemplate = async (gen: TemplateMoment[]) => {
+    if (!permiso.editar) return false
     const base = moments.length
     const rows = gen.map((g, i) => ({
       event_id: eventId,
@@ -163,6 +169,7 @@ export function useItinerary(eventId: string, eventInfo: ItineraryEventInfo | nu
   }
 
   const deleteDay = async (date: string) => {
+    if (!permiso.borrar) return false
     const ok = await escribir(
       supabase.from('event_itinerary_moments').delete().eq('event_id', eventId).eq('moment_date', date).select('id'),
     )
