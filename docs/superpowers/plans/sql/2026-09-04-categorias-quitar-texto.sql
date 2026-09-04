@@ -1,3 +1,25 @@
+-- ============ Pre-chequeo: correr ANTES de desplegar, no despues ============
+--
+-- El orden de este script protege contra "column does not exist" -- pero hay
+-- una falla espejo: si category en suppliers o event_budgets es NOT NULL sin
+-- default, entonces ENTRE que se despliega el codigo nuevo (que ya no escribe
+-- category) y se corre este script, cada alta de proveedor y cada partida
+-- nueva truenan con "null value in column category violates not-null
+-- constraint". El codigo dejo de escribirla a proposito; si la columna la
+-- exige, hay que soltarle esa restriccion antes de desplegar.
+--
+-- select table_name, is_nullable from information_schema.columns
+-- where table_name in ('suppliers','event_budgets') and column_name = 'category';
+--
+-- Si alguna sale NO, correr esto antes de desplegar el codigo de este paso:
+--
+-- ALTER TABLE public.suppliers     ALTER COLUMN category DROP NOT NULL;
+-- ALTER TABLE public.event_budgets ALTER COLUMN category DROP NOT NULL;
+--
+-- Si sale NO y se despliega sin correr eso, cada alta de proveedor y cada
+-- partida nueva truenan hasta que se borre la columna con el script de abajo.
+-- ================================================================================
+
 -- Categorias por ID, paso final: se quita el texto.
 --
 -- Hasta hoy cada proveedor y cada partida cargaban el NOMBRE de su categoria

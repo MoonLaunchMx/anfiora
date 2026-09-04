@@ -377,7 +377,7 @@ export default function SupplierDetailModal({
               ) : (
                 <div className="flex items-center gap-2 rounded-lg border border-dashed border-[#e0e0e0] bg-[#fafafa] px-3 py-3">
                   <Wallet size={14} className="shrink-0 text-[#aaa]" />
-                  <p className="text-xs text-[#888]">No hay conceptos de {categoryName} — créalos en Presupuesto</p>
+                  <p className="text-xs text-[#888]">No hay conceptos de {categoryName || 'esta categoría'} — créalos en Presupuesto</p>
                 </div>
               )}
             </Field>

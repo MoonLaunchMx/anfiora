@@ -453,14 +453,25 @@ export default function PresupuestoPage() {
         confirmLabel: 'Eliminar categoría',
       })
       if (!ok) return
+
+      // La reasignacion tiene que quedar hecha ANTES de quitar la seccion de la
+      // lista: si aborta aqui, las partidas siguen visibles donde estaban en vez
+      // de desaparecer de la pantalla sin haberse movido a ningun lado.
+      const deletedId = buscarPorNombre(categorias, name)?.id ?? null
+      const otroId     = buscarPorNombre(categorias, 'Otro')?.id ?? null
+      if (!deletedId || !otroId) {
+        setImportError('No se pudo eliminar la categoría: falta su registro interno. Intenta de nuevo.')
+        return
+      }
+      const { error } = await supabase.from('event_budgets').update({ category_id: otroId }).eq('event_id', eventId).eq('category_id', deletedId)
+      if (error) {
+        setImportError('No se pudieron mover los conceptos a "Otro". La categoría sigue igual.')
+        return
+      }
+
       const next = categories.filter(c => c !== name)
       if (!next.includes('Otro')) next.push('Otro')
       await persistCategories(next)
-      const deletedId = buscarPorNombre(categorias, name)?.id ?? null
-      const otroId     = buscarPorNombre(categorias, 'Otro')?.id ?? null
-      if (deletedId && otroId) {
-        await supabase.from('event_budgets').update({ category_id: otroId }).eq('event_id', eventId).eq('category_id', deletedId)
-      }
       loadAll()
     } else {
       await persistCategories(categories.filter(c => c !== name))
