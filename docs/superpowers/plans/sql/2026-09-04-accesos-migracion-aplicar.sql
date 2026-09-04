@@ -15,10 +15,16 @@ DO $$
 DECLARE n int;
 BEGIN
   SELECT count(*) INTO n FROM event_collaborators
-   WHERE status <> 'revoked'
+   WHERE status IS DISTINCT FROM 'revoked'
      AND (role IS NULL OR role NOT IN ('admin', 'editor', 'viewer'));
   IF n > 0 THEN
     RAISE EXCEPTION 'Hay % colaboradores con un rol que la migracion no sabe mapear. Correr el previo.', n;
+  END IF;
+
+  SELECT count(*) INTO n
+    FROM events e LEFT JOIN users u ON u.id = e.user_id WHERE u.id IS NULL;
+  IF n > 0 THEN
+    RAISE EXCEPTION 'Hay % eventos cuyo dueno no existe en users. Correr el previo.', n;
   END IF;
 END $$;
 
@@ -61,7 +67,7 @@ UPDATE event_collaborators c
          ]) AS m
        ),
        tipo = COALESCE(c.tipo, 'equipo')
- WHERE c.status <> 'revoked'
+ WHERE c.status IS DISTINCT FROM 'revoked'
    AND c.permisos IS NULL;
 
 COMMIT;
@@ -69,7 +75,7 @@ COMMIT;
 -- Verificacion posterior: las tres deben dar cero.
 SELECT count(*) AS eventos_sin_despacho     FROM events WHERE workspace_id IS NULL;
 SELECT count(*) AS colaboradores_sin_permisos
-  FROM event_collaborators WHERE status <> 'revoked' AND permisos IS NULL;
+  FROM event_collaborators WHERE status IS DISTINCT FROM 'revoked' AND permisos IS NULL;
 SELECT count(*) AS despachos_sin_dueno
   FROM workspaces w WHERE NOT EXISTS (
     SELECT 1 FROM workspace_members m
