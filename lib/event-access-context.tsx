@@ -102,37 +102,44 @@ export function EventAccessProvider({
 
         // Membresia de despacho y permisos por herramienta: consultas aparte,
         // tolerantes a que workspaces/workspace_members/permisos aun no existan.
-        // Si fallan, data llega null y se cae al respaldo legado (comportamiento de hoy).
-        const { data: ev } = await supabase
-          .from('events')
-          .select('workspace_id')
-          .eq('id', eventId)
-          .maybeSingle()
+        // Si fallan con error de Postgrest, data llega null y se cae al respaldo
+        // legado (comportamiento de hoy). Try/catch propio: si alguna truena con
+        // una excepcion real (no un error tolerado), igual debe caer al respaldo
+        // legado, nunca dejar permisos en null.
+        try {
+          const { data: ev } = await supabase
+            .from('events')
+            .select('workspace_id')
+            .eq('id', eventId)
+            .maybeSingle()
 
-        if (ev?.workspace_id) {
-          const { data: miembro } = await supabase
-            .from('workspace_members')
-            .select('rol')
-            .eq('workspace_id', ev.workspace_id)
+          if (ev?.workspace_id) {
+            const { data: miembro } = await supabase
+              .from('workspace_members')
+              .select('rol')
+              .eq('workspace_id', ev.workspace_id)
+              .eq('user_id', user.id)
+              .eq('status', 'active')
+              .maybeSingle()
+            setRolCuenta((miembro?.rol as RolCuenta) ?? null)
+          }
+
+          const { data: fila } = await supabase
+            .from('event_collaborators')
+            .select('permisos')
+            .eq('event_id', eventId)
             .eq('user_id', user.id)
             .eq('status', 'active')
             .maybeSingle()
-          setRolCuenta((miembro?.rol as RolCuenta) ?? null)
+
+          setPermisos(
+            fila?.permisos != null
+              ? normalizarPermisos(fila.permisos)
+              : permisosDesdeRolLegado(collaborator?.role),
+          )
+        } catch {
+          setPermisos(permisosDesdeRolLegado(collaborator?.role))
         }
-
-        const { data: fila } = await supabase
-          .from('event_collaborators')
-          .select('permisos')
-          .eq('event_id', eventId)
-          .eq('user_id', user.id)
-          .eq('status', 'active')
-          .maybeSingle()
-
-        setPermisos(
-          fila?.permisos != null
-            ? normalizarPermisos(fila.permisos)
-            : permisosDesdeRolLegado(collaborator?.role),
-        )
       } catch {
         console.error('[event-access] Error verificando acceso')
       } finally {
