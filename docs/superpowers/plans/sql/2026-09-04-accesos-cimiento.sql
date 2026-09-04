@@ -36,6 +36,11 @@
 --      indice unico workspaces_un_dueno aborta el script entero. Hay que
 --      limpiar el duplicado antes. (Este archivo por si solo no puede producir
 --      ese estado: la tabla y su indice nacen en la misma transaccion.)
+--   3. Si lo re-corres DESPUES de -migracion-aplicar.sql, el DROP + ADD de la
+--      restriccion event_collaborators_permisos_validos vuelve a revisar TODAS
+--      las filas de event_collaborators, y aborta el script entero si una sola
+--      trae un permiso invalido. Con la columna vacia (primera corrida) no hay
+--      nada que revisar y no aplica.
 -- NO borres las tablas para re-correr si -migracion-aplicar.sql ya corrio: eso
 -- tira membresias reales, y ademas DROP TABLE workspaces CASCADE elimina la
 -- llave foranea en vez de disparar su ON DELETE SET NULL, asi que
@@ -248,6 +253,7 @@ AS $$
       WHERE k NOT IN ('invitados','invitacion','mensajes','mesas','timeline',
                       'regalos','album','playlist','vestimenta',
                       'presupuesto','proveedores','pagos')
+         OR v IS NULL
          OR v NOT IN ('ninguno','ver','editar','total')
     )
   )
