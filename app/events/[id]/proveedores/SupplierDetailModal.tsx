@@ -11,7 +11,6 @@ import { FiInstagram, FiGlobe, FiMail, FiFacebook } from 'react-icons/fi'
 import { supabase } from '@/lib/supabase'
 import {
   EventSupplier, Supplier, SupplierPayment, EventBudget, Currency, formatCurrency,
-  budgetCategoryLabel,
   SupplierStatus, SUPPLIER_STATUSES, SUPPLIER_STATUS_LABELS,
   PAYMENT_METHODS, PAYMENT_METHOD_LABELS, PaymentMethod,
   PAID_BY_OPTIONS, PAID_BY_LABELS, PaidBy,
@@ -20,8 +19,7 @@ import PhoneInput from '@/app/components/ui/PhoneInput'
 import { toWhatsApp, detectCountry, dialCode } from '@/lib/phone'
 import { Modal } from '@/app/components/ui/Modal'
 import { useConfirm } from '@/app/components/ui/ConfirmModal'
-import { Categoria, activas, buscarPorNombre } from '@/lib/rolodex/categorias-store'
-import { mismaCategoria } from '@/lib/rolodex/categorias'
+import { Categoria, activas, nombrePorId } from '@/lib/rolodex/categorias-store'
 
 const INPUT_CLASS = 'rounded-lg border border-[#e8e8e8] bg-white px-3 py-2 text-base text-[#1D1E20] outline-none transition-colors focus:border-[#48C9B0]'
 
@@ -46,10 +44,7 @@ export default function SupplierDetailModal({
   const router = useRouter()
   const askConfirm = useConfirm()
 
-  // category_id puede faltar en un proveedor viejo (de antes de que categories
-  // existiera): buscarPorNombre lo resuelve por el texto que ya tenia.
   const categoriaPropia = categorias.find(c => c.id === item.supplier.category_id)
-    ?? buscarPorNombre(categorias, item.supplier.category)
 
   const [name, setName]             = useState(item.supplier.name)
   const [categoryId, setCategoryId] = useState<string>(categoriaPropia?.id ?? item.supplier.category_id ?? '')
@@ -94,10 +89,10 @@ export default function SupplierDetailModal({
     : categoriasActivas
 
   const selectedCategoria = opciones.find(c => c.id === categoryId) ?? categoriaPropia ?? null
-  const categoryName      = selectedCategoria?.name ?? item.supplier.category
+  const categoryName      = selectedCategoria?.name ?? ''
   const categoryIdToSave  = categoryId || item.supplier.category_id
 
-  const budgetsForCategory = budgets.filter(b => mismaCategoria(b.category, categoryName))
+  const budgetsForCategory = budgets.filter(b => b.category_id === categoryIdToSave)
   const selectedBudget     = eventBudgetId ? budgets.find(b => b.id === eventBudgetId) : null
   const budgetMeta         = selectedBudget?.budget_amount || 0
 
@@ -143,7 +138,6 @@ export default function SupplierDetailModal({
     supplier: {
       ...item.supplier,
       name:               name.trim(),
-      category:           categoryName,
       category_id:        categoryIdToSave,
       subcategory:        selectedBudget?.subcategory || null,
       phone:              phone.trim() || null,
@@ -168,7 +162,6 @@ export default function SupplierDetailModal({
         .from('suppliers')
         .update({
           name:               name.trim(),
-          category:           categoryName,
           category_id:        categoryIdToSave,
           subcategory:        selectedBudget?.subcategory || null,
           phone:              phone.trim() || null,
@@ -374,7 +367,7 @@ export default function SupplierDetailModal({
                       <option value="">Sin concepto</option>
                       {budgetsForCategory.map(b => (
                         <option key={b.id} value={b.id}>
-                          {b.subcategory || budgetCategoryLabel(b.category)} — {formatCurrency(b.budget_amount, currency)}
+                          {b.subcategory || categoryName} — {formatCurrency(b.budget_amount, currency)}
                         </option>
                       ))}
                     </select>
@@ -446,7 +439,7 @@ export default function SupplierDetailModal({
                   <Wallet size={16} className="text-[#48C9B0]" />
                 </div>
                 <div>
-                  <div className="text-xs text-[#888]">{linkedBudget.subcategory || budgetCategoryLabel(linkedBudget.category)}</div>
+                  <div className="text-xs text-[#888]">{linkedBudget.subcategory || nombrePorId(categorias, linkedBudget.category_id)}</div>
                   <div className="text-sm font-semibold text-[#1D1E20]">Meta: {formatCurrency(linkedBudget.budget_amount, currency)}</div>
                 </div>
               </div>

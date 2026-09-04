@@ -2,10 +2,9 @@
 
 import { useState, useEffect } from 'react'
 import {
-  budgetCategoryLabel,
   EventBudget, Currency, formatCurrency,
 } from '@/lib/types'
-import { Categoria, activas, buscarPorNombre } from '@/lib/rolodex/categorias-store'
+import { Categoria, activas, buscarPorNombre, nombrePorId } from '@/lib/rolodex/categorias-store'
 import { FiInstagram, FiGlobe, FiFacebook } from 'react-icons/fi'
 import { FaWhatsapp } from 'react-icons/fa'
 import PhoneInput from '@/app/components/ui/PhoneInput'
@@ -20,7 +19,6 @@ type Props = {
   categorias: Categoria[]
   onSubmit: (data: {
     name: string
-    category: string
     category_id: string | null
     subcategory: string | null
     phone: string | null
@@ -53,7 +51,7 @@ export default function SupplierModal({ isOpen, onClose, currency, budgets, cate
   }, [isOpen])
 
   const selectedCategoria = opciones.find(c => c.id === categoryId) ?? null
-  const budgetsForCategory = budgets.filter(b => b.category === selectedCategoria?.name)
+  const budgetsForCategory = budgets.filter(b => b.category_id === selectedCategoria?.id)
   const selectedBudget = eventBudgetId ? budgets.find(b => b.id === eventBudgetId) : null
 
   const validate = (): string | null => {
@@ -72,7 +70,6 @@ export default function SupplierModal({ isOpen, onClose, currency, budgets, cate
       const dial = cc ? dialCode(cc) || null : null
       await onSubmit({
         name:               name.trim(),
-        category:           selectedCategoria?.name ?? '',
         category_id:        selectedCategoria?.id ?? null,
         subcategory:        selectedBudget?.subcategory || null,
         phone:              phone.trim() || null,
@@ -140,7 +137,7 @@ export default function SupplierModal({ isOpen, onClose, currency, budgets, cate
                 <option value="">Sin concepto</option>
                 {budgetsForCategory.map(b => (
                   <option key={b.id} value={b.id}>
-                    {b.subcategory || budgetCategoryLabel(b.category)}
+                    {b.subcategory || nombrePorId(categorias, b.category_id)}
                     {b.budget_amount ? ` — ${formatCurrency(b.budget_amount, currency)}` : ''}
                   </option>
                 ))}

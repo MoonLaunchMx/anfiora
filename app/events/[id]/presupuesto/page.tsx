@@ -6,12 +6,12 @@ import { Search, FileSpreadsheet, FileText, Plus, Upload, X, AlertTriangle, Chec
 import * as XLSX from 'xlsx'
 import { supabase } from '@/lib/supabase'
 import {
-  Event, EventBudget, Currency, EventSupplier, Supplier,
+  Event, EventBudget, EventBudgetInsert, Currency, EventSupplier, Supplier,
 } from '@/lib/types'
 import { getEventCategories, categoryLabel } from './lib/categories'
 import {
   leerMonto, planearImport, resumenImport, mensajeImportado,
-  decidirRenombre, fechaDelArchivo, avisoArchivoViejo, FilaPlan,
+  decidirRenombre, fechaDelArchivo, avisoArchivoViejo, FilaPlan, PartidaExistente,
 } from '@/lib/presupuesto/import'
 import { interpretarEscritura } from '@/lib/invite/persistencia'
 import { BudgetCategoriesModal } from './BudgetCategoriesModal'
@@ -30,7 +30,7 @@ import { Categoria, cargarCategorias, buscarPorNombre, nombrePorId } from '@/lib
 import { mismaCategoria } from '@/lib/rolodex/categorias'
 
 type EventSupplierWithName = EventSupplier & {
-  supplier: Pick<Supplier, 'id' | 'name' | 'category'>
+  supplier: Pick<Supplier, 'id' | 'name' | 'category_id'>
 }
 
 type SupplierPaymentRow = {
@@ -98,7 +98,7 @@ export default function PresupuestoPage() {
       const [eventRes, budgetsRes, suppliersRes] = await Promise.all([
         supabase.from('events').select('*').eq('id', eventId).single(),
         supabase.from('event_budgets').select('*').eq('event_id', eventId).order('created_at', { ascending: true }),
-        supabase.from('event_suppliers').select('*, supplier:suppliers(id, name, category)').eq('event_id', eventId),
+        supabase.from('event_suppliers').select('*, supplier:suppliers(id, name, category_id)').eq('event_id', eventId),
       ])
 
       if (eventRes.data) setEvent(eventRes.data as Event)
@@ -140,17 +140,19 @@ export default function PresupuestoPage() {
   const eventSuppliersById: Record<string, EventSupplierWithName> = {}
   eventSuppliers.forEach(es => { eventSuppliersById[es.id] = es })
 
-  const categories = getEventCategories(storedCategories, event?.event_type ?? null, event?.event_category ?? null, budgets)
+  const budgetCategoryNames = budgets
+    .map(b => b.category_id ? nombrePorId(categorias, b.category_id) : '')
+    .filter(Boolean)
+  const categories = getEventCategories(storedCategories, event?.event_type ?? null, event?.event_category ?? null, budgetCategoryNames)
 
   const availableSuppliersByCategory: Record<string, EventSupplierWithName[]> = {}
   categories.forEach(cat => { availableSuppliersByCategory[cat] = [] })
   eventSuppliers.forEach(es => {
     if (!es.supplier) return
     if (es.status !== 'contratado') return
-    const cat = es.supplier.category
-    if (cat && availableSuppliersByCategory[cat]) {
-      availableSuppliersByCategory[cat].push(es)
-    }
+    const nombre = es.supplier.category_id ? nombrePorId(categorias, es.supplier.category_id) : ''
+    const cat = categories.find(c => mismaCategoria(c, nombre))
+    if (cat) availableSuppliersByCategory[cat].push(es)
   })
 
   const contractedByItem: Record<string, number> = {}
@@ -169,21 +171,20 @@ export default function PresupuestoPage() {
   const filteredBudgets = search.trim()
     ? budgets.filter(b => {
         const q = search.toLowerCase()
-        return b.subcategory.toLowerCase().includes(q) || categoryLabel(b.category).toLowerCase().includes(q)
+        const nombre = b.category_id ? nombrePorId(categorias, b.category_id) : ''
+        return b.subcategory.toLowerCase().includes(q) || nombre.toLowerCase().includes(q)
       })
     : budgets
 
   const itemsByCategory: Record<string, EventBudget[]> = {}
   categories.forEach(cat => { itemsByCategory[cat] = [] })
   filteredBudgets.forEach(b => {
-    // El id manda, pero solo si sigue apuntando a una seccion visible de este
-    // evento: un renombrado de Presupuesto (todavia solo texto, no toca la
-    // tabla) dejaria el id senalando al nombre viejo, y sin esta comprobacion
-    // la partida caeria en una seccion que ya no se dibuja y desaparecería.
+    // category_id resuelve el nombre actual en categories; se empareja contra
+    // la lista de secciones visibles de este evento (mismaCategoria tolera
+    // acentos/mayusculas) para caer en la fila correcta.
     const nombreResuelto = b.category_id ? nombrePorId(categorias, b.category_id) : ''
-    const seccion = nombreResuelto && categories.find(c => mismaCategoria(c, nombreResuelto))
-    const key = seccion || b.category
-    ;(itemsByCategory[key] ||= []).push(b)
+    const seccion = categories.find(c => mismaCategoria(c, nombreResuelto))
+    if (seccion) itemsByCategory[seccion].push(b)
   })
 
   const totalBudget     = budgets.reduce((sum, b) => sum + b.budget_amount, 0)
@@ -264,7 +265,13 @@ export default function PresupuestoPage() {
           })
         }
 
-        const plan = planearImport(filas, budgets, categories)
+        const partidasExistentes: PartidaExistente[] = budgets.map(b => ({
+          id:            b.id,
+          category:      b.category_id ? nombrePorId(categorias, b.category_id) : '',
+          subcategory:   b.subcategory,
+          budget_amount: b.budget_amount,
+        }))
+        const plan = planearImport(filas, partidasExistentes, categories)
 
         if (plan.length === 0) {
           setImportError('No se encontraron conceptos válidos en el archivo.')
@@ -303,7 +310,6 @@ export default function PresupuestoPage() {
           .from('event_budgets')
           .insert(nuevos.map(f => ({
             event_id:          eventId,
-            category:          f.categoria,
             category_id:       buscarPorNombre(categorias, f.categoria)?.id ?? null,
             subcategory:       f.concepto,
             budget_amount:     f.montoNuevo,
@@ -347,7 +353,6 @@ export default function PresupuestoPage() {
   }
 
   const handleModalSubmit = async (data: {
-    category: string
     category_id: string | null
     subcategory: string
     budget_amount: number
@@ -451,7 +456,11 @@ export default function PresupuestoPage() {
       const next = categories.filter(c => c !== name)
       if (!next.includes('Otro')) next.push('Otro')
       await persistCategories(next)
-      await supabase.from('event_budgets').update({ category: 'Otro' }).eq('event_id', eventId).eq('category', name)
+      const deletedId = buscarPorNombre(categorias, name)?.id ?? null
+      const otroId     = buscarPorNombre(categorias, 'Otro')?.id ?? null
+      if (deletedId && otroId) {
+        await supabase.from('event_budgets').update({ category_id: otroId }).eq('event_id', eventId).eq('category_id', deletedId)
+      }
       loadAll()
     } else {
       await persistCategories(categories.filter(c => c !== name))
@@ -480,9 +489,15 @@ export default function PresupuestoPage() {
 
   const generateWith = async (tier: BudgetTier) => {
     setGenerating(true)
-    const existing = new Set(budgets.map(b => `${b.category}|${b.subcategory}`.toLowerCase()))
+    const existing = new Set(budgets.map(b => {
+      const nombre = b.category_id ? nombrePorId(categorias, b.category_id) : ''
+      return `${nombre}|${b.subcategory}`.toLowerCase()
+    }))
     const rows = buildBudgetItems(eventId, event?.event_type ?? null, event?.event_category ?? null, tier, existing)
-    const rowsConId = rows.map(r => ({ ...r, category_id: buscarPorNombre(categorias, r.category)?.id ?? null }))
+    const rowsConId: EventBudgetInsert[] = rows.map(({ category, ...rest }) => ({
+      ...rest,
+      category_id: buscarPorNombre(categorias, category)?.id ?? null,
+    }))
     if (rowsConId.length > 0) await supabase.from('event_budgets').insert(rowsConId)
     const genCats = Array.from(new Set(rows.map(r => r.category as string)))
     const merged = [...categories]

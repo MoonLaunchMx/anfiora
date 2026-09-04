@@ -515,7 +515,6 @@ export function budgetCategoryLabel(name: string): string {
 export type EventBudget = {
   id: string
   event_id: string
-  category: string
   category_id?: string | null
   subcategory: string
   budget_amount: number
@@ -543,7 +542,6 @@ export type Supplier = {
   id: string
   user_id: string
   name: string
-  category: string
   category_id: string | null
   subcategory: string | null
   contact_name: string | null

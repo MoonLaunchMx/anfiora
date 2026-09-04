@@ -1,10 +1,11 @@
 'use client'
 
 import {
-  Currency, formatCurrency, budgetCategoryLabel,
+  Currency, formatCurrency,
   EventSupplier, Supplier, EventBudget,
   SUPPLIER_STATUS_LABELS, SUPPLIER_STATUS_COLORS,
 } from '@/lib/types'
+import { Categoria, nombrePorId } from '@/lib/rolodex/categorias-store'
 
 type SupplierWithDetails = EventSupplier & { supplier: Supplier }
 
@@ -12,10 +13,11 @@ type Props = {
   items: SupplierWithDetails[]
   budgets: EventBudget[]
   currency: Currency
+  categorias: Categoria[]
   onSelect: (item: SupplierWithDetails) => void
 }
 
-export default function SupplierListView({ items, budgets, currency, onSelect }: Props) {
+export default function SupplierListView({ items, budgets, currency, categorias, onSelect }: Props) {
   return (
     <div className="overflow-x-auto rounded-xl border border-[#e8e8e8] bg-white pb-6">
       <table className="w-full text-xs">
@@ -44,10 +46,10 @@ export default function SupplierListView({ items, budgets, currency, onSelect }:
                 className="cursor-pointer border-b border-[#f0f0f0] transition hover:bg-[#fafafa]"
               >
                 <td className="px-4 py-3 font-medium text-[#1D1E20]">{s.name}</td>
-                <td className="px-4 py-3 text-[#888]">{budgetCategoryLabel(s.category)}</td>
+                <td className="px-4 py-3 text-[#888]">{nombrePorId(categorias, s.category_id)}</td>
                 <td className="px-4 py-3 text-[#888]">
                   {linkedBudget
-                    ? linkedBudget.subcategory || budgetCategoryLabel(linkedBudget.category)
+                    ? linkedBudget.subcategory || nombrePorId(categorias, linkedBudget.category_id)
                     : <span className="text-[#ccc]">—</span>}
                 </td>
                 <td className="px-4 py-3">

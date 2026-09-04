@@ -3,24 +3,18 @@ import { mismaCategoria } from './categorias'
 
 export type Resultado = { ok: boolean; error?: string }
 
-// Mientras suppliers.category y event_budgets.category sigan siendo texto (hasta que
-// se les quite la columna), renombrar es una cascada de cuatro escrituras. Van en este
-// orden: los datos primero, categories.name al final. Si algo truena a la mitad es mejor
-// que los proveedores ya digan el nombre nuevo y la tabla el viejo -se reintenta y
-// termina- que al reves, con la tabla prometiendo un nombre que ningun dato tiene.
+// El nombre solo vive en categories.name: suppliers y event_budgets ya guardan
+// nomas el id. Lo unico que sigue siendo texto aparte es event_settings.budget_categories
+// (que categorias MUESTRA cada boda, no el dato) -por eso renombrar todavia son dos
+// escrituras. Categories.name va al final: si la lista de un evento truena a la mitad,
+// es mejor reintentar con el nombre viejo todavia vigente que con categories ya
+// prometiendo un nombre que la lista de ese evento no tiene.
 export async function renombrar(
   userId: string,
   categoriaId: string,
   nombreViejo: string,
   nombreNuevo: string,
 ): Promise<Resultado> {
-  const { error: errorProveedores } = await supabase
-    .from('suppliers')
-    .update({ category: nombreNuevo })
-    .eq('user_id', userId)
-    .eq('category_id', categoriaId)
-  if (errorProveedores) return { ok: false, error: errorProveedores.message }
-
   const { data: eventos, error: errorEventos } = await supabase
     .from('events')
     .select('id')
@@ -30,13 +24,6 @@ export async function renombrar(
   const eventIds = (eventos ?? []).map(e => e.id)
 
   if (eventIds.length > 0) {
-    const { error: errorPartidas } = await supabase
-      .from('event_budgets')
-      .update({ category: nombreNuevo })
-      .in('event_id', eventIds)
-      .eq('category_id', categoriaId)
-    if (errorPartidas) return { ok: false, error: errorPartidas.message }
-
     const { data: settingsRows, error: errorSettings } = await supabase
       .from('event_settings')
       .select('event_id, budget_categories')
@@ -66,11 +53,11 @@ export async function renombrar(
 }
 
 // Igual que renombrar: los datos primero, la fila de categories al final. Si algo
-// truena a la mitad, los proveedores y partidas ya quedaron en la que se queda y
-// la que sobra sigue existiendo -se puede reintentar fusionar y termina-, nunca al
-// reves. El borrado final puede fallar de verdad si algo todavia la apunta
-// (ON DELETE RESTRICT): si un paso anterior no la vacio del todo, se lo decimos
-// al planner en espanol en vez de mostrarle el mensaje crudo de Postgres.
+// truena a la mitad, los proveedores y partidas ya quedaron apuntando al id que se
+// queda -se puede reintentar fusionar y termina-, nunca al reves. El borrado final
+// puede fallar de verdad si algo todavia la apunta (ON DELETE RESTRICT): si un paso
+// anterior no la vacio del todo, se lo decimos al planner en espanol en vez de
+// mostrarle el mensaje crudo de Postgres.
 export async function fusionar(
   userId: string,
   sobraId: string,
@@ -93,7 +80,7 @@ export async function fusionar(
 
   const { error: errorProveedores } = await supabase
     .from('suppliers')
-    .update({ category_id: quedaId, category: nombreQueda })
+    .update({ category_id: quedaId })
     .eq('user_id', userId)
     .eq('category_id', sobraId)
   if (errorProveedores) return { ok: false, error: errorProveedores.message }
@@ -109,7 +96,7 @@ export async function fusionar(
   if (eventIds.length > 0) {
     const { error: errorPartidas } = await supabase
       .from('event_budgets')
-      .update({ category_id: quedaId, category: nombreQueda })
+      .update({ category_id: quedaId })
       .in('event_id', eventIds)
       .eq('category_id', sobraId)
     if (errorPartidas) return { ok: false, error: errorPartidas.message }

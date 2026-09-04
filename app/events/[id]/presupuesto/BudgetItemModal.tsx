@@ -22,7 +22,6 @@ type Props = {
   initialCategory?: string | null
   eventSuppliers: EventSupplierWithName[]
   onSubmit: (data: {
-    category: string
     category_id: string | null
     subcategory: string
     budget_amount: number
@@ -67,7 +66,6 @@ export default function BudgetItemModal({
     setSubmitting(true)
     try {
       await onSubmit({
-        category:          category,
         category_id:       buscarPorNombre(categorias, category)?.id ?? null,
         subcategory:       subcategory.trim(),
         budget_amount:     parseFloat(amount) || 0,

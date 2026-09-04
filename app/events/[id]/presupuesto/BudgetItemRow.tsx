@@ -9,11 +9,12 @@ import {
 } from '@/lib/types'
 
 type EventSupplierWithName = EventSupplier & {
-  supplier: Pick<Supplier, 'id' | 'name' | 'category'>
+  supplier: Pick<Supplier, 'id' | 'name' | 'category_id'>
 }
 
 type Props = {
   item: EventBudget
+  categoryName: string
   currency: Currency
   contractedAmount: number
   paidAmount: number
@@ -25,7 +26,7 @@ type Props = {
 }
 
 export default function BudgetItemRow({
-  item, currency, contractedAmount, paidAmount,
+  item, categoryName, currency, contractedAmount, paidAmount,
   availableSuppliers, linkedSupplier,
   onUpdate, onDelete, onOpenSupplier,
 }: Props) {
@@ -144,7 +145,7 @@ export default function BudgetItemRow({
           >
             <div className="border-b border-[#f0f0f0] bg-[#1D1E20] px-3 py-2">
               <p className="text-[10px] font-semibold uppercase tracking-wider text-white/70">
-                Contratados en {item.category}
+                Contratados en {categoryName}
               </p>
             </div>
             <div className="max-h-[240px] overflow-y-auto py-1">

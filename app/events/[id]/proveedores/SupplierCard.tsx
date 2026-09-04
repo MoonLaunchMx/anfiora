@@ -2,10 +2,11 @@
 
 import { Mail, Globe } from 'lucide-react'
 import {
-  Currency, formatCurrency, budgetCategoryLabel,
+  Currency, formatCurrency,
   EventSupplier, Supplier, EventBudget,
   SUPPLIER_STATUS_LABELS, SUPPLIER_STATUS_COLORS,
 } from '@/lib/types'
+import { Categoria, nombrePorId } from '@/lib/rolodex/categorias-store'
 import { FiInstagram } from 'react-icons/fi'
 import { FaWhatsapp } from 'react-icons/fa'
 import { toWhatsApp } from '@/lib/phone'
@@ -18,11 +19,13 @@ type Props = {
   item: SupplierWithDetails
   budgets: EventBudget[]
   currency: Currency
+  categorias: Categoria[]
   onClick: () => void
 }
 
-export default function SupplierCard({ item, budgets, currency, onClick }: Props) {
+export default function SupplierCard({ item, budgets, currency, categorias, onClick }: Props) {
   const s = item.supplier
+  const categoryName = nombrePorId(categorias, s.category_id)
 
   const waRaw    = s.phone ? (s.phone.startsWith('+') ? s.phone : `${s.phone_country_code ?? '+52'} ${s.phone}`) : null
   const waDigits = waRaw ? toWhatsApp(waRaw) : null
@@ -58,7 +61,7 @@ export default function SupplierCard({ item, budgets, currency, onClick }: Props
       {/* Header: categoría + badge status */}
       <div className="mb-2 flex items-center justify-between gap-2">
         <span className="text-[10px] font-semibold uppercase tracking-wider text-[#888]">
-          {budgetCategoryLabel(s.category)}
+          {categoryName}
         </span>
         <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${SUPPLIER_STATUS_COLORS[item.status]}`}>
           {SUPPLIER_STATUS_LABELS[item.status]}
@@ -71,7 +74,7 @@ export default function SupplierCard({ item, budgets, currency, onClick }: Props
       {/* Subcategoría / partida */}
       {linkedBudget ? (
         <p className="mb-3 text-xs text-[#888]">
-          {linkedBudget.subcategory || budgetCategoryLabel(linkedBudget.category)}
+          {linkedBudget.subcategory || nombrePorId(categorias, linkedBudget.category_id)}
         </p>
       ) : s.subcategory ? (
         <p className="mb-3 text-xs text-[#888]">{s.subcategory}</p>

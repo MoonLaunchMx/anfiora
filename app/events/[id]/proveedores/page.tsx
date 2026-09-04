@@ -6,10 +6,9 @@ import { Search, Plus, LayoutGrid, List, Columns3 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import {
   Event, EventBudget, EventSupplier, Supplier,
-  budgetCategoryLabel,
   SUPPLIER_STATUSES, SUPPLIER_STATUS_LABELS, SupplierStatus, Currency, formatCurrency,
 } from '@/lib/types'
-import { Categoria, activas, cargarCategorias } from '@/lib/rolodex/categorias-store'
+import { Categoria, activas, cargarCategorias, nombrePorId } from '@/lib/rolodex/categorias-store'
 import StatsCollapse, { useStatsToggle, StatsToggleButton } from '@/app/components/ui/StatsCollapse'
 import SupplierModal from './SupplierModal'
 import SupplierCard from './SupplierCard'
@@ -66,7 +65,6 @@ export default function ProveedoresPage() {
 
   const handleCreateSupplier = async (data: {
     name: string
-    category: string
     category_id: string | null
     subcategory: string | null
     phone: string | null
@@ -86,7 +84,6 @@ export default function ProveedoresPage() {
       .insert({
         user_id:            user.id,
         name:               data.name,
-        category:           data.category,
         category_id:        data.category_id,
         subcategory:        linkedBudget?.subcategory || data.subcategory,
         phone:              data.phone,
@@ -145,9 +142,10 @@ export default function ProveedoresPage() {
     const s = item.supplier
     if (search.trim()) {
       const q = search.toLowerCase()
+      const categoryName = nombrePorId(categorias, s.category_id)
       const match = s.name.toLowerCase().includes(q) ||
                     (s.subcategory || '').toLowerCase().includes(q) ||
-                    budgetCategoryLabel(s.category).toLowerCase().includes(q)
+                    categoryName.toLowerCase().includes(q)
       if (!match) return false
     }
     if (filterCategory && s.category_id !== filterCategory) return false
@@ -296,6 +294,7 @@ export default function ProveedoresPage() {
                 budgets={budgets}
                 currency={currency}
                 groupBy={groupBy}
+                categorias={categorias}
                 onSelect={setSelectedItem}
               />
             )}
@@ -305,6 +304,7 @@ export default function ProveedoresPage() {
                   items={filtered}
                   budgets={budgets}
                   currency={currency}
+                  categorias={categorias}
                   onSelect={setSelectedItem}
                 />
               </div>
@@ -315,6 +315,7 @@ export default function ProveedoresPage() {
                   items={filtered}
                   budgets={budgets}
                   currency={currency}
+                  categorias={categorias}
                   onSelect={setSelectedItem}
                   onStatusChange={handleStatusChange}
                 />
@@ -370,11 +371,12 @@ export default function ProveedoresPage() {
 
 // ── CARDS VIEW ─────────────────────────────────────────────────────────────
 
-function CardsView({ items, budgets, currency, groupBy, onSelect }: {
+function CardsView({ items, budgets, currency, groupBy, categorias, onSelect }: {
   items: SupplierWithDetails[]
   budgets: EventBudget[]
   currency: Currency
   groupBy: GroupBy
+  categorias: Categoria[]
   onSelect: (item: SupplierWithDetails) => void
 }) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
@@ -391,7 +393,7 @@ function CardsView({ items, budgets, currency, groupBy, onSelect }: {
     return (
       <div className="grid grid-cols-1 gap-3 pb-6 sm:grid-cols-2 lg:grid-cols-3">
         {items.map(item => (
-          <SupplierCard key={item.id} item={item} budgets={budgets} currency={currency} onClick={() => onSelect(item)} />
+          <SupplierCard key={item.id} item={item} budgets={budgets} currency={currency} categorias={categorias} onClick={() => onSelect(item)} />
         ))}
       </div>
     )
@@ -400,11 +402,11 @@ function CardsView({ items, budgets, currency, groupBy, onSelect }: {
   const seen = new Map<string, SupplierWithDetails[]>()
   items.forEach(item => {
     let key = ''
-    if (groupBy === 'categoria') key = budgetCategoryLabel(item.supplier.category) || 'Sin categoría'
+    if (groupBy === 'categoria') key = nombrePorId(categorias, item.supplier.category_id) || 'Sin categoría'
     if (groupBy === 'estatus')   key = SUPPLIER_STATUS_LABELS[item.status] || item.status
     if (groupBy === 'partida') {
       const budget = budgets.find(b => b.id === item.event_budget_id)
-      key = budget ? (budget.subcategory || budgetCategoryLabel(budget.category)) : 'Sin concepto'
+      key = budget ? (budget.subcategory || nombrePorId(categorias, budget.category_id)) : 'Sin concepto'
     }
     if (!seen.has(key)) seen.set(key, [])
     seen.get(key)!.push(item)
@@ -430,7 +432,7 @@ function CardsView({ items, budgets, currency, groupBy, onSelect }: {
             {!isCollapsed && (
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {g.items.map(item => (
-                  <SupplierCard key={item.id} item={item} budgets={budgets} currency={currency} onClick={() => onSelect(item)} />
+                  <SupplierCard key={item.id} item={item} budgets={budgets} currency={currency} categorias={categorias} onClick={() => onSelect(item)} />
                 ))}
               </div>
             )}
