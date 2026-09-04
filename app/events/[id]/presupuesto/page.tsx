@@ -27,6 +27,7 @@ import SupplierDetailModal from '../proveedores/SupplierDetailModal'
 import SupplierReviewModal from '../proveedores/SupplierReviewModal'
 import { Modal } from '@/app/components/ui/Modal'
 import { categoriasParaGuardar } from '@/lib/rolodex/vocabulario-store'
+import { resolverVocabulario } from '@/lib/rolodex/categorias'
 
 type EventSupplierWithName = EventSupplier & {
   supplier: Pick<Supplier, 'id' | 'name' | 'category'>
@@ -69,6 +70,7 @@ export default function PresupuestoPage() {
   const [reviewSupplier, setReviewSupplier]     = useState<EventSupplierWithName | null>(null)
 
   const [storedCategories, setStoredCategories]   = useState<string[] | null>(null)
+  const [vocabulario, setVocabulario]             = useState<string[]>([])
   const [showCategoriesModal, setShowCategoriesModal] = useState(false)
   const [addingCategory, setAddingCategory]       = useState(false)
   const [newCategoryName, setNewCategoryName]     = useState('')
@@ -120,6 +122,15 @@ export default function PresupuestoPage() {
       const { data: settingsRow } = await supabase
         .from('event_settings').select('budget_categories').eq('event_id', eventId).single()
       setStoredCategories((settingsRow?.budget_categories as string[] | null) ?? null)
+
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        const { data: perfil } = await supabase
+          .from('users').select('categories').eq('id', user.id).single()
+        setVocabulario(resolverVocabulario(perfil?.categories as string[] | null))
+      } else {
+        setVocabulario(resolverVocabulario(null))
+      }
     } catch (err: any) {
       console.error('Error cargando presupuesto:', err?.message ?? err, err)
     } finally {
@@ -890,7 +901,7 @@ export default function PresupuestoPage() {
           eventId={eventId}
           currency={currency}
           budgets={budgets}
-          categorias={categories}
+          categorias={vocabulario}
           onClose={() => setSelectedSupplier(null)}
           onSaved={updated => {
             setEventSuppliers(prev => prev.map(es => es.id === updated.id ? { ...es, ...updated } : es))
