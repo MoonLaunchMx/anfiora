@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
-import { ChevronDown, Globe, Mail, Pencil, Star, Trash2, X } from 'lucide-react'
+import { ChevronDown, Globe, Mail, Paperclip, Pencil, Star, Trash2, X } from 'lucide-react'
 import { FaWhatsapp } from 'react-icons/fa'
 import { FiInstagram } from 'react-icons/fi'
 import { supabase } from '@/lib/supabase'
@@ -18,7 +18,9 @@ import { formatDisplay, toWhatsApp } from '@/lib/phone'
 import { useConfirm } from '@/app/components/ui/ConfirmModal'
 import { usePermiso } from '@/lib/event-access-context'
 import { carpetasDe, destinosDe, QUE_SIGNIFICA } from '@/lib/rolodex/ficha-por-estado'
+import { TOPE_COMPROBANTES, TOPE_COTIZACIONES, visibles } from '@/lib/archivos/adjuntos'
 import PagoModal from './PagoModal'
+import ListaDeArchivos from './ListaDeArchivos'
 import { CaminoDelTrato, COLOR_ESTADO, EstatusProveedor, ICONO_ESTADO } from './EstatusProveedor'
 import PhoneInput from '@/app/components/ui/PhoneInput'
 
@@ -57,6 +59,7 @@ export default function FichaDelEvento({
   const [cobrando, setCobrando] = useState(false)
   const [pagoEnEdicion, setPagoEnEdicion] = useState<SupplierPayment | null>(null)
   const [carpeta, setCarpeta] = useState(0)
+  const [pagoAbierto, setPagoAbierto] = useState<string | null>(null)
   const [editando, setEditando] = useState(false)
   const [guardando, setGuardando] = useState(false)
   const [errorGuardar, setErrorGuardar] = useState('')
@@ -67,6 +70,7 @@ export default function FichaDelEvento({
   const menuRef = useRef<HTMLDivElement>(null)
 
   const carpetas = useMemo(() => carpetasDe(item.status, bodaPaso), [item.status, bodaPaso])
+  const cotizaciones = useMemo(() => visibles(item.quote_files), [item.quote_files])
   const destinos = useMemo(() => destinosDe(item.status), [item.status])
   const puedeMover = permisoFicha.editar
 
@@ -217,9 +221,14 @@ export default function FichaDelEvento({
   }
 
   const borrarPago = async (pago: SupplierPayment) => {
+    const conComprobante = visibles(pago.receipt_files).length
     const ok = await askConfirm({
       title: `¿Eliminar el pago de ${formatCurrency(pago.amount, currency)}?`,
-      message: `Bajará el total pagado a ${s.name}. No se puede deshacer.`,
+      message: `Bajará el total pagado a ${s.name}. No se puede deshacer.${
+        conComprobante
+          ? ` Este pago tiene ${conComprobante} comprobante${conComprobante > 1 ? 's' : ''}: se quedan guardados, pero sin este pago ya no habrá dónde verlos.`
+          : ''
+      }`,
     })
     if (!ok) return
 
@@ -569,6 +578,19 @@ export default function FichaDelEvento({
                 <p className="text-xs text-[#999]">Sin ligar a ninguna partida.</p>
               )}
             </Bloque>
+
+            <Bloque titulo={cotizaciones.length ? `Cotizaciones guardadas · ${cotizaciones.length}` : 'Cotizaciones guardadas'}>
+              <ListaDeArchivos
+                eventId={item.event_id}
+                carpeta="cotizaciones"
+                dueno={item.id}
+                archivos={item.quote_files}
+                tope={TOPE_COTIZACIONES}
+                puedeEditar={permisoFicha.editar}
+                textoVacio="Sube la cotización"
+                onCambio={lista => onSaved({ ...item, quote_files: lista })}
+              />
+            </Bloque>
           </>
         ))}
 
@@ -605,7 +627,8 @@ export default function FichaDelEvento({
               ) : (
                 <ul className="max-h-64 space-y-1.5 overflow-y-auto pr-0.5">
                   {pagos.map(p => (
-                    <li key={p.id} className="group flex items-center justify-between gap-3 rounded-lg border border-[#e8e8e8] bg-[#fafafa] px-3 py-2">
+                    <li key={p.id} className="group overflow-hidden rounded-lg border border-[#e8e8e8] bg-[#fafafa]">
+                     <div className="flex items-center justify-between gap-3 px-3 py-2">
                       <span className="min-w-0 text-xs text-[#666]">
                         <span className="block text-[#1D1E20]">
                           {new Date(p.payment_date + 'T12:00:00').toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: '2-digit' })}
@@ -617,6 +640,19 @@ export default function FichaDelEvento({
                         </span>
                       </span>
                       <span className="flex shrink-0 items-center gap-2">
+                        <button
+                          onClick={() => setPagoAbierto(actual => (actual === p.id ? null : p.id))}
+                          aria-expanded={pagoAbierto === p.id}
+                          aria-label={`Comprobantes de este pago`}
+                          className={`flex items-center gap-1 rounded-full border bg-white px-2 py-1 text-[10.5px] font-bold transition ${
+                            visibles(p.receipt_files).length
+                              ? 'border-[#e0e0e0] text-[#666] hover:border-[#48C9B0] hover:text-[#3aa896]'
+                              : 'border-dashed border-[#e0e0e0] text-[#bbb] hover:border-[#48C9B0] hover:text-[#3aa896]'
+                          }`}
+                        >
+                          <Paperclip size={11} />
+                          {visibles(p.receipt_files).length || 'Sin comprobante'}
+                        </button>
                         <span className="text-sm font-semibold tabular-nums text-[#1D1E20]">
                           {formatCurrency(p.amount, currency)}
                         </span>
@@ -639,6 +675,24 @@ export default function FichaDelEvento({
                           </span>
                         )}
                       </span>
+                     </div>
+
+                     {pagoAbierto === p.id && (
+                       <div className="border-t border-dashed border-[#e0e0e0] bg-white px-3 py-2.5">
+                         <ListaDeArchivos
+                           eventId={item.event_id}
+                           carpeta="comprobantes"
+                           dueno={p.id}
+                           archivos={p.receipt_files}
+                           tope={TOPE_COMPROBANTES}
+                           puedeEditar={permisoPagos.editar}
+                           textoVacio="Sube el comprobante de este pago"
+                           onCambio={lista => setPagos(actuales =>
+                             actuales.map(otro => (otro.id === p.id ? { ...otro, receipt_files: lista } : otro))
+                           )}
+                         />
+                       </div>
+                     )}
                     </li>
                   ))}
                 </ul>
@@ -738,6 +792,7 @@ export default function FichaDelEvento({
 
       {(cobrando || pagoEnEdicion) && (
         <PagoModal
+          eventId={item.event_id}
           eventSupplierId={item.id}
           proveedor={s.name}
           currency={currency}

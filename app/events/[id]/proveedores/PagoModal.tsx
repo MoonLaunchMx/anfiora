@@ -4,6 +4,8 @@ import { useState } from 'react'
 import { Modal } from '@/app/components/ui/Modal'
 import { useConfirm } from '@/app/components/ui/ConfirmModal'
 import { supabase } from '@/lib/supabase'
+import { TOPE_COMPROBANTES } from '@/lib/archivos/adjuntos'
+import ListaDeArchivos from './ListaDeArchivos'
 import {
   Currency, formatCurrency, SupplierPayment,
   PAYMENT_METHODS, PAYMENT_METHOD_LABELS, PaymentMethod,
@@ -11,6 +13,7 @@ import {
 } from '@/lib/types'
 
 type Props = {
+  eventId: string
   eventSupplierId: string
   proveedor: string
   currency: Currency
@@ -24,7 +27,7 @@ type Props = {
 const INPUT = 'w-full rounded-lg border border-[#e0e0e0] bg-white px-3 py-2 text-sm outline-none transition focus:border-[#48C9B0]'
 
 export default function PagoModal({
-  eventSupplierId, proveedor, currency, contratado, pagadoHastaAhora, pago, onGuardado, onCerrar,
+  eventId, eventSupplierId, proveedor, currency, contratado, pagadoHastaAhora, pago, onGuardado, onCerrar,
 }: Props) {
   const askConfirm = useConfirm()
   const editando = Boolean(pago)
@@ -34,6 +37,8 @@ export default function PagoModal({
   const [metodo, setMetodo]         = useState<PaymentMethod>(pago?.payment_method ?? 'transferencia')
   const [responsable, setResponsable] = useState<PaidBy>(pago?.paid_by ?? 'pareja')
   const [referencia, setReferencia] = useState(pago?.reference ?? '')
+  const [idNuevo] = useState(() => crypto.randomUUID())
+  const [comprobantes, setComprobantes] = useState(pago?.receipt_files ?? [])
   const [guardando, setGuardando]   = useState(false)
   const [error, setError]           = useState('')
 
@@ -70,11 +75,11 @@ export default function PagoModal({
 
       const { data, error: err } = pago
         ? await supabase.from('supplier_payments').update(campos).eq('id', pago.id).select().single()
-        : await supabase.from('supplier_payments').insert({ event_supplier_id: eventSupplierId, ...campos }).select().single()
+        : await supabase.from('supplier_payments').insert({ id: idNuevo, event_supplier_id: eventSupplierId, ...campos }).select().single()
 
       if (err) throw err
       if (!data) throw new Error('No se guardó el pago.')
-      if (data) onGuardado(data as SupplierPayment)
+      if (data) onGuardado({ ...(data as SupplierPayment), receipt_files: comprobantes })
       onCerrar()
     } catch (err: any) {
       console.error('Error guardando pago:', err?.message ?? err, err)
@@ -139,6 +144,22 @@ export default function PagoModal({
               onChange={e => setReferencia(e.target.value)}
               placeholder="Folio, banco o una nota"
               className={INPUT}
+            />
+          </div>
+
+          <div>
+            <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-[#888]">
+              Comprobante <span className="font-normal normal-case tracking-normal text-[#bbb]">(opcional)</span>
+            </label>
+            <ListaDeArchivos
+              eventId={eventId}
+              carpeta="comprobantes"
+              dueno={pago?.id ?? idNuevo}
+              archivos={comprobantes}
+              tope={TOPE_COMPROBANTES}
+              puedeEditar
+              textoVacio="Sube el comprobante"
+              onCambio={setComprobantes}
             />
           </div>
 
