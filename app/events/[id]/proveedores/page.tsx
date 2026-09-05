@@ -2,16 +2,15 @@
 
 import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
-import { Search, Plus, LayoutGrid, List, Columns3, Disc3 } from 'lucide-react'
+import { Search, Plus, List, Columns3, Disc3 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import {
   Event, EventBudget, EventSupplier, Supplier,
-  SUPPLIER_STATUSES, SUPPLIER_STATUS_LABELS, SupplierStatus, Currency, formatCurrency,
+  SupplierStatus, Currency, formatCurrency,
 } from '@/lib/types'
 import { Categoria, activas, cargarCategorias, nombrePorId } from '@/lib/rolodex/categorias-store'
 import StatsCollapse, { useStatsToggle, StatsToggleButton } from '@/app/components/ui/StatsCollapse'
 import SupplierModal from './SupplierModal'
-import SupplierCard from './SupplierCard'
 import SupplierDetailModal from './SupplierDetailModal'
 import SupplierReviewModal from './SupplierReviewModal'
 import SupplierListView from './SupplierListView'
@@ -19,8 +18,7 @@ import SupplierKanbanView from './SupplierKanbanView'
 import SupplierFicheroView from './SupplierFicheroView'
 
 type SupplierWithDetails = EventSupplier & { supplier: Supplier }
-type ViewMode = 'cards' | 'lista' | 'kanban' | 'fichero'
-type GroupBy  = 'ninguna' | 'categoria' | 'partida' | 'estatus'
+type ViewMode = 'lista' | 'kanban' | 'fichero'
 
 export default function ProveedoresPage() {
   const { id } = useParams()
@@ -34,8 +32,7 @@ export default function ProveedoresPage() {
   const [filterCategory, setFilterCategory] = useState<string>('')
   const [categorias, setCategorias] = useState<Categoria[]>([])
   const [userId, setUserId] = useState<string | null>(null)
-  const [viewMode, setViewMode] = useState<ViewMode>('cards')
-  const [groupBy, setGroupBy]   = useState<GroupBy>('categoria')
+  const [viewMode, setViewMode] = useState<ViewMode>('fichero')
   const [modalOpen, setModalOpen]       = useState(false)
   const [selectedItem, setSelectedItem] = useState<SupplierWithDetails | null>(null)
   const [reviewItem, setReviewItem]     = useState<SupplierWithDetails | null>(null)
@@ -219,11 +216,7 @@ export default function ProveedoresPage() {
         <div className="mb-3 flex items-center gap-2 pb-3">
 
           {/* Vistas con texto */}
-          <div className="flex shrink-0 overflow-hidden rounded-lg border border-[#e0e0e0]">
-            <ViewButton active={viewMode === 'cards'} onClick={() => setViewMode('cards')}>
-              <LayoutGrid size={13} />
-              <span>Tarjetas</span>
-            </ViewButton>
+          <div className="hidden shrink-0 overflow-hidden rounded-lg border border-[#e0e0e0] lg:flex">
             <ViewButton active={viewMode === 'lista'} onClick={() => setViewMode('lista')} className="hidden lg:flex">
               <List size={13} />
               <span>Lista</span>
@@ -260,20 +253,6 @@ export default function ProveedoresPage() {
             {categoriasDelFiltro.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
 
-          {/* Agrupación — solo en tarjetas, solo desktop */}
-          {viewMode === 'cards' && (
-            <select
-              value={groupBy}
-              onChange={e => setGroupBy(e.target.value as GroupBy)}
-              className="hidden shrink-0 rounded-lg border border-[#e0e0e0] bg-[#1D1E20] px-3 py-1.5 text-xs text-white outline-none lg:block"
-            >
-              <option value="ninguna">Sin agrupar</option>
-              <option value="categoria">Por categoría</option>
-              <option value="partida">Por concepto</option>
-              <option value="estatus">Por estatus</option>
-            </select>
-          )}
-
           {/* CTA */}
           <button
             onClick={() => setModalOpen(true)}
@@ -298,16 +277,6 @@ export default function ProveedoresPage() {
           </div>
         ) : (
           <>
-            {viewMode === 'cards' && (
-              <CardsView
-                items={filtered}
-                budgets={budgets}
-                currency={currency}
-                groupBy={groupBy}
-                categorias={categorias}
-                onSelect={setSelectedItem}
-              />
-            )}
             {viewMode === 'lista' && (
               <div className="hidden lg:block">
                 <SupplierListView
@@ -386,80 +355,6 @@ export default function ProveedoresPage() {
           onSkip={() => setReviewItem(null)}
         />
       )}
-    </div>
-  )
-}
-
-// ── CARDS VIEW ─────────────────────────────────────────────────────────────
-
-function CardsView({ items, budgets, currency, groupBy, categorias, onSelect }: {
-  items: SupplierWithDetails[]
-  budgets: EventBudget[]
-  currency: Currency
-  groupBy: GroupBy
-  categorias: Categoria[]
-  onSelect: (item: SupplierWithDetails) => void
-}) {
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
-
-  const toggleGroup = (label: string) => {
-    setCollapsed(prev => {
-      const next = new Set(prev)
-      next.has(label) ? next.delete(label) : next.add(label)
-      return next
-    })
-  }
-
-  if (groupBy === 'ninguna') {
-    return (
-      <div className="grid grid-cols-1 gap-3 pb-6 sm:grid-cols-2 lg:grid-cols-3">
-        {items.map(item => (
-          <SupplierCard key={item.id} item={item} budgets={budgets} currency={currency} categorias={categorias} onClick={() => onSelect(item)} />
-        ))}
-      </div>
-    )
-  }
-
-  const seen = new Map<string, SupplierWithDetails[]>()
-  items.forEach(item => {
-    let key = ''
-    if (groupBy === 'categoria') key = nombrePorId(categorias, item.supplier.category_id) || 'Sin categoría'
-    if (groupBy === 'estatus')   key = SUPPLIER_STATUS_LABELS[item.status] || item.status
-    if (groupBy === 'partida') {
-      const budget = budgets.find(b => b.id === item.event_budget_id)
-      key = budget ? (budget.subcategory || nombrePorId(categorias, budget.category_id)) : 'Sin concepto'
-    }
-    if (!seen.has(key)) seen.set(key, [])
-    seen.get(key)!.push(item)
-  })
-
-  const groups: { label: string; items: SupplierWithDetails[] }[] = []
-  seen.forEach((groupItems, label) => groups.push({ label, items: groupItems }))
-
-  return (
-    <div className="space-y-5 pb-6">
-      {groups.map(g => {
-        const isCollapsed = collapsed.has(g.label)
-        return (
-          <div key={g.label}>
-            <button
-              onClick={() => toggleGroup(g.label)}
-              className="mb-2 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-[#888] hover:text-[#1D1E20]"
-            >
-              <span className={`transition-transform duration-150 ${isCollapsed ? '-rotate-90' : ''}`}>▾</span>
-              {g.label}
-              <span className="font-normal text-[#bbb]">({g.items.length})</span>
-            </button>
-            {!isCollapsed && (
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {g.items.map(item => (
-                  <SupplierCard key={item.id} item={item} budgets={budgets} currency={currency} categorias={categorias} onClick={() => onSelect(item)} />
-                ))}
-              </div>
-            )}
-          </div>
-        )
-      })}
     </div>
   )
 }
