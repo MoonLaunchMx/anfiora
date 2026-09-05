@@ -93,3 +93,31 @@ export function permisosDeRol(role: 'admin' | 'editor' | 'viewer'): PermisosEven
   const nivel: Nivel = role === 'admin' ? 'total' : role === 'editor' ? 'editar' : 'ver'
   return Object.fromEntries(MODULOS.map(m => [m, nivel])) as PermisosEvento
 }
+
+// El presupuesto no guarda lo contratado ni lo pagado: lo CALCULA de proveedores
+// y de pagos. Repartir los tres por separado deja el caso que confunde -- alguien
+// con presupuesto en 'ver' que igual lo cambia editando proveedores -- asi que
+// moverlo arrastra a los otros dos. Siguen siendo tres permisos: despues de
+// arrastrarlos se ajusta cada uno por su cuenta.
+export const MODULOS_ARRASTRADOS: Partial<Record<Modulo, Modulo[]>> = {
+  presupuesto: ['proveedores', 'pagos'],
+}
+
+export function ponerNivel(
+  permisos: PermisosEvento,
+  modulo: Modulo,
+  nivel: Nivel,
+  estaPrendida: (m: Modulo) => boolean = () => true,
+): PermisosEvento {
+  const siguiente: PermisosEvento = { ...permisos }
+  const aplicar = (m: Modulo) => {
+    if (nivel === 'ninguno') delete siguiente[m]
+    else siguiente[m] = nivel
+  }
+
+  aplicar(modulo)
+  for (const otro of MODULOS_ARRASTRADOS[modulo] ?? []) {
+    if (estaPrendida(otro)) aplicar(otro)
+  }
+  return siguiente
+}
