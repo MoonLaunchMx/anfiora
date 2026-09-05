@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useRef, useCallback } from 'react'
+import { usePermiso } from '@/lib/event-access-context'
 import { useParams, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import {
@@ -504,8 +505,8 @@ interface PanelChatProps {
 
 function PanelChat({
   conv, mensajes, mensaje, enviando, errorEnvio, chatBottomRef,
-  onMensajeChange, onEnviar, onToggleDetalles, onToggleAgente
-}: PanelChatProps) {
+  onMensajeChange, onEnviar, onToggleDetalles, onToggleAgente, puedeEditar
+}: PanelChatProps & { puedeEditar: boolean }) {
   const porFecha: { fecha: string; msgs: InboxMessage[] }[] = []
   mensajes.forEach(m => {
     const fecha = new Date(m.providerTimestamp).toDateString()
@@ -529,6 +530,7 @@ function PanelChat({
         </div>
         <button
           onClick={onToggleAgente}
+          disabled={!puedeEditar}
           className={`flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-semibold transition
             ${conv.aiEnabled
               ? 'bg-[#48C9B0]/15 text-[#1D9E75] hover:bg-[#48C9B0]/25'
@@ -562,7 +564,7 @@ function PanelChat({
         <div ref={chatBottomRef} />
       </div>
 
-      <div className="shrink-0 border-t border-[#e8e8e8] bg-white px-4 py-3">
+      {puedeEditar && <div className="shrink-0 border-t border-[#e8e8e8] bg-white px-4 py-3">
         {errorEnvio && (
           <div className="mb-2 flex items-center gap-2 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600">
             <AlertCircle size={12} />
@@ -591,7 +593,7 @@ function PanelChat({
           </button>
         </div>
         <p className="mt-1.5 text-center text-[10px] text-[#bbb]">Enter para enviar · Shift+Enter para nueva línea</p>
-      </div>
+      </div>}
     </div>
   )
 }
@@ -608,7 +610,7 @@ interface PanelDetallesProps {
   onClose: () => void
 }
 
-function PanelDetalles({ conv, mesa, cargandoMesa, detalle, acompanantes, onToggleAgente, onClose }: PanelDetallesProps) {
+function PanelDetalles({ conv, mesa, cargandoMesa, detalle, acompanantes, onToggleAgente, onClose, puedeEditar }: PanelDetallesProps & { puedeEditar: boolean }) {
   return (
     <div className="flex h-full flex-col overflow-y-auto">
       <div className="flex shrink-0 items-center justify-between border-b border-[#e8e8e8] px-4 py-3">
@@ -644,7 +646,7 @@ function PanelDetalles({ conv, mesa, cargandoMesa, detalle, acompanantes, onTogg
       </div>
 
       {/* Control del agente */}
-      <div className="border-b border-[#f3f4f6] px-4 py-3.5">
+      {puedeEditar && <div className="border-b border-[#f3f4f6] px-4 py-3.5">
         <button
           onClick={onToggleAgente}
           className="flex w-full items-center justify-between gap-3 rounded-xl border border-[#e8e8e8] px-3.5 py-3 text-left transition hover:border-[#48C9B0]/60"
@@ -664,7 +666,7 @@ function PanelDetalles({ conv, mesa, cargandoMesa, detalle, acompanantes, onTogg
             <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all ${conv.aiEnabled ? 'left-[18px]' : 'left-0.5'}`} />
           </span>
         </button>
-      </div>
+      </div>}
 
       <div className="flex-1 space-y-0 divide-y divide-[#f3f4f6] px-4">
         {detalle?.side && (
@@ -743,6 +745,7 @@ function EmptyChat() {
 // ─── COMPONENTE PRINCIPAL ─────────────────────────────────────────────────────
 
 function MensajesInbox() {
+  const permiso = usePermiso('mensajes')
   const { id: eventId } = useParams<{ id: string }>()
   const searchParams = useSearchParams()
   const guestParam = searchParams.get('guest')
@@ -850,6 +853,7 @@ function MensajesInbox() {
   }
 
   async function toggleAgente() {
+    if (!permiso.editar) return
     if (!seleccionada) return
     const nuevo = !seleccionada.aiEnabled
     setConversaciones(prev => prev.map(c => c.id === seleccionada.id ? { ...c, aiEnabled: nuevo } : c))
@@ -857,6 +861,7 @@ function MensajesInbox() {
   }
 
   async function enviar() {
+    if (!permiso.editar) return
     if (!mensaje.trim() || !seleccionadaId || enviando) return
     setEnviando(true)
     setErrorEnvio(null)
@@ -921,6 +926,7 @@ function MensajesInbox() {
             onEnviar={enviar}
             onToggleDetalles={() => setDetallesOpen(p => !p)}
             onToggleAgente={toggleAgente}
+            puedeEditar={permiso.editar}
           />
         ) : (
           <EmptyChat />
@@ -951,6 +957,7 @@ function MensajesInbox() {
               detalle={detalle}
               acompanantes={acompanantes}
               onToggleAgente={toggleAgente}
+              puedeEditar={permiso.editar}
               onClose={() => setDetallesOpen(false)}
             />
           </div>
