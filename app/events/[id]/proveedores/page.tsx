@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { Search, Plus, List, Columns3, Disc3 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
@@ -10,7 +10,8 @@ import {
 } from '@/lib/types'
 import { Categoria, activas, cargarCategorias, nombrePorId } from '@/lib/rolodex/categorias-store'
 import StatsCollapse, { useStatsToggle, StatsToggleButton } from '@/app/components/ui/StatsCollapse'
-import SupplierModal from './SupplierModal'
+import AltaProveedor, { EnEstaBoda, ProveedorNuevo } from './AltaProveedor'
+import { EntradaDelRolodex } from '@/lib/rolodex/duplicados'
 import FichaModal from './FichaModal'
 import SupplierReviewModal from './SupplierReviewModal'
 import SupplierListView from './SupplierListView'
@@ -21,6 +22,17 @@ import { Puede } from '@/lib/permisos/Puede'
 
 type SupplierWithDetails = EventSupplier & { supplier: Supplier }
 type ViewMode = 'lista' | 'kanban' | 'fichero'
+
+const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
+
+// 'mar 2026' a partir de 'YYYY-MM-DD', partiendo la cadena en vez de construir
+// un Date: '2026-03-01' se parsea como UTC y en Mexico regresaria febrero.
+function mesYAno(fecha: string | null): string {
+  if (!fecha) return ''
+  const [ano, mes] = fecha.split('-')
+  const i = Number(mes) - 1
+  return MESES[i] ? `${MESES[i]} ${ano}` : ano
+}
 
 export default function ProveedoresPage() {
   const { id } = useParams()
@@ -35,6 +47,7 @@ export default function ProveedoresPage() {
   const [filterCategory, setFilterCategory] = useState<string>('')
   const [categorias, setCategorias] = useState<Categoria[]>([])
   const [duenoCatalogo, setDuenoCatalogo] = useState<string | null>(null)
+  const [catalogoBase, setCatalogoBase] = useState<EntradaDelRolodex[]>([])
   const [viewMode, setViewMode] = useState<ViewMode>('fichero')
   const [modalOpen, setModalOpen]       = useState(false)
   const [selectedItem, setSelectedItem] = useState<SupplierWithDetails | null>(null)
@@ -60,7 +73,11 @@ export default function ProveedoresPage() {
       // siempre cuelga del dueno del evento. Ver la nota en presupuesto/page.tsx.
       const dueno = (eventRes.data as Event | null)?.user_id ?? null
       setDuenoCatalogo(dueno)
-      setCategorias(dueno ? await cargarCategorias(dueno) : [])
+      const [cats] = await Promise.all([
+        dueno ? cargarCategorias(dueno) : Promise.resolve([]),
+        cargarCatalogo(dueno),
+      ])
+      setCategorias(cats)
     } catch (err: any) {
       console.error('Error cargando proveedores:', err?.message ?? err, err)
     } finally {
@@ -68,58 +85,161 @@ export default function ProveedoresPage() {
     }
   }
 
-  const handleCreateSupplier = async (data: {
-    name: string
-    category_id: string | null
-    subcategory: string | null
-    phone: string | null
-    phone_country_code: string | null
-    instagram: string | null
-    facebook: string | null
-    quoted_amount: number | null
-    event_budget_id: string | null
-  }) => {
+  // El Rolodex entero del dueno del evento: es lo que el alta necesita para
+  // avisar de un duplicado antes de crearlo. Hasta hoy el catalogo solo se
+  // escribia, nunca se leia.
+  const cargarCatalogo = async (dueno: string | null) => {
+    if (!dueno) { setCatalogoBase([]); return }
+
+    const { data: fichas, error } = await supabase
+      .from('suppliers')
+      .select('id, name, category_id, country, state_region, city, phone, email, tags')
+      .eq('user_id', dueno)
+      .is('archived_at', null)
+
+    if (error) { console.error('Error cargando el Rolodex:', error?.message ?? error, error); setCatalogoBase([]); return }
+    if (!fichas || fichas.length === 0) { setCatalogoBase([]); return }
+
+    const ids = fichas.map(f => f.id)
+    const { data: usos } = await supabase
+      .from('event_suppliers')
+      .select('supplier_id, event_id')
+      .in('supplier_id', ids)
+
+    // Los nombres de las bodas van en consulta aparte: incrustar events en la
+    // anterior la vuelve un inner join y las bodas que el colaborador no puede
+    // leer se llevarian la fila entera, falseando el conteo de veces.
+    const idsBodas = [...new Set((usos ?? []).map(u => u.event_id))]
+    const { data: bodas } = idsBodas.length
+      ? await supabase.from('events').select('id, name, event_date').in('id', idsBodas)
+      : { data: [] as { id: string; name: string; event_date: string | null }[] }
+
+    const porBoda = new Map((bodas ?? []).map(b => [b.id, b]))
+
+    setCatalogoBase(fichas.map(f => {
+      const mios = (usos ?? []).filter(u => u.supplier_id === f.id)
+      const conFecha = mios
+        .map(u => porBoda.get(u.event_id))
+        .filter((b): b is { id: string; name: string; event_date: string | null } => !!b)
+        .sort((a, b) => (b.event_date ?? '').localeCompare(a.event_date ?? ''))
+      const ultima = conFecha[0]
+
+      return {
+        // El nombre de la categoria lo pone el memo de abajo: aqui todavia no
+        // hay categorias cargadas, van en paralelo.
+        id:          f.id,
+        nombre:      f.name,
+        categoria:   null,
+        categoriaId: f.category_id,
+        pais:        f.country,
+        estado:      f.state_region,
+        ciudad:      f.city,
+        telefono:    f.phone,
+        correo:      f.email,
+        etiquetas:   Array.isArray(f.tags) ? f.tags : [],
+        veces:       mios.length,
+        ultima:      ultima ? [ultima.name, mesYAno(ultima.event_date)].filter(Boolean).join(' · ') : null,
+        enEstaBoda:  false,
+      }
+    }))
+  }
+
+  // enEstaBoda se deriva de los items en vez de guardarse, para que quitar o
+  // agregar un proveedor lo refleje solo.
+  const catalogo = useMemo(
+    () => catalogoBase.map(e => ({
+      ...e,
+      categoria:  e.categoriaId ? nombrePorId(categorias, e.categoriaId) || null : null,
+      enEstaBoda: items.some(i => i.supplier_id === e.id),
+    })),
+    [catalogoBase, items, categorias],
+  )
+
+  const vincularALaBoda = async (supplierId: string, enEstaBoda: EnEstaBoda) => {
+    const { data: nuevo, error } = await supabase
+      .from('event_suppliers')
+      .insert({
+        event_id:        eventId,
+        supplier_id:     supplierId,
+        status:          enEstaBoda.quoted_amount ? 'cotizado' : 'nuevo',
+        quoted_amount:   enEstaBoda.quoted_amount,
+        event_budget_id: enEstaBoda.event_budget_id,
+      })
+      .select('*, supplier:suppliers(*)')
+      .single()
+
+    if (error) {
+      console.error('Error agregando a la boda:', error?.message ?? error, error)
+      if (error.code === '23505') throw new Error('Ese proveedor ya está en esta boda')
+      throw error
+    }
+    if (nuevo) setItems(prev => [nuevo as SupplierWithDetails, ...prev])
+  }
+
+  const handleUsarExistente = async (supplierId: string, enEstaBoda: EnEstaBoda) => {
+    if (!permiso.editar) return
+    await vincularALaBoda(supplierId, enEstaBoda)
+  }
+
+  const handleCrearNuevo = async (data: ProveedorNuevo) => {
     // La ficha pertenece al despacho, no a quien la teclea. Si naciera con el
     // id de la sesion, un colaborador crearia proveedores que el dueno del
     // evento no puede ver: el join devolveria supplier null y la tarjeta se
     // rompe en la pantalla del dueno.
     if (!permiso.editar) return
-    if (!duenoCatalogo) { alert('El evento aún no carga, intenta de nuevo'); return }
+    if (!duenoCatalogo) throw new Error('El evento aún no carga, intenta de nuevo')
 
-    const linkedBudget = data.event_budget_id ? budgets.find(b => b.id === data.event_budget_id) : null
+    const concepto = data.event_budget_id ? budgets.find(b => b.id === data.event_budget_id) : null
 
-    const { data: newSupplier, error: supErr } = await supabase
+    const { data: ficha, error: supErr } = await supabase
       .from('suppliers')
       .insert({
         user_id:            duenoCatalogo,
         name:               data.name,
         category_id:        data.category_id,
-        subcategory:        linkedBudget?.subcategory || data.subcategory,
+        subcategory:        concepto?.subcategory || data.subcategory,
+        contact_name:       data.contact_name,
         phone:              data.phone,
         phone_country_code: data.phone_country_code,
+        email:              data.email,
+        website:            data.website,
         instagram:          data.instagram,
         facebook:           data.facebook,
-        country:            'MX',
+        country:            data.country,
+        city:               data.city,
+        state_region:       data.state_region,
+        service_radius_km:  data.service_radius_km,
+        tags:               data.tags,
+        general_notes:      data.general_notes,
       })
       .select()
       .single()
 
     if (supErr) { console.error('Error creando supplier:', supErr?.message ?? supErr, supErr); throw supErr }
 
-    const { data: newEventSupplier, error: esErr } = await supabase
-      .from('event_suppliers')
-      .insert({
-        event_id:        eventId,
-        supplier_id:     newSupplier.id,
-        status:          'nuevo',
-        quoted_amount:   data.quoted_amount,
-        event_budget_id: data.event_budget_id,
-      })
-      .select('*, supplier:suppliers(*)')
-      .single()
+    await vincularALaBoda(ficha.id, data)
 
-    if (esErr) { console.error('Error creando event_supplier:', esErr?.message ?? esErr, esErr); throw esErr }
-    if (newEventSupplier) setItems(prev => [newEventSupplier as SupplierWithDetails, ...prev])
+    setCatalogoBase(prev => [...prev, {
+      id:          ficha.id,
+      nombre:      ficha.name,
+      categoria:   null,
+      categoriaId: ficha.category_id,
+      pais:        ficha.country,
+      estado:      ficha.state_region,
+      ciudad:      ficha.city,
+      telefono:    ficha.phone,
+      correo:      ficha.email,
+      etiquetas:   Array.isArray(ficha.tags) ? ficha.tags : [],
+      veces:       0,
+      ultima:      null,
+      enEstaBoda:  false,
+    }])
+  }
+
+  const handleAbrirEnEstaBoda = (supplierId: string) => {
+    const item = items.find(i => i.supplier_id === supplierId)
+    setModalOpen(false)
+    if (item) setSelectedItem(item)
   }
 
   const handleSavedItem   = (updated: SupplierWithDetails) =>
@@ -335,14 +455,18 @@ export default function ProveedoresPage() {
       </div>
 
       {/* ── MODALES ── */}
-      <SupplierModal
+      <AltaProveedor
         isOpen={modalOpen && permiso.editar}
         onClose={() => setModalOpen(false)}
         currency={currency}
         budgets={budgets}
         categorias={categorias}
         duenoCatalogo={duenoCatalogo ?? ''}
-        onSubmit={handleCreateSupplier}
+        catalogo={catalogo}
+        eventoNombre={event.name}
+        onUsarExistente={handleUsarExistente}
+        onCrearNuevo={handleCrearNuevo}
+        onAbrirEnEstaBoda={handleAbrirEnEstaBoda}
       />
 
       {selectedItem && (

@@ -556,6 +556,10 @@ export type Supplier = {
   state_region: string | null
   service_radius_km: number | null
   general_notes: string | null
+  // Las dos llegaron con el cimiento de datos del Rolodex y llevaban desde
+  // entonces sin pantalla que las leyera ni las escribiera.
+  tags: string[] | null
+  archived_at: string | null
   created_at: string
 }
 
