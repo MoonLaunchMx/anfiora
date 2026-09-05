@@ -1,8 +1,9 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ChevronDown, ChevronUp, ExternalLink, Mail, MapPin, Phone, Star } from 'lucide-react'
+import { ChevronDown, ChevronUp, ExternalLink, Globe, Mail, MapPin, Phone, Star } from 'lucide-react'
 import { FaWhatsapp } from 'react-icons/fa'
+import { FiInstagram } from 'react-icons/fi'
 import {
   Currency, formatCurrency,
   EventSupplier, Supplier, EventBudget,
@@ -32,8 +33,10 @@ type Props = {
 // y subir el radio a la vez, nunca solo el paso, o los planos se cruzan y la de
 // atras tapa la mitad de abajo de la del frente. La perspectiva acompana al radio
 // para que la ficha del frente no cambie de tamano.
-const PASO_GRADOS       = 26
-const RADIO_PX          = 540
+const PASO_ESCRITORIO   = 26
+const RADIO_ESCRITORIO  = 540
+const PASO_MOVIL        = 24
+const RADIO_MOVIL       = 400
 const FICHAS_VISIBLES   = 3
 const PIXELES_POR_FICHA = 62
 const MS_ENTRE_GIROS    = 190
@@ -240,6 +243,8 @@ export default function SupplierFicheroView({ items, budgets, currency, categori
               return (
                 <Ficha
                   key={item.id}
+                  paso={esEscritorio ? PASO_ESCRITORIO : PASO_MOVIL}
+                  radio={esEscritorio ? RADIO_ESCRITORIO : RADIO_MOVIL}
                   item={item}
                   budgets={budgets}
                   currency={currency}
@@ -257,7 +262,7 @@ export default function SupplierFicheroView({ items, budgets, currency, categori
 
         <div className="flex shrink-0 items-center justify-between border-t border-[#f0f0f0] px-4 py-2 text-[11px] text-[#999]">
           <span className="hidden sm:inline">Rueda, arrastra o usa las flechas</span>
-          <span className="sm:hidden">Desliza para pasar las fichas</span>
+          <span className="sm:hidden">Desliza para pasar · toca para abrir</span>
           <span aria-live="polite" className="tabular-nums">{alFrente + 1} de {total}</span>
         </div>
       </div>
@@ -309,7 +314,7 @@ function Numero({ label, valor, destacado, chico }: {
   )
 }
 
-function Ficha({ item, budgets, currency, categorias, activa, arrastrando, desplazamiento, onClick, onAbrir }: {
+function Ficha({ item, budgets, currency, categorias, activa, arrastrando, desplazamiento, paso, radio, onClick, onAbrir }: {
   item: SupplierWithDetails
   budgets: EventBudget[]
   currency: Currency
@@ -317,6 +322,8 @@ function Ficha({ item, budgets, currency, categorias, activa, arrastrando, despl
   activa: boolean
   arrastrando: boolean
   desplazamiento: number
+  paso: number
+  radio: number
   onClick: () => void
   onAbrir: () => void
 }) {
@@ -326,6 +333,9 @@ function Ficha({ item, budgets, currency, categorias, activa, arrastrando, despl
   const telCrudo   = s.phone ? (s.phone.startsWith('+') ? s.phone : `${s.phone_country_code ?? '+52'} ${s.phone}`) : null
   const waDigitos  = telCrudo ? toWhatsApp(telCrudo) : null
   const telVisible = telCrudo ? formatDisplay(telCrudo) : null
+
+  const igLink     = s.instagram ? `https://instagram.com/${s.instagram.replace('@', '')}` : null
+  const webLink    = s.website ? (s.website.startsWith('http') ? s.website : `https://${s.website}`) : null
 
   const partida    = budgets.find(b => b.id === item.event_budget_id)
   const meta       = partida?.budget_amount ?? null
@@ -343,14 +353,14 @@ function Ficha({ item, budgets, currency, categorias, activa, arrastrando, despl
       aria-hidden={!activa}
       onClick={onClick}
       style={{
-        transform: `translate(-50%, -50%) rotateX(${-desplazamiento * PASO_GRADOS}deg) translateZ(${RADIO_PX}px) scale(${escalaFicha(desplazamiento)})`,
+        transform: `translate(-50%, -50%) rotateX(${-desplazamiento * paso}deg) translateZ(${radio}px) scale(${escalaFicha(desplazamiento)})`,
         zIndex: 100 - Math.round(Math.abs(desplazamiento)),
         pointerEvents: Math.abs(desplazamiento) > 2 ? 'none' : 'auto',
         transition: arrastrando
           ? 'none'
           : 'transform .42s cubic-bezier(.22,.9,.28,1), box-shadow .3s ease',
       }}
-      className={`absolute left-1/2 top-1/2 flex h-[210px] w-[86%] max-w-[420px] cursor-pointer flex-col rounded-2xl border bg-white p-4 [backface-visibility:hidden] sm:h-[224px] sm:p-5 ${
+      className={`absolute left-1/2 top-1/2 flex h-[150px] w-[86%] max-w-[420px] cursor-pointer flex-col rounded-2xl border bg-white p-3.5 [backface-visibility:hidden] lg:h-[224px] lg:p-5 ${
         activa
           ? 'border-[#dcd7cd] shadow-[0_26px_54px_-20px_rgba(0,0,0,.42)] ring-1 ring-black/5'
           : 'border-[#ececec] shadow-[0_8px_20px_-14px_rgba(0,0,0,.24)]'
@@ -359,81 +369,152 @@ function Ficha({ item, budgets, currency, categorias, activa, arrastrando, despl
       <span aria-hidden className="absolute -left-px top-1/2 h-9 w-4 -translate-y-1/2 rounded-r-full border border-l-0 border-[#e8e8e8] bg-white" />
       <span aria-hidden className="absolute -right-px top-1/2 h-9 w-4 -translate-y-1/2 rounded-l-full border border-r-0 border-[#e8e8e8] bg-white" />
 
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h3 className="truncate text-[15px] font-semibold leading-tight text-[#1D1E20] sm:text-[17px]">{s.name}</h3>
-          <p className="mt-0.5 truncate text-xs text-[#888]">
-            {categoria}{s.subcategory ? ` · ${s.subcategory}` : ''}
-          </p>
-        </div>
-        <span className={`shrink-0 rounded-md px-2 py-1 text-[10px] font-semibold sm:text-[11px] ${SUPPLIER_STATUS_COLORS[item.status]}`}>
-          {SUPPLIER_STATUS_LABELS[item.status]}
-        </span>
-      </div>
-
-      <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-[#666] sm:text-xs">
-        {s.city && (
-          <span className="flex min-w-0 items-center gap-1.5"><MapPin size={12} className="shrink-0 text-[#aaa]" /><span className="truncate">{s.city}</span></span>
-        )}
-        {telVisible && (
-          <span className="flex items-center gap-1.5"><Phone size={12} className="shrink-0 text-[#aaa]" />{telVisible}</span>
-        )}
-        {item.rating ? (
-          <span className="flex items-center gap-1.5">
-            <Star size={12} className="shrink-0 fill-[#48C9B0] text-[#48C9B0]" />{item.rating}.0
+      <div className="flex h-full flex-col gap-2 lg:hidden">
+        <div className="flex items-start justify-between gap-2.5">
+          <div className="min-w-0">
+            <h3 className="truncate text-[15px] font-semibold leading-tight text-[#1D1E20]">{s.name}</h3>
+            <p className="mt-0.5 truncate text-[11px] text-[#888]">
+              {categoria}{s.city ? ` · ${s.city}` : ''}
+            </p>
+          </div>
+          <span className={`shrink-0 rounded-md px-2 py-0.5 text-[10px] font-semibold ${SUPPLIER_STATUS_COLORS[item.status]}`}>
+            {SUPPLIER_STATUS_LABELS[item.status]}
           </span>
-        ) : null}
-      </div>
-
-      <div className="mt-2.5 grid grid-cols-2 gap-x-4 border-t border-[#f0f0f0] pt-2.5">
-        <div>
-          <p className="text-[10px] uppercase tracking-wider text-[#aaa]">Cotizado</p>
-          <p className={`text-sm font-semibold tabular-nums ${item.quoted_amount == null ? 'text-[#ccc]' : 'text-[#1D1E20]'}`}>
-            {item.quoted_amount == null ? '—' : formatCurrency(item.quoted_amount, currency)}
-          </p>
         </div>
-        <div>
-          <p className="text-[10px] uppercase tracking-wider text-[#aaa]">Contratado</p>
-          <p className={`text-sm font-semibold tabular-nums ${item.contract_amount == null ? 'text-[#ccc]' : 'text-[#1D9E75]'}`}>
-            {item.contract_amount == null ? '—' : formatCurrency(item.contract_amount, currency)}
-          </p>
+
+        <div className="mt-auto flex gap-6 border-t border-[#f0f0f0] pt-2">
+          <div>
+            <p className="text-[9px] font-semibold uppercase tracking-wider text-[#aaa]">Cotizado</p>
+            <p className={`text-[13px] font-bold tabular-nums ${item.quoted_amount == null ? 'text-[#ccc]' : 'text-[#1D1E20]'}`}>
+              {item.quoted_amount == null ? '—' : formatCurrency(item.quoted_amount, currency)}
+            </p>
+          </div>
+          <div>
+            <p className="text-[9px] font-semibold uppercase tracking-wider text-[#aaa]">Contratado</p>
+            <p className={`text-[13px] font-bold tabular-nums ${item.contract_amount == null ? 'text-[#ccc]' : 'text-[#1D9E75]'}`}>
+              {item.contract_amount == null ? '—' : formatCurrency(item.contract_amount, currency)}
+            </p>
+          </div>
         </div>
-      </div>
 
-      {meta !== null && contraMeta !== null && (excede || ahorra) && (
-        <p className={`mt-1 truncate text-[11px] font-medium ${excede ? 'text-red-500' : 'text-emerald-600'}`}>
-          {excede
-            ? `Excede por ${formatCurrency(contraMeta - meta, currency)}`
-            : `Ahorro de ${formatCurrency(meta - contraMeta, currency)}`}
-        </p>
-      )}
-
-      {activa && (
-        <div className="mt-auto flex flex-wrap gap-2 pt-2.5">
+        <div className="flex gap-2">
           {waDigitos && (
             <button
+              aria-label="Abrir WhatsApp"
               onClick={e => abrirEnlace(e, `https://wa.me/${waDigitos}`)}
-              className="flex items-center gap-1.5 rounded-lg bg-[#48C9B0] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#3aa896]"
+              className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#48C9B0] text-white transition hover:bg-[#3aa896]"
             >
-              <FaWhatsapp size={14} /> WhatsApp
+              <FaWhatsapp size={15} />
             </button>
           )}
           {s.email && (
             <button
+              aria-label="Enviar correo"
               onClick={e => abrirEnlace(e, `mailto:${s.email}`)}
-              className="flex items-center gap-1.5 rounded-lg border border-[#e0e0e0] bg-white px-3 py-1.5 text-xs font-medium text-[#1D1E20] transition hover:bg-[#f5f5f5]"
+              className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#e0e0e0] bg-white text-[#666] transition hover:bg-[#f5f5f5]"
             >
-              <Mail size={14} /> Correo
+              <Mail size={15} />
             </button>
           )}
-          <button
-            onClick={e => { e.stopPropagation(); onAbrir() }}
-            className="flex items-center gap-1.5 rounded-lg border border-[#e0e0e0] bg-white px-3 py-1.5 text-xs font-medium text-[#1D1E20] transition hover:bg-[#f5f5f5]"
-          >
-            <ExternalLink size={14} /> Ver ficha
-          </button>
+          {igLink && (
+            <button
+              aria-label="Abrir Instagram"
+              onClick={e => abrirEnlace(e, igLink)}
+              className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#e0e0e0] bg-white text-[#666] transition hover:bg-[#f5f5f5]"
+            >
+              <FiInstagram size={15} />
+            </button>
+          )}
+          {webLink && (
+            <button
+              aria-label="Abrir sitio web"
+              onClick={e => abrirEnlace(e, webLink)}
+              className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#e0e0e0] bg-white text-[#666] transition hover:bg-[#f5f5f5]"
+            >
+              <Globe size={15} />
+            </button>
+          )}
         </div>
-      )}
+      </div>
+
+      <div className="hidden h-full flex-col lg:flex">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h3 className="truncate text-[15px] font-semibold leading-tight text-[#1D1E20] sm:text-[17px]">{s.name}</h3>
+            <p className="mt-0.5 truncate text-xs text-[#888]">
+              {categoria}{s.subcategory ? ` · ${s.subcategory}` : ''}
+            </p>
+          </div>
+          <span className={`shrink-0 rounded-md px-2 py-1 text-[10px] font-semibold sm:text-[11px] ${SUPPLIER_STATUS_COLORS[item.status]}`}>
+            {SUPPLIER_STATUS_LABELS[item.status]}
+          </span>
+        </div>
+
+        <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-[#666] sm:text-xs">
+          {s.city && (
+            <span className="flex min-w-0 items-center gap-1.5"><MapPin size={12} className="shrink-0 text-[#aaa]" /><span className="truncate">{s.city}</span></span>
+          )}
+          {telVisible && (
+            <span className="flex items-center gap-1.5"><Phone size={12} className="shrink-0 text-[#aaa]" />{telVisible}</span>
+          )}
+          {item.rating ? (
+            <span className="flex items-center gap-1.5">
+              <Star size={12} className="shrink-0 fill-[#48C9B0] text-[#48C9B0]" />{item.rating}.0
+            </span>
+          ) : null}
+        </div>
+
+        <div className="mt-2.5 grid grid-cols-2 gap-x-4 border-t border-[#f0f0f0] pt-2.5">
+          <div>
+            <p className="text-[10px] uppercase tracking-wider text-[#aaa]">Cotizado</p>
+            <p className={`text-sm font-semibold tabular-nums ${item.quoted_amount == null ? 'text-[#ccc]' : 'text-[#1D1E20]'}`}>
+              {item.quoted_amount == null ? '—' : formatCurrency(item.quoted_amount, currency)}
+            </p>
+          </div>
+          <div>
+            <p className="text-[10px] uppercase tracking-wider text-[#aaa]">Contratado</p>
+            <p className={`text-sm font-semibold tabular-nums ${item.contract_amount == null ? 'text-[#ccc]' : 'text-[#1D9E75]'}`}>
+              {item.contract_amount == null ? '—' : formatCurrency(item.contract_amount, currency)}
+            </p>
+          </div>
+        </div>
+
+        {meta !== null && contraMeta !== null && (excede || ahorra) && (
+          <p className={`mt-1 truncate text-[11px] font-medium ${excede ? 'text-red-500' : 'text-emerald-600'}`}>
+            {excede
+              ? `Excede por ${formatCurrency(contraMeta - meta, currency)}`
+              : `Ahorro de ${formatCurrency(meta - contraMeta, currency)}`}
+          </p>
+        )}
+
+        {activa && (
+          <div className="mt-auto flex flex-wrap gap-2 pt-2.5">
+            {waDigitos && (
+              <button
+                onClick={e => abrirEnlace(e, `https://wa.me/${waDigitos}`)}
+                className="flex items-center gap-1.5 rounded-lg bg-[#48C9B0] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#3aa896]"
+              >
+                <FaWhatsapp size={14} /> WhatsApp
+              </button>
+            )}
+            {s.email && (
+              <button
+                onClick={e => abrirEnlace(e, `mailto:${s.email}`)}
+                className="flex items-center gap-1.5 rounded-lg border border-[#e0e0e0] bg-white px-3 py-1.5 text-xs font-medium text-[#1D1E20] transition hover:bg-[#f5f5f5]"
+              >
+                <Mail size={14} /> Correo
+              </button>
+            )}
+            <button
+              onClick={e => { e.stopPropagation(); onAbrir() }}
+              className="flex items-center gap-1.5 rounded-lg border border-[#e0e0e0] bg-white px-3 py-1.5 text-xs font-medium text-[#1D1E20] transition hover:bg-[#f5f5f5]"
+            >
+              <ExternalLink size={14} /> Ver ficha
+            </button>
+          </div>
+        )}
+
+      </div>
 
       <span
         aria-hidden
