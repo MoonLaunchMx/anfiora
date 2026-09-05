@@ -4,6 +4,7 @@ import { Bell, AlertTriangle, Clock, Building2, CheckCircle2, Circle, Star, Rota
 import { TimelineTask } from '@/lib/types'
 import { formatReminderLabel } from '@/lib/timeline/reminder-picker'
 import { Puede } from '@/lib/permisos/Puede'
+import { usePermiso } from '@/lib/event-access-context'
 
 const CATEGORIES = [
   { value: 'evento',        label: 'Evento' },
@@ -145,6 +146,7 @@ interface TaskCardProps {
 }
 
 export function TaskCard({ t, onEdit, onToggleCompleted }: TaskCardProps) {
+  const permiso      = usePermiso('timeline')
   const urgency      = getUrgency(t)
   const dateColor    = URGENCY_DATE_COLOR[urgency]
   const isBlocking   = t.priority === 'bloqueante'
@@ -154,9 +156,10 @@ export function TaskCard({ t, onEdit, onToggleCompleted }: TaskCardProps) {
 
   return (
     <div
-      onClick={() => onEdit(t)}
+      onClick={() => { if (permiso.editar) onEdit(t) }}
       className={[
-        'flex-1 ml-3 my-1 bg-white border border-[#e8e8e8] cursor-pointer rounded-xl transition-all hover:border-[#c8c8c8] hover:shadow-sm',
+        'flex-1 ml-3 my-1 bg-white border border-[#e8e8e8] rounded-xl transition-all',
+        permiso.editar ? 'cursor-pointer hover:border-[#c8c8c8] hover:shadow-sm' : '',
         t.is_completed ? 'opacity-45' : '',
       ].join(' ')}
     >
@@ -256,13 +259,15 @@ export function TaskCard({ t, onEdit, onToggleCompleted }: TaskCardProps) {
             </button>
             <span className="text-[#e8e8e8] text-xs">|</span>
           </Puede>
-          <button
-            onClick={e => { e.stopPropagation(); onEdit(t) }}
-            className="flex items-center gap-1.5 text-[11px] text-[#aaa] hover:text-[#555] px-3 transition-colors"
-          >
-            <RotateCcw size={11} />Reagendar
-          </button>
-          <span className="text-[#e8e8e8] text-xs">|</span>
+          <Puede modulo="timeline" accion="editar">
+            <button
+              onClick={e => { e.stopPropagation(); onEdit(t) }}
+              className="flex items-center gap-1.5 text-[11px] text-[#aaa] hover:text-[#555] px-3 transition-colors"
+            >
+              <RotateCcw size={11} />Reagendar
+            </button>
+            <span className="text-[#e8e8e8] text-xs">|</span>
+          </Puede>
           <button
             onClick={e => { e.stopPropagation(); openGoogleCalendar(t) }}
             className="flex items-center gap-1.5 text-[11px] text-[#aaa] hover:text-[#555] px-3 transition-colors"
