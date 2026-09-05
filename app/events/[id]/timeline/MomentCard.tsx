@@ -46,10 +46,10 @@ export function MomentCard({ moment, guestPreview, onEdit, onToggleVisible }: Mo
 
       {/* Tarjeta */}
       <div
-        onClick={() => { if (permiso.editar && !guestPreview) onEdit(moment) }}
+        onClick={() => { if (permiso.ver && !guestPreview) onEdit(moment) }}
         className={[
           'mb-3 flex-1 rounded-xl border p-3 transition-all',
-          permiso.editar && !guestPreview ? 'cursor-pointer hover:border-[#d4a853]' : '',
+          permiso.ver && !guestPreview ? 'cursor-pointer hover:border-[#d4a853]' : '',
           hidden && !guestPreview ? 'border-dashed border-[#e0e0e0] bg-[#fbfbfb] opacity-70' : 'border-[#e8e8e8] bg-white',
         ].join(' ')}
       >

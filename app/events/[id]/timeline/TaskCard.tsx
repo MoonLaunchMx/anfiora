@@ -156,10 +156,10 @@ export function TaskCard({ t, onEdit, onToggleCompleted }: TaskCardProps) {
 
   return (
     <div
-      onClick={() => { if (permiso.editar) onEdit(t) }}
+      onClick={() => { if (permiso.ver) onEdit(t) }}
       className={[
         'flex-1 ml-3 my-1 bg-white border border-[#e8e8e8] rounded-xl transition-all',
-        permiso.editar ? 'cursor-pointer hover:border-[#c8c8c8] hover:shadow-sm' : '',
+        permiso.ver ? 'cursor-pointer hover:border-[#c8c8c8] hover:shadow-sm' : '',
         t.is_completed ? 'opacity-45' : '',
       ].join(' ')}
     >

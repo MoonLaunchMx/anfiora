@@ -7,6 +7,7 @@ import { ChevronDown, Eye, EyeOff } from 'lucide-react'
 import { Modal } from '@/app/components/ui/Modal'
 import TimePicker from '@/app/components/ui/TimePicker'
 import { Puede } from '@/lib/permisos/Puede'
+import { usePermiso } from '@/lib/event-access-context'
 
 export interface MomentDraft {
   title: string
@@ -32,6 +33,8 @@ interface MomentModalProps {
 }
 
 export function MomentModal({ editMoment, suppliers, days, defaultDate, onClose, onSave, onDelete }: MomentModalProps) {
+  const permiso = usePermiso('timeline')
+  const soloLectura = !permiso.editar
   const [form, setForm] = useState({
     title: '',
     moment_date: defaultDate,
@@ -95,7 +98,7 @@ export function MomentModal({ editMoment, suppliers, days, defaultDate, onClose,
 
   return (
     <Modal open onClose={onClose} size="lg">
-      <Modal.Header title={editMoment ? 'Editar momento' : 'Nuevo momento'} />
+      <Modal.Header title={soloLectura ? 'Detalle del momento' : editMoment ? 'Editar momento' : 'Nuevo momento'} />
       <Modal.Body className="[&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
         <div className="flex flex-col gap-3.5">
           {/* Titulo */}
@@ -104,7 +107,11 @@ export function MomentModal({ editMoment, suppliers, days, defaultDate, onClose,
             placeholder="Titulo del momento (ej. Ceremonia)"
             value={form.title}
             onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
-            className="w-full border border-[#e0e0e0] rounded-xl px-3 py-2.5 text-base focus:outline-none focus:border-[#48C9B0] bg-[#f8f8f8]"
+            readOnly={soloLectura}
+            className={[
+              'w-full border border-[#e0e0e0] rounded-xl px-3 py-2.5 text-base focus:outline-none focus:border-[#48C9B0] bg-[#f8f8f8]',
+              soloLectura ? 'cursor-default text-[#666]' : '',
+            ].join(' ')}
           />
 
           {dayChips.length > 1 && (
@@ -119,8 +126,9 @@ export function MomentModal({ editMoment, suppliers, days, defaultDate, onClose,
                     <button
                       key={d}
                       onClick={() => setForm(f => ({ ...f, moment_date: d }))}
+                      disabled={soloLectura}
                       className={[
-                        'rounded-xl border px-2 py-2 text-center transition',
+                        'rounded-xl border px-2 py-2 text-center transition disabled:opacity-70',
                         activo && fuera
                           ? 'border-[#cc3333] bg-[#fff0f0]'
                           : activo
@@ -156,6 +164,7 @@ export function MomentModal({ editMoment, suppliers, days, defaultDate, onClose,
               <TimePicker
                 value={form.start_time}
                 onChange={v => setForm(f => ({ ...f, start_time: v }))}
+                disabled={soloLectura}
               />
             </div>
             <div>
@@ -169,7 +178,11 @@ export function MomentModal({ editMoment, suppliers, days, defaultDate, onClose,
                 placeholder="40"
                 value={form.duration_min}
                 onChange={e => setForm(f => ({ ...f, duration_min: e.target.value }))}
-                className="w-full border border-[#e0e0e0] rounded-xl px-3 py-2 text-base focus:outline-none focus:border-[#48C9B0] bg-[#f8f8f8]"
+                readOnly={soloLectura}
+                className={[
+                  'w-full border border-[#e0e0e0] rounded-xl px-3 py-2 text-base focus:outline-none focus:border-[#48C9B0] bg-[#f8f8f8]',
+                  soloLectura ? 'cursor-default text-[#666]' : '',
+                ].join(' ')}
               />
             </div>
           </div>
@@ -185,7 +198,8 @@ export function MomentModal({ editMoment, suppliers, days, defaultDate, onClose,
                 <select
                   value={form.phase}
                   onChange={e => setForm(f => ({ ...f, phase: e.target.value as ItineraryPhase }))}
-                  className="w-full border border-[#e0e0e0] rounded-xl px-3 py-2 text-base appearance-none focus:outline-none focus:border-[#48C9B0] bg-[#f8f8f8] cursor-pointer"
+                  disabled={soloLectura}
+                  className="w-full border border-[#e0e0e0] rounded-xl px-3 py-2 text-base appearance-none focus:outline-none focus:border-[#48C9B0] bg-[#f8f8f8] cursor-pointer disabled:cursor-default disabled:opacity-70"
                 >
                   {ITINERARY_PHASES.map(p => <option key={p} value={p}>{PHASE_LABEL[p]}</option>)}
                 </select>
@@ -201,7 +215,11 @@ export function MomentModal({ editMoment, suppliers, days, defaultDate, onClose,
                 placeholder="Jardin, terraza..."
                 value={form.location}
                 onChange={e => setForm(f => ({ ...f, location: e.target.value }))}
-                className="w-full border border-[#e0e0e0] rounded-xl px-3 py-2 text-base focus:outline-none focus:border-[#48C9B0] bg-[#f8f8f8]"
+                readOnly={soloLectura}
+                className={[
+                  'w-full border border-[#e0e0e0] rounded-xl px-3 py-2 text-base focus:outline-none focus:border-[#48C9B0] bg-[#f8f8f8]',
+                  soloLectura ? 'cursor-default text-[#666]' : '',
+                ].join(' ')}
               />
             </div>
           </div>
@@ -215,7 +233,8 @@ export function MomentModal({ editMoment, suppliers, days, defaultDate, onClose,
               <select
                 value={form.event_supplier_id}
                 onChange={e => setForm(f => ({ ...f, event_supplier_id: e.target.value }))}
-                className="w-full border border-[#e0e0e0] rounded-xl px-3 py-2 text-base appearance-none focus:outline-none focus:border-[#48C9B0] bg-[#f8f8f8] cursor-pointer"
+                disabled={soloLectura}
+                className="w-full border border-[#e0e0e0] rounded-xl px-3 py-2 text-base appearance-none focus:outline-none focus:border-[#48C9B0] bg-[#f8f8f8] cursor-pointer disabled:cursor-default disabled:opacity-70"
               >
                 <option value="">Sin proveedor</option>
                 {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
@@ -234,7 +253,11 @@ export function MomentModal({ editMoment, suppliers, days, defaultDate, onClose,
               placeholder="Coordinador, MC, maestro de ceremonias..."
               value={form.assigned_to_name}
               onChange={e => setForm(f => ({ ...f, assigned_to_name: e.target.value }))}
-              className="w-full border border-[#e0e0e0] rounded-xl px-3 py-2 text-base focus:outline-none focus:border-[#48C9B0] bg-[#f8f8f8]"
+              readOnly={soloLectura}
+              className={[
+                'w-full border border-[#e0e0e0] rounded-xl px-3 py-2 text-base focus:outline-none focus:border-[#48C9B0] bg-[#f8f8f8]',
+                soloLectura ? 'cursor-default text-[#666]' : '',
+              ].join(' ')}
             />
           </div>
 
@@ -248,15 +271,20 @@ export function MomentModal({ editMoment, suppliers, days, defaultDate, onClose,
               value={form.notes}
               onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
               rows={2}
-              className="w-full border border-[#e0e0e0] rounded-xl px-3 py-2 text-base focus:outline-none focus:border-[#48C9B0] resize-none bg-[#f8f8f8]"
+              readOnly={soloLectura}
+              className={[
+                'w-full border border-[#e0e0e0] rounded-xl px-3 py-2 text-base focus:outline-none focus:border-[#48C9B0] resize-none bg-[#f8f8f8]',
+                soloLectura ? 'cursor-default text-[#666]' : '',
+              ].join(' ')}
             />
           </div>
 
           {/* Visibilidad */}
           <button
             onClick={() => setForm(f => ({ ...f, visible_to_guests: !f.visible_to_guests }))}
+            disabled={soloLectura}
             className={[
-              'flex items-center gap-2 px-3 py-2 rounded-xl border text-sm transition-colors',
+              'flex items-center gap-2 px-3 py-2 rounded-xl border text-sm transition-colors disabled:opacity-70',
               form.visible_to_guests
                 ? 'border-[#c8ede7] bg-[#f0fdfb] text-[#0F6E56]'
                 : 'border-[#e0e0e0] text-[#888] hover:bg-[#f8f8f8]',
@@ -282,7 +310,7 @@ export function MomentModal({ editMoment, suppliers, days, defaultDate, onClose,
           onClick={onClose}
           className="flex-1 py-2.5 text-sm border border-[#e0e0e0] rounded-xl text-[#888] hover:bg-[#f8f8f8] transition-colors"
         >
-          Cancelar
+          {soloLectura ? 'Cerrar' : 'Cancelar'}
         </button>
         <Puede modulo="timeline" accion="editar">
           <button
