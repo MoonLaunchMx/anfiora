@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabase'
 import { resolveFeatures, type FeatureKey } from '@/lib/features'
 import { logAction } from '@/lib/audit'
 import {
-  normalizarPermisos, nivelEfectivo, puede, permisosDesdeRolLegado,
+  normalizarPermisos, nivelEfectivo, puede, resumir,
   type RolCuenta, type ContextoPermiso,
 } from '@/lib/permisos/resolver'
 import type { Modulo, Nivel, PermisosEvento } from '@/lib/permisos/catalogo'
@@ -152,7 +152,12 @@ export function EventAccessProvider({
             e,
           )
         } finally {
-          setPermisos(permisosLeidos ?? permisosDesdeRolLegado(collaborator?.role))
+          // Sin permisos leidos no se otorga nada. El respaldo por rol legado
+          // que vivia aqui era failure-open: si esta lectura fallaba, le
+          // devolvia 'total' en los doce modulos a cualquier editor o admin
+          // viejo. La migracion ya escribio permisos para todos, asi que el
+          // respaldo no cubria a nadie y solo dejaba el riesgo.
+          setPermisos(permisosLeidos ?? {})
         }
       } catch {
         console.error('[event-access] Error verificando acceso')
@@ -194,21 +199,22 @@ export function EventAccessProvider({
   const canAdmin = role === 'owner' || role === 'admin'
   const canEdit = role === 'owner' || role === 'admin' || role === 'editor'
   const canInvite = role === 'owner' || role === 'admin'
-  const hasAccess = role !== null
+
+  const ctxPermiso = useMemo<ContextoPermiso>(
+    () => ({ esDuenoDelEvento: isOwner, rolCuenta, permisos, features }),
+    [isOwner, rolCuenta, permisos, features],
+  )
+
+  // El acceso ES la suma de las herramientas (spec §6): sin una sola, no entras
+  // a la boda. Ya no se deriva de tener fila en event_collaborators, porque una
+  // fila con los doce modulos en 'ninguno' es exactamente no tener acceso.
+  const hasAccess = resumir(ctxPermiso).entra > 0
 
   // Estable entre renders: <Puede> aparece decenas de veces por pantalla y
   // nivelDeModulo es candidato natural a entrar en dependencias de useEffect.
   const nivelDeModulo = useCallback(
-    (modulo: Modulo): Nivel => {
-      const ctxPermiso: ContextoPermiso = {
-        esDuenoDelEvento: isOwner,
-        rolCuenta,
-        permisos,
-        features,
-      }
-      return nivelEfectivo(ctxPermiso, modulo)
-    },
-    [isOwner, rolCuenta, permisos, features],
+    (modulo: Modulo): Nivel => nivelEfectivo(ctxPermiso, modulo),
+    [ctxPermiso],
   )
 
   const value = useMemo<EventAccessContextType>(
