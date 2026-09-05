@@ -15,6 +15,7 @@ import {
   nombrePais, normalizarCiudad, normalizarEstado, tieneEstados,
 } from '@/lib/geo/divisiones'
 import SelectorGeo, { OpcionGeo } from '@/app/components/ui/SelectorGeo'
+import TagInput from '@/app/components/ui/TagInput'
 import PhoneInput from '@/app/components/ui/PhoneInput'
 import { Modal } from '@/app/components/ui/Modal'
 import CategoriaPicker from './CategoriaPicker'
@@ -156,7 +157,6 @@ export default function AltaProveedor({
   const [estado, setEstado]         = useState('')
   const [radio, setRadio]           = useState('')
   const [etiquetas, setEtiquetas]   = useState<string[]>([])
-  const [etiquetaNueva, setEtiquetaNueva] = useState('')
   const [notas, setNotas]           = useState('')
 
   const [eventBudgetId, setEventBudgetId] = useState('')
@@ -180,7 +180,7 @@ export default function AltaProveedor({
     setNombre(''); setCategoryId(''); setContacto(''); setTelefono('')
     setInstagram(''); setFacebook(''); setCorreo(''); setSitio('')
     setPais(paisDominante); setCiudad(''); setEstado('')
-    setRadio(''); setEtiquetas([]); setEtiquetaNueva(''); setNotas('')
+    setRadio(''); setEtiquetas([]); setNotas('')
     setEventBudgetId(''); setCotizacion('')
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen])
@@ -199,6 +199,15 @@ export default function AltaProveedor({
     () => (fase === 'nuevo' ? contactoRepetido(catalogo, { telefono, correo }) : null),
     [catalogo, telefono, correo, fase],
   )
+
+  // El pool de etiquetas del Rolodex: las que ya le pusiste a otros proveedores.
+  // Aqui no se ofrece borrarlas del catalogo — una etiqueta vive repartida en
+  // las fichas, y quitarla desde un alta tocaria proveedores que no estas viendo.
+  const etiquetasDelRolodex = useMemo(() => {
+    const todas = new Set<string>()
+    catalogo.forEach(e => e.etiquetas.forEach(t => todas.add(t)))
+    return [...todas].sort((a, b) => a.localeCompare(b, 'es'))
+  }, [catalogo])
 
   const opcionesPais: OpcionGeo[] = useMemo(
     () => PAISES.map(p => ({ valor: p.name, icono: bandera(p.iso) })),
@@ -269,15 +278,6 @@ export default function AltaProveedor({
     setCotizacion('')
     setError('')
     setFase('existente')
-  }
-
-  const agregarEtiqueta = () => {
-    const limpia = etiquetaNueva.trim()
-    if (!limpia) return
-    if (!etiquetas.some(t => t.toLowerCase() === limpia.toLowerCase())) {
-      setEtiquetas(prev => [...prev, limpia])
-    }
-    setEtiquetaNueva('')
   }
 
   const conEnvio = async (accion: () => Promise<void>) => {
@@ -691,26 +691,12 @@ export default function AltaProveedor({
               <Seccion titulo="Cómo lo vas a encontrar después" nota="Opcional">
                 <div>
                   <Etiqueta>Etiquetas</Etiqueta>
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    {etiquetas.map(t => (
-                      <span key={t} className="inline-flex items-center gap-1.5 rounded-full bg-[#f1efe8] px-2.5 py-1 text-[11.5px] font-semibold text-[#5F5C57]">
-                        {t}
-                        <button type="button" aria-label={`Quitar ${t}`} className="opacity-55 transition hover:opacity-100"
-                          onClick={() => setEtiquetas(prev => prev.filter(x => x !== t))}>×</button>
-                      </span>
-                    ))}
-                    <input
-                      type="text"
-                      value={etiquetaNueva}
-                      onChange={e => setEtiquetaNueva(e.target.value)}
-                      onKeyDown={e => {
-                        if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); agregarEtiqueta() }
-                      }}
-                      onBlur={agregarEtiqueta}
-                      placeholder="+ etiqueta"
-                      className="min-w-[110px] flex-1 rounded-full border border-dashed border-[#e0e0e0] bg-transparent px-3 py-1 text-[11.5px] text-[#1D1E20] outline-none transition focus:border-[#48C9B0]"
-                    />
-                  </div>
+                  <TagInput
+                    availableTags={etiquetasDelRolodex}
+                    selectedTags={etiquetas}
+                    onChangeSelected={setEtiquetas}
+                    label="Etiqueta"
+                  />
                 </div>
                 <div>
                   <Etiqueta>Notas generales</Etiqueta>

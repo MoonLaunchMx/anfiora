@@ -14,6 +14,7 @@ function ficha(p: Partial<EntradaDelRolodex> & { nombre: string }): EntradaDelRo
     ciudad:      p.ciudad ?? null,
     telefono:   p.telefono ?? null,
     correo:     p.correo ?? null,
+    etiquetas:  p.etiquetas ?? [],
     veces:      p.veces ?? 1,
     ultima:     p.ultima ?? null,
     enEstaBoda: p.enEstaBoda ?? false,

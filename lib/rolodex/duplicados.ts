@@ -13,6 +13,7 @@ export type EntradaDelRolodex = {
   ciudad: string | null
   telefono: string | null
   correo: string | null
+  etiquetas: string[]
   veces: number
   ultima: string | null
   enEstaBoda: boolean

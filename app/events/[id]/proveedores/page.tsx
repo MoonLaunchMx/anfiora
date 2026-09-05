@@ -93,7 +93,7 @@ export default function ProveedoresPage() {
 
     const { data: fichas, error } = await supabase
       .from('suppliers')
-      .select('id, name, category_id, country, state_region, city, phone, email')
+      .select('id, name, category_id, country, state_region, city, phone, email, tags')
       .eq('user_id', dueno)
       .is('archived_at', null)
 
@@ -136,6 +136,7 @@ export default function ProveedoresPage() {
         ciudad:      f.city,
         telefono:    f.phone,
         correo:      f.email,
+        etiquetas:   Array.isArray(f.tags) ? f.tags : [],
         veces:       mios.length,
         ultima:      ultima ? [ultima.name, mesYAno(ultima.event_date)].filter(Boolean).join(' · ') : null,
         enEstaBoda:  false,
@@ -228,6 +229,7 @@ export default function ProveedoresPage() {
       ciudad:      ficha.city,
       telefono:    ficha.phone,
       correo:      ficha.email,
+      etiquetas:   Array.isArray(ficha.tags) ? ficha.tags : [],
       veces:       0,
       ultima:      null,
       enEstaBoda:  false,
