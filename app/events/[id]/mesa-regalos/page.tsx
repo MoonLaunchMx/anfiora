@@ -268,6 +268,7 @@ function MesaRegalosPageInner() {
   }
 
   const thankByWhatsApp = async (r: GiftReservation, gift: GiftRegistryItem | undefined) => {
+    if (!permiso.editar) return
     window.open(waThanksUrl(r, gift), '_blank', 'noopener,noreferrer')
     if (r.thanked) return
     await supabase.from('gift_reservations').update({ thanked: true }).eq('id', r.id)
@@ -275,6 +276,7 @@ function MesaRegalosPageInner() {
   }
 
   const handleReceived = async (r: GiftReservation, gift: GiftRegistryItem | undefined) => {
+    if (!permiso.editar) return
     const willThank = !r.thanked && !!r.guest_phone
     if (willThank) window.open(waThanksUrl(r, gift), '_blank', 'noopener,noreferrer')
     const thanked = r.thanked || willThank
@@ -306,6 +308,7 @@ function MesaRegalosPageInner() {
   )
 
   const actionFor = (r: GiftReservation, gift: GiftRegistryItem | undefined) => (
+    !permiso.editar ? null :
     !r.purchased ? (
       <button
         onClick={() => handleReceived(r, gift)}
@@ -365,8 +368,11 @@ function MesaRegalosPageInner() {
   const TABS: TabItem[] = [
     { key: 'regalos',   label: 'Regalos',   icon: Gift },
     { key: 'recibidos', label: 'Recibidos', icon: Heart, badge: reservations.length || undefined },
-    { key: 'config',    label: 'Configuración', shortLabel: 'Config', icon: Settings },
   ]
+
+  // Configuracion guarda cuentas de banco y la direccion de envio, asi que
+  // solo la ve quien puede editar. Con solo ver, la pestana no existe.
+  if (permiso.editar) TABS.push({ key: 'config', label: 'Configuración', shortLabel: 'Config', icon: Settings })
 
   if (loading) {
     return <div className="p-8 text-sm text-[#666]">Cargando mesa de regalos...</div>
@@ -697,7 +703,7 @@ function MesaRegalosPageInner() {
         )}
 
         {/* ── Tab: Configuración ── */}
-        {tab === 'config' && (
+        {tab === 'config' && permiso.editar && (
           <div className="grid items-start gap-4 lg:grid-cols-2">
           {/* Columna izquierda: direccion de entrega + link publico */}
           <div className="space-y-4">
