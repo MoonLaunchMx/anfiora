@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { carpetasDe, accionesDe } from './ficha-por-estado'
+import { carpetasDe, destinosDe, pasosAlcanzados, CAMINO, QUE_SIGNIFICA } from './ficha-por-estado'
 
 describe('carpetasDe', () => {
   it('a un proveedor recien capturado solo se le pregunta el contacto', () => {
@@ -31,64 +31,44 @@ describe('carpetasDe', () => {
   })
 })
 
-describe('accionesDe', () => {
-  const textos = (estado: Parameters<typeof accionesDe>[0], paso: boolean) =>
-    accionesDe(estado, paso).filter(a => !a.separador).map(a => a.texto)
-
-  it('siempre ofrece al menos una accion', () => {
+describe('destinosDe', () => {
+  it('nunca se ofrece el estado en el que ya estas', () => {
     for (const estado of ['nuevo', 'cotizado', 'contratado', 'descartado'] as const) {
-      expect(textos(estado, false).length).toBeGreaterThan(0)
+      expect(destinosDe(estado)).not.toContain(estado)
     }
   })
 
-  it('la primera accion es la que mueve el trato hacia adelante', () => {
-    expect(textos('nuevo', false)[0]).toBe('Ya me cotizó')
-    expect(textos('cotizado', false)[0]).toBe('Contratar')
-    expect(textos('descartado', false)[0]).toBe('Recuperar')
-  })
-
-  it('descartar se ofrece mientras el trato siga vivo', () => {
-    expect(textos('nuevo', false)).toContain('Descartar')
-    expect(textos('cotizado', false)).toContain('Descartar')
-    expect(textos('contratado', false)).not.toContain('Descartar')
-  })
-
-  it('calificar solo se ofrece cuando la boda ya paso', () => {
-    expect(textos('contratado', false)).not.toContain('Calificar')
-    expect(textos('contratado', true)).toContain('Calificar')
-  })
-
-  it('las que mueven el trato traen su estado nuevo; las demas no', () => {
-    const contratar = accionesDe('cotizado', false).find(a => a.texto === 'Contratar')
-    expect(contratar?.nuevoEstado).toBe('contratado')
-    const pago = accionesDe('contratado', false).find(a => a.texto === 'Registrar un pago')
-    expect(pago?.nuevoEstado).toBeUndefined()
-  })
-
-  it('deshacer el contrato regresa a cotizado, no a nuevo', () => {
-    const deshacer = accionesDe('contratado', false).find(a => a.texto === 'Deshacer contrato')
-    expect(deshacer?.nuevoEstado).toBe('cotizado')
-  })
-
-  it('quitar de la boda se ofrece siempre, y siempre al final', () => {
+  it('siempre deja a donde ir', () => {
     for (const estado of ['nuevo', 'cotizado', 'contratado', 'descartado'] as const) {
-      const lista = accionesDe(estado, false)
-      const ultima = lista[lista.length - 1]
-      expect(ultima.texto).toBe('Quitar de esta boda')
-      expect(ultima.destructiva).toBe(true)
-      expect(ultima.nuevoEstado).toBeUndefined()
+      expect(destinosDe(estado).length).toBe(3)
     }
   })
 
-  it('nunca deja dos separadores juntos ni uno al final', () => {
-    for (const estado of ['nuevo', 'cotizado', 'contratado', 'descartado'] as const) {
-      for (const paso of [true, false]) {
-        const lista = accionesDe(estado, paso)
-        expect(lista[lista.length - 1].separador).toBeFalsy()
-        lista.forEach((a, i) => {
-          if (a.separador) expect(lista[i + 1]?.separador).toBeFalsy()
-        })
-      }
+  it('respeta el orden del camino y deja descartado al final', () => {
+    expect(destinosDe('nuevo')).toEqual(['cotizado', 'contratado', 'descartado'])
+    expect(destinosDe('contratado')).toEqual(['nuevo', 'cotizado', 'descartado'])
+  })
+
+  it('desde descartado se puede volver a cualquier paso del camino', () => {
+    expect(destinosDe('descartado')).toEqual(CAMINO)
+  })
+
+  it('cada destino sabe explicarse', () => {
+    for (const estado of destinosDe('nuevo')) {
+      expect(QUE_SIGNIFICA[estado].length).toBeGreaterThan(0)
     }
+  })
+})
+
+describe('pasosAlcanzados', () => {
+  it('marca el paso en el que estas y los anteriores', () => {
+    expect(pasosAlcanzados('nuevo')).toEqual(['nuevo'])
+    expect(pasosAlcanzados('cotizado')).toEqual(['nuevo', 'cotizado'])
+    expect(pasosAlcanzados('contratado')).toEqual(['nuevo', 'cotizado', 'contratado'])
+  })
+
+  // Descartar es salirse del camino: no se palomea lo que no se termino.
+  it('un descartado no tiene pasos alcanzados', () => {
+    expect(pasosAlcanzados('descartado')).toEqual([])
   })
 })

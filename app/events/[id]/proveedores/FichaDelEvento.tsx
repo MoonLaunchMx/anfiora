@@ -9,6 +9,7 @@ import { supabase } from '@/lib/supabase'
 import {
   Currency, formatCurrency,
   EventSupplier, Supplier, EventBudget, SupplierPayment, SupplierStatus,
+  SUPPLIER_STATUS_LABELS,
   PAYMENT_METHOD_LABELS, PAID_BY_LABELS,
   RESPONSE_SPEEDS, RESPONSE_SPEED_LABELS, ResponseSpeed,
 } from '@/lib/types'
@@ -16,9 +17,9 @@ import { Categoria, nombrePorId } from '@/lib/rolodex/categorias-store'
 import { formatDisplay, toWhatsApp } from '@/lib/phone'
 import { useConfirm } from '@/app/components/ui/ConfirmModal'
 import { usePermiso } from '@/lib/event-access-context'
-import { accionesDe, carpetasDe, type Accion } from '@/lib/rolodex/ficha-por-estado'
+import { carpetasDe, destinosDe, QUE_SIGNIFICA } from '@/lib/rolodex/ficha-por-estado'
 import PagoModal from './PagoModal'
-import { CaminoDelTrato, EstatusProveedor } from './EstatusProveedor'
+import { CaminoDelTrato, COLOR_ESTADO, ICONO_ESTADO } from './EstatusProveedor'
 import PhoneInput from '@/app/components/ui/PhoneInput'
 
 type SupplierWithDetails = EventSupplier & { supplier: Supplier }
@@ -66,17 +67,8 @@ export default function FichaDelEvento({
   const menuRef = useRef<HTMLDivElement>(null)
 
   const carpetas = useMemo(() => carpetasDe(item.status, bodaPaso), [item.status, bodaPaso])
-  const acciones = useMemo(
-    () => accionesDe(item.status, bodaPaso).filter(accion =>
-      accion.separador
-        ? true
-        : accion.destructiva               ? permisoFicha.borrar
-        : accion.texto === 'Registrar un pago' ? permisoPagos.editar
-                                              : permisoFicha.editar
-    ),
-    [item.status, bodaPaso, permisoFicha.editar, permisoPagos.editar]
-  )
-  const hayAcciones = acciones.some(accion => !accion.separador)
+  const destinos = useMemo(() => destinosDe(item.status), [item.status])
+  const puedeMover = permisoFicha.editar
 
   useEffect(() => { setCarpeta(0) }, [item.id, item.status])
 
@@ -263,17 +255,16 @@ export default function FichaDelEvento({
     review_text:    resena.nota.trim() || null,
   })
 
-  const ejecutar = (accion: Accion) => {
+  const moverA = (destino: SupplierStatus) => {
     setMenuAbierto(false)
-    if (accion.texto === 'Registrar un pago') {
-      if (permisoPagos.editar) setCobrando(true)
-      return
-    }
     if (!permisoFicha.editar) return
-    if (accion.destructiva) { quitarDeLaBoda(); return }
-    if (accion.nuevoEstado) { onStatusChange(item.id, accion.nuevoEstado); return }
-    const destino = carpetas.indexOf('Reseña')
-    if (accion.texto === 'Calificar' && destino !== -1) setCarpeta(destino)
+    onStatusChange(item.id, destino)
+  }
+
+  const sacarDeLaBoda = () => {
+    setMenuAbierto(false)
+    if (!permisoFicha.borrar) return
+    quitarDeLaBoda()
   }
 
   return (
@@ -297,52 +288,23 @@ export default function FichaDelEvento({
             </p>
           </div>
 
+          <span className="hidden shrink-0 lg:block">
+            <CaminoDelTrato estado={item.status} />
+          </span>
+
           {onCerrar && (
             <button
               onClick={onCerrar}
               aria-label="Cerrar"
-              className="order-last flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-[#e8e8e8] bg-white text-[#999] transition hover:text-[#1D1E20]"
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-[#e8e8e8] bg-white text-[#999] transition hover:text-[#1D1E20]"
             >
               <X size={13} />
             </button>
           )}
+        </div>
 
-          <div ref={menuRef} className="relative shrink-0">
-            <button
-              onClick={() => hayAcciones && setMenuAbierto(v => !v)}
-              disabled={!hayAcciones}
-              className={`flex items-center gap-1 rounded-lg border border-[#e8e8e8] bg-white py-0.5 pl-0.5 pr-1.5 ${hayAcciones ? '' : 'cursor-default'}`}
-            >
-              <EstatusProveedor estado={item.status} />
-              {hayAcciones && <ChevronDown size={12} className="text-[#999]" />}
-            </button>
-
-            {menuAbierto && hayAcciones && (
-              <div className="absolute right-0 top-[calc(100%+6px)] z-30 flex w-56 flex-col gap-0.5 rounded-xl border border-[#e8e8e8] bg-white p-1.5 shadow-[0_18px_40px_-18px_rgba(0,0,0,.45)]">
-                <p className="px-2.5 pb-1 pt-2 text-[9.5px] font-bold uppercase tracking-wider text-[#bbb]">
-                  Qué puedes hacer
-                </p>
-                {acciones.map((accion, i) =>
-                  accion.separador ? (
-                    <span key={`sep-${i}`} className="mx-1.5 my-1 h-px bg-[#eee]" />
-                  ) : (
-                    <button
-                      key={accion.texto}
-                      onClick={() => ejecutar(accion)}
-                      className={`rounded-lg px-2.5 py-2 text-left text-xs font-semibold transition ${
-                        accion.tono === 'principal' ? 'bg-[#48C9B0] text-white hover:bg-[#3aa896]'
-                        : accion.tono === 'mala'    ? 'text-[#cc3333] hover:bg-[#fff5f5]'
-                                                    : 'text-[#1D1E20] hover:bg-[#f6f6f6]'
-                      }`}
-                    >
-                      {accion.texto}
-                    </button>
-                  )
-                )}
-              </div>
-            )}
-          </div>
-
+        <div className="mt-2.5 lg:hidden">
+          <CaminoDelTrato estado={item.status} />
         </div>
 
         <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
@@ -373,9 +335,67 @@ export default function FichaDelEvento({
             </button>
           )}
 
-          <span className="ml-auto">
-            <CaminoDelTrato estado={item.status} />
-          </span>
+          <div ref={menuRef} className="relative ml-auto shrink-0">
+            <button
+              onClick={() => puedeMover && setMenuAbierto(v => !v)}
+              disabled={!puedeMover}
+              className={`flex items-center gap-1.5 rounded-lg border border-[#e0e0e0] bg-white px-2.5 py-1.5 text-xs font-bold text-[#1D1E20] transition ${
+                puedeMover ? 'hover:bg-[#f5f5f5]' : 'cursor-default opacity-60'
+              }`}
+            >
+              Mover a
+              <ChevronDown size={12} className="text-[#999]" />
+            </button>
+
+            {menuAbierto && puedeMover && (
+              <div className="absolute right-0 top-[calc(100%+6px)] z-30 flex w-64 flex-col gap-0.5 rounded-xl border border-[#e8e8e8] bg-white p-1.5 shadow-[0_18px_40px_-18px_rgba(0,0,0,.45)]">
+                <p className="px-2.5 pb-1 pt-2 text-[9.5px] font-bold uppercase tracking-wider text-[#bbb]">
+                  Mover a
+                </p>
+
+                {destinos.map(destino => {
+                  const Icono = ICONO_ESTADO[destino]
+                  return (
+                    <button
+                      key={destino}
+                      onClick={() => moverA(destino)}
+                      className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition hover:bg-[#f6f6f6]"
+                    >
+                      <span className={`flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-md ${COLOR_ESTADO[destino]}`}>
+                        <Icono size={12} strokeWidth={2.6} />
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block text-xs font-semibold text-[#1D1E20]">
+                          {SUPPLIER_STATUS_LABELS[destino]}
+                        </span>
+                        <span className="block truncate text-[11px] text-[#999]">
+                          {QUE_SIGNIFICA[destino]}
+                        </span>
+                      </span>
+                    </button>
+                  )
+                })}
+
+                {permisoFicha.borrar && (
+                  <>
+                    <span className="mx-1.5 my-1 h-px bg-[#eee]" />
+                    <button
+                      onClick={sacarDeLaBoda}
+                      className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition hover:bg-[#fff5f5]"
+                    >
+                      <span className="flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-md bg-[#FAEAE6] text-[#cc3333]">
+                        <Trash2 size={12} strokeWidth={2.6} />
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block text-xs font-semibold text-[#cc3333]">Quitar de esta boda</span>
+                        <span className="block truncate text-[11px] text-[#999]">Se queda en tu Rolodex</span>
+                      </span>
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </header>
 

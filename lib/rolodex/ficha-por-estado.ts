@@ -1,16 +1,5 @@
 import type { SupplierStatus } from '@/lib/types'
 
-export type Accion = {
-  texto: string
-  tono?: 'principal' | 'mala'
-  nuevoEstado?: SupplierStatus
-  separador?: boolean
-  destructiva?: boolean
-}
-
-const SEPARADOR: Accion = { texto: '', separador: true }
-const QUITAR: Accion = { texto: 'Quitar de esta boda', tono: 'mala', destructiva: true }
-
 // Lo que no aplica no existe: a un proveedor que apenas contactaste no se le
 // piden pagos, y a uno que descartaste no se le piden estrellas.
 export function carpetasDe(estado: SupplierStatus, bodaPaso: boolean): string[] {
@@ -22,44 +11,26 @@ export function carpetasDe(estado: SupplierStatus, bodaPaso: boolean): string[] 
     : ['Contacto', 'Cotización', 'Pagos']
 }
 
-// La primera siempre es la que mueve el trato hacia adelante. Las que no traen
-// nuevoEstado abren el formulario completo.
-export function accionesDe(estado: SupplierStatus, bodaPaso: boolean): Accion[] {
-  if (estado === 'nuevo') {
-    return [
-      { texto: 'Ya me cotizó', tono: 'principal', nuevoEstado: 'cotizado' },
-      { texto: 'Descartar', tono: 'mala', nuevoEstado: 'descartado' },
-      SEPARADOR,
-      QUITAR,
-    ]
-  }
+// El camino del trato. Descartado no es un paso: es salirse de el.
+export const CAMINO: SupplierStatus[] = ['nuevo', 'cotizado', 'contratado']
 
-  if (estado === 'cotizado') {
-    return [
-      { texto: 'Contratar', tono: 'principal', nuevoEstado: 'contratado' },
-      { texto: 'Descartar', tono: 'mala', nuevoEstado: 'descartado' },
-      SEPARADOR,
-      { texto: 'Volver a nuevo', nuevoEstado: 'nuevo' },
-      QUITAR,
-    ]
-  }
+export const QUE_SIGNIFICA: Record<SupplierStatus, string> = {
+  nuevo:      'Lo tienes en la mira, todavía no cotiza',
+  cotizado:   'Ya te pasó precio',
+  contratado: 'Cerrado: se le puede pagar',
+  descartado: 'Fuera del trato, sin borrar su historia',
+}
 
-  if (estado === 'descartado') {
-    return [
-      { texto: 'Recuperar', tono: 'principal', nuevoEstado: 'cotizado' },
-      SEPARADOR,
-      QUITAR,
-    ]
-  }
+// El menu ofrece DESTINOS, no verbos: mezclar avanzar, retroceder y descartar en
+// una sola lista de acciones es lo que confundia. Van en el orden del camino y
+// descartado al final, porque es la salida.
+export function destinosDe(actual: SupplierStatus): SupplierStatus[] {
+  return [...CAMINO, 'descartado' as SupplierStatus].filter(estado => estado !== actual)
+}
 
-  const contratado: Accion[] = bodaPaso
-    ? [
-        { texto: 'Calificar', tono: 'principal' },
-        { texto: 'Registrar un pago' },
-      ]
-    : [
-        { texto: 'Registrar un pago', tono: 'principal' },
-      ]
-
-  return [...contratado, SEPARADOR, { texto: 'Deshacer contrato', nuevoEstado: 'cotizado' }, QUITAR]
+// Cuantos pasos del camino ya se recorrieron, para las palomitas.
+export function pasosAlcanzados(estado: SupplierStatus): SupplierStatus[] {
+  if (estado === 'descartado') return []
+  const hasta = CAMINO.indexOf(estado)
+  return hasta === -1 ? [] : CAMINO.slice(0, hasta + 1)
 }
