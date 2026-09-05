@@ -9,7 +9,6 @@ import { supabase } from '@/lib/supabase'
 import {
   Currency, formatCurrency,
   EventSupplier, Supplier, EventBudget, SupplierPayment, SupplierStatus,
-  SUPPLIER_STATUS_LABELS,
   PAYMENT_METHOD_LABELS, PAID_BY_LABELS,
   RESPONSE_SPEEDS, RESPONSE_SPEED_LABELS, ResponseSpeed,
 } from '@/lib/types'
@@ -19,6 +18,7 @@ import { useConfirm } from '@/app/components/ui/ConfirmModal'
 import { usePermiso } from '@/lib/event-access-context'
 import { accionesDe, carpetasDe, type Accion } from '@/lib/rolodex/ficha-por-estado'
 import PagoModal from './PagoModal'
+import { CaminoDelTrato, EstatusProveedor } from './EstatusProveedor'
 import PhoneInput from '@/app/components/ui/PhoneInput'
 
 type SupplierWithDetails = EventSupplier & { supplier: Supplier }
@@ -35,15 +35,6 @@ type Props = {
   // Solo cuando la ficha vive en una ventana: en el panel no hay a donde cerrar.
   onCerrar?: () => void
 }
-
-const CHIP_ESTATUS: Record<SupplierStatus, string> = {
-  nuevo:      'bg-[#f1efe8] text-[#5F5C57]',
-  cotizado:   'bg-[#FBF3E0] text-[#A87C1F]',
-  contratado: 'bg-[#E6F3EC] text-[#1D9E75]',
-  descartado: 'bg-[#FAEAE6] text-[#A63B27]',
-}
-
-const ORDEN_CAMINO: SupplierStatus[] = ['nuevo', 'cotizado', 'contratado']
 
 function iniciales(nombre: string): string {
   const partes = nombre.trim().split(/\s+/).filter(Boolean)
@@ -320,10 +311,10 @@ export default function FichaDelEvento({
             <button
               onClick={() => hayAcciones && setMenuAbierto(v => !v)}
               disabled={!hayAcciones}
-              className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-bold ${CHIP_ESTATUS[item.status]} ${hayAcciones ? '' : 'cursor-default'}`}
+              className={`flex items-center gap-1 rounded-lg border border-[#e8e8e8] bg-white py-0.5 pl-0.5 pr-1.5 ${hayAcciones ? '' : 'cursor-default'}`}
             >
-              {SUPPLIER_STATUS_LABELS[item.status]}
-              {hayAcciones && <ChevronDown size={12} className="opacity-70" />}
+              <EstatusProveedor estado={item.status} />
+              {hayAcciones && <ChevronDown size={12} className="text-[#999]" />}
             </button>
 
             {menuAbierto && hayAcciones && (
@@ -382,24 +373,8 @@ export default function FichaDelEvento({
             </button>
           )}
 
-          <span className="ml-auto flex items-center gap-1.5" aria-hidden>
-            {ORDEN_CAMINO.map((paso, i) => {
-              const indiceActual = item.status === 'descartado' ? 2 : ORDEN_CAMINO.indexOf(item.status)
-              const esAqui = item.status === 'descartado' ? i === 2 : i === indiceActual
-              const hecho  = i < indiceActual
-              return (
-                <span
-                  key={paso}
-                  className={`h-1.5 w-1.5 rounded-full ${
-                    esAqui
-                      ? item.status === 'descartado'
-                        ? 'bg-[#cc3333] ring-[3px] ring-[#cc3333]/20'
-                        : 'bg-[#48C9B0] ring-[3px] ring-[#48C9B0]/25'
-                      : hecho ? 'bg-[#c4c4c4]' : 'bg-[#e8e8e8]'
-                  }`}
-                />
-              )
-            })}
+          <span className="ml-auto">
+            <CaminoDelTrato estado={item.status} />
           </span>
         </div>
       </header>

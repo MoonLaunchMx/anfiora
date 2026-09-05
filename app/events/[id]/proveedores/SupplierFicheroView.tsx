@@ -7,10 +7,10 @@ import { FiInstagram } from 'react-icons/fi'
 import {
   Currency, formatCurrency,
   EventSupplier, Supplier, EventBudget, SupplierStatus,
-  SUPPLIER_STATUS_LABELS, SUPPLIER_STATUS_COLORS,
 } from '@/lib/types'
 import { Categoria, nombrePorId } from '@/lib/rolodex/categorias-store'
 import FichaDelEvento from './FichaDelEvento'
+import { EstatusProveedor } from './EstatusProveedor'
 import { formatDisplay, toWhatsApp } from '@/lib/phone'
 import {
   desplazamientoFicha, escalaFicha, indiceAlSoltar, indicePrimeraLetra, letraDe,
@@ -390,9 +390,7 @@ function Ficha({ item, budgets, currency, categorias, activa, arrastrando, despl
               {categoria}{s.city ? ` · ${s.city}` : ''}
             </p>
           </div>
-          <span className={`shrink-0 rounded-md px-2 py-0.5 text-[10px] font-semibold ${SUPPLIER_STATUS_COLORS[item.status]}`}>
-            {SUPPLIER_STATUS_LABELS[item.status]}
-          </span>
+          <span className="shrink-0"><EstatusProveedor estado={item.status} chico /></span>
         </div>
 
         <div className="mt-auto flex gap-6 border-t border-[#f0f0f0] pt-2">
@@ -458,9 +456,7 @@ function Ficha({ item, budgets, currency, categorias, activa, arrastrando, despl
               {categoria}{s.subcategory ? ` · ${s.subcategory}` : ''}
             </p>
           </div>
-          <span className={`shrink-0 rounded-md px-2 py-1 text-[10px] font-semibold sm:text-[11px] ${SUPPLIER_STATUS_COLORS[item.status]}`}>
-            {SUPPLIER_STATUS_LABELS[item.status]}
-          </span>
+          <span className="shrink-0"><EstatusProveedor estado={item.status} /></span>
         </div>
 
         <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-[#666] sm:text-xs">
