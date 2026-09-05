@@ -288,15 +288,7 @@ export default function FichaDelEvento({
             </p>
           </div>
 
-          {/* Movil: el estatus ES el boton */}
-          <button
-            onClick={() => puedeMover && setMenuAbierto(true)}
-            disabled={!puedeMover}
-            className={`flex shrink-0 items-center gap-1 rounded-lg border border-[#e8e8e8] bg-white py-0.5 pl-0.5 pr-1.5 lg:hidden ${puedeMover ? '' : 'cursor-default'}`}
-          >
-            <EstatusProveedor estado={item.status} chico />
-            {puedeMover && <ChevronDown size={11} className="text-[#999]" />}
-          </button>
+
 
           <span className="hidden shrink-0 lg:block">
             <CaminoDelTrato estado={item.status} />
@@ -789,6 +781,14 @@ export default function FichaDelEvento({
             <Globe size={16} />
           </button>
         )}
+        <button
+          onClick={() => puedeMover && setMenuAbierto(true)}
+          disabled={!puedeMover}
+          className={`ml-auto flex h-9 shrink-0 items-center gap-1 rounded-lg border border-[#e8e8e8] bg-white pl-1 pr-2 ${puedeMover ? '' : 'cursor-default'}`}
+        >
+          <EstatusProveedor estado={item.status} />
+          {puedeMover && <ChevronDown size={12} className="text-[#999]" />}
+        </button>
       </div>
 
       {/* Movil: las acciones suben como hoja, no cuelgan como menu */}
