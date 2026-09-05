@@ -212,7 +212,6 @@ export default function SupplierFicheroView({ items, budgets, currency, categori
             currency={currency}
             categorias={categorias}
             bodaPaso={bodaPaso}
-            onAbrirCompleta={() => onSelect(abierta)}
             onStatusChange={onStatusChange}
             onSaved={onSaved}
           />

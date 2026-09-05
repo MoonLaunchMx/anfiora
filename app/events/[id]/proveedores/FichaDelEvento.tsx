@@ -11,6 +11,7 @@ import {
   EventSupplier, Supplier, EventBudget, SupplierPayment, SupplierStatus,
   SUPPLIER_STATUS_LABELS,
   PAYMENT_METHOD_LABELS, PAID_BY_LABELS,
+  RESPONSE_SPEEDS, RESPONSE_SPEED_LABELS, ResponseSpeed,
 } from '@/lib/types'
 import { Categoria, nombrePorId } from '@/lib/rolodex/categorias-store'
 import { formatDisplay, toWhatsApp } from '@/lib/phone'
@@ -27,7 +28,6 @@ type Props = {
   currency: Currency
   categorias: Categoria[]
   bodaPaso: boolean
-  onAbrirCompleta: () => void
   onStatusChange: (itemId: string, nuevo: SupplierStatus) => void
   onSaved: (item: SupplierWithDetails) => void
 }
@@ -49,7 +49,7 @@ function iniciales(nombre: string): string {
 }
 
 export default function FichaDelEvento({
-  item, budgets, currency, categorias, bodaPaso, onAbrirCompleta, onStatusChange, onSaved,
+  item, budgets, currency, categorias, bodaPaso, onStatusChange, onSaved,
 }: Props) {
   const permisoFicha = usePermiso('proveedores')
   const permisoPagos = usePermiso('pagos')
@@ -63,6 +63,9 @@ export default function FichaDelEvento({
   const [guardando, setGuardando] = useState(false)
   const [errorGuardar, setErrorGuardar] = useState('')
   const [borrador, setBorrador] = useState(() => borradorDe(item))
+  const [editandoMontos, setEditandoMontos] = useState(false)
+  const [montos, setMontos] = useState(() => montosDe(item))
+  const [resena, setResena] = useState(() => resenaDe(item))
   const menuRef = useRef<HTMLDivElement>(null)
 
   const carpetas = useMemo(() => carpetasDe(item.status, bodaPaso), [item.status, bodaPaso])
@@ -80,8 +83,11 @@ export default function FichaDelEvento({
 
   useEffect(() => {
     setEditando(false)
+    setEditandoMontos(false)
     setErrorGuardar('')
     setBorrador(borradorDe(item))
+    setMontos(montosDe(item))
+    setResena(resenaDe(item))
   }, [item])
 
   useEffect(() => {
@@ -173,6 +179,57 @@ export default function FichaDelEvento({
     }
   }
 
+  // Los tres updates de la ficha comparten el mismo cuidado: un UPDATE que no
+  // alcanza ninguna fila devuelve cero filas sin error, y el guardado se pierde
+  // en silencio.
+  const guardarEnLaBoda = async (cambios: Record<string, unknown>, alTerminar?: () => void) => {
+    if (!permisoFicha.editar) { setErrorGuardar('No tienes permiso para editar proveedores en esta boda.'); return }
+    setGuardando(true)
+    setErrorGuardar('')
+    try {
+      const { data, error } = await supabase
+        .from('event_suppliers')
+        .update(cambios)
+        .eq('id', item.id)
+        .select()
+        .single()
+
+      if (error) throw error
+      if (!data) throw new Error('No se guardó: no alcanzó ninguna fila.')
+
+      onSaved({ ...(data as EventSupplier), supplier: item.supplier })
+      alTerminar?.()
+    } catch (err: any) {
+      console.error('Error guardando en la boda:', err?.message ?? err, err)
+      setErrorGuardar(err?.message ?? 'No se pudo guardar. Intenta de nuevo.')
+    } finally {
+      setGuardando(false)
+    }
+  }
+
+  const guardarMontos = () => {
+    const cotizado = montos.cotizado.trim() === '' ? null : Number(montos.cotizado)
+    const contrato  = montos.contratado.trim() === '' ? null : Number(montos.contratado)
+    if ((cotizado != null && isNaN(cotizado)) || (contrato != null && isNaN(contrato))) {
+      setErrorGuardar('Los montos tienen que ser números.')
+      return
+    }
+    guardarEnLaBoda(
+      {
+        quoted_amount:   cotizado,
+        contract_amount: contrato,
+        event_budget_id: montos.partida || null,
+      },
+      () => setEditandoMontos(false)
+    )
+  }
+
+  const guardarResena = () => guardarEnLaBoda({
+    rating:         resena.estrellas || null,
+    response_speed: resena.velocidad,
+    review_text:    resena.nota.trim() || null,
+  })
+
   const ejecutar = (accion: Accion) => {
     setMenuAbierto(false)
     if (accion.texto === 'Registrar un pago') {
@@ -180,8 +237,9 @@ export default function FichaDelEvento({
       return
     }
     if (!permisoFicha.editar) return
-    if (accion.nuevoEstado) onStatusChange(item.id, accion.nuevoEstado)
-    else onAbrirCompleta()
+    if (accion.nuevoEstado) { onStatusChange(item.id, accion.nuevoEstado); return }
+    const destino = carpetas.indexOf('Reseña')
+    if (accion.texto === 'Calificar' && destino !== -1) setCarpeta(destino)
   }
 
   return (
@@ -403,9 +461,72 @@ export default function FichaDelEvento({
           </>
         ))}
 
-        {carpetas[carpeta] === 'Cotización' && (
+        {carpetas[carpeta] === 'Cotización' && (editandoMontos ? (
           <>
-            <Bloque titulo="Los tres montos">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Campo etiqueta="Cotizado">
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  value={montos.cotizado}
+                  onChange={e => setMontos(m => ({ ...m, cotizado: e.target.value }))}
+                  placeholder="0.00"
+                  className={INPUT}
+                />
+              </Campo>
+              <Campo etiqueta="Contratado">
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  value={montos.contratado}
+                  onChange={e => setMontos(m => ({ ...m, contratado: e.target.value }))}
+                  placeholder="0.00"
+                  className={INPUT}
+                />
+              </Campo>
+            </div>
+
+            <Campo etiqueta="Partida del presupuesto">
+              <select value={montos.partida} onChange={e => setMontos(m => ({ ...m, partida: e.target.value }))} className={INPUT}>
+                <option value="">Sin ligar a ninguna partida</option>
+                {budgets.map(b => (
+                  <option key={b.id} value={b.id}>
+                    {b.subcategory || nombrePorId(categorias, b.category_id)}
+                  </option>
+                ))}
+              </select>
+            </Campo>
+
+            {errorGuardar && (
+              <p className="rounded-lg border border-[#ffc0c0] bg-[#fff0f0] px-3 py-2 text-xs text-[#cc3333]">{errorGuardar}</p>
+            )}
+
+            <div className="flex gap-2">
+              <button
+                onClick={guardarMontos}
+                disabled={guardando}
+                className="rounded-lg bg-[#48C9B0] px-3.5 py-2 text-xs font-semibold text-white transition hover:bg-[#3aa896] disabled:opacity-50"
+              >
+                {guardando ? 'Guardando…' : 'Guardar'}
+              </button>
+              <button
+                onClick={() => { setEditandoMontos(false); setMontos(montosDe(item)); setErrorGuardar('') }}
+                className="rounded-lg border border-[#e0e0e0] bg-white px-3.5 py-2 text-xs font-medium text-[#666] transition hover:bg-[#f5f5f5]"
+              >
+                Cancelar
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <Bloque
+              titulo="Los tres montos"
+              accion={permisoFicha.editar ? (
+                <button onClick={() => setEditandoMontos(true)} className="flex items-center gap-1 text-[11px] font-semibold text-[#48C9B0] transition hover:text-[#3aa896]">
+                  <Pencil size={11} /> Editar
+                </button>
+              ) : null}
+            >
               <div className="grid overflow-hidden rounded-xl border border-[#e8e8e8] lg:grid-cols-3 lg:gap-px lg:bg-[#e8e8e8]">
                 <Renglon etiqueta="Presupuestado" valor={presupuesto} currency={currency} />
                 <Renglon etiqueta="Cotizado" valor={item.quoted_amount} currency={currency} />
@@ -426,15 +547,17 @@ export default function FichaDelEvento({
               />
             </Bloque>
 
-            {partida && (
-              <Bloque titulo="Partida del presupuesto">
+            <Bloque titulo="Partida del presupuesto">
+              {partida ? (
                 <p className="text-sm text-[#1D1E20]">
                   {partida.subcategory || nombrePorId(categorias, partida.category_id)}
                 </p>
-              </Bloque>
-            )}
+              ) : (
+                <p className="text-xs text-[#999]">Sin ligar a ninguna partida.</p>
+              )}
+            </Bloque>
           </>
-        )}
+        ))}
 
         {carpetas[carpeta] === 'Pagos' && (
           <>
@@ -493,24 +616,70 @@ export default function FichaDelEvento({
             <div className="rounded-xl border border-[#f0e4c8] bg-[#fffbf0] px-4 py-3 text-xs font-medium text-[#b8912f]">
               Esta boda ya pasó. ¿Cómo te fue con {s.name}?
             </div>
+
             <Bloque titulo="Tu calificación">
-              {item.rating ? (
-                <p className="flex items-center gap-1.5 text-sm text-[#1D1E20]">
-                  <Star size={15} className="fill-[#48C9B0] text-[#48C9B0]" /> {item.rating}.0 de 5
-                </p>
+              <div className="flex items-center gap-1">
+                {[1, 2, 3, 4, 5].map(n => (
+                  <button
+                    key={n}
+                    disabled={!permisoFicha.editar}
+                    onClick={() => setResena(r => ({ ...r, estrellas: r.estrellas === n ? 0 : n }))}
+                    aria-label={`${n} de 5`}
+                    className="transition disabled:cursor-default"
+                  >
+                    <Star
+                      size={22}
+                      className={n <= resena.estrellas ? 'fill-[#48C9B0] text-[#48C9B0]' : 'fill-transparent text-[#d8d8d8]'}
+                    />
+                  </button>
+                ))}
+              </div>
+            </Bloque>
+
+            <Bloque titulo="Qué tan rápido contesta">
+              <div className="flex flex-wrap gap-1.5">
+                {RESPONSE_SPEEDS.map(velocidad => (
+                  <button
+                    key={velocidad}
+                    disabled={!permisoFicha.editar}
+                    onClick={() => setResena(r => ({ ...r, velocidad: r.velocidad === velocidad ? null : velocidad }))}
+                    className={`rounded-full border px-3 py-1 text-[11px] font-semibold transition disabled:cursor-default ${
+                      resena.velocidad === velocidad
+                        ? 'border-[#1D1E20] bg-[#1D1E20] text-white'
+                        : 'border-[#e0e0e0] bg-white text-[#666] hover:bg-[#f5f5f5]'
+                    }`}
+                  >
+                    {RESPONSE_SPEED_LABELS[velocidad]}
+                  </button>
+                ))}
+              </div>
+            </Bloque>
+
+            <Bloque titulo="Nota">
+              {permisoFicha.editar ? (
+                <textarea
+                  rows={3}
+                  value={resena.nota}
+                  onChange={e => setResena(r => ({ ...r, nota: e.target.value }))}
+                  placeholder="Cómo cumplió el día del evento"
+                  className={`${INPUT} resize-none`}
+                />
               ) : (
-                <p className="text-xs text-[#999]">Todavía no lo calificas.</p>
+                <Texto valor={item.review_text} vacio="Sin nota de cómo te fue." />
               )}
             </Bloque>
-            <Bloque titulo="Nota">
-              <Texto valor={item.review_text} vacio="Sin nota de cómo te fue." />
-            </Bloque>
+
+            {errorGuardar && (
+              <p className="rounded-lg border border-[#ffc0c0] bg-[#fff0f0] px-3 py-2 text-xs text-[#cc3333]">{errorGuardar}</p>
+            )}
+
             {permisoFicha.editar && (
               <button
-                onClick={onAbrirCompleta}
-                className="self-start rounded-lg bg-[#48C9B0] px-3.5 py-2 text-xs font-semibold text-white transition hover:bg-[#3aa896]"
+                onClick={guardarResena}
+                disabled={guardando}
+                className="self-start rounded-lg bg-[#48C9B0] px-3.5 py-2 text-xs font-semibold text-white transition hover:bg-[#3aa896] disabled:opacity-50"
               >
-                {item.rating ? 'Cambiar la calificación' : 'Calificar'}
+                {guardando ? 'Guardando…' : 'Guardar la reseña'}
               </button>
             )}
           </>
@@ -543,16 +712,6 @@ export default function FichaDelEvento({
         />
       )}
 
-      {permisoFicha.editar && (
-        <footer className="flex shrink-0 items-center gap-2 border-t border-[#e8e8e8] bg-[#fafafa] px-5 py-2.5">
-          <button
-            onClick={onAbrirCompleta}
-            className="rounded-lg border border-[#e0e0e0] bg-white px-3 py-1.5 text-xs font-semibold text-[#1D1E20] transition hover:bg-[#f5f5f5]"
-          >
-            Editar en el formulario completo
-          </button>
-        </footer>
-      )}
     </motion.section>
   )
 }
@@ -572,6 +731,22 @@ function borradorDe(item: SupplierWithDetails) {
     estado:         s.state_region ?? '',
     notasProveedor: s.general_notes ?? '',
     notasBoda:      item.event_notes ?? '',
+  }
+}
+
+function montosDe(item: SupplierWithDetails) {
+  return {
+    cotizado:   item.quoted_amount?.toString() ?? '',
+    contratado: item.contract_amount?.toString() ?? '',
+    partida:    item.event_budget_id ?? '',
+  }
+}
+
+function resenaDe(item: SupplierWithDetails) {
+  return {
+    estrellas: item.rating ?? 0,
+    velocidad: item.response_speed as ResponseSpeed | null,
+    nota:      item.review_text ?? '',
   }
 }
 
