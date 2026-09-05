@@ -73,6 +73,7 @@ export default function SupplierFicheroView({ items, budgets, currency, categori
   const panelRef = useRef<HTMLDivElement>(null)
   const ultimoGiroRef = useRef(0)
   const arrastreRef = useRef({ activo: false, y0: 0, base: 0, movio: false })
+  const arrastreValorRef = useRef(0)
 
   // Al filtrar o buscar cambia el conjunto de fichas y el indice viejo apuntaria
   // a otro proveedor: se vuelve a la primera. Editar una ficha no cambia la lista.
@@ -113,25 +114,41 @@ export default function SupplierFicheroView({ items, budgets, currency, categori
   const alPresionar = (e: React.PointerEvent<HTMLDivElement>) => {
     if (total < 2) return
     arrastreRef.current = { activo: true, y0: e.clientY, base: activo, movio: false }
-    e.currentTarget.setPointerCapture?.(e.pointerId)
+    arrastreValorRef.current = 0
     setArrastrando(true)
   }
 
-  const alMover = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!arrastreRef.current.activo) return
-    const crudo = (arrastreRef.current.y0 - e.clientY) / PIXELES_POR_FICHA
-    const base  = arrastreRef.current.base
-    if (Math.abs(crudo) > ARRASTRE_MINIMO) arrastreRef.current.movio = true
-    setArrastre(Math.min(Math.max(crudo, -base), total - 1 - base))
-  }
+  useEffect(() => {
+    if (!arrastrando) return
 
-  const alSoltar = () => {
-    if (!arrastreRef.current.activo) return
-    arrastreRef.current.activo = false
-    setActivo(a => indiceAlSoltar(a, arrastre, total))
-    setArrastre(0)
-    setArrastrando(false)
-  }
+    const alMover = (e: PointerEvent) => {
+      if (!arrastreRef.current.activo) return
+      const crudo = (arrastreRef.current.y0 - e.clientY) / PIXELES_POR_FICHA
+      const base  = arrastreRef.current.base
+      if (Math.abs(crudo) > ARRASTRE_MINIMO) arrastreRef.current.movio = true
+      const valor = Math.min(Math.max(crudo, -base), total - 1 - base)
+      arrastreValorRef.current = valor
+      setArrastre(valor)
+    }
+
+    const alSoltar = () => {
+      if (!arrastreRef.current.activo) return
+      arrastreRef.current.activo = false
+      setActivo(a => indiceAlSoltar(a, arrastreValorRef.current, total))
+      arrastreValorRef.current = 0
+      setArrastre(0)
+      setArrastrando(false)
+    }
+
+    window.addEventListener('pointermove', alMover)
+    window.addEventListener('pointerup', alSoltar)
+    window.addEventListener('pointercancel', alSoltar)
+    return () => {
+      window.removeEventListener('pointermove', alMover)
+      window.removeEventListener('pointerup', alSoltar)
+      window.removeEventListener('pointercancel', alSoltar)
+    }
+  }, [arrastrando, total])
 
   const abrirFicha = (item: SupplierWithDetails) => {
     if (!esEscritorio) { onSelect(item); return }
@@ -201,7 +218,7 @@ export default function SupplierFicheroView({ items, budgets, currency, categori
       )}
       </div>
 
-      <div className="flex h-full min-h-0 w-full flex-col lg:w-[40%] lg:shrink-0 lg:border-l lg:border-[#e8e8e8]">
+      <div className="flex h-full min-h-0 w-full flex-col lg:w-[40%] lg:shrink-0">
         <div
           ref={escenarioRef}
           tabIndex={0}
@@ -209,9 +226,6 @@ export default function SupplierFicheroView({ items, budgets, currency, categori
           aria-label="Fichero de proveedores"
           onKeyDown={alTeclear}
           onPointerDown={alPresionar}
-          onPointerMove={alMover}
-          onPointerUp={alSoltar}
-          onPointerCancel={alSoltar}
           className="relative flex min-h-0 flex-1 touch-none select-none items-center justify-center overflow-hidden bg-white pr-7 outline-none [perspective:2400px] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#48C9B0]"
           style={{ cursor: arrastrando ? 'grabbing' : 'grab' }}
         >
