@@ -9,6 +9,7 @@ import {
   SUPPLIER_STATUS_LABELS, SUPPLIER_STATUS_COLORS,
 } from '@/lib/types'
 import { Categoria, nombrePorId } from '@/lib/rolodex/categorias-store'
+import FichaDelEvento from './FichaDelEvento'
 import { formatDisplay, toWhatsApp } from '@/lib/phone'
 import {
   desplazamientoFicha, escalaFicha, indiceAlSoltar, indicePrimeraLetra, letraDe,
@@ -40,7 +41,21 @@ const ARRASTRE_MINIMO   = 0.08
 
 const ALFABETO = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('')
 
+function useEsEscritorio(): boolean {
+  const [esEscritorio, setEsEscritorio] = useState(false)
+  useEffect(() => {
+    const consulta = window.matchMedia('(min-width: 1024px)')
+    const aplicar = () => setEsEscritorio(consulta.matches)
+    aplicar()
+    consulta.addEventListener('change', aplicar)
+    return () => consulta.removeEventListener('change', aplicar)
+  }, [])
+  return esEscritorio
+}
+
 export default function SupplierFicheroView({ items, budgets, currency, categorias, onSelect }: Props) {
+  const esEscritorio = useEsEscritorio()
+  const [abierta, setAbierta] = useState<SupplierWithDetails | null>(null)
   const fichas = useMemo(() => ordenarFichas(items), [items])
   const total  = fichas.length
 
@@ -56,6 +71,12 @@ export default function SupplierFicheroView({ items, budgets, currency, categori
   // a otro proveedor: se vuelve a la primera. Editar una ficha no cambia la lista.
   const claveDelConjunto = useMemo(() => fichas.map(f => f.id).join(','), [fichas])
   useEffect(() => { setActivo(0) }, [claveDelConjunto])
+
+  // Si la ficha abierta se cae del filtro, el panel se queda mostrando algo que
+  // ya no esta en el fichero.
+  useEffect(() => {
+    setAbierta(previa => (previa && fichas.some(f => f.id === previa.id) ? fichas.find(f => f.id === previa.id)! : null))
+  }, [fichas])
 
   const girar = useCallback((delta: number) => {
     setActivo(a => moverIndice(a, delta, total))
@@ -105,13 +126,18 @@ export default function SupplierFicheroView({ items, budgets, currency, categori
     setArrastrando(false)
   }
 
+  const abrirFicha = (item: SupplierWithDetails) => {
+    if (esEscritorio) setAbierta(item)
+    else onSelect(item)
+  }
+
   // Sin esto, soltar el arrastre encima de una ficha abre su modal.
   const alClicarFicha = (indice: number) => {
     if (arrastreRef.current.movio) {
       arrastreRef.current.movio = false
       return
     }
-    if (indice === activo) onSelect(fichas[indice])
+    if (indice === activo) abrirFicha(fichas[indice])
     else setActivo(indice)
   }
 
@@ -122,7 +148,7 @@ export default function SupplierFicheroView({ items, budgets, currency, categori
     if (e.key === 'End')  { e.preventDefault(); setActivo(Math.max(0, total - 1)) }
     if ((e.key === 'Enter' || e.key === ' ') && fichas[activo]) {
       e.preventDefault()
-      onSelect(fichas[activo])
+      abrirFicha(fichas[activo])
     }
   }
 
@@ -135,7 +161,20 @@ export default function SupplierFicheroView({ items, budgets, currency, categori
   return (
     <div className="flex h-full min-h-0">
 
-      <ResumenDeLaBoda items={fichas} currency={currency} />
+      {abierta ? (
+        <div className="hidden min-h-0 flex-1 lg:flex">
+          <FichaDelEvento
+            item={abierta}
+            budgets={budgets}
+            currency={currency}
+            categorias={categorias}
+            onCerrar={() => setAbierta(null)}
+            onAbrirCompleta={() => onSelect(abierta)}
+          />
+        </div>
+      ) : (
+        <ResumenDeLaBoda items={fichas} currency={currency} />
+      )}
 
       <div className="flex h-full min-h-0 w-full flex-col lg:w-[40%] lg:shrink-0 lg:border-l lg:border-[#e8e8e8]">
         <div
@@ -209,7 +248,7 @@ export default function SupplierFicheroView({ items, budgets, currency, categori
                   arrastrando={arrastrando}
                   desplazamiento={off}
                   onClick={() => alClicarFicha(i)}
-                  onAbrir={() => onSelect(item)}
+                  onAbrir={() => abrirFicha(item)}
                 />
               )
             })}
