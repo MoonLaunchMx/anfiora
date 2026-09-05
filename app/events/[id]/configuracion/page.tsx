@@ -1082,143 +1082,163 @@ export default function ConfiguracionPage() {
           {/* ── TAB: EQUIPO ── */}
           {activeTab === 'equipo' && (
             <div>
-              <div className="mb-4 flex items-center gap-2">
-                <UserPlus size={16} className="text-[#48C9B0]" />
-                <h2 className="text-sm font-semibold text-[#1D1E20]">Acceso al evento</h2>
-              </div>
-              <p className="mb-4 text-xs text-[#666]">
-                Invita a otras personas a colaborar en este evento. Copia el link y mandaselo por WhatsApp o email.
-              </p>
+              <div className="flex flex-col gap-5 lg:grid lg:grid-cols-[minmax(0,320px)_minmax(0,1fr)] lg:items-start lg:gap-8">
 
-              <div className="mb-4 flex flex-col gap-2.5">
-                <input
-                  type="email"
-                  value={inviteEmail}
-                  onChange={e => { setInviteEmail(e.target.value); setInviteError('') }}
-                  onKeyDown={e => e.key === 'Enter' && handleInvite()}
-                  placeholder="email@ejemplo.com"
-                  className="w-full rounded-lg border border-[#d0d0d0] bg-white px-3 py-2.5 text-sm text-[#1D1E20] outline-none transition focus:border-[#48C9B0]"
-                />
-                <p className="text-[11px] font-semibold text-[#888]">Empieza como</p>
-                <div className="grid grid-cols-2 gap-1.5">
-                  {ROLES.map(r => {
-                    const Icon = r.icon
-                    return (
-                      <button
-                        key={r.value}
-                        onClick={() => setInviteRole(r.value as 'editor' | 'viewer')}
-                        className={'flex flex-col items-center gap-1 rounded-lg border px-2 py-2.5 text-center transition ' +
-                          (inviteRole === r.value
-                            ? 'border-[#48C9B0] bg-[#f0fdfb] text-[#1a9e88]'
-                            : 'border-[#e0e0e0] bg-white text-[#888] hover:border-[#48C9B0] hover:text-[#1a9e88]')}
-                      >
-                        <Icon size={14} />
-                        <span className="text-[11px] font-semibold">{r.label}</span>
-                        <span className="text-[10px] leading-tight text-[#aaa]">{r.description}</span>
-                      </button>
-                    )
-                  })}
+                {/* Columna izquierda: invitar */}
+                <div className="rounded-xl border border-[#e8e8e8] bg-white p-4 lg:sticky lg:top-0">
+                  <div className="mb-1 flex items-center gap-2">
+                    <UserPlus size={16} className="text-[#48C9B0]" />
+                    <h2 className="text-sm font-semibold text-[#1D1E20]">Invitar a este evento</h2>
+                  </div>
+                  <p className="mb-3 text-xs text-[#888]">
+                    Copia el link y mandaselo por WhatsApp o email.
+                  </p>
+
+                  <div className="flex flex-col gap-2.5">
+                    <input
+                      type="email"
+                      value={inviteEmail}
+                      onChange={e => { setInviteEmail(e.target.value); setInviteError('') }}
+                      onKeyDown={e => e.key === 'Enter' && handleInvite()}
+                      placeholder="email@ejemplo.com"
+                      className="w-full rounded-lg border border-[#d0d0d0] bg-white px-3 py-2.5 text-sm text-[#1D1E20] outline-none transition focus:border-[#48C9B0]"
+                    />
+                    <p className="text-[11px] font-semibold text-[#888]">Empieza como</p>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {ROLES.map(r => {
+                        const Icon = r.icon
+                        return (
+                          <button
+                            key={r.value}
+                            onClick={() => setInviteRole(r.value as 'editor' | 'viewer')}
+                            className={'flex flex-col items-center gap-1 rounded-lg border px-2 py-2.5 text-center transition ' +
+                              (inviteRole === r.value
+                                ? 'border-[#48C9B0] bg-[#f0fdfb] text-[#1a9e88]'
+                                : 'border-[#e0e0e0] bg-white text-[#888] hover:border-[#48C9B0] hover:text-[#1a9e88]')}
+                          >
+                            <Icon size={14} />
+                            <span className="text-[11px] font-semibold">{r.label}</span>
+                            <span className="text-[10px] leading-tight text-[#aaa]">{r.description}</span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                    {inviteError && <p className="text-xs text-[#cc3333]">{inviteError}</p>}
+                    <button
+                      onClick={handleInvite}
+                      disabled={inviting || !inviteEmail.trim()}
+                      className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#48C9B0] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#3ab89f] disabled:opacity-40"
+                    >
+                      <UserPlus size={14} />
+                      {inviting ? 'Creando invitacion...' : 'Generar link de invitacion'}
+                    </button>
+                    <p className="text-[11px] leading-relaxed text-[#aaa]">
+                      Despues le ajustas herramienta por herramienta con el engrane.
+                    </p>
+                  </div>
                 </div>
-                {inviteError && <p className="text-xs text-[#cc3333]">{inviteError}</p>}
-                <button
-                  onClick={handleInvite}
-                  disabled={inviting || !inviteEmail.trim()}
-                  className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#48C9B0] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#3ab89f] disabled:opacity-40"
-                >
-                  <UserPlus size={14} />
-                  {inviting ? 'Creando invitacion...' : 'Generar link de invitacion'}
-                </button>
-              </div>
 
-              {collaborators.length > 0 && (
-                <div className="flex flex-col gap-2">
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-[#bbb]">Con acceso</p>
-                  {collaborators.map(c => {
-                    return (
-                      <div key={c.id} className="rounded-lg border border-[#e8e8e8] bg-white px-3 py-2.5">
-                        {(() => {
-                          const r = resumir({
-                            esDuenoDelEvento: false,
-                            rolCuenta: null,
-                            permisos: normalizarPermisos(c.permisos),
-                            features,
-                          })
-                          const pendiente = c.status !== 'active'
-                          const etiqueta  = r.entra === 0 ? 'Sin acceso' : r.etiqueta
+                {/* Columna derecha: quien ya tiene acceso */}
+                <div>
+                  <h2 className="text-sm font-semibold text-[#1D1E20]">Personas con acceso</h2>
+                  <p className="mb-3 text-xs text-[#888]">
+                    Quien entra a este evento y que puede hacer en cada herramienta.
+                  </p>
 
-                          const resumenTexto = pendiente ? (
-                            <span className="text-[12px] font-medium text-[#c08a2e]">Invitación pendiente</span>
-                          ) : (
-                            <span className="text-[12px] text-[#666]">
-                              <span className="font-semibold text-[#1D1E20]">{etiqueta}</span>
-                              {r.entra > 0 && ` · ${r.entra} de 12`}
-                            </span>
-                          )
+                  {collaborators.length === 0 ? (
+                    <p className="rounded-xl border border-dashed border-[#e8e8e8] px-4 py-8 text-center text-xs text-[#aaa]">
+                      Todavia nadie mas entra a este evento.
+                    </p>
+                  ) : (
+                    <div className="flex flex-col gap-2">
+                      {collaborators.map(c => {
+                        return (
+                          <div key={c.id} className="rounded-lg border border-[#e8e8e8] bg-white px-3 py-2.5">
+                            {(() => {
+                              const r = resumir({
+                                esDuenoDelEvento: false,
+                                rolCuenta: null,
+                                permisos: normalizarPermisos(c.permisos),
+                                features,
+                              })
+                              const pendiente = c.status !== 'active'
+                              const etiqueta  = r.entra === 0 ? 'Sin acceso' : r.etiqueta
 
-                          return (
-                            <div className="flex items-center gap-3">
-                              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#f0fdfb] text-[11px] font-bold text-[#48C9B0]">
-                                {c.email[0].toUpperCase()}
-                              </div>
+                              const resumenTexto = pendiente ? (
+                                <span className="text-[12px] font-medium text-[#c08a2e]">Invitación pendiente</span>
+                              ) : (
+                                <span className="text-[12px] text-[#666]">
+                                  <span className="font-semibold text-[#1D1E20]">{etiqueta}</span>
+                                  {r.entra > 0 && ` · ${r.entra} de 12`}
+                                </span>
+                              )
 
-                              <div className="min-w-0 flex-1">
-                                <p className="truncate text-xs font-medium text-[#1D1E20]">{c.email}</p>
+                              return (
+                                <div className="flex items-center gap-3">
+                                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#f0fdfb] text-[11px] font-bold text-[#48C9B0]">
+                                    {c.email[0].toUpperCase()}
+                                  </div>
 
-                                <div className="mt-0.5 flex items-center gap-1.5">
-                                  <span className={'h-1.5 w-1.5 shrink-0 rounded-full ' + (pendiente ? 'bg-[#f0a500]' : 'bg-[#48C9B0]')} />
-                                  <span className="text-[10px] text-[#aaa]">{pendiente ? 'Sin aceptar' : 'Activo'}</span>
-                                  {pendiente && (
+                                  <div className="min-w-0 flex-1">
+                                    <p className="truncate text-xs font-medium text-[#1D1E20]">{c.email}</p>
+
+                                    <div className="mt-0.5 flex items-center gap-1.5">
+                                      <span className={'h-1.5 w-1.5 shrink-0 rounded-full ' + (pendiente ? 'bg-[#f0a500]' : 'bg-[#48C9B0]')} />
+                                      <span className="text-[10px] text-[#aaa]">{pendiente ? 'Sin aceptar' : 'Activo'}</span>
+                                      {pendiente && (
+                                        <button
+                                          type="button"
+                                          onClick={() => handleCopyLink(c.invite_token)}
+                                          title="Copiar enlace de invitación"
+                                          aria-label="Copiar enlace de invitación"
+                                          className="rounded p-0.5 text-[#bbb] transition hover:bg-[#f5f5f5] hover:text-[#888]"
+                                        >
+                                          {copiedToken === c.invite_token
+                                            ? <Check size={11} className="text-[#48C9B0]" />
+                                            : <Copy size={11} />}
+                                        </button>
+                                      )}
+                                    </div>
+
+                                    <div className="mt-1 sm:hidden">{resumenTexto}</div>
+                                  </div>
+
+                                  <div className="hidden shrink-0 sm:block">{resumenTexto}</div>
+
+                                  <div className="flex shrink-0 items-center gap-0.5">
                                     <button
                                       type="button"
-                                      onClick={() => handleCopyLink(c.invite_token)}
-                                      title="Copiar enlace de invitación"
-                                      aria-label="Copiar enlace de invitación"
-                                      className="rounded p-0.5 text-[#bbb] transition hover:bg-[#f5f5f5] hover:text-[#888]"
+                                      onClick={() => {
+                                        setBorrador(normalizarPermisos(c.permisos))
+                                        setEditandoPermisos(c.id)
+                                      }}
+                                      title="Ajustar permisos"
+                                      aria-label="Ajustar permisos"
+                                      className="flex h-7 w-7 items-center justify-center rounded-md text-[#888] transition hover:bg-[#f5f5f5] hover:text-[#1D1E20]"
                                     >
-                                      {copiedToken === c.invite_token
-                                        ? <Check size={11} className="text-[#48C9B0]" />
-                                        : <Copy size={11} />}
+                                      <Settings size={14} />
                                     </button>
-                                  )}
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRevoke(c.id)}
+                                      disabled={revoking === c.id}
+                                      title="Quitar acceso"
+                                      aria-label="Quitar acceso"
+                                      className="flex h-7 w-7 items-center justify-center rounded-md text-[#888] transition hover:text-[#cc3333] disabled:opacity-40"
+                                    >
+                                      <X size={14} />
+                                    </button>
+                                  </div>
                                 </div>
-
-                                <div className="mt-1 sm:hidden">{resumenTexto}</div>
-                              </div>
-
-                              <div className="hidden shrink-0 sm:block">{resumenTexto}</div>
-
-                              <div className="flex shrink-0 items-center gap-0.5">
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setBorrador(normalizarPermisos(c.permisos))
-                                    setEditandoPermisos(c.id)
-                                  }}
-                                  title="Ajustar permisos"
-                                  aria-label="Ajustar permisos"
-                                  className="flex h-7 w-7 items-center justify-center rounded-md text-[#888] transition hover:bg-[#f5f5f5] hover:text-[#1D1E20]"
-                                >
-                                  <Settings size={14} />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleRevoke(c.id)}
-                                  disabled={revoking === c.id}
-                                  title="Quitar acceso"
-                                  aria-label="Quitar acceso"
-                                  className="flex h-7 w-7 items-center justify-center rounded-md text-[#888] transition hover:text-[#cc3333] disabled:opacity-40"
-                                >
-                                  <X size={14} />
-                                </button>
-                              </div>
-                            </div>
-                          )
-                        })()}
-                      </div>
-                    )
-                  })}
+                              )
+                            })()}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
                 </div>
-              )}
+              </div>
 
               {(() => {
                 const c = collaborators.find(x => x.id === editandoPermisos)
