@@ -52,6 +52,10 @@ export default function SupplierDetailModal({
   // mismo modulo. Con solo ver, abre completo y bloqueado: explorar no es tocar.
   const permiso = usePermiso('proveedores')
   const soloLectura = !permiso.editar
+  // Vincular a un concepto NO es editar al proveedor: decide a que partida se
+  // le carga el monto contratado, o sea cambia el presupuesto. Pide el permiso
+  // del presupuesto, no el de proveedores.
+  const puedeVincular = usePermiso('presupuesto').editar
 
   const categoriaPropia = categorias.find(c => c.id === item.supplier.category_id)
 
@@ -186,7 +190,10 @@ export default function SupplierDetailModal({
           quoted_amount:   quotedAmount   ? parseFloat(quotedAmount)   : null,
           contract_amount: contractAmount ? parseFloat(contractAmount) : null,
           event_notes:     supplierNotes.trim() || null,
-          event_budget_id: eventBudgetId || null,
+          // Sin permiso de presupuesto el vinculo ni se manda: se queda como
+          // estaba. Esconder el selector no basta -- el estado local se puede
+          // haber movido por otro camino.
+          ...(puedeVincular ? { event_budget_id: eventBudgetId || null } : {}),
         })
         .eq('id', item.id)
         .select('*, supplier:suppliers(*)')
@@ -379,7 +386,7 @@ export default function SupplierDetailModal({
                 <>
                   <div className="flex items-center gap-2">
                     <Wallet size={14} className="shrink-0 text-[#888]" />
-                    <select value={eventBudgetId} onChange={e => setEventBudgetId(e.target.value)} disabled={soloLectura} className={`${INPUT_CLASS} flex-1`}>
+                    <select value={eventBudgetId} onChange={e => setEventBudgetId(e.target.value)} disabled={soloLectura || !puedeVincular} className={`${INPUT_CLASS} flex-1`}>
                       <option value="">Sin concepto</option>
                       {budgetsForCategory.map(b => (
                         <option key={b.id} value={b.id}>
