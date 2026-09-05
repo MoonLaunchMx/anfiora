@@ -478,13 +478,15 @@ export function TaskModal({ editTask, prefillDate, eventId, onClose, onSaved }: 
         >
           Cancelar
         </button>
-        <button
-          onClick={handleSave}
-          disabled={!form.title.trim() || !form.task_date || saving}
-          className="flex-[2] py-2.5 text-sm bg-[#48C9B0] text-white rounded-xl font-semibold disabled:opacity-40 hover:bg-[#3ab89f] transition-colors"
-        >
-          {saving ? 'Guardando...' : editTask ? 'Guardar cambios' : 'Agregar tarea'}
-        </button>
+        <Puede modulo="timeline" accion="editar">
+          <button
+            onClick={handleSave}
+            disabled={!form.title.trim() || !form.task_date || saving}
+            className="flex-[2] py-2.5 text-sm bg-[#48C9B0] text-white rounded-xl font-semibold disabled:opacity-40 hover:bg-[#3ab89f] transition-colors"
+          >
+            {saving ? 'Guardando...' : editTask ? 'Guardar cambios' : 'Agregar tarea'}
+          </button>
+        </Puede>
       </Modal.Footer>
     </Modal>
   )
