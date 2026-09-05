@@ -11,7 +11,7 @@ import BudgetItemRow from './BudgetItemRow'
 import HealthBar from '@/app/components/ui/HealthBar'
 
 type EventSupplierWithName = EventSupplier & {
-  supplier: Pick<Supplier, 'id' | 'name' | 'category'>
+  supplier: Pick<Supplier, 'id' | 'name' | 'category_id'>
 }
 
 type Props = {
@@ -94,6 +94,7 @@ export default function BudgetCategoryRow({
               <BudgetItemRow
                 key={item.id}
                 item={item}
+                categoryName={category}
                 currency={currency}
                 contractedAmount={contractedByItem[item.id] || 0}
                 paidAmount={paidByItem[item.id] || 0}

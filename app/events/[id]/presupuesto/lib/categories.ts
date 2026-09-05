@@ -1,4 +1,4 @@
-import { BUDGET_CATEGORY_LABELS, EventBudget } from '@/lib/types'
+import { BUDGET_CATEGORY_LABELS } from '@/lib/types'
 
 type TypeKey = 'boda' | 'social' | 'corporativo' | 'impacto'
 
@@ -24,14 +24,13 @@ export function getEventCategories(
   stored: string[] | null | undefined,
   eventType: string | null,
   eventCategory: string | null,
-  budgets: Pick<EventBudget, 'category'>[],
+  budgetCategoryNames: string[],
 ): string[] {
   const base = (stored && stored.length > 0)
     ? [...stored]
     : [...DEFAULT_CATEGORIES_BY_TYPE[resolveTypeKey(eventType, eventCategory)]]
   const seen = new Set(base.map(c => c.toLowerCase()))
-  for (const b of budgets) {
-    const c = b.category as string
+  for (const c of budgetCategoryNames) {
     if (c && !seen.has(c.toLowerCase())) { base.push(c); seen.add(c.toLowerCase()) }
   }
   return base

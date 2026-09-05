@@ -515,7 +515,7 @@ export function budgetCategoryLabel(name: string): string {
 export type EventBudget = {
   id: string
   event_id: string
-  category: string
+  category_id?: string | null
   subcategory: string
   budget_amount: number
   event_supplier_id: string | null
@@ -527,7 +527,7 @@ export type EventBudgetInsert = Omit<EventBudget, 'id' | 'created_at'>
 export type EventBudgetUpdate = Partial<Omit<EventBudget, 'id' | 'event_id' | 'created_at'>>
 
 export type BudgetCategoryWithItems = {
-  category: BudgetCategory
+  category: string
   items: EventBudget[]
   total_budget: number
   total_contracted: number
@@ -542,7 +542,7 @@ export type Supplier = {
   id: string
   user_id: string
   name: string
-  category: BudgetCategory
+  category_id: string | null
   subcategory: string | null
   contact_name: string | null
   phone: string | null
@@ -728,7 +728,7 @@ export type BudgetSummary = {
 }
 
 export type CategoryBudgetStatus = {
-  category: BudgetCategory
+  category: string
   budget: number
   contracted: number
   paid: number
