@@ -45,6 +45,7 @@ export default function PresupuestoPage() {
   const { id } = useParams()
   const eventId = id as string
   const permiso = usePermiso('presupuesto')
+  const permisoProv = usePermiso('proveedores')
 
   const [event, setEvent]                   = useState<Event | null>(null)
   const [budgets, setBudgets]               = useState<EventBudget[]>([])
@@ -953,7 +954,7 @@ export default function PresupuestoPage() {
       </Modal>
 
       {/* ── SUPPLIER DETAIL DESDE PRESUPUESTO ── */}
-      {selectedSupplier && (
+      {selectedSupplier && permisoProv.ver && (
         <SupplierDetailModal
           item={selectedSupplier as any}
           eventId={eventId}
@@ -977,7 +978,7 @@ export default function PresupuestoPage() {
         />
       )}
 
-      {reviewSupplier && (
+      {reviewSupplier && permisoProv.editar && (
         <SupplierReviewModal
           eventSupplierId={reviewSupplier.id}
           supplierName={reviewSupplier.supplier.name}

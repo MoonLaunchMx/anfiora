@@ -16,6 +16,8 @@ import SupplierDetailModal from './SupplierDetailModal'
 import SupplierReviewModal from './SupplierReviewModal'
 import SupplierListView from './SupplierListView'
 import SupplierKanbanView from './SupplierKanbanView'
+import { usePermiso } from '@/lib/event-access-context'
+import { Puede } from '@/lib/permisos/Puede'
 
 type SupplierWithDetails = EventSupplier & { supplier: Supplier }
 type ViewMode = 'cards' | 'lista' | 'kanban'
@@ -24,6 +26,7 @@ type GroupBy  = 'ninguna' | 'categoria' | 'partida' | 'estatus'
 export default function ProveedoresPage() {
   const { id } = useParams()
   const eventId = id as string
+  const permiso = usePermiso('proveedores')
 
   const [event, setEvent]     = useState<Event | null>(null)
   const [items, setItems]     = useState<SupplierWithDetails[]>([])
@@ -82,6 +85,7 @@ export default function ProveedoresPage() {
     // id de la sesion, un colaborador crearia proveedores que el dueno del
     // evento no puede ver: el join devolveria supplier null y la tarjeta se
     // rompe en la pantalla del dueno.
+    if (!permiso.editar) return
     if (!duenoCatalogo) { alert('El evento aún no carga, intenta de nuevo'); return }
 
     const linkedBudget = data.event_budget_id ? budgets.find(b => b.id === data.event_budget_id) : null
@@ -132,6 +136,7 @@ export default function ProveedoresPage() {
   }
 
   const handleStatusChange = async (itemId: string, newStatus: SupplierStatus) => {
+    if (!permiso.editar) return
     const prev = items.find(i => i.id === itemId)
     setItems(p => p.map(it => it.id === itemId ? { ...it, status: newStatus } : it))
     const { error } = await supabase.from('event_suppliers').update({ status: newStatus }).eq('id', itemId)
@@ -275,20 +280,22 @@ export default function ProveedoresPage() {
           )}
 
           {/* CTA */}
-          <button
-            onClick={() => setModalOpen(true)}
-            className="ml-auto flex shrink-0 items-center gap-1.5 rounded-lg bg-[#48C9B0] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#3aa896]"
-          >
-            <Plus size={14} />
-            <span>Proveedor</span>
-          </button>
+          <Puede modulo="proveedores" accion="editar">
+            <button
+              onClick={() => setModalOpen(true)}
+              className="ml-auto flex shrink-0 items-center gap-1.5 rounded-lg bg-[#48C9B0] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#3aa896]"
+            >
+              <Plus size={14} />
+              <span>Proveedor</span>
+            </button>
+          </Puede>
         </div>
       </div>
 
       {/* ── CONTENIDO SCROLLABLE ── */}
       <div style={{ flex: 1, overflowY: 'auto' }} className="px-4 pb-6 pt-4 sm:px-6">
         {filtered.length === 0 && items.length === 0 ? (
-          <EmptyState onAdd={() => setModalOpen(true)} />
+          <EmptyState onAdd={() => setModalOpen(true)} puedeEditar={permiso.editar} />
         ) : filtered.length === 0 ? (
           <div className="flex min-h-[30dvh] items-center justify-center rounded-xl border border-dashed border-[#e0e0e0] bg-[#fafafa]">
             <p className="text-sm text-[#888]">Sin resultados con los filtros actuales</p>
@@ -325,6 +332,7 @@ export default function ProveedoresPage() {
                   categorias={categorias}
                   onSelect={setSelectedItem}
                   onStatusChange={handleStatusChange}
+                  puedeEditar={permiso.editar}
                 />
               </div>
             )}
@@ -334,7 +342,7 @@ export default function ProveedoresPage() {
 
       {/* ── MODALES ── */}
       <SupplierModal
-        isOpen={modalOpen}
+        isOpen={modalOpen && permiso.editar}
         onClose={() => setModalOpen(false)}
         currency={currency}
         budgets={budgets}
@@ -359,7 +367,7 @@ export default function ProveedoresPage() {
       )}
 
       {/* Review fuera del DetailModal — evita stacking context de Framer Motion */}
-      {reviewItem && (
+      {reviewItem && permiso.editar && (
         <SupplierReviewModal
           eventSupplierId={reviewItem.id}
           supplierName={reviewItem.supplier.name}
@@ -490,20 +498,24 @@ function StatCard({ label, value, color, small }: {
   )
 }
 
-function EmptyState({ onAdd }: { onAdd: () => void }) {
+function EmptyState({ onAdd, puedeEditar }: { onAdd: () => void; puedeEditar: boolean }) {
   return (
     <div className="flex min-h-[40dvh] flex-col items-center justify-center rounded-xl border border-dashed border-[#e0e0e0] bg-[#fafafa] p-6 text-center">
       <p className="text-sm font-semibold text-[#1D1E20]">Sin proveedores aún</p>
       <p className="mt-1 max-w-xs text-xs text-[#888]">
-        Empieza agregando los proveedores con los que estás en contacto.
+        {puedeEditar
+          ? 'Empieza agregando los proveedores con los que estás en contacto.'
+          : 'Cuando se agreguen proveedores a esta boda, los verás aquí.'}
       </p>
-      <button
-        onClick={onAdd}
-        className="mt-4 flex items-center gap-1.5 rounded-lg bg-[#48C9B0] px-4 py-2 text-xs font-semibold text-white hover:bg-[#3aa896]"
-      >
-        <Plus size={14} />
-        Agregar proveedor
-      </button>
+      {puedeEditar && (
+        <button
+          onClick={onAdd}
+          className="mt-4 flex items-center gap-1.5 rounded-lg bg-[#48C9B0] px-4 py-2 text-xs font-semibold text-white hover:bg-[#3aa896]"
+        >
+          <Plus size={14} />
+          Agregar proveedor
+        </button>
+      )}
     </div>
   )
 }

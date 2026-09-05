@@ -5,6 +5,7 @@ import { Star, Smile, Meh, Frown } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { SupplierMood, ResponseSpeed } from '@/lib/types'
 import { Modal } from '@/app/components/ui/Modal'
+import { usePermiso } from '@/lib/event-access-context'
 
 interface Props {
   eventSupplierId: string
@@ -34,8 +35,10 @@ export default function SupplierReviewModal({
   const [mood, setMood]             = useState<SupplierMood | null>(initialMood)
   const [speed, setSpeed]           = useState<ResponseSpeed | null>(initialSpeed)
   const [saving, setSaving]         = useState(false)
+  const permiso = usePermiso('proveedores')
 
   const handleSave = async () => {
+    if (!permiso.editar) return
     setSaving(true)
     try {
       const updates = {
