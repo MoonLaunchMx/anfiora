@@ -316,6 +316,7 @@ export default function ProveedoresPage() {
                 onSelect={setSelectedItem}
                 onStatusChange={handleStatusChange}
                 onSaved={handleSavedItem}
+                onQuitada={handleDeletedItem}
               />
             )}
           </>

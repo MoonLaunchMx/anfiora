@@ -31,6 +31,7 @@ type Props = {
   bodaPaso: boolean
   onStatusChange: (itemId: string, nuevo: SupplierStatus) => void
   onSaved: (item: SupplierWithDetails) => void
+  onQuitada: (itemId: string) => void
 }
 
 const CHIP_ESTATUS: Record<SupplierStatus, string> = {
@@ -50,7 +51,7 @@ function iniciales(nombre: string): string {
 }
 
 export default function FichaDelEvento({
-  item, budgets, currency, categorias, bodaPaso, onStatusChange, onSaved,
+  item, budgets, currency, categorias, bodaPaso, onStatusChange, onSaved, onQuitada,
 }: Props) {
   const askConfirm = useConfirm()
   const permisoFicha = usePermiso('proveedores')
@@ -76,7 +77,9 @@ export default function FichaDelEvento({
     () => accionesDe(item.status, bodaPaso).filter(accion =>
       accion.separador
         ? true
-        : accion.texto === 'Registrar un pago' ? permisoPagos.editar : permisoFicha.editar
+        : accion.destructiva               ? permisoFicha.borrar
+        : accion.texto === 'Registrar un pago' ? permisoPagos.editar
+                                              : permisoFicha.editar
     ),
     [item.status, bodaPaso, permisoFicha.editar, permisoPagos.editar]
   )
@@ -210,6 +213,24 @@ export default function FichaDelEvento({
     }
   }
 
+  const quitarDeLaBoda = async () => {
+    const ok = await askConfirm({
+      title: `¿Quitar a ${s.name} de esta boda?`,
+      message: pagos.length > 0
+        ? `Se borran ${pagos.length === 1 ? 'el pago registrado' : `los ${pagos.length} pagos registrados`} y su vínculo con el presupuesto. El proveedor sigue en tu Rolodex para otras bodas.`
+        : 'El proveedor sigue en tu Rolodex para otras bodas.',
+    })
+    if (!ok) return
+
+    const { error } = await supabase.from('event_suppliers').delete().eq('id', item.id)
+    if (error) {
+      console.error('Error quitando el proveedor:', error?.message ?? error, error)
+      setErrorGuardar('No se pudo quitar de esta boda.')
+      return
+    }
+    onQuitada(item.id)
+  }
+
   const borrarPago = async (pago: SupplierPayment) => {
     const ok = await askConfirm({
       title: `¿Eliminar el pago de ${formatCurrency(pago.amount, currency)}?`,
@@ -256,6 +277,7 @@ export default function FichaDelEvento({
       return
     }
     if (!permisoFicha.editar) return
+    if (accion.destructiva) { quitarDeLaBoda(); return }
     if (accion.nuevoEstado) { onStatusChange(item.id, accion.nuevoEstado); return }
     const destino = carpetas.indexOf('Reseña')
     if (accion.texto === 'Calificar' && destino !== -1) setCarpeta(destino)

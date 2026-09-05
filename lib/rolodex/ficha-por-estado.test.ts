@@ -70,6 +70,16 @@ describe('accionesDe', () => {
     expect(deshacer?.nuevoEstado).toBe('cotizado')
   })
 
+  it('quitar de la boda se ofrece siempre, y siempre al final', () => {
+    for (const estado of ['nuevo', 'cotizado', 'contratado', 'descartado'] as const) {
+      const lista = accionesDe(estado, false)
+      const ultima = lista[lista.length - 1]
+      expect(ultima.texto).toBe('Quitar de esta boda')
+      expect(ultima.destructiva).toBe(true)
+      expect(ultima.nuevoEstado).toBeUndefined()
+    }
+  })
+
   it('nunca deja dos separadores juntos ni uno al final', () => {
     for (const estado of ['nuevo', 'cotizado', 'contratado', 'descartado'] as const) {
       for (const paso of [true, false]) {
