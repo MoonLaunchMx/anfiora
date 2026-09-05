@@ -18,6 +18,8 @@ import PhoneInput from '@/app/components/ui/PhoneInput'
 import { useConfirm } from '@/app/components/ui/ConfirmModal'
 import { toWhatsApp, toE164 } from '@/lib/phone'
 import { reportError } from '@/lib/observabilidad/report'
+import { usePermiso } from '@/lib/event-access-context'
+import { Puede } from '@/lib/permisos/Puede'
 import * as XLSX from 'xlsx'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
@@ -78,9 +80,19 @@ function SearchBox({ onDebounced }: { onDebounced: (v: string) => void }) {
   )
 }
 
-function StatusDot({ value, onChange }: { value: RsvpStatus; onChange: (s: RsvpStatus) => void }) {
+function StatusDot({ value, onChange, puedeEditar = true }: { value: RsvpStatus; onChange: (s: RsvpStatus) => void; puedeEditar?: boolean }) {
   const [open, setOpen] = useState(false)
   const s = STATUS_LABEL[value]
+
+  // Sin permiso de editar es una insignia: se lee el estatus y no se cambia.
+  if (!puedeEditar) {
+    return (
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border"
+        style={{ background: s.bg, borderColor: s.border, color: s.color }} title={s.label}>
+        {s.icon}
+      </span>
+    )
+  }
 
   return (
     <>
@@ -438,11 +450,13 @@ function CobroBadge({ guest, currency, onConfirmar, onDeshacer }: {
   return null
 }
 
-function SwipeableGuestCard({ guest, groupColor, isSelected, guestTags, availableTags, cobroBadge, onSelect, onEdit, onDelete, onWaLongPressStart, onWaLongPressEnd, onWaTouchMove, onStatusChange, onOpenConversation }: {
+function SwipeableGuestCard({ guest, groupColor, isSelected, guestTags, availableTags, cobroBadge, onSelect, onEdit, onDelete, onWaLongPressStart, onWaLongPressEnd, onWaTouchMove, onStatusChange, onOpenConversation, puedeBorrar, puedeEditar }: {
   guest: Guest; groupColor: string | null; isSelected: boolean; guestTags: string[]; availableTags: string[]; cobroBadge?: React.ReactNode
   onSelect: () => void; onEdit: () => void; onDelete: () => void
   onWaLongPressStart: (g: Guest) => void; onWaLongPressEnd: (g: Guest) => void; onWaTouchMove: () => void; onStatusChange: (s: RsvpStatus) => void
   onOpenConversation: (guestId: string) => void
+  puedeBorrar: boolean
+  puedeEditar: boolean
 }) {
   const x = useMotionValue(0)
   const bgOpacity = useTransform(x, [-80, -20, 0], [1, 0.5, 0])
@@ -451,7 +465,7 @@ function SwipeableGuestCard({ guest, groupColor, isSelected, guestTags, availabl
       <motion.div className="absolute inset-0 flex items-center justify-end bg-red-500 pr-5" style={{ opacity: bgOpacity }}>
         <Trash2 size={20} className="text-white" />
       </motion.div>
-      <motion.div style={{ x }} drag="x" dragConstraints={{ left: -80, right: 0 }} dragElastic={{ left: 0.1, right: 0 }}
+      <motion.div style={{ x }} drag={puedeBorrar ? 'x' : false} dragConstraints={{ left: -80, right: 0 }} dragElastic={{ left: 0.1, right: 0 }}
         onDragEnd={(_: unknown, info: PanInfo) => {
           if (info.offset.x < -60) onDelete()
           else animate(x, 0, { type: 'spring', stiffness: 500, damping: 35 })
@@ -503,7 +517,7 @@ function SwipeableGuestCard({ guest, groupColor, isSelected, guestTags, availabl
             )}
             {cobroBadge && <div className="mt-1">{cobroBadge}</div>}
           </div>
-          <StatusDot value={guest.rsvp_status} onChange={onStatusChange} />
+          <StatusDot value={guest.rsvp_status} onChange={onStatusChange} puedeEditar={puedeEditar} />
         </div>
       </motion.div>
     </div>
@@ -623,10 +637,12 @@ function AddGuestModal({ availableTags, groupPool, allergyPool, onCreateTag, onD
   )
 }
 
-function EditGuestModal({ guest, availableTags, groupPool, allergyPool, onCreateTag, onDeleteTag, onCreateGroup, onDeleteGroup, onCreateAllergy, onDeleteAllergy, onSubmit, onClose, onDelete, onResolveAttention }: GuestModalShared & {
+function EditGuestModal({ guest, availableTags, groupPool, allergyPool, onCreateTag, onDeleteTag, onCreateGroup, onDeleteGroup, onCreateAllergy, onDeleteAllergy, onSubmit, onClose, onDelete, onResolveAttention, puedeEditar, puedeBorrar }: GuestModalShared & {
   guest: Guest
   onDelete: () => void
   onResolveAttention: () => void
+  puedeEditar: boolean
+  puedeBorrar: boolean
 }) {
   const [name, setName] = useState(guest.name)
   const [phone, setPhone] = useState(guest.phone || '')
@@ -652,7 +668,7 @@ function EditGuestModal({ guest, availableTags, groupPool, allergyPool, onCreate
 
   return (
     <Modal open onClose={onClose} size="xl">
-      <Modal.Header title="Editar invitado" />
+      <Modal.Header title={puedeEditar ? 'Editar invitado' : 'Detalle del invitado'} />
       <Modal.Body>
         {guest.needs_attention && (
           <div className="mb-4 rounded-lg border p-3" style={{ background: 'var(--error-bg)', borderColor: 'var(--error-border)' }}>
@@ -661,9 +677,11 @@ function EditGuestModal({ guest, availableTags, groupPool, allergyPool, onCreate
               <span className="flex-1 text-xs font-semibold" style={{ color: 'var(--error-text)' }}>
                 {ATTENTION_LABEL[guest.attention_reason || 'otro']}
               </span>
-              <button onClick={onResolveAttention} className="text-xs font-semibold" style={{ color: '#48C9B0' }}>
-                Marcar atención como resuelta
-              </button>
+              {puedeEditar && (
+                <button onClick={onResolveAttention} className="text-xs font-semibold" style={{ color: '#48C9B0' }}>
+                  Marcar atención como resuelta
+                </button>
+              )}
             </div>
             {guest.attention_detail && (
               <p className="mt-2 line-clamp-3 text-xs" style={{ color: 'var(--text-sec)' }}>
@@ -672,6 +690,7 @@ function EditGuestModal({ guest, availableTags, groupPool, allergyPool, onCreate
             )}
           </div>
         )}
+        <fieldset disabled={!puedeEditar} className="m-0 min-w-0 border-0 p-0">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div><label className="mb-1.5 block text-xs font-medium text-[#555]">Nombre *</label><input type="text" value={name} onChange={e => setName(e.target.value)} className={INPUT_CLASS} /></div>
           <div><label className="mb-1.5 block text-xs font-medium text-[#555]">WhatsApp</label><PhoneInput value={phone} onChange={setPhone} placeholder="81 1234 5678" /></div>
@@ -688,15 +707,20 @@ function EditGuestModal({ guest, availableTags, groupPool, allergyPool, onCreate
           <div className="sm:col-span-2"><label className="mb-1.5 block text-xs font-medium text-[#555]">Notas</label><textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Mesa preferida, restricciones..." rows={2} className={`${INPUT_CLASS} resize-y`} /></div>
           <div className="sm:col-span-2 border-t border-[#f0f0f0] pt-4"><MembersEditor value={members} onChange={setMembers} allergyPool={allergyPool} onCreateAllergy={onCreateAllergy} onDeleteAllergy={handleDeleteAllergy} /></div>
         </div>
-        <button onClick={onDelete}
-          className="mt-4 w-full rounded-lg border border-[#ffe0e0] bg-[#fff5f5] py-3 text-sm font-semibold text-[#cc3333] transition hover:bg-[#ffe8e8] sm:hidden">
-          Eliminar invitado
-        </button>
+        </fieldset>
+        {puedeBorrar && (
+          <button onClick={onDelete}
+            className="mt-4 w-full rounded-lg border border-[#ffe0e0] bg-[#fff5f5] py-3 text-sm font-semibold text-[#cc3333] transition hover:bg-[#ffe8e8] sm:hidden">
+            Eliminar invitado
+          </button>
+        )}
         {error && <div className="mt-4 rounded-lg border border-[#ffc0c0] bg-[#fff0f0] p-2.5 text-xs text-[#cc3333]">{error}</div>}
       </Modal.Body>
       <Modal.Footer>
-        <button onClick={onClose} className="flex-1 rounded-lg border border-[#e0e0e0] py-3 text-sm text-[#888]">Cancelar</button>
-        <button onClick={submit} disabled={saving} className="flex-[2] rounded-lg bg-[#48C9B0] py-3 text-sm font-semibold text-white disabled:opacity-60">{saving ? 'Guardando...' : 'Guardar cambios'}</button>
+        <button onClick={onClose} className="flex-1 rounded-lg border border-[#e0e0e0] py-3 text-sm text-[#888]">{puedeEditar ? 'Cancelar' : 'Cerrar'}</button>
+        {puedeEditar && (
+          <button onClick={submit} disabled={saving} className="flex-[2] rounded-lg bg-[#48C9B0] py-3 text-sm font-semibold text-white disabled:opacity-60">{saving ? 'Guardando...' : 'Guardar cambios'}</button>
+        )}
       </Modal.Footer>
     </Modal>
   )
@@ -705,6 +729,7 @@ function EditGuestModal({ guest, availableTags, groupPool, allergyPool, onCreate
 export default function EventPage() {
   const { id } = useParams()
   const router = useRouter()
+  const permiso = usePermiso('invitados')
   const askConfirm = useConfirm()
   const openConversation = (guestId: string) => router.push(`/events/${id}/mensajes?guest=${guestId}`)
 
@@ -911,11 +936,13 @@ export default function EventPage() {
   }
 
   const updateStatus = async (guestId: string, status: RsvpStatus) => {
+    if (!permiso.editar) return
     setGuests(prev => prev.map(g => g.id === guestId ? { ...g, rsvp_status: status } : g))
     await supabase.from('guests').update({ rsvp_status: status }).eq('id', guestId)
   }
 
   const confirmarPago = async (guest: Guest) => {
+    if (!permiso.editar) return
     const nuevoTimestamp = new Date().toISOString()
     const { error } = await supabase.from('guests').update({ paid_at: nuevoTimestamp }).eq('id', guest.id)
     if (error) { alert('No se pudo confirmar el pago. Intenta de nuevo.'); return }
@@ -924,6 +951,7 @@ export default function EventPage() {
   }
 
   const deshacerPago = async (guest: Guest) => {
+    if (!permiso.editar) return
     const { error } = await supabase.from('guests').update({ paid_at: null }).eq('id', guest.id)
     if (error) { alert('No se pudo deshacer el pago. Intenta de nuevo.'); return }
     await logAction({ eventId: id as string, action: 'guest.payment_undone', entityType: 'guest', entityId: guest.id, entityLabel: guest.name, oldValue: { paid_at: guest.paid_at ?? null }, newValue: { paid_at: null } })
@@ -931,17 +959,20 @@ export default function EventPage() {
   }
 
   const updatePartyMemberStatus = async (memberId: string, guestId: string, status: RsvpStatus) => {
+    if (!permiso.editar) return
     setGuests(prev => prev.map(g => g.id === guestId ? { ...g, party_members: g.party_members.map(m => m.id === memberId ? { ...m, rsvp_status: status } : m) } : g))
     await supabase.from('party_members').update({ rsvp_status: status }).eq('id', memberId)
   }
 
   const resolveAttention = async (guestId: string) => {
+    if (!permiso.editar) return
     setGuests(prev => prev.map(g => g.id === guestId ? { ...g, needs_attention: false, attention_reason: null, attention_detail: null } : g))
     setEditGuest(prev => prev ? { ...prev, needs_attention: false, attention_reason: null, attention_detail: null } : null)
     await supabase.from('guests').update({ needs_attention: false, attention_reason: null, attention_detail: null }).eq('id', guestId)
   }
 
   const performDeleteGuest = async (guestId: string, conversationIds: string[], mode: 'unlink' | 'purge') => {
+    if (!permiso.borrar) return
     const ops = buildGuestDeletionOps(guestId, conversationIds, mode)
     const { ok, error } = await executeGuestDeletion(supabase, ops)
     if (!ok) {
@@ -956,6 +987,7 @@ export default function EventPage() {
   }
 
   const deleteGuest = async (guestId: string) => {
+    if (!permiso.borrar) return
     const conversationIds = await guestConversationIds(supabase, guestId)
     let hasChat = false
     if (conversationIds.length > 0) {
@@ -971,6 +1003,7 @@ export default function EventPage() {
   }
 
   const deletePartyMember = async (memberId: string, guestId: string) => {
+    if (!permiso.borrar) return
     if (!(await askConfirm({ title: '¿Eliminar este acompañante?' }))) return
     await supabase.from('party_members').delete().eq('id', memberId)
     setGuests(prev => prev.map(g => g.id === guestId ? { ...g, party_size: g.party_size - 1, party_members: g.party_members.filter(m => m.id !== memberId) } : g))
@@ -989,6 +1022,7 @@ export default function EventPage() {
   }
 
   const submitEditGuest = async (guest: Guest, f: GuestFormValues): Promise<string | null> => {
+    if (!permiso.editar) return null
     if (!f.name) return 'El nombre es obligatorio'
     if (f.phone) {
       const normalizedEdit = toE164(f.phone, 'MX')
@@ -1046,6 +1080,7 @@ export default function EventPage() {
   }
 
   const bulkUpdateStatus = async (status: RsvpStatus) => {
+    if (!permiso.editar) return
     const ids = Array.from(selected)
     const memberIds = Array.from(selectedMembers)
     if (ids.length > 0) await supabase.from('guests').update({ rsvp_status: status }).in('id', ids)
@@ -1060,6 +1095,7 @@ export default function EventPage() {
   }
 
   const bulkDelete = async () => {
+    if (!permiso.borrar) return
     const guestIds = Array.from(selected)
     const guestIdSet = new Set(guestIds)
     const looseMemberIds = Array.from(selectedMembers).filter(mid => { const g = guests.find(gg => gg.party_members.some(m => m.id === mid)); return g && !guestIdSet.has(g.id) })
@@ -1136,6 +1172,7 @@ export default function EventPage() {
   }
 
   const bulkAddCompanions = async () => {
+    if (!permiso.editar) return
     if (bulkCompanionCount < 1) return
     setBulkCompanionSaving(true)
     const ids = Array.from(selected)
@@ -1243,6 +1280,7 @@ export default function EventPage() {
   }
 
   const submitAddGuest = async (f: GuestFormValues): Promise<string | null> => {
+    if (!permiso.editar) return null
     if (!f.name) return 'El nombre es obligatorio'
     if (f.phone) {
       const normalizedNew = toE164(f.phone, 'MX')
@@ -1329,6 +1367,7 @@ export default function EventPage() {
   }
 
   const confirmCsvImport = async (skipDuplicates: boolean) => {
+    if (!permiso.editar) return
     if (!csvPreview) return
     setCsvImporting(true); setCsvError('')
     let rowsToImport = csvPreview.rows
@@ -1504,6 +1543,7 @@ export default function EventPage() {
   const availableTags = event?.guest_tags || []
   const tableFilterValues = useMemo(() => Array.from(new Set(guests.map(g => { const t = guestTableMap.get(g.id); return t ? `Mesa ${t.tableNumber}` : '' }).filter(Boolean))) as string[], [guests, guestTableMap])
   const createEventTag = async (tag: string) => {
+    if (!permiso.editar) return
     const t = tag.trim()
     if (!t || availableTags.some(x => x.toLowerCase() === t.toLowerCase())) return
     const next = [...availableTags, t]
@@ -1511,6 +1551,7 @@ export default function EventPage() {
     await supabase.from('events').update({ guest_tags: next }).eq('id', id)
   }
   const deleteEventTag = async (tag: string) => {
+    if (!permiso.borrar) return
     const next = availableTags.filter(t => t !== tag)
     setEvent(prev => prev ? { ...prev, guest_tags: next } : prev)
     await supabase.from('events').update({ guest_tags: next }).eq('id', id)
@@ -1522,6 +1563,7 @@ export default function EventPage() {
   }
   const createGroup = (group: string) => setGroupPool(prev => prev.includes(group) ? prev : [...prev, group])
   const deleteGroup = async (group: string) => {
+    if (!permiso.borrar) return
     setGroupPool(prev => prev.filter(g => g !== group))
     const affected = guests.filter(g => g.side === group)
     if (affected.length > 0) {
@@ -1531,6 +1573,7 @@ export default function EventPage() {
   }
   const createAllergy = (a: string) => setAllergyPool(prev => prev.includes(a) ? prev : [...prev, a])
   const deleteAllergy = async (a: string) => {
+    if (!permiso.borrar) return
     setAllergyPool(prev => prev.filter(x => x !== a))
     const affected = guests.filter(g => (g.allergies || []).includes(a))
     if (affected.length > 0) {
@@ -1641,13 +1684,13 @@ export default function EventPage() {
             <option value="declined">Declinados ({declined})</option>
           </select>
           <div className="hidden sm:block sm:flex-1" />
-          {someSelected && (
+          {someSelected && permiso.editar && (
             <button onClick={() => setShowMobileBulkSheet(true)}
               className="whitespace-nowrap rounded-lg bg-[#1D1E20] px-3 py-2 text-xs font-semibold text-white sm:hidden">
               {selected.size + selectedMembers.size} sel. ▾
             </button>
           )}
-          {someSelected && (
+          {someSelected && permiso.editar && (
             <div className="relative hidden sm:block" ref={bulkMenuRef}>
               <button onClick={() => setShowBulkMenu(!showBulkMenu)}
                 className="whitespace-nowrap rounded-lg bg-[#1D1E20] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#2d2e30]">
@@ -1736,13 +1779,17 @@ export default function EventPage() {
               </div>
             )}
           </div>
-          <button onClick={() => { setCsvError(''); setCsvSuccess(''); setCsvPreview(null); setShowCsvModal(true) }} className="hidden items-center gap-1.5 whitespace-nowrap rounded-lg border border-[#e0e0e0] px-3 py-2 text-xs text-[#666] transition hover:border-[#48C9B0] hover:text-[#48C9B0] sm:flex">
-            <Upload size={13} />Importar
-          </button>
-          <button onClick={() => setShowModal(true)}
-            className="shrink-0 whitespace-nowrap rounded-lg bg-[#48C9B0] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#3ab89f] sm:px-4 sm:text-sm">
-            + Agregar
-          </button>
+          <Puede modulo="invitados" accion="editar">
+            <button onClick={() => { setCsvError(''); setCsvSuccess(''); setCsvPreview(null); setShowCsvModal(true) }} className="hidden items-center gap-1.5 whitespace-nowrap rounded-lg border border-[#e0e0e0] px-3 py-2 text-xs text-[#666] transition hover:border-[#48C9B0] hover:text-[#48C9B0] sm:flex">
+              <Upload size={13} />Importar
+            </button>
+          </Puede>
+          <Puede modulo="invitados" accion="editar">
+            <button onClick={() => setShowModal(true)}
+              className="shrink-0 whitespace-nowrap rounded-lg bg-[#48C9B0] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#3ab89f] sm:px-4 sm:text-sm">
+              + Agregar
+            </button>
+          </Puede>
         </div>
 
         {filters.length > 0 && (
@@ -1788,6 +1835,8 @@ export default function EventPage() {
                       onWaLongPressStart={handleWaLongPressStart} onWaLongPressEnd={handleWaLongPressEnd}
                       onWaTouchMove={handleWaTouchMove} onStatusChange={(s) => updateStatus(guest.id, s)}
                       onOpenConversation={openConversation}
+                      puedeBorrar={permiso.borrar}
+                      puedeEditar={permiso.editar}
                     />
                     {groupColor && guest.party_members.map((m, mi) => {
                       const isLast = mi === guest.party_members.length - 1
@@ -1798,7 +1847,7 @@ export default function EventPage() {
                             <div className="h-6 w-[3px] shrink-0 rounded-full opacity-40" style={{ background: groupColor }} />
                             <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold" style={{ background: groupColor + '22', color: groupColor }}>+{mi + 1}</div>
                             <span className="flex-1 truncate text-xs text-[#888]">{m.name || 'Acompañante'}</span>
-                            <StatusDot value={m.rsvp_status} onChange={s => updatePartyMemberStatus(m.id, guest.id, s)} />
+                            <StatusDot value={m.rsvp_status} onChange={s => updatePartyMemberStatus(m.id, guest.id, s)} puedeEditar={permiso.editar} />
                           </div>
                         </div>
                       )
@@ -1930,8 +1979,8 @@ export default function EventPage() {
                         </div>
                       )}
                       {visibleCols.has('estatus') && (
-                        <select value={guest.rsvp_status} onChange={e => updateStatus(guest.id, e.target.value as RsvpStatus)}
-                          className="w-[120px] cursor-pointer rounded-md border px-2 py-1 text-xs font-semibold outline-none"
+                        <select value={guest.rsvp_status} onChange={e => updateStatus(guest.id, e.target.value as RsvpStatus)} disabled={!permiso.editar}
+                          className={'w-[120px] rounded-md border px-2 py-1 text-xs font-semibold outline-none ' + (permiso.editar ? 'cursor-pointer' : 'appearance-none')}
                           style={{ background: STATUS_LABEL[guest.rsvp_status].bg, borderColor: STATUS_LABEL[guest.rsvp_status].border, color: STATUS_LABEL[guest.rsvp_status].color }}>
                           <option value="mensaje_enviado">Mensaje enviado</option>
                           <option value="pending">Pendiente</option>
@@ -1941,9 +1990,11 @@ export default function EventPage() {
                           <option value="declined">Declinado</option>
                         </select>
                       )}
-                      <button onClick={() => deleteGuest(guest.id)} className="flex items-center justify-center p-1">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#cc3333" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">{TRASH_ICON}</svg>
-                      </button>
+                      <Puede modulo="invitados" accion="borrar">
+                        <button onClick={() => deleteGuest(guest.id)} className="flex items-center justify-center p-1">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#cc3333" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">{TRASH_ICON}</svg>
+                        </button>
+                      </Puede>
                     </div>
                     {groupColor && guest.party_members.map((m, mi) => {
                       const isLastMember = mi === guest.party_members.length - 1
@@ -1965,8 +2016,8 @@ export default function EventPage() {
                           {visibleCols.has('notas')    && <div />}
                           {visibleCols.has('telefono') && <div className="text-xs text-[#aaa]">{m.phone || ''}</div>}
                           {visibleCols.has('estatus')  && (
-                            <select value={m.rsvp_status} onChange={e => updatePartyMemberStatus(m.id, guest.id, e.target.value as RsvpStatus)}
-                              className="w-[120px] cursor-pointer rounded-md border px-2 py-1 text-xs font-semibold outline-none"
+                            <select value={m.rsvp_status} onChange={e => updatePartyMemberStatus(m.id, guest.id, e.target.value as RsvpStatus)} disabled={!permiso.editar}
+                              className={'w-[120px] rounded-md border px-2 py-1 text-xs font-semibold outline-none ' + (permiso.editar ? 'cursor-pointer' : 'appearance-none')}
                               style={{ background: STATUS_LABEL[m.rsvp_status].bg, borderColor: STATUS_LABEL[m.rsvp_status].border, color: STATUS_LABEL[m.rsvp_status].color }}>
                               <option value="mensaje_enviado">Mensaje enviado</option>
                               <option value="pending">Pendiente</option>
@@ -1976,9 +2027,11 @@ export default function EventPage() {
                               <option value="declined">Declinado</option>
                             </select>
                           )}
-                          <button onClick={() => deletePartyMember(m.id, guest.id)} className="flex items-center justify-center p-1 opacity-40 transition-opacity hover:opacity-100">
-                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#cc3333" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">{TRASH_ICON}</svg>
-                          </button>
+                          <Puede modulo="invitados" accion="borrar">
+                            <button onClick={() => deletePartyMember(m.id, guest.id)} className="flex items-center justify-center p-1 opacity-40 transition-opacity hover:opacity-100">
+                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#cc3333" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">{TRASH_ICON}</svg>
+                            </button>
+                          </Puede>
                         </div>
                       )
                     })}
@@ -2001,6 +2054,8 @@ export default function EventPage() {
           onClose={() => setEditGuest(null)}
           onDelete={() => { const gid = editGuest.id; setEditGuest(null); setTimeout(() => deleteGuest(gid), 0) }}
           onResolveAttention={() => resolveAttention(editGuest.id)}
+          puedeEditar={permiso.editar}
+          puedeBorrar={permiso.borrar}
         />
       )}
 

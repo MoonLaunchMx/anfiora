@@ -26,12 +26,15 @@ type Props = {
   onUpdateItem: (id: string, updates: { subcategory?: string; budget_amount?: number; event_supplier_id?: string | null }) => void
   onDeleteItem: (id: string) => void
   onOpenSupplier: (supplier: EventSupplierWithName) => void
+  puedeEditar: boolean
+  puedeBorrar: boolean
 }
 
 export default function BudgetCategoryRow({
   category, items, currency, contractedByItem, paidByItem,
   eventSuppliersById, availableSuppliersForCategory,
   onOpenAddModal, onUpdateItem, onDeleteItem, onOpenSupplier,
+  puedeEditar, puedeBorrar,
 }: Props) {
   const [expanded, setExpanded] = useState(true)
 
@@ -103,6 +106,8 @@ export default function BudgetCategoryRow({
                 onUpdate={onUpdateItem}
                 onDelete={onDeleteItem}
                 onOpenSupplier={onOpenSupplier}
+                puedeEditar={puedeEditar}
+                puedeBorrar={puedeBorrar}
               />
             )
           })}
@@ -113,15 +118,17 @@ export default function BudgetCategoryRow({
             </div>
           )}
 
-          <div className="border-t border-[#f5f5f5] bg-[#fafafa] px-4 py-2">
-            <button
-              onClick={() => onOpenAddModal(category)}
-              className="flex items-center gap-1.5 text-xs font-medium text-[#48C9B0] transition hover:text-[#3aa896]"
-            >
-              <Plus size={14} />
-              Agregar concepto
-            </button>
-          </div>
+          {puedeEditar && (
+            <div className="border-t border-[#f5f5f5] bg-[#fafafa] px-4 py-2">
+              <button
+                onClick={() => onOpenAddModal(category)}
+                className="flex items-center gap-1.5 text-xs font-medium text-[#48C9B0] transition hover:text-[#3aa896]"
+              >
+                <Plus size={14} />
+                Agregar concepto
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>

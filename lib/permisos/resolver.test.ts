@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   normalizarPermisos, nivelDe, puede, nivelEfectivo, resumir, aplicarKit,
-  permisosDesdeRolLegado, permisosDeRol,
+  permisosDeRol, ponerNivel,
   type ContextoPermiso,
 } from './resolver'
 import { MODULOS, NIVELES, type Nivel, type PermisosEvento } from './catalogo'
@@ -165,25 +165,6 @@ describe('cobertura', () => {
   })
 })
 
-describe('permisosDesdeRolLegado', () => {
-  it('admin y editor conservan lo que hoy pueden hacer, borrar incluido', () => {
-    for (const role of ['admin', 'editor']) {
-      const p = permisosDesdeRolLegado(role)
-      expect(Object.keys(p)).toHaveLength(12)
-      expect(p.pagos).toBe('total')
-    }
-  })
-
-  it('viewer solo mira', () => {
-    expect(permisosDesdeRolLegado('viewer').mesas).toBe('ver')
-  })
-
-  it('un rol desconocido no otorga nada', () => {
-    expect(permisosDesdeRolLegado(null)).toEqual({})
-    expect(permisosDesdeRolLegado('inventado')).toEqual({})
-  })
-})
-
 describe('permisosDeRol', () => {
   it('un editor nace pudiendo editar, nunca borrar', () => {
     const p = permisosDeRol('editor')
@@ -198,5 +179,54 @@ describe('permisosDeRol', () => {
   it('coincide con lo que la migracion escribio para ese rol', () => {
     expect(permisosDeRol('editor').pagos).toBe('editar')
     expect(permisosDeRol('admin').pagos).toBe('total')
+  })
+})
+
+describe('ponerNivel', () => {
+  it('mover presupuesto arrastra proveedores y pagos', () => {
+    const out = ponerNivel({}, 'presupuesto', 'ver')
+    expect(out.presupuesto).toBe('ver')
+    expect(out.proveedores).toBe('ver')
+    expect(out.pagos).toBe('ver')
+  })
+
+  it('arrastrar a ninguno quita las tres llaves, no las deja en ninguno', () => {
+    const out = ponerNivel(
+      { presupuesto: 'total', proveedores: 'total', pagos: 'total' },
+      'presupuesto',
+      'ninguno',
+    )
+    expect(out).toEqual({})
+  })
+
+  it('proveedores y pagos siguen siendo permisos aparte: no arrastran de vuelta', () => {
+    const out = ponerNivel(
+      { presupuesto: 'ver', proveedores: 'ver', pagos: 'ver' },
+      'proveedores',
+      'editar',
+    )
+    expect(out.proveedores).toBe('editar')
+    expect(out.presupuesto).toBe('ver')
+    expect(out.pagos).toBe('ver')
+  })
+
+  it('ningun otro modulo arrastra a nadie', () => {
+    for (const m of MODULOS) {
+      if (m === 'presupuesto') continue
+      const out = ponerNivel({}, m, 'editar')
+      expect(Object.keys(out)).toEqual([m])
+    }
+  })
+
+  it('no otorga un modulo apagado en la boda', () => {
+    const out = ponerNivel({}, 'presupuesto', 'editar', m => m !== 'pagos')
+    expect(out.proveedores).toBe('editar')
+    expect(out.pagos).toBeUndefined()
+  })
+
+  it('no muta el objeto que recibe', () => {
+    const antes: PermisosEvento = { presupuesto: 'ver' }
+    ponerNivel(antes, 'presupuesto', 'total')
+    expect(antes).toEqual({ presupuesto: 'ver' })
   })
 })

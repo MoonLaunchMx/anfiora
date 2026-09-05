@@ -86,23 +86,38 @@ export function aplicarKit(
   return out
 }
 
-// Puente para el periodo en que el codigo ya esta arriba y el SQL no ha corrido.
-// Reproduce EXACTAMENTE lo que la app hace hoy, para que nada cambie antes de
-// tiempo: hoy admin y editor pueden borrar. La migracion es la que baja al
-// editor a 'editar'.
-export function permisosDesdeRolLegado(role: string | null | undefined): PermisosEvento {
-  const nivel: Nivel | null =
-    role === 'admin' || role === 'editor' ? 'total' :
-    role === 'viewer' ? 'ver' :
-    null
-  if (nivel === null) return {}
-  return Object.fromEntries(MODULOS.map(m => [m, nivel])) as PermisosEvento
-}
-
 // El punto de partida de alguien recien invitado. Tiene que dar exactamente lo
 // mismo que escribio -migracion-aplicar.sql para ese rol, o la primera persona
 // que invites despues de migrar queda con permisos distintos a sus companeros.
 export function permisosDeRol(role: 'admin' | 'editor' | 'viewer'): PermisosEvento {
   const nivel: Nivel = role === 'admin' ? 'total' : role === 'editor' ? 'editar' : 'ver'
   return Object.fromEntries(MODULOS.map(m => [m, nivel])) as PermisosEvento
+}
+
+// El presupuesto no guarda lo contratado ni lo pagado: lo CALCULA de proveedores
+// y de pagos. Repartir los tres por separado deja el caso que confunde -- alguien
+// con presupuesto en 'ver' que igual lo cambia editando proveedores -- asi que
+// moverlo arrastra a los otros dos. Siguen siendo tres permisos: despues de
+// arrastrarlos se ajusta cada uno por su cuenta.
+export const MODULOS_ARRASTRADOS: Partial<Record<Modulo, Modulo[]>> = {
+  presupuesto: ['proveedores', 'pagos'],
+}
+
+export function ponerNivel(
+  permisos: PermisosEvento,
+  modulo: Modulo,
+  nivel: Nivel,
+  estaPrendida: (m: Modulo) => boolean = () => true,
+): PermisosEvento {
+  const siguiente: PermisosEvento = { ...permisos }
+  const aplicar = (m: Modulo) => {
+    if (nivel === 'ninguno') delete siguiente[m]
+    else siguiente[m] = nivel
+  }
+
+  aplicar(modulo)
+  for (const otro of MODULOS_ARRASTRADOS[modulo] ?? []) {
+    if (estaPrendida(otro)) aplicar(otro)
+  }
+  return siguiente
 }
