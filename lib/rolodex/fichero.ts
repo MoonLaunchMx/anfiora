@@ -2,10 +2,8 @@ import { sinAcentos } from '@/lib/phone'
 
 export type FichaOrdenable = { supplier: { name: string } }
 
-const ATENUACION = 0.34
-const OPACIDAD_MINIMA = 0.04
-const OSCURECIMIENTO = 0.05
-const BRILLO_MINIMO = 0.8
+const VELO_POR_FICHA = 0.42
+const VELO_MAXIMO = 0.88
 
 export function ordenarFichas<T extends FichaOrdenable>(items: T[]): T[] {
   return [...items].sort((a, b) =>
@@ -36,15 +34,11 @@ export function desplazamientoFicha(indice: number, activo: number, arrastre: nu
   return indice - activo - arrastre
 }
 
-export function opacidadFicha(desplazamiento: number): number {
-  const distancia = Math.abs(desplazamiento)
-  return Math.max(OPACIDAD_MINIMA, 1 - distancia * ATENUACION)
-}
-
-// La ficha del frente tiene que ganarle a las de atras: se apagan y se hunden.
-export function brilloFicha(desplazamiento: number): number {
-  const distancia = Math.abs(desplazamiento)
-  return Math.max(BRILLO_MINIMO, 1 - distancia * OSCURECIMIENTO)
+// Las de atras se apagan con un velo DENTRO de la ficha, no con opacity ni filter
+// sobre la ficha misma: eso la saca del orden por profundidad del contenedor 3D y
+// el navegador termina pintando las de atras encima de la del frente.
+export function veloFicha(desplazamiento: number): number {
+  return Math.min(VELO_MAXIMO, Math.abs(desplazamiento) * VELO_POR_FICHA)
 }
 
 export function escalaFicha(desplazamiento: number): number {

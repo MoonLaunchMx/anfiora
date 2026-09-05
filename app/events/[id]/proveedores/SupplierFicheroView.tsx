@@ -11,8 +11,8 @@ import {
 import { Categoria, nombrePorId } from '@/lib/rolodex/categorias-store'
 import { formatDisplay, toWhatsApp } from '@/lib/phone'
 import {
-  brilloFicha, desplazamientoFicha, escalaFicha, indiceAlSoltar, indicePrimeraLetra, letraDe,
-  moverIndice, opacidadFicha, ordenarFichas, puedeAvanzar,
+  desplazamientoFicha, escalaFicha, indiceAlSoltar, indicePrimeraLetra, letraDe,
+  moverIndice, ordenarFichas, puedeAvanzar, veloFicha,
 } from '@/lib/rolodex/fichero'
 
 type SupplierWithDetails = EventSupplier & { supplier: Supplier }
@@ -252,13 +252,11 @@ function Ficha({ item, budgets, currency, categorias, activa, arrastrando, despl
       onClick={onClick}
       style={{
         transform: `translate(-50%, -50%) rotateX(${-desplazamiento * PASO_GRADOS}deg) translateZ(${RADIO_PX}px) scale(${escalaFicha(desplazamiento)})`,
-        opacity: opacidadFicha(desplazamiento),
-        filter: `brightness(${brilloFicha(desplazamiento)})`,
         zIndex: 100 - Math.round(Math.abs(desplazamiento)),
         pointerEvents: Math.abs(desplazamiento) > 2 ? 'none' : 'auto',
         transition: arrastrando
           ? 'none'
-          : 'transform .42s cubic-bezier(.22,.9,.28,1), opacity .42s ease, filter .42s ease, box-shadow .3s ease',
+          : 'transform .42s cubic-bezier(.22,.9,.28,1), box-shadow .3s ease',
       }}
       className={`absolute left-1/2 top-1/2 h-[236px] w-[min(88vw,430px)] cursor-pointer rounded-2xl border bg-white p-4 [backface-visibility:hidden] sm:h-[224px] sm:p-5 ${
         activa
@@ -344,6 +342,11 @@ function Ficha({ item, budgets, currency, categorias, activa, arrastrando, despl
           </button>
         </div>
       )}
+      <span
+        aria-hidden
+        style={{ opacity: veloFicha(desplazamiento), transition: arrastrando ? 'none' : 'opacity .42s ease' }}
+        className="pointer-events-none absolute inset-0 rounded-2xl bg-[#f8f5f0]"
+      />
     </article>
   )
 }

@@ -5,8 +5,7 @@ import {
   indicePrimeraLetra,
   moverIndice,
   desplazamientoFicha,
-  opacidadFicha,
-  brilloFicha,
+  veloFicha,
   escalaFicha,
   indiceAlSoltar,
   puedeAvanzar,
@@ -90,21 +89,6 @@ describe('desplazamientoFicha', () => {
   })
 })
 
-describe('opacidadFicha', () => {
-  it('la del frente se ve completa', () => {
-    expect(opacidadFicha(0)).toBe(1)
-  })
-
-  it('se atenua con la distancia, en ambos sentidos', () => {
-    expect(opacidadFicha(2)).toBeCloseTo(opacidadFicha(-2))
-    expect(opacidadFicha(2)).toBeLessThan(opacidadFicha(1))
-  })
-
-  it('nunca desaparece del todo', () => {
-    expect(opacidadFicha(9)).toBeGreaterThan(0)
-  })
-})
-
 describe('indiceAlSoltar', () => {
   it('se queda en la ficha mas cercana', () => {
     expect(indiceAlSoltar(3, 0.4, 10)).toBe(3)
@@ -135,19 +119,20 @@ describe('puedeAvanzar', () => {
   })
 })
 
-describe('brilloFicha y escalaFicha', () => {
-  it('la del frente va a tamano y brillo completos', () => {
-    expect(brilloFicha(0)).toBe(1)
+describe('veloFicha y escalaFicha', () => {
+  it('la del frente va limpia y a tamano completo', () => {
+    expect(veloFicha(0)).toBe(0)
     expect(escalaFicha(0)).toBe(1)
   })
 
-  it('las de atras se apagan y se hunden', () => {
-    expect(brilloFicha(2)).toBeLessThan(brilloFicha(1))
+  it('las de atras se apagan y se hunden, en ambos sentidos', () => {
+    expect(veloFicha(2)).toBeCloseTo(veloFicha(-2))
+    expect(veloFicha(2)).toBeGreaterThan(veloFicha(1))
     expect(escalaFicha(2)).toBeLessThan(escalaFicha(1))
   })
 
-  it('no se apagan ni se encogen sin fondo', () => {
-    expect(brilloFicha(30)).toBeGreaterThan(0.5)
+  it('nunca tapan del todo ni desaparecen', () => {
+    expect(veloFicha(30)).toBeLessThan(1)
     expect(escalaFicha(30)).toBeGreaterThan(0.5)
   })
 })
