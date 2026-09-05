@@ -53,6 +53,7 @@ interface TaskModalProps {
 
 export function TaskModal({ editTask, prefillDate, eventId, onClose, onSaved }: TaskModalProps) {
   const permiso = usePermiso('timeline')
+  const soloLectura = !permiso.editar
   const [form, setForm] = useState({
     title:                '',
     emoji:                '',
@@ -203,7 +204,7 @@ export function TaskModal({ editTask, prefillDate, eventId, onClose, onSaved }: 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <Modal open onClose={onClose} size="lg">
-      <Modal.Header title={editTask ? 'Editar tarea' : 'Nueva tarea'} />
+      <Modal.Header title={soloLectura ? 'Detalle de la tarea' : editTask ? 'Editar tarea' : 'Nueva tarea'} />
       <Modal.Body className="[&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
         <div className="flex flex-col gap-3.5">
 
@@ -213,7 +214,8 @@ export function TaskModal({ editTask, prefillDate, eventId, onClose, onSaved }: 
               <select
                 value={form.category}
                 onChange={e => setForm(f => ({ ...f, category: e.target.value as TimelineTask['category'] }))}
-                className="w-full border border-[#e0e0e0] rounded-xl px-3 py-2 text-base appearance-none focus:outline-none focus:border-[#48C9B0] bg-[#f8f8f8]"
+                disabled={soloLectura}
+                className="w-full border border-[#e0e0e0] rounded-xl px-3 py-2 text-base appearance-none focus:outline-none focus:border-[#48C9B0] bg-[#f8f8f8] disabled:opacity-70"
               >
                 {CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
               </select>
@@ -221,11 +223,13 @@ export function TaskModal({ editTask, prefillDate, eventId, onClose, onSaved }: 
             </div>
             <button
               onClick={() => setForm(f => ({ ...f, priority: f.priority === 'bloqueante' ? null : 'bloqueante' }))}
+              disabled={soloLectura}
               className={[
                 'flex items-center gap-1.5 px-3 py-2 rounded-xl border text-xs font-medium transition-colors whitespace-nowrap flex-shrink-0',
                 form.priority === 'bloqueante'
                   ? 'border-[#1D1E20] bg-[#1D1E20] text-white'
                   : 'border-[#e0e0e0] text-[#888] hover:bg-[#f8f8f8]',
+                soloLectura ? 'opacity-70' : '',
               ].join(' ')}
             >
               <AlertTriangle size={12} />Bloqueante
@@ -237,7 +241,8 @@ export function TaskModal({ editTask, prefillDate, eventId, onClose, onSaved }: 
             <div className="relative flex-shrink-0">
               <button
                 onClick={() => setShowEmoji(p => !p)}
-                className="w-10 h-10 border border-[#e0e0e0] rounded-xl flex items-center justify-center text-lg hover:bg-[#f8f8f8] transition-colors"
+                disabled={soloLectura}
+                className="w-10 h-10 border border-[#e0e0e0] rounded-xl flex items-center justify-center text-lg hover:bg-[#f8f8f8] transition-colors disabled:opacity-70"
               >
                 {form.emoji || <Plus size={14} className="text-[#bbb]" />}
               </button>
@@ -264,7 +269,11 @@ export function TaskModal({ editTask, prefillDate, eventId, onClose, onSaved }: 
               placeholder="Título de la tarea"
               value={form.title}
               onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
-              className="flex-1 border border-[#e0e0e0] rounded-xl px-3 text-base focus:outline-none focus:border-[#48C9B0] h-10 bg-[#f8f8f8]"
+              readOnly={soloLectura}
+              className={[
+                'flex-1 border border-[#e0e0e0] rounded-xl px-3 text-base focus:outline-none focus:border-[#48C9B0] h-10 bg-[#f8f8f8]',
+                soloLectura ? 'cursor-default text-[#666]' : '',
+              ].join(' ')}
             />
           </div>
 
@@ -276,7 +285,11 @@ export function TaskModal({ editTask, prefillDate, eventId, onClose, onSaved }: 
                 type="date"
                 value={form.task_date}
                 onChange={e => setForm(f => ({ ...f, task_date: e.target.value }))}
-                className="w-full border border-[#e0e0e0] rounded-xl px-3 py-2 text-base focus:outline-none focus:border-[#48C9B0] bg-[#f8f8f8]"
+                readOnly={soloLectura}
+                className={[
+                  'w-full border border-[#e0e0e0] rounded-xl px-3 py-2 text-base focus:outline-none focus:border-[#48C9B0] bg-[#f8f8f8]',
+                  soloLectura ? 'cursor-default text-[#666]' : '',
+                ].join(' ')}
               />
             </div>
             <div>
@@ -287,7 +300,11 @@ export function TaskModal({ editTask, prefillDate, eventId, onClose, onSaved }: 
                 type="time"
                 value={form.task_time}
                 onChange={e => onTaskTimeChange(e.target.value)}
-                className="w-full border border-[#e0e0e0] rounded-xl px-3 py-2 text-base focus:outline-none focus:border-[#48C9B0] bg-[#f8f8f8]"
+                readOnly={soloLectura}
+                className={[
+                  'w-full border border-[#e0e0e0] rounded-xl px-3 py-2 text-base focus:outline-none focus:border-[#48C9B0] bg-[#f8f8f8]',
+                  soloLectura ? 'cursor-default text-[#666]' : '',
+                ].join(' ')}
               />
             </div>
           </div>
@@ -301,7 +318,7 @@ export function TaskModal({ editTask, prefillDate, eventId, onClose, onSaved }: 
               <select
                 value={form.reminder_key}
                 onChange={e => setForm(f => ({ ...f, reminder_key: e.target.value }))}
-                disabled={!form.task_date}
+                disabled={!form.task_date || soloLectura}
                 className="w-full border border-[#e0e0e0] rounded-xl px-3 py-2 text-base appearance-none focus:outline-none focus:border-[#48C9B0] bg-[#f8f8f8] disabled:opacity-40"
               >
                 <option value="">Sin recordatorio</option>
@@ -328,13 +345,21 @@ export function TaskModal({ editTask, prefillDate, eventId, onClose, onSaved }: 
                   <label className="text-[11px] font-medium text-[#0F6E56] mb-1 block">Fecha</label>
                   <input type="date" value={form.reminder_custom_date}
                     onChange={e => setForm(f => ({ ...f, reminder_custom_date: e.target.value }))}
-                    className="w-full border border-[#9FE1CB] rounded-lg px-2 py-1.5 text-base focus:outline-none focus:border-[#48C9B0] bg-white" />
+                    readOnly={soloLectura}
+                    className={[
+                      'w-full border border-[#9FE1CB] rounded-lg px-2 py-1.5 text-base focus:outline-none focus:border-[#48C9B0] bg-white',
+                      soloLectura ? 'cursor-default text-[#666]' : '',
+                    ].join(' ')} />
                 </div>
                 <div>
                   <label className="text-[11px] font-medium text-[#0F6E56] mb-1 block">Hora</label>
                   <input type="time" value={form.reminder_custom_time}
                     onChange={e => setForm(f => ({ ...f, reminder_custom_time: e.target.value }))}
-                    className="w-full border border-[#9FE1CB] rounded-lg px-2 py-1.5 text-base focus:outline-none focus:border-[#48C9B0] bg-white" />
+                    readOnly={soloLectura}
+                    className={[
+                      'w-full border border-[#9FE1CB] rounded-lg px-2 py-1.5 text-base focus:outline-none focus:border-[#48C9B0] bg-white',
+                      soloLectura ? 'cursor-default text-[#666]' : '',
+                    ].join(' ')} />
                 </div>
               </div>
             )}
@@ -368,7 +393,8 @@ export function TaskModal({ editTask, prefillDate, eventId, onClose, onSaved }: 
               <select
                 value={form.event_supplier_id || ''}
                 onChange={e => setForm(f => ({ ...f, event_supplier_id: e.target.value || null }))}
-                className="w-full border border-[#e0e0e0] rounded-xl px-3 py-2 text-base appearance-none focus:outline-none focus:border-[#48C9B0] bg-[#f8f8f8]"
+                disabled={soloLectura}
+                className="w-full border border-[#e0e0e0] rounded-xl px-3 py-2 text-base appearance-none focus:outline-none focus:border-[#48C9B0] bg-[#f8f8f8] disabled:opacity-70"
               >
                 <option value="">Sin proveedor</option>
                 {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
@@ -388,13 +414,15 @@ export function TaskModal({ editTask, prefillDate, eventId, onClose, onSaved }: 
             <div className="flex gap-1 mb-2">
               <button
                 onClick={() => setAssignMode('collab')}
-                className={['text-xs px-2.5 py-1 rounded-lg border transition-colors', assignMode === 'collab' ? 'bg-[#1D1E20] text-white border-[#1D1E20]' : 'border-[#e0e0e0] text-[#888] hover:bg-[#f8f8f8]'].join(' ')}
+                disabled={soloLectura}
+                className={['text-xs px-2.5 py-1 rounded-lg border transition-colors disabled:opacity-70', assignMode === 'collab' ? 'bg-[#1D1E20] text-white border-[#1D1E20]' : 'border-[#e0e0e0] text-[#888] hover:bg-[#f8f8f8]'].join(' ')}
               >
                 Colaborador
               </button>
               <button
                 onClick={() => setAssignMode('free')}
-                className={['text-xs px-2.5 py-1 rounded-lg border transition-colors', assignMode === 'free' ? 'bg-[#1D1E20] text-white border-[#1D1E20]' : 'border-[#e0e0e0] text-[#888] hover:bg-[#f8f8f8]'].join(' ')}
+                disabled={soloLectura}
+                className={['text-xs px-2.5 py-1 rounded-lg border transition-colors disabled:opacity-70', assignMode === 'free' ? 'bg-[#1D1E20] text-white border-[#1D1E20]' : 'border-[#e0e0e0] text-[#888] hover:bg-[#f8f8f8]'].join(' ')}
               >
                 Escribir nombre
               </button>
@@ -404,7 +432,8 @@ export function TaskModal({ editTask, prefillDate, eventId, onClose, onSaved }: 
                 <select
                   value={form.assigned_to_user_id || ''}
                   onChange={e => setForm(f => ({ ...f, assigned_to_user_id: e.target.value || null }))}
-                  className="w-full border border-[#e0e0e0] rounded-xl px-3 py-2 text-base appearance-none focus:outline-none focus:border-[#48C9B0] bg-[#f8f8f8]"
+                  disabled={soloLectura}
+                  className="w-full border border-[#e0e0e0] rounded-xl px-3 py-2 text-base appearance-none focus:outline-none focus:border-[#48C9B0] bg-[#f8f8f8] disabled:opacity-70"
                 >
                   <option value="">Sin asignar</option>
                   {collaborators.map(c => (
@@ -424,7 +453,11 @@ export function TaskModal({ editTask, prefillDate, eventId, onClose, onSaved }: 
                 placeholder="Ej: Mamá de la novia, Asistente..."
                 value={form.assigned_to_name}
                 onChange={e => setForm(f => ({ ...f, assigned_to_name: e.target.value }))}
-                className="w-full border border-[#e0e0e0] rounded-xl px-3 py-2 text-base focus:outline-none focus:border-[#48C9B0] bg-[#f8f8f8]"
+                readOnly={soloLectura}
+                className={[
+                  'w-full border border-[#e0e0e0] rounded-xl px-3 py-2 text-base focus:outline-none focus:border-[#48C9B0] bg-[#f8f8f8]',
+                  soloLectura ? 'cursor-default text-[#666]' : '',
+                ].join(' ')}
               />
             )}
           </div>
@@ -439,15 +472,20 @@ export function TaskModal({ editTask, prefillDate, eventId, onClose, onSaved }: 
               value={form.notes}
               onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
               rows={2}
-              className="w-full border border-[#e0e0e0] rounded-xl px-3 py-2 text-base focus:outline-none focus:border-[#48C9B0] resize-none bg-[#f8f8f8]"
+              readOnly={soloLectura}
+              className={[
+                'w-full border border-[#e0e0e0] rounded-xl px-3 py-2 text-base focus:outline-none focus:border-[#48C9B0] resize-none bg-[#f8f8f8]',
+                soloLectura ? 'cursor-default text-[#666]' : '',
+              ].join(' ')}
             />
           </div>
 
           {/* Destacar */}
           <button
             onClick={() => setForm(f => ({ ...f, is_highlighted: !f.is_highlighted }))}
+            disabled={soloLectura}
             className={[
-              'flex items-center gap-2 px-3 py-2 rounded-xl border text-sm transition-colors',
+              'flex items-center gap-2 px-3 py-2 rounded-xl border text-sm transition-colors disabled:opacity-70',
               form.is_highlighted
                 ? 'border-amber-300 bg-amber-50 text-amber-700'
                 : 'border-[#e0e0e0] text-[#888] hover:bg-[#f8f8f8]',
@@ -476,15 +514,17 @@ export function TaskModal({ editTask, prefillDate, eventId, onClose, onSaved }: 
           onClick={onClose}
           className="flex-1 py-2.5 text-sm border border-[#e0e0e0] rounded-xl text-[#888] hover:bg-[#f8f8f8] transition-colors"
         >
-          Cancelar
+          {soloLectura ? 'Cerrar' : 'Cancelar'}
         </button>
-        <button
-          onClick={handleSave}
-          disabled={!form.title.trim() || !form.task_date || saving}
-          className="flex-[2] py-2.5 text-sm bg-[#48C9B0] text-white rounded-xl font-semibold disabled:opacity-40 hover:bg-[#3ab89f] transition-colors"
-        >
-          {saving ? 'Guardando...' : editTask ? 'Guardar cambios' : 'Agregar tarea'}
-        </button>
+        <Puede modulo="timeline" accion="editar">
+          <button
+            onClick={handleSave}
+            disabled={!form.title.trim() || !form.task_date || saving}
+            className="flex-[2] py-2.5 text-sm bg-[#48C9B0] text-white rounded-xl font-semibold disabled:opacity-40 hover:bg-[#3ab89f] transition-colors"
+          >
+            {saving ? 'Guardando...' : editTask ? 'Guardar cambios' : 'Agregar tarea'}
+          </button>
+        </Puede>
       </Modal.Footer>
     </Modal>
   )

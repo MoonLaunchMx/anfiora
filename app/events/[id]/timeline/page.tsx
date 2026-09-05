@@ -253,7 +253,7 @@ export default function TimelinePage() {
     const taskId = searchParams.get('task')
     if (!taskId) return
     const found = tasks.find(t => t.id === taskId)
-    if (found) {
+    if (found && permiso.editar) {
       openEdit(found)
       window.history.replaceState({}, '', window.location.pathname)
     }
