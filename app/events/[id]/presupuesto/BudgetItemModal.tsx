@@ -6,6 +6,7 @@ import {
   Currency, formatCurrency, EventSupplier, Supplier,
 } from '@/lib/types'
 import { categoryLabel } from './lib/categories'
+import { Categoria, buscarPorNombre } from '@/lib/rolodex/categorias-store'
 import { Modal } from '@/app/components/ui/Modal'
 
 type EventSupplierWithName = EventSupplier & {
@@ -17,10 +18,11 @@ type Props = {
   onClose: () => void
   currency: Currency
   categories: string[]
+  categorias: Categoria[]
   initialCategory?: string | null
   eventSuppliers: EventSupplierWithName[]
   onSubmit: (data: {
-    category: string
+    category_id: string | null
     subcategory: string
     budget_amount: number
     event_supplier_id: string | null
@@ -29,7 +31,7 @@ type Props = {
 }
 
 export default function BudgetItemModal({
-  isOpen, onClose, currency, categories, initialCategory, eventSuppliers, onSubmit,
+  isOpen, onClose, currency, categories, categorias, initialCategory, eventSuppliers, onSubmit,
 }: Props) {
   const [category, setCategory]       = useState<string>('Venue')
   const [subcategory, setSubcategory] = useState('')
@@ -64,7 +66,7 @@ export default function BudgetItemModal({
     setSubmitting(true)
     try {
       await onSubmit({
-        category:          category,
+        category_id:       buscarPorNombre(categorias, category)?.id ?? null,
         subcategory:       subcategory.trim(),
         budget_amount:     parseFloat(amount) || 0,
         event_supplier_id: supplierId || null,

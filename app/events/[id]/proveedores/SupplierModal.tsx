@@ -2,23 +2,26 @@
 
 import { useState, useEffect } from 'react'
 import {
-  BudgetCategory, BUDGET_CATEGORIES, BUDGET_CATEGORY_LABELS, budgetCategoryLabel,
   EventBudget, Currency, formatCurrency,
 } from '@/lib/types'
+import { Categoria, activas, buscarPorNombre, nombrePorId } from '@/lib/rolodex/categorias-store'
 import { FiInstagram, FiGlobe, FiFacebook } from 'react-icons/fi'
 import { FaWhatsapp } from 'react-icons/fa'
 import PhoneInput from '@/app/components/ui/PhoneInput'
 import { detectCountry, dialCode } from '@/lib/phone'
 import { Modal } from '@/app/components/ui/Modal'
+import CategoriaPicker from './CategoriaPicker'
 
 type Props = {
   isOpen: boolean
   onClose: () => void
   currency: Currency
   budgets: EventBudget[]
+  categorias: Categoria[]
+  userId: string
   onSubmit: (data: {
     name: string
-    category: BudgetCategory
+    category_id: string | null
     subcategory: string | null
     phone: string | null
     phone_country_code: string | null
@@ -29,9 +32,9 @@ type Props = {
   }) => Promise<void>
 }
 
-export default function SupplierModal({ isOpen, onClose, currency, budgets, onSubmit }: Props) {
+export default function SupplierModal({ isOpen, onClose, currency, budgets, categorias, userId, onSubmit }: Props) {
   const [name, setName]                   = useState('')
-  const [category, setCategory]           = useState<BudgetCategory>('Venue')
+  const [categoryId, setCategoryId]       = useState<string>('')
   const [eventBudgetId, setEventBudgetId] = useState('')
   const [phone, setPhone]                 = useState('')
   const [instagram, setInstagram]         = useState('')
@@ -40,13 +43,16 @@ export default function SupplierModal({ isOpen, onClose, currency, budgets, onSu
 
   useEffect(() => {
     if (isOpen) {
-      setName(''); setCategory('Venue'); setEventBudgetId('')
+      const activasIniciales = activas(categorias)
+      const porDefecto = buscarPorNombre(activasIniciales, 'Venue') ?? activasIniciales[0] ?? null
+      setName(''); setCategoryId(porDefecto?.id ?? ''); setEventBudgetId('')
       setPhone(''); setInstagram(''); setFacebook('')
       setSubmitting(false)
     }
   }, [isOpen])
 
-  const budgetsForCategory = budgets.filter(b => b.category === category)
+  const selectedCategoria = categorias.find(c => c.id === categoryId) ?? null
+  const budgetsForCategory = budgets.filter(b => b.category_id === selectedCategoria?.id)
   const selectedBudget = eventBudgetId ? budgets.find(b => b.id === eventBudgetId) : null
 
   const validate = (): string | null => {
@@ -65,7 +71,7 @@ export default function SupplierModal({ isOpen, onClose, currency, budgets, onSu
       const dial = cc ? dialCode(cc) || null : null
       await onSubmit({
         name:               name.trim(),
-        category,
+        category_id:        selectedCategoria?.id ?? null,
         subcategory:        selectedBudget?.subcategory || null,
         phone:              phone.trim() || null,
         phone_country_code: phone.trim() ? dial : null,
@@ -88,6 +94,20 @@ export default function SupplierModal({ isOpen, onClose, currency, budgets, onSu
       <Modal.Body>
         <div className="space-y-4">
 
+          {/* Categoría */}
+          <div>
+            <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-[#888]">
+              Categoría <span className="text-red-400">*</span>
+            </label>
+            <CategoriaPicker
+              categorias={categorias}
+              valorId={categoryId || null}
+              onChange={c => { setCategoryId(c.id); setEventBudgetId('') }}
+              userId={userId}
+              className="border-[#e0e0e0]"
+            />
+          </div>
+
           {/* Nombre */}
           <div>
             <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-[#888]">
@@ -100,22 +120,6 @@ export default function SupplierModal({ isOpen, onClose, currency, budgets, onSu
               placeholder="Ej. DJ Ultra Mix"
               className="w-full rounded-lg border border-[#e0e0e0] bg-white px-3 py-2 text-base text-[#1D1E20] outline-none transition focus:border-[#48C9B0]"
             />
-          </div>
-
-          {/* Categoría */}
-          <div>
-            <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-[#888]">
-              Categoría <span className="text-red-400">*</span>
-            </label>
-            <select
-              value={category}
-              onChange={e => { setCategory(e.target.value as BudgetCategory); setEventBudgetId('') }}
-              className="w-full rounded-lg border border-[#e0e0e0] bg-white px-3 py-2 text-base text-[#1D1E20] outline-none transition focus:border-[#48C9B0]"
-            >
-              {BUDGET_CATEGORIES.map(cat => (
-                <option key={cat} value={cat}>{BUDGET_CATEGORY_LABELS[cat]}</option>
-              ))}
-            </select>
           </div>
 
           {/* Concepto del presupuesto */}
@@ -132,7 +136,7 @@ export default function SupplierModal({ isOpen, onClose, currency, budgets, onSu
                 <option value="">Sin concepto</option>
                 {budgetsForCategory.map(b => (
                   <option key={b.id} value={b.id}>
-                    {b.subcategory || budgetCategoryLabel(b.category)}
+                    {b.subcategory || nombrePorId(categorias, b.category_id)}
                     {b.budget_amount ? ` — ${formatCurrency(b.budget_amount, currency)}` : ''}
                   </option>
                 ))}
@@ -140,7 +144,7 @@ export default function SupplierModal({ isOpen, onClose, currency, budgets, onSu
             ) : (
               <div className="rounded-lg border border-dashed border-[#e0e0e0] bg-[#fafafa] px-3 py-2.5 text-center">
                 <p className="text-xs text-[#aaa]">
-                  No hay conceptos de {BUDGET_CATEGORY_LABELS[category]} — créalos en Presupuesto
+                  No hay conceptos de {selectedCategoria?.name} — créalos en Presupuesto
                 </p>
               </div>
             )}

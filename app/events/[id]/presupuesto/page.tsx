@@ -6,12 +6,12 @@ import { Search, FileSpreadsheet, FileText, Plus, Upload, X, AlertTriangle, Chec
 import * as XLSX from 'xlsx'
 import { supabase } from '@/lib/supabase'
 import {
-  Event, EventBudget, Currency, EventSupplier, Supplier,
+  Event, EventBudget, EventBudgetInsert, Currency, EventSupplier, Supplier,
 } from '@/lib/types'
 import { getEventCategories, categoryLabel } from './lib/categories'
 import {
   leerMonto, planearImport, resumenImport, mensajeImportado,
-  decidirRenombre, fechaDelArchivo, avisoArchivoViejo, FilaPlan,
+  decidirRenombre, fechaDelArchivo, avisoArchivoViejo, FilaPlan, PartidaExistente,
 } from '@/lib/presupuesto/import'
 import { interpretarEscritura } from '@/lib/invite/persistencia'
 import { BudgetCategoriesModal } from './BudgetCategoriesModal'
@@ -26,9 +26,11 @@ import { exportToExcel, exportToPDF, downloadImportTemplate } from './lib/export
 import SupplierDetailModal from '../proveedores/SupplierDetailModal'
 import SupplierReviewModal from '../proveedores/SupplierReviewModal'
 import { Modal } from '@/app/components/ui/Modal'
+import { Categoria, cargarCategorias, buscarPorNombre, nombrePorId, crearCategoria } from '@/lib/rolodex/categorias-store'
+import { mismaCategoria } from '@/lib/rolodex/categorias'
 
 type EventSupplierWithName = EventSupplier & {
-  supplier: Pick<Supplier, 'id' | 'name' | 'category'>
+  supplier: Pick<Supplier, 'id' | 'name' | 'category_id'>
 }
 
 type SupplierPaymentRow = {
@@ -68,7 +70,10 @@ export default function PresupuestoPage() {
   const [reviewSupplier, setReviewSupplier]     = useState<EventSupplierWithName | null>(null)
 
   const [storedCategories, setStoredCategories]   = useState<string[] | null>(null)
+  const [categorias, setCategorias]               = useState<Categoria[]>([])
+  const [userId, setUserId]                       = useState<string | null>(null)
   const [showCategoriesModal, setShowCategoriesModal] = useState(false)
+  const [categoryDeleteError, setCategoryDeleteError] = useState('')
   const [addingCategory, setAddingCategory]       = useState(false)
   const [newCategoryName, setNewCategoryName]     = useState('')
 
@@ -95,7 +100,7 @@ export default function PresupuestoPage() {
       const [eventRes, budgetsRes, suppliersRes] = await Promise.all([
         supabase.from('events').select('*').eq('id', eventId).single(),
         supabase.from('event_budgets').select('*').eq('event_id', eventId).order('created_at', { ascending: true }),
-        supabase.from('event_suppliers').select('*, supplier:suppliers(id, name, category)').eq('event_id', eventId),
+        supabase.from('event_suppliers').select('*, supplier:suppliers(id, name, category_id)').eq('event_id', eventId),
       ])
 
       if (eventRes.data) setEvent(eventRes.data as Event)
@@ -119,6 +124,10 @@ export default function PresupuestoPage() {
       const { data: settingsRow } = await supabase
         .from('event_settings').select('budget_categories').eq('event_id', eventId).single()
       setStoredCategories((settingsRow?.budget_categories as string[] | null) ?? null)
+
+      const { data: { user } } = await supabase.auth.getUser()
+      setUserId(user?.id ?? null)
+      setCategorias(user ? await cargarCategorias(user.id) : [])
     } catch (err: any) {
       console.error('Error cargando presupuesto:', err?.message ?? err, err)
     } finally {
@@ -134,17 +143,19 @@ export default function PresupuestoPage() {
   const eventSuppliersById: Record<string, EventSupplierWithName> = {}
   eventSuppliers.forEach(es => { eventSuppliersById[es.id] = es })
 
-  const categories = getEventCategories(storedCategories, event?.event_type ?? null, event?.event_category ?? null, budgets)
+  const budgetCategoryNames = budgets
+    .map(b => b.category_id ? nombrePorId(categorias, b.category_id) : '')
+    .filter(Boolean)
+  const categories = getEventCategories(storedCategories, event?.event_type ?? null, event?.event_category ?? null, budgetCategoryNames)
 
   const availableSuppliersByCategory: Record<string, EventSupplierWithName[]> = {}
   categories.forEach(cat => { availableSuppliersByCategory[cat] = [] })
   eventSuppliers.forEach(es => {
     if (!es.supplier) return
     if (es.status !== 'contratado') return
-    const cat = es.supplier.category
-    if (cat && availableSuppliersByCategory[cat]) {
-      availableSuppliersByCategory[cat].push(es)
-    }
+    const nombre = es.supplier.category_id ? nombrePorId(categorias, es.supplier.category_id) : ''
+    const cat = categories.find(c => mismaCategoria(c, nombre))
+    if (cat) availableSuppliersByCategory[cat].push(es)
   })
 
   const contractedByItem: Record<string, number> = {}
@@ -163,13 +174,21 @@ export default function PresupuestoPage() {
   const filteredBudgets = search.trim()
     ? budgets.filter(b => {
         const q = search.toLowerCase()
-        return b.subcategory.toLowerCase().includes(q) || categoryLabel(b.category).toLowerCase().includes(q)
+        const nombre = b.category_id ? nombrePorId(categorias, b.category_id) : ''
+        return b.subcategory.toLowerCase().includes(q) || nombre.toLowerCase().includes(q)
       })
     : budgets
 
   const itemsByCategory: Record<string, EventBudget[]> = {}
   categories.forEach(cat => { itemsByCategory[cat] = [] })
-  filteredBudgets.forEach(b => { (itemsByCategory[b.category] ||= []).push(b) })
+  filteredBudgets.forEach(b => {
+    // category_id resuelve el nombre actual en categories; se empareja contra
+    // la lista de secciones visibles de este evento (mismaCategoria tolera
+    // acentos/mayusculas) para caer en la fila correcta.
+    const nombreResuelto = b.category_id ? nombrePorId(categorias, b.category_id) : ''
+    const seccion = categories.find(c => mismaCategoria(c, nombreResuelto))
+    if (seccion) itemsByCategory[seccion].push(b)
+  })
 
   const totalBudget     = budgets.reduce((sum, b) => sum + b.budget_amount, 0)
   const totalContracted = budgets.reduce((sum, b) => sum + (contractedByItem[b.id] || 0), 0)
@@ -249,7 +268,13 @@ export default function PresupuestoPage() {
           })
         }
 
-        const plan = planearImport(filas, budgets, categories)
+        const partidasExistentes: PartidaExistente[] = budgets.map(b => ({
+          id:            b.id,
+          category:      b.category_id ? nombrePorId(categorias, b.category_id) : '',
+          subcategory:   b.subcategory,
+          budget_amount: b.budget_amount,
+        }))
+        const plan = planearImport(filas, partidasExistentes, categories)
 
         if (plan.length === 0) {
           setImportError('No se encontraron conceptos válidos en el archivo.')
@@ -288,7 +313,7 @@ export default function PresupuestoPage() {
           .from('event_budgets')
           .insert(nuevos.map(f => ({
             event_id:          eventId,
-            category:          f.categoria,
+            category_id:       buscarPorNombre(categorias, f.categoria)?.id ?? null,
             subcategory:       f.concepto,
             budget_amount:     f.montoNuevo,
             event_supplier_id: null,
@@ -331,7 +356,7 @@ export default function PresupuestoPage() {
   }
 
   const handleModalSubmit = async (data: {
-    category: string
+    category_id: string | null
     subcategory: string
     budget_amount: number
     event_supplier_id: string | null
@@ -392,16 +417,14 @@ export default function PresupuestoPage() {
     const name = raw.trim()
     if (!name) return
     if (categories.some(c => c.toLowerCase() === name.toLowerCase())) return
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+    const { categoria } = await crearCategoria(user.id, name, categorias)
+    if (categoria && !categorias.some(c => c.id === categoria.id)) {
+      setCategorias(prev => [...prev, categoria])
+    }
     await persistCategories([...categories, name])
     setNewCategoryName(''); setAddingCategory(false)
-  }
-
-  const renameCategory = async (oldName: string, raw: string) => {
-    const name = raw.trim()
-    if (!name || name === oldName) return
-    await persistCategories(categories.map(c => c === oldName ? name : c))
-    await supabase.from('event_budgets').update({ category: name }).eq('event_id', eventId).eq('category', oldName)
-    loadAll()
   }
 
   const deleteCategory = async (name: string) => {
@@ -413,10 +436,26 @@ export default function PresupuestoPage() {
         confirmLabel: 'Eliminar categoría',
       })
       if (!ok) return
+      setCategoryDeleteError('')
+
+      // La reasignacion tiene que quedar hecha ANTES de quitar la seccion de la
+      // lista: si aborta aqui, las partidas siguen visibles donde estaban en vez
+      // de desaparecer de la pantalla sin haberse movido a ningun lado.
+      const deletedId = buscarPorNombre(categorias, name)?.id ?? null
+      const otroId     = buscarPorNombre(categorias, 'Otro')?.id ?? null
+      if (!deletedId || !otroId) {
+        setCategoryDeleteError('No se pudo mover los conceptos a "Otro", así que la categoría no se eliminó. Tus partidas siguen donde estaban.')
+        return
+      }
+      const { error } = await supabase.from('event_budgets').update({ category_id: otroId }).eq('event_id', eventId).eq('category_id', deletedId)
+      if (error) {
+        setCategoryDeleteError('No se pudieron mover los conceptos a "Otro", así que la categoría no se eliminó. Tus partidas siguen donde estaban.')
+        return
+      }
+
       const next = categories.filter(c => c !== name)
       if (!next.includes('Otro')) next.push('Otro')
       await persistCategories(next)
-      await supabase.from('event_budgets').update({ category: 'Otro' }).eq('event_id', eventId).eq('category', name)
       loadAll()
     } else {
       await persistCategories(categories.filter(c => c !== name))
@@ -445,9 +484,16 @@ export default function PresupuestoPage() {
 
   const generateWith = async (tier: BudgetTier) => {
     setGenerating(true)
-    const existing = new Set(budgets.map(b => `${b.category}|${b.subcategory}`.toLowerCase()))
+    const existing = new Set(budgets.map(b => {
+      const nombre = b.category_id ? nombrePorId(categorias, b.category_id) : ''
+      return `${nombre}|${b.subcategory}`.toLowerCase()
+    }))
     const rows = buildBudgetItems(eventId, event?.event_type ?? null, event?.event_category ?? null, tier, existing)
-    if (rows.length > 0) await supabase.from('event_budgets').insert(rows)
+    const rowsConId: EventBudgetInsert[] = rows.map(({ category, ...rest }) => ({
+      ...rest,
+      category_id: buscarPorNombre(categorias, category)?.id ?? null,
+    }))
+    if (rowsConId.length > 0) await supabase.from('event_budgets').insert(rowsConId)
     const genCats = Array.from(new Set(rows.map(r => r.category as string)))
     const merged = [...categories]
     genCats.forEach(c => { if (!merged.some(x => x.toLowerCase() === c.toLowerCase())) merged.push(c) })
@@ -683,10 +729,10 @@ export default function PresupuestoPage() {
           categories={categories}
           itemCountByCategory={Object.fromEntries(categories.map(c => [c, (itemsByCategory[c] || []).length]))}
           onAdd={addCategory}
-          onRename={renameCategory}
           onDelete={deleteCategory}
           onReorder={reorderCategories}
-          onClose={() => setShowCategoriesModal(false)}
+          error={categoryDeleteError}
+          onClose={() => { setShowCategoriesModal(false); setCategoryDeleteError('') }}
         />
       )}
 
@@ -696,6 +742,7 @@ export default function PresupuestoPage() {
         onClose={() => setModalOpen(false)}
         currency={currency}
         categories={categories}
+        categorias={categorias}
         initialCategory={modalCategory}
         eventSuppliers={eventSuppliers}
         onSubmit={handleModalSubmit}
@@ -880,6 +927,8 @@ export default function PresupuestoPage() {
           eventId={eventId}
           currency={currency}
           budgets={budgets}
+          categorias={categorias}
+          userId={userId ?? ''}
           onClose={() => setSelectedSupplier(null)}
           onSaved={updated => {
             setEventSuppliers(prev => prev.map(es => es.id === updated.id ? { ...es, ...updated } : es))

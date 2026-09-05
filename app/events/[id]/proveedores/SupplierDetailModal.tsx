@@ -11,7 +11,6 @@ import { FiInstagram, FiGlobe, FiMail, FiFacebook } from 'react-icons/fi'
 import { supabase } from '@/lib/supabase'
 import {
   EventSupplier, Supplier, SupplierPayment, EventBudget, Currency, formatCurrency,
-  BUDGET_CATEGORIES, BUDGET_CATEGORY_LABELS, BudgetCategory, budgetCategoryLabel,
   SupplierStatus, SUPPLIER_STATUSES, SUPPLIER_STATUS_LABELS,
   PAYMENT_METHODS, PAYMENT_METHOD_LABELS, PaymentMethod,
   PAID_BY_OPTIONS, PAID_BY_LABELS, PaidBy,
@@ -20,6 +19,8 @@ import PhoneInput from '@/app/components/ui/PhoneInput'
 import { toWhatsApp, detectCountry, dialCode } from '@/lib/phone'
 import { Modal } from '@/app/components/ui/Modal'
 import { useConfirm } from '@/app/components/ui/ConfirmModal'
+import { Categoria, nombrePorId } from '@/lib/rolodex/categorias-store'
+import CategoriaPicker from './CategoriaPicker'
 
 const INPUT_CLASS = 'rounded-lg border border-[#e8e8e8] bg-white px-3 py-2 text-base text-[#1D1E20] outline-none transition-colors focus:border-[#48C9B0]'
 
@@ -30,6 +31,8 @@ interface Props {
   eventId: string
   currency: Currency
   budgets: EventBudget[]
+  categorias: Categoria[]
+  userId: string
   onClose: () => void
   onSaved: (updated: SupplierWithDetails) => void
   onDeleted: (id: string) => void
@@ -38,13 +41,15 @@ interface Props {
 }
 
 export default function SupplierDetailModal({
-  item, eventId, currency, budgets, onClose, onSaved, onDeleted, onReviewNeeded,
+  item, eventId, currency, budgets, categorias, userId, onClose, onSaved, onDeleted, onReviewNeeded,
 }: Props) {
   const router = useRouter()
   const askConfirm = useConfirm()
 
+  const categoriaPropia = categorias.find(c => c.id === item.supplier.category_id)
+
   const [name, setName]             = useState(item.supplier.name)
-  const [category, setCategory]     = useState<BudgetCategory>(item.supplier.category)
+  const [categoryId, setCategoryId] = useState<string>(categoriaPropia?.id ?? item.supplier.category_id ?? '')
   const [phone, setPhone]           = useState(item.supplier.phone ?? '')
   const [instagram, setInstagram]   = useState(item.supplier.instagram ?? '')
   const [facebook, setFacebook]     = useState((item.supplier as any).facebook ?? '')
@@ -80,7 +85,11 @@ export default function SupplierDetailModal({
   const payProgress    = contractNum > 0 ? Math.min((totalPaid / contractNum) * 100, 100) : 0
   const hasReview      = item.rating !== null || (item.review_text && item.review_text.length > 0)
 
-  const budgetsForCategory = budgets.filter(b => b.category === category)
+  const selectedCategoria = categorias.find(c => c.id === categoryId) ?? categoriaPropia ?? null
+  const categoryName      = selectedCategoria?.name ?? ''
+  const categoryIdToSave  = categoryId || item.supplier.category_id
+
+  const budgetsForCategory = budgets.filter(b => b.category_id === categoryIdToSave)
   const selectedBudget     = eventBudgetId ? budgets.find(b => b.id === eventBudgetId) : null
   const budgetMeta         = selectedBudget?.budget_amount || 0
 
@@ -126,7 +135,7 @@ export default function SupplierDetailModal({
     supplier: {
       ...item.supplier,
       name:               name.trim(),
-      category,
+      category_id:        categoryIdToSave,
       subcategory:        selectedBudget?.subcategory || null,
       phone:              phone.trim() || null,
       phone_country_code: derivePhoneCountryCode(),
@@ -150,7 +159,7 @@ export default function SupplierDetailModal({
         .from('suppliers')
         .update({
           name:               name.trim(),
-          category,
+          category_id:        categoryIdToSave,
           subcategory:        selectedBudget?.subcategory || null,
           phone:              phone.trim() || null,
           phone_country_code: derivePhoneCountryCode(),
@@ -317,7 +326,7 @@ export default function SupplierDetailModal({
 
   return (
     <Modal open onClose={onClose} size="2xl">
-      <Modal.Header title={name || 'Sin nombre'} subtitle={BUDGET_CATEGORY_LABELS[category]} />
+      <Modal.Header title={name || 'Sin nombre'} subtitle={categoryName} />
       <Modal.Body className="space-y-7 py-5">
 
         {/* ① ESTADO */}
@@ -342,9 +351,13 @@ export default function SupplierDetailModal({
               <input type="text" value={name} onChange={e => setName(e.target.value)} className={`${INPUT_CLASS} w-full`} />
             </Field>
             <Field label="Categoría">
-              <select value={category} onChange={e => { setCategory(e.target.value as BudgetCategory); setEventBudgetId('') }} className={`${INPUT_CLASS} w-full`}>
-                {BUDGET_CATEGORIES.map(c => <option key={c} value={c}>{BUDGET_CATEGORY_LABELS[c]}</option>)}
-              </select>
+              <CategoriaPicker
+                categorias={categorias}
+                valorId={categoryId || null}
+                onChange={c => { setCategoryId(c.id); setEventBudgetId('') }}
+                userId={userId}
+                className="border-[#e8e8e8]"
+              />
             </Field>
             <Field label="Concepto del presupuesto" className="sm:col-span-2">
               {budgetsForCategory.length > 0 ? (
@@ -355,7 +368,7 @@ export default function SupplierDetailModal({
                       <option value="">Sin concepto</option>
                       {budgetsForCategory.map(b => (
                         <option key={b.id} value={b.id}>
-                          {b.subcategory || budgetCategoryLabel(b.category)} — {formatCurrency(b.budget_amount, currency)}
+                          {b.subcategory || categoryName} — {formatCurrency(b.budget_amount, currency)}
                         </option>
                       ))}
                     </select>
@@ -365,7 +378,7 @@ export default function SupplierDetailModal({
               ) : (
                 <div className="flex items-center gap-2 rounded-lg border border-dashed border-[#e0e0e0] bg-[#fafafa] px-3 py-3">
                   <Wallet size={14} className="shrink-0 text-[#aaa]" />
-                  <p className="text-xs text-[#888]">No hay conceptos de {BUDGET_CATEGORY_LABELS[category]} — créalos en Presupuesto</p>
+                  <p className="text-xs text-[#888]">No hay conceptos de {categoryName || 'esta categoría'} — créalos en Presupuesto</p>
                 </div>
               )}
             </Field>
@@ -427,7 +440,7 @@ export default function SupplierDetailModal({
                   <Wallet size={16} className="text-[#48C9B0]" />
                 </div>
                 <div>
-                  <div className="text-xs text-[#888]">{linkedBudget.subcategory || budgetCategoryLabel(linkedBudget.category)}</div>
+                  <div className="text-xs text-[#888]">{linkedBudget.subcategory || nombrePorId(categorias, linkedBudget.category_id)}</div>
                   <div className="text-sm font-semibold text-[#1D1E20]">Meta: {formatCurrency(linkedBudget.budget_amount, currency)}</div>
                 </div>
               </div>

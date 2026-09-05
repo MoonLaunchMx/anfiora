@@ -4,7 +4,7 @@ import { useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { supabase } from '@/lib/supabase'
-import { User, Lock, Eye, EyeOff, CheckCircle, AlertCircle, ArrowLeft, ChevronDown, Bell, MessageSquarePlus } from 'lucide-react'
+import { User, Lock, Eye, EyeOff, CheckCircle, AlertCircle, ArrowLeft, ChevronDown, Bell, MessageSquarePlus, Tags, ChevronRight } from 'lucide-react'
 import { ROLES, getRole, Role } from '@/lib/roles'
 import PhoneInput from '@/app/components/ui/PhoneInput'
 import { PUSH_TYPES, type PushType, type NotificationPrefs } from '@/lib/types'
@@ -508,6 +508,21 @@ export default function PerfilPage() {
               )}
             </div>
           </section>
+
+          {/* ── Categorías ── */}
+          <button
+            onClick={() => { window.location.href = '/ajustes/categorias' }}
+            className="flex items-center justify-between gap-4 rounded-2xl border border-[#e8e8e8] bg-white p-5 text-left transition hover:border-[#48C9B0] sm:p-6"
+          >
+            <div className="flex items-center gap-3">
+              <Tags size={16} className="text-[#48C9B0]" />
+              <div>
+                <p className="text-sm font-semibold text-[#1D1E20]">Mis categorías</p>
+                <p className="text-[11px] text-[#aaa]">Cómo agrupas proveedores y presupuesto</p>
+              </div>
+            </div>
+            <ChevronRight size={16} className="shrink-0 text-[#bbb]" />
+          </button>
 
           {/* ── Notificaciones ── */}
           <section className="rounded-2xl border border-[#e8e8e8] bg-white p-5 sm:p-6">

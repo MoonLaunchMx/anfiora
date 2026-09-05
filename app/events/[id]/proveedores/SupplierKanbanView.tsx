@@ -7,25 +7,27 @@ import {
 } from '@dnd-kit/core'
 import { Frown, Meh, Smile } from 'lucide-react'
 import {
-  Currency, formatCurrency, BUDGET_CATEGORY_LABELS, budgetCategoryLabel,
+  Currency, formatCurrency,
   EventSupplier, Supplier, EventBudget, SupplierStatus,
   SUPPLIER_STATUSES, SUPPLIER_STATUS_LABELS, SUPPLIER_STATUS_COLORS,
   SUPPLIER_MOOD_COLORS,
 } from '@/lib/types'
- 
+import { Categoria, nombrePorId } from '@/lib/rolodex/categorias-store'
+
 type SupplierWithDetails = EventSupplier & { supplier: Supplier }
- 
+
 type Props = {
   items: SupplierWithDetails[]
   budgets: EventBudget[]
   currency: Currency
+  categorias: Categoria[]
   onSelect: (item: SupplierWithDetails) => void
   onStatusChange: (itemId: string, newStatus: SupplierStatus) => void
 }
- 
+
 const VISIBLE_STATUSES: SupplierStatus[] = ['nuevo', 'cotizado', 'contratado']
- 
-export default function SupplierKanbanView({ items, budgets, currency, onSelect, onStatusChange }: Props) {
+
+export default function SupplierKanbanView({ items, budgets, currency, categorias, onSelect, onStatusChange }: Props) {
   const [showDescartados, setShowDescartados] = useState(false)
  
   const sensors = useSensors(
@@ -65,6 +67,7 @@ export default function SupplierKanbanView({ items, budgets, currency, onSelect,
             items={itemsByStatus[status]}
             budgets={budgets}
             currency={currency}
+            categorias={categorias}
             onSelect={onSelect}
           />
         ))}
@@ -111,6 +114,7 @@ export default function SupplierKanbanView({ items, budgets, currency, onSelect,
                 items={itemsByStatus['descartado']}
                 budgets={budgets}
                 currency={currency}
+                categorias={categorias}
                 onSelect={onSelect}
                 dimmed
               />
@@ -126,12 +130,13 @@ export default function SupplierKanbanView({ items, budgets, currency, onSelect,
 // ── COLUMNA ───────────────────────────────────────────────────────────────
  
 function KanbanColumn({
-  status, items, budgets, currency, onSelect, dimmed = false,
+  status, items, budgets, currency, categorias, onSelect, dimmed = false,
 }: {
   status: SupplierStatus
   items: SupplierWithDetails[]
   budgets: EventBudget[]
   currency: Currency
+  categorias: Categoria[]
   onSelect: (item: SupplierWithDetails) => void
   dimmed?: boolean
 }) {
@@ -164,6 +169,7 @@ function KanbanColumn({
             item={item}
             budgets={budgets}
             currency={currency}
+            categorias={categorias}
             onSelect={onSelect}
           />
         ))}
@@ -180,11 +186,12 @@ function KanbanColumn({
 // ── CARD KANBAN ───────────────────────────────────────────────────────────
  
 function KanbanCard({
-  item, budgets, currency, onSelect,
+  item, budgets, currency, categorias, onSelect,
 }: {
   item: SupplierWithDetails
   budgets: EventBudget[]
   currency: Currency
+  categorias: Categoria[]
   onSelect: (item: SupplierWithDetails) => void
 }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: item.id })
@@ -220,7 +227,7 @@ function KanbanCard({
       {/* Categoría + mood */}
       <div className="mb-1 flex items-center justify-between gap-1">
         <p className="text-[10px] font-semibold uppercase tracking-wider text-[#888]">
-          {BUDGET_CATEGORY_LABELS[item.supplier.category]}
+          {nombrePorId(categorias, item.supplier.category_id)}
         </p>
         {MoodIcon}
       </div>
@@ -231,7 +238,7 @@ function KanbanCard({
       {/* Concepto */}
       {linkedBudget && (
         <p className="mt-0.5 text-[10px] text-[#aaa]">
-          {linkedBudget.subcategory || budgetCategoryLabel(linkedBudget.category)}
+          {linkedBudget.subcategory || nombrePorId(categorias, linkedBudget.category_id)}
         </p>
       )}
  

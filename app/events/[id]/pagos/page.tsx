@@ -21,7 +21,6 @@ type Pago = {
   paid_by: string | null
   reference: string | null
   supplier_name: string
-  supplier_category: string
   event_supplier_id: string
 }
 
@@ -156,7 +155,7 @@ export default function PagosPage() {
         .from('supplier_payments')
         .select(`
           id, amount, payment_date, payment_method, paid_by, reference,
-          event_suppliers!inner ( id, event_id, suppliers!inner ( name, category ) )
+          event_suppliers!inner ( id, event_id, suppliers!inner ( name ) )
         `)
         .eq('event_suppliers.event_id', eventId)
         .order('payment_date', { ascending: false }),
@@ -178,7 +177,6 @@ export default function PagosPage() {
         payment_method: p.payment_method, paid_by: p.paid_by, reference: p.reference,
         event_supplier_id: p.event_suppliers.id,
         supplier_name: p.event_suppliers.suppliers.name,
-        supplier_category: p.event_suppliers.suppliers.category,
       })))
     }
     if (suppliersData) {
@@ -195,7 +193,7 @@ export default function PagosPage() {
         .from('supplier_payments')
         .select(`
           id, amount, payment_date, payment_method, paid_by, reference,
-          event_suppliers!inner ( id, event_id, suppliers!inner ( name, category ) )
+          event_suppliers!inner ( id, event_id, suppliers!inner ( name ) )
         `)
         .eq('event_suppliers.event_id', eventId)
         .order('payment_date', { ascending: false }),
@@ -212,7 +210,6 @@ export default function PagosPage() {
         payment_method: p.payment_method, paid_by: p.paid_by, reference: p.reference,
         event_supplier_id: p.event_suppliers.id,
         supplier_name: p.event_suppliers.suppliers.name,
-        supplier_category: p.event_suppliers.suppliers.category,
       })))
     }
     if (suppliersData) {
@@ -298,7 +295,7 @@ export default function PagosPage() {
   const getExportData = () => ({
     eventName, eventDate, currency,
     pagos: filtered.map(p => ({
-      supplier_name: p.supplier_name, supplier_category: p.supplier_category,
+      supplier_name: p.supplier_name,
       payment_date: p.payment_date, amount: p.amount,
       payment_method: p.payment_method, paid_by: p.paid_by, reference: p.reference,
     })),

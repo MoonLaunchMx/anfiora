@@ -6,7 +6,6 @@ import autoTable from 'jspdf-autotable'
 
 export type PagoExport = {
   supplier_name: string
-  supplier_category: string
   payment_date: string
   amount: number
   payment_method: string | null
