@@ -510,6 +510,8 @@ function CanvasFullscreen({ tables, getOccupied, onBack, onTableClick, onPositio
   tableColors: Record<string,string>; setTableColors: React.Dispatch<React.SetStateAction<Record<string,string>>>
   decoColors: Record<string,string>; setDecoColors: React.Dispatch<React.SetStateAction<Record<string,string>>>
 }) {
+  const puedeEditarRef = useRef(puedeEditar)
+  puedeEditarRef.current = puedeEditar
   const [positions,  setPositions]  = useState<Record<string,{x:number;y:number}>>({})
   const [rotations,  setRotations]  = useState<Record<string,number>>({})
   const [selectedId, setSelectedId] = useState<string|null>(null)
@@ -612,16 +614,16 @@ function CanvasFullscreen({ tables, getOccupied, onBack, onTableClick, onPositio
   }
 
   const startDrag=(e:React.MouseEvent,id:string,isDeco:boolean)=>{
-    if(!puedeEditar)return
     if(e.button===2)return
     e.preventDefault(); e.stopPropagation()
     const pos=isDeco?(decosRef.current.find(d=>d.id===id)||{x:0,y:0}):(posRef.current[id]||{x:0,y:0})
     dragRef.current={id,isDeco,startMX:e.clientX,startMY:e.clientY,startX:pos.x,startY:pos.y,hasMoved:false}
-    document.body.style.cursor='grabbing'
+    if(puedeEditar)document.body.style.cursor='grabbing'
     if(isDeco){setActiveDeco(id)}else{setActiveId(id);setSelectedId(id)}
   }
 
   const startResize=(e:React.MouseEvent,id:string,corner:string)=>{
+    if(!puedeEditar)return
     e.preventDefault(); e.stopPropagation()
     const d=decosRef.current.find(x=>x.id===id); if(!d)return
     resizeRef.current={id,corner,startMX:e.clientX,startMY:e.clientY,origX:d.x,origY:d.y,origW:d.w,origH:d.h}
@@ -629,6 +631,7 @@ function CanvasFullscreen({ tables, getOccupied, onBack, onTableClick, onPositio
   }
 
   const startRotate=(e:React.MouseEvent,id:string,isDeco:boolean)=>{
+    if(!puedeEditar)return
     e.preventDefault(); e.stopPropagation()
     let cx:number, cy:number, startRot:number
     if(isDeco){
@@ -684,6 +687,7 @@ function CanvasFullscreen({ tables, getOccupied, onBack, onTableClick, onPositio
     if(!dragRef.current)return
     const{id,isDeco,startMX,startMY,startX,startY}=dragRef.current
     const dx=(e.clientX-startMX)/zoom; const dy=(e.clientY-startMY)/zoom
+    if(!puedeEditarRef.current)return
     if(Math.sqrt(dx*dx+dy*dy)>4)dragRef.current.hasMoved=true
     const nx=Math.max(0,startX+dx); const ny=Math.max(0,startY+dy)
     if(isDeco)setDecos(p=>p.map(d=>d.id===id?{...d,x:nx,y:ny}:d))
@@ -764,6 +768,7 @@ function CanvasFullscreen({ tables, getOccupied, onBack, onTableClick, onPositio
     const{id,isDeco,startTX,startTY,startX,startY}=touchRef.current
     const dx=(t.clientX-startTX)/zoom
     const dy=(t.clientY-startTY)/zoom
+    if(!puedeEditarRef.current)return
     if(Math.sqrt(dx*dx+dy*dy)>6){
       touchRef.current.hasMoved=true
       if(touchRef.current.longPressTimer){clearTimeout(touchRef.current.longPressTimer);touchRef.current.longPressTimer=null}
@@ -899,9 +904,9 @@ function CanvasFullscreen({ tables, getOccupied, onBack, onTableClick, onPositio
             <span className="flex w-12 items-center justify-center border-x border-[#e0e0e0] text-xs text-[#888]">{Math.round(zoom*100)}%</span>
             <button onClick={()=>setZoom(z=>Math.max(0.3,z-0.1))} className="px-2.5 py-1.5 text-xs font-bold text-[#666] hover:bg-[#f5f5f5]">−</button>
           </div>
-          <button onClick={onOpenCreate} className="flex items-center gap-1.5 rounded-lg bg-[#48C9B0] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#3ab89f]">
+          {puedeEditar&&<button onClick={onOpenCreate} className="flex items-center gap-1.5 rounded-lg bg-[#48C9B0] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#3ab89f]">
             <Plus width={13} height={13}/>Nueva mesa
-          </button>
+          </button>}
         </div>
       </div>
 
@@ -964,13 +969,13 @@ function CanvasFullscreen({ tables, getOccupied, onBack, onTableClick, onPositio
 
             return(
               <div key={table.id} data-canvas-item="true"
-                style={{position:'absolute',left:pos.x,top:pos.y,userSelect:'none',cursor:'grab',touchAction:'none'}}
+                style={{position:'absolute',left:pos.x,top:pos.y,userSelect:'none',cursor:puedeEditar?'grab':'pointer',touchAction:'none'}}
                 onMouseDown={e=>startDrag(e,table.id,false)}
                 onMouseEnter={()=>handleTableEnter(table.id)}
                 onMouseLeave={()=>handleTableLeave(table.id)}
                 onContextMenu={e=>openContextMenu(e,table.id,'table')}
                 onTouchStart={e=>startTouchDrag(e,table.id,false)}>
-                {isActive&&(
+                {isActive&&puedeEditar&&(
                   <div data-canvas-item="true"
                     onMouseDown={e=>startRotate(e,table.id,false)}
                     onMouseEnter={()=>handleTableEnter(table.id)}
@@ -1036,9 +1041,9 @@ function CanvasFullscreen({ tables, getOccupied, onBack, onTableClick, onPositio
             )}
           </div>
         )}
-        <button onClick={onOpenCreate} className="ml-auto flex shrink-0 items-center gap-1.5 rounded-lg bg-[#48C9B0] px-3 py-1.5 text-xs font-semibold text-white">
+        {puedeEditar&&<button onClick={onOpenCreate} className="ml-auto flex shrink-0 items-center gap-1.5 rounded-lg bg-[#48C9B0] px-3 py-1.5 text-xs font-semibold text-white">
           <Plus width={13} height={13}/>Nueva mesa
-        </button>
+        </button>}
       </div>
 
       {/* Eliminar elemento deco activo — solo mobile */}
