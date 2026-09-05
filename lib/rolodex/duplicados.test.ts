@@ -9,6 +9,8 @@ function ficha(p: Partial<EntradaDelRolodex> & { nombre: string }): EntradaDelRo
     nombre:     p.nombre,
     categoria:   p.categoria ?? null,
     categoriaId: p.categoriaId ?? null,
+    pais:        p.pais ?? null,
+    estado:      p.estado ?? null,
     ciudad:      p.ciudad ?? null,
     telefono:   p.telefono ?? null,
     correo:     p.correo ?? null,

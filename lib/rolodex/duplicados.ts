@@ -8,6 +8,8 @@ export type EntradaDelRolodex = {
   nombre: string
   categoria: string | null
   categoriaId: string | null
+  pais: string | null
+  estado: string | null
   ciudad: string | null
   telefono: string | null
   correo: string | null

@@ -10,6 +10,11 @@ import {
   EntradaDelRolodex, buscar, contactoRepetido, masUsados, nombresParecidos,
 } from '@/lib/rolodex/duplicados'
 import { detectCountry, dialCode } from '@/lib/phone'
+import {
+  PAISES, PAIS_POR_DEFECTO, bandera, ciudadesDe, estadosDe, mismoLugar,
+  nombrePais, normalizarCiudad, normalizarEstado, tieneEstados,
+} from '@/lib/geo/divisiones'
+import SelectorGeo, { OpcionGeo } from '@/app/components/ui/SelectorGeo'
 import PhoneInput from '@/app/components/ui/PhoneInput'
 import { Modal } from '@/app/components/ui/Modal'
 import CategoriaPicker from './CategoriaPicker'
@@ -30,6 +35,7 @@ export type ProveedorNuevo = EnEstaBoda & {
   website: string | null
   instagram: string | null
   facebook: string | null
+  country: string | null
   city: string | null
   state_region: string | null
   service_radius_km: number | null
@@ -145,6 +151,7 @@ export default function AltaProveedor({
   const [facebook, setFacebook]     = useState('')
   const [correo, setCorreo]         = useState('')
   const [sitio, setSitio]           = useState('')
+  const [pais, setPais]             = useState<string>(PAIS_POR_DEFECTO)
   const [ciudad, setCiudad]         = useState('')
   const [estado, setEstado]         = useState('')
   const [radio, setRadio]           = useState('')
@@ -155,13 +162,27 @@ export default function AltaProveedor({
   const [eventBudgetId, setEventBudgetId] = useState('')
   const [cotizacion, setCotizacion]       = useState('')
 
+  // La boda no guarda pais, asi que el default sale del Rolodex: el pais donde
+  // ya trabajas. Un planner de Bogota no tiene por que corregir "Mexico" cada
+  // vez que da de alta a alguien.
+  const paisDominante = useMemo(() => {
+    const cuenta = new Map<string, number>()
+    catalogo.forEach(e => { if (e.pais) cuenta.set(e.pais, (cuenta.get(e.pais) ?? 0) + 1) })
+    let ganador = PAIS_POR_DEFECTO as string
+    let max = 0
+    cuenta.forEach((n, iso) => { if (n > max) { max = n; ganador = iso } })
+    return ganador
+  }, [catalogo])
+
   useEffect(() => {
     if (!isOpen) return
     setFase('buscar'); setConsulta(''); setElegida(null); setEnviando(false); setError('')
     setNombre(''); setCategoryId(''); setContacto(''); setTelefono('')
     setInstagram(''); setFacebook(''); setCorreo(''); setSitio('')
-    setCiudad(''); setEstado(''); setRadio(''); setEtiquetas([]); setEtiquetaNueva(''); setNotas('')
+    setPais(paisDominante); setCiudad(''); setEstado('')
+    setRadio(''); setEtiquetas([]); setEtiquetaNueva(''); setNotas('')
     setEventBudgetId(''); setCotizacion('')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen])
 
   const resultados = useMemo(
@@ -178,6 +199,44 @@ export default function AltaProveedor({
     () => (fase === 'nuevo' ? contactoRepetido(catalogo, { telefono, correo }) : null),
     [catalogo, telefono, correo, fase],
   )
+
+  const opcionesPais: OpcionGeo[] = useMemo(
+    () => PAISES.map(p => ({ valor: p.name, icono: bandera(p.iso) })),
+    [],
+  )
+
+  const opcionesEstado: OpcionGeo[] = useMemo(
+    () => estadosDe(pais).map(e => ({ valor: e })),
+    [pais],
+  )
+
+  // Las ciudades que ya usas, del pais y estado elegidos, con cuantos
+  // proveedores tienes en cada una. Van primero porque el objetivo real no es
+  // la ortografia: es que tus fichas coincidan entre si para que el filtro
+  // por ciudad del directorio encuentre a todas.
+  const ciudadesQueUsas = useMemo(() => {
+    const cuenta = new Map<string, number>()
+    catalogo.forEach(e => {
+      if (!e.ciudad?.trim()) return
+      if (e.pais && e.pais !== pais) return
+      if (estado && e.estado && !mismoLugar(e.estado, estado)) return
+      const nombre = e.ciudad.trim()
+      cuenta.set(nombre, (cuenta.get(nombre) ?? 0) + 1)
+    })
+    return [...cuenta.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'es'))
+  }, [catalogo, pais, estado])
+
+  const opcionesCiudad: OpcionGeo[] = useMemo(() => {
+    const usadas: OpcionGeo[] = ciudadesQueUsas.map(([nombre, n]) => ({
+      valor: nombre,
+      grupo: 'Las que ya usas',
+      nota:  n === 1 ? '1 proveedor' : `${n} proveedores`,
+    }))
+    const sugeridas: OpcionGeo[] = ciudadesDe(pais, estado)
+      .filter(c => !usadas.some(u => mismoLugar(u.valor, c)))
+      .map(c => ({ valor: c, grupo: `De ${estado}` }))
+    return [...usadas, ...sugeridas]
+  }, [ciudadesQueUsas, pais, estado])
 
   const categoriaElegida = categorias.find(c => c.id === categoryId) ?? null
 
@@ -261,8 +320,9 @@ export default function AltaProveedor({
       website:            sitio.trim() || null,
       instagram:          instagram.trim().replace(/^@/, '') || null,
       facebook:           facebook.trim().replace(/^@/, '') || null,
-      city:               ciudad.trim() || null,
-      state_region:       estado.trim() || null,
+      country:            pais || null,
+      city:               normalizarCiudad(pais, estado, ciudad, ciudadesQueUsas.map(([n]) => n)) || null,
+      state_region:       normalizarEstado(pais, estado) || null,
       service_radius_km:  km !== null && Number.isFinite(km) && km > 0 ? km : null,
       tags:               etiquetas,
       general_notes:      notas.trim() || null,
@@ -571,16 +631,49 @@ export default function AltaProveedor({
               </Seccion>
 
               <Seccion titulo="Dónde atiende" nota="Opcional">
+                <div>
+                  <Etiqueta>País</Etiqueta>
+                  <SelectorGeo
+                    valor={nombrePais(pais)}
+                    onChange={n => {
+                      const elegido = PAISES.find(p => p.name === n)
+                      setPais(elegido?.iso ?? PAIS_POR_DEFECTO)
+                      setEstado(''); setCiudad('')
+                    }}
+                    opciones={opcionesPais}
+                    icono={bandera(pais)}
+                    placeholder="Elige el país"
+                    buscarPlaceholder="Buscar país…"
+                  />
+                </div>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div>
-                    <Etiqueta>Ciudad</Etiqueta>
-                    <input type="text" value={ciudad} onChange={e => setCiudad(e.target.value)}
-                      placeholder="Querétaro" className={INPUT} />
+                    <Etiqueta>Estado</Etiqueta>
+                    <SelectorGeo
+                      valor={estado}
+                      onChange={e => { setEstado(e); setCiudad('') }}
+                      opciones={opcionesEstado}
+                      libre={!tieneEstados(pais)}
+                      placeholder={tieneEstados(pais) ? 'Elige el estado' : 'Escribe el estado'}
+                      buscarPlaceholder={tieneEstados(pais) ? 'Buscar…' : 'Escribe el estado'}
+                      sinOpcionesTexto={
+                        tieneEstados(pais)
+                          ? 'Sin coincidencias'
+                          : `Todavía no tenemos la lista de ${nombrePais(pais)}, escríbelo`
+                      }
+                    />
                   </div>
                   <div>
-                    <Etiqueta>Estado</Etiqueta>
-                    <input type="text" value={estado} onChange={e => setEstado(e.target.value)}
-                      placeholder="Querétaro" className={INPUT} />
+                    <Etiqueta>Ciudad</Etiqueta>
+                    <SelectorGeo
+                      valor={ciudad}
+                      onChange={setCiudad}
+                      opciones={opcionesCiudad}
+                      libre
+                      placeholder="Elige o escribe"
+                      buscarPlaceholder="Buscar o escribir…"
+                      sinOpcionesTexto="Escribe el nombre de la ciudad"
+                    />
                   </div>
                 </div>
                 <div>

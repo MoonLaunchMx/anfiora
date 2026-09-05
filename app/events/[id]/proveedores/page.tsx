@@ -93,7 +93,7 @@ export default function ProveedoresPage() {
 
     const { data: fichas, error } = await supabase
       .from('suppliers')
-      .select('id, name, category_id, city, phone, email')
+      .select('id, name, category_id, country, state_region, city, phone, email')
       .eq('user_id', dueno)
       .is('archived_at', null)
 
@@ -131,6 +131,8 @@ export default function ProveedoresPage() {
         nombre:      f.name,
         categoria:   null,
         categoriaId: f.category_id,
+        pais:        f.country,
+        estado:      f.state_region,
         ciudad:      f.city,
         telefono:    f.phone,
         correo:      f.email,
@@ -202,7 +204,7 @@ export default function ProveedoresPage() {
         website:            data.website,
         instagram:          data.instagram,
         facebook:           data.facebook,
-        country:            'MX',
+        country:            data.country,
         city:               data.city,
         state_region:       data.state_region,
         service_radius_km:  data.service_radius_km,
@@ -221,6 +223,8 @@ export default function ProveedoresPage() {
       nombre:      ficha.name,
       categoria:   null,
       categoriaId: ficha.category_id,
+      pais:        ficha.country,
+      estado:      ficha.state_region,
       ciudad:      ficha.city,
       telefono:    ficha.phone,
       correo:      ficha.email,

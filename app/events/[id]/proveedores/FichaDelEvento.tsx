@@ -15,6 +15,11 @@ import {
 } from '@/lib/types'
 import { Categoria, nombrePorId } from '@/lib/rolodex/categorias-store'
 import { formatDisplay, toWhatsApp } from '@/lib/phone'
+import {
+  PAISES, PAIS_POR_DEFECTO, bandera, ciudadesDe, estadosDe,
+  nombrePais, normalizarCiudad, normalizarEstado, tieneEstados,
+} from '@/lib/geo/divisiones'
+import SelectorGeo from '@/app/components/ui/SelectorGeo'
 import { useConfirm } from '@/app/components/ui/ConfirmModal'
 import { usePermiso } from '@/lib/event-access-context'
 import { carpetasDe, destinosDe, QUE_SIGNIFICA } from '@/lib/rolodex/ficha-por-estado'
@@ -138,8 +143,9 @@ export default function FichaDelEvento({
           email:         borrador.correo.trim() || null,
           instagram:     borrador.instagram.trim() || null,
           website:       borrador.sitio.trim() || null,
-          city:          borrador.ciudad.trim() || null,
-          state_region:  borrador.estado.trim() || null,
+          country:       borrador.pais || null,
+          city:          normalizarCiudad(borrador.pais, borrador.estado, borrador.ciudad) || null,
+          state_region:  normalizarEstado(borrador.pais, borrador.estado) || null,
           general_notes: borrador.notasProveedor.trim() || null,
         })
         .eq('id', item.supplier_id)
@@ -405,11 +411,45 @@ export default function FichaDelEvento({
               <Campo etiqueta="Sitio">
                 <input value={borrador.sitio} onChange={e => setBorrador(b => ({ ...b, sitio: e.target.value }))} placeholder="proveedor.com" className={INPUT} />
               </Campo>
-              <Campo etiqueta="Ciudad">
-                <input value={borrador.ciudad} onChange={e => setBorrador(b => ({ ...b, ciudad: e.target.value }))} className={INPUT} />
+              <Campo etiqueta="País">
+                <SelectorGeo
+                  valor={nombrePais(borrador.pais)}
+                  onChange={n => {
+                    const elegido = PAISES.find(p => p.name === n)
+                    setBorrador(b => ({ ...b, pais: elegido?.iso ?? PAIS_POR_DEFECTO, estado: '', ciudad: '' }))
+                  }}
+                  opciones={PAISES.map(p => ({ valor: p.name, icono: bandera(p.iso) }))}
+                  icono={bandera(borrador.pais)}
+                  placeholder="Elige el país"
+                  buscarPlaceholder="Buscar país…"
+                />
               </Campo>
               <Campo etiqueta="Estado">
-                <input value={borrador.estado} onChange={e => setBorrador(b => ({ ...b, estado: e.target.value }))} className={INPUT} />
+                <SelectorGeo
+                  valor={borrador.estado}
+                  onChange={e => setBorrador(b => ({ ...b, estado: e, ciudad: '' }))}
+                  opciones={estadosDe(borrador.pais).map(e => ({ valor: e }))}
+                  libre={!tieneEstados(borrador.pais)}
+                  placeholder={tieneEstados(borrador.pais) ? 'Elige el estado' : 'Escribe el estado'}
+                  sinOpcionesTexto={
+                    tieneEstados(borrador.pais)
+                      ? 'Sin coincidencias'
+                      : `Todavía no tenemos la lista de ${nombrePais(borrador.pais)}, escríbelo`
+                  }
+                />
+              </Campo>
+              <Campo etiqueta="Ciudad">
+                <SelectorGeo
+                  valor={borrador.ciudad}
+                  onChange={c => setBorrador(b => ({ ...b, ciudad: c }))}
+                  opciones={ciudadesDe(borrador.pais, borrador.estado).map(c => ({
+                    valor: c, grupo: `De ${borrador.estado}`,
+                  }))}
+                  libre
+                  placeholder="Elige o escribe"
+                  buscarPlaceholder="Buscar o escribir…"
+                  sinOpcionesTexto="Escribe el nombre de la ciudad"
+                />
               </Campo>
             </div>
 
@@ -827,6 +867,7 @@ function borradorDe(item: SupplierWithDetails) {
     correo:         s.email ?? '',
     instagram:      s.instagram ?? '',
     sitio:          s.website ?? '',
+    pais:           s.country || PAIS_POR_DEFECTO,
     ciudad:         s.city ?? '',
     estado:         s.state_region ?? '',
     notasProveedor: s.general_notes ?? '',
