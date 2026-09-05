@@ -71,7 +71,7 @@ export default function PresupuestoPage() {
 
   const [storedCategories, setStoredCategories]   = useState<string[] | null>(null)
   const [categorias, setCategorias]               = useState<Categoria[]>([])
-  const [userId, setUserId]                       = useState<string | null>(null)
+  const [duenoCatalogo, setDuenoCatalogo]         = useState<string | null>(null)
   const [showCategoriesModal, setShowCategoriesModal] = useState(false)
   const [categoryDeleteError, setCategoryDeleteError] = useState('')
   const [addingCategory, setAddingCategory]       = useState(false)
@@ -125,9 +125,13 @@ export default function PresupuestoPage() {
         .from('event_settings').select('budget_categories').eq('event_id', eventId).single()
       setStoredCategories((settingsRow?.budget_categories as string[] | null) ?? null)
 
-      const { data: { user } } = await supabase.auth.getUser()
-      setUserId(user?.id ?? null)
-      setCategorias(user ? await cargarCategorias(user.id) : [])
+      // Las categorias son del despacho, no de quien mira: se cargan siempre
+      // con el dueno del evento. Si se cargaran con la sesion, un colaborador
+      // recibiria cero categorias, ninguna partida encajaria en su seccion y
+      // la pantalla saldria vacia aunque las filas si hubieran llegado.
+      const dueno = (eventRes.data as Event | null)?.user_id ?? null
+      setDuenoCatalogo(dueno)
+      setCategorias(dueno ? await cargarCategorias(dueno) : [])
     } catch (err: any) {
       console.error('Error cargando presupuesto:', err?.message ?? err, err)
     } finally {
@@ -417,9 +421,8 @@ export default function PresupuestoPage() {
     const name = raw.trim()
     if (!name) return
     if (categories.some(c => c.toLowerCase() === name.toLowerCase())) return
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
-    const { categoria } = await crearCategoria(user.id, name, categorias)
+    if (!duenoCatalogo) return
+    const { categoria } = await crearCategoria(duenoCatalogo, name, categorias)
     if (categoria && !categorias.some(c => c.id === categoria.id)) {
       setCategorias(prev => [...prev, categoria])
     }
@@ -928,7 +931,7 @@ export default function PresupuestoPage() {
           currency={currency}
           budgets={budgets}
           categorias={categorias}
-          userId={userId ?? ''}
+          duenoCatalogo={duenoCatalogo ?? ''}
           onClose={() => setSelectedSupplier(null)}
           onSaved={updated => {
             setEventSuppliers(prev => prev.map(es => es.id === updated.id ? { ...es, ...updated } : es))

@@ -32,7 +32,7 @@ interface Props {
   currency: Currency
   budgets: EventBudget[]
   categorias: Categoria[]
-  userId: string
+  duenoCatalogo: string
   onClose: () => void
   onSaved: (updated: SupplierWithDetails) => void
   onDeleted: (id: string) => void
@@ -41,7 +41,7 @@ interface Props {
 }
 
 export default function SupplierDetailModal({
-  item, eventId, currency, budgets, categorias, userId, onClose, onSaved, onDeleted, onReviewNeeded,
+  item, eventId, currency, budgets, categorias, duenoCatalogo, onClose, onSaved, onDeleted, onReviewNeeded,
 }: Props) {
   const router = useRouter()
   const askConfirm = useConfirm()
@@ -355,7 +355,7 @@ export default function SupplierDetailModal({
                 categorias={categorias}
                 valorId={categoryId || null}
                 onChange={c => { setCategoryId(c.id); setEventBudgetId('') }}
-                userId={userId}
+                duenoCatalogo={duenoCatalogo}
                 className="border-[#e8e8e8]"
               />
             </Field>

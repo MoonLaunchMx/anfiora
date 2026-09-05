@@ -32,7 +32,7 @@ export default function ProveedoresPage() {
   const [search, setSearch]   = useState('')
   const [filterCategory, setFilterCategory] = useState<string>('')
   const [categorias, setCategorias] = useState<Categoria[]>([])
-  const [userId, setUserId] = useState<string | null>(null)
+  const [duenoCatalogo, setDuenoCatalogo] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<ViewMode>('cards')
   const [groupBy, setGroupBy]   = useState<GroupBy>('categoria')
   const [modalOpen, setModalOpen]       = useState(false)
@@ -55,9 +55,11 @@ export default function ProveedoresPage() {
       if (suppliersRes.data) setItems(suppliersRes.data as SupplierWithDetails[])
       if (budgetsRes.data)   setBudgets(budgetsRes.data as EventBudget[])
 
-      const { data: { user } } = await supabase.auth.getUser()
-      setUserId(user?.id ?? null)
-      setCategorias(user ? await cargarCategorias(user.id) : [])
+      // El catalogo (fichas y categorias) es del despacho, no de quien mira:
+      // siempre cuelga del dueno del evento. Ver la nota en presupuesto/page.tsx.
+      const dueno = (eventRes.data as Event | null)?.user_id ?? null
+      setDuenoCatalogo(dueno)
+      setCategorias(dueno ? await cargarCategorias(dueno) : [])
     } catch (err: any) {
       console.error('Error cargando proveedores:', err?.message ?? err, err)
     } finally {
@@ -76,15 +78,18 @@ export default function ProveedoresPage() {
     quoted_amount: number | null
     event_budget_id: string | null
   }) => {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) { alert('Sesión expirada'); return }
+    // La ficha pertenece al despacho, no a quien la teclea. Si naciera con el
+    // id de la sesion, un colaborador crearia proveedores que el dueno del
+    // evento no puede ver: el join devolveria supplier null y la tarjeta se
+    // rompe en la pantalla del dueno.
+    if (!duenoCatalogo) { alert('El evento aún no carga, intenta de nuevo'); return }
 
     const linkedBudget = data.event_budget_id ? budgets.find(b => b.id === data.event_budget_id) : null
 
     const { data: newSupplier, error: supErr } = await supabase
       .from('suppliers')
       .insert({
-        user_id:            user.id,
+        user_id:            duenoCatalogo,
         name:               data.name,
         category_id:        data.category_id,
         subcategory:        linkedBudget?.subcategory || data.subcategory,
@@ -334,7 +339,7 @@ export default function ProveedoresPage() {
         currency={currency}
         budgets={budgets}
         categorias={categorias}
-        userId={userId ?? ''}
+        duenoCatalogo={duenoCatalogo ?? ''}
         onSubmit={handleCreateSupplier}
       />
 
@@ -345,7 +350,7 @@ export default function ProveedoresPage() {
           currency={currency}
           budgets={budgets}
           categorias={categorias}
-          userId={userId ?? ''}
+          duenoCatalogo={duenoCatalogo ?? ''}
           onClose={() => setSelectedItem(null)}
           onSaved={handleSavedItem}
           onDeleted={handleDeletedItem}
