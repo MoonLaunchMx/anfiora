@@ -65,7 +65,7 @@ Toda escritura de este feature termina en `.select()` y **cuenta las filas**; ce
 
 ### 3.4 El enlace se firma al momento del clic
 
-Se guarda **la ruta, nunca la URL**. La URL firmada se genera al clic con vida de **10 minutos**, se abre en pestaña nueva y no se persiste en ninguna parte. Nada de este bucket es alcanzable sin sesión.
+Se guarda **la ruta, nunca la URL**. La URL firmada se genera al clic con vida de **10 minutos** y no se persiste en ninguna parte. Nada de este bucket es alcanzable sin sesión.
 
 ---
 
@@ -164,7 +164,8 @@ Vive en `FichaDelEvento.tsx`, que ya tiene las dos carpetas.
 Debajo de "Los tres montos" y "Partida del presupuesto", un bloque **Cotizaciones guardadas · N**:
 
 - Lista por fecha descendente. La primera lleva el distintivo **Vigente**.
-- Cada renglón: glifo por tipo (PDF / imagen), nombre original, `fecha · peso · la subió Fulano`, y dos herramientas — **abrir** (firma y abre en pestaña nueva) y **quitar**.
+- Cada renglón: glifo por tipo (PDF / imagen), nombre original, `fecha · peso`, y dos herramientas — **ver** y **quitar**.
+- **Se ordena por fecha, del más reciente al más viejo.** La función de Postgres agrega al final del arreglo, así que sin ordenar el primer renglón sería el archivo más viejo y la carpeta marcaría como vigente la cotización equivocada. El orden vive en `visibles()`, con prueba.
 - Vacío: zona punteada con *"Sube la cotización — PDF o foto de lo que te mandó."*
 - Subiendo: el renglón aparece con barra de avance y botón de cancelar.
 - Error: el aviso trae **el nombre del archivo, su peso real y la salida** — *"Contrato-escaneado.pdf pesa 24 MB. El tope son 10 MB. Vuelve a escanearlo en calidad media."* Nunca "archivo inválido".
@@ -184,7 +185,13 @@ El identificador del pago se genera en el cliente con `crypto.randomUUID()` y se
 
 Se queda **opcional**: exigirlo frenaría el registro rápido de un pago en efectivo, que es la mitad de las bodas.
 
-### 5.4 Teléfono
+### 5.4 El visor — cambio sobre el diseño original
+
+**Decidido el 5-sep, ya con la pantalla en la mano:** abrir el archivo en una pestaña nueva saca al planner de la app. El archivo se ve **dentro**, en `VisorDeArchivo.tsx`, sobre el mismo `Modal` que ya trae el arreglo de teclado en iOS: la imagen completa sobre fondo gris, el PDF embebido en un `iframe` a `70dvh`.
+
+**"Abrir aparte" se queda en el pie**, y no es un adorno: el Safari del iPhone casi nunca renderiza un PDF dentro de un `iframe`. En escritorio esa salida casi nadie la usa; en el teléfono es la que salva el caso del PDF. Las fotos sí se ven bien en todos lados, y las fotos son la mayoría de los comprobantes.
+
+### 5.5 Teléfono
 
 Sin menús colgantes, como el resto de la ficha: **hoja desde abajo** con tres puertas, porque son tres gestos distintos y no un selector genérico de archivo.
 
@@ -196,7 +203,7 @@ Sin menús colgantes, como el resto de la ficha: **hoja desde abajo** con tres p
 
 Blancos de 36px, igual que la barra del pie de la ficha.
 
-### 5.5 Permisos
+### 5.6 Permisos
 
 | Superficie | Módulo | `ver` | `editar` | `borrar` |
 |---|---|---|---|---|
@@ -208,7 +215,7 @@ Dos reglas heredadas del Fichero, no negociables:
 1. **El corte va dentro de la función que escribe**, no solo en el JSX. Esconder el botón no protege nada.
 2. **Con nivel `ver` la carpeta abre igual**, solo sin botones de subir ni quitar. No se esconde el panel.
 
-### 5.6 Borrar un pago que tiene comprobantes
+### 5.7 Borrar un pago que tiene comprobantes
 
 La confirmación lo dice antes: *"Este pago tiene 2 comprobantes. Se quedan guardados, pero sin este pago ya no habrá dónde verlos."* Los objetos siguen en el bucket (§3.2); lo que se pierde es el renglón que los mostraba.
 

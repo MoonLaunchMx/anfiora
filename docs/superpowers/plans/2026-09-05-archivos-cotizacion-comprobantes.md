@@ -1034,6 +1034,16 @@ Contra `main`, con el spec y el mockup enlazados en la descripción, y una líne
 
 ---
 
+## Lo que cambió durante la ejecución
+
+Tres cosas que el plan no traía y que quedaron en el código. Anotadas aquí para que el plan no mienta:
+
+1. **El visor** (`VisorDeArchivo.tsx`, Tarea 3b). El plan abría el archivo en pestaña nueva; Diego pidió verlo dentro de la app. Está en el §5.4 del spec, con la advertencia del PDF en Safari de iPhone.
+2. **`visibles()` ordena por fecha descendente.** El plan no lo pedía y el bug salió al probar: Postgres agrega al final del arreglo, así que la carpeta marcaba como vigente la cotización **más vieja**. Dos pruebas nuevas.
+3. **La baja de las dos columnas muertas** entró en la Tarea 1 (paso 6), no como tanda aparte. El `DROP COLUMN` en Supabase sigue pendiente y va **después** de que esto llegue a `main`.
+
+---
+
 ## Autorrevisión del plan
 
 **Cobertura del spec:**
