@@ -19,7 +19,7 @@ import { useConfirm } from '@/app/components/ui/ConfirmModal'
 import { usePermiso } from '@/lib/event-access-context'
 import { carpetasDe, destinosDe, QUE_SIGNIFICA } from '@/lib/rolodex/ficha-por-estado'
 import PagoModal from './PagoModal'
-import { CaminoDelTrato, COLOR_ESTADO, ICONO_ESTADO } from './EstatusProveedor'
+import { CaminoDelTrato, COLOR_ESTADO, EstatusProveedor, ICONO_ESTADO } from './EstatusProveedor'
 import PhoneInput from '@/app/components/ui/PhoneInput'
 
 type SupplierWithDetails = EventSupplier & { supplier: Supplier }
@@ -273,20 +273,30 @@ export default function FichaDelEvento({
       initial={{ opacity: 0, x: 24 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ duration: 0.26, ease: [0.22, 0.9, 0.28, 1] }}
-      className="flex min-h-0 flex-1 flex-col bg-[#f8f8f8]"
+      className="relative flex min-h-0 flex-1 flex-col bg-[#f8f8f8]"
     >
-      <header className="shrink-0 bg-white px-5 pb-3 pt-4">
-        <div className="flex items-center gap-3">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[#f0e4c8] bg-[#fffbf0] text-[13px] font-bold text-[#b8912f]">
+      <header className="shrink-0 bg-white px-4 pb-3 pt-4 lg:px-5">
+        <div className="flex items-start gap-3 lg:items-center">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[#f0e4c8] bg-[#fffbf0] text-[12px] font-bold text-[#b8912f] lg:h-10 lg:w-10 lg:text-[13px]">
             {iniciales(s.name)}
           </span>
 
-          <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2.5 gap-y-0.5">
-            <h2 className="truncate text-[17px] font-bold tracking-tight text-[#1D1E20]">{s.name}</h2>
-            <p className="truncate text-xs text-[#999]">
+          <div className="flex min-w-0 flex-1 flex-col lg:flex-row lg:flex-wrap lg:items-baseline lg:gap-x-2.5">
+            <h2 className="truncate text-[16px] font-bold tracking-tight text-[#1D1E20] lg:text-[17px]">{s.name}</h2>
+            <p className="truncate text-[11.5px] text-[#999] lg:text-xs">
               {[categoria, s.subcategory, s.city].filter(Boolean).join(' · ')}
             </p>
           </div>
+
+          {/* Movil: el estatus ES el boton */}
+          <button
+            onClick={() => puedeMover && setMenuAbierto(true)}
+            disabled={!puedeMover}
+            className={`flex shrink-0 items-center gap-1 rounded-lg border border-[#e8e8e8] bg-white py-0.5 pl-0.5 pr-1.5 lg:hidden ${puedeMover ? '' : 'cursor-default'}`}
+          >
+            <EstatusProveedor estado={item.status} chico />
+            {puedeMover && <ChevronDown size={11} className="text-[#999]" />}
+          </button>
 
           <span className="hidden shrink-0 lg:block">
             <CaminoDelTrato estado={item.status} />
@@ -303,11 +313,8 @@ export default function FichaDelEvento({
           )}
         </div>
 
-        <div className="mt-2.5 lg:hidden">
-          <CaminoDelTrato estado={item.status} />
-        </div>
-
-        <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+        {/* Escritorio: contactos y el boton de mover */}
+        <div className="mt-2.5 hidden flex-wrap items-center gap-1.5 lg:flex">
           {waDigitos && (
             <button
               onClick={() => abrir(`https://wa.me/${waDigitos}`)}
@@ -348,49 +355,15 @@ export default function FichaDelEvento({
             </button>
 
             {menuAbierto && puedeMover && (
-              <div className="absolute right-0 top-[calc(100%+6px)] z-30 flex w-64 flex-col gap-0.5 rounded-xl border border-[#e8e8e8] bg-white p-1.5 shadow-[0_18px_40px_-18px_rgba(0,0,0,.45)]">
-                <p className="px-2.5 pb-1 pt-2 text-[9.5px] font-bold uppercase tracking-wider text-[#bbb]">
-                  Mover a
-                </p>
-
-                {destinos.map(destino => {
-                  const Icono = ICONO_ESTADO[destino]
-                  return (
-                    <button
-                      key={destino}
-                      onClick={() => moverA(destino)}
-                      className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition hover:bg-[#f6f6f6]"
-                    >
-                      <span className={`flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-md ${COLOR_ESTADO[destino]}`}>
-                        <Icono size={12} strokeWidth={2.6} />
-                      </span>
-                      <span className="min-w-0">
-                        <span className="block text-xs font-semibold text-[#1D1E20]">
-                          {SUPPLIER_STATUS_LABELS[destino]}
-                        </span>
-                        <span className="block truncate text-[11px] text-[#999]">
-                          {QUE_SIGNIFICA[destino]}
-                        </span>
-                      </span>
-                    </button>
-                  )
-                })}
-
+              <div className="absolute right-0 top-[calc(100%+6px)] z-30 hidden w-64 flex-col gap-0.5 rounded-xl border border-[#e8e8e8] bg-white p-1.5 shadow-[0_18px_40px_-18px_rgba(0,0,0,.45)] lg:flex">
+                <p className="px-2.5 pb-1 pt-2 text-[9.5px] font-bold uppercase tracking-wider text-[#bbb]">Mover a</p>
+                {destinos.map(destino => (
+                  <BotonDestino key={destino} destino={destino} onClick={() => moverA(destino)} />
+                ))}
                 {permisoFicha.borrar && (
                   <>
                     <span className="mx-1.5 my-1 h-px bg-[#eee]" />
-                    <button
-                      onClick={sacarDeLaBoda}
-                      className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition hover:bg-[#fff5f5]"
-                    >
-                      <span className="flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-md bg-[#FAEAE6] text-[#cc3333]">
-                        <Trash2 size={12} strokeWidth={2.6} />
-                      </span>
-                      <span className="min-w-0">
-                        <span className="block text-xs font-semibold text-[#cc3333]">Quitar de esta boda</span>
-                        <span className="block truncate text-[11px] text-[#999]">Se queda en tu Rolodex</span>
-                      </span>
-                    </button>
+                    <BotonQuitar onClick={sacarDeLaBoda} />
                   </>
                 )}
               </div>
@@ -788,6 +761,57 @@ export default function FichaDelEvento({
         />
       )}
 
+      <div className="flex shrink-0 items-center gap-2 border-t border-[#e8e8e8] bg-white px-4 py-2.5 lg:hidden">
+        {waDigitos && (
+          <button
+            onClick={() => abrir(`https://wa.me/${waDigitos}`)}
+            aria-label="Abrir WhatsApp"
+            className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#48C9B0] text-white transition"
+          >
+            <FaWhatsapp size={16} />
+          </button>
+        )}
+        {s.email && (
+          <button onClick={() => abrir(`mailto:${s.email}`)} aria-label="Enviar correo"
+            className="flex h-9 w-9 items-center justify-center rounded-lg border border-[#e8e8e8] bg-white text-[#666]">
+            <Mail size={16} />
+          </button>
+        )}
+        {igLink && (
+          <button onClick={() => abrir(igLink)} aria-label="Abrir Instagram"
+            className="flex h-9 w-9 items-center justify-center rounded-lg border border-[#e8e8e8] bg-white text-[#666]">
+            <FiInstagram size={16} />
+          </button>
+        )}
+        {webLink && (
+          <button onClick={() => abrir(webLink)} aria-label="Abrir sitio web"
+            className="flex h-9 w-9 items-center justify-center rounded-lg border border-[#e8e8e8] bg-white text-[#666]">
+            <Globe size={16} />
+          </button>
+        )}
+      </div>
+
+      {/* Movil: las acciones suben como hoja, no cuelgan como menu */}
+      {menuAbierto && puedeMover && (
+        <div className="absolute inset-0 z-40 lg:hidden">
+          <button
+            aria-label="Cerrar las acciones"
+            onClick={() => setMenuAbierto(false)}
+            className="absolute inset-0 bg-black/35"
+          />
+          <div className="absolute inset-x-0 bottom-0 flex flex-col gap-1.5 rounded-t-2xl bg-white px-4 pb-5 pt-2.5 shadow-[0_-14px_36px_-20px_rgba(0,0,0,.5)]">
+            <span aria-hidden className="mx-auto mb-1 h-1 w-9 rounded-full bg-[#e4e1db]" />
+            <div className="pb-1">
+              <CaminoDelTrato estado={item.status} />
+            </div>
+            <p className="pb-1 pt-1 text-[9.5px] font-bold uppercase tracking-wider text-[#bbb]">Mover a</p>
+            {destinos.map(destino => (
+              <BotonDestino key={destino} destino={destino} grande onClick={() => moverA(destino)} />
+            ))}
+            {permisoFicha.borrar && <BotonQuitar grande onClick={sacarDeLaBoda} />}
+          </div>
+        </div>
+      )}
     </motion.section>
   )
 }
@@ -832,6 +856,51 @@ function Campo({ etiqueta, children }: { etiqueta: string; children: React.React
       <span className="mb-1 block text-[10.5px] font-bold uppercase tracking-wider text-[#999]">{etiqueta}</span>
       {children}
     </label>
+  )
+}
+
+function BotonDestino({ destino, grande, onClick }: {
+  destino: SupplierStatus
+  grande?: boolean
+  onClick: () => void
+}) {
+  const Icono = ICONO_ESTADO[destino]
+  return (
+    <button
+      onClick={onClick}
+      className={`flex items-center gap-2.5 rounded-lg text-left transition ${
+        grande ? 'border border-[#e8e8e8] px-3 py-2.5' : 'px-2.5 py-2 hover:bg-[#f6f6f6]'
+      }`}
+    >
+      <span className={`flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-md ${COLOR_ESTADO[destino]}`}>
+        <Icono size={12} strokeWidth={2.6} />
+      </span>
+      <span className="min-w-0">
+        <span className={`block font-semibold text-[#1D1E20] ${grande ? 'text-sm' : 'text-xs'}`}>
+          {SUPPLIER_STATUS_LABELS[destino]}
+        </span>
+        <span className="block truncate text-[11px] text-[#999]">{QUE_SIGNIFICA[destino]}</span>
+      </span>
+    </button>
+  )
+}
+
+function BotonQuitar({ grande, onClick }: { grande?: boolean; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`flex items-center gap-2.5 rounded-lg text-left transition ${
+        grande ? 'mt-1 border border-[#ffd9d9] px-3 py-2.5' : 'px-2.5 py-2 hover:bg-[#fff5f5]'
+      }`}
+    >
+      <span className="flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-md bg-[#FAEAE6] text-[#cc3333]">
+        <Trash2 size={12} strokeWidth={2.6} />
+      </span>
+      <span className="min-w-0">
+        <span className={`block font-semibold text-[#cc3333] ${grande ? 'text-sm' : 'text-xs'}`}>Quitar de esta boda</span>
+        <span className="block truncate text-[11px] text-[#999]">Se queda en tu Rolodex</span>
+      </span>
+    </button>
   )
 }
 
