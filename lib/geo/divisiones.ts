@@ -2,9 +2,43 @@ import { COUNTRIES, sinAcentos, type CountryCode } from '@/lib/phone'
 
 export const PAIS_POR_DEFECTO: CountryCode = 'MX'
 
-// Los paises salen de la misma lista que ya usa el telefono: una sola verdad
-// sobre que paises entiende Anfiora.
-export const PAISES = COUNTRIES
+// La geografia NO puede reusar la lista del telefono. Esa esta agrupada por
+// lada, asi que Estados Unidos y Canada viven juntos en una sola entrada
+// ('USA / Canada', +1) y Canada no existe por su cuenta: un proveedor de
+// Toronto se guardaria con country 'US'. Para una direccion son dos paises
+// con divisiones distintas, asi que aqui se listan los ISO a mano.
+//
+// Son los mismos paises del telefono mas Canada. Se suma uno cuando un
+// planner real lo pida, no por adelantado.
+const ISOS_GEO: CountryCode[] = [
+  'MX', 'US', 'CA', 'AR', 'BO', 'BR', 'CL', 'CO', 'CR', 'CU', 'EC', 'SV',
+  'GT', 'HN', 'NI', 'PA', 'PY', 'PE', 'UY', 'VE',
+  'ES', 'DE', 'FR', 'IT', 'PT', 'GB',
+]
+
+// Los nombres salen de Intl y no de una lista escrita a mano: llegan bien
+// acentuados, y el dia del ingles se cambia el idioma aqui en vez de mantener
+// dos listas. Si el entorno viene sin datos de region, cae al ISO.
+function nombreDeRegion(iso: string): string {
+  try {
+    return new Intl.DisplayNames(['es-MX'], { type: 'region' }).of(iso) ?? iso
+  } catch {
+    return iso
+  }
+}
+
+// Mexico primero por ser el mercado de casa; el resto alfabetico en espanol.
+export const PAISES: { iso: CountryCode; name: string }[] = ISOS_GEO
+  .map(iso => ({ iso, name: nombreDeRegion(iso) }))
+  .sort((a, b) => {
+    if (a.iso === PAIS_POR_DEFECTO) return -1
+    if (b.iso === PAIS_POR_DEFECTO) return 1
+    return a.name.localeCompare(b.name, 'es')
+  })
+
+// La lista del telefono sigue siendo la correcta PARA EL TELEFONO: ahi agrupar
+// por lada es lo que quiere el usuario. No se toca.
+export const PAISES_DEL_TELEFONO = COUNTRIES
 
 // Bandera derivada del ISO con los indicadores regionales de Unicode, para no
 // mantener 25 emojis a mano ni volver a tocarlos al agregar un pais.

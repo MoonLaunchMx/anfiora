@@ -25,8 +25,28 @@ describe('los datos de Mexico', () => {
 })
 
 describe('paises', () => {
-  it('Mexico esta en la lista que comparte con el telefono', () => {
-    expect(PAISES.some(p => p.iso === 'MX')).toBe(true)
+  it('Mexico va primero por ser el mercado de casa', () => {
+    expect(PAISES[0].iso).toBe('MX')
+  })
+
+  // La lista del telefono agrupa por lada y mete a los dos en 'USA / Canada'.
+  // Para una direccion eso guardaria a un proveedor de Toronto como 'US'.
+  it('Estados Unidos y Canada son paises separados', () => {
+    const us = PAISES.find(p => p.iso === 'US')
+    const ca = PAISES.find(p => p.iso === 'CA')
+    expect(us).toBeDefined()
+    expect(ca).toBeDefined()
+    expect(us!.name).not.toBe(ca!.name)
+    expect(PAISES.some(p => p.name.includes('/'))).toBe(false)
+  })
+
+  it('ningun pais aparece dos veces', () => {
+    expect(new Set(PAISES.map(p => p.iso)).size).toBe(PAISES.length)
+  })
+
+  it('los nombres llegan en espanol y acentuados', () => {
+    expect(nombrePais('MX')).toBe('México')
+    expect(nombrePais('CA')).toBe('Canadá')
   })
 
   it('la bandera se deriva del ISO', () => {
@@ -39,8 +59,7 @@ describe('paises', () => {
     expect(bandera('MEX')).toBe('')
   })
 
-  it('el nombre del pais sale de la lista y cae al ISO si no lo conoce', () => {
-    expect(nombrePais('MX')).toBe('Mexico')
+  it('un ISO que no esta en la lista cae a si mismo', () => {
     expect(nombrePais('ZZ')).toBe('ZZ')
     expect(nombrePais(null)).toBe('')
   })
