@@ -24,7 +24,7 @@ import DatePicker from '@/app/components/ui/DatePicker'
 import BlockEditor from './BlockEditor'
 import AccesoPanel from './AccesoPanel'
 import { useSalidaGuard } from '../SalidaGuardProvider'
-import { useEventAccess } from '@/lib/event-access-context'
+import { useEventAccess, usePermiso } from '@/lib/event-access-context'
 import EstiloPanel from './EstiloPanel'
 import PersonalizarPanel from './PersonalizarPanel'
 
@@ -84,8 +84,9 @@ export default function InvitacionPage() {
   const [showPreview, setShowPreview] = useState(false)
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const salidaGuard = useSalidaGuard()
-  const { canEdit, isLoading: cargandoRol } = useEventAccess()
-  const soloLectura = !cargandoRol && !canEdit
+  const { isLoading: cargandoRol } = useEventAccess()
+  const permisoInvitacion = usePermiso('invitacion')
+  const soloLectura = !cargandoRol && !permisoInvitacion.editar
   const publishRef = useRef<() => Promise<void>>(async () => {})
 
   useEffect(() => {

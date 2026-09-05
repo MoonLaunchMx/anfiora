@@ -347,12 +347,13 @@ function TagInput({ availableTags, selectedTags, onChangeSelected, onCreateTag, 
 
 const ALLERGY_OPTIONS = ['Gluten', 'Lácteos', 'Mariscos', 'Nueces', 'Huevo', 'Soya', 'Cerdo']
 
-function MembersEditor({ value, onChange, allergyPool, onCreateAllergy, onDeleteAllergy }: {
+function MembersEditor({ value, onChange, allergyPool, onCreateAllergy, onDeleteAllergy, puedeEditar = true }: {
   value: EditMember[]
   onChange: (v: EditMember[]) => void
   allergyPool: string[]
   onCreateAllergy: (t: string) => void
   onDeleteAllergy: (t: string) => void
+  puedeEditar?: boolean
 }) {
   const MAX = 15
   const [open, setOpen] = useState(value.length > 0)
@@ -368,7 +369,7 @@ function MembersEditor({ value, onChange, allergyPool, onCreateAllergy, onDelete
           <span className="text-xs font-medium text-[#555]">Acompañantes</span>
           {value.length > 0 && <span className="rounded-full bg-[#f0fdfb] px-1.5 py-0.5 text-[10px] font-semibold text-[#48C9B0]">{value.length}</span>}
         </button>
-        {value.length < MAX && <button type="button" onClick={add} className="shrink-0 text-xs font-semibold text-[#48C9B0] hover:underline">+ Agregar</button>}
+        {puedeEditar && value.length < MAX && <button type="button" onClick={add} className="shrink-0 text-xs font-semibold text-[#48C9B0] hover:underline">+ Agregar</button>}
       </div>
       {open && (<>
       {value.length === 0 && <p className="mt-2 text-xs text-[#bbb]">Sin acompañantes — haz clic en "Agregar" para incluir uno.</p>}
@@ -397,7 +398,7 @@ function MembersEditor({ value, onChange, allergyPool, onCreateAllergy, onDelete
                 placeholder="Notas"
                 className="w-full rounded-lg border border-[#e0e0e0] bg-[#f8f8f8] px-3 py-2 text-base text-[#1D1E20] outline-none"
               />
-              <button type="button" onClick={() => remove(i)} className="mt-1 w-full rounded-lg border border-[#ffe0e0] bg-[#fff5f5] py-1.5 text-xs font-semibold text-[#cc3333] transition hover:bg-[#ffe8e8]">Eliminar acompañante</button>
+              {puedeEditar && <button type="button" onClick={() => remove(i)} className="mt-1 w-full rounded-lg border border-[#ffe0e0] bg-[#fff5f5] py-1.5 text-xs font-semibold text-[#cc3333] transition hover:bg-[#ffe8e8]">Eliminar acompañante</button>}
             </div>
           </div>
         ))}
@@ -705,7 +706,7 @@ function EditGuestModal({ guest, availableTags, groupPool, allergyPool, onCreate
             <TagInput availableTags={allergyPool} selectedTags={allergies} onChangeSelected={setAllergies} onCreateTag={onCreateAllergy} onDeleteTag={handleDeleteAllergy} label="Alergia" />
           </div>
           <div className="sm:col-span-2"><label className="mb-1.5 block text-xs font-medium text-[#555]">Notas</label><textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Mesa preferida, restricciones..." rows={2} className={`${INPUT_CLASS} resize-y`} /></div>
-          <div className="sm:col-span-2 border-t border-[#f0f0f0] pt-4"><MembersEditor value={members} onChange={setMembers} allergyPool={allergyPool} onCreateAllergy={onCreateAllergy} onDeleteAllergy={handleDeleteAllergy} /></div>
+          <div className="sm:col-span-2 border-t border-[#f0f0f0] pt-4"><MembersEditor value={members} onChange={setMembers} allergyPool={allergyPool} onCreateAllergy={onCreateAllergy} onDeleteAllergy={handleDeleteAllergy} puedeEditar={puedeEditar} /></div>
         </div>
         </fieldset>
         {puedeBorrar && (

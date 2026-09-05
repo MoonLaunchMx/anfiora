@@ -6,9 +6,11 @@ import { supabase } from '@/lib/supabase'
 import { parseDressCode, defaultDressCode, type DressCode } from '@/lib/dresscode'
 import DressCodeEditor from './DressCodeEditor'
 import DressCodePreview from './DressCodePreview'
+import { usePermiso } from '@/lib/event-access-context'
 
 export default function VestimentaPage() {
   const { id } = useParams()
+  const permiso = usePermiso('vestimenta')
   const [dc, setDc] = useState<DressCode>(defaultDressCode())
   const [eventName, setEventName] = useState('')
   const [eventType, setEventType] = useState<string | null>(null)
@@ -36,6 +38,7 @@ export default function VestimentaPage() {
   useEffect(() => () => { if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current) }, [])
 
   const persist = async (data: DressCode) => {
+    if (!permiso.editar) return
     setSaving(true)
     await supabase
       .from('event_settings')
@@ -74,26 +77,32 @@ export default function VestimentaPage() {
             <h1 className="text-xl font-bold text-[#1D1E20]">Dress code</h1>
             <p className="mt-0.5 text-xs text-[#888] sm:text-sm">Comparte qué ponerse con tus invitados.</p>
           </div>
-          <button
+          {permiso.editar && <button
             onClick={saveNow}
             disabled={saving}
             className={(saved ? 'border border-[#48C9B0] bg-[#f0fdfb] text-[#1a9e88]' : saving ? 'bg-[#a0e0d8] text-white' : 'bg-[#48C9B0] text-white hover:bg-[#3ab89f]') + ' shrink-0 rounded-lg px-4 py-2 text-sm font-semibold transition disabled:cursor-not-allowed'}
           >
             {saved ? 'Guardado' : saving ? 'Guardando...' : 'Guardar'}
-          </button>
+          </button>}
         </div>
       </div>
 
       {/* Contenido scrolleable */}
       <div className="flex-1 overflow-y-auto px-4 pb-6 pt-5 sm:px-6 lg:px-10">
-        <div className="grid gap-5 lg:grid-cols-[1fr_360px]">
-          <div className="rounded-2xl border border-[#e8e8e8] bg-white p-5">
-            <DressCodeEditor dc={dc} onChange={updateDc} eventType={eventType} />
+        {permiso.editar ? (
+          <div className="grid gap-5 lg:grid-cols-[1fr_360px]">
+            <div className="rounded-2xl border border-[#e8e8e8] bg-white p-5">
+              <DressCodeEditor dc={dc} onChange={updateDc} eventType={eventType} />
+            </div>
+            <div>
+              <DressCodePreview dc={dc} eventName={eventName} />
+            </div>
           </div>
-          <div>
+        ) : (
+          <div className="mx-auto max-w-md">
             <DressCodePreview dc={dc} eventName={eventName} />
           </div>
-        </div>
+        )}
       </div>
     </div>
   )
