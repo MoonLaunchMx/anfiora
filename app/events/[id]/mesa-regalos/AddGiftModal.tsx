@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { ExternalLink, Coins, Mail, Check } from 'lucide-react'
 import { GiftType, GiftRegistryItem, GIFT_CATEGORIES } from '@/lib/types'
 import { Modal } from '@/app/components/ui/Modal'
+import { usePermiso } from '@/lib/event-access-context'
 
 export { GIFT_CATEGORIES }
 
@@ -42,6 +43,7 @@ const TYPES: { id: GiftType; label: string; sub: string; icon: React.ReactNode }
 ]
 
 export default function AddGiftModal({ isOpen, onClose, onSubmit, initial }: Props) {
+  const permiso = usePermiso('regalos')
   const isEdit = !!initial
   const [type, setType]               = useState<GiftType>('external')
   const [title, setTitle]             = useState('')
@@ -146,6 +148,7 @@ export default function AddGiftModal({ isOpen, onClose, onSubmit, initial }: Pro
       />
 
       <Modal.Body>
+      <fieldset disabled={!permiso.editar} className="m-0 min-w-0 border-0 p-0">
         <div className="space-y-4">
 
           {/* Tipo */}
@@ -327,6 +330,7 @@ export default function AddGiftModal({ isOpen, onClose, onSubmit, initial }: Pro
           </div>
 
         </div>
+      </fieldset>
       </Modal.Body>
 
       <Modal.Footer>
@@ -335,15 +339,15 @@ export default function AddGiftModal({ isOpen, onClose, onSubmit, initial }: Pro
           disabled={submitting}
           className="ml-auto rounded-lg px-4 py-2 text-xs font-medium text-[#666] transition hover:bg-[#f0f0f0] disabled:opacity-50"
         >
-          Cancelar
+          {permiso.editar ? 'Cancelar' : 'Cerrar'}
         </button>
-        <button
+        {permiso.editar && <button
           onClick={handleSubmit}
           disabled={submitting || !canSubmit}
           className="rounded-lg bg-[#48C9B0] px-4 py-2 text-xs font-semibold text-white transition hover:bg-[#3aa896] disabled:opacity-50"
         >
           {submitting ? 'Guardando...' : isEdit ? 'Guardar cambios' : 'Agregar regalo'}
-        </button>
+        </button>}
       </Modal.Footer>
     </Modal>
   )
