@@ -75,11 +75,13 @@ export default function PagoModal({
 
       const { data, error: err } = pago
         ? await supabase.from('supplier_payments').update(campos).eq('id', pago.id).select().single()
-        : await supabase.from('supplier_payments').insert({ id: idNuevo, event_supplier_id: eventSupplierId, ...campos }).select().single()
+        : await supabase.from('supplier_payments')
+            .insert({ id: idNuevo, event_supplier_id: eventSupplierId, ...campos, receipt_files: comprobantes })
+            .select().single()
 
       if (err) throw err
       if (!data) throw new Error('No se guardó el pago.')
-      if (data) onGuardado({ ...(data as SupplierPayment), receipt_files: comprobantes })
+      if (data) onGuardado(data as SupplierPayment)
       onCerrar()
     } catch (err: any) {
       console.error('Error guardando pago:', err?.message ?? err, err)
@@ -158,6 +160,7 @@ export default function PagoModal({
               archivos={comprobantes}
               tope={TOPE_COMPROBANTES}
               puedeEditar
+              persistir={Boolean(pago)}
               textoVacio="Sube el comprobante"
               onCambio={setComprobantes}
             />

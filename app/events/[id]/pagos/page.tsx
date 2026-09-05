@@ -10,6 +10,9 @@ import {
 } from 'lucide-react'
 import StatsCollapse, { useStatsToggle, StatsToggleButton } from '@/app/components/ui/StatsCollapse'
 import { Modal } from '@/app/components/ui/Modal'
+import ListaDeArchivos from '../proveedores/ListaDeArchivos'
+import { TOPE_COMPROBANTES } from '@/lib/archivos/adjuntos'
+import type { ArchivoAdjunto } from '@/lib/types'
 import { useConfirm } from '@/app/components/ui/ConfirmModal'
 import { exportPagosToExcel, exportPagosToPDF } from './lib/exports'
 import { usePermiso } from '@/lib/event-access-context'
@@ -22,6 +25,7 @@ type Pago = {
   payment_method: string | null
   paid_by: string | null
   reference: string | null
+  receipt_files: ArchivoAdjunto[]
   supplier_name: string
   event_supplier_id: string
 }
@@ -143,6 +147,8 @@ export default function PagosPage() {
   const [newPaidBy, setNewPaidBy]           = useState('')
   const [newMethod, setNewMethod]           = useState('transferencia')
   const [newReference, setNewReference]     = useState('')
+  const [newComprobantes, setNewComprobantes] = useState<ArchivoAdjunto[]>([])
+  const [idNuevoPago, setIdNuevoPago]       = useState(() => crypto.randomUUID())
   const [modalSupplierOpen, setModalSupplierOpen] = useState(false)
   const modalSupplierRef = useRef<HTMLDivElement>(null)
 
@@ -157,7 +163,7 @@ export default function PagosPage() {
       supabase
         .from('supplier_payments')
         .select(`
-          id, amount, payment_date, payment_method, paid_by, reference,
+          id, amount, payment_date, payment_method, paid_by, reference, receipt_files,
           event_suppliers!inner ( id, event_id, suppliers!inner ( name ) )
         `)
         .eq('event_suppliers.event_id', eventId)
@@ -178,6 +184,7 @@ export default function PagosPage() {
       setPagos((pagoData as any[]).map(p => ({
         id: p.id, amount: p.amount, payment_date: p.payment_date,
         payment_method: p.payment_method, paid_by: p.paid_by, reference: p.reference,
+        receipt_files: p.receipt_files ?? [],
         event_supplier_id: p.event_suppliers.id,
         supplier_name: p.event_suppliers.suppliers.name,
       })))
@@ -195,7 +202,7 @@ export default function PagosPage() {
       supabase
         .from('supplier_payments')
         .select(`
-          id, amount, payment_date, payment_method, paid_by, reference,
+          id, amount, payment_date, payment_method, paid_by, reference, receipt_files,
           event_suppliers!inner ( id, event_id, suppliers!inner ( name ) )
         `)
         .eq('event_suppliers.event_id', eventId)
@@ -211,6 +218,7 @@ export default function PagosPage() {
       setPagos((pagoData as any[]).map(p => ({
         id: p.id, amount: p.amount, payment_date: p.payment_date,
         payment_method: p.payment_method, paid_by: p.paid_by, reference: p.reference,
+        receipt_files: p.receipt_files ?? [],
         event_supplier_id: p.event_suppliers.id,
         supplier_name: p.event_suppliers.suppliers.name,
       })))
@@ -312,6 +320,10 @@ export default function PagosPage() {
     setEditingPago(null)
     setNewSupplier(''); setNewAmount(''); setNewDate(todayStr())
     setNewPaidBy(''); setNewMethod('transferencia'); setNewReference('')
+    setNewComprobantes([])
+    // Cada pago nuevo estrena identificador: si se reciclara, el segundo pago
+    // heredaria la carpeta de archivos del primero.
+    setIdNuevoPago(crypto.randomUUID())
   }
 
   const openNuevo = () => { if (!permiso.editar) return; resetModal(); setModalOpen(true) }
@@ -325,6 +337,7 @@ export default function PagosPage() {
     setNewPaidBy(pago.paid_by || '')
     setNewMethod(pago.payment_method || 'transferencia')
     setNewReference(pago.reference || '')
+    setNewComprobantes(pago.receipt_files ?? [])
     setModalOpen(true)
   }
 
@@ -346,9 +359,11 @@ export default function PagosPage() {
         if (error) throw error
       } else {
         const { error } = await supabase.from('supplier_payments').insert({
+          id: idNuevoPago,
           event_supplier_id: newSupplier, amount,
           payment_date: newDate, payment_method: newMethod || null,
           paid_by: newPaidBy || null, reference: newReference.trim() || null,
+          receipt_files: newComprobantes,
         })
         if (error) throw error
       }
@@ -741,6 +756,21 @@ export default function PagosPage() {
                   <input type="text" placeholder="Opcional" value={newReference}
                     onChange={e => setNewReference(e.target.value)}
                     className="w-full rounded-lg border border-[#e0e0e0] bg-white px-3 py-2 text-base outline-none transition focus:border-[#48C9B0]" />
+                </div>
+
+                <div>
+                  <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-[#aaa]">Comprobante</p>
+                  <ListaDeArchivos
+                    eventId={String(eventId)}
+                    carpeta="comprobantes"
+                    dueno={editingPago?.id ?? idNuevoPago}
+                    archivos={newComprobantes}
+                    tope={TOPE_COMPROBANTES}
+                    puedeEditar={permiso.editar}
+                    persistir={Boolean(editingPago)}
+                    textoVacio="Sube el comprobante"
+                    onCambio={setNewComprobantes}
+                  />
                 </div>
             </div>
           </Modal.Body>

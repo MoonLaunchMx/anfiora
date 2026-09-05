@@ -9,6 +9,10 @@ export type ResultadoArchivos =
   | { lista: ArchivoAdjunto[]; error?: undefined }
   | { lista?: undefined; error: string }
 
+export type ResultadoSubida =
+  | { archivo: ArchivoAdjunto; error?: undefined }
+  | { archivo?: undefined; error: string }
+
 const RPC_ADJUNTAR: Record<Carpeta, string> = {
   cotizaciones: 'adjuntar_cotizacion',
   comprobantes: 'adjuntar_comprobante',
@@ -24,11 +28,14 @@ const ARG_ID: Record<Carpeta, string> = {
   comprobantes: 'pago_id',
 }
 
-const SIN_PERMISO = 'No se guardó el archivo. Revisa que sigas teniendo permiso en esta boda.'
+const SIN_PERMISO = 'No se pudo guardar el archivo en esta ficha. Recarga la página e intenta de nuevo.'
 
-export async function subirArchivo(
+// Sube el archivo al bucket y devuelve su ficha, sin registrarlo en ninguna
+// fila. Se usa solo cuando la fila todavia no existe: un pago que se esta
+// capturando no tiene renglon en la base donde escribirle la lista.
+export async function subirAlBucket(
   eventId: string, carpeta: Carpeta, dueno: string, file: File,
-): Promise<ResultadoArchivos> {
+): Promise<ResultadoSubida> {
   const tipo = tipoDeArchivo(file.name, file.type)
   const ruta = rutaDe(eventId, carpeta, dueno, file.name, crypto.randomUUID())
 
@@ -43,16 +50,22 @@ export async function subirArchivo(
 
   const { data: sesion } = await supabase.auth.getUser()
 
-  const adjunto: ArchivoAdjunto = {
-    path: ruta,
-    nombre: file.name,
-    tipo,
-    bytes: file.size,
-    subido: new Date().toISOString(),
-    por: sesion.user?.id ?? null,
-    borrado: null,
+  return {
+    archivo: {
+      path: ruta,
+      nombre: file.name,
+      tipo,
+      bytes: file.size,
+      subido: new Date().toISOString(),
+      por: sesion.user?.id ?? null,
+      borrado: null,
+    },
   }
+}
 
+export async function registrarArchivo(
+  carpeta: Carpeta, dueno: string, adjunto: ArchivoAdjunto,
+): Promise<ResultadoArchivos> {
   const { data, error } = await supabase.rpc(RPC_ADJUNTAR[carpeta], {
     [ARG_ID[carpeta]]: dueno,
     archivo: adjunto,
@@ -70,9 +83,22 @@ export async function subirArchivo(
   }
 
   // Una escritura que la policy rechaza devuelve cero filas y ningun error.
-  if (!data) return { error: SIN_PERMISO }
+  // Tambien caemos aqui si la fila no existe todavia, por eso el mensaje no
+  // afirma que sea falta de permiso.
+  if (!data) {
+    console.error('La lista no se actualizo:', carpeta, dueno)
+    return { error: SIN_PERMISO }
+  }
 
   return { lista: data as ArchivoAdjunto[] }
+}
+
+export async function subirArchivo(
+  eventId: string, carpeta: Carpeta, dueno: string, file: File,
+): Promise<ResultadoArchivos> {
+  const subida = await subirAlBucket(eventId, carpeta, dueno, file)
+  if (!subida.archivo) return { error: subida.error }
+  return registrarArchivo(carpeta, dueno, subida.archivo)
 }
 
 export async function quitarArchivo(

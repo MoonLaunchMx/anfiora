@@ -5,7 +5,7 @@ import { AlertCircle, Eye, FileText, Image as ImageIcon, Plus, Trash2, Upload } 
 import type { ArchivoAdjunto } from '@/lib/types'
 import { useConfirm } from '@/app/components/ui/ConfirmModal'
 import { type Carpeta, esImagen, pesoLegible, validarArchivo, visibles } from '@/lib/archivos/adjuntos'
-import { abrirArchivo, quitarArchivo, subirArchivo } from '@/lib/archivos/bucket'
+import { abrirArchivo, quitarArchivo, subirAlBucket, subirArchivo } from '@/lib/archivos/bucket'
 import VisorDeArchivo from './VisorDeArchivo'
 
 const ACEPTA = 'application/pdf,image/jpeg,image/png,image/heic,image/heif,.pdf,.jpg,.jpeg,.png,.heic,.heif'
@@ -19,10 +19,13 @@ type Props = {
   puedeEditar: boolean
   textoVacio: string
   onCambio: (lista: ArchivoAdjunto[]) => void
+  // false cuando la fila dueña todavia no existe -- un pago que se esta
+  // capturando. El archivo sube al bucket y la lista viaja con quien guarde.
+  persistir?: boolean
 }
 
 export default function ListaDeArchivos({
-  eventId, carpeta, dueno, archivos, tope, puedeEditar, textoVacio, onCambio,
+  eventId, carpeta, dueno, archivos, tope, puedeEditar, textoVacio, onCambio, persistir = true,
 }: Props) {
   const askConfirm = useConfirm()
   const entrada = useRef<HTMLInputElement>(null)
@@ -41,11 +44,19 @@ export default function ListaDeArchivos({
     if (problema) { setError(problema); return }
 
     setSubiendo(file.name)
-    const res = await subirArchivo(eventId, carpeta, dueno, file)
-    setSubiendo('')
 
+    if (persistir) {
+      const res = await subirArchivo(eventId, carpeta, dueno, file)
+      setSubiendo('')
+      if (res.error) setError(res.error)
+      else if (res.lista) onCambio(res.lista)
+      return
+    }
+
+    const res = await subirAlBucket(eventId, carpeta, dueno, file)
+    setSubiendo('')
     if (res.error) setError(res.error)
-    else if (res.lista) onCambio(res.lista)
+    else if (res.archivo) onCambio([...(archivos ?? []), res.archivo])
   }
 
   const abrir = async (archivo: ArchivoAdjunto) => {
@@ -67,6 +78,14 @@ export default function ListaDeArchivos({
     if (!ok) return
 
     setError('')
+
+    // Sin fila que actualizar, quitarlo es sacarlo de la lista que todavia no
+    // se guarda. El objeto se queda en el bucket, como en todos los demas casos.
+    if (!persistir) {
+      onCambio((archivos ?? []).filter(otro => otro.path !== archivo.path))
+      return
+    }
+
     const res = await quitarArchivo(carpeta, dueno, archivo.path)
     if (res.error) setError(res.error)
     else if (res.lista) onCambio(res.lista)
