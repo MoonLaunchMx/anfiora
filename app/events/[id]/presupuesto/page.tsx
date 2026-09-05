@@ -6,7 +6,7 @@ import { Search, FileSpreadsheet, FileText, Plus, Upload, X, AlertTriangle, Chec
 import * as XLSX from 'xlsx'
 import { supabase } from '@/lib/supabase'
 import {
-  Event, EventBudget, EventBudgetInsert, Currency, EventSupplier, Supplier,
+  Event, EventBudget, EventBudgetInsert, Currency, EventSupplier, Supplier, SupplierStatus,
 } from '@/lib/types'
 import { getEventCategories, categoryLabel } from './lib/categories'
 import {
@@ -23,7 +23,7 @@ import BudgetCategoryRow from './BudgetCategoryRow'
 import BudgetItemModal from './BudgetItemModal'
 import { buildBudgetItems, BudgetTier } from './lib/templates'
 import { exportToExcel, exportToPDF, downloadImportTemplate } from './lib/exports'
-import SupplierDetailModal from '../proveedores/SupplierDetailModal'
+import FichaModal from '../proveedores/FichaModal'
 import SupplierReviewModal from '../proveedores/SupplierReviewModal'
 import { Modal } from '@/app/components/ui/Modal'
 import { Categoria, cargarCategorias, buscarPorNombre, nombrePorId, crearCategoria } from '@/lib/rolodex/categorias-store'
@@ -68,6 +68,26 @@ export default function PresupuestoPage() {
 
   const [selectedSupplier, setSelectedSupplier] = useState<EventSupplierWithName | null>(null)
   const [reviewSupplier, setReviewSupplier]     = useState<EventSupplierWithName | null>(null)
+
+  // La boda ya paso: es lo que decide si la ficha pide resena. Con rango manda el ultimo dia.
+  const ultimoDiaDeLaBoda = event?.event_end_date || event?.event_date
+  const bodaPaso = ultimoDiaDeLaBoda ? new Date(`${ultimoDiaDeLaBoda}T23:59:59`) < new Date() : false
+
+  const cambiarEstadoProveedor = async (itemId: string, nuevo: SupplierStatus) => {
+    const previo = eventSuppliers.find(es => es.id === itemId)
+    setEventSuppliers(prev => prev.map(es => es.id === itemId ? { ...es, status: nuevo } : es))
+    setSelectedSupplier(prev => prev && prev.id === itemId ? { ...prev, status: nuevo } : prev)
+
+    const { error } = await supabase.from('event_suppliers').update({ status: nuevo }).eq('id', itemId)
+    if (error) console.error('Error actualizando status:', error?.message ?? error, error)
+
+    const eraFinal = previo?.status === 'contratado' || previo?.status === 'descartado'
+    const esFinal  = nuevo === 'contratado' || nuevo === 'descartado'
+    if (!eraFinal && esFinal && previo && !previo.rating && !previo.review_text) {
+      setSelectedSupplier(null)
+      setReviewSupplier({ ...previo, status: nuevo })
+    }
+  }
 
   const [storedCategories, setStoredCategories]   = useState<string[] | null>(null)
   const [categorias, setCategorias]               = useState<Categoria[]>([])
@@ -922,25 +942,21 @@ export default function PresupuestoPage() {
 
       {/* ── SUPPLIER DETAIL DESDE PRESUPUESTO ── */}
       {selectedSupplier && (
-        <SupplierDetailModal
+        <FichaModal
           item={selectedSupplier as any}
-          eventId={eventId}
-          currency={currency}
           budgets={budgets}
+          currency={currency}
           categorias={categorias}
-          userId={userId ?? ''}
+          bodaPaso={bodaPaso}
           onClose={() => setSelectedSupplier(null)}
+          onStatusChange={cambiarEstadoProveedor}
           onSaved={updated => {
-            setEventSuppliers(prev => prev.map(es => es.id === updated.id ? { ...es, ...updated } : es))
-            setSelectedSupplier(null)
+            setEventSuppliers(prev => prev.map(es => es.id === updated.id ? { ...es, ...updated } as EventSupplierWithName : es))
+            setSelectedSupplier(prev => prev && prev.id === updated.id ? { ...prev, ...updated } as EventSupplierWithName : prev)
           }}
-          onDeleted={deletedId => {
+          onQuitada={deletedId => {
             setEventSuppliers(prev => prev.filter(es => es.id !== deletedId))
             setSelectedSupplier(null)
-          }}
-          onReviewNeeded={item => {
-            setSelectedSupplier(null)
-            setReviewSupplier(item as any)
           }}
         />
       )}

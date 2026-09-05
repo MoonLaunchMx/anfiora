@@ -11,7 +11,7 @@ import {
 import { Categoria, activas, cargarCategorias, nombrePorId } from '@/lib/rolodex/categorias-store'
 import StatsCollapse, { useStatsToggle, StatsToggleButton } from '@/app/components/ui/StatsCollapse'
 import SupplierModal from './SupplierModal'
-import SupplierDetailModal from './SupplierDetailModal'
+import FichaModal from './FichaModal'
 import SupplierReviewModal from './SupplierReviewModal'
 import SupplierListView from './SupplierListView'
 import SupplierKanbanView from './SupplierKanbanView'
@@ -335,17 +335,16 @@ export default function ProveedoresPage() {
       />
 
       {selectedItem && (
-        <SupplierDetailModal
+        <FichaModal
           item={selectedItem}
-          eventId={eventId}
-          currency={currency}
           budgets={budgets}
+          currency={currency}
           categorias={categorias}
-          userId={userId ?? ''}
+          bodaPaso={bodaPaso}
           onClose={() => setSelectedItem(null)}
+          onStatusChange={handleStatusChange}
           onSaved={handleSavedItem}
-          onDeleted={handleDeletedItem}
-          onReviewNeeded={handleReviewNeeded}
+          onQuitada={handleDeletedItem}
         />
       )}
 

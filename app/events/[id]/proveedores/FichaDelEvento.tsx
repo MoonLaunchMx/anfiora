@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
-import { ChevronDown, Globe, Mail, Pencil, Star, Trash2 } from 'lucide-react'
+import { ChevronDown, Globe, Mail, Pencil, Star, Trash2, X } from 'lucide-react'
 import { FaWhatsapp } from 'react-icons/fa'
 import { FiInstagram } from 'react-icons/fi'
 import { supabase } from '@/lib/supabase'
@@ -32,6 +32,8 @@ type Props = {
   onStatusChange: (itemId: string, nuevo: SupplierStatus) => void
   onSaved: (item: SupplierWithDetails) => void
   onQuitada: (itemId: string) => void
+  // Solo cuando la ficha vive en una ventana: en el panel no hay a donde cerrar.
+  onCerrar?: () => void
 }
 
 const CHIP_ESTATUS: Record<SupplierStatus, string> = {
@@ -51,7 +53,7 @@ function iniciales(nombre: string): string {
 }
 
 export default function FichaDelEvento({
-  item, budgets, currency, categorias, bodaPaso, onStatusChange, onSaved, onQuitada,
+  item, budgets, currency, categorias, bodaPaso, onStatusChange, onSaved, onQuitada, onCerrar,
 }: Props) {
   const askConfirm = useConfirm()
   const permisoFicha = usePermiso('proveedores')
@@ -303,6 +305,16 @@ export default function FichaDelEvento({
               {[categoria, s.subcategory, s.city].filter(Boolean).join(' · ')}
             </p>
           </div>
+
+          {onCerrar && (
+            <button
+              onClick={onCerrar}
+              aria-label="Cerrar"
+              className="order-last flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-[#e8e8e8] bg-white text-[#999] transition hover:text-[#1D1E20]"
+            >
+              <X size={13} />
+            </button>
+          )}
 
           <div ref={menuRef} className="relative shrink-0">
             <button
