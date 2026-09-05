@@ -23,12 +23,15 @@ type Props = {
   onUpdate: (id: string, updates: { subcategory?: string; budget_amount?: number; event_supplier_id?: string | null }) => void
   onDelete: (id: string) => void
   onOpenSupplier: (supplier: EventSupplierWithName) => void
+  puedeEditar: boolean
+  puedeBorrar: boolean
 }
 
 export default function BudgetItemRow({
   item, categoryName, currency, contractedAmount, paidAmount,
   availableSuppliers, linkedSupplier,
   onUpdate, onDelete, onOpenSupplier,
+  puedeEditar, puedeBorrar,
 }: Props) {
   const [localName, setLocalName]         = useState(item.subcategory || '')
   const [localAmount, setLocalAmount]     = useState(item.budget_amount.toString())
@@ -113,14 +116,18 @@ export default function BudgetItemRow({
           >
             <ExternalLink size={10} />
           </button>
-          <button
-            onClick={handleUnlinkSupplier}
-            className="flex h-4 w-4 items-center justify-center rounded text-[#aaa] transition hover:bg-white hover:text-red-500"
-            title="Desvincular proveedor"
-          >
-            <X size={10} />
-          </button>
+          {puedeEditar && (
+            <button
+              onClick={handleUnlinkSupplier}
+              className="flex h-4 w-4 items-center justify-center rounded text-[#aaa] transition hover:bg-white hover:text-red-500"
+              title="Desvincular proveedor"
+            >
+              <X size={10} />
+            </button>
+          )}
         </div>
+      ) : !puedeEditar ? (
+        <span className="text-[11px] italic text-[#bbb]">Sin proveedor vinculado</span>
       ) : safeSuppliers.length > 0 ? (
         <button
           onClick={() => setPickerOpen(v => !v)}
@@ -176,14 +183,18 @@ export default function BudgetItemRow({
       <div className="hidden grid-cols-[1fr_140px_140px_140px_140px_40px] items-start gap-3 border-t border-[#f5f5f5] px-4 py-3 hover:bg-[#fafafa] sm:grid">
         <div className="flex flex-col gap-1.5 min-w-0">
           <div className="flex items-center gap-1.5">
-            <input
-              type="text"
-              value={localName}
-              onChange={e => setLocalName(e.target.value)}
-              onBlur={saveName}
-              placeholder="Nombre del concepto..."
-              className="flex-1 rounded border border-transparent px-2 py-1 text-sm text-[#1D1E20] outline-none transition focus:border-[#48C9B0] focus:bg-white"
-            />
+            {puedeEditar ? (
+              <input
+                type="text"
+                value={localName}
+                onChange={e => setLocalName(e.target.value)}
+                onBlur={saveName}
+                placeholder="Nombre del concepto..."
+                className="flex-1 rounded border border-transparent px-2 py-1 text-sm text-[#1D1E20] outline-none transition focus:border-[#48C9B0] focus:bg-white"
+              />
+            ) : (
+              <p className="flex-1 truncate px-2 py-1 text-sm text-[#1D1E20]">{localName || '—'}</p>
+            )}
             {isOverBudget && (
               <span title="El monto contratado supera lo estimado">
                 <AlertTriangle size={14} className="shrink-0 text-amber-500" />
@@ -195,21 +206,27 @@ export default function BudgetItemRow({
           </div>
         </div>
 
-        <input
-          type="text"
-          inputMode="decimal"
-          value={amountDisplay}
-          onFocus={() => setAmountFocused(true)}
-          onChange={e => {
-            const cleaned = e.target.value.replace(/[^0-9.]/g, '')
-            const parts = cleaned.split('.')
-            if (parts.length > 2) return
-            setLocalAmount(cleaned)
-          }}
-          onBlur={saveAmount}
-          placeholder={formatCurrency(0, currency)}
-          className="w-full rounded border border-transparent px-2 py-1 text-right text-sm tabular-nums text-[#1D1E20] outline-none transition focus:border-[#48C9B0] focus:bg-white"
-        />
+        {puedeEditar ? (
+          <input
+            type="text"
+            inputMode="decimal"
+            value={amountDisplay}
+            onFocus={() => setAmountFocused(true)}
+            onChange={e => {
+              const cleaned = e.target.value.replace(/[^0-9.]/g, '')
+              const parts = cleaned.split('.')
+              if (parts.length > 2) return
+              setLocalAmount(cleaned)
+            }}
+            onBlur={saveAmount}
+            placeholder={formatCurrency(0, currency)}
+            className="w-full rounded border border-transparent px-2 py-1 text-right text-sm tabular-nums text-[#1D1E20] outline-none transition focus:border-[#48C9B0] focus:bg-white"
+          />
+        ) : (
+          <p className="px-2 py-1 text-right text-sm tabular-nums text-[#1D1E20]">
+            {formatCurrency(item.budget_amount, currency)}
+          </p>
+        )}
 
         <div className={`text-right text-xs tabular-nums ${
           hasNoData ? 'text-[#bbb]' : isOverBudget ? 'text-amber-600 font-semibold' : 'text-[#888]'
@@ -223,13 +240,15 @@ export default function BudgetItemRow({
           {hasNoData ? '—' : formatCurrency(pendingAmount, currency)}
         </div>
 
-        <button
-          onClick={() => onDelete(item.id)}
-          className="flex h-7 w-7 items-center justify-center rounded text-[#ccc] transition hover:bg-red-50 hover:text-red-500"
-          title="Borrar concepto"
-        >
-          <Trash2 size={14} />
-        </button>
+        {puedeBorrar ? (
+          <button
+            onClick={() => onDelete(item.id)}
+            className="flex h-7 w-7 items-center justify-center rounded text-[#ccc] transition hover:bg-red-50 hover:text-red-500"
+            title="Borrar concepto"
+          >
+            <Trash2 size={14} />
+          </button>
+        ) : <span />}
       </div>
 
       {/* MOBILE */}
@@ -237,14 +256,18 @@ export default function BudgetItemRow({
         <div className="flex items-start gap-2">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-1.5">
-              <input
-                type="text"
-                value={localName}
-                onChange={e => setLocalName(e.target.value)}
-                onBlur={saveName}
-                placeholder="Nombre del concepto..."
-                className="flex-1 rounded border border-transparent px-2 py-1 text-sm font-medium text-[#1D1E20] outline-none focus:border-[#48C9B0] focus:bg-white"
-              />
+              {puedeEditar ? (
+                <input
+                  type="text"
+                  value={localName}
+                  onChange={e => setLocalName(e.target.value)}
+                  onBlur={saveName}
+                  placeholder="Nombre del concepto..."
+                  className="flex-1 rounded border border-transparent px-2 py-1 text-sm font-medium text-[#1D1E20] outline-none focus:border-[#48C9B0] focus:bg-white"
+                />
+              ) : (
+                <p className="flex-1 truncate px-2 py-1 text-sm font-medium text-[#1D1E20]">{localName || '—'}</p>
+              )}
               {isOverBudget && (
                 <span title="El monto contratado supera lo estimado">
                   <AlertTriangle size={14} className="shrink-0 text-amber-500" />
@@ -255,32 +278,40 @@ export default function BudgetItemRow({
               <SupplierBlock />
             </div>
           </div>
-          <button
-            onClick={() => onDelete(item.id)}
-            className="flex h-7 w-7 shrink-0 items-center justify-center rounded text-[#ccc] hover:bg-red-50 hover:text-red-500"
-            title="Borrar concepto"
-          >
-            <Trash2 size={14} />
-          </button>
+          {puedeBorrar && (
+            <button
+              onClick={() => onDelete(item.id)}
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded text-[#ccc] hover:bg-red-50 hover:text-red-500"
+              title="Borrar concepto"
+            >
+              <Trash2 size={14} />
+            </button>
+          )}
         </div>
 
         <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-[11px]">
           <div>
             <p className="text-[#aaa]">Estimado</p>
-            <input
-              type="text"
-              inputMode="decimal"
-              value={amountDisplay}
-              onFocus={() => setAmountFocused(true)}
-              onChange={e => {
-                const cleaned = e.target.value.replace(/[^0-9.]/g, '')
-                const parts = cleaned.split('.')
-                if (parts.length > 2) return
-                setLocalAmount(cleaned)
-              }}
-              onBlur={saveAmount}
-              className="w-full rounded border border-transparent px-2 py-1 text-sm font-semibold tabular-nums text-[#1D1E20] outline-none focus:border-[#48C9B0] focus:bg-white"
-            />
+            {puedeEditar ? (
+              <input
+                type="text"
+                inputMode="decimal"
+                value={amountDisplay}
+                onFocus={() => setAmountFocused(true)}
+                onChange={e => {
+                  const cleaned = e.target.value.replace(/[^0-9.]/g, '')
+                  const parts = cleaned.split('.')
+                  if (parts.length > 2) return
+                  setLocalAmount(cleaned)
+                }}
+                onBlur={saveAmount}
+                className="w-full rounded border border-transparent px-2 py-1 text-sm font-semibold tabular-nums text-[#1D1E20] outline-none focus:border-[#48C9B0] focus:bg-white"
+              />
+            ) : (
+              <p className="px-2 py-1 text-sm font-semibold tabular-nums text-[#1D1E20]">
+                {formatCurrency(item.budget_amount, currency)}
+              </p>
+            )}
           </div>
           <div>
             <p className="text-[#aaa]">Contratado</p>

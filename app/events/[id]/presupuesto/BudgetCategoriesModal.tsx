@@ -16,9 +16,10 @@ interface Props {
   onReorder: (next: string[]) => void
   onClose: () => void
   error?: string
+  puedeBorrar: boolean
 }
 
-function Row({ name, count, onDelete }: { name: string; count: number; onDelete: (n: string) => void }) {
+function Row({ name, count, onDelete, puedeBorrar }: { name: string; count: number; onDelete: (n: string) => void; puedeBorrar: boolean }) {
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: name })
   const style = { transform: CSS.Transform.toString(transform), transition }
   return (
@@ -26,12 +27,14 @@ function Row({ name, count, onDelete }: { name: string; count: number; onDelete:
       <button {...attributes} {...listeners} className="cursor-grab text-[#ccc] hover:text-[#888]"><GripVertical size={15} /></button>
       <span className="flex-1 text-left text-sm text-[#1D1E20]">{categoryLabel(name)}</span>
       {count > 0 && <span className="text-[11px] text-[#aaa]">{count}</span>}
-      <button onClick={() => onDelete(name)} className="text-[#ccc] hover:text-[#cc3333]"><Trash2 size={14} /></button>
+      {puedeBorrar && (
+        <button onClick={() => onDelete(name)} className="text-[#ccc] hover:text-[#cc3333]"><Trash2 size={14} /></button>
+      )}
     </div>
   )
 }
 
-export function BudgetCategoriesModal({ categories, itemCountByCategory, onAdd, onDelete, onReorder, onClose, error }: Props) {
+export function BudgetCategoriesModal({ categories, itemCountByCategory, onAdd, onDelete, onReorder, onClose, error, puedeBorrar }: Props) {
   const [adding, setAdding] = useState(false)
   const [newName, setNewName] = useState('')
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
@@ -59,7 +62,7 @@ export function BudgetCategoriesModal({ categories, itemCountByCategory, onAdd, 
           <SortableContext items={categories} strategy={verticalListSortingStrategy}>
             <div className="flex flex-col gap-1.5">
               {categories.map(c => (
-                <Row key={c} name={c} count={itemCountByCategory[c] || 0} onDelete={onDelete} />
+                <Row key={c} name={c} count={itemCountByCategory[c] || 0} onDelete={onDelete} puedeBorrar={puedeBorrar} />
               ))}
             </div>
           </SortableContext>

@@ -28,6 +28,8 @@ import SupplierReviewModal from '../proveedores/SupplierReviewModal'
 import { Modal } from '@/app/components/ui/Modal'
 import { Categoria, cargarCategorias, buscarPorNombre, nombrePorId, crearCategoria } from '@/lib/rolodex/categorias-store'
 import { mismaCategoria } from '@/lib/rolodex/categorias'
+import { usePermiso } from '@/lib/event-access-context'
+import { Puede } from '@/lib/permisos/Puede'
 
 type EventSupplierWithName = EventSupplier & {
   supplier: Pick<Supplier, 'id' | 'name' | 'category_id'>
@@ -42,6 +44,7 @@ type SupplierPaymentRow = {
 export default function PresupuestoPage() {
   const { id } = useParams()
   const eventId = id as string
+  const permiso = usePermiso('presupuesto')
 
   const [event, setEvent]                   = useState<Event | null>(null)
   const [budgets, setBudgets]               = useState<EventBudget[]>([])
@@ -303,6 +306,7 @@ export default function PresupuestoPage() {
   }
 
   const handleImport = async () => {
+    if (!permiso.editar) return
     setImporting(true)
     setImportError('')
     setImportSuccess('')
@@ -366,6 +370,7 @@ export default function PresupuestoPage() {
     event_supplier_id: string | null
     notes: string | null
   }) => {
+    if (!permiso.editar) return
     try {
       const { data: inserted, error } = await supabase
         .from('event_budgets')
@@ -393,12 +398,14 @@ export default function PresupuestoPage() {
     itemId: string,
     updates: { subcategory?: string; budget_amount?: number; event_supplier_id?: string | null },
   ) => {
+    if (!permiso.editar) return
     setBudgets(prev => prev.map(b => b.id === itemId ? { ...b, ...updates } : b))
     const { error } = await supabase.from('event_budgets').update(updates).eq('id', itemId)
     if (error) { console.error('Error actualizando concepto:', error?.message ?? error, error); loadAll() }
   }
 
   const handleDeleteItem = async (itemId: string) => {
+    if (!permiso.borrar) return
     const item = budgets.find(b => b.id === itemId)
     const ok = await askConfirm({
       title: item?.subcategory ? `¿Eliminar el concepto "${item.subcategory}"?` : '¿Eliminar este concepto?',
@@ -413,11 +420,13 @@ export default function PresupuestoPage() {
   }
 
   const persistCategories = async (next: string[]) => {
+    if (!permiso.editar) return
     setStoredCategories(next)
     await supabase.from('event_settings').update({ budget_categories: next }).eq('event_id', eventId)
   }
 
   const addCategory = async (raw: string) => {
+    if (!permiso.editar) return
     const name = raw.trim()
     if (!name) return
     if (categories.some(c => c.toLowerCase() === name.toLowerCase())) return
@@ -431,6 +440,7 @@ export default function PresupuestoPage() {
   }
 
   const deleteCategory = async (name: string) => {
+    if (!permiso.borrar) return
     const count = (itemsByCategory[name] || []).length
     if (count > 0) {
       const ok = await askConfirm({
@@ -486,6 +496,7 @@ export default function PresupuestoPage() {
   }
 
   const generateWith = async (tier: BudgetTier) => {
+    if (!permiso.editar) return
     setGenerating(true)
     const existing = new Set(budgets.map(b => {
       const nombre = b.category_id ? nombrePorId(categorias, b.category_id) : ''
@@ -582,12 +593,14 @@ export default function PresupuestoPage() {
             onChange={handleFileChange}
           />
 
-          <button
-            onClick={() => setShowImportHelp(true)}
-            className="flex items-center gap-1.5 rounded-lg border border-[#e0e0e0] bg-white px-3 py-1.5 text-xs font-medium text-[#555] transition hover:border-[#48C9B0] hover:text-[#48C9B0]"
-          >
-            <Upload size={14} /><span className="hidden sm:inline">Importar</span>
-          </button>
+          <Puede modulo="presupuesto" accion="editar">
+            <button
+              onClick={() => setShowImportHelp(true)}
+              className="flex items-center gap-1.5 rounded-lg border border-[#e0e0e0] bg-white px-3 py-1.5 text-xs font-medium text-[#555] transition hover:border-[#48C9B0] hover:text-[#48C9B0]"
+            >
+              <Upload size={14} /><span className="hidden sm:inline">Importar</span>
+            </button>
+          </Puede>
 
           <div className="relative hidden sm:block" data-budget-menu>
             <button
@@ -605,26 +618,32 @@ export default function PresupuestoPage() {
             )}
           </div>
 
-          <button onClick={() => setShowCategoriesModal(true)}
-            className="flex items-center gap-1.5 rounded-lg border border-[#e0e0e0] bg-white px-3 py-1.5 text-xs font-medium text-[#555] transition hover:border-[#48C9B0] hover:text-[#48C9B0]">
-            <SlidersHorizontal size={14} /><span className="hidden sm:inline">Categorías</span>
-          </button>
+          <Puede modulo="presupuesto" accion="editar">
+            <button onClick={() => setShowCategoriesModal(true)}
+              className="flex items-center gap-1.5 rounded-lg border border-[#e0e0e0] bg-white px-3 py-1.5 text-xs font-medium text-[#555] transition hover:border-[#48C9B0] hover:text-[#48C9B0]">
+              <SlidersHorizontal size={14} /><span className="hidden sm:inline">Categorías</span>
+            </button>
+          </Puede>
 
-          <button
-            onClick={handleGenerateClick}
-            disabled={generating}
-            className="hidden items-center gap-1.5 rounded-lg border border-[#48C9B0] bg-[#f0fdfb] px-3 py-1.5 text-xs font-semibold text-[#1a9e88] transition hover:bg-[#e0faf5] disabled:opacity-50 sm:flex"
-          >
-            <Sparkles size={14} />{generating ? 'Generando...' : 'Generar presupuesto'}
-          </button>
+          <Puede modulo="presupuesto" accion="editar">
+            <button
+              onClick={handleGenerateClick}
+              disabled={generating}
+              className="hidden items-center gap-1.5 rounded-lg border border-[#48C9B0] bg-[#f0fdfb] px-3 py-1.5 text-xs font-semibold text-[#1a9e88] transition hover:bg-[#e0faf5] disabled:opacity-50 sm:flex"
+            >
+              <Sparkles size={14} />{generating ? 'Generando...' : 'Generar presupuesto'}
+            </button>
+          </Puede>
 
-          <button
-            onClick={openAddModalGeneric}
-            className="flex items-center gap-1.5 rounded-lg bg-[#48C9B0] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#3aa896]"
-          >
-            <Plus size={14} />
-            <span className="hidden sm:inline">Nuevo concepto</span>
-          </button>
+          <Puede modulo="presupuesto" accion="editar">
+            <button
+              onClick={openAddModalGeneric}
+              className="flex items-center gap-1.5 rounded-lg bg-[#48C9B0] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#3aa896]"
+            >
+              <Plus size={14} />
+              <span className="hidden sm:inline">Nuevo concepto</span>
+            </button>
+          </Puede>
         </div>
       </div>
 
@@ -652,13 +671,20 @@ export default function PresupuestoPage() {
         )}
 
         {budgets.length === 0 && !search.trim() && (
-          <div className="mb-4 rounded-xl border border-dashed border-[#cfe9e2] bg-[#f0fdfb] px-5 py-6 text-center">
-            <p className="text-sm font-semibold text-[#1D1E20]">Tu presupuesto está vacío</p>
-            <p className="mt-1 text-xs text-[#888]">Genera un presupuesto sugerido según tu tipo de evento y ajústalo a tu gusto.</p>
-            <button onClick={handleGenerateClick} disabled={generating} className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-[#48C9B0] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#3ab89f] disabled:opacity-50">
-              <Sparkles size={15} />{generating ? 'Generando...' : 'Generar presupuesto sugerido'}
-            </button>
-          </div>
+          permiso.editar ? (
+            <div className="mb-4 rounded-xl border border-dashed border-[#cfe9e2] bg-[#f0fdfb] px-5 py-6 text-center">
+              <p className="text-sm font-semibold text-[#1D1E20]">Tu presupuesto está vacío</p>
+              <p className="mt-1 text-xs text-[#888]">Genera un presupuesto sugerido según tu tipo de evento y ajústalo a tu gusto.</p>
+              <button onClick={handleGenerateClick} disabled={generating} className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-[#48C9B0] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#3ab89f] disabled:opacity-50">
+                <Sparkles size={15} />{generating ? 'Generando...' : 'Generar presupuesto sugerido'}
+              </button>
+            </div>
+          ) : (
+            <div className="mb-4 rounded-xl border border-dashed border-[#e0e0e0] bg-[#fafafa] px-5 py-6 text-center">
+              <p className="text-sm font-semibold text-[#1D1E20]">Todavía no hay conceptos en el presupuesto</p>
+              <p className="mt-1 text-xs text-[#888]">Cuando se agreguen, los verás aquí.</p>
+            </div>
+          )
         )}
 
         <div className="space-y-3">
@@ -679,11 +705,13 @@ export default function PresupuestoPage() {
                 onUpdateItem={handleUpdateItem}
                 onDeleteItem={handleDeleteItem}
                 onOpenSupplier={setSelectedSupplier}
+                puedeEditar={permiso.editar}
+                puedeBorrar={permiso.borrar}
               />
             )
           })}
 
-          {!search.trim() && (addingCategory ? (
+          {!search.trim() && permiso.editar && (addingCategory ? (
             <div className="flex items-center gap-2 px-1 py-2">
               <input autoFocus value={newCategoryName} onChange={e => setNewCategoryName(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter') addCategory(newCategoryName); if (e.key === 'Escape') { setAddingCategory(false); setNewCategoryName('') } }}
@@ -699,7 +727,7 @@ export default function PresupuestoPage() {
         </div>
       </div>
 
-      {showTierModal && (
+      {showTierModal && permiso.editar && (
         <Modal open onClose={() => { if (!generating) setShowTierModal(false) }} size="md">
           <Modal.Header
             title="Generar presupuesto de boda"
@@ -735,13 +763,14 @@ export default function PresupuestoPage() {
           onDelete={deleteCategory}
           onReorder={reorderCategories}
           error={categoryDeleteError}
+          puedeBorrar={permiso.borrar}
           onClose={() => { setShowCategoriesModal(false); setCategoryDeleteError('') }}
         />
       )}
 
       {/* ── MODAL DE CONCEPTO ── */}
       <BudgetItemModal
-        isOpen={modalOpen}
+        isOpen={modalOpen && permiso.editar}
         onClose={() => setModalOpen(false)}
         currency={currency}
         categories={categories}
@@ -753,7 +782,7 @@ export default function PresupuestoPage() {
 
       {/* ── MODAL AYUDA IMPORTAR (2 pasos, componente compartido) ── */}
       <ImportStepsModal
-        open={showImportHelp}
+        open={showImportHelp && permiso.editar}
         onClose={() => setShowImportHelp(false)}
         title="Importar presupuesto"
         subtitle="Trae tu presupuesto desde Excel en dos pasos."
@@ -766,7 +795,7 @@ export default function PresupuestoPage() {
       />
 
       {/* ── MODAL DE IMPORT ── */}
-      <Modal open={importModalOpen} onClose={() => setImportModalOpen(false)} size="lg">
+      <Modal open={importModalOpen && permiso.editar} onClose={() => setImportModalOpen(false)} size="lg">
         <Modal.Header
           title="Importar presupuesto"
           subtitle={`${importPlan.length} concepto${importPlan.length !== 1 ? 's' : ''} en el archivo`}
