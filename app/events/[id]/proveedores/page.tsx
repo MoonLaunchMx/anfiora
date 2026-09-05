@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
-import { Search, Plus, LayoutGrid, List, Columns3 } from 'lucide-react'
+import { Search, Plus, LayoutGrid, List, Columns3, Disc3 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import {
   Event, EventBudget, EventSupplier, Supplier,
@@ -16,9 +16,10 @@ import SupplierDetailModal from './SupplierDetailModal'
 import SupplierReviewModal from './SupplierReviewModal'
 import SupplierListView from './SupplierListView'
 import SupplierKanbanView from './SupplierKanbanView'
+import SupplierFicheroView from './SupplierFicheroView'
 
 type SupplierWithDetails = EventSupplier & { supplier: Supplier }
-type ViewMode = 'cards' | 'lista' | 'kanban'
+type ViewMode = 'cards' | 'lista' | 'kanban' | 'fichero'
 type GroupBy  = 'ninguna' | 'categoria' | 'partida' | 'estatus'
 
 export default function ProveedoresPage() {
@@ -231,6 +232,10 @@ export default function ProveedoresPage() {
               <Columns3 size={13} />
               <span>Kanban</span>
             </ViewButton>
+            <ViewButton active={viewMode === 'fichero'} onClick={() => setViewMode('fichero')}>
+              <Disc3 size={13} />
+              <span>Fichero</span>
+            </ViewButton>
           </div>
 
           {/* Buscador */}
@@ -322,6 +327,15 @@ export default function ProveedoresPage() {
                   onStatusChange={handleStatusChange}
                 />
               </div>
+            )}
+            {viewMode === 'fichero' && (
+              <SupplierFicheroView
+                items={filtered}
+                budgets={budgets}
+                currency={currency}
+                categorias={categorias}
+                onSelect={setSelectedItem}
+              />
             )}
           </>
         )}
