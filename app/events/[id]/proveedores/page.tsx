@@ -82,7 +82,9 @@ export default function ProveedoresPage() {
     const { data: newSupplier, error: supErr } = await supabase
       .from('suppliers')
       .insert({
-        user_id:            user.id,
+        // La ficha es del dueño del evento, no de quien la captura: si nace del
+        // colaborador, la policy deja fuera al dueño y su pantalla se rompe.
+        user_id:            event?.user_id ?? user.id,
         name:               data.name,
         category_id:        data.category_id,
         subcategory:        linkedBudget?.subcategory || data.subcategory,

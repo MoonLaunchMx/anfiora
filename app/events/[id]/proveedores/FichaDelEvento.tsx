@@ -14,6 +14,7 @@ import {
 } from '@/lib/types'
 import { Categoria, nombrePorId } from '@/lib/rolodex/categorias-store'
 import { formatDisplay, toWhatsApp } from '@/lib/phone'
+import { usePermiso } from '@/lib/event-access-context'
 import { accionesDe, carpetasDe, type Accion } from '@/lib/rolodex/ficha-por-estado'
 import PagoModal from './PagoModal'
 import PhoneInput from '@/app/components/ui/PhoneInput'
@@ -51,6 +52,9 @@ function iniciales(nombre: string): string {
 export default function FichaDelEvento({
   item, budgets, currency, categorias, bodaPaso, onCerrar, onAbrirCompleta, onStatusChange, onSaved,
 }: Props) {
+  const permisoFicha = usePermiso('proveedores')
+  const permisoPagos = usePermiso('pagos')
+
   const [pagos, setPagos] = useState<SupplierPayment[]>([])
   const [cargandoPagos, setCargandoPagos] = useState(true)
   const [menuAbierto, setMenuAbierto] = useState(false)
@@ -63,7 +67,15 @@ export default function FichaDelEvento({
   const menuRef = useRef<HTMLDivElement>(null)
 
   const carpetas = useMemo(() => carpetasDe(item.status, bodaPaso), [item.status, bodaPaso])
-  const acciones = useMemo(() => accionesDe(item.status, bodaPaso), [item.status, bodaPaso])
+  const acciones = useMemo(
+    () => accionesDe(item.status, bodaPaso).filter(accion =>
+      accion.separador
+        ? true
+        : accion.texto === 'Registrar un pago' ? permisoPagos.editar : permisoFicha.editar
+    ),
+    [item.status, bodaPaso, permisoFicha.editar, permisoPagos.editar]
+  )
+  const hayAcciones = acciones.some(accion => !accion.separador)
 
   useEffect(() => { setCarpeta(0) }, [item.id, item.status])
 
@@ -116,6 +128,7 @@ export default function FichaDelEvento({
   const abrir = (url: string) => window.open(url, '_blank', 'noopener,noreferrer')
 
   const guardarFicha = async () => {
+    if (!permisoFicha.editar) { setErrorGuardar('No tienes permiso para editar proveedores en esta boda.'); return }
     if (!borrador.nombre.trim()) { setErrorGuardar('El proveedor necesita un nombre.'); return }
     setGuardando(true)
     setErrorGuardar('')
@@ -163,8 +176,12 @@ export default function FichaDelEvento({
 
   const ejecutar = (accion: Accion) => {
     setMenuAbierto(false)
+    if (accion.texto === 'Registrar un pago') {
+      if (permisoPagos.editar) setCobrando(true)
+      return
+    }
+    if (!permisoFicha.editar) return
     if (accion.nuevoEstado) onStatusChange(item.id, accion.nuevoEstado)
-    else if (accion.texto === 'Registrar un pago') setCobrando(true)
     else onAbrirCompleta()
   }
 
@@ -191,14 +208,15 @@ export default function FichaDelEvento({
 
           <div ref={menuRef} className="relative shrink-0">
             <button
-              onClick={() => setMenuAbierto(v => !v)}
-              className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-bold ${CHIP_ESTATUS[item.status]}`}
+              onClick={() => hayAcciones && setMenuAbierto(v => !v)}
+              disabled={!hayAcciones}
+              className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-bold ${CHIP_ESTATUS[item.status]} ${hayAcciones ? '' : 'cursor-default'}`}
             >
               {SUPPLIER_STATUS_LABELS[item.status]}
-              <ChevronDown size={12} className="opacity-70" />
+              {hayAcciones && <ChevronDown size={12} className="opacity-70" />}
             </button>
 
-            {menuAbierto && (
+            {menuAbierto && hayAcciones && (
               <div className="absolute right-0 top-[calc(100%+6px)] z-30 flex w-56 flex-col gap-0.5 rounded-xl border border-[#e8e8e8] bg-white p-1.5 shadow-[0_18px_40px_-18px_rgba(0,0,0,.45)]">
                 <p className="px-2.5 pb-1 pt-2 text-[9.5px] font-bold uppercase tracking-wider text-[#bbb]">
                   Qué puedes hacer
@@ -364,11 +382,11 @@ export default function FichaDelEvento({
           <>
             <Bloque
               titulo="Cómo le hablas"
-              accion={
+              accion={permisoFicha.editar ? (
                 <button onClick={() => setEditando(true)} className="flex items-center gap-1 text-[11px] font-semibold text-[#48C9B0] transition hover:text-[#3aa896]">
                   <Pencil size={11} /> Editar
                 </button>
-              }
+              ) : null}
             >
               <dl className="grid grid-cols-2 gap-x-5 gap-y-2.5">
                 <Dato etiqueta="WhatsApp" valor={telVisible} />
@@ -466,12 +484,14 @@ export default function FichaDelEvento({
                   ))}
                 </ul>
               )}
-              <button
-                onClick={() => setCobrando(true)}
-                className="mt-3 rounded-lg bg-[#48C9B0] px-3.5 py-2 text-xs font-semibold text-white transition hover:bg-[#3aa896]"
-              >
-                Registrar un pago
-              </button>
+              {permisoPagos.editar && (
+                <button
+                  onClick={() => setCobrando(true)}
+                  className="mt-3 rounded-lg bg-[#48C9B0] px-3.5 py-2 text-xs font-semibold text-white transition hover:bg-[#3aa896]"
+                >
+                  Registrar un pago
+                </button>
+              )}
             </Bloque>
           </>
         )}
@@ -493,12 +513,14 @@ export default function FichaDelEvento({
             <Bloque titulo="Nota">
               <Texto valor={item.review_text} vacio="Sin nota de cómo te fue." />
             </Bloque>
-            <button
-              onClick={onAbrirCompleta}
-              className="self-start rounded-lg bg-[#48C9B0] px-3.5 py-2 text-xs font-semibold text-white transition hover:bg-[#3aa896]"
-            >
-              {item.rating ? 'Cambiar la calificación' : 'Calificar'}
-            </button>
+            {permisoFicha.editar && (
+              <button
+                onClick={onAbrirCompleta}
+                className="self-start rounded-lg bg-[#48C9B0] px-3.5 py-2 text-xs font-semibold text-white transition hover:bg-[#3aa896]"
+              >
+                {item.rating ? 'Cambiar la calificación' : 'Calificar'}
+              </button>
+            )}
           </>
         )}
 
@@ -529,14 +551,16 @@ export default function FichaDelEvento({
         />
       )}
 
-      <footer className="flex shrink-0 items-center gap-2 border-t border-[#e8e8e8] bg-[#fafafa] px-5 py-2.5">
-        <button
-          onClick={onAbrirCompleta}
-          className="rounded-lg border border-[#e0e0e0] bg-white px-3 py-1.5 text-xs font-semibold text-[#1D1E20] transition hover:bg-[#f5f5f5]"
-        >
-          Editar en el formulario completo
-        </button>
-      </footer>
+      {permisoFicha.editar && (
+        <footer className="flex shrink-0 items-center gap-2 border-t border-[#e8e8e8] bg-[#fafafa] px-5 py-2.5">
+          <button
+            onClick={onAbrirCompleta}
+            className="rounded-lg border border-[#e0e0e0] bg-white px-3 py-1.5 text-xs font-semibold text-[#1D1E20] transition hover:bg-[#f5f5f5]"
+          >
+            Editar en el formulario completo
+          </button>
+        </footer>
+      )}
     </motion.section>
   )
 }
