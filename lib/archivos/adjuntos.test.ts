@@ -26,6 +26,26 @@ describe('visibles', () => {
     expect(visibles(lista).map(a => a.path)).toEqual(['a.pdf', 'c.pdf'])
   })
 
+  // Postgres agrega al final del arreglo, asi que sin ordenar el primer renglon
+  // seria la cotizacion mas vieja y la carpeta marcaria como vigente la que no es.
+  it('pone primero el mas reciente, sin importar el orden en que llegan', () => {
+    const lista = [
+      archivo({ path: 'vieja.jpg', subido: '2026-08-01T10:00:00.000Z' }),
+      archivo({ path: 'nueva.pdf', subido: '2026-09-05T10:00:00.000Z' }),
+      archivo({ path: 'media.png', subido: '2026-08-20T10:00:00.000Z' }),
+    ]
+    expect(visibles(lista).map(a => a.path)).toEqual(['nueva.pdf', 'media.png', 'vieja.jpg'])
+  })
+
+  it('no modifica el arreglo que recibe', () => {
+    const lista = [
+      archivo({ path: 'vieja.jpg', subido: '2026-08-01T10:00:00.000Z' }),
+      archivo({ path: 'nueva.pdf', subido: '2026-09-05T10:00:00.000Z' }),
+    ]
+    visibles(lista)
+    expect(lista.map(a => a.path)).toEqual(['vieja.jpg', 'nueva.pdf'])
+  })
+
   it('aguanta null y un arreglo vacio', () => {
     expect(visibles(null)).toEqual([])
     expect(visibles([])).toEqual([])

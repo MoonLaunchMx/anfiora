@@ -20,8 +20,14 @@ const POR_EXTENSION: Record<string, string> = {
   heif: 'image/heif',
 }
 
+// Ordena del mas nuevo al mas viejo: la funcion de Postgres agrega al final, y
+// sin este orden el primer renglon —el que la carpeta marca como vigente— seria
+// la cotizacion mas vieja.
 export function visibles(lista: ArchivoAdjunto[] | null | undefined): ArchivoAdjunto[] {
-  return (lista ?? []).filter(a => !a.borrado)
+  return (lista ?? [])
+    .filter(a => !a.borrado)
+    .slice()
+    .sort((a, b) => b.subido.localeCompare(a.subido))
 }
 
 export function extensionDe(nombre: string): string {
