@@ -286,7 +286,10 @@ export default function ProveedoresPage() {
       </div>
 
       {/* ── CONTENIDO SCROLLABLE ── */}
-      <div style={{ flex: 1, overflowY: 'auto' }} className="px-4 pb-6 pt-4 sm:px-6">
+      <div
+        style={{ flex: 1, overflowY: viewMode === 'fichero' ? 'hidden' : 'auto' }}
+        className={viewMode === 'fichero' ? 'min-h-0' : 'px-4 pb-6 pt-4 sm:px-6'}
+      >
         {filtered.length === 0 && items.length === 0 ? (
           <EmptyState onAdd={() => setModalOpen(true)} />
         ) : filtered.length === 0 ? (
