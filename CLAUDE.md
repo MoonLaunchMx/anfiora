@@ -214,8 +214,7 @@ event_suppliers (
   review_text TEXT,
   mood TEXT,                 -- 'no' | 'normal' | 'love'
   response_speed TEXT,       -- 'lentisimo' | 'normal' | 'bueno' | 'rapidos'
-  external_files_url TEXT,
-  has_pro_files BOOLEAN,
+  quote_files JSONB,         -- ArchivoAdjunto[] — cotizaciones en el bucket privado event-docs
   created_at
 )
 
@@ -227,6 +226,7 @@ supplier_payments (
   payment_method TEXT,   -- PaymentMethod
   paid_by TEXT,          -- PaidBy
   reference TEXT,
+  receipt_files JSONB,   -- ArchivoAdjunto[] — comprobantes en el bucket privado event-docs
   created_at
 )
 
