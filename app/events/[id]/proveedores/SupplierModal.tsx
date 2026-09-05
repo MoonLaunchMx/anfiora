@@ -18,7 +18,7 @@ type Props = {
   currency: Currency
   budgets: EventBudget[]
   categorias: Categoria[]
-  userId: string
+  duenoCatalogo: string
   onSubmit: (data: {
     name: string
     category_id: string | null
@@ -32,7 +32,7 @@ type Props = {
   }) => Promise<void>
 }
 
-export default function SupplierModal({ isOpen, onClose, currency, budgets, categorias, userId, onSubmit }: Props) {
+export default function SupplierModal({ isOpen, onClose, currency, budgets, categorias, duenoCatalogo, onSubmit }: Props) {
   const [name, setName]                   = useState('')
   const [categoryId, setCategoryId]       = useState<string>('')
   const [eventBudgetId, setEventBudgetId] = useState('')
@@ -103,7 +103,7 @@ export default function SupplierModal({ isOpen, onClose, currency, budgets, cate
               categorias={categorias}
               valorId={categoryId || null}
               onChange={c => { setCategoryId(c.id); setEventBudgetId('') }}
-              userId={userId}
+              duenoCatalogo={duenoCatalogo}
               className="border-[#e0e0e0]"
             />
           </div>

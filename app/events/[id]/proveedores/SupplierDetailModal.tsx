@@ -21,6 +21,7 @@ import { Modal } from '@/app/components/ui/Modal'
 import { useConfirm } from '@/app/components/ui/ConfirmModal'
 import { Categoria, nombrePorId } from '@/lib/rolodex/categorias-store'
 import CategoriaPicker from './CategoriaPicker'
+import { usePermiso } from '@/lib/event-access-context'
 
 const INPUT_CLASS = 'rounded-lg border border-[#e8e8e8] bg-white px-3 py-2 text-base text-[#1D1E20] outline-none transition-colors focus:border-[#48C9B0]'
 
@@ -32,7 +33,7 @@ interface Props {
   currency: Currency
   budgets: EventBudget[]
   categorias: Categoria[]
-  userId: string
+  duenoCatalogo: string
   onClose: () => void
   onSaved: (updated: SupplierWithDetails) => void
   onDeleted: (id: string) => void
@@ -41,10 +42,16 @@ interface Props {
 }
 
 export default function SupplierDetailModal({
-  item, eventId, currency, budgets, categorias, userId, onClose, onSaved, onDeleted, onReviewNeeded,
+  item, eventId, currency, budgets, categorias, duenoCatalogo, onClose, onSaved, onDeleted, onReviewNeeded,
 }: Props) {
   const router = useRouter()
   const askConfirm = useConfirm()
+
+  // El permiso se pregunta aqui y no se recibe por prop: este modal lo abren
+  // dos pantallas distintas (Proveedores y Presupuesto) y en las dos manda el
+  // mismo modulo. Con solo ver, abre completo y bloqueado: explorar no es tocar.
+  const permiso = usePermiso('proveedores')
+  const soloLectura = !permiso.editar
 
   const categoriaPropia = categorias.find(c => c.id === item.supplier.category_id)
 
@@ -147,6 +154,7 @@ export default function SupplierDetailModal({
   })
 
   const handleSave = async () => {
+    if (!permiso.editar) return
     if (!name.trim()) { alert('El nombre es obligatorio'); return }
     setSaving(true)
 
@@ -200,6 +208,7 @@ export default function SupplierDetailModal({
   }
 
   const handleDelete = async () => {
+    if (!permiso.borrar) return
     const ok = await askConfirm({
       title: `¿Quitar a ${item.supplier.name} de este evento?`,
       message: payments.length > 0
@@ -236,6 +245,7 @@ export default function SupplierDetailModal({
   }
 
   const handleSavePayment = async () => {
+    if (!permiso.editar) return
     const amt = parseFloat(payAmount)
     if (!amt || amt <= 0) { alert('Monto inválido'); return }
     if (contractNum > 0) {
@@ -274,6 +284,7 @@ export default function SupplierDetailModal({
   }
 
   const handleDeletePayment = async (paymentId: string) => {
+    if (!permiso.borrar) return
     const pago = payments.find(p => p.id === paymentId)
     const ok = await askConfirm({
       title: pago ? `¿Eliminar el pago de ${formatCurrency(pago.amount, currency)}?` : '¿Eliminar este pago?',
@@ -333,8 +344,8 @@ export default function SupplierDetailModal({
         <Section title="Estado">
           <div className="flex flex-wrap gap-2">
             {SUPPLIER_STATUSES.map(s => (
-              <button key={s} onClick={() => setStatus(s)}
-                className={`rounded-lg border px-3 py-2 text-sm transition-all ${
+              <button key={s} onClick={() => setStatus(s)} disabled={soloLectura}
+                className={`rounded-lg border px-3 py-2 text-sm transition-all disabled:cursor-default ${
                   status === s ? 'border-[#1D1E20] bg-[#1D1E20] font-medium text-white' : 'border-[#e8e8e8] bg-white text-[#666] hover:bg-[#fafafa]'
                 }`}
               >
@@ -348,23 +359,27 @@ export default function SupplierDetailModal({
         <Section title="Identidad">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Field label="Nombre">
-              <input type="text" value={name} onChange={e => setName(e.target.value)} className={`${INPUT_CLASS} w-full`} />
+              <input type="text" value={name} onChange={e => setName(e.target.value)} disabled={soloLectura} className={`${INPUT_CLASS} w-full`} />
             </Field>
             <Field label="Categoría">
+              {soloLectura ? (
+                <div className={`${INPUT_CLASS} w-full text-[#666]`}>{categoryName || "Sin categoría"}</div>
+              ) : (
               <CategoriaPicker
                 categorias={categorias}
                 valorId={categoryId || null}
                 onChange={c => { setCategoryId(c.id); setEventBudgetId('') }}
-                userId={userId}
+                duenoCatalogo={duenoCatalogo}
                 className="border-[#e8e8e8]"
               />
+              )}
             </Field>
             <Field label="Concepto del presupuesto" className="sm:col-span-2">
               {budgetsForCategory.length > 0 ? (
                 <>
                   <div className="flex items-center gap-2">
                     <Wallet size={14} className="shrink-0 text-[#888]" />
-                    <select value={eventBudgetId} onChange={e => setEventBudgetId(e.target.value)} className={`${INPUT_CLASS} flex-1`}>
+                    <select value={eventBudgetId} onChange={e => setEventBudgetId(e.target.value)} disabled={soloLectura} className={`${INPUT_CLASS} flex-1`}>
                       <option value="">Sin concepto</option>
                       {budgetsForCategory.map(b => (
                         <option key={b.id} value={b.id}>
@@ -390,7 +405,9 @@ export default function SupplierDetailModal({
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Field label="WhatsApp">
               <div className="flex gap-1.5">
-                <PhoneInput value={phone} onChange={setPhone} placeholder="55 1234 5678" className="min-w-0 flex-1" />
+                {soloLectura
+                  ? <div className={`${INPUT_CLASS} min-w-0 flex-1 text-[#666]`}>{phone || "Sin teléfono"}</div>
+                  : <PhoneInput value={phone} onChange={setPhone} placeholder="55 1234 5678" className="min-w-0 flex-1" />}
                 <button onClick={openWhatsApp} disabled={!phone} className="flex shrink-0 items-center justify-center rounded-lg border border-[#e8e8e8] px-3 text-emerald-600 hover:bg-emerald-50 disabled:opacity-30">
                   <FaWhatsapp size={18} />
                 </button>
@@ -398,7 +415,7 @@ export default function SupplierDetailModal({
             </Field>
             <Field label="Email">
               <div className="flex gap-1.5">
-                <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="contacto@proveedor.com" className={`${INPUT_CLASS} min-w-0 flex-1`} />
+                <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="contacto@proveedor.com" disabled={soloLectura} className={`${INPUT_CLASS} min-w-0 flex-1`} />
                 <button onClick={openEmail} disabled={!email} className="flex shrink-0 items-center justify-center rounded-lg border border-[#e8e8e8] px-3 text-[#1D1E20] hover:bg-[#fafafa] disabled:opacity-30">
                   <FiMail size={18} />
                 </button>
@@ -406,7 +423,7 @@ export default function SupplierDetailModal({
             </Field>
             <Field label="Instagram">
               <div className="flex gap-1.5">
-                <input type="text" value={instagram} onChange={e => setInstagram(e.target.value)} placeholder="@usuario" className={`${INPUT_CLASS} min-w-0 flex-1`} />
+                <input type="text" value={instagram} onChange={e => setInstagram(e.target.value)} placeholder="@usuario" disabled={soloLectura} className={`${INPUT_CLASS} min-w-0 flex-1`} />
                 <button onClick={openInstagram} disabled={!instagram} className="flex shrink-0 items-center justify-center rounded-lg border border-[#e8e8e8] px-3 text-pink-600 hover:bg-pink-50 disabled:opacity-30">
                   <FiInstagram size={18} />
                 </button>
@@ -414,7 +431,7 @@ export default function SupplierDetailModal({
             </Field>
             <Field label="Facebook">
               <div className="flex gap-1.5">
-                <input type="text" value={facebook} onChange={e => setFacebook(e.target.value)} placeholder="fb.com/proveedor" className={`${INPUT_CLASS} min-w-0 flex-1`} />
+                <input type="text" value={facebook} onChange={e => setFacebook(e.target.value)} placeholder="fb.com/proveedor" disabled={soloLectura} className={`${INPUT_CLASS} min-w-0 flex-1`} />
                 <button onClick={openFacebook} disabled={!facebook} className="flex shrink-0 items-center justify-center rounded-lg border border-[#e8e8e8] px-3 text-blue-600 hover:bg-blue-50 disabled:opacity-30">
                   <FiFacebook size={18} />
                 </button>
@@ -422,7 +439,7 @@ export default function SupplierDetailModal({
             </Field>
             <Field label="Website" className="sm:col-span-2">
               <div className="flex gap-1.5">
-                <input type="text" value={website} onChange={e => setWebsite(e.target.value)} placeholder="proveedor.com" className={`${INPUT_CLASS} min-w-0 flex-1`} />
+                <input type="text" value={website} onChange={e => setWebsite(e.target.value)} placeholder="proveedor.com" disabled={soloLectura} className={`${INPUT_CLASS} min-w-0 flex-1`} />
                 <button onClick={openWebsite} disabled={!website} className="flex shrink-0 items-center justify-center rounded-lg border border-[#e8e8e8] px-3 text-[#1D1E20] hover:bg-[#fafafa] disabled:opacity-30">
                   <FiGlobe size={18} />
                 </button>
@@ -453,11 +470,11 @@ export default function SupplierDetailModal({
         <Section title="Comercial">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Field label={`Cotización (${currency})`}>
-              <input type="number" inputMode="decimal" value={quotedAmount} onChange={e => setQuotedAmount(e.target.value)} placeholder="0.00" className={`${INPUT_CLASS} w-full`} />
+              <input type="number" inputMode="decimal" value={quotedAmount} onChange={e => setQuotedAmount(e.target.value)} placeholder="0.00" disabled={soloLectura} className={`${INPUT_CLASS} w-full`} />
               {quotedAmount && <p className="mt-1 text-xs text-[#888]">{formatCurrency(quotedNum, currency)}</p>}
             </Field>
             <Field label={`Monto contratado (${currency})`}>
-              <input type="number" inputMode="decimal" value={contractAmount} onChange={e => setContractAmount(e.target.value)} placeholder="0.00" className={`${INPUT_CLASS} w-full`} />
+              <input type="number" inputMode="decimal" value={contractAmount} onChange={e => setContractAmount(e.target.value)} placeholder="0.00" disabled={soloLectura} className={`${INPUT_CLASS} w-full`} />
               {contractAmount && <p className="mt-1 text-xs text-[#888]">{formatCurrency(contractNum, currency)}</p>}
             </Field>
           </div>
@@ -490,7 +507,7 @@ export default function SupplierDetailModal({
             <motion.div key="pagos-section" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
               <Section
                 title="Pagos"
-                action={!showNewPaymentForm && !editingPaymentId && (
+                action={permiso.editar && !showNewPaymentForm && !editingPaymentId && (
                   <button onClick={openNewPaymentForm} className="flex items-center gap-1 text-xs font-medium text-[#48C9B0] hover:text-[#3aa896]">
                     <Plus size={12} />Registrar pago
                   </button>
@@ -532,7 +549,7 @@ export default function SupplierDetailModal({
                         <li key={p.id} className="space-y-1.5">
                           {!isEditing && (
                             <div className="flex items-center justify-between gap-3 rounded-lg border border-[#e8e8e8] bg-white px-3 py-2 text-sm">
-                              <button onClick={() => openEditPaymentForm(p)} className="min-w-0 flex-1 text-left">
+                              <button onClick={() => openEditPaymentForm(p)} disabled={soloLectura} className="min-w-0 flex-1 cursor-default text-left disabled:cursor-default">
                                 <div className="font-semibold text-[#1D1E20]">{formatCurrency(p.amount, currency)}</div>
                                 <div className="truncate text-[10px] text-[#888]">
                                   {p.payment_date}
@@ -542,8 +559,12 @@ export default function SupplierDetailModal({
                                 </div>
                               </button>
                               <div className="flex shrink-0 items-center gap-1">
-                                <button onClick={() => openEditPaymentForm(p)} className="rounded p-1 text-[#aaa] hover:bg-[#f5f5f5] hover:text-[#1D1E20]"><Pencil size={13} /></button>
-                                <button onClick={() => handleDeletePayment(p.id)} className="rounded p-1 text-[#aaa] hover:bg-red-50 hover:text-red-600"><Trash2 size={13} /></button>
+                                {permiso.editar && (
+                                  <button onClick={() => openEditPaymentForm(p)} className="rounded p-1 text-[#aaa] hover:bg-[#f5f5f5] hover:text-[#1D1E20]"><Pencil size={13} /></button>
+                                )}
+                                {permiso.borrar && (
+                                  <button onClick={() => handleDeletePayment(p.id)} className="rounded p-1 text-[#aaa] hover:bg-red-50 hover:text-red-600"><Trash2 size={13} /></button>
+                                )}
                               </div>
                             </div>
                           )}
@@ -566,7 +587,7 @@ export default function SupplierDetailModal({
 
         {/* ⑦ NOTAS */}
         <Section title="Notas del proveedor">
-          <textarea value={supplierNotes} onChange={e => setSupplierNotes(e.target.value)} rows={3} placeholder="Detalles, acuerdos, observaciones..." className={`${INPUT_CLASS} w-full resize-none`} />
+          <textarea value={supplierNotes} onChange={e => setSupplierNotes(e.target.value)} rows={3} placeholder="Detalles, acuerdos, observaciones..." disabled={soloLectura} className={`${INPUT_CLASS} w-full resize-none`} />
         </Section>
 
         {/* ⑧ ARCHIVOS PRO */}
@@ -590,12 +611,14 @@ export default function SupplierDetailModal({
                 </div>
               )}
               {item.review_text && <p className="mb-2 text-sm text-[#1D1E20]">{item.review_text}</p>}
-              <button
-                onClick={() => { onClose(); onReviewNeeded(item) }}
-                className="flex items-center gap-1 text-xs font-medium text-[#48C9B0] hover:text-[#3aa896]"
-              >
-                <Pencil size={11} />Editar review
-              </button>
+              {permiso.editar && (
+                <button
+                  onClick={() => { onClose(); onReviewNeeded(item) }}
+                  className="flex items-center gap-1 text-xs font-medium text-[#48C9B0] hover:text-[#3aa896]"
+                >
+                  <Pencil size={11} />Editar review
+                </button>
+              )}
             </div>
           </Section>
         )}
@@ -605,15 +628,21 @@ export default function SupplierDetailModal({
 
       <Modal.Footer>
         <div className="flex w-full items-center justify-between gap-2">
-          <button onClick={handleDelete} disabled={deleting || saving} className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm text-red-600 transition-colors hover:bg-red-50 disabled:opacity-50">
-            <Trash2 size={15} />
-            <span>{deleting ? 'Eliminando...' : 'Eliminar'}</span>
-          </button>
-          <div className="flex items-center gap-2">
-            <button onClick={onClose} disabled={saving || deleting} className="px-4 py-2 text-sm text-[#666] hover:text-[#1D1E20] disabled:opacity-50">Cancelar</button>
-            <button onClick={handleSave} disabled={saving || deleting} className="rounded-lg bg-[#48C9B0] px-5 py-2 text-sm font-semibold text-white hover:bg-[#3aa896] disabled:opacity-50">
-              {saving ? 'Guardando...' : 'Guardar cambios'}
+          {permiso.borrar ? (
+            <button onClick={handleDelete} disabled={deleting || saving} className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm text-red-600 transition-colors hover:bg-red-50 disabled:opacity-50">
+              <Trash2 size={15} />
+              <span>{deleting ? 'Eliminando...' : 'Eliminar'}</span>
             </button>
+          ) : <span />}
+          <div className="flex items-center gap-2">
+            <button onClick={onClose} disabled={saving || deleting} className="px-4 py-2 text-sm text-[#666] hover:text-[#1D1E20] disabled:opacity-50">
+              {soloLectura ? 'Cerrar' : 'Cancelar'}
+            </button>
+            {permiso.editar && (
+              <button onClick={handleSave} disabled={saving || deleting} className="rounded-lg bg-[#48C9B0] px-5 py-2 text-sm font-semibold text-white hover:bg-[#3aa896] disabled:opacity-50">
+                {saving ? 'Guardando...' : 'Guardar cambios'}
+              </button>
+            )}
           </div>
         </div>
       </Modal.Footer>

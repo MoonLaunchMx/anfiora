@@ -23,11 +23,12 @@ type Props = {
   categorias: Categoria[]
   onSelect: (item: SupplierWithDetails) => void
   onStatusChange: (itemId: string, newStatus: SupplierStatus) => void
+  puedeEditar: boolean
 }
 
 const VISIBLE_STATUSES: SupplierStatus[] = ['nuevo', 'cotizado', 'contratado']
 
-export default function SupplierKanbanView({ items, budgets, currency, categorias, onSelect, onStatusChange }: Props) {
+export default function SupplierKanbanView({ items, budgets, currency, categorias, onSelect, onStatusChange, puedeEditar }: Props) {
   const [showDescartados, setShowDescartados] = useState(false)
  
   const sensors = useSensors(
@@ -56,7 +57,7 @@ export default function SupplierKanbanView({ items, budgets, currency, categoria
   const descartadosCount = itemsByStatus['descartado'].length
  
   return (
-    <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+    <DndContext sensors={puedeEditar ? sensors : []} onDragEnd={handleDragEnd}>
       <div className="flex gap-3 overflow-x-auto pb-6" style={{ alignItems: 'flex-start' }}>
  
         {/* Columnas principales */}
@@ -69,6 +70,7 @@ export default function SupplierKanbanView({ items, budgets, currency, categoria
             currency={currency}
             categorias={categorias}
             onSelect={onSelect}
+            puedeEditar={puedeEditar}
           />
         ))}
  
@@ -116,6 +118,7 @@ export default function SupplierKanbanView({ items, budgets, currency, categoria
                 currency={currency}
                 categorias={categorias}
                 onSelect={onSelect}
+                puedeEditar={puedeEditar}
                 dimmed
               />
             </div>
@@ -130,7 +133,7 @@ export default function SupplierKanbanView({ items, budgets, currency, categoria
 // ── COLUMNA ───────────────────────────────────────────────────────────────
  
 function KanbanColumn({
-  status, items, budgets, currency, categorias, onSelect, dimmed = false,
+  status, items, budgets, currency, categorias, onSelect, puedeEditar, dimmed = false,
 }: {
   status: SupplierStatus
   items: SupplierWithDetails[]
@@ -138,6 +141,7 @@ function KanbanColumn({
   currency: Currency
   categorias: Categoria[]
   onSelect: (item: SupplierWithDetails) => void
+  puedeEditar: boolean
   dimmed?: boolean
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: status })
@@ -171,11 +175,12 @@ function KanbanColumn({
             currency={currency}
             categorias={categorias}
             onSelect={onSelect}
+            puedeEditar={puedeEditar}
           />
         ))}
         {items.length === 0 && (
           <div className="rounded-lg border border-dashed border-[#e0e0e0] py-8 text-center">
-            <p className="text-[10px] text-[#ccc]">Arrastra aquí</p>
+            <p className="text-[10px] text-[#ccc]">{puedeEditar ? 'Arrastra aquí' : 'Sin proveedores'}</p>
           </div>
         )}
       </div>
@@ -186,13 +191,14 @@ function KanbanColumn({
 // ── CARD KANBAN ───────────────────────────────────────────────────────────
  
 function KanbanCard({
-  item, budgets, currency, categorias, onSelect,
+  item, budgets, currency, categorias, onSelect, puedeEditar,
 }: {
   item: SupplierWithDetails
   budgets: EventBudget[]
   currency: Currency
   categorias: Categoria[]
   onSelect: (item: SupplierWithDetails) => void
+  puedeEditar: boolean
 }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: item.id })
  
@@ -217,10 +223,12 @@ function KanbanCard({
     <div
       ref={setNodeRef}
       style={style}
-      {...attributes}
-      {...listeners}
+      {...(puedeEditar ? attributes : {})}
+      {...(puedeEditar ? listeners : {})}
       onClick={() => onSelect(item)}
-      className={`cursor-grab rounded-lg border border-[#e8e8e8] bg-white p-3 transition active:cursor-grabbing ${
+      className={`rounded-lg border border-[#e8e8e8] bg-white p-3 transition ${
+        puedeEditar ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'
+      } ${
         isDragging ? 'opacity-50 shadow-lg' : 'hover:border-[#48C9B0] hover:shadow-sm'
       }`}
     >

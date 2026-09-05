@@ -12,6 +12,8 @@ import StatsCollapse, { useStatsToggle, StatsToggleButton } from '@/app/componen
 import { Modal } from '@/app/components/ui/Modal'
 import { useConfirm } from '@/app/components/ui/ConfirmModal'
 import { exportPagosToExcel, exportPagosToPDF } from './lib/exports'
+import { usePermiso } from '@/lib/event-access-context'
+import { Puede } from '@/lib/permisos/Puede'
 
 type Pago = {
   id: string
@@ -129,6 +131,7 @@ export default function PagosPage() {
   const [sortDir, setSortDir]               = useState<SortDir>('desc')
 
   const askConfirm = useConfirm()
+  const permiso = usePermiso('pagos')
 
   const [modalOpen, setModalOpen]           = useState(false)
   const [editingPago, setEditingPago]       = useState<Pago | null>(null)
@@ -311,9 +314,10 @@ export default function PagosPage() {
     setNewPaidBy(''); setNewMethod('transferencia'); setNewReference('')
   }
 
-  const openNuevo = () => { resetModal(); setModalOpen(true) }
+  const openNuevo = () => { if (!permiso.editar) return; resetModal(); setModalOpen(true) }
 
   const openEditar = (pago: Pago) => {
+    if (!permiso.editar) return
     setEditingPago(pago)
     setNewSupplier(pago.event_supplier_id)
     setNewAmount(String(pago.amount))
@@ -327,6 +331,7 @@ export default function PagosPage() {
   const closeModal = () => { setModalOpen(false); resetModal() }
 
   const handleSavePago = async () => {
+    if (!permiso.editar) return
     if (!newSupplier || !newAmount || !newDate) return
     const amount = parseFloat(newAmount.replace(/,/g, ''))
     if (isNaN(amount) || amount <= 0) return
@@ -356,6 +361,7 @@ export default function PagosPage() {
   }
 
   const handleDeletePago = async () => {
+    if (!permiso.borrar) return
     if (!editingPago) return
     const ok = await askConfirm({
       title: `¿Eliminar el pago de ${fmt(editingPago.amount, currency)}?`,
@@ -506,12 +512,14 @@ export default function PagosPage() {
             className="hidden items-center gap-1.5 rounded-lg border border-[#e0e0e0] bg-white px-3 py-1.5 text-xs font-medium text-[#555] transition hover:border-[#48C9B0] hover:text-[#48C9B0] sm:flex">
             <FileText size={13} /> PDF
           </button>
-          <button onClick={openNuevo}
-            className="flex shrink-0 items-center gap-1.5 rounded-lg bg-[#48C9B0] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#3aa896]">
-            <Plus size={13} />
-            <span className="hidden sm:inline">Nuevo pago</span>
-            <span className="sm:hidden">Pago</span>
-          </button>
+          <Puede modulo="pagos" accion="editar">
+            <button onClick={openNuevo}
+              className="flex shrink-0 items-center gap-1.5 rounded-lg bg-[#48C9B0] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#3aa896]">
+              <Plus size={13} />
+              <span className="hidden sm:inline">Nuevo pago</span>
+              <span className="sm:hidden">Pago</span>
+            </button>
+          </Puede>
         </div>
       </div>
 
@@ -520,7 +528,7 @@ export default function PagosPage() {
           <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-[#e8e8e8] py-20 text-center">
             <Receipt size={28} className="mb-3 text-[#ddd]" />
             <p className="text-xs font-medium text-[#bbb]">Sin pagos registrados</p>
-            <p className="mt-1 text-[11px] text-[#ccc]">Agrega un pago con el boton "Nuevo pago"</p>
+            {permiso.editar && <p className="mt-1 text-[11px] text-[#ccc]">Agrega un pago con el boton "Nuevo pago"</p>}
           </div>
         ) : (
           <>
@@ -543,7 +551,7 @@ export default function PagosPage() {
                     {!isCollapsed && items.map((pago, i) => (
                       <div key={pago.id}
                         onClick={() => openEditar(pago)}
-                        className={`flex cursor-pointer items-center gap-2 px-3 py-2.5 transition active:bg-[#f8f5f0] ${i < items.length - 1 ? 'border-b border-[#f0f0f0]' : ''}`}>
+                        className={`flex items-center gap-2 px-3 py-2.5 transition ${permiso.editar ? 'cursor-pointer active:bg-[#f8f5f0]' : ''} ${i < items.length - 1 ? 'border-b border-[#f0f0f0]' : ''}`}>
                         <MethodIcon method={pago.payment_method} />
                         <span className="min-w-0 flex-1 truncate text-xs text-[#1D1E20]">
                           {pago.paid_by ? (PAID_BY_LABEL[pago.paid_by] || pago.paid_by) : <span className="text-[#ccc]">—</span>}
@@ -622,7 +630,7 @@ export default function PagosPage() {
                         {!isCollapsed && items.map(pago => (
                           <tr key={pago.id}
                             onClick={() => openEditar(pago)}
-                            className="cursor-pointer border-b border-[#f0f0f0] transition hover:bg-[#fafaf9]">
+                            className={`border-b border-[#f0f0f0] transition ${permiso.editar ? 'cursor-pointer hover:bg-[#fafaf9]' : ''}`}>
                             <td className="px-4 py-2.5 pl-10 text-[#666]">{supplierName}</td>
                             <td className="px-4 py-2.5 text-[#888]">{fmtDate(pago.payment_date)}</td>
                             <td className="hidden px-4 py-2.5 text-[#888] md:table-cell">
@@ -738,7 +746,7 @@ export default function PagosPage() {
           </Modal.Body>
           <Modal.Footer>
             <div className="flex w-full items-center justify-between">
-              {isEditing ? (
+              {isEditing && permiso.borrar ? (
                 <button onClick={handleDeletePago} disabled={deleting || saving}
                   className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium text-[#cc3333] transition hover:bg-[#fff0f0] disabled:opacity-50">
                   <Trash2 size={13} />
@@ -750,10 +758,10 @@ export default function PagosPage() {
                   className="rounded-lg px-4 py-2 text-xs font-medium text-[#666] hover:bg-[#f0f0f0] disabled:opacity-50">
                   Cancelar
                 </button>
-                <button onClick={handleSavePago} disabled={saving || deleting || !newSupplier || !newAmount || !newDate}
+                {permiso.editar && (<button onClick={handleSavePago} disabled={saving || deleting || !newSupplier || !newAmount || !newDate}
                   className="rounded-lg bg-[#48C9B0] px-4 py-2 text-xs font-semibold text-white hover:bg-[#3aa896] disabled:opacity-50">
                   {saving ? 'Guardando...' : isEditing ? 'Guardar cambios' : 'Guardar pago'}
-                </button>
+                </button>)}
               </div>
             </div>
           </Modal.Footer>

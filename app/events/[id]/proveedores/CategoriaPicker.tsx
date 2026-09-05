@@ -9,7 +9,7 @@ type Props = {
   categorias: Categoria[]
   valorId: string | null
   onChange: (categoria: Categoria) => void
-  userId: string
+  duenoCatalogo: string
   className: string
 }
 
@@ -17,7 +17,7 @@ type Item =
   | { tipo: 'categoria'; categoria: Categoria }
   | { tipo: 'crear' }
 
-export default function CategoriaPicker({ categorias, valorId, onChange, userId, className }: Props) {
+export default function CategoriaPicker({ categorias, valorId, onChange, duenoCatalogo, className }: Props) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [highlight, setHighlight] = useState(0)
@@ -107,7 +107,7 @@ export default function CategoriaPicker({ categorias, valorId, onChange, userId,
     if (!nombre) return
     setCreando(true)
     setError('')
-    const { categoria, error: err } = await crearCategoria(userId, nombre, todas)
+    const { categoria, error: err } = await crearCategoria(duenoCatalogo, nombre, todas)
     setCreando(false)
     if (err || !categoria) {
       setError(err ?? 'No se pudo crear la categoría.')
