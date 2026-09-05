@@ -188,7 +188,7 @@ export default function CategoriasPage() {
 
   if (loading) {
     return (
-      <div className="flex h-[50vh] items-center justify-center">
+      <div className="flex h-[50dvh] items-center justify-center">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#e8e8e8] border-t-[#48C9B0]" />
       </div>
     )
