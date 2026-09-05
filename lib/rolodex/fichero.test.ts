@@ -6,6 +6,8 @@ import {
   moverIndice,
   desplazamientoFicha,
   opacidadFicha,
+  brilloFicha,
+  escalaFicha,
   indiceAlSoltar,
   puedeAvanzar,
 } from './fichero'
@@ -130,5 +132,22 @@ describe('puedeAvanzar', () => {
 
   it('no retiene nada cuando el fichero esta vacio', () => {
     expect(puedeAvanzar(0, 1, 0)).toBe(false)
+  })
+})
+
+describe('brilloFicha y escalaFicha', () => {
+  it('la del frente va a tamano y brillo completos', () => {
+    expect(brilloFicha(0)).toBe(1)
+    expect(escalaFicha(0)).toBe(1)
+  })
+
+  it('las de atras se apagan y se hunden', () => {
+    expect(brilloFicha(2)).toBeLessThan(brilloFicha(1))
+    expect(escalaFicha(2)).toBeLessThan(escalaFicha(1))
+  })
+
+  it('no se apagan ni se encogen sin fondo', () => {
+    expect(brilloFicha(30)).toBeGreaterThan(0.5)
+    expect(escalaFicha(30)).toBeGreaterThan(0.5)
   })
 })

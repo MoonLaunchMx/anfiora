@@ -11,7 +11,7 @@ import {
 import { Categoria, nombrePorId } from '@/lib/rolodex/categorias-store'
 import { formatDisplay, toWhatsApp } from '@/lib/phone'
 import {
-  desplazamientoFicha, indiceAlSoltar, indicePrimeraLetra, letraDe,
+  brilloFicha, desplazamientoFicha, escalaFicha, indiceAlSoltar, indicePrimeraLetra, letraDe,
   moverIndice, opacidadFicha, ordenarFichas, puedeAvanzar,
 } from '@/lib/rolodex/fichero'
 
@@ -27,7 +27,7 @@ type Props = {
 
 const PASO_GRADOS       = 17
 const RADIO_PX          = 340
-const FICHAS_VISIBLES   = 4
+const FICHAS_VISIBLES   = 3
 const PIXELES_POR_FICHA = 62
 const MS_ENTRE_GIROS    = 190
 const ARRASTRE_MINIMO   = 0.08
@@ -141,9 +141,6 @@ export default function SupplierFicheroView({ items, budgets, currency, categori
         className="relative flex h-[420px] touch-none select-none items-center justify-center rounded-2xl bg-[#f8f5f0] outline-none [perspective:1500px] focus-visible:ring-2 focus-visible:ring-[#48C9B0] sm:h-[460px]"
         style={{ cursor: arrastrando ? 'grabbing' : 'grab' }}
       >
-        <Perilla lado="izquierda" />
-        <Perilla lado="derecha" />
-
         <button
           type="button"
           onClick={() => girar(-1)}
@@ -220,19 +217,6 @@ export default function SupplierFicheroView({ items, budgets, currency, categori
   )
 }
 
-function Perilla({ lado }: { lado: 'izquierda' | 'derecha' }) {
-  return (
-    <div
-      aria-hidden
-      className={`absolute top-1/2 z-10 hidden h-16 w-16 -translate-y-1/2 rounded-full bg-[radial-gradient(circle_at_34%_30%,#4a4b4e_0%,#232427_55%,#131315_100%)] shadow-[inset_0_1px_2px_rgba(255,255,255,.22),0_6px_16px_-6px_rgba(0,0,0,.5)] lg:block ${
-        lado === 'izquierda' ? 'left-2' : 'right-2'
-      }`}
-    >
-      <div className="absolute inset-[13px] rounded-full bg-[repeating-linear-gradient(90deg,rgba(255,255,255,.10)_0_2px,transparent_2px_6px)]" />
-    </div>
-  )
-}
-
 function Ficha({ item, budgets, currency, categorias, activa, arrastrando, desplazamiento, onClick, onAbrir }: {
   item: SupplierWithDetails
   budgets: EventBudget[]
@@ -267,16 +251,19 @@ function Ficha({ item, budgets, currency, categorias, activa, arrastrando, despl
       aria-hidden={!activa}
       onClick={onClick}
       style={{
-        transform: `translate(-50%, -50%) rotateX(${-desplazamiento * PASO_GRADOS}deg) translateZ(${RADIO_PX}px)`,
+        transform: `translate(-50%, -50%) rotateX(${-desplazamiento * PASO_GRADOS}deg) translateZ(${RADIO_PX}px) scale(${escalaFicha(desplazamiento)})`,
         opacity: opacidadFicha(desplazamiento),
+        filter: `brightness(${brilloFicha(desplazamiento)})`,
         zIndex: 100 - Math.round(Math.abs(desplazamiento)),
         pointerEvents: Math.abs(desplazamiento) > 2 ? 'none' : 'auto',
         transition: arrastrando
           ? 'none'
-          : 'transform .42s cubic-bezier(.22,.9,.28,1), opacity .42s ease, box-shadow .3s ease',
+          : 'transform .42s cubic-bezier(.22,.9,.28,1), opacity .42s ease, filter .42s ease, box-shadow .3s ease',
       }}
-      className={`absolute left-1/2 top-1/2 h-[236px] w-[min(88vw,430px)] cursor-pointer rounded-2xl border border-[#e8e8e8] bg-white p-4 [backface-visibility:hidden] sm:h-[224px] sm:p-5 ${
-        activa ? 'shadow-[0_22px_46px_-18px_rgba(0,0,0,.34)]' : 'shadow-[0_10px_28px_-14px_rgba(0,0,0,.28)]'
+      className={`absolute left-1/2 top-1/2 h-[236px] w-[min(88vw,430px)] cursor-pointer rounded-2xl border bg-white p-4 [backface-visibility:hidden] sm:h-[224px] sm:p-5 ${
+        activa
+          ? 'border-[#dcd7cd] shadow-[0_26px_54px_-20px_rgba(0,0,0,.42)] ring-1 ring-black/5'
+          : 'border-[#ececec] shadow-[0_8px_20px_-14px_rgba(0,0,0,.24)]'
       }`}
     >
       <span aria-hidden className="absolute -left-px top-1/2 h-9 w-4 -translate-y-1/2 rounded-r-full border border-l-0 border-[#e8e8e8] bg-[#f8f5f0]" />
