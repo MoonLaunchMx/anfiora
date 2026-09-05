@@ -15,6 +15,7 @@ import {
 import { Categoria, nombrePorId } from '@/lib/rolodex/categorias-store'
 import { formatDisplay, toWhatsApp } from '@/lib/phone'
 import { accionesDe, carpetasDe, type Accion } from '@/lib/rolodex/ficha-por-estado'
+import PagoModal from './PagoModal'
 
 type SupplierWithDetails = EventSupplier & { supplier: Supplier }
 
@@ -51,6 +52,7 @@ export default function FichaDelEvento({
   const [pagos, setPagos] = useState<SupplierPayment[]>([])
   const [cargandoPagos, setCargandoPagos] = useState(true)
   const [menuAbierto, setMenuAbierto] = useState(false)
+  const [cobrando, setCobrando] = useState(false)
   const [carpeta, setCarpeta] = useState(0)
   const menuRef = useRef<HTMLDivElement>(null)
 
@@ -104,6 +106,7 @@ export default function FichaDelEvento({
   const ejecutar = (accion: Accion) => {
     setMenuAbierto(false)
     if (accion.nuevoEstado) onStatusChange(item.id, accion.nuevoEstado)
+    else if (accion.texto === 'Registrar un pago') setCobrando(true)
     else onAbrirCompleta()
   }
 
@@ -271,7 +274,7 @@ export default function FichaDelEvento({
         {carpetas[carpeta] === 'Cotización' && (
           <>
             <Bloque titulo="Los tres montos">
-              <div className="overflow-hidden rounded-xl border border-[#e8e8e8]">
+              <div className="grid overflow-hidden rounded-xl border border-[#e8e8e8] lg:grid-cols-3 lg:gap-px lg:bg-[#e8e8e8]">
                 <Renglon etiqueta="Presupuestado" valor={presupuesto} currency={currency} />
                 <Renglon etiqueta="Cotizado" valor={item.quoted_amount} currency={currency} />
                 <Renglon
@@ -304,7 +307,7 @@ export default function FichaDelEvento({
         {carpetas[carpeta] === 'Pagos' && (
           <>
             <Bloque titulo="Lo que llevas">
-              <div className="overflow-hidden rounded-xl border border-[#e8e8e8]">
+              <div className="grid overflow-hidden rounded-xl border border-[#e8e8e8] lg:grid-cols-3 lg:gap-px lg:bg-[#e8e8e8]">
                 <Renglon etiqueta="Contratado" valor={contratado} currency={currency} />
                 <Renglon etiqueta="Pagado" valor={cargandoPagos ? null : pagado} currency={currency} color="text-[#1D9E75]" />
                 <Renglon etiqueta="Falta" valor={cargandoPagos ? null : falta} currency={currency} fuerte />
@@ -342,7 +345,7 @@ export default function FichaDelEvento({
                 </ul>
               )}
               <button
-                onClick={onAbrirCompleta}
+                onClick={() => setCobrando(true)}
                 className="mt-3 rounded-lg bg-[#48C9B0] px-3.5 py-2 text-xs font-semibold text-white transition hover:bg-[#3aa896]"
               >
                 Registrar un pago
@@ -392,6 +395,18 @@ export default function FichaDelEvento({
         )}
       </div>
 
+      {cobrando && (
+        <PagoModal
+          eventSupplierId={item.id}
+          proveedor={s.name}
+          currency={currency}
+          contratado={contratado}
+          pagadoHastaAhora={pagado}
+          onGuardado={pago => setPagos(previos => [pago, ...previos])}
+          onCerrar={() => setCobrando(false)}
+        />
+      )}
+
       <footer className="flex shrink-0 items-center gap-2 border-t border-[#e8e8e8] bg-[#fafafa] px-5 py-2.5">
         <button
           onClick={onAbrirCompleta}
@@ -436,9 +451,11 @@ function Renglon({ etiqueta, valor, currency, vacio, fuerte, color }: {
   color?: string
 }) {
   return (
-    <div className={`flex items-baseline justify-between gap-3 border-b border-[#f2f2f2] px-3.5 py-2.5 last:border-b-0 ${fuerte ? 'bg-[#fafafa]' : ''}`}>
-      <span className={`text-[13px] ${fuerte ? 'font-semibold text-[#1D1E20]' : 'text-[#666]'}`}>{etiqueta}</span>
-      <span className={`text-[15px] font-bold tabular-nums ${valor == null ? 'text-[#ccc]' : color ?? 'text-[#1D1E20]'}`}>
+    <div className={`flex items-baseline justify-between gap-3 border-b border-[#f2f2f2] px-3.5 py-2.5 last:border-b-0 lg:flex-col lg:items-start lg:justify-start lg:gap-0.5 lg:border-b-0 lg:py-3 ${fuerte ? 'bg-[#fafafa]' : 'bg-white'}`}>
+      <span className={`text-[13px] lg:text-[10px] lg:font-bold lg:uppercase lg:tracking-wider ${fuerte ? 'font-semibold text-[#1D1E20] lg:text-[#999]' : 'text-[#666] lg:text-[#999]'}`}>
+        {etiqueta}
+      </span>
+      <span className={`text-[15px] font-bold tabular-nums lg:text-[17px] ${valor == null ? 'text-[#ccc]' : color ?? 'text-[#1D1E20]'}`}>
         {valor == null ? (vacio ?? '—') : formatCurrency(valor, currency)}
       </span>
     </div>
@@ -451,27 +468,33 @@ function Diferencia({ presupuesto, cotizado, contratado, currency }: {
   contratado: number | null
   currency: Currency
 }) {
-  if (contratado != null && cotizado != null && contratado < cotizado) {
-    return (
-      <p className="mt-2 text-xs font-semibold text-emerald-600">
-        Le bajaste {formatCurrency(cotizado - contratado, currency)} del cotizado al contratado
-      </p>
-    )
-  }
+  const negociado = contratado != null && cotizado != null && contratado < cotizado
+    ? cotizado - contratado
+    : null
+
   const contra = contratado ?? cotizado
-  if (presupuesto != null && contra != null && contra > presupuesto) {
-    return (
-      <p className="mt-2 text-xs font-semibold text-red-500">
-        Se pasa {formatCurrency(contra - presupuesto, currency)} de lo presupuestado
-      </p>
-    )
-  }
-  if (presupuesto != null && contra != null && contra < presupuesto) {
-    return (
-      <p className="mt-2 text-xs font-semibold text-emerald-600">
-        Queda {formatCurrency(presupuesto - contra, currency)} debajo del presupuesto
-      </p>
-    )
-  }
-  return null
+  const contraPresupuesto = presupuesto != null && contra != null ? contra - presupuesto : null
+
+  if (negociado == null && !contraPresupuesto) return null
+
+  return (
+    <div className="mt-2.5 flex flex-wrap items-center gap-2">
+      {negociado != null && (
+        <span className="rounded-lg bg-[#E6F3EC] px-2.5 py-1 text-xs font-bold text-[#1D9E75]">
+          Ahorraste {formatCurrency(negociado, currency)}
+        </span>
+      )}
+      {contraPresupuesto != null && contraPresupuesto !== 0 && (
+        contraPresupuesto > 0 ? (
+          <span className="rounded-lg bg-[#FAEAE6] px-2.5 py-1 text-xs font-bold text-[#cc3333]">
+            {formatCurrency(contraPresupuesto, currency)} por encima
+          </span>
+        ) : (
+          <span className="rounded-lg bg-[#f4f4f4] px-2.5 py-1 text-xs font-bold text-[#666]">
+            {formatCurrency(-contraPresupuesto, currency)} bajo presupuesto
+          </span>
+        )
+      )}
+    </div>
+  )
 }
