@@ -27,6 +27,7 @@ type Props = {
   bodaPaso: boolean
   onSelect: (item: SupplierWithDetails) => void
   onStatusChange: (itemId: string, nuevo: SupplierStatus) => void
+  onSaved: (item: SupplierWithDetails) => void
 }
 
 // Una ficha no se encima sobre la de enfrente mientras se cumpla
@@ -58,7 +59,7 @@ function useEsEscritorio(): boolean {
   return esEscritorio
 }
 
-export default function SupplierFicheroView({ items, budgets, currency, categorias, bodaPaso, onSelect, onStatusChange }: Props) {
+export default function SupplierFicheroView({ items, budgets, currency, categorias, bodaPaso, onSelect, onStatusChange, onSaved }: Props) {
   const esEscritorio = useEsEscritorio()
   const [abierta, setAbierta] = useState<SupplierWithDetails | null>(null)
   const fichas = useMemo(() => ordenarFichas(items), [items])
@@ -215,6 +216,7 @@ export default function SupplierFicheroView({ items, budgets, currency, categori
             onCerrar={() => setAbierta(null)}
             onAbrirCompleta={() => onSelect(abierta)}
             onStatusChange={onStatusChange}
+            onSaved={onSaved}
           />
         </div>
       ) : (

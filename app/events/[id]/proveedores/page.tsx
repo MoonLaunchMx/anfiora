@@ -313,6 +313,7 @@ export default function ProveedoresPage() {
                 bodaPaso={bodaPaso}
                 onSelect={setSelectedItem}
                 onStatusChange={handleStatusChange}
+                onSaved={handleSavedItem}
               />
             )}
           </>

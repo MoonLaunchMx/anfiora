@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
-import { ChevronDown, Globe, Mail, Star, X } from 'lucide-react'
+import { ChevronDown, Globe, Mail, Pencil, Star, X } from 'lucide-react'
 import { FaWhatsapp } from 'react-icons/fa'
 import { FiInstagram } from 'react-icons/fi'
 import { supabase } from '@/lib/supabase'
@@ -16,6 +16,7 @@ import { Categoria, nombrePorId } from '@/lib/rolodex/categorias-store'
 import { formatDisplay, toWhatsApp } from '@/lib/phone'
 import { accionesDe, carpetasDe, type Accion } from '@/lib/rolodex/ficha-por-estado'
 import PagoModal from './PagoModal'
+import PhoneInput from '@/app/components/ui/PhoneInput'
 
 type SupplierWithDetails = EventSupplier & { supplier: Supplier }
 
@@ -28,6 +29,7 @@ type Props = {
   onCerrar: () => void
   onAbrirCompleta: () => void
   onStatusChange: (itemId: string, nuevo: SupplierStatus) => void
+  onSaved: (item: SupplierWithDetails) => void
 }
 
 const CHIP_ESTATUS: Record<SupplierStatus, string> = {
@@ -47,19 +49,29 @@ function iniciales(nombre: string): string {
 }
 
 export default function FichaDelEvento({
-  item, budgets, currency, categorias, bodaPaso, onCerrar, onAbrirCompleta, onStatusChange,
+  item, budgets, currency, categorias, bodaPaso, onCerrar, onAbrirCompleta, onStatusChange, onSaved,
 }: Props) {
   const [pagos, setPagos] = useState<SupplierPayment[]>([])
   const [cargandoPagos, setCargandoPagos] = useState(true)
   const [menuAbierto, setMenuAbierto] = useState(false)
   const [cobrando, setCobrando] = useState(false)
   const [carpeta, setCarpeta] = useState(0)
+  const [editando, setEditando] = useState(false)
+  const [guardando, setGuardando] = useState(false)
+  const [errorGuardar, setErrorGuardar] = useState('')
+  const [borrador, setBorrador] = useState(() => borradorDe(item))
   const menuRef = useRef<HTMLDivElement>(null)
 
   const carpetas = useMemo(() => carpetasDe(item.status, bodaPaso), [item.status, bodaPaso])
   const acciones = useMemo(() => accionesDe(item.status, bodaPaso), [item.status, bodaPaso])
 
   useEffect(() => { setCarpeta(0) }, [item.id, item.status])
+
+  useEffect(() => {
+    setEditando(false)
+    setErrorGuardar('')
+    setBorrador(borradorDe(item))
+  }, [item])
 
   useEffect(() => {
     let vigente = true
@@ -102,6 +114,52 @@ export default function FichaDelEvento({
   const avance      = contratado && contratado > 0 ? Math.min(100, Math.round((pagado / contratado) * 100)) : 0
 
   const abrir = (url: string) => window.open(url, '_blank', 'noopener,noreferrer')
+
+  const guardarFicha = async () => {
+    if (!borrador.nombre.trim()) { setErrorGuardar('El proveedor necesita un nombre.'); return }
+    setGuardando(true)
+    setErrorGuardar('')
+    try {
+      const { data: proveedor, error: errProveedor } = await supabase
+        .from('suppliers')
+        .update({
+          name:          borrador.nombre.trim(),
+          contact_name:  borrador.contacto.trim() || null,
+          phone:         borrador.telefono.trim() || null,
+          email:         borrador.correo.trim() || null,
+          instagram:     borrador.instagram.trim() || null,
+          website:       borrador.sitio.trim() || null,
+          city:          borrador.ciudad.trim() || null,
+          state_region:  borrador.estado.trim() || null,
+          general_notes: borrador.notasProveedor.trim() || null,
+        })
+        .eq('id', item.supplier_id)
+        .select()
+        .single()
+
+      // Un UPDATE que no alcanza ninguna fila no da error: devuelve cero filas.
+      if (errProveedor) throw errProveedor
+      if (!proveedor) throw new Error('No se guardó: la ficha no te pertenece.')
+
+      const { data: enLaBoda, error: errBoda } = await supabase
+        .from('event_suppliers')
+        .update({ event_notes: borrador.notasBoda.trim() || null })
+        .eq('id', item.id)
+        .select()
+        .single()
+
+      if (errBoda) throw errBoda
+      if (!enLaBoda) throw new Error('No se guardaron las notas de esta boda.')
+
+      onSaved({ ...(enLaBoda as EventSupplier), supplier: proveedor as Supplier })
+      setEditando(false)
+    } catch (err: any) {
+      console.error('Error guardando la ficha:', err?.message ?? err, err)
+      setErrorGuardar(err?.message ?? 'No se pudo guardar. Intenta de nuevo.')
+    } finally {
+      setGuardando(false)
+    }
+  }
 
   const ejecutar = (accion: Accion) => {
     setMenuAbierto(false)
@@ -245,9 +303,73 @@ export default function FichaDelEvento({
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto border-t border-[#e4e1db] bg-white px-5 py-4">
-        {carpetas[carpeta] === 'Contacto' && (
+        {carpetas[carpeta] === 'Contacto' && (editando ? (
           <>
-            <Bloque titulo="Cómo le hablas">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Campo etiqueta="Nombre del proveedor">
+                <input value={borrador.nombre} onChange={e => setBorrador(b => ({ ...b, nombre: e.target.value }))} className={INPUT} />
+              </Campo>
+              <Campo etiqueta="Persona de contacto">
+                <input value={borrador.contacto} onChange={e => setBorrador(b => ({ ...b, contacto: e.target.value }))} placeholder="Con quién hablas" className={INPUT} />
+              </Campo>
+              <Campo etiqueta="WhatsApp">
+                <PhoneInput value={borrador.telefono} onChange={valor => setBorrador(b => ({ ...b, telefono: valor }))} placeholder="55 1234 5678" />
+              </Campo>
+              <Campo etiqueta="Correo">
+                <input type="email" value={borrador.correo} onChange={e => setBorrador(b => ({ ...b, correo: e.target.value }))} placeholder="contacto@proveedor.com" className={INPUT} />
+              </Campo>
+              <Campo etiqueta="Instagram">
+                <input value={borrador.instagram} onChange={e => setBorrador(b => ({ ...b, instagram: e.target.value }))} placeholder="@usuario" className={INPUT} />
+              </Campo>
+              <Campo etiqueta="Sitio">
+                <input value={borrador.sitio} onChange={e => setBorrador(b => ({ ...b, sitio: e.target.value }))} placeholder="proveedor.com" className={INPUT} />
+              </Campo>
+              <Campo etiqueta="Ciudad">
+                <input value={borrador.ciudad} onChange={e => setBorrador(b => ({ ...b, ciudad: e.target.value }))} className={INPUT} />
+              </Campo>
+              <Campo etiqueta="Estado">
+                <input value={borrador.estado} onChange={e => setBorrador(b => ({ ...b, estado: e.target.value }))} className={INPUT} />
+              </Campo>
+            </div>
+
+            <Campo etiqueta="Notas de esta boda">
+              <textarea rows={3} value={borrador.notasBoda} onChange={e => setBorrador(b => ({ ...b, notasBoda: e.target.value }))} placeholder="Acuerdos, pendientes, detalles de esta boda" className={`${INPUT} resize-none`} />
+            </Campo>
+
+            <Campo etiqueta="Notas del proveedor">
+              <textarea rows={2} value={borrador.notasProveedor} onChange={e => setBorrador(b => ({ ...b, notasProveedor: e.target.value }))} placeholder="Lo que aplica para todas tus bodas con él" className={`${INPUT} resize-none`} />
+            </Campo>
+
+            {errorGuardar && (
+              <p className="rounded-lg border border-[#ffc0c0] bg-[#fff0f0] px-3 py-2 text-xs text-[#cc3333]">{errorGuardar}</p>
+            )}
+
+            <div className="flex gap-2">
+              <button
+                onClick={guardarFicha}
+                disabled={guardando}
+                className="rounded-lg bg-[#48C9B0] px-3.5 py-2 text-xs font-semibold text-white transition hover:bg-[#3aa896] disabled:opacity-50"
+              >
+                {guardando ? 'Guardando…' : 'Guardar'}
+              </button>
+              <button
+                onClick={() => { setEditando(false); setBorrador(borradorDe(item)); setErrorGuardar('') }}
+                className="rounded-lg border border-[#e0e0e0] bg-white px-3.5 py-2 text-xs font-medium text-[#666] transition hover:bg-[#f5f5f5]"
+              >
+                Cancelar
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <Bloque
+              titulo="Cómo le hablas"
+              accion={
+                <button onClick={() => setEditando(true)} className="flex items-center gap-1 text-[11px] font-semibold text-[#48C9B0] transition hover:text-[#3aa896]">
+                  <Pencil size={11} /> Editar
+                </button>
+              }
+            >
               <dl className="grid grid-cols-2 gap-x-5 gap-y-2.5">
                 <Dato etiqueta="WhatsApp" valor={telVisible} />
                 <Dato etiqueta="Correo" valor={s.email} />
@@ -269,7 +391,7 @@ export default function FichaDelEvento({
               <Texto valor={s.general_notes} vacio="Sin notas generales." />
             </Bloque>
           </>
-        )}
+        ))}
 
         {carpetas[carpeta] === 'Cotización' && (
           <>
@@ -419,10 +541,40 @@ export default function FichaDelEvento({
   )
 }
 
-function Bloque({ titulo, children }: { titulo: string; children: React.ReactNode }) {
+const INPUT = 'w-full rounded-lg border border-[#e0e0e0] bg-white px-3 py-2 text-sm outline-none transition focus:border-[#48C9B0]'
+
+function borradorDe(item: SupplierWithDetails) {
+  const s = item.supplier
+  return {
+    nombre:         s.name ?? '',
+    contacto:       s.contact_name ?? '',
+    telefono:       s.phone ?? '',
+    correo:         s.email ?? '',
+    instagram:      s.instagram ?? '',
+    sitio:          s.website ?? '',
+    ciudad:         s.city ?? '',
+    estado:         s.state_region ?? '',
+    notasProveedor: s.general_notes ?? '',
+    notasBoda:      item.event_notes ?? '',
+  }
+}
+
+function Campo({ etiqueta, children }: { etiqueta: string; children: React.ReactNode }) {
+  return (
+    <label className="block">
+      <span className="mb-1 block text-[10.5px] font-bold uppercase tracking-wider text-[#999]">{etiqueta}</span>
+      {children}
+    </label>
+  )
+}
+
+function Bloque({ titulo, accion, children }: { titulo: string; accion?: React.ReactNode; children: React.ReactNode }) {
   return (
     <section>
-      <h3 className="mb-2 text-[10.5px] font-bold uppercase tracking-wider text-[#999]">{titulo}</h3>
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <h3 className="text-[10.5px] font-bold uppercase tracking-wider text-[#999]">{titulo}</h3>
+        {accion}
+      </div>
       {children}
     </section>
   )
@@ -468,32 +620,22 @@ function Diferencia({ presupuesto, cotizado, contratado, currency }: {
   contratado: number | null
   currency: Currency
 }) {
-  const negociado = contratado != null && cotizado != null && contratado < cotizado
-    ? cotizado - contratado
-    : null
-
+  // Contra el presupuesto, que es la meta. Mientras no haya contrato manda lo cotizado.
   const contra = contratado ?? cotizado
-  const contraPresupuesto = presupuesto != null && contra != null ? contra - presupuesto : null
+  if (presupuesto == null || contra == null || contra === presupuesto) return null
 
-  if (negociado == null && !contraPresupuesto) return null
+  const diferencia = contra - presupuesto
 
   return (
-    <div className="mt-2.5 flex flex-wrap items-center gap-2">
-      {negociado != null && (
+    <div className="mt-2.5">
+      {diferencia < 0 ? (
         <span className="rounded-lg bg-[#E6F3EC] px-2.5 py-1 text-xs font-bold text-[#1D9E75]">
-          Ahorraste {formatCurrency(negociado, currency)}
+          Ahorraste {formatCurrency(-diferencia, currency)}
         </span>
-      )}
-      {contraPresupuesto != null && contraPresupuesto !== 0 && (
-        contraPresupuesto > 0 ? (
-          <span className="rounded-lg bg-[#FAEAE6] px-2.5 py-1 text-xs font-bold text-[#cc3333]">
-            {formatCurrency(contraPresupuesto, currency)} por encima
-          </span>
-        ) : (
-          <span className="rounded-lg bg-[#f4f4f4] px-2.5 py-1 text-xs font-bold text-[#666]">
-            {formatCurrency(-contraPresupuesto, currency)} bajo presupuesto
-          </span>
-        )
+      ) : (
+        <span className="rounded-lg bg-[#FAEAE6] px-2.5 py-1 text-xs font-bold text-[#cc3333]">
+          {formatCurrency(diferencia, currency)} por encima
+        </span>
       )}
     </div>
   )
