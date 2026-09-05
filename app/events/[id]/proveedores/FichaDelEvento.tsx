@@ -574,13 +574,23 @@ export default function FichaDelEvento({
               ) : null}
             </Bloque>
 
-            <Bloque titulo="Pagos registrados">
+            <Bloque
+              titulo={pagos.length > 0 ? `Pagos registrados · ${pagos.length}` : 'Pagos registrados'}
+              accion={permisoPagos.editar ? (
+                <button
+                  onClick={() => setCobrando(true)}
+                  className="rounded-lg bg-[#48C9B0] px-2.5 py-1 text-[11px] font-semibold text-white transition hover:bg-[#3aa896]"
+                >
+                  + Registrar pago
+                </button>
+              ) : null}
+            >
               {cargandoPagos ? (
                 <div className="h-12 animate-pulse rounded-lg bg-[#f5f5f5]" />
               ) : pagos.length === 0 ? (
                 <p className="text-xs text-[#999]">Todavía no le registras pagos.</p>
               ) : (
-                <ul className="space-y-1.5">
+                <ul className="max-h-64 space-y-1.5 overflow-y-auto pr-0.5">
                   {pagos.map(p => (
                     <li key={p.id} className="flex items-center justify-between gap-3 rounded-lg border border-[#e8e8e8] bg-[#fafafa] px-3 py-2">
                       <span className="min-w-0 text-xs text-[#666]">
@@ -598,14 +608,6 @@ export default function FichaDelEvento({
                     </li>
                   ))}
                 </ul>
-              )}
-              {permisoPagos.editar && (
-                <button
-                  onClick={() => setCobrando(true)}
-                  className="mt-3 rounded-lg bg-[#48C9B0] px-3.5 py-2 text-xs font-semibold text-white transition hover:bg-[#3aa896]"
-                >
-                  Registrar un pago
-                </button>
               )}
             </Bloque>
           </>
