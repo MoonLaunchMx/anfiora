@@ -6,7 +6,7 @@ import { FaWhatsapp } from 'react-icons/fa'
 import { FiInstagram } from 'react-icons/fi'
 import {
   Currency, formatCurrency,
-  EventSupplier, Supplier, EventBudget,
+  EventSupplier, Supplier, EventBudget, SupplierStatus,
   SUPPLIER_STATUS_LABELS, SUPPLIER_STATUS_COLORS,
 } from '@/lib/types'
 import { Categoria, nombrePorId } from '@/lib/rolodex/categorias-store'
@@ -24,7 +24,9 @@ type Props = {
   budgets: EventBudget[]
   currency: Currency
   categorias: Categoria[]
+  bodaPaso: boolean
   onSelect: (item: SupplierWithDetails) => void
+  onStatusChange: (itemId: string, nuevo: SupplierStatus) => void
 }
 
 // Una ficha no se encima sobre la de enfrente mientras se cumpla
@@ -56,7 +58,7 @@ function useEsEscritorio(): boolean {
   return esEscritorio
 }
 
-export default function SupplierFicheroView({ items, budgets, currency, categorias, onSelect }: Props) {
+export default function SupplierFicheroView({ items, budgets, currency, categorias, bodaPaso, onSelect, onStatusChange }: Props) {
   const esEscritorio = useEsEscritorio()
   const [abierta, setAbierta] = useState<SupplierWithDetails | null>(null)
   const fichas = useMemo(() => ordenarFichas(items), [items])
@@ -83,7 +85,7 @@ export default function SupplierFicheroView({ items, budgets, currency, categori
   // Si la ficha abierta se cae del filtro, el panel se queda mostrando algo que
   // ya no esta en el fichero.
   useEffect(() => {
-    setAbierta(previa => (previa && fichas.some(f => f.id === previa.id) ? fichas.find(f => f.id === previa.id)! : null))
+    setAbierta(previa => (previa ? fichas.find(f => f.id === previa.id) ?? null : null))
   }, [fichas])
 
   const girar = useCallback((delta: number) => {
@@ -209,8 +211,10 @@ export default function SupplierFicheroView({ items, budgets, currency, categori
             budgets={budgets}
             currency={currency}
             categorias={categorias}
+            bodaPaso={bodaPaso}
             onCerrar={() => setAbierta(null)}
             onAbrirCompleta={() => onSelect(abierta)}
+            onStatusChange={onStatusChange}
           />
         </div>
       ) : (

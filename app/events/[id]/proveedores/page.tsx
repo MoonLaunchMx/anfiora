@@ -185,6 +185,10 @@ export default function ProveedoresPage() {
 
   const currency: Currency = event.currency || 'MXN'
 
+  // La resena solo se pregunta despues del evento; si hay rango, manda el ultimo dia.
+  const ultimoDia = event.event_end_date || event.event_date
+  const bodaPaso = ultimoDia ? new Date(`${ultimoDia}T23:59:59`) < new Date() : false
+
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#ffffff' }}>
 
@@ -306,7 +310,9 @@ export default function ProveedoresPage() {
                 budgets={budgets}
                 currency={currency}
                 categorias={categorias}
+                bodaPaso={bodaPaso}
                 onSelect={setSelectedItem}
+                onStatusChange={handleStatusChange}
               />
             )}
           </>
