@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
-import { ChevronDown, Globe, Mail, Pencil, Star } from 'lucide-react'
+import { ChevronDown, Globe, Mail, Pencil, Star, Trash2 } from 'lucide-react'
 import { FaWhatsapp } from 'react-icons/fa'
 import { FiInstagram } from 'react-icons/fi'
 import { supabase } from '@/lib/supabase'
@@ -15,6 +15,7 @@ import {
 } from '@/lib/types'
 import { Categoria, nombrePorId } from '@/lib/rolodex/categorias-store'
 import { formatDisplay, toWhatsApp } from '@/lib/phone'
+import { useConfirm } from '@/app/components/ui/ConfirmModal'
 import { usePermiso } from '@/lib/event-access-context'
 import { accionesDe, carpetasDe, type Accion } from '@/lib/rolodex/ficha-por-estado'
 import PagoModal from './PagoModal'
@@ -51,6 +52,7 @@ function iniciales(nombre: string): string {
 export default function FichaDelEvento({
   item, budgets, currency, categorias, bodaPaso, onStatusChange, onSaved,
 }: Props) {
+  const askConfirm = useConfirm()
   const permisoFicha = usePermiso('proveedores')
   const permisoPagos = usePermiso('pagos')
 
@@ -58,6 +60,7 @@ export default function FichaDelEvento({
   const [cargandoPagos, setCargandoPagos] = useState(true)
   const [menuAbierto, setMenuAbierto] = useState(false)
   const [cobrando, setCobrando] = useState(false)
+  const [pagoEnEdicion, setPagoEnEdicion] = useState<SupplierPayment | null>(null)
   const [carpeta, setCarpeta] = useState(0)
   const [editando, setEditando] = useState(false)
   const [guardando, setGuardando] = useState(false)
@@ -205,6 +208,22 @@ export default function FichaDelEvento({
     } finally {
       setGuardando(false)
     }
+  }
+
+  const borrarPago = async (pago: SupplierPayment) => {
+    const ok = await askConfirm({
+      title: `¿Eliminar el pago de ${formatCurrency(pago.amount, currency)}?`,
+      message: `Bajará el total pagado a ${s.name}. No se puede deshacer.`,
+    })
+    if (!ok) return
+
+    const { error } = await supabase.from('supplier_payments').delete().eq('id', pago.id)
+    if (error) {
+      console.error('Error eliminando el pago:', error?.message ?? error, error)
+      setErrorGuardar('No se pudo eliminar el pago.')
+      return
+    }
+    setPagos(previos => previos.filter(otro => otro.id !== pago.id))
   }
 
   const guardarMontos = () => {
@@ -592,7 +611,7 @@ export default function FichaDelEvento({
               ) : (
                 <ul className="max-h-64 space-y-1.5 overflow-y-auto pr-0.5">
                   {pagos.map(p => (
-                    <li key={p.id} className="flex items-center justify-between gap-3 rounded-lg border border-[#e8e8e8] bg-[#fafafa] px-3 py-2">
+                    <li key={p.id} className="group flex items-center justify-between gap-3 rounded-lg border border-[#e8e8e8] bg-[#fafafa] px-3 py-2">
                       <span className="min-w-0 text-xs text-[#666]">
                         <span className="block text-[#1D1E20]">
                           {new Date(p.payment_date + 'T12:00:00').toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: '2-digit' })}
@@ -600,10 +619,31 @@ export default function FichaDelEvento({
                         <span className="truncate">
                           {p.payment_method ? PAYMENT_METHOD_LABELS[p.payment_method] : 'Sin método'}
                           {p.paid_by ? ` · ${PAID_BY_LABELS[p.paid_by]}` : ''}
+                          {p.reference ? ` · ${p.reference}` : ''}
                         </span>
                       </span>
-                      <span className="shrink-0 text-sm font-semibold tabular-nums text-[#1D1E20]">
-                        {formatCurrency(p.amount, currency)}
+                      <span className="flex shrink-0 items-center gap-2">
+                        <span className="text-sm font-semibold tabular-nums text-[#1D1E20]">
+                          {formatCurrency(p.amount, currency)}
+                        </span>
+                        {permisoPagos.editar && (
+                          <span className="flex items-center gap-0.5 opacity-0 transition group-hover:opacity-100 focus-within:opacity-100">
+                            <button
+                              onClick={() => setPagoEnEdicion(p)}
+                              aria-label="Editar el pago"
+                              className="flex h-6 w-6 items-center justify-center rounded-md text-[#999] transition hover:bg-white hover:text-[#1D1E20]"
+                            >
+                              <Pencil size={12} />
+                            </button>
+                            <button
+                              onClick={() => borrarPago(p)}
+                              aria-label="Eliminar el pago"
+                              className="flex h-6 w-6 items-center justify-center rounded-md text-[#999] transition hover:bg-white hover:text-[#cc3333]"
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </span>
+                        )}
                       </span>
                     </li>
                   ))}
@@ -702,15 +742,20 @@ export default function FichaDelEvento({
         )}
       </div>
 
-      {cobrando && (
+      {(cobrando || pagoEnEdicion) && (
         <PagoModal
           eventSupplierId={item.id}
           proveedor={s.name}
           currency={currency}
           contratado={contratado}
           pagadoHastaAhora={pagado}
-          onGuardado={pago => setPagos(previos => [pago, ...previos])}
-          onCerrar={() => setCobrando(false)}
+          pago={pagoEnEdicion}
+          onGuardado={pago => setPagos(previos =>
+            previos.some(otro => otro.id === pago.id)
+              ? previos.map(otro => (otro.id === pago.id ? pago : otro))
+              : [pago, ...previos]
+          )}
+          onCerrar={() => { setCobrando(false); setPagoEnEdicion(null) }}
         />
       )}
 

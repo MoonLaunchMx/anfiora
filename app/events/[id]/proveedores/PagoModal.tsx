@@ -16,6 +16,7 @@ type Props = {
   currency: Currency
   contratado: number | null
   pagadoHastaAhora: number
+  pago?: SupplierPayment | null
   onGuardado: (pago: SupplierPayment) => void
   onCerrar: () => void
 }
@@ -23,15 +24,16 @@ type Props = {
 const INPUT = 'w-full rounded-lg border border-[#e0e0e0] bg-white px-3 py-2 text-sm outline-none transition focus:border-[#48C9B0]'
 
 export default function PagoModal({
-  eventSupplierId, proveedor, currency, contratado, pagadoHastaAhora, onGuardado, onCerrar,
+  eventSupplierId, proveedor, currency, contratado, pagadoHastaAhora, pago, onGuardado, onCerrar,
 }: Props) {
   const askConfirm = useConfirm()
+  const editando = Boolean(pago)
 
-  const [monto, setMonto]           = useState('')
-  const [fecha, setFecha]           = useState(new Date().toISOString().slice(0, 10))
-  const [metodo, setMetodo]         = useState<PaymentMethod>('transferencia')
-  const [responsable, setResponsable] = useState<PaidBy>('pareja')
-  const [referencia, setReferencia] = useState('')
+  const [monto, setMonto]           = useState(pago ? pago.amount.toString() : '')
+  const [fecha, setFecha]           = useState(pago?.payment_date ?? new Date().toISOString().slice(0, 10))
+  const [metodo, setMetodo]         = useState<PaymentMethod>(pago?.payment_method ?? 'transferencia')
+  const [responsable, setResponsable] = useState<PaidBy>(pago?.paid_by ?? 'pareja')
+  const [referencia, setReferencia] = useState(pago?.reference ?? '')
   const [guardando, setGuardando]   = useState(false)
   const [error, setError]           = useState('')
 
@@ -43,8 +45,9 @@ export default function PagoModal({
 
     // Mismo aviso que el formulario completo: pagar de mas casi siempre es un
     // monto acordado que cambio, no un error, asi que se avisa y se deja pasar.
-    if (contratado && contratado > 0 && pagadoHastaAhora + cantidad > contratado) {
-      const excedente = pagadoHastaAhora + cantidad - contratado
+    const yaContado = pago?.amount ?? 0
+    if (contratado && contratado > 0 && pagadoHastaAhora - yaContado + cantidad > contratado) {
+      const excedente = pagadoHastaAhora - yaContado + cantidad - contratado
       const ok = await askConfirm({
         title: 'Este pago rebasa lo contratado',
         message: `Vas a pagar ${formatCurrency(excedente, currency)} de más a ${proveedor}. Registra el pago si el monto acordado cambió.`,
@@ -57,20 +60,20 @@ export default function PagoModal({
     setGuardando(true)
     setError('')
     try {
-      const { data, error: err } = await supabase
-        .from('supplier_payments')
-        .insert({
-          event_supplier_id: eventSupplierId,
-          amount: cantidad,
-          payment_date: fecha,
-          payment_method: metodo,
-          paid_by: responsable,
-          reference: referencia.trim() || null,
-        })
-        .select()
-        .single()
+      const campos = {
+        amount: cantidad,
+        payment_date: fecha,
+        payment_method: metodo,
+        paid_by: responsable,
+        reference: referencia.trim() || null,
+      }
+
+      const { data, error: err } = pago
+        ? await supabase.from('supplier_payments').update(campos).eq('id', pago.id).select().single()
+        : await supabase.from('supplier_payments').insert({ event_supplier_id: eventSupplierId, ...campos }).select().single()
 
       if (err) throw err
+      if (!data) throw new Error('No se guardó el pago.')
       if (data) onGuardado(data as SupplierPayment)
       onCerrar()
     } catch (err: any) {
@@ -86,7 +89,7 @@ export default function PagoModal({
   return (
     <Modal open onClose={onCerrar} size="md">
       <Modal.Header
-        title="Registrar un pago"
+        title={editando ? 'Editar el pago' : 'Registrar un pago'}
         subtitle={falta !== null ? `${proveedor} · faltan ${formatCurrency(falta, currency)}` : proveedor}
       />
       <Modal.Body>
@@ -156,7 +159,7 @@ export default function PagoModal({
           disabled={guardando || !valido}
           className="rounded-lg bg-[#48C9B0] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#3aa896] disabled:opacity-50"
         >
-          {guardando ? 'Guardando…' : 'Registrar pago'}
+          {guardando ? 'Guardando…' : editando ? 'Guardar cambios' : 'Registrar pago'}
         </button>
       </Modal.Footer>
     </Modal>
