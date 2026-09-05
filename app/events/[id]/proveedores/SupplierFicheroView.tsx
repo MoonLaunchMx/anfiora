@@ -25,16 +25,19 @@ type Props = {
   onSelect: (item: SupplierWithDetails) => void
 }
 
-const PASO_GRADOS       = 45
-const RADIO_PX          = 340
-const FICHAS_VISIBLES   = 2
+const PASO_GRADOS       = 26
+const RADIO_PX          = 540
+const FICHAS_VISIBLES   = 3
 const PIXELES_POR_FICHA = 62
 const MS_ENTRE_GIROS    = 190
 const ARRASTRE_MINIMO   = 0.08
 
-// El arco tiene que abrirse lo suficiente para que una ficha no se encime sobre
-// la de enfrente: R*sin(PASO) >= alto*(1+cos(PASO))/2. Con 45 grados y R=340
-// quedan 49px de aire; bajarle al paso o subirle al alto las vuelve a cruzar.
+// Una ficha no se encima sobre la de enfrente mientras se cumpla
+// RADIO*sin(PASO) >= alto*(1+cos(PASO))/2 — con el alto de movil, que es el mayor:
+// 540*sin26 = 236 >= 118*(1+cos26) = 224. Para pegarlas mas hay que bajar el paso
+// y subir el radio a la vez, nunca solo el paso, o los planos se cruzan y la de
+// atras tapa la mitad de abajo de la del frente. La perspectiva acompana al radio
+// para que la ficha del frente no cambie de tamano.
 const ALFABETO = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('')
 
 export default function SupplierFicheroView({ items, budgets, currency, categorias, onSelect }: Props) {
@@ -141,7 +144,7 @@ export default function SupplierFicheroView({ items, budgets, currency, categori
         onPointerMove={alMover}
         onPointerUp={alSoltar}
         onPointerCancel={alSoltar}
-        className="relative flex h-[420px] touch-none select-none items-center justify-center rounded-2xl bg-[#f8f5f0] outline-none [perspective:1500px] focus-visible:ring-2 focus-visible:ring-[#48C9B0] sm:h-[460px]"
+        className="relative flex h-[420px] touch-none select-none items-center justify-center rounded-2xl bg-[#f8f5f0] outline-none [perspective:2400px] focus-visible:ring-2 focus-visible:ring-[#48C9B0] sm:h-[460px]"
         style={{ cursor: arrastrando ? 'grabbing' : 'grab' }}
       >
         <button
