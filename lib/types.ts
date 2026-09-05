@@ -625,6 +625,19 @@ export const RESPONSE_SPEED_COLORS: Record<ResponseSpeed, string> = {
   rapidos:   'bg-emerald-100 text-emerald-700',
 }
 
+// Los archivos privados del bucket event-docs. Se guarda la ruta y nunca la
+// URL: la URL se firma al momento del clic y caduca. 'borrado' saca el renglon
+// de la vista sin tocar el objeto, que no se borra jamas.
+export type ArchivoAdjunto = {
+  path: string
+  nombre: string
+  tipo: string
+  bytes: number
+  subido: string
+  por: string | null
+  borrado: string | null
+}
+
 export type EventSupplier = {
   id: string
   event_id: string
@@ -637,8 +650,7 @@ export type EventSupplier = {
   rating: number | null
   review_text: string | null
   event_notes: string | null
-  external_files_url: string | null
-  has_pro_files: boolean
+  quote_files: ArchivoAdjunto[]
   event_budget_id: string | null
   created_at: string
 }
@@ -709,6 +721,7 @@ export type SupplierPayment = {
   payment_method: PaymentMethod | null
   paid_by: PaidBy | null
   reference: string | null
+  receipt_files: ArchivoAdjunto[]
   created_at: string
 }
 
