@@ -66,7 +66,11 @@ export default function SupplierFicheroView({ items, budgets, currency, categori
   const [arrastre, setArrastre] = useState(0)
   const [arrastrando, setArrastrando] = useState(false)
 
+  const [vuelo, setVuelo] = useState<{ item: SupplierWithDetails; desde: DOMRect; hacia: DOMRect } | null>(null)
+  const [enDestino, setEnDestino] = useState(false)
+
   const escenarioRef = useRef<HTMLDivElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
   const ultimoGiroRef = useRef(0)
   const arrastreRef = useRef({ activo: false, y0: 0, base: 0, movio: false })
 
@@ -130,9 +134,25 @@ export default function SupplierFicheroView({ items, budgets, currency, categori
   }
 
   const abrirFicha = (item: SupplierWithDetails) => {
-    if (esEscritorio) setAbierta(item)
-    else onSelect(item)
+    if (!esEscritorio) { onSelect(item); return }
+
+    const tarjeta = escenarioRef.current?.querySelector('[data-frente="1"]')
+    const panel = panelRef.current
+    const sinAnimacion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+
+    if (!tarjeta || !panel || sinAnimacion) { setAbierta(item); return }
+
+    setEnDestino(false)
+    setVuelo({ item, desde: tarjeta.getBoundingClientRect(), hacia: panel.getBoundingClientRect() })
   }
+
+  // El vuelo es puro adorno: si algo falla, la ficha abre igual al terminar.
+  useEffect(() => {
+    if (!vuelo) return
+    const cuadro = requestAnimationFrame(() => setEnDestino(true))
+    const aterriza = setTimeout(() => { setAbierta(vuelo.item); setVuelo(null) }, 440)
+    return () => { cancelAnimationFrame(cuadro); clearTimeout(aterriza) }
+  }, [vuelo])
 
   // Sin esto, soltar el arrastre encima de una ficha abre su modal.
   const alClicarFicha = (indice: number) => {
@@ -164,8 +184,9 @@ export default function SupplierFicheroView({ items, budgets, currency, categori
   return (
     <div className="flex h-full min-h-0">
 
+      <div ref={panelRef} className="hidden min-h-0 flex-1 lg:flex">
       {abierta ? (
-        <div className="hidden min-h-0 flex-1 lg:flex">
+        <div className="flex min-h-0 flex-1">
           <FichaDelEvento
             item={abierta}
             budgets={budgets}
@@ -178,6 +199,7 @@ export default function SupplierFicheroView({ items, budgets, currency, categori
       ) : (
         <ResumenDeLaBoda items={fichas} currency={currency} />
       )}
+      </div>
 
       <div className="flex h-full min-h-0 w-full flex-col lg:w-[40%] lg:shrink-0 lg:border-l lg:border-[#e8e8e8]">
         <div
@@ -259,6 +281,24 @@ export default function SupplierFicheroView({ items, budgets, currency, categori
             })}
           </div>
         </div>
+
+        {vuelo && (
+          <div
+            aria-hidden
+            style={{
+              left:   enDestino ? vuelo.hacia.left + 24 : vuelo.desde.left,
+              top:    enDestino ? vuelo.hacia.top + 16  : vuelo.desde.top,
+              width:  enDestino ? vuelo.hacia.width - 48 : vuelo.desde.width,
+              height: enDestino ? 96 : vuelo.desde.height,
+              opacity: enDestino ? 0 : 1,
+              transition: 'left .44s cubic-bezier(.3,.85,.3,1), top .44s cubic-bezier(.3,.85,.3,1), width .44s cubic-bezier(.3,.85,.3,1), height .44s cubic-bezier(.3,.85,.3,1), opacity .18s ease .3s',
+            }}
+            className="pointer-events-none fixed z-50 overflow-hidden rounded-2xl border border-[#dcd7cd] bg-white p-4 shadow-[0_26px_54px_-20px_rgba(0,0,0,.42)]"
+          >
+            <p className="truncate text-[15px] font-semibold leading-tight text-[#1D1E20]">{vuelo.item.supplier.name}</p>
+            <p className="mt-0.5 truncate text-xs text-[#888]">{nombrePorId(categorias, vuelo.item.supplier.category_id)}</p>
+          </div>
+        )}
 
         <div className="flex shrink-0 items-center justify-between border-t border-[#f0f0f0] px-4 py-2 text-[11px] text-[#999]">
           <span className="hidden sm:inline">Rueda, arrastra o usa las flechas</span>
@@ -351,6 +391,7 @@ function Ficha({ item, budgets, currency, categorias, activa, arrastrando, despl
   return (
     <article
       aria-hidden={!activa}
+      data-frente={activa ? '1' : undefined}
       onClick={onClick}
       style={{
         transform: `translate(-50%, -50%) rotateX(${-desplazamiento * paso}deg) translateZ(${radio}px) scale(${escalaFicha(desplazamiento)})`,
