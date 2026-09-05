@@ -83,10 +83,10 @@ export default function SupplierFicheroView({ items, budgets, currency, categori
   const claveDelConjunto = useMemo(() => fichas.map(f => f.id).join(','), [fichas])
   useEffect(() => { setActivo(0) }, [claveDelConjunto])
 
-  // Si la ficha abierta se cae del filtro, el panel se queda mostrando algo que
-  // ya no esta en el fichero.
+  // El panel nunca se queda vacio: sigue a la ficha que abriste mientras exista,
+  // y si se cae del filtro cae a la primera de las que quedan.
   useEffect(() => {
-    setAbierta(previa => (previa ? fichas.find(f => f.id === previa.id) ?? null : null))
+    setAbierta(previa => (previa && fichas.find(f => f.id === previa.id)) || fichas[0] || null)
   }, [fichas])
 
   const girar = useCallback((delta: number) => {
@@ -205,23 +205,18 @@ export default function SupplierFicheroView({ items, budgets, currency, categori
     <div className="flex h-full min-h-0">
 
       <div ref={panelRef} className="hidden min-h-0 flex-1 lg:flex">
-      {abierta ? (
-        <div className="flex min-h-0 flex-1">
+        {abierta && (
           <FichaDelEvento
             item={abierta}
             budgets={budgets}
             currency={currency}
             categorias={categorias}
             bodaPaso={bodaPaso}
-            onCerrar={() => setAbierta(null)}
             onAbrirCompleta={() => onSelect(abierta)}
             onStatusChange={onStatusChange}
             onSaved={onSaved}
           />
-        </div>
-      ) : (
-        <ResumenDeLaBoda items={fichas} currency={currency} />
-      )}
+        )}
       </div>
 
       <div className="flex h-full min-h-0 w-full flex-col lg:w-[40%] lg:shrink-0">
@@ -326,50 +321,6 @@ export default function SupplierFicheroView({ items, budgets, currency, categori
           <span aria-live="polite" className="tabular-nums">{alFrente + 1} de {total}</span>
         </div>
       </div>
-    </div>
-  )
-}
-
-function ResumenDeLaBoda({ items, currency }: { items: SupplierWithDetails[]; currency: Currency }) {
-  const nuevos      = items.filter(i => i.status === 'nuevo').length
-  const cotizando   = items.filter(i => i.status === 'cotizado').length
-  const contratados = items.filter(i => i.status === 'contratado').length
-  const inversion   = items
-    .filter(i => i.status === 'contratado')
-    .reduce((suma, i) => suma + (i.contract_amount || 0), 0)
-
-  return (
-    <aside className="hidden min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-6 lg:flex">
-      <h2 className="text-[11px] font-semibold uppercase tracking-wider text-[#888]">Esta boda</h2>
-
-      <div className="grid grid-cols-2 gap-3">
-        <Numero label="Nuevos"      valor={nuevos.toString()} />
-        <Numero label="Cotizando"   valor={cotizando.toString()} />
-        <Numero label="Contratados" valor={contratados.toString()} destacado />
-        <Numero label="Inversión"   valor={formatCurrency(inversion, currency)} chico />
-      </div>
-
-      <div className="rounded-xl border border-dashed border-[#e0e0e0] bg-[#fafafa] px-4 py-3 text-xs text-[#999]">
-        Hojea el fichero de la derecha. Pícale a una ficha para abrir su detalle.
-      </div>
-    </aside>
-  )
-}
-
-function Numero({ label, valor, destacado, chico }: {
-  label: string
-  valor: string
-  destacado?: boolean
-  chico?: boolean
-}) {
-  return (
-    <div className="rounded-xl border border-[#e8e8e8] bg-white p-3">
-      <p className="text-[10px] font-semibold uppercase tracking-wider text-[#888]">{label}</p>
-      <p className={`mt-1.5 font-bold tabular-nums ${chico ? 'text-lg' : 'text-2xl'} ${
-        destacado ? 'text-[#1D9E75]' : 'text-[#1D1E20]'
-      }`}>
-        {valor}
-      </p>
     </div>
   )
 }

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
-import { ChevronDown, Globe, Mail, Pencil, Star, X } from 'lucide-react'
+import { ChevronDown, Globe, Mail, Pencil, Star } from 'lucide-react'
 import { FaWhatsapp } from 'react-icons/fa'
 import { FiInstagram } from 'react-icons/fi'
 import { supabase } from '@/lib/supabase'
@@ -27,7 +27,6 @@ type Props = {
   currency: Currency
   categorias: Categoria[]
   bodaPaso: boolean
-  onCerrar: () => void
   onAbrirCompleta: () => void
   onStatusChange: (itemId: string, nuevo: SupplierStatus) => void
   onSaved: (item: SupplierWithDetails) => void
@@ -50,7 +49,7 @@ function iniciales(nombre: string): string {
 }
 
 export default function FichaDelEvento({
-  item, budgets, currency, categorias, bodaPaso, onCerrar, onAbrirCompleta, onStatusChange, onSaved,
+  item, budgets, currency, categorias, bodaPaso, onAbrirCompleta, onStatusChange, onSaved,
 }: Props) {
   const permisoFicha = usePermiso('proveedores')
   const permisoPagos = usePermiso('pagos')
@@ -242,13 +241,6 @@ export default function FichaDelEvento({
             )}
           </div>
 
-          <button
-            onClick={onCerrar}
-            aria-label="Cerrar ficha"
-            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-[#e8e8e8] bg-white text-[#999] transition hover:text-[#1D1E20]"
-          >
-            <X size={13} />
-          </button>
         </div>
 
         <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
