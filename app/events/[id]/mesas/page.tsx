@@ -1228,6 +1228,7 @@ function MesasPageInner() {
   const { visible: statsVisible, toggle: toggleStats } = useStatsToggle(eventId as string, 'tables')
   const askConfirm = useConfirm()
   const permiso = usePermiso('mesas')
+  const permisoInvitados = usePermiso('invitados')
 
   const [tables,setTables]=useState<TableRecord[]>([])
   const [guests,setGuests]=useState<GuestFull[]>([])
@@ -1356,7 +1357,7 @@ function MesasPageInner() {
 
   // ─── FIX: handleEditSave con validacion de capacidad ─────────────────────
   const handleEditSave = async () => {
-    if (!permiso.editar) return
+    if (!permisoInvitados.editar) return
     if (!editGuest) return
     if (!eName) { setEError('El nombre es obligatorio'); return }
 
@@ -1553,7 +1554,7 @@ function MesasPageInner() {
         decoColors={canvasDecoColors} setDecoColors={setCanvasDecoColors}
       />
       {canvasDetail&&<TableDetailModal table={canvasDetail} getOccupied={getOccupied} onClose={()=>setCanvasDetailId(null)} onAssign={(id,cap)=>{setAssignModal({tableId:id,tableCapacity:cap});setAssignSearch('')}} onRemoveGuest={removeGuest} onEditTable={openEditTable} onDeleteTable={handleDeleteTable} puedeEditar={permiso.editar} puedeBorrar={permiso.borrar}/>}
-      <ModalMesa visible={showModal} editTable={editTable} mNum={mNum} setMNum={setMNum} mName={mName} setMName={setMName} mCap={mCap} setMCap={setMCap} mShape={mShape} setMShape={setMShape} mError={mError} mSaving={mSaving} onSave={handleSaveTable} onClose={()=>setShowModal(false)} inp={inp}/>
+      <ModalMesa visible={showModal && permiso.editar} editTable={editTable} mNum={mNum} setMNum={setMNum} mName={mName} setMName={setMName} mCap={mCap} setMCap={setMCap} mShape={mShape} setMShape={setMShape} mError={mError} mSaving={mSaving} onSave={handleSaveTable} onClose={()=>setShowModal(false)} inp={inp}/>
       <ModalAsignar tables={tables} guests={guests} assignModal={assignModal} assignSearch={assignSearch} setAssignSearch={setAssignSearch} assignRef={assignRef} gSeatMap={gSeatMap} getOccupied={getOccupied} handleSelectGuest={handleSelectGuest} onClose={()=>{setAssignModal(null);setAssignSearch('')}}/>
       <ModalMover moveModal={moveModal} tables={tables} moveSaving={moveSaving} onConfirm={handleMove} onClose={()=>setMoveModal(null)}/>
     </>
@@ -1679,7 +1680,7 @@ function MesasPageInner() {
                   <div key={table.id} className="rounded-xl border border-[#e8e8e8] bg-white">
                     <div className="flex items-center gap-3 px-4 py-3">
                       <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#f8f8f8] text-xs font-semibold text-[#888]">{SHAPE_LABELS[table.shape as TableShape]?.slice(0,3)||'?'}</div>
-                      <div className="min-w-0 flex-1 cursor-pointer" onClick={()=>openEditTable(table)}>
+                      <div className="min-w-0 flex-1 cursor-pointer" onClick={()=>permiso.editar?openEditTable(table):setExpanded(p=>{const nn=new Set(p);nn.has(table.id)?nn.delete(table.id):nn.add(table.id);return nn})}>
                         <div className="flex items-center gap-2"><span className="rounded bg-[#f0f0f0] px-1.5 py-0.5 text-xs font-bold text-[#555]">#{table.number}</span><span className="text-sm font-bold text-[#1D1E20]">{table.name||`Mesa ${table.number}`}</span>{over?<span className="rounded-full border border-[#ffc0c0] bg-[#fff0f0] px-1.5 py-0.5 text-[9px] font-semibold text-[#cc3333]">Sobrecupo</span>:full&&<span className="rounded-full border border-[#a0e0c0] bg-[#f0fff6] px-1.5 py-0.5 text-[9px] font-semibold text-[#2a7a50]">Llena</span>}</div>
                         <div className="mt-1 flex items-center gap-2"><span className="text-xs" style={{color:over?'#cc3333':'#888'}}>{occ}/{table.capacity}</span><div className="h-1.5 w-20 overflow-hidden rounded-full bg-[#e8e8e8]"><div className="h-full rounded-full" style={{width:`${Math.min((occ/table.capacity)*100,100)}%`,background:over?'#cc3333':full?'#48C9B0':'#a0e0c0'}}/></div><span className="text-[11px]" style={{color:over?'#cc3333':'#bbb'}}>{over?`+${occ-table.capacity} sobrecupo`:`${avail} libres`}</span></div>
                       </div>
@@ -1714,7 +1715,7 @@ function MesasPageInner() {
       {/* Modal editar invitado */}
       {editGuest&&(
         <Modal open onClose={()=>setEditGuest(null)} size="md">
-          <Modal.Header title="Editar invitado" />
+          <Modal.Header title={permisoInvitados.editar ? 'Editar invitado' : 'Detalle del invitado'} />
           <Modal.Body>
             {/* Aviso de mesa asignada */}
             {gSeatMap.get(editGuest.id)&&(()=>{
@@ -1731,6 +1732,7 @@ function MesasPageInner() {
                 </div>
               )
             })()}
+            <fieldset disabled={!permisoInvitados.editar} className="m-0 min-w-0 border-0 p-0">
             <div className="flex flex-col gap-4">
               <div><label className="mb-1.5 block text-xs font-medium text-[#555]">Nombre *</label><input type="text" value={eName} onChange={e=>setEName(e.target.value)} className={EDIT_GUEST_INPUT_CLASS}/></div>
               <div><label className="mb-1.5 block text-xs font-medium text-[#555]">WhatsApp</label><input type="tel" value={ePhone} onChange={e=>setEPhone(e.target.value)} placeholder="+52 81 1234 5678" className={EDIT_GUEST_INPUT_CLASS}/></div>
@@ -1739,11 +1741,12 @@ function MesasPageInner() {
               {eventTags.length>0&&<div><label className="mb-1.5 block text-xs font-medium text-[#555]">Tags</label><TagSelector availableTags={eventTags} selectedTags={eTags} onChange={setETags}/></div>}
               <div className="border-t border-[#f0f0f0] pt-4"><MembersEditor value={eMembers} onChange={setEMembers}/></div>
             </div>
+            </fieldset>
             {eError&&<div className="mt-3 rounded-lg border border-[#ffc0c0] bg-[#fff0f0] p-2.5 text-xs text-[#cc3333]">{eError}</div>}
           </Modal.Body>
           <Modal.Footer>
-            <button onClick={()=>setEditGuest(null)} className="flex-1 rounded-lg border border-[#e0e0e0] py-3 text-sm text-[#888]">Cancelar</button>
-            <button onClick={handleEditSave} disabled={eSaving} className="flex-[2] rounded-lg bg-[#48C9B0] py-3 text-sm font-semibold text-white disabled:opacity-60">{eSaving?'Guardando…':'Guardar cambios'}</button>
+            <button onClick={()=>setEditGuest(null)} className="flex-1 rounded-lg border border-[#e0e0e0] py-3 text-sm text-[#888]">{permisoInvitados.editar?'Cancelar':'Cerrar'}</button>
+            {permisoInvitados.editar&&(<button onClick={handleEditSave} disabled={eSaving} className="flex-[2] rounded-lg bg-[#48C9B0] py-3 text-sm font-semibold text-white disabled:opacity-60">{eSaving?'Guardando…':'Guardar cambios'}</button>)}
           </Modal.Footer>
         </Modal>
       )}
