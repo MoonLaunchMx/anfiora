@@ -1249,7 +1249,8 @@ function MesasPageInner() {
   const [bSaving,setBSaving]=useState(false)
   const [bError,setBError]=useState('')
 
-  const [canvasDetail,setCanvasDetail]=useState<TableRecord|null>(null)
+  const [canvasDetailId,setCanvasDetailId]=useState<string|null>(null)
+  const canvasDetail = canvasDetailId ? (tables.find(t=>t.id===canvasDetailId) ?? null) : null
   const [assignModal,setAssignModal]=useState<{tableId:string;tableCapacity:number}|null>(null)
   const [assignSearch,setAssignSearch]=useState('')
   const [moveModal,setMoveModal]=useState<MoveModal|null>(null)
@@ -1540,13 +1541,13 @@ function MesasPageInner() {
   // ── CANVAS ──
   if(canvasMode)return(
     <>
-      <CanvasFullscreen tables={tables} getOccupied={getOccupied} onBack={()=>setCanvasMode(false)} onTableClick={t=>setCanvasDetail(t)} onPositionSave={handlePosSave} onRotationSave={handleRotSave} onOpenCreate={openCreate} puedeEditar={permiso.editar}
+      <CanvasFullscreen tables={tables} getOccupied={getOccupied} onBack={()=>setCanvasMode(false)} onTableClick={t=>setCanvasDetailId(t.id)} onPositionSave={handlePosSave} onRotationSave={handleRotSave} onOpenCreate={openCreate} puedeEditar={permiso.editar}
         decos={canvasDecos} setDecos={setCanvasDecos}
         decoRotations={canvasDecoRots} setDecoRotations={setCanvasDecoRots}
         tableColors={canvasTableColors} setTableColors={setCanvasTableColors}
         decoColors={canvasDecoColors} setDecoColors={setCanvasDecoColors}
       />
-      {canvasDetail&&<TableDetailModal table={canvasDetail} getOccupied={getOccupied} onClose={()=>setCanvasDetail(null)} onAssign={(id,cap)=>{setAssignModal({tableId:id,tableCapacity:cap});setAssignSearch('')}} onRemoveGuest={removeGuest} onEditTable={openEditTable} onDeleteTable={handleDeleteTable} puedeEditar={permiso.editar} puedeBorrar={permiso.borrar}/>}
+      {canvasDetail&&<TableDetailModal table={canvasDetail} getOccupied={getOccupied} onClose={()=>setCanvasDetailId(null)} onAssign={(id,cap)=>{setAssignModal({tableId:id,tableCapacity:cap});setAssignSearch('')}} onRemoveGuest={removeGuest} onEditTable={openEditTable} onDeleteTable={handleDeleteTable} puedeEditar={permiso.editar} puedeBorrar={permiso.borrar}/>}
       <ModalMesa visible={showModal} editTable={editTable} mNum={mNum} setMNum={setMNum} mName={mName} setMName={setMName} mCap={mCap} setMCap={setMCap} mShape={mShape} setMShape={setMShape} mError={mError} mSaving={mSaving} onSave={handleSaveTable} onClose={()=>setShowModal(false)} inp={inp}/>
       <ModalAsignar tables={tables} guests={guests} assignModal={assignModal} assignSearch={assignSearch} setAssignSearch={setAssignSearch} assignRef={assignRef} gSeatMap={gSeatMap} getOccupied={getOccupied} handleSelectGuest={handleSelectGuest} onClose={()=>{setAssignModal(null);setAssignSearch('')}}/>
       <ModalMover moveModal={moveModal} tables={tables} moveSaving={moveSaving} onConfirm={handleMove} onClose={()=>setMoveModal(null)}/>
