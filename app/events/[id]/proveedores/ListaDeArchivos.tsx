@@ -1,11 +1,12 @@
 'use client'
 
 import { useRef, useState } from 'react'
-import { AlertCircle, FileText, Image as ImageIcon, Plus, SquareArrowOutUpRight, Trash2, Upload } from 'lucide-react'
+import { AlertCircle, Eye, FileText, Image as ImageIcon, Plus, Trash2, Upload } from 'lucide-react'
 import type { ArchivoAdjunto } from '@/lib/types'
 import { useConfirm } from '@/app/components/ui/ConfirmModal'
 import { type Carpeta, esImagen, pesoLegible, validarArchivo, visibles } from '@/lib/archivos/adjuntos'
 import { abrirArchivo, quitarArchivo, subirArchivo } from '@/lib/archivos/bucket'
+import VisorDeArchivo from './VisorDeArchivo'
 
 const ACEPTA = 'application/pdf,image/jpeg,image/png,image/heic,image/heif,.pdf,.jpg,.jpeg,.png,.heic,.heif'
 
@@ -27,6 +28,8 @@ export default function ListaDeArchivos({
   const entrada = useRef<HTMLInputElement>(null)
   const [subiendo, setSubiendo] = useState('')
   const [error, setError] = useState('')
+  const [viendo, setViendo] = useState<{ archivo: ArchivoAdjunto; url: string } | null>(null)
+  const [abriendo, setAbriendo] = useState('')
 
   const lista = visibles(archivos)
 
@@ -47,9 +50,11 @@ export default function ListaDeArchivos({
 
   const abrir = async (archivo: ArchivoAdjunto) => {
     setError('')
+    setAbriendo(archivo.path)
     const url = await abrirArchivo(archivo.path)
+    setAbriendo('')
     if (!url) { setError('No se pudo abrir el archivo. Intenta de nuevo.'); return }
-    window.open(url, '_blank', 'noopener,noreferrer')
+    setViendo({ archivo, url })
   }
 
   const quitar = async (archivo: ArchivoAdjunto) => {
@@ -109,10 +114,11 @@ export default function ListaDeArchivos({
               <span className="flex shrink-0 items-center gap-0.5">
                 <button
                   onClick={() => abrir(archivo)}
-                  aria-label={`Abrir ${archivo.nombre}`}
-                  className="flex h-9 w-9 items-center justify-center rounded-lg text-[#999] transition hover:bg-white hover:text-[#1D1E20]"
+                  disabled={abriendo === archivo.path}
+                  aria-label={`Ver ${archivo.nombre}`}
+                  className="flex h-9 w-9 items-center justify-center rounded-lg text-[#999] transition hover:bg-white hover:text-[#1D1E20] disabled:opacity-40"
                 >
-                  <SquareArrowOutUpRight size={14} />
+                  <Eye size={15} />
                 </button>
                 {puedeEditar && (
                   <button
@@ -172,6 +178,10 @@ export default function ListaDeArchivos({
           <AlertCircle size={13} className="mt-0.5 shrink-0" />
           <span>{error}</span>
         </p>
+      )}
+
+      {viendo && (
+        <VisorDeArchivo archivo={viendo.archivo} url={viendo.url} onCerrar={() => setViendo(null)} />
       )}
     </div>
   )
