@@ -1072,13 +1072,13 @@ function TagSelector({ availableTags, selectedTags, onChange }: { availableTags:
   )
 }
 
-function MembersEditor({ value, onChange }: { value:EditMember[]; onChange:(v:EditMember[])=>void }) {
+function MembersEditor({ value, onChange, puedeEditar = true }: { value:EditMember[]; onChange:(v:EditMember[])=>void; puedeEditar?:boolean }) {
   const MAX=15
   return(
     <div>
       <div className="mb-2 flex items-center justify-between">
         <label className="text-xs font-medium text-[#555]">Acompañantes <span className="font-normal text-[#ccc]">(máx. {MAX})</span></label>
-        {value.length<MAX&&<button type="button" onClick={()=>onChange([...value,{name:'',phone:'',rsvp_status:'pending'}])} className="text-xs font-semibold text-[#48C9B0] hover:underline">+ Agregar</button>}
+        {puedeEditar&&value.length<MAX&&<button type="button" onClick={()=>onChange([...value,{name:'',phone:'',rsvp_status:'pending'}])} className="text-xs font-semibold text-[#48C9B0] hover:underline">+ Agregar</button>}
       </div>
       {!value.length&&<p className="text-xs text-[#bbb]">Sin acompañantes.</p>}
       <div className="flex flex-col gap-2">
@@ -1091,7 +1091,7 @@ function MembersEditor({ value, onChange }: { value:EditMember[]; onChange:(v:Ed
               <select value={m.rsvp_status} onChange={e=>onChange(value.map((x,j)=>j===i?{...x,rsvp_status:e.target.value as EditMember['rsvp_status']}:x))} className="w-full cursor-pointer rounded-lg border border-[#e0e0e0] bg-[#f8f8f8] px-3 py-2 text-base text-[#1D1E20] outline-none">
                 <option value="pending">Pendiente</option><option value="confirmed">Confirmado</option><option value="declined">Declinó</option>
               </select>
-              <button type="button" onClick={()=>onChange(value.filter((_,j)=>j!==i))} className="w-full rounded-lg border border-[#ffe0e0] bg-[#fff5f5] py-1.5 text-xs font-semibold text-[#cc3333] hover:bg-[#ffe8e8]">Eliminar acompañante</button>
+              {puedeEditar&&<button type="button" onClick={()=>onChange(value.filter((_,j)=>j!==i))} className="w-full rounded-lg border border-[#ffe0e0] bg-[#fff5f5] py-1.5 text-xs font-semibold text-[#cc3333] hover:bg-[#ffe8e8]">Eliminar acompañante</button>}
             </div>
           </div>
         ))}
@@ -1739,7 +1739,7 @@ function MesasPageInner() {
               <div><label className="mb-1.5 block text-xs font-medium text-[#555]">Email</label><input type="email" value={eEmail} onChange={e=>setEEmail(e.target.value)} className={EDIT_GUEST_INPUT_CLASS}/></div>
               <div><label className="mb-1.5 block text-xs font-medium text-[#555]">Notas</label><textarea value={eNotes} onChange={e=>setENotes(e.target.value)} rows={2} className={`${EDIT_GUEST_INPUT_CLASS} resize-y`}/></div>
               {eventTags.length>0&&<div><label className="mb-1.5 block text-xs font-medium text-[#555]">Tags</label><TagSelector availableTags={eventTags} selectedTags={eTags} onChange={setETags}/></div>}
-              <div className="border-t border-[#f0f0f0] pt-4"><MembersEditor value={eMembers} onChange={setEMembers}/></div>
+              <div className="border-t border-[#f0f0f0] pt-4"><MembersEditor value={eMembers} onChange={setEMembers} puedeEditar={permisoInvitados.editar}/></div>
             </div>
             </fieldset>
             {eError&&<div className="mt-3 rounded-lg border border-[#ffc0c0] bg-[#fff0f0] p-2.5 text-xs text-[#cc3333]">{eError}</div>}
