@@ -25,13 +25,16 @@ type Props = {
   onSelect: (item: SupplierWithDetails) => void
 }
 
-const PASO_GRADOS       = 17
+const PASO_GRADOS       = 45
 const RADIO_PX          = 340
-const FICHAS_VISIBLES   = 3
+const FICHAS_VISIBLES   = 2
 const PIXELES_POR_FICHA = 62
 const MS_ENTRE_GIROS    = 190
 const ARRASTRE_MINIMO   = 0.08
 
+// El arco tiene que abrirse lo suficiente para que una ficha no se encime sobre
+// la de enfrente: R*sin(PASO) >= alto*(1+cos(PASO))/2. Con 45 grados y R=340
+// quedan 49px de aire; bajarle al paso o subirle al alto las vuelve a cruzar.
 const ALFABETO = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('')
 
 export default function SupplierFicheroView({ items, budgets, currency, categorias, onSelect }: Props) {
