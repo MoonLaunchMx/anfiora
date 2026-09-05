@@ -12,6 +12,8 @@ import {
 import StatsCollapse, { StatsToggleButton, useStatsToggle } from '@/app/components/ui/StatsCollapse'
 import { TabToggle, type TabItem } from '@/app/components/ui/TabToggle'
 import AddSongModal from './AddSongModal'
+import { usePermiso } from '@/lib/event-access-context'
+import { Puede } from '@/lib/permisos/Puede'
 import { exportDjToExcel, exportDjToPDF, exportDjToM3U, type DjExportData } from './lib/exports'
 import {
   DndContext,
@@ -95,7 +97,7 @@ function DragDots() {
 
 // Card de canción — toda la card es draggable, excepto botones y sección de nota
 function SongRow({
-  song, onEditNote, isEditingNote, onCloseNote, onSaveNote, onRemove,
+  song, onEditNote, isEditingNote, onCloseNote, onSaveNote, onRemove, puedeEditar = true,
 }: {
   song: Song
   onEditNote: () => void
@@ -103,6 +105,7 @@ function SongRow({
   onCloseNote: () => void
   onSaveNote: (note: string) => Promise<void>
   onRemove?: () => void
+  puedeEditar?: boolean
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: song.id })
   const [localNote, setLocalNote] = useState(song.notes || '')
@@ -127,8 +130,8 @@ function SongRow({
   return (
     <div
       ref={setNodeRef}
-      {...attributes}
-      {...listeners}
+      {...(puedeEditar ? attributes : {})}
+      {...(puedeEditar ? listeners : {})}
       style={style}
       className="cursor-grab overflow-hidden rounded-xl border border-[#d8d8d8] bg-white shadow-sm transition hover:border-[#48C9B0] active:cursor-grabbing"
     >
@@ -192,7 +195,7 @@ function SongRow({
 
         {/* Acciones derecha — stopPropagation para que no activen drag */}
         <div className="flex shrink-0 items-center gap-0.5">
-          <button
+          {puedeEditar && <button
             onPointerDown={stopDragPropagation}
             onClick={onEditNote}
             className={`flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg transition
@@ -202,7 +205,7 @@ function SongRow({
             title={song.notes ? 'Editar nota' : 'Agregar nota'}
           >
             {song.notes ? <MessageSquareText size={17} /> : <Plus size={18} />}
-          </button>
+          </button>}
           {song.spotify_url && (
             <button
               onPointerDown={stopDragPropagation}
@@ -258,13 +261,15 @@ function SongRow({
                 Cancelar
               </button>
             </div>
-          ) : (
+          ) : puedeEditar ? (
             <button
               onClick={onEditNote}
               className="block w-full cursor-pointer text-left text-xs italic text-[#666] transition hover:text-[#1a9e88]"
             >
               &ldquo;{song.notes}&rdquo;
             </button>
+          ) : (
+            <p className="text-xs italic text-[#666]">&ldquo;{song.notes}&rdquo;</p>
           )}
         </div>
       )}
@@ -309,6 +314,7 @@ const LIMIT_OPTIONS = [1, 3, 5, 10, 0]  // 0 = sin limite
 
 function PlaylistPlannerPageInner() {
   const { id } = useParams()
+  const permiso = usePermiso('playlist')
 
   // Toggle de estadísticas en mobile (persiste por evento en localStorage)
   const { visible: statsVisible, toggle: toggleStats } = useStatsToggle(id as string, 'playlist')
@@ -366,12 +372,14 @@ function PlaylistPlannerPageInner() {
   }
 
   const savePlaylistSettings = async (token: string | null, cats: string[]) => {
+    if (!permiso.editar) return
     await supabase.from('event_settings')
       .update({ playlist_token: token, playlist_categories: cats })
       .eq('event_id', id)
   }
 
   const saveMaxSongs = async (n: number) => {
+    if (!permiso.editar) return
     setMaxSongs(n)
     await supabase.from('event_settings')
       .update({ playlist_max_songs: n })
@@ -379,6 +387,7 @@ function PlaylistPlannerPageInner() {
   }
 
   const handleGenerateToken = async () => {
+    if (!permiso.editar) return
     const token = generateToken()
     setPlaylistToken(token)
     await savePlaylistSettings(token, categories)
@@ -400,6 +409,7 @@ function PlaylistPlannerPageInner() {
   }
 
   const addCategory = async () => {
+    if (!permiso.editar) return
     const trimmed = newCat.trim()
     if (!trimmed || categories.includes(trimmed)) return
     const updated = [...categories, trimmed]
@@ -410,6 +420,7 @@ function PlaylistPlannerPageInner() {
   }
 
   const removeCategory = async (cat: string) => {
+    if (!permiso.borrar) return
     const updated = categories.filter(c => c !== cat)
     setCategories(updated)
     await savePlaylistSettings(playlistToken, updated)
@@ -425,6 +436,7 @@ function PlaylistPlannerPageInner() {
   const handleDragStart = (event: DragStartEvent) => setActiveDragId(event.active.id as string)
 
   const handleDragEnd = async (event: DragEndEvent) => {
+    if (!permiso.editar) return
     setActiveDragId(null)
     const { active, over } = event
     if (!over || active.id === over.id) return
@@ -441,12 +453,14 @@ function PlaylistPlannerPageInner() {
   }
 
   const saveNote = async (songId: string, note: string) => {
+    if (!permiso.editar) return
     await supabase.from('song_recommendations').update({ notes: note || null }).eq('id', songId)
     setAllSongs(prev => prev.map(s => s.id === songId ? { ...s, notes: note || null } : s))
     setEditingNoteId(null)
   }
 
   const removeHostSong = async (songId: string) => {
+    if (!permiso.borrar) return
     await supabase.from('song_recommendations').delete().eq('id', songId)
     setAllSongs(prev => prev.filter(s => s.id !== songId))
   }
@@ -586,10 +600,10 @@ function PlaylistPlannerPageInner() {
       {categories.map(cat => (
         <span key={cat} className="flex items-center gap-1 rounded-full bg-[#E1F5EE] px-2.5 py-1 text-xs font-medium text-[#0F6E56]">
           {cat}
-          <button onClick={() => removeCategory(cat)} className="ml-0.5 text-[#48C9B0] hover:text-[#0F6E56]">×</button>
+          {permiso.borrar && <button onClick={() => removeCategory(cat)} className="ml-0.5 text-[#48C9B0] hover:text-[#0F6E56]">×</button>}
         </span>
       ))}
-      {addingCat ? (
+      {permiso.editar && (addingCat ? (
         <div className="flex items-center gap-1">
           <input
             autoFocus
@@ -609,7 +623,7 @@ function PlaylistPlannerPageInner() {
         >
           + Etapa
         </button>
-      )}
+      ))}
     </div>
   )
 
@@ -618,7 +632,7 @@ function PlaylistPlannerPageInner() {
       sensors={sensors}
       collisionDetection={closestCenter}
       onDragStart={handleDragStart}
-      onDragEnd={handleDragEnd}
+      onDragEnd={permiso.editar ? handleDragEnd : undefined}
     >
       <SortableContext items={filtered.map(s => s.id)} strategy={verticalListSortingStrategy}>
         <div className="flex flex-col gap-2">
@@ -630,7 +644,8 @@ function PlaylistPlannerPageInner() {
               isEditingNote={editingNoteId === song.id}
               onCloseNote={() => setEditingNoteId(null)}
               onSaveNote={(note) => saveNote(song.id, note)}
-              onRemove={song.is_host_pick ? () => removeHostSong(song.id) : undefined}
+              puedeEditar={permiso.editar}
+              onRemove={song.is_host_pick && permiso.borrar ? () => removeHostSong(song.id) : undefined}
             />
           ))}
         </div>
@@ -724,12 +739,12 @@ function PlaylistPlannerPageInner() {
               </div>
             </>
           ) : (
-            <button
+            <Puede modulo="playlist" accion="editar"><button
               onClick={handleGenerateToken}
               className="flex items-center gap-1.5 rounded-lg bg-[#1D1E20] px-3 py-2 text-xs font-semibold text-white transition hover:bg-black"
             >
               <Link2 size={14} /> Generar link
-            </button>
+            </button></Puede>
           )}
         </div>
 
@@ -827,13 +842,13 @@ function PlaylistPlannerPageInner() {
             </div>
             <div className="flex shrink-0 items-center gap-2">
               <ExportButton />
-              <button
+              {permiso.editar && <button
                 onClick={() => setShowAddModal(true)}
                 className="flex shrink-0 items-center gap-1.5 rounded-lg bg-[#48C9B0] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#3aa896]"
               >
                 <Plus size={15} />
                 <span className="hidden sm:inline">Agregar canción</span>
-              </button>
+              </button>}
             </div>
           </div>
         )}
