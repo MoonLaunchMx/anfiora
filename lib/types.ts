@@ -591,6 +591,8 @@ export const SUPPLIER_STATUS_COLORS: Record<SupplierStatus, string> = {
   descartado: 'bg-red-100 text-red-600',
 }
 
+// Heredado: reemplazado por supplier_reviews (lib/reviews). Se conserva porque
+// lo usa la migracion de datos viejos en docs/superpowers/plans/sql/2026-09-06-migrar-resenas-viejas.sql.
 export const SUPPLIER_MOODS = ['no', 'normal', 'love'] as const
 export type SupplierMood = typeof SUPPLIER_MOODS[number]
 
@@ -612,6 +614,8 @@ export const SUPPLIER_MOOD_COLORS: Record<SupplierMood, string> = {
   love:   'text-[#48C9B0]',
 }
 
+// Heredado: reemplazado por supplier_reviews (lib/reviews). Se conserva porque
+// lo usa la migracion de datos viejos en docs/superpowers/plans/sql/2026-09-06-migrar-resenas-viejas.sql.
 export const RESPONSE_SPEEDS = ['lentisimo', 'normal', 'bueno', 'rapidos'] as const
 export type ResponseSpeed = typeof RESPONSE_SPEEDS[number]
 
