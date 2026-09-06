@@ -63,11 +63,19 @@ function armar(filas: FilaAudit[], restaurados: Map<string, number>): Movimiento
   }
 }
 
+const esRestauracion = (accion: string) =>
+  (ACCIONES_RESTAURACION as readonly string[]).includes(accion)
+
 export function agrupar(filas: FilaAudit[], restaurados: Map<string, number>): Movimiento[] {
   if (filas.length === 0) return []
 
   const porLote = new Map<string, FilaAudit[]>()
   const sueltas: FilaAudit[] = []
+
+  // Las restauraciones NO se dibujan: ya las conto mapaDeRestauraciones(), y
+  // su efecto se ve en el borrado, que pasa a decir "Restaurado". Pintarlas
+  // aparte contaria la misma historia dos veces. En la base siguen estando.
+  filas = filas.filter(f => !esRestauracion(f.action))
 
   // Los borrados vienen del disparador y siempre traen batch_id: una
   // transaccion es un lote. Las ediciones vienen de logAction() y no traen

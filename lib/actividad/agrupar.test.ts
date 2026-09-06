@@ -171,3 +171,24 @@ describe('agrupar — forma de salida', () => {
     expect(agrupar([], new Map())).toEqual([])
   })
 })
+
+// La restauracion NO es un movimiento: es la contraparte del borrado que ya
+// esta en la lista. Si se dibujara aparte, restaurar duplicaria el renglon
+// —una vez el borrado marcado "Restaurado" y otra la restauracion misma—.
+// Las filas se siguen guardando en la base; aqui solo no se pintan.
+describe('agrupar — las restauraciones no son renglones', () => {
+  it('no dibuja un movimiento por la restauracion', () => {
+    const movs = agrupar([
+      fila({ action: 'guest.deleted',  batch_id: 'b1', entity_id: 'g1', created_at: '2026-09-05T18:00:00.000Z' }),
+      fila({ action: 'guest.restored',                 entity_id: 'g1', created_at: '2026-09-05T19:00:00.000Z' }),
+    ], new Map([['g1', new Date('2026-09-05T19:00:00.000Z').getTime()]]))
+
+    expect(movs).toHaveLength(1)
+    expect(movs[0].accion).toBe('guest.deleted')
+    expect(movs[0].restaurado).toBe(true)
+  })
+
+  it('con puras restauraciones no hay nada que mostrar', () => {
+    expect(agrupar([fila({ action: 'table.restored' })], new Map())).toEqual([])
+  })
+})

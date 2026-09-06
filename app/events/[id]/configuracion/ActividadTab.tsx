@@ -251,6 +251,9 @@ export default function ActividadTab({ eventId }: { eventId: string }) {
             entity_label: fila?.entity_label ?? null,
             old_value:    null,
             new_value:    null,
+            // El modulo del borrado que se esta deshaciendo. Sin el la fila
+            // queda huerfana y se archiva como si fuera de "Equipo".
+            modulo:       mov.modulo,
           }
         }),
       )
