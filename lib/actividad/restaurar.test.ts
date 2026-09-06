@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import { planDeRestauracion, TABLA_POR_ENTIDAD, esConflictoDeLlave, tandasPorTabla, type Insercion } from './restaurar'
+import { planDeRestauracion, TABLA_POR_ENTIDAD, esConflictoDeLlave, tandasPorTabla, arrastrados, insercionDeFila, type Insercion } from './restaurar'
 import { ACCIONES_BORRADO, entidadDeAccion } from './vocabulario'
-import type { FilaAudit, Movimiento } from './tipos'
+import type { FilaAudit, Movimiento, Restauracion } from './tipos'
 
 function fila(over: Partial<FilaAudit>): FilaAudit {
   return {
@@ -121,5 +121,55 @@ describe('tandasPorTabla', () => {
   it('conserva todas las inserciones', () => {
     const plan = [ins('guests', 'g1'), ins('party_members', 'p1'), ins('tables', 't1')]
     expect(tandasPorTabla(plan).flat()).toEqual(plan)
+  })
+})
+
+// Diego, 6-sep: "que pasa si quitas a 20 personas con acompanantes y el planner
+// no ve a sus acompanantes?" — restauraba a los 20 invitados, los veia de vuelta
+// y daba por terminado, pero cada uno habia perdido a los suyos. La app borra a
+// los acompanantes en su propia transaccion, asi que caen en otro lote.
+describe('arrastrados', () => {
+  const RESTAURADOS = new Map<string, Restauracion>()
+
+  const borradoInvitado = (id: string) =>
+    fila({ id: 'a' + id, action: 'guest.deleted', entity_type: 'guest', entity_id: id, old_value: { id } })
+
+  const borradoAcompanante = (id: string, deQuien: string) =>
+    fila({
+      id: 'b' + id, action: 'party_member.deleted', entity_type: 'party_member',
+      entity_id: id, entity_label: 'Acompanante ' + id,
+      old_value: { id, guest_id: deQuien },
+    })
+
+  const planDe = (ids: string[]) => planDeRestauracion(mov(ids.map(borradoInvitado)))
+
+  it('encuentra a los acompanantes de los invitados que se estan restaurando', () => {
+    const filas = [borradoAcompanante('p1', 'g1'), borradoAcompanante('p2', 'g1')]
+    const out = arrastrados(planDe(['g1']), filas, RESTAURADOS)
+    expect(out.map(f => f.entity_id)).toEqual(['p1', 'p2'])
+  })
+
+  it('ignora a los acompanantes de OTROS invitados', () => {
+    const filas = [borradoAcompanante('p1', 'g1'), borradoAcompanante('p9', 'gOtro')]
+    expect(arrastrados(planDe(['g1']), filas, RESTAURADOS).map(f => f.entity_id)).toEqual(['p1'])
+  })
+
+  it('no arrastra al que ya volvio', () => {
+    const filas = [borradoAcompanante('p1', 'g1')]
+    const yaVolvio = new Map<string, Restauracion>([
+      ['p1', { cuando: Date.parse('2026-09-05T19:00:00.000Z'), fecha: '2026-09-05T19:00:00.000Z', persona: 'Diego' }],
+    ])
+    expect(arrastrados(planDe(['g1']), filas, yaVolvio)).toEqual([])
+  })
+
+  it('sin acompanantes no arrastra nada', () => {
+    expect(arrastrados(planDe(['g1']), [], RESTAURADOS)).toEqual([])
+  })
+
+  it('insercionDeFila convierte el arrastre en algo insertable', () => {
+    const i = insercionDeFila(borradoAcompanante('p1', 'g1'))
+    expect(i?.tabla).toBe('party_members')
+    expect(i?.accionRestauracion).toBe('party_member.restored')
+    expect(i?.entityId).toBe('p1')
   })
 })

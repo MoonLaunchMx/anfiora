@@ -4,7 +4,9 @@ import { useEffect, useMemo, useState } from 'react'
 import { ChevronDown, Check, Users } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { agrupar, mapaDeRestauraciones } from '@/lib/actividad/agrupar'
-import { planDeRestauracion, tandasPorTabla, type Insercion } from '@/lib/actividad/restaurar'
+import {
+  planDeRestauracion, tandasPorTabla, arrastrados, insercionDeFila, type Insercion,
+} from '@/lib/actividad/restaurar'
 import type { FilaAudit, Movimiento, Restauracion } from '@/lib/actividad/tipos'
 import { MODULOS_CONFIG, type Modulo } from '@/lib/permisos/catalogo'
 import { useConfirm } from '@/app/components/ui/ConfirmModal'
@@ -174,9 +176,20 @@ export default function ActividadTab({ eventId }: { eventId: string }) {
 
   const registros = visibles.reduce((n, m) => n + m.total, 0)
 
+  // Lo que se fue colgando de este movimiento y quedo en otro lote: hoy solo
+  // los acompanantes. Se calcula aparte para poder ANUNCIARLO antes de aceptar.
+  const arrastrePendiente = (mov: Movimiento, soloEstos?: Set<string>) =>
+    arrastrados(planDeRestauracion(mov, soloEstos), filas, restaurados)
+
   const restaurar = async (mov: Movimiento, soloEstos?: Set<string>) => {
-    const plan = planDeRestauracion(mov, soloEstos)
-    if (plan.length === 0) return
+    const base = planDeRestauracion(mov, soloEstos)
+    if (base.length === 0) return
+
+    // Los hijos van DESPUES de sus padres: no entran si el padre no existe.
+    const extra = arrastrePendiente(mov, soloEstos)
+      .map(insercionDeFila)
+      .filter((i): i is Insercion => i !== null)
+    const plan = [...base, ...extra]
 
     const que = soloEstos
       ? 'este registro'
@@ -187,7 +200,10 @@ export default function ActividadTab({ eventId }: { eventId: string }) {
     // no repite el conteo: eso ya lo dice el titulo.
     const ok = await askConfirm({
       title: `¿Restaurar ${que}?`,
-      message: `Vuelven a ${mov.modulo ? LABEL_MODULO[mov.modulo] : 'la boda'} tal como estaban antes de que ${mov.persona} los eliminara, ${cuandoRelativo(mov.cuando)}.`,
+      message: `Vuelven a ${mov.modulo ? LABEL_MODULO[mov.modulo] : 'la boda'} tal como estaban antes de que ${mov.persona} los eliminara, ${cuandoRelativo(mov.cuando)}.`
+        + (extra.length
+            ? ` Regresan también ${extra.length} ${extra.length === 1 ? 'acompañante que venía' : 'acompañantes que venían'} con ellos.`
+            : ''),
       confirmLabel: 'Restaurar',
       cancelLabel: 'Cancelar',
       tone: 'default',
@@ -442,6 +458,7 @@ export default function ActividadTab({ eventId }: { eventId: string }) {
                   {estaAbierta && (
                     <Detalle
                       mov={mov}
+                      arrastre={arrastrePendiente(mov)}
                       restaurados={restaurados}
                       trabajando={trabajando === mov.clave}
                       onRescatar={id => restaurar(mov, new Set([id]))}
@@ -459,9 +476,10 @@ export default function ActividadTab({ eventId }: { eventId: string }) {
 }
 
 function Detalle({
-  mov, restaurados, trabajando, onRescatar, onRestaurar,
+  mov, arrastre, restaurados, trabajando, onRescatar, onRestaurar,
 }: {
   mov: Movimiento
+  arrastre: FilaAudit[]
   restaurados: Map<string, Restauracion>
   trabajando: boolean
   onRescatar: (entityId: string) => void
@@ -493,6 +511,15 @@ function Detalle({
                 : 'Restaurar'}
             </button>
           )}
+        </div>
+      )}
+
+      {arrastre.length > 0 && (
+        <div className="mt-3 max-w-[560px] rounded-r-lg border border-l-2 border-[#e8e8e8] border-l-[#d4a853] bg-[#fffbf0] px-3 py-2.5 text-[12.5px] text-[#666]">
+          Se llevó también {arrastre.length}{' '}
+          {arrastre.length === 1 ? 'acompañante' : 'acompañantes'}, que la app borró
+          en otro momento y por eso salen aparte. <b className="font-semibold text-[#1D1E20]">Al restaurar
+          desde aquí regresan con ellos.</b>
         </div>
       )}
 
