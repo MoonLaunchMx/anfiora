@@ -98,8 +98,8 @@ describe('agrupar — ediciones por persona, accion, modulo y cercania', () => {
 
 describe('agrupar — restaurado', () => {
   const BORRADO = '2026-09-05T18:00:00.000Z'
-  const DESPUES = new Date('2026-09-05T19:00:00.000Z').getTime()
-  const ANTES   = new Date('2026-09-05T17:00:00.000Z').getTime()
+  const DESPUES = { cuando: new Date('2026-09-05T19:00:00.000Z').getTime(), fecha: '2026-09-05T19:00:00.000Z', persona: 'Diego Garza' }
+  const ANTES   = { cuando: new Date('2026-09-05T17:00:00.000Z').getTime(), fecha: '2026-09-05T17:00:00.000Z', persona: 'Diego Garza' }
 
   const dosBorrados = () => [
     fila({ action: 'guest.deleted', batch_id: 'b1', entity_id: 'g1', created_at: BORRADO }),
@@ -123,6 +123,21 @@ describe('agrupar — restaurado', () => {
     expect(agrupar(dosBorrados(), mapa)[0].restaurado).toBe(false)
   })
 
+  it('dice QUIEN lo trajo de vuelta y CUANDO', () => {
+    const mapa = new Map([
+      ['g1', { cuando: new Date('2026-09-05T19:00:00.000Z').getTime(), fecha: '2026-09-05T19:00:00.000Z', persona: 'Frida Gamboa' }],
+      ['g2', { cuando: new Date('2026-09-05T19:30:00.000Z').getTime(), fecha: '2026-09-05T19:30:00.000Z', persona: 'Frida Gamboa' }],
+    ])
+    const [mov] = agrupar(dosBorrados(), mapa)
+    expect(mov.restauracion?.persona).toBe('Frida Gamboa')
+    // La mas reciente: es la que cierra la historia del lote.
+    expect(mov.restauracion?.cuando).toBe('2026-09-05T19:30:00.000Z')
+  })
+
+  it('lo que sigue borrado no trae dato de restauracion', () => {
+    expect(agrupar(dosBorrados(), new Map())[0].restauracion).toBeNull()
+  })
+
   it('sin ninguna restauracion no marca nada', () => {
     expect(agrupar(dosBorrados(), new Map())[0].restaurado).toBe(false)
   })
@@ -134,7 +149,8 @@ describe('mapaDeRestauraciones', () => {
       fila({ action: 'guest.restored', entity_id: 'g1', created_at: '2026-09-05T10:00:00.000Z' }),
       fila({ action: 'guest.restored', entity_id: 'g1', created_at: '2026-09-05T20:00:00.000Z' }),
     ])
-    expect(m.get('g1')).toBe(new Date('2026-09-05T20:00:00.000Z').getTime())
+    expect(m.get('g1')?.cuando).toBe(new Date('2026-09-05T20:00:00.000Z').getTime())
+    expect(m.get('g1')?.persona).toBe('Patty García')
   })
 
   it('ignora lo que no es una restauracion', () => {
@@ -181,7 +197,7 @@ describe('agrupar — las restauraciones no son renglones', () => {
     const movs = agrupar([
       fila({ action: 'guest.deleted',  batch_id: 'b1', entity_id: 'g1', created_at: '2026-09-05T18:00:00.000Z' }),
       fila({ action: 'guest.restored',                 entity_id: 'g1', created_at: '2026-09-05T19:00:00.000Z' }),
-    ], new Map([['g1', new Date('2026-09-05T19:00:00.000Z').getTime()]]))
+    ], new Map([['g1', { cuando: new Date('2026-09-05T19:00:00.000Z').getTime(), fecha: '2026-09-05T19:00:00.000Z', persona: 'Diego Garza' }]]))
 
     expect(movs).toHaveLength(1)
     expect(movs[0].accion).toBe('guest.deleted')

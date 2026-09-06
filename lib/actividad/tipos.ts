@@ -33,4 +33,14 @@ export interface Movimiento {
   filas: FilaAudit[]       // ordenadas created_at DESC = padre primero al restaurar
   total: number            // filas.length, para no recalcularlo en la pantalla
   restaurado: boolean      // todas sus filas ya se restauraron
+  // Quien lo trajo de vuelta y cuando. null si sigue borrado. Los grandes
+  // muestran esto en el renglon; el dato ya lo escribiamos, faltaba pintarlo.
+  restauracion: { persona: string; cuando: string } | null
+}
+
+// Lo que se sabe de la ultima vez que una entidad volvio.
+export interface Restauracion {
+  cuando: number   // ms, para comparar contra la fecha del borrado
+  fecha: string    // el created_at crudo, para pintarlo
+  persona: string
 }

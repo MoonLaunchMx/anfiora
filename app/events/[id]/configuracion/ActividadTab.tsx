@@ -5,7 +5,7 @@ import { ChevronDown, Check, Users } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { agrupar, mapaDeRestauraciones } from '@/lib/actividad/agrupar'
 import { planDeRestauracion, tandasPorTabla, type Insercion } from '@/lib/actividad/restaurar'
-import type { FilaAudit, Movimiento } from '@/lib/actividad/tipos'
+import type { FilaAudit, Movimiento, Restauracion } from '@/lib/actividad/tipos'
 import { MODULOS_CONFIG, type Modulo } from '@/lib/permisos/catalogo'
 import { useConfirm } from '@/app/components/ui/ConfirmModal'
 import { Cargando } from '@/app/components/ui/Cargando'
@@ -124,7 +124,7 @@ export default function ActividadTab({ eventId }: { eventId: string }) {
   // entity_id -> cuando volvio por ultima vez. NO es un conjunto de ids: una
   // entidad se borra, se restaura y se vuelve a borrar, y sin la fecha el
   // borrado nuevo heredaba el "Restaurado" del anterior.
-  const [restaurados, setRest]    = useState<Map<string, number>>(new Map())
+  const [restaurados, setRest]    = useState<Map<string, Restauracion>>(new Map())
   const [loading, setLoading]     = useState(true)
   const [vista, setVista]         = useState<'todo' | 'borrados'>('todo')
   const [fModulo, setFModulo]     = useState('')
@@ -164,7 +164,11 @@ export default function ActividadTab({ eventId }: { eventId: string }) {
   )
 
   const visibles = movimientos.filter(m =>
-    (vista === 'todo' || m.esBorrado) &&
+    // "Borrados" es la papelera: solo lo que SIGUE borrado. Al restaurar algo
+    // desaparece de aqui, que es como se comportan Notion, Drive y Dropbox: la
+    // papelera es una lista de pendientes, no un archivo. El historial completo
+    // vive en "Todo", donde el borrado se queda marcado como restaurado.
+    (vista === 'todo' || (m.esBorrado && !m.restaurado)) &&
     (!fModulo || m.modulo === fModulo) &&
     (!fPersona || m.persona === fPersona))
 
@@ -383,6 +387,9 @@ export default function ActividadTab({ eventId }: { eventId: string }) {
                       <span className="mt-px block text-xs text-[#999]">
                         {mov.etiquetaAccion} por{' '}
                         <span className="font-medium" style={{ color: t.tinta }}>{mov.persona}</span>
+                        {mov.restauracion && (
+                          <> · Restaurado por {mov.restauracion.persona}, {cuandoRelativo(mov.restauracion.cuando)}</>
+                        )}
                         {/* En pantalla chica no hay columna de herramienta ni
                             de fecha: las dos bajan aqui. */}
                         <span className="text-[#bbb] sm:hidden">
@@ -455,7 +462,7 @@ function Detalle({
   mov, restaurados, trabajando, onRescatar, onRestaurar,
 }: {
   mov: Movimiento
-  restaurados: Map<string, number>
+  restaurados: Map<string, Restauracion>
   trabajando: boolean
   onRescatar: (entityId: string) => void
   onRestaurar: () => void
@@ -515,7 +522,7 @@ function Detalle({
               // Igual que en el renglon: solo cuenta si volvio DESPUES de
               // este borrado, no en alguno anterior.
               const volvio = f.entity_id ? restaurados.get(f.entity_id) : undefined
-              const listo = volvio !== undefined && volvio > new Date(f.created_at).getTime()
+              const listo = volvio !== undefined && volvio.cuando > new Date(f.created_at).getTime()
               return (
                 <li key={f.id} className="flex items-center justify-between gap-3 border-b border-[#f0f0f0] py-1.5 text-[12.5px] text-[#666] last:border-b-0">
                   <span className="min-w-0 truncate">{f.entity_label || 'Sin nombre guardado'}</span>

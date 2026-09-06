@@ -2,7 +2,7 @@ import {
   ACCIONES_RESTAURACION, AUDIT_ACTION_LABEL, esBorrado, type AuditAction,
 } from './vocabulario'
 import { MODULOS, type Modulo } from '@/lib/permisos/catalogo'
-import type { FilaAudit, Movimiento } from './tipos'
+import type { FilaAudit, Movimiento, Restauracion } from './tipos'
 
 // Cuanto silencio parte una tanda de ediciones en dos. Diez minutos separa
 // "estuvo capturando confirmaciones" de "volvio despues de comer".
@@ -21,25 +21,41 @@ function moduloValido(m: string | null): Modulo | null {
 // Tiene que ser "cuando" y no solo "si": una entidad se puede borrar,
 // restaurar y volver a borrar. Con un simple conjunto de ids, el borrado nuevo
 // heredaba el "Restaurado" del anterior y se quedaba sin boton para deshacerlo.
-export function mapaDeRestauraciones(filas: FilaAudit[]): Map<string, number> {
-  const mapa = new Map<string, number>()
+export function mapaDeRestauraciones(filas: FilaAudit[]): Map<string, Restauracion> {
+  const mapa = new Map<string, Restauracion>()
   for (const f of filas) {
     if (!f.entity_id) continue
     if (!(ACCIONES_RESTAURACION as readonly string[]).includes(f.action)) continue
     const cuando = ts(f)
     const previa = mapa.get(f.entity_id)
-    if (previa === undefined || cuando > previa) mapa.set(f.entity_id, cuando)
+    if (previa === undefined || cuando > previa.cuando) {
+      mapa.set(f.entity_id, {
+        cuando,
+        fecha: f.created_at,
+        persona: f.user_name ?? f.user_email,
+      })
+    }
   }
   return mapa
 }
 
-function armar(filas: FilaAudit[], restaurados: Map<string, number>): Movimiento {
+function armar(filas: FilaAudit[], restaurados: Map<string, Restauracion>): Movimiento {
   // Descendente: el disparador AFTER DELETE de una cascada corre hijos
   // primero, asi que leer al reves deja al padre arriba, que es el orden en
   // que hay que volver a insertarlos.
   const orden = [...filas].sort((a, b) => ts(b) - ts(a))
   const cabeza = orden[0]
   const borrado = esBorrado(cabeza.action)
+
+  // Solo cuenta la restauracion POSTERIOR a cada borrado. Si volvio antes, es
+  // que se volvio a borrar y hay que poder deshacerlo otra vez.
+  const vueltas = orden.map(f =>
+    f.entity_id ? restaurados.get(f.entity_id) : undefined)
+  const restaurado = borrado && vueltas.every((v, i) => v !== undefined && v.cuando > ts(orden[i]))
+  const ultima = restaurado
+    ? vueltas.reduce<Restauracion | undefined>(
+        (max, v) => (v && (!max || v.cuando > max.cuando) ? v : max), undefined)
+    : undefined
 
   return {
     clave: cabeza.batch_id ?? cabeza.id,
@@ -53,20 +69,19 @@ function armar(filas: FilaAudit[], restaurados: Map<string, number>): Movimiento
     batchId: cabeza.batch_id,
     filas: orden,
     total: orden.length,
-    // Solo cuenta la restauracion POSTERIOR a este borrado. Si volvio antes,
-    // es que se volvio a borrar y hay que poder deshacerlo otra vez.
-    restaurado: borrado && orden.every(f => {
-      if (!f.entity_id) return false
-      const volvio = restaurados.get(f.entity_id)
-      return volvio !== undefined && volvio > ts(f)
-    }),
+    restaurado,
+    // La mas reciente de las que lo trajeron de vuelta: si el lote se restauro
+    // en dos tandas, la que cierra la historia es la ultima.
+    restauracion: restaurado && ultima
+      ? { persona: ultima.persona, cuando: ultima.fecha }
+      : null,
   }
 }
 
 const esRestauracion = (accion: string) =>
   (ACCIONES_RESTAURACION as readonly string[]).includes(accion)
 
-export function agrupar(filas: FilaAudit[], restaurados: Map<string, number>): Movimiento[] {
+export function agrupar(filas: FilaAudit[], restaurados: Map<string, Restauracion>): Movimiento[] {
   if (filas.length === 0) return []
 
   const porLote = new Map<string, FilaAudit[]>()
