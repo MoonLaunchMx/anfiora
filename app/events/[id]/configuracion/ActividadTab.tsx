@@ -102,6 +102,15 @@ const NOMBRE_CAMPO: Record<string, string> = {
   price: 'Precio', store: 'Tienda',
 }
 
+// "2 pagos" / "1 acompañante". El nombre sale del catalogo de dependientes, NO
+// escrito a mano: cuando se agrego Proveedor -> Pagos, un proveedor con dos
+// pagos decia "2 acompañantes" porque el texto estaba clavado.
+function nombreArrastre(cuantos: number, filas: FilaAudit[]): string {
+  const dep = filas.length > 0 ? dependienteDe(filas[0].entity_type) : null
+  if (!dep) return `${cuantos} ${cuantos === 1 ? 'registro' : 'registros'}`
+  return `${cuantos} ${cuantos === 1 ? dep.uno : dep.varios}`
+}
+
 function nombreCampo(k: string): string {
   return NOMBRE_CAMPO[k] ?? k.replace(/_/g, ' ').replace(/^./, c => c.toUpperCase())
 }
@@ -188,7 +197,8 @@ export default function ActividadTab({ eventId }: { eventId: string }) {
     if (base.length === 0) return
 
     // Los hijos van DESPUES de sus padres: no entran si el padre no existe.
-    const extra = arrastrePendiente(mov, soloEstos)
+    const arrastreCrudo = arrastrePendiente(mov, soloEstos)
+    const extra = arrastreCrudo
       .map(insercionDeFila)
       .filter((i): i is Insercion => i !== null)
     const plan = [...base, ...extra]
@@ -204,7 +214,7 @@ export default function ActividadTab({ eventId }: { eventId: string }) {
       title: `¿Restaurar ${que}?`,
       message: `Vuelven a ${mov.modulo ? LABEL_MODULO[mov.modulo] : 'la boda'} tal como estaban antes de que ${mov.persona} los eliminara, ${cuandoRelativo(mov.cuando)}.`
         + (extra.length
-            ? ` Regresan también ${extra.length} ${extra.length === 1 ? 'acompañante que venía' : 'acompañantes que venían'} con ellos.`
+            ? ` Regresan también ${nombreArrastre(extra.length, arrastreCrudo)} que venían con ellos.`
             : ''),
       confirmLabel: 'Restaurar',
       cancelLabel: 'Cancelar',
@@ -572,10 +582,9 @@ function Detalle({
 
       {arrastre.length > 0 && (
         <div className="mt-3 max-w-[560px] rounded-r-lg border border-l-2 border-[#e8e8e8] border-l-[#d4a853] bg-[#fffbf0] px-3 py-2.5 text-[12.5px] text-[#666]">
-          Se llevó también {arrastre.length}{' '}
-          {arrastre.length === 1 ? 'acompañante' : 'acompañantes'}, que la app borró
-          en otro momento y por eso salen aparte. <b className="font-semibold text-[#1D1E20]">Al restaurar
-          desde aquí regresan con ellos.</b>
+          Se llevó también {nombreArrastre(arrastre.length, arrastre)}, que se
+          borraron en otro momento y por eso salen aparte.{' '}
+          <b className="font-semibold text-[#1D1E20]">Al restaurar desde aquí regresan con ellos.</b>
         </div>
       )}
 
