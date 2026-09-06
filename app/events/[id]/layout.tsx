@@ -9,8 +9,9 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { Event, formatEventDate } from '@/lib/types'
 import { EventAccessProvider, useEventAccess } from '@/lib/event-access-context'
 import { SalidaGuardProvider, useSalidaGuard } from './SalidaGuardProvider'
-import { filtrarPorPermiso, moduloDeRutaNav } from '@/lib/permisos/rutas'
+import { filtrarPorPermiso, moduloDeRutaNav, primeraRutaVisible } from '@/lib/permisos/rutas'
 import { SinAcceso } from '@/app/components/ui/SinAcceso'
+import { Cargando } from '@/app/components/ui/Cargando'
 
 const EVENT_TYPE_LABELS: Record<string, string> = {
   boda:        'Boda',
@@ -326,6 +327,21 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
     nivelDeModulo,
   )
 
+  // La raiz del evento ES Invitados, y todo lo que abre una boda apunta ahi:
+  // el tablero, aceptar la invitacion y el boton de <SinAcceso>. A quien no le
+  // toca Invitados le abrimos la primera herramienta que si le toca.
+  const enRaiz = pathname.replace(/\/+$/, '') === `/events/${id}`
+  const destinoRaiz =
+    enRaiz && !isLoading && nivelDeModulo('invitados') === 'ninguno'
+      ? primeraRutaVisible(visibleEntries)
+      : null
+
+  // replace y no push: con push el boton de atras rebota entre las dos.
+  useEffect(() => {
+    if (!destinoRaiz) return
+    router.replace(`/events/${id}${destinoRaiz}`)
+  }, [destinoRaiz, id, router])
+
   useEffect(() => {
     const stored = localStorage.getItem('gf_sidebar_collapsed')
     if (stored === 'true') setCollapsed(true)
@@ -421,16 +437,11 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
     container.scrollTo({ left: Math.max(0, btnWidth * activeIndex - btnWidth), behavior: 'smooth' })
   }, [pathname, id, mobileItems.length])
 
-  if (!authChecked) {
-    return (
-      <div className="flex h-[100dvh] items-center justify-center bg-white">
-        <div className="flex flex-col items-center gap-3">
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#e8e8e8] border-t-[#48C9B0]" />
-          <p className="text-sm text-[#999]">Cargando...</p>
-        </div>
-      </div>
-    )
-  }
+  // La cascara se dibuja desde el primer frame y la espera vive SIEMPRE dentro
+  // del area de contenido. Si aqui se cortara con un <Cargando> aparte, serian
+  // dos instancias: al cambiar de una a otra la animacion reinicia y el logo
+  // salta de lugar, y se ve como dos animaciones seguidas.
+  const esperando = !authChecked || isLoading || Boolean(destinoRaiz)
 
   const initials      = getInitials(userName, userEmail)
   const displayStatus = event ? getDisplayStatus() : null
@@ -756,7 +767,19 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
 
         {/* MAIN */}
         <main className="flex min-h-0 flex-1 flex-col overflow-hidden bg-white pb-16 sm:pb-0">
-          {rutaBloqueada && moduloActual ? <SinAcceso modulo={moduloActual} /> : children}
+          {/* Mientras no sepamos los permisos NO se monta la herramienta: pintar
+              primero y tapar despues es como se alcanzaba a ver Invitados. */}
+          {esperando ? (
+            <Cargando
+              conLogo
+              mensaje="Preparando tu espacio de trabajo"
+              detalle="Revisando a qué herramientas tienes acceso"
+            />
+          ) : rutaBloqueada && moduloActual ? (
+            <SinAcceso modulo={moduloActual} volverA={primeraRutaVisible(visibleEntries)} />
+          ) : (
+            children
+          )}
         </main>
       </div>
 

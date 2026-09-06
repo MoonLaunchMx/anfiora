@@ -40,3 +40,13 @@ export function filtrarPorPermiso<T extends EntradaNav>(
   }
   return out
 }
+
+// La raiz del evento ES Invitados, asi que quien no lo tiene entraba a una
+// pantalla cerrada. Devuelve por donde SI puede entrar, respetando el orden
+// del nav. Recibe las entradas ya filtradas: null significa que no le toca
+// ninguna herramienta en esta boda.
+export function primeraRutaVisible<T extends EntradaNav>(entries: T[]): string | null {
+  const primera = entries[0]
+  if (!primera) return null
+  return primera.type === 'item' ? primera.path : primera.defaultPath
+}

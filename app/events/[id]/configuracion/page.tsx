@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { useParams } from 'next/navigation'
+import { useParams, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { EventStatus } from '@/lib/types'
 import { getTemplatePack } from '@/lib/message-templates'
@@ -18,7 +18,9 @@ import { PermisosEditor } from './PermisosEditor'
 import { aplicarKit, normalizarPermisos, permisosDeRol, resumir } from '@/lib/permisos/resolver'
 import type { PermisosEvento } from '@/lib/permisos/catalogo'
 import { Modal } from '@/app/components/ui/Modal'
-import { Copy, Check, UserPlus, X, Pencil, Eye, Settings, Settings2, MessageCircle, Users, Smartphone, Gem, Crown, Cake, GraduationCap, Sun, PartyPopper, Wine, CalendarDays, Presentation, Monitor, UsersRound, Rocket, Building2, Tent, Mic, Flame, HeartHandshake, type LucideIcon } from 'lucide-react'
+import { Copy, Check, UserPlus, X, Pencil, Eye, Lock, Activity, Settings, Settings2, MessageCircle, Users, Smartphone, Gem, Crown, Cake, GraduationCap, Sun, PartyPopper, Wine, CalendarDays, Presentation, Monitor, UsersRound, Rocket, Building2, Tent, Mic, Flame, HeartHandshake, type LucideIcon } from 'lucide-react'
+import { Cargando } from '@/app/components/ui/Cargando'
+import ActividadTab from './ActividadTab'
 
 // ─── Constantes ──────────────────────────────────────────────────────────────
 
@@ -106,6 +108,7 @@ const TABS: TabItem[] = [
   { key: 'evento',   label: 'Evento',   icon: Settings2 },
   { key: 'whatsapp', label: 'WhatsApp', icon: MessageCircle },
   { key: 'equipo',   label: 'Equipo',   icon: Users },
+  { key: 'actividad', label: 'Actividad', icon: Activity },
 ]
 
 // ─── Tipos ───────────────────────────────────────────────────────────────────
@@ -242,14 +245,18 @@ function TemplateInput({
 
 export default function ConfiguracionPage() {
   const { id } = useParams()
-  const { features, updateFeatures, canAdmin } = useEventAccess()
+  const { features, updateFeatures, canAdmin, isLoading } = useEventAccess()
   const [featureSaving, setFeatureSaving] = useState<FeatureKey | null>(null)
 
   const [loading, setLoading]   = useState(true)
   const [saving, setSaving]     = useState(false)
   const [saved, setSaved]       = useState(false)
   const [error, setError]       = useState('')
-  const [activeTab, setActiveTab] = useState('evento')
+  const searchParams = useSearchParams()
+  const [activeTab, setActiveTab] = useState(() => {
+    const pedida = searchParams.get('tab')
+    return TABS.some(t => t.key === pedida) ? pedida! : 'evento'
+  })
   const [showTypeSelector, setShowTypeSelector] = useState(false)
   const [typeCategory, setTypeCategory] = useState('social')
   const autoSaveTimeoutRef      = useRef<NodeJS.Timeout | null>(null)
@@ -601,7 +608,24 @@ export default function ConfiguracionPage() {
   // Labels dinámicos según tipo
   const hostLabel = isBoda ? 'Novia' : eventType === 'xv' ? 'Festejada' : eventType === 'graduacion' ? 'Graduado/a' : eventType === 'bautizo' ? 'Bautizado/a' : 'Festejado/a'
 
-  if (loading) return <div className="p-8 text-sm text-[#666]">Cargando...</div>
+  if (loading) return <Cargando />
+
+  // Configuracion no es un modulo, asi que la guarda del layout no la cubre:
+  // el nav la escondia pero escribir la URL entraba igual, incluida la pestana
+  // de Equipo. Exigir !isLoading o todos verian el mensaje mientras carga.
+  if (!isLoading && !canAdmin) {
+    return (
+      <div className="flex flex-1 items-center justify-center overflow-y-auto p-6">
+        <div className="max-w-sm text-center">
+          <Lock size={28} className="mx-auto mb-3 text-[#ddd]" />
+          <h2 className="mb-1 text-base font-semibold text-[#1D1E20]">Configuración</h2>
+          <p className="text-sm text-[#888]">
+            Solo el dueño de la boda y sus administradores entran aquí.
+          </p>
+        </div>
+      </div>
+    )
+  }
 
   const badgeStyle      = STATUS_STYLES[eventStatus]
   const dropdownOptions = STATUS_OPTIONS.filter(o => o.status !== eventStatus)
@@ -651,7 +675,7 @@ export default function ConfiguracionPage() {
 
           {/* Derecha: guardar */}
           <div className="flex justify-end">
-            {activeTab !== 'equipo' && (
+            {!['equipo', 'actividad'].includes(activeTab) && (
               <button
                 onClick={() => handleSave(false)}
                 disabled={saving}
@@ -689,7 +713,7 @@ export default function ConfiguracionPage() {
               )}
             </div>
           </div>
-          {activeTab !== 'equipo' && (
+          {!['equipo', 'actividad'].includes(activeTab) && (
             <button
               onClick={() => handleSave(false)}
               disabled={saving}
@@ -1080,6 +1104,8 @@ export default function ConfiguracionPage() {
           )}
 
           {/* ── TAB: EQUIPO ── */}
+          {activeTab === 'actividad' && <ActividadTab eventId={id as string} />}
+
           {activeTab === 'equipo' && (
             <div>
               <div className="flex flex-col gap-5 lg:grid lg:grid-cols-[minmax(0,320px)_minmax(0,1fr)] lg:items-start lg:gap-8">
