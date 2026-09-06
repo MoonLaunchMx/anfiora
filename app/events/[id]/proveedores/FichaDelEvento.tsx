@@ -48,6 +48,16 @@ type Props = {
   onCerrar?: () => void
 }
 
+// Se dice que fallo la lectura, no que no hay nada: ofrecer "califica" sobre una
+// lectura rota lleva al planner a chocar contra una review que si existe.
+function ErrorDeReviews() {
+  return (
+    <p className="rounded-lg border border-[var(--error-border)] bg-[var(--error-bg)] px-3 py-2 text-xs text-[var(--error-text)]">
+      No se pudieron cargar las reseñas de este proveedor. Recarga la página antes de calificarlo.
+    </p>
+  )
+}
+
 function iniciales(nombre: string): string {
   const partes = nombre.trim().split(/\s+/).filter(Boolean)
   if (partes.length === 0) return '·'
@@ -77,6 +87,10 @@ export default function FichaDelEvento({
   const [montos, setMontos] = useState(() => montosDe(item))
   const [reviews, setReviews] = useState<SupplierReview[]>([])
   const [cargandoReviews, setCargandoReviews] = useState(true)
+  // Una lectura que falla -- tabla ausente, RLS -- no es lo mismo que "nadie lo
+  // ha calificado". Sin esta bandera la ficha ofrece escribir una review que
+  // quiza ya existe, y el upsert choca contra el indice unico.
+  const [errorReviews, setErrorReviews] = useState(false)
   const [mostrarModalDesempeno, setMostrarModalDesempeno] = useState(false)
   const [userId, setUserId] = useState<string | null>(null)
   const [eventName, setEventName] = useState('')
@@ -129,7 +143,15 @@ export default function FichaDelEvento({
 
   const cargarReviews = (supplierId: string) =>
     supabase.from('supplier_reviews').select('*').eq('supplier_id', supplierId)
-      .then(({ data }) => setReviews((data as SupplierReview[]) ?? []))
+      .then(({ data, error }) => {
+        if (error) {
+          console.error('Error cargando las reviews:', error?.message ?? error, error)
+          setErrorReviews(true)
+          return
+        }
+        setErrorReviews(false)
+        setReviews((data as SupplierReview[]) ?? [])
+      })
 
   useEffect(() => {
     let vigente = true
@@ -137,9 +159,15 @@ export default function FichaDelEvento({
     supabase
       .from('supplier_reviews').select('*')
       .eq('supplier_id', item.supplier_id)
-      .then(({ data }) => {
+      .then(({ data, error }) => {
         if (!vigente) return
-        setReviews((data as SupplierReview[]) ?? [])
+        if (error) {
+          console.error('Error cargando las reviews:', error?.message ?? error, error)
+          setErrorReviews(true)
+        } else {
+          setErrorReviews(false)
+          setReviews((data as SupplierReview[]) ?? [])
+        }
         setCargandoReviews(false)
       })
     return () => { vigente = false }
@@ -803,6 +831,8 @@ export default function FichaDelEvento({
 
             {cargandoReviews ? (
               <div className="h-28 animate-pulse rounded-lg bg-[#f5f5f5]" />
+            ) : errorReviews ? (
+              <ErrorDeReviews />
             ) : reviewPostEvento ? (
               <ResumenPostEvento
                 review={reviewPostEvento}
@@ -827,6 +857,8 @@ export default function FichaDelEvento({
             <Bloque titulo="Por qué lo descartaste">
               {cargandoReviews ? (
                 <div className="h-5 w-40 animate-pulse rounded bg-[#f5f5f5]" />
+              ) : errorReviews ? (
+                <ErrorDeReviews />
               ) : reviewDescarte?.motivo_descarte ? (
                 <p className="text-sm text-[#1D1E20]">{MOTIVO_DESCARTE_LABEL[reviewDescarte.motivo_descarte]}</p>
               ) : (
