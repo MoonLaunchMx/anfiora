@@ -265,12 +265,16 @@ export default function ProveedoresPage() {
     const isNowFinal      = newStatus === 'contratado' || newStatus === 'descartado'
     if (!wasAlreadyFinal && isNowFinal && prev) {
       const reviewType = newStatus === 'contratado' ? 'contratacion' : 'descarte'
-      const { count } = await supabase
+      const { count, error: reviewError } = await supabase
         .from('supplier_reviews')
         .select('id', { count: 'exact', head: true })
         .eq('event_supplier_id', itemId)
         .eq('review_type', reviewType)
-      if (!count) setReviewItem({ ...prev, status: newStatus })
+      if (reviewError) {
+        console.error('Error verificando si ya existe review:', reviewError.message ?? reviewError, reviewError)
+      } else if (!count) {
+        setReviewItem({ ...prev, status: newStatus })
+      }
     }
   }
 

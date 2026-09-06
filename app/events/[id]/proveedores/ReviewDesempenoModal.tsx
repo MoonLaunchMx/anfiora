@@ -9,7 +9,7 @@ import type { Eje } from '@/lib/reviews/ejes'
 import { validarReview } from '@/lib/reviews/validacion'
 import type { BorradorReview } from '@/lib/reviews/validacion'
 import { useGuardarReview } from '@/lib/reviews/useGuardarReview'
-import { MAX_COMENTARIOS } from '@/lib/types'
+import { MAX_COMENTARIOS, SupplierReview } from '@/lib/types'
 
 interface Props {
   eventSupplierId: string
@@ -18,26 +18,44 @@ interface Props {
   userId: string
   supplierName: string
   eventName: string
+  // Cuando ya existe una review de este tipo, la precarga para corregirla en
+  // vez de partir en blanco: el upsert de useGuardarReview ya actualiza en
+  // vez de duplicar, aqui solo falta no perder lo que se habia contestado.
+  reviewExistente?: SupplierReview | null
   onSaved: () => void
   onSkip: () => void
 }
 
 const aNumero = (v: number | 'na' | null) => (v === 'na' ? null : v)
 
+// null en la base es ambiguo: puede ser "nunca se calificó" o "se marcó No
+// aplicó" (el guardado convierte ambos a null). Solo manejo_imprevistos
+// admite No aplicó, asi que es la unica lectura razonable para ese eje; los
+// demas son obligatorios y en una review guardada no deberian llegar null.
+function valoresIniciales(review?: SupplierReview | null): Record<Eje, number | 'na' | null> {
+  const vacio: Record<Eje, number | 'na' | null> = {
+    precio_valor: null, calidad: null, comunicacion: null,
+    servicio_trato: null, manejo_imprevistos: null,
+  }
+  if (!review) return vacio
+  for (const eje of EJES_DESEMPENO) {
+    const valor = review[eje]
+    vacio[eje] = valor !== null ? valor : (eje === 'manejo_imprevistos' ? 'na' : null)
+  }
+  return vacio
+}
+
 export default function ReviewDesempenoModal({
   eventSupplierId, supplierId, eventId, userId, supplierName, eventName,
-  onSaved, onSkip,
+  reviewExistente, onSaved, onSkip,
 }: Props) {
   const { permiso, saving, guardar } = useGuardarReview({ eventSupplierId, supplierId, eventId, userId })
 
-  const [valores, setValores] = useState<Record<Eje, number | 'na' | null>>({
-    precio_valor: null, calidad: null, comunicacion: null,
-    servicio_trato: null, manejo_imprevistos: null,
-  })
-  const [recontratacion, setRecontratacion] = useState<number | null>(null)
-  const [cobrosExtra, setCobrosExtra]       = useState<boolean | null>(null)
-  const [montoExtra, setMontoExtra]         = useState('')
-  const [comentarios, setComentarios]       = useState('')
+  const [valores, setValores] = useState<Record<Eje, number | 'na' | null>>(() => valoresIniciales(reviewExistente))
+  const [recontratacion, setRecontratacion] = useState<number | null>(reviewExistente?.recontratacion ?? null)
+  const [cobrosExtra, setCobrosExtra]       = useState<boolean | null>(reviewExistente?.cobros_extra ?? null)
+  const [montoExtra, setMontoExtra]         = useState(reviewExistente?.monto_cobros_extra != null ? String(reviewExistente.monto_cobros_extra) : '')
+  const [comentarios, setComentarios]       = useState(reviewExistente?.comentarios ?? '')
   const [problemas, setProblemas]           = useState<string[]>([])
 
   const handleSave = async () => {

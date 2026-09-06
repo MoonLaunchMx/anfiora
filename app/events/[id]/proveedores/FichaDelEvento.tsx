@@ -797,7 +797,11 @@ export default function FichaDelEvento({
             {cargandoReviews ? (
               <div className="h-28 animate-pulse rounded-lg bg-[#f5f5f5]" />
             ) : reviewPostEvento ? (
-              <ResumenPostEvento review={reviewPostEvento} currency={currency} />
+              <ResumenPostEvento
+                review={reviewPostEvento}
+                currency={currency}
+                onEditar={permisoFicha.editar ? () => setMostrarModalDesempeno(true) : undefined}
+              />
             ) : permisoFicha.editar ? (
               <button
                 onClick={() => setMostrarModalDesempeno(true)}
@@ -840,6 +844,7 @@ export default function FichaDelEvento({
           userId={userId}
           supplierName={s.name}
           eventName={eventName}
+          reviewExistente={reviewPostEvento}
           onSaved={() => { setMostrarModalDesempeno(false); cargarReviews(item.supplier_id) }}
           onSkip={() => setMostrarModalDesempeno(false)}
         />
@@ -1033,10 +1038,21 @@ function Texto({ valor, vacio }: { valor: string | null; vacio: string }) {
   return <p className="whitespace-pre-wrap text-sm text-[#555]">{valor}</p>
 }
 
-function ResumenPostEvento({ review, currency }: { review: SupplierReview; currency: Currency }) {
+function ResumenPostEvento({ review, currency, onEditar }: {
+  review: SupplierReview
+  currency: Currency
+  onEditar?: () => void
+}) {
   return (
     <>
-      <Bloque titulo="Cómo calificaste el desempeño">
+      <Bloque
+        titulo="Cómo calificaste el desempeño"
+        accion={onEditar ? (
+          <button onClick={onEditar} className="flex items-center gap-1 text-[11px] font-semibold text-[#48C9B0] transition hover:text-[#3aa896]">
+            <Pencil size={11} /> Editar
+          </button>
+        ) : null}
+      >
         <div className="space-y-4">
           {EJES_DESEMPENO.map(eje => (
             <EscalaCinco

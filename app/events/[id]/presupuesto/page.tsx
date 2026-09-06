@@ -92,12 +92,14 @@ export default function PresupuestoPage() {
     const esFinal  = nuevo === 'contratado' || nuevo === 'descartado'
     if (!eraFinal && esFinal && previo) {
       const reviewType = nuevo === 'contratado' ? 'contratacion' : 'descarte'
-      const { count } = await supabase
+      const { count, error: reviewError } = await supabase
         .from('supplier_reviews')
         .select('id', { count: 'exact', head: true })
         .eq('event_supplier_id', itemId)
         .eq('review_type', reviewType)
-      if (!count) {
+      if (reviewError) {
+        console.error('Error verificando si ya existe review:', reviewError.message ?? reviewError, reviewError)
+      } else if (!count) {
         setSelectedSupplier(null)
         setReviewSupplier({ ...previo, status: nuevo })
       }
