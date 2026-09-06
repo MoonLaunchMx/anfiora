@@ -256,8 +256,16 @@ export default function ProveedoresPage() {
     if (!permiso.editar) return
     const prev = items.find(i => i.id === itemId)
     setItems(p => p.map(it => it.id === itemId ? { ...it, status: newStatus } : it))
-    const { error } = await supabase.from('event_suppliers').update({ status: newStatus }).eq('id', itemId)
-    if (error) { console.error('Error actualizando status:', error?.message ?? error, error); loadAll() }
+    // Sin .select() un UPDATE filtrado por RLS no da error: devuelve cero filas.
+    // La pantalla se quedaria con el estado nuevo y, peor, se guardaria una review
+    // de una transicion que nunca ocurrio. Mismo cuidado que en FichaDelEvento.
+    const { data: guardado, error } = await supabase
+      .from('event_suppliers').update({ status: newStatus }).eq('id', itemId).select().maybeSingle()
+    if (error || !guardado) {
+      console.error('Error actualizando status:', error?.message ?? error, error)
+      loadAll()
+      return
+    }
 
     // Review al llegar a un estado final (arrastrar en kanban o mover desde la
     // ficha): una sola vez por proveedor y por tipo de review.
