@@ -3,8 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ChevronDown, Check, Users } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
-import { ACCIONES_RESTAURACION } from '@/lib/actividad/vocabulario'
-import { agrupar } from '@/lib/actividad/agrupar'
+import { agrupar, mapaDeRestauraciones } from '@/lib/actividad/agrupar'
 import { planDeRestauracion, tandasPorTabla, type Insercion } from '@/lib/actividad/restaurar'
 import type { FilaAudit, Movimiento } from '@/lib/actividad/tipos'
 import { MODULOS_CONFIG, type Modulo } from '@/lib/permisos/catalogo'
@@ -122,7 +121,10 @@ export default function ActividadTab({ eventId }: { eventId: string }) {
   const askConfirm = useConfirm()
 
   const [filas, setFilas]         = useState<FilaAudit[]>([])
-  const [restaurados, setRest]    = useState<Set<string>>(new Set())
+  // entity_id -> cuando volvio por ultima vez. NO es un conjunto de ids: una
+  // entidad se borra, se restaura y se vuelve a borrar, y sin la fecha el
+  // borrado nuevo heredaba el "Restaurado" del anterior.
+  const [restaurados, setRest]    = useState<Map<string, number>>(new Map())
   const [loading, setLoading]     = useState(true)
   const [vista, setVista]         = useState<'todo' | 'borrados'>('todo')
   const [fModulo, setFModulo]     = useState('')
@@ -140,14 +142,8 @@ export default function ActividadTab({ eventId }: { eventId: string }) {
       .limit(500)
 
     const lista = (data ?? []) as FilaAudit[]
-    const yaVolvieron = new Set(
-      lista
-        .filter(f => (ACCIONES_RESTAURACION as readonly string[]).includes(f.action))
-        .map(f => f.entity_id)
-        .filter((x): x is string => x !== null),
-    )
     setFilas(lista)
-    setRest(yaVolvieron)
+    setRest(mapaDeRestauraciones(lista))
     setLoading(false)
   }
 
@@ -456,7 +452,7 @@ function Detalle({
   mov, restaurados, trabajando, onRescatar, onRestaurar,
 }: {
   mov: Movimiento
-  restaurados: Set<string>
+  restaurados: Map<string, number>
   trabajando: boolean
   onRescatar: (entityId: string) => void
   onRestaurar: () => void
@@ -513,7 +509,10 @@ function Detalle({
           </h4>
           <ul className="m-0 max-w-[560px] list-none p-0">
             {primeros.map(f => {
-              const listo = f.entity_id !== null && restaurados.has(f.entity_id)
+              // Igual que en el renglon: solo cuenta si volvio DESPUES de
+              // este borrado, no en alguno anterior.
+              const volvio = f.entity_id ? restaurados.get(f.entity_id) : undefined
+              const listo = volvio !== undefined && volvio > new Date(f.created_at).getTime()
               return (
                 <li key={f.id} className="flex items-center justify-between gap-3 border-b border-[#f0f0f0] py-1.5 text-[12.5px] text-[#666] last:border-b-0">
                   <span className="min-w-0 truncate">{f.entity_label || 'Sin nombre guardado'}</span>

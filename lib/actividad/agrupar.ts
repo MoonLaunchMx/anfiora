@@ -1,4 +1,6 @@
-import { AUDIT_ACTION_LABEL, esBorrado, type AuditAction } from './vocabulario'
+import {
+  ACCIONES_RESTAURACION, AUDIT_ACTION_LABEL, esBorrado, type AuditAction,
+} from './vocabulario'
 import { MODULOS, type Modulo } from '@/lib/permisos/catalogo'
 import type { FilaAudit, Movimiento } from './tipos'
 
@@ -14,7 +16,24 @@ function moduloValido(m: string | null): Modulo | null {
   return m && ES_MODULO.has(m) ? (m as Modulo) : null
 }
 
-function armar(filas: FilaAudit[], restaurados: Set<string>): Movimiento {
+// entity_id -> cuando volvio por ULTIMA vez, en ms.
+//
+// Tiene que ser "cuando" y no solo "si": una entidad se puede borrar,
+// restaurar y volver a borrar. Con un simple conjunto de ids, el borrado nuevo
+// heredaba el "Restaurado" del anterior y se quedaba sin boton para deshacerlo.
+export function mapaDeRestauraciones(filas: FilaAudit[]): Map<string, number> {
+  const mapa = new Map<string, number>()
+  for (const f of filas) {
+    if (!f.entity_id) continue
+    if (!(ACCIONES_RESTAURACION as readonly string[]).includes(f.action)) continue
+    const cuando = ts(f)
+    const previa = mapa.get(f.entity_id)
+    if (previa === undefined || cuando > previa) mapa.set(f.entity_id, cuando)
+  }
+  return mapa
+}
+
+function armar(filas: FilaAudit[], restaurados: Map<string, number>): Movimiento {
   // Descendente: el disparador AFTER DELETE de una cascada corre hijos
   // primero, asi que leer al reves deja al padre arriba, que es el orden en
   // que hay que volver a insertarlos.
@@ -34,11 +53,17 @@ function armar(filas: FilaAudit[], restaurados: Set<string>): Movimiento {
     batchId: cabeza.batch_id,
     filas: orden,
     total: orden.length,
-    restaurado: borrado && orden.every(f => f.entity_id !== null && restaurados.has(f.entity_id)),
+    // Solo cuenta la restauracion POSTERIOR a este borrado. Si volvio antes,
+    // es que se volvio a borrar y hay que poder deshacerlo otra vez.
+    restaurado: borrado && orden.every(f => {
+      if (!f.entity_id) return false
+      const volvio = restaurados.get(f.entity_id)
+      return volvio !== undefined && volvio > ts(f)
+    }),
   }
 }
 
-export function agrupar(filas: FilaAudit[], restaurados: Set<string>): Movimiento[] {
+export function agrupar(filas: FilaAudit[], restaurados: Map<string, number>): Movimiento[] {
   if (filas.length === 0) return []
 
   const porLote = new Map<string, FilaAudit[]>()
