@@ -50,17 +50,17 @@ function mb(bytes: number): string {
 
 export function validateImages(files: ImageCandidate[]): ValidationResult {
   if (files.length > MAX_IMAGES) {
-    return { ok: false, error: `Solo puedes adjuntar ${MAX_IMAGES} imagenes.` }
+    return { ok: false, error: `Solo puedes adjuntar ${MAX_IMAGES} imágenes.` }
   }
   for (const file of files) {
     if (!ALLOWED_IMAGE_TYPES.includes(file.type as (typeof ALLOWED_IMAGE_TYPES)[number])) {
       return { ok: false, error: 'Ese archivo no es una imagen. Adjunta PNG, JPG o WEBP.' }
     }
     if (file.size <= 0) {
-      return { ok: false, error: 'Esa imagen llego vacia. Intenta adjuntarla de nuevo.' }
+      return { ok: false, error: 'Esa imagen llegó vacía. Intenta adjuntarla de nuevo.' }
     }
     if (file.size > MAX_IMAGE_BYTES) {
-      return { ok: false, error: `Esa imagen pesa mas de ${mb(MAX_IMAGE_BYTES)}. Recortala e intenta de nuevo.` }
+      return { ok: false, error: `Esa imagen pesa más de ${mb(MAX_IMAGE_BYTES)}. Recórtala e intenta de nuevo.` }
     }
   }
   return { ok: true }

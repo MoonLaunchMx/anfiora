@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Image as ImageIcon, Info, X } from "lucide-react";
+import { Image as ImageIcon, Info, Monitor, X } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { Modal } from "@/app/components/ui/Modal";
 import {
@@ -11,6 +11,7 @@ import {
   type FeedbackType,
 } from "@/lib/feedback";
 import { prepareImage } from "@/lib/feedback-image";
+import { canCaptureScreen, captureScreen, isCaptureCancelled } from "@/lib/feedback-capture";
 
 type Status = "idle" | "sending" | "sent" | "error";
 type Attachment = { file: File; preview: string; compressed: boolean };
@@ -24,7 +25,11 @@ export default function FeedbackModal() {
   const [images, setImages] = useState<Attachment[]>([]);
   const [imageError, setImageError] = useState("");
   const [dragging, setDragging] = useState(false);
+  const [capturing, setCapturing] = useState(false);
+  const [canCapture, setCanCapture] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => { setCanCapture(canCaptureScreen()); }, []);
 
   const clearImages = useCallback((list: Attachment[]) => {
     list.forEach((a) => URL.revokeObjectURL(a.preview));
@@ -58,11 +63,11 @@ export default function FeedbackModal() {
 
     const room = MAX_IMAGES - images.length;
     if (room <= 0) {
-      setImageError(`Solo puedes adjuntar ${MAX_IMAGES} imagenes. Quita una para agregar otra.`);
+      setImageError(`Solo puedes adjuntar ${MAX_IMAGES} imágenes. Quita una para agregar otra.`);
       return;
     }
     if (incoming.length > room) {
-      setImageError(`Solo caben ${room} mas. Agregamos las primeras.`);
+      setImageError(`Solo caben ${room} más. Agregamos las primeras.`);
     }
 
     // Se comprime antes de validar: una foto de celular de 6 MB si cabe una vez encogida.
@@ -98,6 +103,28 @@ export default function FeedbackModal() {
   const imagesRef = useRef<Attachment[]>([]);
   useEffect(() => { imagesRef.current = images; }, [images]);
   useEffect(() => () => clearImages(imagesRef.current), [clearImages]);
+
+  // El modal se desmonta mientras corre la captura para no salir en su propia foto.
+  // El texto ya escrito vive en este componente, que no se desmonta, asi que vuelve intacto.
+  const takeScreenshot = async () => {
+    setImageError("");
+    if (images.length >= MAX_IMAGES) {
+      setImageError(`Solo puedes adjuntar ${MAX_IMAGES} imágenes. Quita una para agregar otra.`);
+      return;
+    }
+    setCapturing(true);
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 220));
+      const shot = await captureScreen();
+      await addFiles([shot]);
+    } catch (err) {
+      if (!isCaptureCancelled(err)) {
+        setImageError("No se pudo capturar la pantalla. Tómala tú y pégala con Ctrl+V.");
+      }
+    } finally {
+      setCapturing(false);
+    }
+  };
 
   const removeImage = (index: number) => {
     setImages((prev) => {
@@ -152,7 +179,7 @@ export default function FeedbackModal() {
   const anyCompressed = images.some((a) => a.compressed);
 
   return (
-    <Modal open={open} onClose={close} size="md">
+    <Modal open={open && !capturing} onClose={close} size="md">
       <Modal.Header title="Enviar feedback" />
       {status === "sent" ? (
         <Modal.Body>
@@ -184,7 +211,7 @@ export default function FeedbackModal() {
                 ))}
               </div>
 
-              <label className="mb-1 block text-xs font-medium text-[#666]">Cuentanos</label>
+              <label className="mb-1 block text-xs font-medium text-[#666]">Cuéntanos</label>
               <textarea
                 autoFocus
                 value={message}
@@ -207,12 +234,23 @@ export default function FeedbackModal() {
                       <ImageIcon size={15} />
                       Adjuntar imagen
                     </button>
+                    {canCapture && (
+                      <button
+                        type="button"
+                        onClick={takeScreenshot}
+                        disabled={full}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-[#e0e0e0] px-3 py-1.5 text-xs font-medium text-[#666] transition hover:bg-[#f8f8f8] hover:text-[#1D1E20] disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:bg-transparent"
+                      >
+                        <Monitor size={15} />
+                        Capturar pantalla
+                      </button>
+                    )}
                     <span className="hidden text-[11px] text-[#999] sm:inline">
                       o pega con Ctrl+V
                     </span>
                   </div>
                   <span className={`text-[11px] font-medium ${full ? "text-[#1a9e88]" : "text-[#999]"}`}>
-                    {images.length === 0 ? `Hasta ${MAX_IMAGES} imagenes` : `${images.length} de ${MAX_IMAGES}`}
+                    {images.length === 0 ? `Hasta ${MAX_IMAGES} imágenes` : `${images.length} de ${MAX_IMAGES}`}
                   </span>
                 </div>
 
@@ -261,7 +299,7 @@ export default function FeedbackModal() {
                 {anyCompressed && (
                   <p className="flex items-center gap-1.5 text-[11px] text-[#999]">
                     <Info size={13} className="shrink-0" />
-                    Una imagen venia pesada y se redujo para enviarse.
+                    Una imagen venía pesada y se redujo para enviarse.
                   </p>
                 )}
               </div>
