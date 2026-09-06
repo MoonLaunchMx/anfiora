@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { ChevronDown, Check, Users } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { agrupar, mapaDeRestauraciones } from '@/lib/actividad/agrupar'
+import { entidadDeAccion } from '@/lib/actividad/vocabulario'
 import {
   planDeRestauracion, tandasPorTabla, arrastrados, insercionDeFila, type Insercion,
 } from '@/lib/actividad/restaurar'
@@ -212,7 +213,11 @@ export default function ActividadTab({ eventId }: { eventId: string }) {
 
     setError(null)
     setTrabajando(mov.clave)
-    let volvieron = 0
+
+    // De donde sale la etiqueta y el tipo de cada fila de bitacora. Van las del
+    // movimiento MAS las del arrastre: los acompanantes no estan en mov.filas y
+    // sin su fila quedaban sin entity_type, que es NOT NULL.
+    const fuentes = [...mov.filas, ...arrastrePendiente(mov, soloEstos)]
 
     // Tanda por tanda y EN ORDEN: dentro de una tabla da igual, pero entre
     // tablas es la dependencia (el acompanante no entra si su invitado
@@ -221,6 +226,8 @@ export default function ActividadTab({ eventId }: { eventId: string }) {
     // upsert con ignoreDuplicates en vez de insert: mandando la tanda junta,
     // un solo registro que ya estuviera tumbaria a los 42. Postgres se salta
     // los repetidos y los demas entran, que es el "ya estaba" de siempre.
+    const hechas: Insercion[] = []
+
     for (const tanda of tandasPorTabla(plan)) {
       const { error } = await supabase
         .from(tanda[0].tabla)
@@ -229,35 +236,50 @@ export default function ActividadTab({ eventId }: { eventId: string }) {
       // Un aviso no es una pregunta: va como franja, no como modal de
       // confirmar/cancelar.
       if (error) {
+        // Lo que YA volvio se registra igual: si no, quedan de vuelta en la
+        // boda pero la pantalla sigue creyendo que estan borrados.
+        await registrarRestauraciones(hechas, fuentes, mov.modulo)
         setTrabajando(null)
-        setError(`Regresaron ${volvieron} de ${plan.length}. El resto sigue en la bitácora para intentarlo otra vez.`)
+        setError(`Regresaron ${hechas.length} de ${plan.length}. El resto sigue en la bitácora para intentarlo otra vez.`)
         await cargar()
         return
       }
 
-      volvieron += tanda.length
+      hechas.push(...tanda)
     }
 
-    await registrarRestauraciones(plan, mov)
+    const fallo = await registrarRestauraciones(hechas, fuentes, mov.modulo)
 
     setTrabajando(null)
+    if (fallo) setError(fallo)
     await cargar()
   }
 
   // La bitacora de la restauracion, de un viaje. logAction() pide el usuario y
   // busca su nombre CADA vez que se llama: para 42 registros eran 126 viajes
   // al servidor, que es lo que hacia lenta la restauracion de un lote.
-  const registrarRestauraciones = async (plan: Insercion[], mov: Movimiento) => {
+  // Devuelve null si todo bien, o el aviso que hay que enseñar. La bitacora NO
+  // es opcional aqui: la pantalla se guia por ella, asi que si no se escribe,
+  // lo restaurado sigue viendose como borrado y el planner le pica en vano.
+  const registrarRestauraciones = async (
+    plan: Insercion[],
+    fuentes: FilaAudit[],
+    modulo: string | null,
+  ): Promise<string | null> => {
+    if (plan.length === 0) return null
+
+    const aviso = 'Los registros ya volvieron a la boda, pero no se pudo anotar en la bitácora. Recarga para verlos.'
+
     try {
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
+      if (!user) return aviso
 
       const { data: perfil } = await supabase
         .from('users').select('full_name').eq('id', user.id).single()
 
-      const porEntidad = new Map(mov.filas.map(f => [f.entity_id, f]))
+      const porEntidad = new Map(fuentes.map(f => [f.entity_id, f]))
 
-      await supabase.from('event_audit_log').insert(
+      const { error } = await supabase.from('event_audit_log').insert(
         plan.map(ins => {
           const fila = porEntidad.get(ins.entityId)
           return {
@@ -266,21 +288,30 @@ export default function ActividadTab({ eventId }: { eventId: string }) {
             user_email:   user.email ?? '',
             user_name:    perfil?.full_name ?? null,
             action:       ins.accionRestauracion,
-            entity_type:  fila?.entity_type ?? null,
+            // NOT NULL en la base. La accion siempre trae la entidad delante,
+            // asi que sirve de respaldo cuando la fila fuente no aparece.
+            entity_type:  fila?.entity_type ?? entidadDeAccion(ins.accionRestauracion),
             entity_id:    ins.entityId,
             entity_label: fila?.entity_label ?? null,
             old_value:    null,
             new_value:    null,
             // El modulo del borrado que se esta deshaciendo. Sin el la fila
             // queda huerfana y se archiva como si fuera de "Equipo".
-            modulo:       mov.modulo,
+            modulo,
           }
         }),
       )
-    } catch {
-      // Mismo criterio que logAction: la bitacora nunca rompe el flujo. Lo
-      // que se restauro, restaurado esta.
-      console.warn('[actividad] no se pudo registrar la restauracion')
+
+      // insert() NO lanza: devuelve el error. Sin revisarlo, un rechazo de la
+      // base pasaba callado y la pantalla se quedaba mintiendo.
+      if (error) {
+        console.warn('[actividad] la bitacora rechazo la restauracion:', error.message)
+        return aviso
+      }
+      return null
+    } catch (e) {
+      console.warn('[actividad] no se pudo registrar la restauracion:', e)
+      return aviso
     }
   }
 
