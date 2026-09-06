@@ -673,6 +673,83 @@ export type EventSupplierWithDetails = EventSupplier & {
   payment_progress?: number
 }
 
+export const REVIEW_TYPES = ['contratacion', 'descarte', 'post_evento'] as const
+export type ReviewType = typeof REVIEW_TYPES[number]
+
+export const REVIEW_AUTORES = ['planner', 'cliente'] as const
+export type ReviewAutor = typeof REVIEW_AUTORES[number]
+
+export const MOTIVOS_DESCARTE = [
+  'precio',
+  'disponibilidad',
+  'comunicacion',
+  'calidad',
+  'estilo',
+  'cliente_eligio_otro',
+  'no_respondio',
+] as const
+export type MotivoDescarte = typeof MOTIVOS_DESCARTE[number]
+
+export const MOTIVO_DESCARTE_LABEL: Record<MotivoDescarte, string> = {
+  precio:              'Precio fuera de presupuesto',
+  disponibilidad:      'No disponible en la fecha',
+  comunicacion:        'Comunicación lenta o poco clara',
+  calidad:             'Propuesta o calidad insuficiente',
+  estilo:              'No encajaba con el estilo del evento',
+  cliente_eligio_otro: 'El cliente eligió a otro',
+  no_respondio:        'Se retiró o no respondió',
+}
+
+export const RAZONES_SELECCION = [
+  'precio',
+  'relacion_calidad_precio',
+  'calidad',
+  'disponibilidad',
+  'comunicacion',
+  'recomendacion',
+  'estilo',
+  'decision_cliente',
+] as const
+export type RazonSeleccion = typeof RAZONES_SELECCION[number]
+
+export const RAZON_SELECCION_LABEL: Record<RazonSeleccion, string> = {
+  precio:                  'Mejor precio',
+  relacion_calidad_precio: 'Mejor relación calidad/precio',
+  calidad:                 'Mejor calidad o portafolio',
+  disponibilidad:          'Disponibilidad en la fecha',
+  comunicacion:            'Mejor comunicación',
+  recomendacion:           'Recomendación o relación previa',
+  estilo:                  'Encajaba con el estilo del evento',
+  decision_cliente:        'Decisión del cliente',
+}
+
+export const MAX_RAZONES_SELECCION = 2
+export const MAX_COMENTARIOS = 500
+
+export interface SupplierReview {
+  id: string
+  user_id: string
+  supplier_id: string
+  event_id: string
+  event_supplier_id: string
+  review_type: ReviewType
+  autor: ReviewAutor
+  precio_valor: number | null
+  calidad: number | null
+  comunicacion: number | null
+  servicio_trato: number | null
+  manejo_imprevistos: number | null
+  razones_seleccion: RazonSeleccion[] | null
+  motivo_descarte: MotivoDescarte | null
+  recontratacion: number | null
+  cobros_extra: boolean | null
+  monto_cobros_extra: number | null
+  comentarios: string | null
+  created_by: string | null
+  created_at: string
+  updated_at: string
+}
+
 // ─── FINANZAS — SUPPLIER PAYMENTS ────────────────────────────────────────────
 
 export const PAYMENT_METHODS = [
