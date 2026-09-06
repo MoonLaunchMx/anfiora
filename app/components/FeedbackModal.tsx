@@ -212,7 +212,9 @@ export default function FeedbackModal() {
       void clearDraft();
       setRestored(false);
       setStatus("sent");
-      setTimeout(() => setOpen(false), 1500);
+      // Lo justo para que se registre el acuse: quien acaba de enviar ya sabe
+      // lo que hizo, y esperar de mas hace sentir lento un envio que fue rapido.
+      setTimeout(() => setOpen(false), 900);
     } catch {
       setStatus("error");
     }
