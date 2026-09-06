@@ -19,6 +19,7 @@ import { aplicarKit, normalizarPermisos, permisosDeRol, resumir } from '@/lib/pe
 import type { PermisosEvento } from '@/lib/permisos/catalogo'
 import { Modal } from '@/app/components/ui/Modal'
 import { Copy, Check, UserPlus, X, Pencil, Eye, Lock, Settings, Settings2, MessageCircle, Users, Smartphone, Gem, Crown, Cake, GraduationCap, Sun, PartyPopper, Wine, CalendarDays, Presentation, Monitor, UsersRound, Rocket, Building2, Tent, Mic, Flame, HeartHandshake, type LucideIcon } from 'lucide-react'
+import { Cargando } from '@/app/components/ui/Cargando'
 
 // ─── Constantes ──────────────────────────────────────────────────────────────
 
@@ -601,7 +602,7 @@ export default function ConfiguracionPage() {
   // Labels dinámicos según tipo
   const hostLabel = isBoda ? 'Novia' : eventType === 'xv' ? 'Festejada' : eventType === 'graduacion' ? 'Graduado/a' : eventType === 'bautizo' ? 'Bautizado/a' : 'Festejado/a'
 
-  if (loading) return <div className="p-8 text-sm text-[#666]">Cargando...</div>
+  if (loading) return <Cargando />
 
   // Configuracion no es un modulo, asi que la guarda del layout no la cubre:
   // el nav la escondia pero escribir la URL entraba igual, incluida la pestana

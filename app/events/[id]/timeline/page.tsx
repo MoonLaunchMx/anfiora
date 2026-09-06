@@ -21,6 +21,7 @@ import { ItineraryAddButton, ItineraryToolbar } from './ItineraryToolbar'
 import { useItinerary } from './useItinerary'
 import { TabToggle, type TabItem } from '@/app/components/ui/TabToggle'
 import { Modal } from '@/app/components/ui/Modal'
+import { Cargando } from '@/app/components/ui/Cargando'
 
 // ─── CONSTANTS ───────────────────────────────────────────────────────────────
 
@@ -610,11 +611,8 @@ export default function TimelinePage() {
 
       <div style={{ flex: 1, overflowY: 'auto' }} className="px-4 pb-6 pt-4 sm:px-6 lg:px-10 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {loading ? (
-          <div className="flex h-full items-center justify-center">
-            <div className="flex flex-col items-center gap-3">
-              <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#e8e8e8] border-t-[#48C9B0]" />
-              <p className="text-sm text-[#999]">Cargando...</p>
-            </div>
+          <div className="flex h-full">
+            <Cargando />
           </div>
         ) : section === 'itinerario' ? (
           <ItineraryView itin={itinerary} />

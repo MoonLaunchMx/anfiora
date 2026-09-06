@@ -437,9 +437,11 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
     container.scrollTo({ left: Math.max(0, btnWidth * activeIndex - btnWidth), behavior: 'smooth' })
   }, [pathname, id, mobileItems.length])
 
-  if (!authChecked) {
-    return <Cargando pantallaCompleta mensaje="Preparando tu espacio de trabajo" />
-  }
+  // La cascara se dibuja desde el primer frame y la espera vive SIEMPRE dentro
+  // del area de contenido. Si aqui se cortara con un <Cargando> aparte, serian
+  // dos instancias: al cambiar de una a otra la animacion reinicia y el logo
+  // salta de lugar, y se ve como dos animaciones seguidas.
+  const esperando = !authChecked || isLoading || Boolean(destinoRaiz)
 
   const initials      = getInitials(userName, userEmail)
   const displayStatus = event ? getDisplayStatus() : null
@@ -767,8 +769,9 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
         <main className="flex min-h-0 flex-1 flex-col overflow-hidden bg-white pb-16 sm:pb-0">
           {/* Mientras no sepamos los permisos NO se monta la herramienta: pintar
               primero y tapar despues es como se alcanzaba a ver Invitados. */}
-          {isLoading || destinoRaiz ? (
+          {esperando ? (
             <Cargando
+              conLogo
               mensaje="Preparando tu espacio de trabajo"
               detalle="Revisando a qué herramientas tienes acceso"
             />

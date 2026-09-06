@@ -33,6 +33,7 @@ import {
   arrayMove,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
+import { Cargando } from '@/app/components/ui/Cargando'
 
 interface Song {
   id: string
@@ -520,7 +521,7 @@ function PlaylistPlannerPageInner() {
     return matchCat && matchSearch
   })
 
-  if (loading) return <div className="p-8 text-sm text-[#666]">Cargando playlist...</div>
+  if (loading) return <Cargando mensaje="Cargando la playlist" />
 
   const TABS: TabItem[] = [
     { key: 'playlist', label: 'Playlist', icon: ListMusic, badge: totalSongs },
