@@ -2,14 +2,13 @@
 
 import { useState } from 'react'
 import { Ban } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
 import { Modal } from '@/app/components/ui/Modal'
-import { usePermiso } from '@/lib/event-access-context'
 import EscalaCinco from '@/app/components/ui/EscalaCinco'
 import { anclasDe, EJES_PROPUESTA, NOMBRE_EJE, DESCRIPCION_EJE_PROPUESTA } from '@/lib/reviews/ejes'
 import type { Eje } from '@/lib/reviews/ejes'
 import { validarReview } from '@/lib/reviews/validacion'
 import type { BorradorReview } from '@/lib/reviews/validacion'
+import { useGuardarReview } from '@/lib/reviews/useGuardarReview'
 import { MOTIVOS_DESCARTE, MOTIVO_DESCARTE_LABEL, MAX_COMENTARIOS } from '@/lib/types'
 import type { MotivoDescarte } from '@/lib/types'
 
@@ -28,7 +27,7 @@ export default function ReviewDescarteModal({
   eventSupplierId, supplierId, eventId, userId, supplierName,
   onSaved, onSkip,
 }: Props) {
-  const permiso = usePermiso('proveedores')
+  const { permiso, saving, guardar } = useGuardarReview({ eventSupplierId, supplierId, eventId, userId })
 
   const [motivo, setMotivo]           = useState<MotivoDescarte | null>(null)
   const [valores, setValores]         = useState<Record<Eje, number | null>>({
@@ -38,7 +37,6 @@ export default function ReviewDescarteModal({
   const [sinOpinion, setSinOpinion]   = useState(false)
   const [comentarios, setComentarios] = useState('')
   const [problemas, setProblemas]     = useState<string[]>([])
-  const [saving, setSaving]           = useState(false)
 
   const handleSave = async () => {
     if (!permiso.editar) return
@@ -54,27 +52,8 @@ export default function ReviewDescarteModal({
     const problemas = validarReview(borrador)
     if (problemas.length > 0) { setProblemas(problemas); return }
 
-    setSaving(true)
-    const { data, error } = await supabase.from('supplier_reviews').upsert({
-      user_id: userId, supplier_id: supplierId, event_id: eventId,
-      event_supplier_id: eventSupplierId, autor: 'planner',
-      ...borrador,
-      created_by: userId,
-      updated_at: new Date().toISOString(),
-    }, { onConflict: 'event_supplier_id,review_type,autor' }).select()
-
-    if (error) {
-      console.error('Error guardando review:', error)
-      setProblemas(['No se pudo guardar la review. Intenta de nuevo.'])
-      setSaving(false)
-      return
-    }
-    if (!data || data.length === 0) {
-      console.error('El upsert de la review no devolvio filas (posible RLS).')
-      setProblemas(['No se pudo guardar la review. Intenta de nuevo.'])
-      setSaving(false)
-      return
-    }
+    const error = await guardar(borrador)
+    if (error) { setProblemas([error]); return }
     onSaved()
   }
 

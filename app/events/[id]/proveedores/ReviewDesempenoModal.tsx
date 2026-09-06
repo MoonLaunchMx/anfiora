@@ -2,14 +2,13 @@
 
 import { useState } from 'react'
 import { CalendarCheck } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
 import { Modal } from '@/app/components/ui/Modal'
-import { usePermiso } from '@/lib/event-access-context'
 import EscalaCinco from '@/app/components/ui/EscalaCinco'
 import { anclasDe, EJES_DESEMPENO, NOMBRE_EJE, ANCLAS_RECONTRATACION } from '@/lib/reviews/ejes'
 import type { Eje } from '@/lib/reviews/ejes'
 import { validarReview } from '@/lib/reviews/validacion'
 import type { BorradorReview } from '@/lib/reviews/validacion'
+import { useGuardarReview } from '@/lib/reviews/useGuardarReview'
 import { MAX_COMENTARIOS } from '@/lib/types'
 
 interface Props {
@@ -29,7 +28,7 @@ export default function ReviewDesempenoModal({
   eventSupplierId, supplierId, eventId, userId, supplierName, eventName,
   onSaved, onSkip,
 }: Props) {
-  const permiso = usePermiso('proveedores')
+  const { permiso, saving, guardar } = useGuardarReview({ eventSupplierId, supplierId, eventId, userId })
 
   const [valores, setValores] = useState<Record<Eje, number | 'na' | null>>({
     precio_valor: null, calidad: null, comunicacion: null,
@@ -40,7 +39,6 @@ export default function ReviewDesempenoModal({
   const [montoExtra, setMontoExtra]         = useState('')
   const [comentarios, setComentarios]       = useState('')
   const [problemas, setProblemas]           = useState<string[]>([])
-  const [saving, setSaving]                 = useState(false)
 
   const handleSave = async () => {
     if (!permiso.editar) return
@@ -58,28 +56,10 @@ export default function ReviewDesempenoModal({
     const problemas = validarReview(borrador)
     if (problemas.length > 0) { setProblemas(problemas); return }
 
-    setSaving(true)
-    const { data, error } = await supabase.from('supplier_reviews').upsert({
-      user_id: userId, supplier_id: supplierId, event_id: eventId,
-      event_supplier_id: eventSupplierId, autor: 'planner',
-      ...borrador,
+    const error = await guardar(borrador, {
       monto_cobros_extra: cobrosExtra ? Number(montoExtra) || null : null,
-      created_by: userId,
-      updated_at: new Date().toISOString(),
-    }, { onConflict: 'event_supplier_id,review_type,autor' }).select()
-
-    if (error) {
-      console.error('Error guardando review:', error)
-      setProblemas(['No se pudo guardar la review. Intenta de nuevo.'])
-      setSaving(false)
-      return
-    }
-    if (!data || data.length === 0) {
-      console.error('El upsert de la review no devolvio filas (posible RLS).')
-      setProblemas(['No se pudo guardar la review. Intenta de nuevo.'])
-      setSaving(false)
-      return
-    }
+    })
+    if (error) { setProblemas([error]); return }
     onSaved()
   }
 

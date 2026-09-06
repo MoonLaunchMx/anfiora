@@ -2,13 +2,13 @@
 
 import { useState } from 'react'
 import { Check } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
 import { Modal } from '@/app/components/ui/Modal'
-import { usePermiso } from '@/lib/event-access-context'
 import EscalaCinco from '@/app/components/ui/EscalaCinco'
 import { anclasDe, EJES_PROPUESTA, NOMBRE_EJE, DESCRIPCION_EJE_PROPUESTA } from '@/lib/reviews/ejes'
+import type { Eje } from '@/lib/reviews/ejes'
 import { validarReview } from '@/lib/reviews/validacion'
 import type { BorradorReview } from '@/lib/reviews/validacion'
+import { useGuardarReview } from '@/lib/reviews/useGuardarReview'
 import {
   RAZONES_SELECCION, RAZON_SELECCION_LABEL, MAX_RAZONES_SELECCION, MAX_COMENTARIOS,
 } from '@/lib/types'
@@ -25,23 +25,19 @@ interface Props {
   onSkip: () => void
 }
 
-type EjeDeLaPropuesta = 'precio_valor' | 'calidad' | 'comunicacion'
-
-const EJES_MODAL = EJES_PROPUESTA as EjeDeLaPropuesta[]
-
 export default function ReviewContratacionModal({
   eventSupplierId, supplierId, eventId, userId, supplierName,
   onSaved, onSkip,
 }: Props) {
-  const permiso = usePermiso('proveedores')
+  const { permiso, saving, guardar } = useGuardarReview({ eventSupplierId, supplierId, eventId, userId })
 
-  const [valores, setValores] = useState<Record<EjeDeLaPropuesta, number | null>>({
+  const [valores, setValores] = useState<Record<Eje, number | null>>({
     precio_valor: null, calidad: null, comunicacion: null,
+    servicio_trato: null, manejo_imprevistos: null,
   })
   const [razones, setRazones]         = useState<RazonSeleccion[]>([])
   const [comentarios, setComentarios] = useState('')
   const [problemas, setProblemas]     = useState<string[]>([])
-  const [saving, setSaving]           = useState(false)
 
   const toggleRazon = (r: RazonSeleccion) => {
     setRazones(prev => {
@@ -65,27 +61,8 @@ export default function ReviewContratacionModal({
     const problemas = validarReview(borrador)
     if (problemas.length > 0) { setProblemas(problemas); return }
 
-    setSaving(true)
-    const { data, error } = await supabase.from('supplier_reviews').upsert({
-      user_id: userId, supplier_id: supplierId, event_id: eventId,
-      event_supplier_id: eventSupplierId, autor: 'planner',
-      ...borrador,
-      created_by: userId,
-      updated_at: new Date().toISOString(),
-    }, { onConflict: 'event_supplier_id,review_type,autor' }).select()
-
-    if (error) {
-      console.error('Error guardando review:', error)
-      setProblemas(['No se pudo guardar la review. Intenta de nuevo.'])
-      setSaving(false)
-      return
-    }
-    if (!data || data.length === 0) {
-      console.error('El upsert de la review no devolvio filas (posible RLS).')
-      setProblemas(['No se pudo guardar la review. Intenta de nuevo.'])
-      setSaving(false)
-      return
-    }
+    const error = await guardar(borrador)
+    if (error) { setProblemas([error]); return }
     onSaved()
   }
 
@@ -104,7 +81,7 @@ export default function ReviewContratacionModal({
               Pregunta 1 — Califica la propuesta
             </label>
             <div className="space-y-4">
-              {EJES_MODAL.map(eje => (
+              {EJES_PROPUESTA.map(eje => (
                 <EscalaCinco
                   key={eje}
                   nombre={NOMBRE_EJE[eje]}
