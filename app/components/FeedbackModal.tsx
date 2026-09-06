@@ -12,7 +12,7 @@ import {
 } from "@/lib/feedback";
 import { prepareImage } from "@/lib/feedback-image";
 import { canCaptureScreen, captureScreen, isCaptureCancelled } from "@/lib/feedback-capture";
-import { FEEDBACK_DRAFT_KEY, parseDraft, serializeDraft } from "@/lib/feedback-draft";
+import { clearDraft, loadDraft, saveDraft } from "@/lib/feedback-draft-store";
 
 type Status = "idle" | "sending" | "sent" | "error";
 type Attachment = { file: File; preview: string; compressed: boolean };
@@ -38,46 +38,56 @@ export default function FeedbackModal() {
 
   const [restored, setRestored] = useState(false);
 
-  const forgetDraft = useCallback(() => {
-    try { localStorage.removeItem(FEEDBACK_DRAFT_KEY); } catch {}
-  }, []);
-
   useEffect(() => {
     const handler = () => {
       setPage(window.location.pathname);
       setStatus("idle");
-      setImages((prev) => { clearImages(prev); return []; });
       setImageError("");
       setDragging(false);
-
-      let draft = null;
-      try { draft = parseDraft(localStorage.getItem(FEEDBACK_DRAFT_KEY), Date.now()); } catch {}
-      setType(draft?.type ?? "sugerencia");
-      setMessage(draft?.message ?? "");
-      setRestored(Boolean(draft));
-
+      setImages((prev) => { clearImages(prev); return []; });
+      setType("sugerencia");
+      setMessage("");
+      setRestored(false);
       setOpen(true);
+
+      void loadDraft().then((draft) => {
+        if (!draft) return;
+        setType(draft.type);
+        setMessage(draft.message);
+        setImages(draft.images.map((i) => {
+          const file = new File([i.blob], i.name, { type: i.type });
+          return { file, preview: URL.createObjectURL(file), compressed: i.compressed };
+        }));
+        setRestored(true);
+      });
     };
     window.addEventListener("anfiora:open-feedback", handler);
     return () => window.removeEventListener("anfiora:open-feedback", handler);
   }, [clearImages]);
 
-  // Se guarda mientras escribe: cerrar el modal por accidente no debe costarle el reporte.
+  // Se guarda mientras escribe: cerrar el modal por accidente no debe costarle el
+  // reporte, y volver a tomar tres capturas es lo que hace que ya no lo mande.
   useEffect(() => {
     if (!open || status === "sent") return;
-    try {
-      if (message.trim()) {
-        localStorage.setItem(FEEDBACK_DRAFT_KEY, serializeDraft({ type, message }, Date.now()));
+    const id = setTimeout(() => {
+      const payload = images.map((a) => ({
+        blob: a.file, name: a.file.name, type: a.file.type, compressed: a.compressed,
+      }));
+      if (message.trim() || payload.length > 0) {
+        void saveDraft({ type, message, images: payload });
       } else {
-        localStorage.removeItem(FEEDBACK_DRAFT_KEY);
+        void clearDraft();
       }
-    } catch {}
-  }, [open, status, type, message]);
+    }, 400);
+    return () => clearTimeout(id);
+  }, [open, status, type, message, images]);
 
   const discardDraft = () => {
-    forgetDraft();
+    void clearDraft();
+    setImages((prev) => { clearImages(prev); return []; });
     setMessage("");
     setType("sugerencia");
+    setImageError("");
     setRestored(false);
   };
 
@@ -199,7 +209,7 @@ export default function FeedbackModal() {
         body,
       });
       if (!res.ok) { setStatus("error"); return; }
-      forgetDraft();
+      void clearDraft();
       setRestored(false);
       setStatus("sent");
       setTimeout(() => setOpen(false), 1500);
@@ -247,7 +257,7 @@ export default function FeedbackModal() {
               {restored && (
                 <div className="mb-2 flex items-center justify-between gap-2 rounded-lg border border-[#e8e8e8] bg-[#f8f8f8] px-2.5 py-1.5">
                   <span className="text-[11px] text-[#666]">
-                    Recuperamos lo que habías escrito. Las imágenes no se guardan.
+                    Recuperamos tu reporte sin enviar.
                   </span>
                   <button
                     type="button"
