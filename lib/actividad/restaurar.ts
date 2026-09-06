@@ -1,5 +1,6 @@
 import { entidadDeAccion } from './vocabulario'
 import type { FilaAudit, Movimiento, Restauracion } from './tipos'
+import { DEPENDIENTES } from './dependientes'
 
 // La entidad que escribe el disparador -> la tabla de la que salio. Los
 // nombres de entidad vienen del segundo argumento de log_borrado() en los
@@ -54,25 +55,8 @@ export function planDeRestauracion(mov: Movimiento, soloEstos?: Set<string>): In
   return plan
 }
 
-// Lo que se fue colgando de otra cosa y quedo en un lote aparte.
-//
-// La app borra a los acompanantes en su propia transaccion, asi que el
-// disparador les pone otro batch_id y caen en un movimiento distinto del de
-// sus invitados. Restaurar a los invitados sin ellos es perdida silenciosa: el
-// planner los ve de vuelta en la lista y no se entera de que perdio lugares
-// hasta el dia del evento.
-//
-// Se sigue el DATO, no el reloj: el acompanante guarda de quien cuelga.
-interface Dependiente {
-  hija: string    // entidad del hijo, como la nombra el disparador
-  padre: string   // entidad del padre
-  llave: string   // columna del hijo que apunta al padre
-}
-
-export const DEPENDIENTES: Dependiente[] = [
-  { hija: 'party_member', padre: 'guest', llave: 'guest_id' },
-]
-
+// Lo que se fue colgando de otra cosa y quedo en un lote aparte. La relacion
+// padre-hijo vive en ./dependientes, porque tambien la usa el agrupado.
 export function arrastrados(
   plan: Insercion[],
   filas: FilaAudit[],

@@ -5,6 +5,7 @@ import { ChevronDown, Check, Users } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { agrupar, mapaDeRestauraciones } from '@/lib/actividad/agrupar'
 import { entidadDeAccion } from '@/lib/actividad/vocabulario'
+import { esEntidadHija } from '@/lib/actividad/dependientes'
 import {
   planDeRestauracion, tandasPorTabla, arrastrados, insercionDeFila, type Insercion,
 } from '@/lib/actividad/restaurar'
@@ -394,11 +395,13 @@ export default function ActividadTab({ eventId }: { eventId: string }) {
             const estaAbierta = abierta === mov.clave
             const cuando = cuandoRelativo(mov.cuando)
 
-            const etiqueta = mov.total > 1
-              ? <span className="tabular-nums">{mov.total} registros</span>
-              : mov.filas[0].entity_label
-                ? mov.filas[0].entity_label
-                : <span className="font-normal italic text-[#bbb]">Sin nombre guardado</span>
+            // El conteo cuenta PRINCIPALES: un invitado con 2 acompanantes es
+            // "Alejandra Roldán · +2 acompañantes", no "3 registros". Lo que se
+            // fue colgando se dice aparte, que es como se lee la historia.
+            const etiqueta = mov.principales > 1
+              ? <span className="tabular-nums">{mov.principales} registros</span>
+              : mov.filas.find(f => f.entity_label)?.entity_label
+                ?? <span className="font-normal italic text-[#bbb]">Sin nombre guardado</span>
 
             return (
               <li key={mov.clave}>
@@ -425,6 +428,11 @@ export default function ActividadTab({ eventId }: { eventId: string }) {
                     <span className="min-w-0">
                       <span className="flex flex-wrap items-center gap-[7px] text-[13.5px] font-medium text-[#1D1E20]">
                         {etiqueta}
+                        {mov.dependientes > 0 && (
+                          <span className="shrink-0 font-normal text-[#999]">
+                            +{mov.dependientes} {mov.dependientes === 1 ? 'acompañante' : 'acompañantes'}
+                          </span>
+                        )}
                         {mov.esBorrado && !mov.restaurado && (
                           <span className="shrink-0 rounded-full border border-[#ffc0c0] bg-[#fff0f0] px-[7px] py-px text-[10.5px] font-medium uppercase tracking-[.03em] text-[#cc3333]">
                             Eliminado
@@ -583,8 +591,15 @@ function Detalle({
               const listo = volvio !== undefined && volvio.cuando > new Date(f.created_at).getTime()
               return (
                 <li key={f.id} className="flex items-center justify-between gap-3 border-b border-[#f0f0f0] py-1.5 text-[12.5px] text-[#666] last:border-b-0">
-                  <span className="min-w-0 truncate">{f.entity_label || 'Sin nombre guardado'}</span>
-                  {mov.esBorrado && (
+                  <span className="min-w-0 truncate">
+                    {f.entity_label || 'Sin nombre guardado'}
+                    {esEntidadHija(f.entity_type) && (
+                      <span className="text-[#bbb]"> · acompañante</span>
+                    )}
+                  </span>
+                  {/* Al acompanante no se le ofrece rescate individual: cuelga
+                      de su invitado, asi que solo no puede volver. */}
+                  {mov.esBorrado && !esEntidadHija(f.entity_type) && (
                     listo ? (
                       <span className="whitespace-nowrap px-1.5 py-0.5 text-[11.5px] text-[#bbb]">Restaurado</span>
                     ) : (

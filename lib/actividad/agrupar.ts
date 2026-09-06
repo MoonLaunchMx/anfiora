@@ -3,6 +3,7 @@ import {
 } from './vocabulario'
 import { MODULOS, type Modulo } from '@/lib/permisos/catalogo'
 import type { FilaAudit, Movimiento, Restauracion } from './tipos'
+import { DEPENDIENTES, esEntidadHija } from './dependientes'
 
 // Cuanto silencio parte una tanda de ediciones en dos. Diez minutos separa
 // "estuvo capturando confirmaciones" de "volvio despues de comer".
@@ -39,12 +40,33 @@ export function mapaDeRestauraciones(filas: FilaAudit[]): Map<string, Restauraci
   return mapa
 }
 
+// El id del padre de esta fila, si ese padre esta entre los `presentes`.
+function idPadreDe(f: FilaAudit, presentes: Set<string>): string | null {
+  for (const dep of DEPENDIENTES) {
+    if (f.entity_type !== dep.hija) continue
+    const id = f.old_value?.[dep.llave]
+    if (typeof id === 'string' && presentes.has(id)) return id
+  }
+  return null
+}
+
 function armar(filas: FilaAudit[], restaurados: Map<string, Restauracion>): Movimiento {
   // Descendente: el disparador AFTER DELETE de una cascada corre hijos
   // primero, asi que leer al reves deja al padre arriba, que es el orden en
   // que hay que volver a insertarlos.
   const orden = [...filas].sort((a, b) => ts(b) - ts(a))
-  const cabeza = orden[0]
+
+  // El renglon se llama como el PADRE, no como el acompanante que se fue con
+  // el. Normalmente coinciden —la app borra a los hijos primero, asi que al
+  // reves el padre queda arriba— pero no hay que depender del reloj para algo
+  // que el dato ya dice.
+  const cabeza = orden.find(f => !esEntidadHija(f.entity_type)) ?? orden[0]
+
+  // Cuenta como dependiente solo si su padre viene en el MISMO movimiento. Un
+  // acompanante borrado por su cuenta es el principal de su propio renglon, no
+  // un huerfano.
+  const presentes = new Set(orden.map(f => f.entity_id).filter((x): x is string => x !== null))
+  const dependientes = orden.filter(f => esEntidadHija(f.entity_type) && idPadreDe(f, presentes)).length
   const borrado = esBorrado(cabeza.action)
 
   // Solo cuenta la restauracion POSTERIOR a cada borrado. Si volvio antes, es
@@ -69,6 +91,8 @@ function armar(filas: FilaAudit[], restaurados: Map<string, Restauracion>): Movi
     batchId: cabeza.batch_id,
     filas: orden,
     total: orden.length,
+    principales: orden.length - dependientes,
+    dependientes,
     restaurado,
     // La mas reciente de las que lo trajeron de vuelta: si el lote se restauro
     // en dos tandas, la que cierra la historia es la ultima.
@@ -92,14 +116,38 @@ export function agrupar(filas: FilaAudit[], restaurados: Map<string, Restauracio
   // aparte contaria la misma historia dos veces. En la base siguen estando.
   filas = filas.filter(f => !esRestauracion(f.action))
 
+  // Donde cayo el borrado de cada entidad, para que sus hijos lo alcancen.
+  const loteDeEntidad = new Map<string, string>()
+  for (const f of filas) {
+    if (f.batch_id && f.entity_id && esBorrado(f.action) && !esEntidadHija(f.entity_type)) {
+      loteDeEntidad.set(f.entity_id, f.batch_id)
+    }
+  }
+
+  // El acompanante se va al lote de SU invitado. La app los borra en
+  // transacciones distintas, asi que por batch_id solos saldrian como dos
+  // renglones —"Invitado eliminado" y "2 acompanantes eliminados"— como si no
+  // tuvieran nada que ver. Si su invitado no esta en la bitacora, se queda
+  // donde estaba: es un borrado por su cuenta.
+  const loteDe = (f: FilaAudit): string | null => {
+    if (!f.batch_id) return null
+    for (const dep of DEPENDIENTES) {
+      if (f.entity_type !== dep.hija) continue
+      const idPadre = f.old_value?.[dep.llave]
+      if (typeof idPadre === 'string') return loteDeEntidad.get(idPadre) ?? f.batch_id
+    }
+    return f.batch_id
+  }
+
   // Los borrados vienen del disparador y siempre traen batch_id: una
   // transaccion es un lote. Las ediciones vienen de logAction() y no traen
   // nada, asi que se agrupan por parecido.
   for (const f of filas) {
-    if (f.batch_id && esBorrado(f.action)) {
-      const previas = porLote.get(f.batch_id)
+    const lote = esBorrado(f.action) ? loteDe(f) : null
+    if (lote) {
+      const previas = porLote.get(lote)
       if (previas) previas.push(f)
-      else porLote.set(f.batch_id, [f])
+      else porLote.set(lote, [f])
     } else {
       sueltas.push(f)
     }

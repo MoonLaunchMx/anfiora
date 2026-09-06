@@ -208,3 +208,57 @@ describe('agrupar — las restauraciones no son renglones', () => {
     expect(agrupar([fila({ action: 'table.restored' })], new Map())).toEqual([])
   })
 })
+
+// Diego, 6-sep: "me divides en dos cuando un invitado con acompanantes es
+// eliminado, no se supone que deben de venir en una sola linea?". La app borra
+// a los acompanantes en su propia transaccion, asi que llegan con otro
+// batch_id. Se juntan siguiendo el guest_id, no la hora.
+describe('agrupar — el invitado y sus acompanantes son UN renglon', () => {
+  const invitado = (id: string, cuando: string) =>
+    fila({ action: 'guest.deleted', entity_type: 'guest', entity_id: id,
+           entity_label: 'Alejandra', batch_id: 'lote-invitado', created_at: cuando,
+           old_value: { id } })
+
+  const acompanante = (id: string, deQuien: string, cuando: string) =>
+    fila({ action: 'party_member.deleted', entity_type: 'party_member', entity_id: id,
+           entity_label: 'Acomp ' + id, batch_id: 'lote-acompanantes', created_at: cuando,
+           old_value: { id, guest_id: deQuien } })
+
+  const escena = () => [
+    acompanante('p1', 'g1', '2026-09-05T18:00:01.000Z'),
+    acompanante('p2', 'g1', '2026-09-05T18:00:01.000Z'),
+    invitado('g1', '2026-09-05T18:00:03.000Z'),
+  ]
+
+  it('los junta en un solo movimiento aunque tengan lotes distintos', () => {
+    const movs = agrupar(escena(), new Map())
+    expect(movs).toHaveLength(1)
+    expect(movs[0].total).toBe(3)
+  })
+
+  it('el renglon se llama como el invitado, no como el acompanante', () => {
+    const [mov] = agrupar(escena(), new Map())
+    expect(mov.accion).toBe('guest.deleted')
+    expect(mov.filas[0].entity_label).toBe('Alejandra')
+  })
+
+  it('separa cuantos son principales y cuantos van colgando', () => {
+    const [mov] = agrupar(escena(), new Map())
+    expect(mov.principales).toBe(1)
+    expect(mov.dependientes).toBe(2)
+  })
+
+  it('el acompanante de OTRO invitado no se cuela', () => {
+    const filas = [...escena(), acompanante('p9', 'gOtro', '2026-09-05T18:00:01.000Z')]
+    const movs = agrupar(filas, new Map())
+    expect(movs).toHaveLength(2)
+    expect(movs.find(m => m.total === 3)).toBeTruthy()
+  })
+
+  it('si su invitado no esta en la bitacora, el acompanante va solo', () => {
+    const movs = agrupar([acompanante('p1', 'gDesconocido', '2026-09-05T18:00:01.000Z')], new Map())
+    expect(movs).toHaveLength(1)
+    expect(movs[0].principales).toBe(1)
+    expect(movs[0].dependientes).toBe(0)
+  })
+})
