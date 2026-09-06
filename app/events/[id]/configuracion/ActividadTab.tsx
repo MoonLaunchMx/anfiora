@@ -241,7 +241,13 @@ export default function ActividadTab({ eventId }: { eventId: string }) {
         // boda pero la pantalla sigue creyendo que estan borrados.
         await registrarRestauraciones(hechas, fuentes, mov.modulo)
         setTrabajando(null)
-        setError(`Regresaron ${hechas.length} de ${plan.length}. El resto sigue en la bitácora para intentarlo otra vez.`)
+        // El motivo va EN el aviso. Decir solo "no se pudo" obliga a adivinar,
+        // y adivinar cuesta una vuelta entera de prueba.
+        console.error('[actividad] fallo al restaurar en', tanda[0].tabla, error)
+        setError(
+          `Regresaron ${hechas.length} de ${plan.length}. Falló al escribir en ${tanda[0].tabla}: ` +
+          `${error.message}${error.code ? ` (${error.code})` : ''}`,
+        )
         await cargar()
         return
       }
@@ -398,10 +404,14 @@ export default function ActividadTab({ eventId }: { eventId: string }) {
             // El conteo cuenta PRINCIPALES: un invitado con 2 acompanantes es
             // "Alejandra Roldán · +2 acompañantes", no "3 registros". Lo que se
             // fue colgando se dice aparte, que es como se lee la historia.
+            // La etiqueta sale de la CABEZA, que es el padre. Buscar "la
+            // primera fila que tenga etiqueta" hacia que un proveedor sin
+            // nombre guardado se titulara con el monto de uno de sus pagos.
             const etiqueta = mov.principales > 1
               ? <span className="tabular-nums">{mov.principales} registros</span>
-              : mov.filas.find(f => f.entity_label)?.entity_label
-                ?? <span className="font-normal italic text-[#bbb]">Sin nombre guardado</span>
+              : mov.filas[0].entity_label
+                ? mov.filas[0].entity_label
+                : <span className="font-normal italic text-[#bbb]">Sin nombre guardado</span>
 
             return (
               <li key={mov.clave}>
