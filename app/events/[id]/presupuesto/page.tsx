@@ -24,7 +24,8 @@ import BudgetItemModal from './BudgetItemModal'
 import { buildBudgetItems, BudgetTier } from './lib/templates'
 import { exportToExcel, exportToPDF, downloadImportTemplate } from './lib/exports'
 import FichaModal from '../proveedores/FichaModal'
-import SupplierReviewModal from '../proveedores/SupplierReviewModal'
+import ReviewContratacionModal from '../proveedores/ReviewContratacionModal'
+import ReviewDescarteModal from '../proveedores/ReviewDescarteModal'
 import { Modal } from '@/app/components/ui/Modal'
 import { Categoria, cargarCategorias, buscarPorNombre, nombrePorId, crearCategoria } from '@/lib/rolodex/categorias-store'
 import { mismaCategoria } from '@/lib/rolodex/categorias'
@@ -72,6 +73,7 @@ export default function PresupuestoPage() {
 
   const [selectedSupplier, setSelectedSupplier] = useState<EventSupplierWithName | null>(null)
   const [reviewSupplier, setReviewSupplier]     = useState<EventSupplierWithName | null>(null)
+  const [userId, setUserId]                     = useState<string | null>(null)
 
   // La boda ya paso: es lo que decide si la ficha pide resena. Con rango manda el ultimo dia.
   const ultimoDiaDeLaBoda = event?.event_end_date || event?.event_date
@@ -85,11 +87,20 @@ export default function PresupuestoPage() {
     const { error } = await supabase.from('event_suppliers').update({ status: nuevo }).eq('id', itemId)
     if (error) console.error('Error actualizando status:', error?.message ?? error, error)
 
+    // Review al llegar a un estado final: una sola vez por proveedor y por tipo de review.
     const eraFinal = previo?.status === 'contratado' || previo?.status === 'descartado'
     const esFinal  = nuevo === 'contratado' || nuevo === 'descartado'
-    if (!eraFinal && esFinal && previo && !previo.rating && !previo.review_text) {
-      setSelectedSupplier(null)
-      setReviewSupplier({ ...previo, status: nuevo })
+    if (!eraFinal && esFinal && previo) {
+      const reviewType = nuevo === 'contratado' ? 'contratacion' : 'descarte'
+      const { count } = await supabase
+        .from('supplier_reviews')
+        .select('id', { count: 'exact', head: true })
+        .eq('event_supplier_id', itemId)
+        .eq('review_type', reviewType)
+      if (!count) {
+        setSelectedSupplier(null)
+        setReviewSupplier({ ...previo, status: nuevo })
+      }
     }
   }
 
@@ -108,6 +119,10 @@ export default function PresupuestoPage() {
     if (!eventId) return
     loadAll()
   }, [eventId])
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => setUserId(data.user?.id ?? null))
+  }, [])
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -994,17 +1009,30 @@ export default function PresupuestoPage() {
         />
       )}
 
-      {reviewSupplier && permisoProv.editar && (
-        <SupplierReviewModal
-          eventSupplierId={reviewSupplier.id}
-          supplierName={reviewSupplier.supplier.name}
-          initialRating={(reviewSupplier as any).rating ?? null}
-          initialReview={(reviewSupplier as any).review_text ?? null}
-          initialMood={(reviewSupplier as any).mood ?? null}
-          initialSpeed={(reviewSupplier as any).response_speed ?? null}
-          onSaved={() => { setReviewSupplier(null); loadAll() }}
-          onSkip={() => setReviewSupplier(null)}
-        />
+      {reviewSupplier && permisoProv.editar && userId && (
+        reviewSupplier.status === 'contratado' ? (
+          <ReviewContratacionModal
+            eventSupplierId={reviewSupplier.id}
+            supplierId={reviewSupplier.supplier_id}
+            eventId={eventId}
+            userId={userId}
+            supplierName={reviewSupplier.supplier.name}
+            eventName={event?.name ?? ''}
+            onSaved={() => { setReviewSupplier(null); loadAll() }}
+            onSkip={() => setReviewSupplier(null)}
+          />
+        ) : (
+          <ReviewDescarteModal
+            eventSupplierId={reviewSupplier.id}
+            supplierId={reviewSupplier.supplier_id}
+            eventId={eventId}
+            userId={userId}
+            supplierName={reviewSupplier.supplier.name}
+            eventName={event?.name ?? ''}
+            onSaved={() => { setReviewSupplier(null); loadAll() }}
+            onSkip={() => setReviewSupplier(null)}
+          />
+        )
       )}
     </div>
   )

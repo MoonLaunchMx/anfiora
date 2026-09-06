@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
-import { ChevronDown, Globe, Mail, Paperclip, Pencil, Star, Trash2, X } from 'lucide-react'
+import { ChevronDown, Globe, Mail, Paperclip, Pencil, Trash2, X } from 'lucide-react'
 import { FaWhatsapp } from 'react-icons/fa'
 import { FiInstagram } from 'react-icons/fi'
 import { supabase } from '@/lib/supabase'
@@ -11,7 +11,7 @@ import {
   EventSupplier, Supplier, EventBudget, SupplierPayment, SupplierStatus,
   SUPPLIER_STATUS_LABELS,
   PAYMENT_METHOD_LABELS, PAID_BY_LABELS,
-  RESPONSE_SPEEDS, RESPONSE_SPEED_LABELS, ResponseSpeed,
+  SupplierReview, MOTIVO_DESCARTE_LABEL,
 } from '@/lib/types'
 import { Categoria, nombrePorId } from '@/lib/rolodex/categorias-store'
 import { formatDisplay, toWhatsApp } from '@/lib/phone'
@@ -20,12 +20,16 @@ import {
   nombrePais, normalizarCiudad, normalizarEstado, tieneEstados,
 } from '@/lib/geo/divisiones'
 import SelectorGeo from '@/app/components/ui/SelectorGeo'
+import EscalaCinco from '@/app/components/ui/EscalaCinco'
 import { useConfirm } from '@/app/components/ui/ConfirmModal'
 import { usePermiso } from '@/lib/event-access-context'
 import { carpetasDe, destinosDe, QUE_SIGNIFICA } from '@/lib/rolodex/ficha-por-estado'
+import { anclasDe, EJES_DESEMPENO, NOMBRE_EJE, ANCLAS_RECONTRATACION } from '@/lib/reviews/ejes'
+import { calcularScores } from '@/lib/reviews/scores'
 import { TOPE_COMPROBANTES, TOPE_COTIZACIONES, visibles } from '@/lib/archivos/adjuntos'
 import PagoModal from './PagoModal'
 import ListaDeArchivos from './ListaDeArchivos'
+import ReviewDesempenoModal from './ReviewDesempenoModal'
 import { CaminoDelTrato, COLOR_ESTADO, EstatusProveedor, ICONO_ESTADO } from './EstatusProveedor'
 import PhoneInput from '@/app/components/ui/PhoneInput'
 
@@ -71,13 +75,29 @@ export default function FichaDelEvento({
   const [borrador, setBorrador] = useState(() => borradorDe(item))
   const [editandoMontos, setEditandoMontos] = useState(false)
   const [montos, setMontos] = useState(() => montosDe(item))
-  const [resena, setResena] = useState(() => resenaDe(item))
+  const [reviews, setReviews] = useState<SupplierReview[]>([])
+  const [cargandoReviews, setCargandoReviews] = useState(true)
+  const [mostrarModalDesempeno, setMostrarModalDesempeno] = useState(false)
+  const [userId, setUserId] = useState<string | null>(null)
+  const [eventName, setEventName] = useState('')
   const menuRef = useRef<HTMLDivElement>(null)
 
   const carpetas = useMemo(() => carpetasDe(item.status, bodaPaso), [item.status, bodaPaso])
   const cotizaciones = useMemo(() => visibles(item.quote_files), [item.quote_files])
   const destinos = useMemo(() => destinosDe(item.status), [item.status])
   const puedeMover = permisoFicha.editar
+
+  // Todas las reviews del proveedor (todas sus bodas): los scores de la
+  // cabecera son la reputacion del proveedor, no solo la de esta boda.
+  const scores = useMemo(() => calcularScores(reviews), [reviews])
+  const reviewPostEvento = useMemo(
+    () => reviews.find(r => r.event_supplier_id === item.id && r.review_type === 'post_evento' && r.autor === 'planner') ?? null,
+    [reviews, item.id],
+  )
+  const reviewDescarte = useMemo(
+    () => reviews.find(r => r.event_supplier_id === item.id && r.review_type === 'descarte') ?? null,
+    [reviews, item.id],
+  )
 
   useEffect(() => { setCarpeta(0) }, [item.id, item.status])
 
@@ -87,7 +107,6 @@ export default function FichaDelEvento({
     setErrorGuardar('')
     setBorrador(borradorDe(item))
     setMontos(montosDe(item))
-    setResena(resenaDe(item))
   }, [item])
 
   useEffect(() => {
@@ -104,6 +123,35 @@ export default function FichaDelEvento({
       })
     return () => { vigente = false }
   }, [item.id])
+
+  const cargarReviews = (supplierId: string) =>
+    supabase.from('supplier_reviews').select('*').eq('supplier_id', supplierId)
+      .then(({ data }) => setReviews((data as SupplierReview[]) ?? []))
+
+  useEffect(() => {
+    let vigente = true
+    setCargandoReviews(true)
+    supabase
+      .from('supplier_reviews').select('*')
+      .eq('supplier_id', item.supplier_id)
+      .then(({ data }) => {
+        if (!vigente) return
+        setReviews((data as SupplierReview[]) ?? [])
+        setCargandoReviews(false)
+      })
+    return () => { vigente = false }
+  }, [item.supplier_id])
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => setUserId(data.user?.id ?? null))
+  }, [])
+
+  useEffect(() => {
+    let vigente = true
+    supabase.from('events').select('name').eq('id', item.event_id).single()
+      .then(({ data }) => { if (vigente) setEventName(data?.name ?? '') })
+    return () => { vigente = false }
+  }, [item.event_id])
 
   useEffect(() => {
     if (!menuAbierto) return
@@ -264,12 +312,6 @@ export default function FichaDelEvento({
     )
   }
 
-  const guardarResena = () => guardarEnLaBoda({
-    rating:         resena.estrellas || null,
-    response_speed: resena.velocidad,
-    review_text:    resena.nota.trim() || null,
-  })
-
   const moverA = (destino: SupplierStatus) => {
     setMenuAbierto(false)
     if (!permisoFicha.editar) return
@@ -300,6 +342,11 @@ export default function FichaDelEvento({
             <h2 className="truncate text-[16px] font-bold tracking-tight text-[#1D1E20] lg:text-[17px]">{s.name}</h2>
             <p className="truncate text-[11.5px] text-[#999] lg:text-xs">
               {[categoria, s.subcategory, s.city].filter(Boolean).join(' · ')}
+            </p>
+            <p className="flex shrink-0 items-center gap-2.5 text-[11px] font-semibold text-[#aaa] lg:text-[11.5px]">
+              <span>Propuesta <span className={scores.propuesta == null ? 'text-[#ccc]' : 'text-[#1D1E20]'}>{scores.propuesta ?? '—'}</span></span>
+              <span aria-hidden className="text-[#ddd]">·</span>
+              <span>Desempeño <span className={scores.desempeno == null ? 'text-[#ccc]' : 'text-[#1D1E20]'}>{scores.desempeno ?? '—'}</span></span>
             </p>
           </div>
 
@@ -747,70 +794,19 @@ export default function FichaDelEvento({
               Esta boda ya pasó. ¿Cómo te fue con {s.name}?
             </div>
 
-            <Bloque titulo="Tu calificación">
-              <div className="flex items-center gap-1">
-                {[1, 2, 3, 4, 5].map(n => (
-                  <button
-                    key={n}
-                    disabled={!permisoFicha.editar}
-                    onClick={() => setResena(r => ({ ...r, estrellas: r.estrellas === n ? 0 : n }))}
-                    aria-label={`${n} de 5`}
-                    className="transition disabled:cursor-default"
-                  >
-                    <Star
-                      size={22}
-                      className={n <= resena.estrellas ? 'fill-[#48C9B0] text-[#48C9B0]' : 'fill-transparent text-[#d8d8d8]'}
-                    />
-                  </button>
-                ))}
-              </div>
-            </Bloque>
-
-            <Bloque titulo="Qué tan rápido contesta">
-              <div className="flex flex-wrap gap-1.5">
-                {RESPONSE_SPEEDS.map(velocidad => (
-                  <button
-                    key={velocidad}
-                    disabled={!permisoFicha.editar}
-                    onClick={() => setResena(r => ({ ...r, velocidad: r.velocidad === velocidad ? null : velocidad }))}
-                    className={`rounded-full border px-3 py-1 text-[11px] font-semibold transition disabled:cursor-default ${
-                      resena.velocidad === velocidad
-                        ? 'border-[#1D1E20] bg-[#1D1E20] text-white'
-                        : 'border-[#e0e0e0] bg-white text-[#666] hover:bg-[#f5f5f5]'
-                    }`}
-                  >
-                    {RESPONSE_SPEED_LABELS[velocidad]}
-                  </button>
-                ))}
-              </div>
-            </Bloque>
-
-            <Bloque titulo="Nota">
-              {permisoFicha.editar ? (
-                <textarea
-                  rows={3}
-                  value={resena.nota}
-                  onChange={e => setResena(r => ({ ...r, nota: e.target.value }))}
-                  placeholder="Cómo cumplió el día del evento"
-                  className={`${INPUT} resize-none`}
-                />
-              ) : (
-                <Texto valor={item.review_text} vacio="Sin nota de cómo te fue." />
-              )}
-            </Bloque>
-
-            {errorGuardar && (
-              <p className="rounded-lg border border-[#ffc0c0] bg-[#fff0f0] px-3 py-2 text-xs text-[#cc3333]">{errorGuardar}</p>
-            )}
-
-            {permisoFicha.editar && (
+            {cargandoReviews ? (
+              <div className="h-28 animate-pulse rounded-lg bg-[#f5f5f5]" />
+            ) : reviewPostEvento ? (
+              <ResumenPostEvento review={reviewPostEvento} currency={currency} />
+            ) : permisoFicha.editar ? (
               <button
-                onClick={guardarResena}
-                disabled={guardando}
-                className="self-start rounded-lg bg-[#48C9B0] px-3.5 py-2 text-xs font-semibold text-white transition hover:bg-[#3aa896] disabled:opacity-50"
+                onClick={() => setMostrarModalDesempeno(true)}
+                className="self-start rounded-lg bg-[#48C9B0] px-3.5 py-2 text-xs font-semibold text-white transition hover:bg-[#3aa896]"
               >
-                {guardando ? 'Guardando…' : 'Guardar la reseña'}
+                Calificar el desempeño
               </button>
+            ) : (
+              <p className="text-xs text-[#999]">Todavía no se calificó el desempeño de este proveedor.</p>
             )}
           </>
         )}
@@ -818,17 +814,36 @@ export default function FichaDelEvento({
         {carpetas[carpeta] === 'Motivo' && (
           <>
             <Bloque titulo="Por qué lo descartaste">
-              <p className="text-xs text-[#999]">
-                Todavía no se guarda el motivo del descarte. Es la columna que falta del spec.
-              </p>
+              {cargandoReviews ? (
+                <div className="h-5 w-40 animate-pulse rounded bg-[#f5f5f5]" />
+              ) : reviewDescarte?.motivo_descarte ? (
+                <p className="text-sm text-[#1D1E20]">{MOTIVO_DESCARTE_LABEL[reviewDescarte.motivo_descarte]}</p>
+              ) : (
+                <p className="text-xs text-[#999]">Sin motivo registrado.</p>
+              )}
+            </Bloque>
+            <Bloque titulo="Comentarios">
+              <Texto valor={reviewDescarte?.comentarios ?? null} vacio="Sin comentarios." />
             </Bloque>
             <Bloque titulo="Notas de esta boda">
               <Texto valor={item.event_notes} vacio="Sin notas." />
             </Bloque>
-            <p className="text-[11px] text-[#aaa]">Sin estrellas: nunca trabajaste con él, no hay nada que calificar.</p>
           </>
         )}
       </div>
+
+      {mostrarModalDesempeno && userId && (
+        <ReviewDesempenoModal
+          eventSupplierId={item.id}
+          supplierId={item.supplier_id}
+          eventId={item.event_id}
+          userId={userId}
+          supplierName={s.name}
+          eventName={eventName}
+          onSaved={() => { setMostrarModalDesempeno(false); cargarReviews(item.supplier_id) }}
+          onSkip={() => setMostrarModalDesempeno(false)}
+        />
+      )}
 
       {(cobrando || pagoEnEdicion) && (
         <PagoModal
@@ -938,14 +953,6 @@ function montosDe(item: SupplierWithDetails) {
   }
 }
 
-function resenaDe(item: SupplierWithDetails) {
-  return {
-    estrellas: item.rating ?? 0,
-    velocidad: item.response_speed as ResponseSpeed | null,
-    nota:      item.review_text ?? '',
-  }
-}
-
 function Campo({ etiqueta, children }: { etiqueta: string; children: React.ReactNode }) {
   return (
     <label className="block">
@@ -1024,6 +1031,57 @@ function Dato({ etiqueta, valor }: { etiqueta: string; valor: string | null | un
 function Texto({ valor, vacio }: { valor: string | null; vacio: string }) {
   if (!valor) return <p className="text-xs text-[#999]">{vacio}</p>
   return <p className="whitespace-pre-wrap text-sm text-[#555]">{valor}</p>
+}
+
+function ResumenPostEvento({ review, currency }: { review: SupplierReview; currency: Currency }) {
+  return (
+    <>
+      <Bloque titulo="Cómo calificaste el desempeño">
+        <div className="space-y-4">
+          {EJES_DESEMPENO.map(eje => (
+            <EscalaCinco
+              key={eje}
+              nombre={NOMBRE_EJE[eje]}
+              anclas={anclasDe('desempeno', eje)}
+              valor={review[eje]}
+              onChange={() => {}}
+              deshabilitado
+            />
+          ))}
+        </div>
+      </Bloque>
+
+      <Bloque titulo="¿Lo volverían a contratar?">
+        <EscalaCinco
+          nombre="Probabilidad de recontratación"
+          anclas={ANCLAS_RECONTRATACION}
+          valor={review.recontratacion}
+          onChange={() => {}}
+          deshabilitado
+        />
+        {review.recontratacion === 1 && (
+          <p className="mt-2 rounded-lg border border-[var(--error-border)] bg-[var(--error-bg)] px-3 py-2 text-xs font-semibold text-[var(--error-text)]">
+            Queda vetado: no aparece en sugerencias hasta que alguien lo revierta a mano.
+          </p>
+        )}
+      </Bloque>
+
+      <Bloque titulo="Cobros extra">
+        {review.cobros_extra == null ? (
+          <p className="text-xs text-[#999]">Sin especificar.</p>
+        ) : (
+          <p className="text-sm text-[#1D1E20]">
+            {review.cobros_extra ? 'Sí' : 'No'}
+            {review.cobros_extra && review.monto_cobros_extra ? ` · ${formatCurrency(review.monto_cobros_extra, currency)}` : ''}
+          </p>
+        )}
+      </Bloque>
+
+      <Bloque titulo="Comentarios">
+        <Texto valor={review.comentarios} vacio="Sin comentarios." />
+      </Bloque>
+    </>
+  )
 }
 
 function Renglon({ etiqueta, valor, currency, vacio, fuerte, color }: {

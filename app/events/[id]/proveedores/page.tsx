@@ -13,7 +13,8 @@ import StatsCollapse, { useStatsToggle, StatsToggleButton } from '@/app/componen
 import AltaProveedor, { EnEstaBoda, ProveedorNuevo } from './AltaProveedor'
 import { EntradaDelRolodex } from '@/lib/rolodex/duplicados'
 import FichaModal from './FichaModal'
-import SupplierReviewModal from './SupplierReviewModal'
+import ReviewContratacionModal from './ReviewContratacionModal'
+import ReviewDescarteModal from './ReviewDescarteModal'
 import SupplierListView from './SupplierListView'
 import SupplierKanbanView from './SupplierKanbanView'
 import SupplierFicheroView from './SupplierFicheroView'
@@ -52,10 +53,14 @@ export default function ProveedoresPage() {
   const [modalOpen, setModalOpen]       = useState(false)
   const [selectedItem, setSelectedItem] = useState<SupplierWithDetails | null>(null)
   const [reviewItem, setReviewItem]     = useState<SupplierWithDetails | null>(null)
+  const [userId, setUserId]             = useState<string | null>(null)
 
   const statsToggle = useStatsToggle(eventId, 'proveedores')
 
   useEffect(() => { if (eventId) loadAll() }, [eventId])
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => setUserId(data.user?.id ?? null))
+  }, [])
 
   const loadAll = async () => {
     setLoading(true)
@@ -247,12 +252,6 @@ export default function ProveedoresPage() {
   const handleDeletedItem = (deletedId: string) =>
     setItems(prev => prev.filter(it => it.id !== deletedId))
 
-  // Review se maneja desde page para evitar stacking context de Framer Motion
-  const handleReviewNeeded = (item: SupplierWithDetails) => {
-    setSelectedItem(null)
-    setReviewItem(item)
-  }
-
   const handleStatusChange = async (itemId: string, newStatus: SupplierStatus) => {
     if (!permiso.editar) return
     const prev = items.find(i => i.id === itemId)
@@ -260,11 +259,18 @@ export default function ProveedoresPage() {
     const { error } = await supabase.from('event_suppliers').update({ status: newStatus }).eq('id', itemId)
     if (error) { console.error('Error actualizando status:', error?.message ?? error, error); loadAll() }
 
-    // Review al arrastrar en kanban a estado final
+    // Review al llegar a un estado final (arrastrar en kanban o mover desde la
+    // ficha): una sola vez por proveedor y por tipo de review.
     const wasAlreadyFinal = prev?.status === 'contratado' || prev?.status === 'descartado'
     const isNowFinal      = newStatus === 'contratado' || newStatus === 'descartado'
-    if (!wasAlreadyFinal && isNowFinal && prev && !prev.rating && !prev.review_text) {
-      setReviewItem({ ...prev, status: newStatus })
+    if (!wasAlreadyFinal && isNowFinal && prev) {
+      const reviewType = newStatus === 'contratado' ? 'contratacion' : 'descarte'
+      const { count } = await supabase
+        .from('supplier_reviews')
+        .select('id', { count: 'exact', head: true })
+        .eq('event_supplier_id', itemId)
+        .eq('review_type', reviewType)
+      if (!count) setReviewItem({ ...prev, status: newStatus })
     }
   }
 
@@ -484,20 +490,30 @@ export default function ProveedoresPage() {
       )}
 
       {/* Review fuera del DetailModal — evita stacking context de Framer Motion */}
-      {reviewItem && permiso.editar && (
-        <SupplierReviewModal
-          eventSupplierId={reviewItem.id}
-          supplierName={reviewItem.supplier.name}
-          initialRating={reviewItem.rating}
-          initialReview={reviewItem.review_text}
-          initialMood={reviewItem.mood}
-          initialSpeed={reviewItem.response_speed}
-          onSaved={updates => {
-            setItems(prev => prev.map(it => it.id === reviewItem.id ? { ...it, ...updates } : it))
-            setReviewItem(null)
-          }}
-          onSkip={() => setReviewItem(null)}
-        />
+      {reviewItem && permiso.editar && userId && (
+        reviewItem.status === 'contratado' ? (
+          <ReviewContratacionModal
+            eventSupplierId={reviewItem.id}
+            supplierId={reviewItem.supplier_id}
+            eventId={eventId}
+            userId={userId}
+            supplierName={reviewItem.supplier.name}
+            eventName={event.name}
+            onSaved={() => setReviewItem(null)}
+            onSkip={() => setReviewItem(null)}
+          />
+        ) : (
+          <ReviewDescarteModal
+            eventSupplierId={reviewItem.id}
+            supplierId={reviewItem.supplier_id}
+            eventId={eventId}
+            userId={userId}
+            supplierName={reviewItem.supplier.name}
+            eventName={event.name}
+            onSaved={() => setReviewItem(null)}
+            onSkip={() => setReviewItem(null)}
+          />
+        )
       )}
     </div>
   )
