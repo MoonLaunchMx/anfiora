@@ -113,6 +113,7 @@ export default function ActividadTab({ eventId }: { eventId: string }) {
   const [fPersona, setFPersona]   = useState('')
   const [abierta, setAbierta]     = useState<string | null>(null)
   const [trabajando, setTrabajando] = useState<string | null>(null)
+  const [error, setError]         = useState<string | null>(null)
 
   const cargar = async () => {
     const { data } = await supabase
@@ -165,12 +166,20 @@ export default function ActividadTab({ eventId }: { eventId: string }) {
       ? 'este registro'
       : mov.total > 1 ? `los ${mov.total} registros` : (mov.filas[0].entity_label || 'este registro')
 
+    const varios = !soloEstos && mov.total > 1
+
+    // tone 'default' y confirmLabel a proposito: el modal trae 'Eliminar' en
+    // rojo por omision, porque nacio para borrar. Aqui se restaura.
     const ok = await askConfirm({
       title: `¿Restaurar ${que}?`,
       message: `Vuelven a ${mov.modulo ? LABEL_MODULO[mov.modulo] : 'la boda'} tal como estaban antes de que ${mov.persona} los eliminara, ${cuandoRelativo(mov.cuando)}.`,
+      confirmLabel: varios ? `Restaurar los ${mov.total}` : 'Restaurar',
+      cancelLabel: 'Cancelar',
+      tone: 'default',
     })
     if (!ok) return
 
+    setError(null)
     setTrabajando(mov.clave)
     let volvieron = 0
 
@@ -179,13 +188,11 @@ export default function ActividadTab({ eventId }: { eventId: string }) {
     for (const ins of plan) {
       const { error } = await supabase.from(ins.tabla).insert(ins.fila)
 
+      // Un aviso no es una pregunta: va como franja, no como modal de
+      // confirmar/cancelar.
       if (error && !esConflictoDeLlave(error)) {
         setTrabajando(null)
-        await askConfirm({
-          title: 'No se pudo terminar de restaurar',
-          message: `Regresaron ${volvieron} de ${plan.length}. El resto sigue en la bitácora para intentarlo otra vez.`,
-          confirmLabel: 'Entendido',
-        })
+        setError(`Regresaron ${volvieron} de ${plan.length}. El resto sigue en la bitácora para intentarlo otra vez.`)
         await cargar()
         return
       }
@@ -256,6 +263,19 @@ export default function ActividadTab({ eventId }: { eventId: string }) {
           {registros !== visibles.length && ` · ${registros} registros`}
         </span>
       </div>
+
+      {error && (
+        <div className="flex items-start gap-2 border-b border-[#ffc0c0] bg-[#fff0f0] px-3.5 py-2.5 text-[12.5px] text-[#cc3333] sm:px-5">
+          <span className="flex-1">{error}</span>
+          <button
+            type="button"
+            onClick={() => setError(null)}
+            className="shrink-0 font-medium underline underline-offset-2"
+          >
+            Cerrar
+          </button>
+        </div>
+      )}
 
       {visibles.length === 0 ? (
         <div className="px-5 py-14 text-center text-[13px] text-[#999]">
