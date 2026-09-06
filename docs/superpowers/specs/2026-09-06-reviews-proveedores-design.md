@@ -412,8 +412,31 @@ del promedio por definición de `avg()`.
 - `event_suppliers.discard_reason` y `win_reason` se crearon esta mañana y esta
   spec las absorbe. **Se borran**: nadie las lee todavía.
 - `event_suppliers.rating`, `mood`, `response_speed`, `review_text` tienen datos
-  en producción. **Decisión pendiente de Diego:** migrarlos a `supplier_reviews`
-  como `post_evento` / `planner`, o dejarlos morir donde están.
+  en producción. **Medido el 6-sep:** 7 filas en total. 4 son de Diego y se
+  descartan por instrucción suya. **3 son de una planner real**
+  (`bodasplanner@hotmail.com`, Boda Fernanda & César, capturadas el 1 y 2 de
+  septiembre) y **sí se migran**.
+
+  **Estas 3 filas NO son reviews de desempeño.** El modal viejo se dispara al
+  mover a estado final y su subtítulo dice *"Tu experiencia cotizando con X"*:
+  lo que se calificó fue la propuesta. Los tres proveedores están en
+  `contratado`. Migran como `review_type = 'contratacion'`, `autor = 'planner'`.
+
+  Mapeo:
+
+  | Columna vieja | Destino | Regla |
+  |---|---|---|
+  | `response_speed` | `comunicacion` | `lentisimo`→2, `normal`→3, `bueno`→4, `rapidos`→5. Las anclas de comunicación en contexto propuesta son literalmente velocidad de respuesta, así que el mapeo es 1 a 1. |
+  | `rating` | `comentarios` | Como texto, no como eje: era una calificación global y meterla en un eje le inventa precisión. |
+  | `mood` | `comentarios` | Igual. `love`→"trato excelente", `normal`→"trato normal", `no`→"mal trato". |
+  | `review_text` | `comentarios` | Se antepone al texto derivado si existe. |
+  | resto de ejes | `null` | No hay dato de origen. `avg()` los ignora. |
+
+  `razones_seleccion` queda vacío: esa pregunta no existía al capturar. La
+  validación de §5.3 aplica a capturas nuevas, no a filas históricas.
+
+  Las 4 filas de Diego no se migran. Después de la migración se borran
+  `rating`, `mood`, `response_speed` y `review_text` de `event_suppliers`.
 - El disparo a 4 días se cuelga del cron de recordatorios que ya corre cada 15
   minutos. No hace falta motor nuevo.
 
