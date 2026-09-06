@@ -183,14 +183,13 @@ export default function ActividadTab({ eventId }: { eventId: string }) {
       ? 'este registro'
       : mov.total > 1 ? `los ${mov.total} registros` : (mov.filas[0].entity_label || 'este registro')
 
-    const varios = !soloEstos && mov.total > 1
-
     // tone 'default' y confirmLabel a proposito: el modal trae 'Eliminar' en
-    // rojo por omision, porque nacio para borrar. Aqui se restaura.
+    // rojo por omision, porque nacio para borrar. Aqui se restaura. El boton
+    // no repite el conteo: eso ya lo dice el titulo.
     const ok = await askConfirm({
       title: `¿Restaurar ${que}?`,
       message: `Vuelven a ${mov.modulo ? LABEL_MODULO[mov.modulo] : 'la boda'} tal como estaban antes de que ${mov.persona} los eliminara, ${cuandoRelativo(mov.cuando)}.`,
-      confirmLabel: varios ? `Restaurar los ${mov.total}` : 'Restaurar',
+      confirmLabel: 'Restaurar',
       cancelLabel: 'Cancelar',
       tone: 'default',
     })
@@ -390,7 +389,7 @@ export default function ActividadTab({ eventId }: { eventId: string }) {
                           >
                             {trabajando === mov.clave
                               ? 'Restaurando…'
-                              : mov.total > 1 ? `Restaurar los ${mov.total}` : 'Restaurar'}
+                              : 'Restaurar'}
                           </span>
                         ))}
                       </span>
@@ -448,7 +447,7 @@ function Detalle({
             >
               {trabajando
                 ? 'Restaurando…'
-                : mov.total > 1 ? `Restaurar los ${mov.total}` : 'Restaurar'}
+                : 'Restaurar'}
             </button>
           )}
         </div>
