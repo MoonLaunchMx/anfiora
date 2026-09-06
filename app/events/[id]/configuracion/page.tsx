@@ -18,7 +18,7 @@ import { PermisosEditor } from './PermisosEditor'
 import { aplicarKit, normalizarPermisos, permisosDeRol, resumir } from '@/lib/permisos/resolver'
 import type { PermisosEvento } from '@/lib/permisos/catalogo'
 import { Modal } from '@/app/components/ui/Modal'
-import { Copy, Check, UserPlus, X, Pencil, Eye, Settings, Settings2, MessageCircle, Users, Smartphone, Gem, Crown, Cake, GraduationCap, Sun, PartyPopper, Wine, CalendarDays, Presentation, Monitor, UsersRound, Rocket, Building2, Tent, Mic, Flame, HeartHandshake, type LucideIcon } from 'lucide-react'
+import { Copy, Check, UserPlus, X, Pencil, Eye, Lock, Settings, Settings2, MessageCircle, Users, Smartphone, Gem, Crown, Cake, GraduationCap, Sun, PartyPopper, Wine, CalendarDays, Presentation, Monitor, UsersRound, Rocket, Building2, Tent, Mic, Flame, HeartHandshake, type LucideIcon } from 'lucide-react'
 
 // ─── Constantes ──────────────────────────────────────────────────────────────
 
@@ -242,7 +242,7 @@ function TemplateInput({
 
 export default function ConfiguracionPage() {
   const { id } = useParams()
-  const { features, updateFeatures, canAdmin } = useEventAccess()
+  const { features, updateFeatures, canAdmin, isLoading } = useEventAccess()
   const [featureSaving, setFeatureSaving] = useState<FeatureKey | null>(null)
 
   const [loading, setLoading]   = useState(true)
@@ -602,6 +602,23 @@ export default function ConfiguracionPage() {
   const hostLabel = isBoda ? 'Novia' : eventType === 'xv' ? 'Festejada' : eventType === 'graduacion' ? 'Graduado/a' : eventType === 'bautizo' ? 'Bautizado/a' : 'Festejado/a'
 
   if (loading) return <div className="p-8 text-sm text-[#666]">Cargando...</div>
+
+  // Configuracion no es un modulo, asi que la guarda del layout no la cubre:
+  // el nav la escondia pero escribir la URL entraba igual, incluida la pestana
+  // de Equipo. Exigir !isLoading o todos verian el mensaje mientras carga.
+  if (!isLoading && !canAdmin) {
+    return (
+      <div className="flex flex-1 items-center justify-center overflow-y-auto p-6">
+        <div className="max-w-sm text-center">
+          <Lock size={28} className="mx-auto mb-3 text-[#ddd]" />
+          <h2 className="mb-1 text-base font-semibold text-[#1D1E20]">Configuración</h2>
+          <p className="text-sm text-[#888]">
+            Solo el dueño de la boda y sus administradores entran aquí.
+          </p>
+        </div>
+      </div>
+    )
+  }
 
   const badgeStyle      = STATUS_STYLES[eventStatus]
   const dropdownOptions = STATUS_OPTIONS.filter(o => o.status !== eventStatus)
