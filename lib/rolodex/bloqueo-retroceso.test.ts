@@ -1,5 +1,34 @@
 import { describe, it, expect } from 'vitest'
-import { bloqueoDe } from './bloqueo-retroceso'
+import { bloqueoDe, tieneCotizacionRegistrada } from './bloqueo-retroceso'
+import type { ArchivoAdjunto } from '@/lib/types'
+
+const archivo = (borrado: string | null = null): ArchivoAdjunto => ({
+  path: 'x', nombre: 'x.pdf', tipo: 'application/pdf', bytes: 1,
+  subido: '2026-01-01T00:00:00Z', por: null, borrado,
+})
+
+describe('tieneCotizacionRegistrada', () => {
+  it('no hay cotizacion sin archivo visible ni monto', () => {
+    expect(tieneCotizacionRegistrada([], null)).toBe(false)
+    expect(tieneCotizacionRegistrada(null, null)).toBe(false)
+  })
+
+  it('un archivo visible cuenta como cotizacion, aunque no haya monto', () => {
+    expect(tieneCotizacionRegistrada([archivo()], null)).toBe(true)
+  })
+
+  it('un archivo borrado no cuenta', () => {
+    expect(tieneCotizacionRegistrada([archivo('2026-01-02T00:00:00Z')], null)).toBe(false)
+  })
+
+  it('un monto sin ningun archivo tambien cuenta', () => {
+    expect(tieneCotizacionRegistrada([], 5000)).toBe(true)
+  })
+
+  it('archivo y monto juntos siguen contando', () => {
+    expect(tieneCotizacionRegistrada([archivo()], 5000)).toBe(true)
+  })
+})
 
 describe('bloqueoDe', () => {
   it('deja pasar el movimiento cuando no hay evidencia que lo contradiga', () => {
@@ -11,12 +40,6 @@ describe('bloqueoDe', () => {
     const bloqueo = bloqueoDe('nuevo', { tieneCotizacion: true, tienePagos: false })
     expect(bloqueo).not.toBeNull()
     expect(bloqueo?.alternativa).toBe('cotizado')
-  })
-
-  it('un monto cotizado sin archivo tambien cuenta como cotizacion', () => {
-    // La evidencia la arma quien llama (archivo O monto); aqui solo se prueba
-    // que basta con que venga en true.
-    expect(bloqueoDe('nuevo', { tieneCotizacion: true, tienePagos: false })).not.toBeNull()
   })
 
   it('bloquea el regreso a nuevo o cotizado si ya tiene pagos, sin alternativa', () => {

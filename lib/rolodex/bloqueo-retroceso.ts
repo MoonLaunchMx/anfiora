@@ -1,4 +1,5 @@
-import type { SupplierStatus } from '@/lib/types'
+import type { ArchivoAdjunto, SupplierStatus } from '@/lib/types'
+import { visibles } from '@/lib/archivos/adjuntos'
 
 export type EvidenciaProveedor = {
   tieneCotizacion: boolean
@@ -8,6 +9,16 @@ export type EvidenciaProveedor = {
 export type BloqueoDeMovimiento = {
   motivo: string
   alternativa: SupplierStatus | null
+}
+
+// Cotizado por archivo o por monto: cualquiera de los dos cuenta como
+// evidencia, aunque el otro este vacio -- un monto tecleado a mano sin
+// cotizacion adjunta sigue siendo una cotizacion.
+export function tieneCotizacionRegistrada(
+  quoteFiles: ArchivoAdjunto[] | null | undefined,
+  quotedAmount: number | null,
+): boolean {
+  return visibles(quoteFiles).length > 0 || quotedAmount != null
 }
 
 // Retroceder no borra la evidencia: si ya cotizo o ya se le pago, el estado

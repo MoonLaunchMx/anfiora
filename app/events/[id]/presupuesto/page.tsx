@@ -17,6 +17,7 @@ import { interpretarEscritura } from '@/lib/invite/persistencia'
 import { BudgetCategoriesModal } from './BudgetCategoriesModal'
 import { ImportStepsModal } from '@/app/components/ui/ImportStepsModal'
 import { useConfirm } from '@/app/components/ui/ConfirmModal'
+import { useGuardarCambioDeEstado } from '@/lib/rolodex/usar-bloqueo-retroceso'
 import BudgetMetricsCards from '@/app/components/ui/BudgetMetricsCards'
 import StatsCollapse, { useStatsToggle, StatsToggleButton } from '@/app/components/ui/StatsCollapse'
 import BudgetCategoryRow from './BudgetCategoryRow'
@@ -81,6 +82,12 @@ export default function PresupuestoPage() {
 
   const cambiarEstadoProveedor = async (itemId: string, nuevo: SupplierStatus) => {
     const previo = eventSuppliers.find(es => es.id === itemId)
+    if (!previo) return
+    const detenido = await bloqueaCambioDeEstado(
+      itemId, nuevo, previo,
+      destino => cambiarEstadoProveedor(itemId, destino),
+    )
+    if (detenido) return
     setEventSuppliers(prev => prev.map(es => es.id === itemId ? { ...es, status: nuevo } : es))
     setSelectedSupplier(prev => prev && prev.id === itemId ? { ...prev, status: nuevo } : prev)
 
@@ -124,6 +131,7 @@ export default function PresupuestoPage() {
 
   const statsToggle = useStatsToggle(eventId, 'presupuesto')
   const askConfirm  = useConfirm()
+  const bloqueaCambioDeEstado = useGuardarCambioDeEstado()
 
   useEffect(() => {
     if (!eventId) return

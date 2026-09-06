@@ -359,11 +359,12 @@ export default function FichaDelEvento({
   }
 
   // Se ofrece, nunca se impone: un "no" se guarda y no se vuelve a preguntar
-  // por este proveedor. Ver lib/rolodex/oferta-avance.ts.
+  // por ESA oferta puntual (cotizado o contratado, cada una por su lado). Ver
+  // lib/rolodex/oferta-avance.ts.
   const ofrecerAvance = async (destino: SupplierStatus, motivo: string) => {
     if (!permisoFicha.editar) return
     if (destino === item.status) return
-    if (yaRechazoLaOferta(item.id)) return
+    if (yaRechazoLaOferta(item.id, destino)) return
     const ok = await askConfirm({
       title: `¿Mover a ${SUPPLIER_STATUS_LABELS[destino]}?`,
       message: motivo,
@@ -371,7 +372,7 @@ export default function FichaDelEvento({
       tone: 'default',
     })
     if (ok) onStatusChange(item.id, destino)
-    else recordarRechazo(item.id)
+    else recordarRechazo(item.id, destino)
   }
 
   const moverA = (destino: SupplierStatus) => {
