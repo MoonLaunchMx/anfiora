@@ -18,8 +18,10 @@ export default function EscalaCinco({
   deshabilitado = false,
 }: Props) {
   const activo = (n: number) => valor === n
+  // La frase se deriva del boton: en el contexto de los novios ese boton dice
+  // "No hubo imprevistos", y una etiqueta fija diria lo contrario debajo.
   const etiqueta =
-    valor === 'na' ? 'No aplicó, no cuenta para el promedio'
+    valor === 'na' ? `${etiquetaNoAplico}, no cuenta para el promedio`
     : typeof valor === 'number' ? anclas[valor - 1]
     : ''
 

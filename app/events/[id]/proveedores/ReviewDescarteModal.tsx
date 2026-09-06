@@ -46,7 +46,7 @@ export default function ReviewDescarteModal({
       precio_valor: valores.precio_valor, calidad: valores.calidad,
       comunicacion: valores.comunicacion,
       servicio_trato: null, manejo_imprevistos: null,
-      razones_seleccion: [], motivo_descarte: motivo,
+      razones_seleccion: null, motivo_descarte: motivo,
       recontratacion: null, cobros_extra: null,
       comentarios: comentarios.trim() || null,
     }

@@ -68,7 +68,7 @@ export default function ReviewDesempenoModal({
       comunicacion: aNumero(valores.comunicacion),
       servicio_trato: aNumero(valores.servicio_trato),
       manejo_imprevistos: aNumero(valores.manejo_imprevistos),
-      razones_seleccion: [], motivo_descarte: null,
+      razones_seleccion: null, motivo_descarte: null,
       recontratacion, cobros_extra: cobrosExtra,
       comentarios: comentarios.trim() || null,
     }

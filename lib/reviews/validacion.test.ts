@@ -16,6 +16,14 @@ describe('review de contratacion', () => {
     expect(problemas.join(' ')).toContain('Califica la propuesta')
   })
 
+  it('razones_seleccion en null cuenta igual que vacio: falta contestar', () => {
+    const problemas = validarReview({
+      ...vacio, precio_valor: 4, calidad: 4, comunicacion: 4,
+      razones_seleccion: null,
+    })
+    expect(problemas.join(' ')).toContain('por qué')
+  })
+
   it('exige al menos una razon', () => {
     const problemas = validarReview({
       ...vacio, precio_valor: 4, calidad: 4, comunicacion: 4,

@@ -9,7 +9,9 @@ import type {
 
 export type BorradorReview = {
   review_type: ReviewType
-  razones_seleccion: RazonSeleccion[]
+  // null, no []: la spec (5.3) pide null cuando la pregunta no existe en ese
+  // tipo de review. Un arreglo vacio dice "contesto y no eligio nada".
+  razones_seleccion: RazonSeleccion[] | null
   motivo_descarte: MotivoDescarte | null
   recontratacion: number | null
   cobros_extra: boolean | null
@@ -30,10 +32,10 @@ export function validarReview(b: BorradorReview): string[] {
     if (llenos(b, EJES_PROPUESTA) < EJES_PROPUESTA.length) {
       problemas.push('Califica la propuesta en los tres ejes.')
     }
-    if (b.razones_seleccion.length === 0) {
+    if ((b.razones_seleccion?.length ?? 0) === 0) {
       problemas.push('Dinos por qué elegimos a este proveedor.')
     }
-    if (b.razones_seleccion.length > MAX_RAZONES_SELECCION) {
+    if ((b.razones_seleccion?.length ?? 0) > MAX_RAZONES_SELECCION) {
       problemas.push('Puedes elegir máximo dos razones.')
     }
   }

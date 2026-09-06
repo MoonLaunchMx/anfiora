@@ -51,7 +51,14 @@ where u.email = 'bodasplanner@hotmail.com'
 on conflict (event_supplier_id, review_type, autor) do nothing;
 
 -- Verificar ANTES de seguir: deben ser exactamente 3 filas.
--- select count(*) from supplier_reviews where review_type = 'contratacion';
+-- Se acota con el mismo join por email que usa el insert: contar TODAS las de
+-- contratacion se pasa de largo en cuanto exista una review nueva, y entonces
+-- "deben ser 3" deja de ser cierto y la verificacion deja de verificar.
+-- select count(*)
+--   from supplier_reviews r
+--   join users u on u.id = r.user_id
+--  where r.review_type = 'contratacion'
+--    and u.email = 'bodasplanner@hotmail.com';
 
 -- Solo despues de verificar las 3 filas:
 alter table event_suppliers
