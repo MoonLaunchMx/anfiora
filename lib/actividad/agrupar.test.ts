@@ -1,0 +1,144 @@
+import { describe, it, expect } from 'vitest'
+import { agrupar, VENTANA_MS } from './agrupar'
+import type { FilaAudit } from './tipos'
+
+let n = 0
+function fila(over: Partial<FilaAudit> = {}): FilaAudit {
+  n += 1
+  return {
+    id: 'f' + n,
+    event_id: 'ev1',
+    user_id: 'u1',
+    user_email: 'patty@anfiora.com',
+    user_name: 'Patty García',
+    action: 'guest.updated',
+    entity_type: 'guest',
+    entity_id: 'g' + n,
+    entity_label: 'Invitado ' + n,
+    old_value: null,
+    new_value: null,
+    modulo: 'invitados',
+    batch_id: null,
+    created_at: '2026-09-05T18:00:00.000Z',
+    ...over,
+  }
+}
+
+describe('agrupar — borrados por batch_id', () => {
+  it('junta en un movimiento las filas que comparten batch_id', () => {
+    const filas = [
+      fila({ action: 'guest.deleted', batch_id: 'b1', created_at: '2026-09-05T18:00:02.000Z' }),
+      fila({ action: 'guest.deleted', batch_id: 'b1', created_at: '2026-09-05T18:00:01.000Z' }),
+      fila({ action: 'guest.deleted', batch_id: 'b1', created_at: '2026-09-05T18:00:00.000Z' }),
+    ]
+    const movs = agrupar(filas, new Set())
+    expect(movs).toHaveLength(1)
+    expect(movs[0].total).toBe(3)
+    expect(movs[0].esBorrado).toBe(true)
+    expect(movs[0].clave).toBe('b1')
+  })
+
+  it('no junta batch_id distintos aunque sean del mismo segundo', () => {
+    const filas = [
+      fila({ action: 'guest.deleted', batch_id: 'b1' }),
+      fila({ action: 'guest.deleted', batch_id: 'b2' }),
+    ]
+    expect(agrupar(filas, new Set())).toHaveLength(2)
+  })
+
+  it('deja las filas del lote en created_at descendente, que es el orden de restauracion', () => {
+    const filas = [
+      fila({ action: 'guest.deleted', batch_id: 'b1', created_at: '2026-09-05T18:00:00.000Z', entity_label: 'hijo' }),
+      fila({ action: 'guest.deleted', batch_id: 'b1', created_at: '2026-09-05T18:00:02.000Z', entity_label: 'padre' }),
+    ]
+    const [mov] = agrupar(filas, new Set())
+    expect(mov.filas.map(f => f.entity_label)).toEqual(['padre', 'hijo'])
+  })
+})
+
+describe('agrupar — ediciones por persona, accion, modulo y cercania', () => {
+  it('junta ediciones de la misma persona dentro de la ventana', () => {
+    const base = new Date('2026-09-05T18:00:00.000Z').getTime()
+    const filas = [
+      fila({ created_at: new Date(base).toISOString() }),
+      fila({ created_at: new Date(base + 60_000).toISOString() }),
+      fila({ created_at: new Date(base + 120_000).toISOString() }),
+    ]
+    const movs = agrupar(filas, new Set())
+    expect(movs).toHaveLength(1)
+    expect(movs[0].total).toBe(3)
+    expect(movs[0].esBorrado).toBe(false)
+  })
+
+  it('corta el grupo cuando el hueco pasa la ventana', () => {
+    const base = new Date('2026-09-05T18:00:00.000Z').getTime()
+    const filas = [
+      fila({ created_at: new Date(base).toISOString() }),
+      fila({ created_at: new Date(base + VENTANA_MS + 1000).toISOString() }),
+    ]
+    expect(agrupar(filas, new Set())).toHaveLength(2)
+  })
+
+  it('no junta a dos personas distintas aunque coincidan en todo lo demas', () => {
+    const filas = [
+      fila({ user_id: 'u1', user_name: 'Patty García' }),
+      fila({ user_id: 'u2', user_name: 'Frida Gamboa' }),
+    ]
+    expect(agrupar(filas, new Set())).toHaveLength(2)
+  })
+
+  it('no junta acciones distintas de la misma persona', () => {
+    const filas = [
+      fila({ action: 'guest.updated' }),
+      fila({ action: 'guest.rsvp_updated' }),
+    ]
+    expect(agrupar(filas, new Set())).toHaveLength(2)
+  })
+})
+
+describe('agrupar — restaurado', () => {
+  it('marca el movimiento cuando todas sus entidades ya volvieron', () => {
+    const filas = [
+      fila({ action: 'guest.deleted', batch_id: 'b1', entity_id: 'g1' }),
+      fila({ action: 'guest.deleted', batch_id: 'b1', entity_id: 'g2' }),
+    ]
+    expect(agrupar(filas, new Set(['g1', 'g2']))[0].restaurado).toBe(true)
+  })
+
+  it('no lo marca si falta una', () => {
+    const filas = [
+      fila({ action: 'guest.deleted', batch_id: 'b1', entity_id: 'g1' }),
+      fila({ action: 'guest.deleted', batch_id: 'b1', entity_id: 'g2' }),
+    ]
+    expect(agrupar(filas, new Set(['g1']))[0].restaurado).toBe(false)
+  })
+})
+
+describe('agrupar — forma de salida', () => {
+  it('ordena los movimientos del mas reciente al mas viejo', () => {
+    const filas = [
+      fila({ action: 'table.deleted', batch_id: 'viejo', created_at: '2026-09-01T10:00:00.000Z' }),
+      fila({ action: 'table.deleted', batch_id: 'nuevo', created_at: '2026-09-05T10:00:00.000Z' }),
+    ]
+    expect(agrupar(filas, new Set()).map(m => m.clave)).toEqual(['nuevo', 'viejo'])
+  })
+
+  it('usa el correo cuando no hay nombre', () => {
+    const [mov] = agrupar([fila({ user_name: null })], new Set())
+    expect(mov.persona).toBe('patty@anfiora.com')
+  })
+
+  it('cae en la accion cruda cuando no hay etiqueta', () => {
+    const [mov] = agrupar([fila({ action: 'cosa.rara' })], new Set())
+    expect(mov.etiquetaAccion).toBe('cosa.rara')
+  })
+
+  it('tira el modulo que no es de los doce', () => {
+    const [mov] = agrupar([fila({ modulo: 'inventado' })], new Set())
+    expect(mov.modulo).toBeNull()
+  })
+
+  it('con la lista vacia devuelve lista vacia', () => {
+    expect(agrupar([], new Set())).toEqual([])
+  })
+})
