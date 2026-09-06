@@ -12,6 +12,7 @@ import {
 } from "@/lib/feedback";
 import { prepareImage } from "@/lib/feedback-image";
 import { canCaptureScreen, captureScreen, isCaptureCancelled } from "@/lib/feedback-capture";
+import { FEEDBACK_DRAFT_KEY, parseDraft, serializeDraft } from "@/lib/feedback-draft";
 
 type Status = "idle" | "sending" | "sent" | "error";
 type Attachment = { file: File; preview: string; compressed: boolean };
@@ -35,20 +36,50 @@ export default function FeedbackModal() {
     list.forEach((a) => URL.revokeObjectURL(a.preview));
   }, []);
 
+  const [restored, setRestored] = useState(false);
+
+  const forgetDraft = useCallback(() => {
+    try { localStorage.removeItem(FEEDBACK_DRAFT_KEY); } catch {}
+  }, []);
+
   useEffect(() => {
     const handler = () => {
       setPage(window.location.pathname);
-      setType("sugerencia");
-      setMessage("");
       setStatus("idle");
       setImages((prev) => { clearImages(prev); return []; });
       setImageError("");
       setDragging(false);
+
+      let draft = null;
+      try { draft = parseDraft(localStorage.getItem(FEEDBACK_DRAFT_KEY), Date.now()); } catch {}
+      setType(draft?.type ?? "sugerencia");
+      setMessage(draft?.message ?? "");
+      setRestored(Boolean(draft));
+
       setOpen(true);
     };
     window.addEventListener("anfiora:open-feedback", handler);
     return () => window.removeEventListener("anfiora:open-feedback", handler);
   }, [clearImages]);
+
+  // Se guarda mientras escribe: cerrar el modal por accidente no debe costarle el reporte.
+  useEffect(() => {
+    if (!open || status === "sent") return;
+    try {
+      if (message.trim()) {
+        localStorage.setItem(FEEDBACK_DRAFT_KEY, serializeDraft({ type, message }, Date.now()));
+      } else {
+        localStorage.removeItem(FEEDBACK_DRAFT_KEY);
+      }
+    } catch {}
+  }, [open, status, type, message]);
+
+  const discardDraft = () => {
+    forgetDraft();
+    setMessage("");
+    setType("sugerencia");
+    setRestored(false);
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -168,6 +199,8 @@ export default function FeedbackModal() {
         body,
       });
       if (!res.ok) { setStatus("error"); return; }
+      forgetDraft();
+      setRestored(false);
       setStatus("sent");
       setTimeout(() => setOpen(false), 1500);
     } catch {
@@ -210,6 +243,21 @@ export default function FeedbackModal() {
                   </button>
                 ))}
               </div>
+
+              {restored && (
+                <div className="mb-2 flex items-center justify-between gap-2 rounded-lg border border-[#e8e8e8] bg-[#f8f8f8] px-2.5 py-1.5">
+                  <span className="text-[11px] text-[#666]">
+                    Recuperamos lo que habías escrito. Las imágenes no se guardan.
+                  </span>
+                  <button
+                    type="button"
+                    onClick={discardDraft}
+                    className="shrink-0 text-[11px] font-medium text-[#999] underline underline-offset-2 transition hover:text-[#1D1E20]"
+                  >
+                    Descartar
+                  </button>
+                </div>
+              )}
 
               <label className="mb-1 block text-xs font-medium text-[#666]">Cuéntanos</label>
               <textarea
