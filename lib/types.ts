@@ -651,12 +651,8 @@ export type EventSupplier = {
   event_id: string
   supplier_id: string
   status: SupplierStatus
-  mood: SupplierMood | null
-  response_speed: ResponseSpeed | null
   quoted_amount: number | null
   contract_amount: number | null
-  rating: number | null
-  review_text: string | null
   event_notes: string | null
   quote_files: ArchivoAdjunto[]
   event_budget_id: string | null

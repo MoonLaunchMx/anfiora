@@ -5,12 +5,10 @@ import {
   DndContext, DragEndEvent, PointerSensor, TouchSensor,
   useSensor, useSensors, useDroppable, useDraggable,
 } from '@dnd-kit/core'
-import { Frown, Meh, Smile } from 'lucide-react'
 import {
   Currency, formatCurrency,
   EventSupplier, Supplier, EventBudget, SupplierStatus,
   SUPPLIER_STATUSES, SUPPLIER_STATUS_LABELS, SUPPLIER_STATUS_COLORS,
-  SUPPLIER_MOOD_COLORS,
 } from '@/lib/types'
 import { Categoria, nombrePorId } from '@/lib/rolodex/categorias-store'
 
@@ -210,15 +208,7 @@ function KanbanCard({
   const style = transform
     ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` }
     : undefined
- 
-  const MoodIcon = item.mood === 'love'
-    ? <Smile size={11} className={SUPPLIER_MOOD_COLORS['love']} />
-    : item.mood === 'no'
-      ? <Frown size={11} className={SUPPLIER_MOOD_COLORS['no']} />
-      : item.mood === 'normal'
-        ? <Meh size={11} className={SUPPLIER_MOOD_COLORS['normal']} />
-        : null
- 
+  
   return (
     <div
       ref={setNodeRef}
@@ -232,13 +222,10 @@ function KanbanCard({
         isDragging ? 'opacity-50 shadow-lg' : 'hover:border-[#48C9B0] hover:shadow-sm'
       }`}
     >
-      {/* Categoría + mood */}
-      <div className="mb-1 flex items-center justify-between gap-1">
-        <p className="text-[10px] font-semibold uppercase tracking-wider text-[#888]">
-          {nombrePorId(categorias, item.supplier.category_id)}
-        </p>
-        {MoodIcon}
-      </div>
+      {/* Categoría */}
+      <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-[#888]">
+        {nombrePorId(categorias, item.supplier.category_id)}
+      </p>
  
       {/* Nombre */}
       <p className="text-xs font-bold text-[#1D1E20]">{item.supplier.name}</p>

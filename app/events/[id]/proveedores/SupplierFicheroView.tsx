@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ChevronDown, ChevronUp, ExternalLink, Globe, Mail, MapPin, Phone, Star } from 'lucide-react'
+import { ChevronDown, ChevronUp, ExternalLink, Globe, Mail, MapPin, Phone } from 'lucide-react'
 import { FaWhatsapp } from 'react-icons/fa'
 import { FiInstagram } from 'react-icons/fi'
 import {
@@ -466,11 +466,6 @@ function Ficha({ item, budgets, currency, categorias, activa, arrastrando, despl
           {telVisible && (
             <span className="flex items-center gap-1.5"><Phone size={12} className="shrink-0 text-[#aaa]" />{telVisible}</span>
           )}
-          {item.rating ? (
-            <span className="flex items-center gap-1.5">
-              <Star size={12} className="shrink-0 fill-[#48C9B0] text-[#48C9B0]" />{item.rating}.0
-            </span>
-          ) : null}
         </div>
 
         <div className="mt-2.5 grid grid-cols-2 gap-x-4 border-t border-[#f0f0f0] pt-2.5">
