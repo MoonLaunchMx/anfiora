@@ -32,8 +32,10 @@ export interface Movimiento {
   batchId: string | null
   filas: FilaAudit[]       // ordenadas created_at DESC = padre primero al restaurar
   total: number            // filas.length, para no recalcularlo en la pantalla
-  principales: number      // las que no cuelgan de otra: los invitados
-  dependientes: number     // las que si: sus acompanantes
+  principales: number      // las que no cuelgan de otra: el proveedor
+  dependientes: number     // las que si: sus pagos
+  // Como se dice el arrastre en la pantalla: "+2 pagos". null si no hay.
+  arrastreTexto: string | null
   restaurado: boolean      // todas sus filas ya se restauraron
   // Quien lo trajo de vuelta y cuando. null si sigue borrado. Los grandes
   // muestran esto en el renglon; el dato ya lo escribiamos, faltaba pintarlo.

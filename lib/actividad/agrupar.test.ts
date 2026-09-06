@@ -262,3 +262,58 @@ describe('agrupar — el invitado y sus acompanantes son UN renglon', () => {
     expect(movs[0].dependientes).toBe(0)
   })
 })
+
+// Diego, 6-sep: quito un proveedor y Actividad dijo "3 registros · Pago
+// eliminado". Las tres filas de la transaccion comparten created_at hasta el
+// microsegundo (Postgres da la hora de INICIO de la transaccion), asi que
+// ordenar por reloj no distingue padre de hijo: ganaba el azar.
+describe('agrupar — la jerarquia manda, no el reloj', () => {
+  const MISMO = '2026-09-06T13:03:35.684502Z'
+
+  const proveedor = () =>
+    fila({ action: 'event_supplier.deleted', entity_type: 'event_supplier',
+           entity_id: 's1', entity_label: 'Quinta Los Encinos',
+           modulo: 'proveedores', batch_id: 'tx', created_at: MISMO,
+           old_value: { id: 's1' } })
+
+  const pago = (id: string, monto: string) =>
+    fila({ action: 'payment.deleted', entity_type: 'payment',
+           entity_id: id, entity_label: monto,
+           modulo: 'pagos', batch_id: 'tx', created_at: MISMO,
+           old_value: { id, event_supplier_id: 's1' } })
+
+  // Los pagos PRIMERO en la lista de entrada: es el peor caso, el que hoy rompe.
+  const escena = () => [pago('p1', '2300.00'), pago('p2', '1000.00'), proveedor()]
+
+  it('el renglon se titula con el proveedor, no con un pago', () => {
+    const [mov] = agrupar(escena(), new Map())
+    expect(mov.accion).toBe('event_supplier.deleted')
+    expect(mov.filas[0].entity_label).toBe('Quinta Los Encinos')
+  })
+
+  it('la herramienta es la del padre: Proveedores, no Pagos', () => {
+    expect(agrupar(escena(), new Map())[0].modulo).toBe('proveedores')
+  })
+
+  it('el padre queda ANTES que sus hijos, que es el orden de reinsercion', () => {
+    const [mov] = agrupar(escena(), new Map())
+    expect(mov.filas.map(f => f.entity_type))
+      .toEqual(['event_supplier', 'payment', 'payment'])
+  })
+
+  it('cuenta un principal y dos colgados, y los nombra', () => {
+    const [mov] = agrupar(escena(), new Map())
+    expect(mov.principales).toBe(1)
+    expect(mov.dependientes).toBe(2)
+    expect(mov.arrastreTexto).toBe('+2 pagos')
+  })
+
+  it('con un solo hijo lo dice en singular', () => {
+    const [mov] = agrupar([pago('p1', '2300.00'), proveedor()], new Map())
+    expect(mov.arrastreTexto).toBe('+1 pago')
+  })
+
+  it('sin arrastre no hay texto que poner', () => {
+    expect(agrupar([proveedor()], new Map())[0].arrastreTexto).toBeNull()
+  })
+})

@@ -3,7 +3,9 @@ import {
 } from './vocabulario'
 import { MODULOS, type Modulo } from '@/lib/permisos/catalogo'
 import type { FilaAudit, Movimiento, Restauracion } from './tipos'
-import { DEPENDIENTES, esEntidadHija } from './dependientes'
+import {
+  dependienteDe, esEntidadHija, idPadreDe, rangoDeEntidad,
+} from './dependientes'
 
 // Cuanto silencio parte una tanda de ediciones en dos. Diez minutos separa
 // "estuvo capturando confirmaciones" de "volvio despues de comer".
@@ -40,33 +42,35 @@ export function mapaDeRestauraciones(filas: FilaAudit[]): Map<string, Restauraci
   return mapa
 }
 
-// El id del padre de esta fila, si ese padre esta entre los `presentes`.
-function idPadreDe(f: FilaAudit, presentes: Set<string>): string | null {
-  for (const dep of DEPENDIENTES) {
-    if (f.entity_type !== dep.hija) continue
-    const id = f.old_value?.[dep.llave]
-    if (typeof id === 'string' && presentes.has(id)) return id
-  }
-  return null
-}
-
 function armar(filas: FilaAudit[], restaurados: Map<string, Restauracion>): Movimiento {
-  // Descendente: el disparador AFTER DELETE de una cascada corre hijos
-  // primero, asi que leer al reves deja al padre arriba, que es el orden en
-  // que hay que volver a insertarlos.
-  const orden = [...filas].sort((a, b) => ts(b) - ts(a))
+  // PRIMERO la jerarquia, y solo despues el reloj.
+  //
+  // Las filas de una misma transaccion comparten created_at hasta el
+  // microsegundo, asi que ordenar por fecha dejaba arriba a quien cayera
+  // primero: un proveedor con dos pagos salia titulado "Pago eliminado", y —lo
+  // grave— se reinsertaban en ese mismo orden de azar, con el pago intentando
+  // entrar antes que su proveedor.
+  const orden = [...filas].sort(
+    (a, b) => rangoDeEntidad(a.entity_type) - rangoDeEntidad(b.entity_type) || ts(b) - ts(a),
+  )
 
-  // El renglon se llama como el PADRE, no como el acompanante que se fue con
-  // el. Normalmente coinciden —la app borra a los hijos primero, asi que al
-  // reves el padre queda arriba— pero no hay que depender del reloj para algo
-  // que el dato ya dice.
-  const cabeza = orden.find(f => !esEntidadHija(f.entity_type)) ?? orden[0]
+  // Con el orden ya puesto, la cabeza es la primera: un padre si lo hay.
+  const cabeza = orden[0]
 
   // Cuenta como dependiente solo si su padre viene en el MISMO movimiento. Un
   // acompanante borrado por su cuenta es el principal de su propio renglon, no
   // un huerfano.
   const presentes = new Set(orden.map(f => f.entity_id).filter((x): x is string => x !== null))
-  const dependientes = orden.filter(f => esEntidadHija(f.entity_type) && idPadreDe(f, presentes)).length
+  const colgados = orden.filter(f => {
+    const id = idPadreDe(f.entity_type, f.old_value)
+    return id !== null && presentes.has(id)
+  })
+  const dependientes = colgados.length
+
+  const dep = colgados.length > 0 ? dependienteDe(colgados[0].entity_type) : null
+  const arrastreTexto = dep
+    ? `+${dependientes} ${dependientes === 1 ? dep.uno : dep.varios}`
+    : null
   const borrado = esBorrado(cabeza.action)
 
   // Solo cuenta la restauracion POSTERIOR a cada borrado. Si volvio antes, es
@@ -93,6 +97,7 @@ function armar(filas: FilaAudit[], restaurados: Map<string, Restauracion>): Movi
     total: orden.length,
     principales: orden.length - dependientes,
     dependientes,
+    arrastreTexto,
     restaurado,
     // La mas reciente de las que lo trajeron de vuelta: si el lote se restauro
     // en dos tandas, la que cierra la historia es la ultima.
@@ -131,11 +136,8 @@ export function agrupar(filas: FilaAudit[], restaurados: Map<string, Restauracio
   // donde estaba: es un borrado por su cuenta.
   const loteDe = (f: FilaAudit): string | null => {
     if (!f.batch_id) return null
-    for (const dep of DEPENDIENTES) {
-      if (f.entity_type !== dep.hija) continue
-      const idPadre = f.old_value?.[dep.llave]
-      if (typeof idPadre === 'string') return loteDeEntidad.get(idPadre) ?? f.batch_id
-    }
+    const idPadre = idPadreDe(f.entity_type, f.old_value)
+    if (idPadre) return loteDeEntidad.get(idPadre) ?? f.batch_id
     return f.batch_id
   }
 

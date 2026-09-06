@@ -20,7 +20,7 @@ function mov(filas: FilaAudit[]): Movimiento {
     clave: 'b1', accion: filas[0].action, etiquetaAccion: 'x',
     modulo: 'invitados', persona: 'Diego Garza', personaId: 'u1',
     cuando: filas[0].created_at, esBorrado: true, batchId: 'b1',
-    filas, total: filas.length, principales: filas.length, dependientes: 0,
+    filas, total: filas.length, principales: filas.length, dependientes: 0, arrastreTexto: null,
     restaurado: false, restauracion: null,
   }
 }

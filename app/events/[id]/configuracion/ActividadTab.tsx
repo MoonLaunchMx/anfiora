@@ -5,7 +5,7 @@ import { ChevronDown, Check, Users } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { agrupar, mapaDeRestauraciones } from '@/lib/actividad/agrupar'
 import { entidadDeAccion } from '@/lib/actividad/vocabulario'
-import { esEntidadHija } from '@/lib/actividad/dependientes'
+import { dependienteDe, idPadreDe } from '@/lib/actividad/dependientes'
 import {
   planDeRestauracion, tandasPorTabla, arrastrados, insercionDeFila, type Insercion,
 } from '@/lib/actividad/restaurar'
@@ -428,10 +428,8 @@ export default function ActividadTab({ eventId }: { eventId: string }) {
                     <span className="min-w-0">
                       <span className="flex flex-wrap items-center gap-[7px] text-[13.5px] font-medium text-[#1D1E20]">
                         {etiqueta}
-                        {mov.dependientes > 0 && (
-                          <span className="shrink-0 font-normal text-[#999]">
-                            +{mov.dependientes} {mov.dependientes === 1 ? 'acompañante' : 'acompañantes'}
-                          </span>
+                        {mov.arrastreTexto && (
+                          <span className="shrink-0 font-normal text-[#999]">{mov.arrastreTexto}</span>
                         )}
                         {mov.esBorrado && !mov.restaurado && (
                           <span className="shrink-0 rounded-full border border-[#ffc0c0] bg-[#fff0f0] px-[7px] py-px text-[10.5px] font-medium uppercase tracking-[.03em] text-[#cc3333]">
@@ -529,6 +527,14 @@ function Detalle({
   const primeros = mov.filas.slice(0, 5)
   const resto = mov.total - primeros.length
 
+  // Cuelga de otra fila del MISMO movimiento: entonces se dibuja indentado y
+  // sin boton propio. Un hijo suelto, sin su padre aqui, se trata como uno mas.
+  const presentes = new Set(mov.filas.map(f => f.entity_id).filter((x): x is string => x !== null))
+  const cuelga = (f: FilaAudit) => {
+    const id = idPadreDe(f.entity_type, f.old_value)
+    return id !== null && presentes.has(id)
+  }
+
   return (
     <div className="border-t border-[#f4f4f4] bg-[#fafafa] px-3.5 pb-4 pt-1 sm:pl-[60px] sm:pr-5">
       {/* Solo movil: en escritorio este boton vive en el renglon. */}
@@ -581,7 +587,9 @@ function Detalle({
       {enLote && (
         <>
           <h4 className="mb-2 mt-3 text-[10.5px] font-semibold uppercase tracking-[.06em] text-[#bbb]">
-            {mov.esBorrado ? 'Se eliminaron' : 'Se editaron'}
+            {mov.dependientes > 0
+              ? 'Se eliminó, y lo que se llevó'
+              : mov.esBorrado ? 'Se eliminaron' : 'Se editaron'}
           </h4>
           <ul className="m-0 max-w-[560px] list-none p-0">
             {primeros.map(f => {
@@ -590,16 +598,21 @@ function Detalle({
               const volvio = f.entity_id ? restaurados.get(f.entity_id) : undefined
               const listo = volvio !== undefined && volvio.cuando > new Date(f.created_at).getTime()
               return (
-                <li key={f.id} className="flex items-center justify-between gap-3 border-b border-[#f0f0f0] py-1.5 text-[12.5px] text-[#666] last:border-b-0">
-                  <span className="min-w-0 truncate">
+                <li
+                  key={f.id}
+                  className={`flex items-center justify-between gap-3 border-b border-[#f0f0f0] py-1.5 text-[12.5px] text-[#666] last:border-b-0 ${
+                    cuelga(f) ? 'relative pl-[18px] before:absolute before:left-[5px] before:top-0 before:h-1/2 before:w-px before:bg-[#e8e8e8] after:absolute after:left-[5px] after:top-1/2 after:h-px after:w-2 after:bg-[#e8e8e8]' : ''
+                  }`}
+                >
+                  <span className={`min-w-0 truncate ${cuelga(f) ? '' : 'font-medium text-[#1D1E20]'}`}>
                     {f.entity_label || 'Sin nombre guardado'}
-                    {esEntidadHija(f.entity_type) && (
-                      <span className="text-[#bbb]"> · acompañante</span>
+                    {cuelga(f) && (
+                      <span className="text-[#bbb]"> · {dependienteDe(f.entity_type)?.uno}</span>
                     )}
                   </span>
                   {/* Al acompanante no se le ofrece rescate individual: cuelga
                       de su invitado, asi que solo no puede volver. */}
-                  {mov.esBorrado && !esEntidadHija(f.entity_type) && (
+                  {mov.esBorrado && !cuelga(f) && (
                     listo ? (
                       <span className="whitespace-nowrap px-1.5 py-0.5 text-[11.5px] text-[#bbb]">Restaurado</span>
                     ) : (
