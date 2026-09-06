@@ -12,6 +12,7 @@ import {
   SUPPLIER_STATUS_LABELS,
   PAYMENT_METHOD_LABELS, PAID_BY_LABELS,
   SupplierReview, MOTIVO_DESCARTE_LABEL,
+  RAZON_SELECCION_LABEL,
 } from '@/lib/types'
 import { Categoria, nombrePorId } from '@/lib/rolodex/categorias-store'
 import { formatDisplay, toWhatsApp } from '@/lib/phone'
@@ -24,8 +25,9 @@ import EscalaCinco from '@/app/components/ui/EscalaCinco'
 import { useConfirm } from '@/app/components/ui/ConfirmModal'
 import { usePermiso } from '@/lib/event-access-context'
 import { carpetasDe, destinosDe, QUE_SIGNIFICA } from '@/lib/rolodex/ficha-por-estado'
-import { anclasDe, EJES_DESEMPENO, NOMBRE_EJE, ANCLAS_RECONTRATACION } from '@/lib/reviews/ejes'
+import { anclasDe, EJES_DESEMPENO, EJES_PROPUESTA, NOMBRE_EJE, ANCLAS_RECONTRATACION } from '@/lib/reviews/ejes'
 import { calcularScores } from '@/lib/reviews/scores'
+import { yaRechazoLaOferta, recordarRechazo } from '@/lib/rolodex/oferta-avance'
 import { TOPE_COMPROBANTES, TOPE_COTIZACIONES, visibles } from '@/lib/archivos/adjuntos'
 import PagoModal from './PagoModal'
 import ListaDeArchivos from './ListaDeArchivos'
@@ -99,7 +101,7 @@ export default function FichaDelEvento({
   const [duenoEvento, setDuenoEvento] = useState<string | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
 
-  const carpetas = useMemo(() => carpetasDe(item.status, bodaPaso), [item.status, bodaPaso])
+  const carpetas = carpetasDe()
   const cotizaciones = useMemo(() => visibles(item.quote_files), [item.quote_files])
   const destinos = useMemo(() => destinosDe(item.status), [item.status])
   const puedeMover = permisoFicha.editar
@@ -107,6 +109,10 @@ export default function FichaDelEvento({
   // Todas las reviews del proveedor (todas sus bodas): los scores de la
   // cabecera son la reputacion del proveedor, no solo la de esta boda.
   const scores = useMemo(() => calcularScores(reviews), [reviews])
+  const reviewContratacion = useMemo(
+    () => reviews.find(r => r.event_supplier_id === item.id && r.review_type === 'contratacion') ?? null,
+    [reviews, item.id],
+  )
   const reviewPostEvento = useMemo(
     () => reviews.find(r => r.event_supplier_id === item.id && r.review_type === 'post_evento' && r.autor === 'planner') ?? null,
     [reviews, item.id],
@@ -343,8 +349,29 @@ export default function FichaDelEvento({
         contract_amount: contrato,
         event_budget_id: montos.partida || null,
       },
-      () => setEditandoMontos(false)
+      () => {
+        setEditandoMontos(false)
+        if (cotizado != null && item.status === 'nuevo') {
+          ofrecerAvance('cotizado', 'Ya tiene un monto cotizado.')
+        }
+      }
     )
+  }
+
+  // Se ofrece, nunca se impone: un "no" se guarda y no se vuelve a preguntar
+  // por este proveedor. Ver lib/rolodex/oferta-avance.ts.
+  const ofrecerAvance = async (destino: SupplierStatus, motivo: string) => {
+    if (!permisoFicha.editar) return
+    if (destino === item.status) return
+    if (yaRechazoLaOferta(item.id)) return
+    const ok = await askConfirm({
+      title: `¿Mover a ${SUPPLIER_STATUS_LABELS[destino]}?`,
+      message: motivo,
+      confirmLabel: `Mover a ${SUPPLIER_STATUS_LABELS[destino]}`,
+      tone: 'default',
+    })
+    if (ok) onStatusChange(item.id, destino)
+    else recordarRechazo(item.id)
   }
 
   const moverA = (destino: SupplierStatus) => {
@@ -710,7 +737,13 @@ export default function FichaDelEvento({
                 tope={TOPE_COTIZACIONES}
                 puedeEditar={permisoFicha.editar}
                 textoVacio="Sube la cotización"
-                onCambio={lista => onSaved({ ...item, quote_files: lista })}
+                onCambio={lista => {
+                  const subioUnaNueva = visibles(lista).length > cotizaciones.length
+                  onSaved({ ...item, quote_files: lista })
+                  if (subioUnaNueva && item.status === 'nuevo') {
+                    ofrecerAvance('cotizado', 'Ya tiene una cotización guardada.')
+                  }
+                }}
               />
             </Bloque>
           </>
@@ -823,55 +856,51 @@ export default function FichaDelEvento({
           </>
         )}
 
-        {carpetas[carpeta] === 'Reseña' && (
-          <>
-            <div className="rounded-xl border border-[#f0e4c8] bg-[#fffbf0] px-4 py-3 text-xs font-medium text-[#b8912f]">
-              Esta boda ya pasó. ¿Cómo te fue con {s.name}?
-            </div>
-
-            {cargandoReviews ? (
-              <div className="h-28 animate-pulse rounded-lg bg-[#f5f5f5]" />
-            ) : errorReviews ? (
-              <ErrorDeReviews />
-            ) : reviewPostEvento ? (
-              <ResumenPostEvento
-                review={reviewPostEvento}
-                currency={currency}
-                onEditar={permisoFicha.editar ? () => setMostrarModalDesempeno(true) : undefined}
-              />
-            ) : permisoFicha.editar ? (
-              <button
-                onClick={() => setMostrarModalDesempeno(true)}
-                className="self-start rounded-lg bg-[#48C9B0] px-3.5 py-2 text-xs font-semibold text-white transition hover:bg-[#3aa896]"
-              >
-                Calificar el desempeño
-              </button>
-            ) : (
-              <p className="text-xs text-[#999]">Todavía no se calificó el desempeño de este proveedor.</p>
-            )}
-          </>
-        )}
-
-        {carpetas[carpeta] === 'Motivo' && (
-          <>
-            <Bloque titulo="Por qué lo descartaste">
-              {cargandoReviews ? (
-                <div className="h-5 w-40 animate-pulse rounded bg-[#f5f5f5]" />
-              ) : errorReviews ? (
-                <ErrorDeReviews />
-              ) : reviewDescarte?.motivo_descarte ? (
-                <p className="text-sm text-[#1D1E20]">{MOTIVO_DESCARTE_LABEL[reviewDescarte.motivo_descarte]}</p>
-              ) : (
-                <p className="text-xs text-[#999]">Sin motivo registrado.</p>
+        {carpetas[carpeta] === 'Review' && (
+          cargandoReviews ? (
+            <div className="h-28 animate-pulse rounded-lg bg-[#f5f5f5]" />
+          ) : errorReviews ? (
+            <ErrorDeReviews />
+          ) : !reviewContratacion && !reviewDescarte && !reviewPostEvento && !bodaPaso ? (
+            <p className="text-xs text-[#999]">Nadie ha calificado a este proveedor todavía.</p>
+          ) : (
+            <div className="space-y-6">
+              {reviewContratacion && (
+                <GrupoReview titulo="Al contratarlo">
+                  <ResumenContratacion review={reviewContratacion} />
+                </GrupoReview>
               )}
-            </Bloque>
-            <Bloque titulo="Comentarios">
-              <Texto valor={reviewDescarte?.comentarios ?? null} vacio="Sin comentarios." />
-            </Bloque>
-            <Bloque titulo="Notas de esta boda">
-              <Texto valor={item.event_notes} vacio="Sin notas." />
-            </Bloque>
-          </>
+
+              {reviewDescarte && (
+                <GrupoReview titulo="Por qué se descartó">
+                  <ResumenDescarte review={reviewDescarte} />
+                </GrupoReview>
+              )}
+
+              {reviewPostEvento ? (
+                <GrupoReview titulo="Después del evento">
+                  <ResumenPostEvento
+                    review={reviewPostEvento}
+                    currency={currency}
+                    onEditar={permisoFicha.editar ? () => setMostrarModalDesempeno(true) : undefined}
+                  />
+                </GrupoReview>
+              ) : bodaPaso ? (
+                <GrupoReview titulo="Después del evento">
+                  {permisoFicha.editar ? (
+                    <button
+                      onClick={() => setMostrarModalDesempeno(true)}
+                      className="rounded-lg bg-[#48C9B0] px-3.5 py-2 text-xs font-semibold text-white transition hover:bg-[#3aa896]"
+                    >
+                      Calificar el desempeño
+                    </button>
+                  ) : (
+                    <p className="text-xs text-[#999]">Todavía no se calificó el desempeño de este proveedor.</p>
+                  )}
+                </GrupoReview>
+              ) : null}
+            </div>
+          )
         )}
       </div>
 
@@ -899,11 +928,17 @@ export default function FichaDelEvento({
           contratado={contratado}
           pagadoHastaAhora={pagado}
           pago={pagoEnEdicion}
-          onGuardado={pago => setPagos(previos =>
-            previos.some(otro => otro.id === pago.id)
-              ? previos.map(otro => (otro.id === pago.id ? pago : otro))
-              : [pago, ...previos]
-          )}
+          onGuardado={pago => {
+            const esNuevo = !pagos.some(otro => otro.id === pago.id)
+            setPagos(previos =>
+              previos.some(otro => otro.id === pago.id)
+                ? previos.map(otro => (otro.id === pago.id ? pago : otro))
+                : [pago, ...previos]
+            )
+            if (esNuevo && (item.status === 'nuevo' || item.status === 'cotizado')) {
+              ofrecerAvance('contratado', 'Ya tiene un pago registrado.')
+            }
+          }}
           onCerrar={() => { setCobrando(false); setPagoEnEdicion(null) }}
         />
       )}
@@ -1076,6 +1111,93 @@ function Dato({ etiqueta, valor }: { etiqueta: string; valor: string | null | un
 function Texto({ valor, vacio }: { valor: string | null; vacio: string }) {
   if (!valor) return <p className="text-xs text-[#999]">{vacio}</p>
   return <p className="whitespace-pre-wrap text-sm text-[#555]">{valor}</p>
+}
+
+function GrupoReview({ titulo, children }: { titulo: string; children: React.ReactNode }) {
+  return (
+    <section className="space-y-4 border-b border-dashed border-[#eee] pb-6 last:border-b-0 last:pb-0">
+      <h3 className="text-[13px] font-bold text-[#1D1E20]">{titulo}</h3>
+      {children}
+    </section>
+  )
+}
+
+function ResumenContratacion({ review }: { review: SupplierReview }) {
+  return (
+    <>
+      <Bloque titulo="Cómo calificaste la propuesta">
+        <div className="space-y-4">
+          {EJES_PROPUESTA.map(eje => (
+            <EscalaCinco
+              key={eje}
+              nombre={NOMBRE_EJE[eje]}
+              anclas={anclasDe('propuesta', eje)}
+              valor={review[eje]}
+              onChange={() => {}}
+              deshabilitado
+            />
+          ))}
+        </div>
+      </Bloque>
+
+      <Bloque titulo="Por qué lo elegimos">
+        {review.razones_seleccion && review.razones_seleccion.length > 0 ? (
+          <div className="flex flex-wrap gap-1.5">
+            {review.razones_seleccion.map(r => (
+              <span key={r} className="rounded-full border border-[#e0e0e0] bg-[#fafafa] px-2.5 py-1 text-xs text-[#1D1E20]">
+                {RAZON_SELECCION_LABEL[r]}
+              </span>
+            ))}
+          </div>
+        ) : (
+          <p className="text-xs text-[#999]">Sin razones registradas.</p>
+        )}
+      </Bloque>
+
+      <Bloque titulo="Comentarios">
+        <Texto valor={review.comentarios} vacio="Sin comentarios." />
+      </Bloque>
+    </>
+  )
+}
+
+function ResumenDescarte({ review }: { review: SupplierReview }) {
+  const sinOpinion = review.precio_valor == null && review.calidad == null && review.comunicacion == null
+
+  return (
+    <>
+      <Bloque titulo="Por qué lo descartamos">
+        {review.motivo_descarte ? (
+          <p className="text-sm text-[#1D1E20]">{MOTIVO_DESCARTE_LABEL[review.motivo_descarte]}</p>
+        ) : (
+          <p className="text-xs text-[#999]">Sin motivo registrado.</p>
+        )}
+      </Bloque>
+
+      <Bloque titulo="Cómo calificaste la propuesta">
+        {sinOpinion ? (
+          <p className="text-xs text-[#999]">Sin opinión sobre la propuesta.</p>
+        ) : (
+          <div className="space-y-4">
+            {EJES_PROPUESTA.map(eje => (
+              <EscalaCinco
+                key={eje}
+                nombre={NOMBRE_EJE[eje]}
+                anclas={anclasDe('propuesta', eje)}
+                valor={review[eje]}
+                onChange={() => {}}
+                deshabilitado
+              />
+            ))}
+          </div>
+        )}
+      </Bloque>
+
+      <Bloque titulo="Comentarios">
+        <Texto valor={review.comentarios} vacio="Sin comentarios." />
+      </Bloque>
+    </>
+  )
 }
 
 function ResumenPostEvento({ review, currency, onEditar }: {

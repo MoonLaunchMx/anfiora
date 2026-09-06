@@ -6,7 +6,7 @@ import { Search, Plus, List, Columns3, Disc3 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import {
   Event, EventBudget, EventSupplier, Supplier,
-  SupplierStatus, Currency, formatCurrency,
+  SupplierStatus, SUPPLIER_STATUS_LABELS, Currency, formatCurrency,
 } from '@/lib/types'
 import { Categoria, activas, cargarCategorias, nombrePorId } from '@/lib/rolodex/categorias-store'
 import StatsCollapse, { useStatsToggle, StatsToggleButton } from '@/app/components/ui/StatsCollapse'
@@ -14,6 +14,9 @@ import AltaProveedor, { EnEstaBoda, ProveedorNuevo } from './AltaProveedor'
 import { EntradaDelRolodex } from '@/lib/rolodex/duplicados'
 import { idsVetados } from '@/lib/reviews/veto'
 import type { ReviewParaVeto } from '@/lib/reviews/veto'
+import { bloqueoDe } from '@/lib/rolodex/bloqueo-retroceso'
+import { visibles } from '@/lib/archivos/adjuntos'
+import { useConfirm } from '@/app/components/ui/ConfirmModal'
 import FichaModal from './FichaModal'
 import ReviewContratacionModal from './ReviewContratacionModal'
 import ReviewDescarteModal from './ReviewDescarteModal'
@@ -41,6 +44,7 @@ export default function ProveedoresPage() {
   const { id } = useParams()
   const eventId = id as string
   const permiso = usePermiso('proveedores')
+  const askConfirm = useConfirm()
 
   const [event, setEvent]     = useState<Event | null>(null)
   const [items, setItems]     = useState<SupplierWithDetails[]>([])
@@ -267,8 +271,49 @@ export default function ProveedoresPage() {
   const handleDeletedItem = (deletedId: string) =>
     setItems(prev => prev.filter(it => it.id !== deletedId))
 
+  // Retroceder no borra la evidencia: si ya cotizo o ya se le pago, el estado
+  // no puede volver como si nada hubiera pasado. Se pregunta aqui, antes del
+  // update, porque es el unico punto por el que pasan la ficha, el kanban y
+  // el fichero.
+  const bloqueadoPorEvidencia = async (itemId: string, newStatus: SupplierStatus): Promise<boolean> => {
+    if (newStatus !== 'nuevo' && newStatus !== 'cotizado') return false
+    const actual = items.find(i => i.id === itemId)
+    if (!actual) return false
+
+    const { count, error } = await supabase
+      .from('supplier_payments')
+      .select('id', { count: 'exact', head: true })
+      .eq('event_supplier_id', itemId)
+    if (error) console.error('Error revisando pagos antes de mover:', error.message ?? error, error)
+
+    const bloqueo = bloqueoDe(newStatus, {
+      tieneCotizacion: visibles(actual.quote_files).length > 0 || actual.quoted_amount != null,
+      tienePagos: !!count,
+    })
+    if (!bloqueo) return false
+
+    if (bloqueo.alternativa) {
+      const ok = await askConfirm({
+        title: `No se puede mover a ${SUPPLIER_STATUS_LABELS[newStatus]}`,
+        message: `${bloqueo.motivo} ¿Lo dejamos en ${SUPPLIER_STATUS_LABELS[bloqueo.alternativa]}?`,
+        confirmLabel: `Dejar en ${SUPPLIER_STATUS_LABELS[bloqueo.alternativa]}`,
+        tone: 'default',
+      })
+      if (ok && bloqueo.alternativa !== actual.status) await handleStatusChange(itemId, bloqueo.alternativa)
+    } else {
+      await askConfirm({
+        title: `No se puede mover a ${SUPPLIER_STATUS_LABELS[newStatus]}`,
+        message: bloqueo.motivo,
+        confirmLabel: 'Entendido',
+        soloAviso: true,
+      })
+    }
+    return true
+  }
+
   const handleStatusChange = async (itemId: string, newStatus: SupplierStatus) => {
     if (!permiso.editar) return
+    if (await bloqueadoPorEvidencia(itemId, newStatus)) return
     const prev = items.find(i => i.id === itemId)
     setItems(p => p.map(it => it.id === itemId ? { ...it, status: newStatus } : it))
     // Sin .select() un UPDATE filtrado por RLS no da error: devuelve cero filas.

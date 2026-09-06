@@ -1,14 +1,10 @@
 import type { SupplierStatus } from '@/lib/types'
 
-// Lo que no aplica no existe: a un proveedor que apenas contactaste no se le
-// piden pagos, y a uno que descartaste no se le piden estrellas.
-export function carpetasDe(estado: SupplierStatus, bodaPaso: boolean): string[] {
-  if (estado === 'nuevo')      return ['Contacto']
-  if (estado === 'cotizado')   return ['Contacto', 'Cotización']
-  if (estado === 'descartado') return ['Contacto', 'Motivo']
-  return bodaPaso
-    ? ['Contacto', 'Cotización', 'Pagos', 'Reseña']
-    : ['Contacto', 'Cotización', 'Pagos']
+// Las cuatro carpetas son fijas: lo que cambia es su contenido, no su
+// presencia. Ocultarlas por estado obligaba a mover el estado antes de poder
+// guardar una cotizacion que ya llego por correo -- el orden real es al reves.
+export function carpetasDe(): string[] {
+  return ['Contacto', 'Cotización', 'Pagos', 'Review']
 }
 
 // El camino del trato. Descartado no es un paso: es salirse de el.

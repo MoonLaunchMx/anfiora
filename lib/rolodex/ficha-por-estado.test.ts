@@ -2,32 +2,12 @@ import { describe, it, expect } from 'vitest'
 import { carpetasDe, destinosDe, pasosAlcanzados, CAMINO, QUE_SIGNIFICA } from './ficha-por-estado'
 
 describe('carpetasDe', () => {
-  it('a un proveedor recien capturado solo se le pregunta el contacto', () => {
-    expect(carpetasDe('nuevo', false)).toEqual(['Contacto'])
+  it('las cuatro carpetas siempre estan, en el mismo orden', () => {
+    expect(carpetasDe()).toEqual(['Contacto', 'Cotización', 'Pagos', 'Review'])
   })
 
-  it('la cotizacion aparece cuando ya te cotizo', () => {
-    expect(carpetasDe('cotizado', false)).toEqual(['Contacto', 'Cotización'])
-  })
-
-  it('los pagos solo existen con algo contratado', () => {
-    expect(carpetasDe('cotizado', false)).not.toContain('Pagos')
-    expect(carpetasDe('contratado', false)).toContain('Pagos')
-  })
-
-  it('la resena solo aparece cuando la boda ya paso', () => {
-    expect(carpetasDe('contratado', false)).not.toContain('Reseña')
-    expect(carpetasDe('contratado', true)).toContain('Reseña')
-  })
-
-  it('un descartado no tiene cotizacion ni pagos, tiene motivo', () => {
-    expect(carpetasDe('descartado', true)).toEqual(['Contacto', 'Motivo'])
-  })
-
-  it('contacto siempre va primero', () => {
-    for (const estado of ['nuevo', 'cotizado', 'contratado', 'descartado'] as const) {
-      expect(carpetasDe(estado, true)[0]).toBe('Contacto')
-    }
+  it('no depende del estado ni de si la boda ya paso: es una lista fija', () => {
+    expect(carpetasDe()).toEqual(carpetasDe())
   })
 })
 
