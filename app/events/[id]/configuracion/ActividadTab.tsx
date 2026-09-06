@@ -361,14 +361,19 @@ export default function ActividadTab({ eventId }: { eventId: string }) {
                     </span>
 
                     <span className="flex shrink-0 items-center justify-end gap-1.5 sm:gap-2.5">
+                      {/* En movil el chevron es la unica pista de que el
+                          renglon abre, porque ahi ya no vive el boton. */}
                       <ChevronDown
                         size={14}
-                        className={`hidden text-[#bbb] transition-transform sm:block ${estaAbierta ? 'rotate-180' : ''}`}
+                        className={`text-[#bbb] transition-transform ${estaAbierta ? 'rotate-180' : ''}`}
                       />
                       <span className="hidden min-w-[82px] text-right text-[11.5px] tabular-nums text-[#bbb] sm:block">
                         {cuando}
                       </span>
-                      <span className="flex justify-end sm:min-w-[92px]">
+                      {/* Restaurar solo vive en el renglon en escritorio. En
+                          movil baja al detalle: el renglon deja de ir apretado
+                          y deja de poderse picar sin querer. */}
+                      <span className="hidden justify-end sm:flex sm:min-w-[92px]">
                         {mov.esBorrado && (mov.restaurado ? (
                           <span className="flex items-center gap-1 whitespace-nowrap text-[11.5px] text-[#bbb]">
                             <Check size={12} />Restaurado
@@ -393,7 +398,13 @@ export default function ActividadTab({ eventId }: { eventId: string }) {
                   </button>
 
                   {estaAbierta && (
-                    <Detalle mov={mov} restaurados={restaurados} onRescatar={id => restaurar(mov, new Set([id]))} />
+                    <Detalle
+                      mov={mov}
+                      restaurados={restaurados}
+                      trabajando={trabajando === mov.clave}
+                      onRescatar={id => restaurar(mov, new Set([id]))}
+                      onRestaurar={() => restaurar(mov)}
+                    />
                   )}
                 </div>
               </li>
@@ -406,11 +417,13 @@ export default function ActividadTab({ eventId }: { eventId: string }) {
 }
 
 function Detalle({
-  mov, restaurados, onRescatar,
+  mov, restaurados, trabajando, onRescatar, onRestaurar,
 }: {
   mov: Movimiento
   restaurados: Set<string>
+  trabajando: boolean
   onRescatar: (entityId: string) => void
+  onRestaurar: () => void
 }) {
   const campos = camposLegibles(mov.filas[0].old_value ?? mov.filas[0].new_value)
   const enLote = mov.total > 1
@@ -419,6 +432,28 @@ function Detalle({
 
   return (
     <div className="border-t border-[#f4f4f4] bg-[#fafafa] px-3.5 pb-4 pt-1 sm:pl-[60px] sm:pr-5">
+      {/* Solo movil: en escritorio este boton vive en el renglon. */}
+      {mov.esBorrado && (
+        <div className="pt-3 sm:hidden">
+          {mov.restaurado ? (
+            <span className="flex items-center gap-1.5 text-[12.5px] text-[#bbb]">
+              <Check size={13} />Ya se restauró
+            </span>
+          ) : (
+            <button
+              type="button"
+              onClick={onRestaurar}
+              disabled={trabajando}
+              className="w-full rounded-lg bg-[#48C9B0] px-4 py-2.5 text-[13.5px] font-semibold text-[#08312a] disabled:opacity-60"
+            >
+              {trabajando
+                ? 'Restaurando…'
+                : mov.total > 1 ? `Restaurar los ${mov.total}` : 'Restaurar'}
+            </button>
+          )}
+        </div>
+      )}
+
       {campos.length > 0 && (
         <>
           <h4 className="mb-2 mt-3 text-[10.5px] font-semibold uppercase tracking-[.06em] text-[#bbb]">
