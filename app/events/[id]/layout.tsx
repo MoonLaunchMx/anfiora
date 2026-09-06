@@ -11,6 +11,7 @@ import { EventAccessProvider, useEventAccess } from '@/lib/event-access-context'
 import { SalidaGuardProvider, useSalidaGuard } from './SalidaGuardProvider'
 import { filtrarPorPermiso, moduloDeRutaNav, primeraRutaVisible } from '@/lib/permisos/rutas'
 import { SinAcceso } from '@/app/components/ui/SinAcceso'
+import { Cargando } from '@/app/components/ui/Cargando'
 
 const EVENT_TYPE_LABELS: Record<string, string> = {
   boda:        'Boda',
@@ -437,14 +438,7 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
   }, [pathname, id, mobileItems.length])
 
   if (!authChecked) {
-    return (
-      <div className="flex h-[100dvh] items-center justify-center bg-white">
-        <div className="flex flex-col items-center gap-3">
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#e8e8e8] border-t-[#48C9B0]" />
-          <p className="text-sm text-[#999]">Cargando...</p>
-        </div>
-      </div>
-    )
+    return <Cargando pantallaCompleta mensaje="Preparando tu espacio de trabajo" />
   }
 
   const initials      = getInitials(userName, userEmail)
@@ -771,10 +765,13 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
 
         {/* MAIN */}
         <main className="flex min-h-0 flex-1 flex-col overflow-hidden bg-white pb-16 sm:pb-0">
-          {destinoRaiz ? (
-            <div className="flex flex-1 items-center justify-center">
-              <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#e8e8e8] border-t-[#48C9B0]" />
-            </div>
+          {/* Mientras no sepamos los permisos NO se monta la herramienta: pintar
+              primero y tapar despues es como se alcanzaba a ver Invitados. */}
+          {isLoading || destinoRaiz ? (
+            <Cargando
+              mensaje="Preparando tu espacio de trabajo"
+              detalle="Revisando a qué herramientas tienes acceso"
+            />
           ) : rutaBloqueada && moduloActual ? (
             <SinAcceso modulo={moduloActual} volverA={primeraRutaVisible(visibleEntries)} />
           ) : (
