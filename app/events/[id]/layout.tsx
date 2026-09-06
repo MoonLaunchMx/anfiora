@@ -9,7 +9,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { Event, formatEventDate } from '@/lib/types'
 import { EventAccessProvider, useEventAccess } from '@/lib/event-access-context'
 import { SalidaGuardProvider, useSalidaGuard } from './SalidaGuardProvider'
-import { filtrarPorPermiso, moduloDeRutaNav } from '@/lib/permisos/rutas'
+import { filtrarPorPermiso, moduloDeRutaNav, primeraRutaVisible } from '@/lib/permisos/rutas'
 import { SinAcceso } from '@/app/components/ui/SinAcceso'
 
 const EVENT_TYPE_LABELS: Record<string, string> = {
@@ -325,6 +325,21 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
     ),
     nivelDeModulo,
   )
+
+  // La raiz del evento ES Invitados, y todo lo que abre una boda apunta ahi:
+  // el tablero, aceptar la invitacion y el boton de <SinAcceso>. A quien no le
+  // toca Invitados le abrimos la primera herramienta que si le toca.
+  const enRaiz = pathname.replace(/\/+$/, '') === `/events/${id}`
+  const destinoRaiz =
+    enRaiz && !isLoading && nivelDeModulo('invitados') === 'ninguno'
+      ? primeraRutaVisible(visibleEntries)
+      : null
+
+  // replace y no push: con push el boton de atras rebota entre las dos.
+  useEffect(() => {
+    if (!destinoRaiz) return
+    router.replace(`/events/${id}${destinoRaiz}`)
+  }, [destinoRaiz, id, router])
 
   useEffect(() => {
     const stored = localStorage.getItem('gf_sidebar_collapsed')
@@ -756,7 +771,15 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
 
         {/* MAIN */}
         <main className="flex min-h-0 flex-1 flex-col overflow-hidden bg-white pb-16 sm:pb-0">
-          {rutaBloqueada && moduloActual ? <SinAcceso modulo={moduloActual} /> : children}
+          {destinoRaiz ? (
+            <div className="flex flex-1 items-center justify-center">
+              <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#e8e8e8] border-t-[#48C9B0]" />
+            </div>
+          ) : rutaBloqueada && moduloActual ? (
+            <SinAcceso modulo={moduloActual} volverA={primeraRutaVisible(visibleEntries)} />
+          ) : (
+            children
+          )}
         </main>
       </div>
 
