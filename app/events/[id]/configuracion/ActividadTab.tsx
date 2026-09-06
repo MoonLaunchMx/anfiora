@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { ChevronDown, Check } from 'lucide-react'
+import { ChevronDown, Check, Users } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { logAction } from '@/lib/audit'
 import { ACCIONES_RESTAURACION, type AuditAction, type AuditEntityType } from '@/lib/actividad/vocabulario'
@@ -14,6 +14,23 @@ import { Cargando } from '@/app/components/ui/Cargando'
 
 const LABEL_MODULO: Record<string, string> =
   Object.fromEntries(MODULOS_CONFIG.map(m => [m.key, m.label]))
+
+const ICONO_MODULO: Record<string, React.ElementType> =
+  Object.fromEntries(MODULOS_CONFIG.map(m => [m.key, m.icon]))
+
+// La herramienta como columna propia y no enterrada en la glosa: es lo que se
+// busca al barrer la lista con la vista. Un movimiento sin modulo (equipo,
+// evento) cae en "Equipo", que es donde se configuran.
+function ChipModulo({ modulo }: { modulo: string | null }) {
+  const Icono = modulo ? ICONO_MODULO[modulo] : Users
+  const texto = modulo ? (LABEL_MODULO[modulo] ?? modulo) : 'Equipo'
+  return (
+    <span className="inline-flex max-w-full items-center gap-1.5 rounded-md border border-[#e8e8e8] bg-[#f8f8f8] px-2 py-1 text-[11.5px] text-[#666]">
+      {Icono && <Icono size={12} className="shrink-0 text-[#999]" />}
+      <span className="truncate">{texto}</span>
+    </span>
+  )
+}
 
 // Tonos apagados: distinguen a las personas sin competir con el rojo de
 // "Eliminado" ni con el teal del boton. Se asignan por nombre, asi que la
@@ -310,7 +327,7 @@ export default function ActividadTab({ eventId }: { eventId: string }) {
                     type="button"
                     onClick={() => setAbierta(estaAbierta ? null : mov.clave)}
                     aria-expanded={estaAbierta}
-                    className="grid w-full grid-cols-[28px_minmax(0,1fr)_auto] items-center gap-2.5 px-3.5 py-3 text-left transition hover:bg-[#fafafa] sm:gap-3 sm:px-5"
+                    className="grid w-full grid-cols-[28px_minmax(0,1fr)_auto] items-center gap-2.5 px-3.5 py-3 text-left transition hover:bg-[#fafafa] sm:grid-cols-[28px_minmax(0,1fr)_128px_auto] sm:gap-3 sm:px-5"
                   >
                     <span
                       className="flex h-7 w-7 items-center justify-center rounded-full text-[10.5px] font-semibold text-white"
@@ -329,10 +346,18 @@ export default function ActividadTab({ eventId }: { eventId: string }) {
                         )}
                       </span>
                       <span className="mt-px block text-xs text-[#999]">
-                        {mov.etiquetaAccion} en {mov.modulo ? LABEL_MODULO[mov.modulo] : 'Equipo'} por{' '}
+                        {mov.etiquetaAccion} por{' '}
                         <span className="font-medium" style={{ color: t.tinta }}>{mov.persona}</span>
-                        <span className="text-[#bbb] sm:hidden"> · {cuando}</span>
+                        {/* En pantalla chica no hay columna de herramienta ni
+                            de fecha: las dos bajan aqui. */}
+                        <span className="text-[#bbb] sm:hidden">
+                          {' · '}{mov.modulo ? LABEL_MODULO[mov.modulo] : 'Equipo'} · {cuando}
+                        </span>
                       </span>
+                    </span>
+
+                    <span className="hidden min-w-0 sm:block">
+                      <ChipModulo modulo={mov.modulo} />
                     </span>
 
                     <span className="flex shrink-0 items-center justify-end gap-1.5 sm:gap-2.5">
