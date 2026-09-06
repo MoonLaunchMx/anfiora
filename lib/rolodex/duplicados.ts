@@ -17,6 +17,8 @@ export type EntradaDelRolodex = {
   veces: number
   ultima: string | null
   enEstaBoda: boolean
+  // Lo derivan las reviews (lib/reviews/veto.ts), no una columna.
+  vetado: boolean
 }
 
 export function normalizar(s: string): string {
@@ -48,9 +50,15 @@ export function buscar(entradas: EntradaDelRolodex[], consulta: string, tope = 5
 // El estado vacio del buscador. Aqui si se excluyen los que ya estan en la
 // boda: es un atajo para agregar, y ofrecer uno que no se puede agregar es
 // ofrecer un callejon.
+//
+// Los vetados tampoco se ofrecen: esta es LA superficie de sugerencias, la que
+// el modal de la review promete que deja de mostrarlos. Sí siguen saliendo en
+// buscar() a proposito -- si el planner teclea el nombre y no aparece, va a
+// creer que no lo tiene y va a crear un duplicado, que es justo lo que este
+// archivo existe para evitar.
 export function masUsados(entradas: EntradaDelRolodex[], tope = 4): EntradaDelRolodex[] {
   return entradas
-    .filter(e => !e.enEstaBoda && e.veces > 0)
+    .filter(e => !e.enEstaBoda && !e.vetado && e.veces > 0)
     .sort((a, b) => b.veces - a.veces || a.nombre.localeCompare(b.nombre, 'es'))
     .slice(0, tope)
 }

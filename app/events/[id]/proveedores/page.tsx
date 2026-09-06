@@ -12,6 +12,8 @@ import { Categoria, activas, cargarCategorias, nombrePorId } from '@/lib/rolodex
 import StatsCollapse, { useStatsToggle, StatsToggleButton } from '@/app/components/ui/StatsCollapse'
 import AltaProveedor, { EnEstaBoda, ProveedorNuevo } from './AltaProveedor'
 import { EntradaDelRolodex } from '@/lib/rolodex/duplicados'
+import { idsVetados } from '@/lib/reviews/veto'
+import type { ReviewParaVeto } from '@/lib/reviews/veto'
 import FichaModal from './FichaModal'
 import ReviewContratacionModal from './ReviewContratacionModal'
 import ReviewDescarteModal from './ReviewDescarteModal'
@@ -119,6 +121,17 @@ export default function ProveedoresPage() {
       ? await supabase.from('events').select('id, name, event_date').in('id', idsBodas)
       : { data: [] as { id: string; name: string; event_date: string | null }[] }
 
+    // El veto vive en las reviews, no en una columna: un 1 del planner en "lo
+    // volverias a contratar" saca a la ficha de las sugerencias hasta que alguien
+    // corrija esa review. Ver lib/reviews/veto.ts.
+    const { data: reviews, error: errReviews } = await supabase
+      .from('supplier_reviews')
+      .select('supplier_id, review_type, autor, recontratacion')
+      .in('supplier_id', ids)
+      .eq('review_type', 'post_evento')
+    if (errReviews) console.error('Error leyendo las reviews del Rolodex:', errReviews?.message ?? errReviews, errReviews)
+    const vetados = idsVetados((reviews ?? []) as ReviewParaVeto[])
+
     const porBoda = new Map((bodas ?? []).map(b => [b.id, b]))
 
     setCatalogoBase(fichas.map(f => {
@@ -145,6 +158,7 @@ export default function ProveedoresPage() {
         veces:       mios.length,
         ultima:      ultima ? [ultima.name, mesYAno(ultima.event_date)].filter(Boolean).join(' · ') : null,
         enEstaBoda:  false,
+        vetado:      vetados.has(f.id),
       }
     }))
   }
@@ -238,6 +252,7 @@ export default function ProveedoresPage() {
       veces:       0,
       ultima:      null,
       enEstaBoda:  false,
+      vetado:      false,
     }])
   }
 

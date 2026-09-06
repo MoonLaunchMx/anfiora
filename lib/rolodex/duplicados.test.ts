@@ -18,6 +18,7 @@ function ficha(p: Partial<EntradaDelRolodex> & { nombre: string }): EntradaDelRo
     veces:      p.veces ?? 1,
     ultima:     p.ultima ?? null,
     enEstaBoda: p.enEstaBoda ?? false,
+    vetado:     p.vetado ?? false,
   }
 }
 
@@ -86,6 +87,16 @@ describe('masUsados', () => {
   it('ignora fichas que nunca has usado en una boda', () => {
     const solo = [ficha({ nombre: 'De la expo', veces: 0 })]
     expect(masUsados(solo)).toEqual([])
+  })
+
+  it('no sugiere a un vetado, aunque sea el mas usado', () => {
+    const conVetado = [...CATALOGO, ficha({ nombre: 'Banquetes Nunca Mas', veces: 9, vetado: true })]
+    expect(masUsados(conVetado).some(e => e.nombre === 'Banquetes Nunca Mas')).toBe(false)
+  })
+
+  it('el vetado si aparece si lo buscas por su nombre, para no duplicarlo', () => {
+    const conVetado = [ficha({ nombre: 'Banquetes Nunca Mas', veces: 9, vetado: true })]
+    expect(buscar(conVetado, 'Banquetes').map(e => e.nombre)).toEqual(['Banquetes Nunca Mas'])
   })
 })
 
