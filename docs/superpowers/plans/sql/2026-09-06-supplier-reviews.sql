@@ -42,22 +42,51 @@ create index supplier_reviews_event_idx on supplier_reviews (event_id);
 
 alter table supplier_reviews enable row level security;
 
-create policy supplier_reviews_select_own on supplier_reviews
-  for select to authenticated
-  using (user_id = auth.uid());
+-- LAS POLICIES NO SE ESCRIBEN CONTRA auth.uid() = user_id, A PROPOSITO.
+--
+-- user_id aqui es el DUENO DE LA CUENTA (events.user_id), la misma llave que
+-- usan suppliers y categories: el catalogo y su historial son del despacho, no
+-- de quien teclea. Una policy user_id = auth.uid() dejaria fuera a todo
+-- colaborador con permiso de editar Proveedores -- que es un rol real -- y de
+-- paso partiria el score historico del proveedor por persona.
+--
+-- Este mismo archivo lleva las policies de 2026-09-06-supplier-reviews-policies.sql.
+-- Estan repetidas a proposito: aquel sirve para una base donde la tabla ya se
+-- creo con las policies viejas; este, para crearla bien de una vez.
+--
+-- Requisito: ya corrieron 2026-09-04-accesos-cimiento.sql (puede_ver /
+-- puede_editar) y 2026-09-06-accesos-finanzas-policies.sql.
 
-create policy supplier_reviews_insert_own on supplier_reviews
-  for insert to authenticated
-  with check (user_id = auth.uid());
+-- Ver: el dueno siempre; los demas, si pueden ver Proveedores en esa boda.
+create policy reviews_ver on supplier_reviews for select to authenticated
+  using ( user_id = auth.uid() or public.puede_ver(event_id, 'proveedores') );
 
-create policy supplier_reviews_update_own on supplier_reviews
-  for update to authenticated
-  using (user_id = auth.uid())
-  with check (user_id = auth.uid());
+-- Escribir: quien edita Proveedores en esa boda. El EXISTS sobre events es lo
+-- que hace cumplir el significado de la columna: la review nace colgada del
+-- dueno de la boda y de nadie mas, venga de quien venga.
+create policy reviews_crear on supplier_reviews for insert to authenticated
+  with check (
+    public.puede_editar(event_id, 'proveedores')
+    and exists (select 1 from public.events e
+                 where e.id = supplier_reviews.event_id
+                   and e.user_id = supplier_reviews.user_id)
+  );
 
-create policy supplier_reviews_delete_own on supplier_reviews
-  for delete to authenticated
-  using (user_id = auth.uid());
+-- El WITH CHECK no es opcional: sin el, quien puede corregir una review puede
+-- reescribirle el event_id o el user_id y mudarla a una boda ajena.
+create policy reviews_editar on supplier_reviews for update to authenticated
+  using      ( public.puede_editar(event_id, 'proveedores') )
+  with check (
+    public.puede_editar(event_id, 'proveedores')
+    and exists (select 1 from public.events e
+                 where e.id = supplier_reviews.event_id
+                   and e.user_id = supplier_reviews.user_id)
+  );
+
+-- Borrar se queda con el dueno, igual que en suppliers: una review es el
+-- historial del despacho y ninguna pantalla la borra hoy.
+create policy reviews_borrar on supplier_reviews for delete to authenticated
+  using ( user_id = auth.uid() );
 
 -- Verificacion (deben salir 4 filas, todas {authenticated}):
--- select policyname, roles from pg_policies where tablename = 'supplier_reviews';
+-- select policyname, cmd, roles from pg_policies where tablename = 'supplier_reviews';

@@ -1011,13 +1011,14 @@ export default function PresupuestoPage() {
         />
       )}
 
-      {reviewSupplier && permisoProv.editar && userId && (
+      {reviewSupplier && permisoProv.editar && userId && duenoCatalogo && (
         reviewSupplier.status === 'contratado' ? (
           <ReviewContratacionModal
             eventSupplierId={reviewSupplier.id}
             supplierId={reviewSupplier.supplier_id}
             eventId={eventId}
-            userId={userId}
+            duenoId={duenoCatalogo}
+            createdBy={userId}
             supplierName={reviewSupplier.supplier.name}
             eventName={event?.name ?? ''}
             onSaved={() => { setReviewSupplier(null); loadAll() }}
@@ -1028,7 +1029,8 @@ export default function PresupuestoPage() {
             eventSupplierId={reviewSupplier.id}
             supplierId={reviewSupplier.supplier_id}
             eventId={eventId}
-            userId={userId}
+            duenoId={duenoCatalogo}
+            createdBy={userId}
             supplierName={reviewSupplier.supplier.name}
             eventName={event?.name ?? ''}
             onSaved={() => { setReviewSupplier(null); loadAll() }}

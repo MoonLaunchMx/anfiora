@@ -494,13 +494,14 @@ export default function ProveedoresPage() {
       )}
 
       {/* Review fuera del DetailModal — evita stacking context de Framer Motion */}
-      {reviewItem && permiso.editar && userId && (
+      {reviewItem && permiso.editar && userId && duenoCatalogo && (
         reviewItem.status === 'contratado' ? (
           <ReviewContratacionModal
             eventSupplierId={reviewItem.id}
             supplierId={reviewItem.supplier_id}
             eventId={eventId}
-            userId={userId}
+            duenoId={duenoCatalogo}
+            createdBy={userId}
             supplierName={reviewItem.supplier.name}
             eventName={event.name}
             onSaved={() => setReviewItem(null)}
@@ -511,7 +512,8 @@ export default function ProveedoresPage() {
             eventSupplierId={reviewItem.id}
             supplierId={reviewItem.supplier_id}
             eventId={eventId}
-            userId={userId}
+            duenoId={duenoCatalogo}
+            createdBy={userId}
             supplierName={reviewItem.supplier.name}
             eventName={event.name}
             onSaved={() => setReviewItem(null)}

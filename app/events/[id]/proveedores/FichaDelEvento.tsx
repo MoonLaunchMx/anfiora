@@ -80,6 +80,9 @@ export default function FichaDelEvento({
   const [mostrarModalDesempeno, setMostrarModalDesempeno] = useState(false)
   const [userId, setUserId] = useState<string | null>(null)
   const [eventName, setEventName] = useState('')
+  // El dueno de la cuenta, que es de quien cuelga la review -- no quien la
+  // teclea. Ver la nota en lib/reviews/useGuardarReview.ts.
+  const [duenoEvento, setDuenoEvento] = useState<string | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
 
   const carpetas = useMemo(() => carpetasDe(item.status, bodaPaso), [item.status, bodaPaso])
@@ -148,8 +151,12 @@ export default function FichaDelEvento({
 
   useEffect(() => {
     let vigente = true
-    supabase.from('events').select('name').eq('id', item.event_id).single()
-      .then(({ data }) => { if (vigente) setEventName(data?.name ?? '') })
+    supabase.from('events').select('name, user_id').eq('id', item.event_id).single()
+      .then(({ data }) => {
+        if (!vigente) return
+        setEventName(data?.name ?? '')
+        setDuenoEvento(data?.user_id ?? null)
+      })
     return () => { vigente = false }
   }, [item.event_id])
 
@@ -836,12 +843,13 @@ export default function FichaDelEvento({
         )}
       </div>
 
-      {mostrarModalDesempeno && userId && (
+      {mostrarModalDesempeno && userId && duenoEvento && (
         <ReviewDesempenoModal
           eventSupplierId={item.id}
           supplierId={item.supplier_id}
           eventId={item.event_id}
-          userId={userId}
+          duenoId={duenoEvento}
+          createdBy={userId}
           supplierName={s.name}
           eventName={eventName}
           reviewExistente={reviewPostEvento}

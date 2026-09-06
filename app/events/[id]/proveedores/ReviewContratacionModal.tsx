@@ -18,7 +18,8 @@ interface Props {
   eventSupplierId: string
   supplierId: string
   eventId: string
-  userId: string
+  duenoId: string
+  createdBy: string
   supplierName: string
   eventName: string
   onSaved: () => void
@@ -26,10 +27,10 @@ interface Props {
 }
 
 export default function ReviewContratacionModal({
-  eventSupplierId, supplierId, eventId, userId, supplierName,
+  eventSupplierId, supplierId, eventId, duenoId, createdBy, supplierName,
   onSaved, onSkip,
 }: Props) {
-  const { permiso, saving, guardar } = useGuardarReview({ eventSupplierId, supplierId, eventId, userId })
+  const { permiso, saving, guardar } = useGuardarReview({ eventSupplierId, supplierId, eventId, duenoId, createdBy })
 
   const [valores, setValores] = useState<Record<Eje, number | null>>({
     precio_valor: null, calidad: null, comunicacion: null,

@@ -15,7 +15,8 @@ interface Props {
   eventSupplierId: string
   supplierId: string
   eventId: string
-  userId: string
+  duenoId: string
+  createdBy: string
   supplierName: string
   eventName: string
   // Cuando ya existe una review de este tipo, la precarga para corregirla en
@@ -46,10 +47,10 @@ function valoresIniciales(review?: SupplierReview | null): Record<Eje, number | 
 }
 
 export default function ReviewDesempenoModal({
-  eventSupplierId, supplierId, eventId, userId, supplierName, eventName,
+  eventSupplierId, supplierId, eventId, duenoId, createdBy, supplierName, eventName,
   reviewExistente, onSaved, onSkip,
 }: Props) {
-  const { permiso, saving, guardar } = useGuardarReview({ eventSupplierId, supplierId, eventId, userId })
+  const { permiso, saving, guardar } = useGuardarReview({ eventSupplierId, supplierId, eventId, duenoId, createdBy })
 
   const [valores, setValores] = useState<Record<Eje, number | 'na' | null>>(() => valoresIniciales(reviewExistente))
   const [recontratacion, setRecontratacion] = useState<number | null>(reviewExistente?.recontratacion ?? null)

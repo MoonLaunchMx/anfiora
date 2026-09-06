@@ -16,7 +16,8 @@ interface Props {
   eventSupplierId: string
   supplierId: string
   eventId: string
-  userId: string
+  duenoId: string
+  createdBy: string
   supplierName: string
   eventName: string
   onSaved: () => void
@@ -24,10 +25,10 @@ interface Props {
 }
 
 export default function ReviewDescarteModal({
-  eventSupplierId, supplierId, eventId, userId, supplierName,
+  eventSupplierId, supplierId, eventId, duenoId, createdBy, supplierName,
   onSaved, onSkip,
 }: Props) {
-  const { permiso, saving, guardar } = useGuardarReview({ eventSupplierId, supplierId, eventId, userId })
+  const { permiso, saving, guardar } = useGuardarReview({ eventSupplierId, supplierId, eventId, duenoId, createdBy })
 
   const [motivo, setMotivo]           = useState<MotivoDescarte | null>(null)
   const [valores, setValores]         = useState<Record<Eje, number | null>>({
