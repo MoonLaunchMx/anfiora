@@ -53,3 +53,20 @@ export function planDeRestauracion(mov: Movimiento, soloEstos?: Set<string>): In
 export function esConflictoDeLlave(error: { code?: string } | null): boolean {
   return error?.code === '23505'
 }
+
+// Parte el plan en tandas de inserciones seguidas de la MISMA tabla, para
+// mandarlas de un viaje en vez de una por una. Restaurar 42 invitados pasaba
+// por 42 viajes al servidor.
+//
+// Corta al cambiar de tabla y NO reordena: dentro de una tabla el orden da
+// igual, pero entre tablas es la dependencia (el acompanante no entra si su
+// invitado todavia no existe). Juntar tablas separadas rompeeria eso.
+export function tandasPorTabla(plan: Insercion[]): Insercion[][] {
+  const tandas: Insercion[][] = []
+  for (const ins of plan) {
+    const ultima = tandas[tandas.length - 1]
+    if (ultima && ultima[0].tabla === ins.tabla) ultima.push(ins)
+    else tandas.push([ins])
+  }
+  return tandas
+}

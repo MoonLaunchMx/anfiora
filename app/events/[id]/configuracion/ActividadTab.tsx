@@ -3,10 +3,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ChevronDown, Check, Users } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
-import { logAction } from '@/lib/audit'
-import { ACCIONES_RESTAURACION, type AuditAction, type AuditEntityType } from '@/lib/actividad/vocabulario'
+import { ACCIONES_RESTAURACION } from '@/lib/actividad/vocabulario'
 import { agrupar } from '@/lib/actividad/agrupar'
-import { planDeRestauracion, esConflictoDeLlave } from '@/lib/actividad/restaurar'
+import { planDeRestauracion, tandasPorTabla, type Insercion } from '@/lib/actividad/restaurar'
 import type { FilaAudit, Movimiento } from '@/lib/actividad/tipos'
 import { MODULOS_CONFIG, type Modulo } from '@/lib/permisos/catalogo'
 import { useConfirm } from '@/app/components/ui/ConfirmModal'
@@ -199,33 +198,71 @@ export default function ActividadTab({ eventId }: { eventId: string }) {
     setTrabajando(mov.clave)
     let volvieron = 0
 
-    // Uno por uno y en orden: el padre tiene que existir antes que el hijo,
-    // asi que nada de Promise.all.
-    for (const ins of plan) {
-      const { error } = await supabase.from(ins.tabla).insert(ins.fila)
+    // Tanda por tanda y EN ORDEN: dentro de una tabla da igual, pero entre
+    // tablas es la dependencia (el acompanante no entra si su invitado
+    // todavia no existe), asi que nada de Promise.all.
+    //
+    // upsert con ignoreDuplicates en vez de insert: mandando la tanda junta,
+    // un solo registro que ya estuviera tumbaria a los 42. Postgres se salta
+    // los repetidos y los demas entran, que es el "ya estaba" de siempre.
+    for (const tanda of tandasPorTabla(plan)) {
+      const { error } = await supabase
+        .from(tanda[0].tabla)
+        .upsert(tanda.map(i => i.fila), { onConflict: 'id', ignoreDuplicates: true })
 
       // Un aviso no es una pregunta: va como franja, no como modal de
       // confirmar/cancelar.
-      if (error && !esConflictoDeLlave(error)) {
+      if (error) {
         setTrabajando(null)
         setError(`Regresaron ${volvieron} de ${plan.length}. El resto sigue en la bitácora para intentarlo otra vez.`)
         await cargar()
         return
       }
 
-      volvieron += 1
-      const fila = mov.filas.find(f => f.entity_id === ins.entityId)
-      await logAction({
-        eventId,
-        action: ins.accionRestauracion as AuditAction,
-        entityType: (fila?.entity_type ?? 'guest') as AuditEntityType,
-        entityId: ins.entityId,
-        entityLabel: fila?.entity_label ?? undefined,
-      })
+      volvieron += tanda.length
     }
+
+    await registrarRestauraciones(plan, mov)
 
     setTrabajando(null)
     await cargar()
+  }
+
+  // La bitacora de la restauracion, de un viaje. logAction() pide el usuario y
+  // busca su nombre CADA vez que se llama: para 42 registros eran 126 viajes
+  // al servidor, que es lo que hacia lenta la restauracion de un lote.
+  const registrarRestauraciones = async (plan: Insercion[], mov: Movimiento) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+
+      const { data: perfil } = await supabase
+        .from('users').select('full_name').eq('id', user.id).single()
+
+      const porEntidad = new Map(mov.filas.map(f => [f.entity_id, f]))
+
+      await supabase.from('event_audit_log').insert(
+        plan.map(ins => {
+          const fila = porEntidad.get(ins.entityId)
+          return {
+            event_id:     eventId,
+            user_id:      user.id,
+            user_email:   user.email ?? '',
+            user_name:    perfil?.full_name ?? null,
+            action:       ins.accionRestauracion,
+            entity_type:  fila?.entity_type ?? null,
+            entity_id:    ins.entityId,
+            entity_label: fila?.entity_label ?? null,
+            old_value:    null,
+            new_value:    null,
+          }
+        }),
+      )
+    } catch {
+      // Mismo criterio que logAction: la bitacora nunca rompe el flujo. Lo
+      // que se restauro, restaurado esta.
+      console.warn('[actividad] no se pudo registrar la restauracion')
+    }
   }
 
   if (loading) return <Cargando />

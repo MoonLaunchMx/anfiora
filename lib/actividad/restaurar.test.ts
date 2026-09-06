@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { planDeRestauracion, TABLA_POR_ENTIDAD, esConflictoDeLlave } from './restaurar'
+import { planDeRestauracion, TABLA_POR_ENTIDAD, esConflictoDeLlave, tandasPorTabla, type Insercion } from './restaurar'
 import { ACCIONES_BORRADO, entidadDeAccion } from './vocabulario'
 import type { FilaAudit, Movimiento } from './tipos'
 
@@ -83,5 +83,43 @@ describe('esConflictoDeLlave', () => {
   it('no confunde otros errores', () => {
     expect(esConflictoDeLlave({ code: '42501' })).toBe(false)
     expect(esConflictoDeLlave(null)).toBe(false)
+  })
+})
+
+describe('tandasPorTabla', () => {
+  const ins = (tabla: string, entityId: string): Insercion => ({
+    tabla, fila: { id: entityId }, entityId, accionRestauracion: 'x.restored',
+  })
+
+  it('sin nada devuelve nada', () => {
+    expect(tandasPorTabla([])).toEqual([])
+  })
+
+  it('junta en una sola tanda las inserciones seguidas de la misma tabla', () => {
+    const t = tandasPorTabla([ins('guests', 'g1'), ins('guests', 'g2'), ins('guests', 'g3')])
+    expect(t).toHaveLength(1)
+    expect(t[0]).toHaveLength(3)
+  })
+
+  it('CORTA cuando cambia de tabla: el padre entra antes que el hijo', () => {
+    const t = tandasPorTabla([
+      ins('guests', 'g1'), ins('guests', 'g2'),
+      ins('party_members', 'p1'),
+    ])
+    expect(t.map(x => x[0].tabla)).toEqual(['guests', 'party_members'])
+    expect(t[0]).toHaveLength(2)
+    expect(t[1]).toHaveLength(1)
+  })
+
+  it('NO reordena para juntar tablas separadas, o se rompe la dependencia', () => {
+    const t = tandasPorTabla([
+      ins('guests', 'g1'), ins('party_members', 'p1'), ins('guests', 'g2'),
+    ])
+    expect(t.map(x => x[0].tabla)).toEqual(['guests', 'party_members', 'guests'])
+  })
+
+  it('conserva todas las inserciones', () => {
+    const plan = [ins('guests', 'g1'), ins('party_members', 'p1'), ins('tables', 't1')]
+    expect(tandasPorTabla(plan).flat()).toEqual(plan)
   })
 })
