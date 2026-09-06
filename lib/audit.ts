@@ -1,11 +1,14 @@
 import { supabase } from '@/lib/supabase'
 import type { AuditAction, AuditEntityType } from '@/lib/actividad/vocabulario'
+import { moduloDeEntidad } from '@/lib/actividad/vocabulario'
 
 // El vocabulario vive en lib/actividad/vocabulario.ts, que es puro. Aqui se
 // reexporta para no mover a ningun consumidor de sitio.
 export type { AuditAction, AuditEntityType }
 export {
   AUDIT_ACTION_LABEL,
+  MODULO_POR_ENTIDAD,
+  moduloDeEntidad,
   ACCIONES_BORRADO,
   ACCIONES_RESTAURACION,
   entidadDeAccion,
@@ -23,6 +26,8 @@ interface LogActionParams {
   entityLabel?: string   // nombre legible: "Juan García", "Mesa 5", etc.
   oldValue?: Record<string, unknown>
   newValue?: Record<string, unknown>
+  // Solo para el caso raro en que la entidad no baste. Normalmente NO se pasa.
+  modulo?: string | null
 }
 
 // ============================================
@@ -54,6 +59,10 @@ export async function logAction(params: LogActionParams): Promise<void> {
       entity_label: params.entityLabel ?? null,
       old_value: params.oldValue ?? null,
       new_value: params.newValue ?? null,
+      // Se deriva de la entidad, igual que lo hace log_borrado() en Postgres.
+      // Antes no se escribia: la fila salia sin modulo y la pantalla de
+      // Actividad mandaba TODA edicion a "Equipo".
+      modulo: params.modulo ?? moduloDeEntidad(params.entityType),
     })
   } catch {
     // Silent fail — el log nunca debe romper la operación principal

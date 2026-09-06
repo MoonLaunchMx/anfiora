@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { ChevronDown, Check, Users } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { agrupar, mapaDeRestauraciones } from '@/lib/actividad/agrupar'
-import { entidadDeAccion } from '@/lib/actividad/vocabulario'
+import { entidadDeAccion, moduloDeEntidad } from '@/lib/actividad/vocabulario'
 import { dependienteDe, idPadreDe } from '@/lib/actividad/dependientes'
 import {
   planDeRestauracion, tandasPorTabla, arrastrados, insercionDeFila, type Insercion,
@@ -302,9 +302,10 @@ export default function ActividadTab({ eventId }: { eventId: string }) {
             entity_label: fila?.entity_label ?? null,
             old_value:    null,
             new_value:    null,
-            // El modulo del borrado que se esta deshaciendo. Sin el la fila
-            // queda huerfana y se archiva como si fuera de "Equipo".
-            modulo,
+            // Se deriva de la entidad, igual que lo escribe el disparador: asi
+            // la restauracion de un pago dice "pagos" aunque se haya lanzado
+            // desde el renglon del proveedor.
+            modulo: moduloDeEntidad(fila?.entity_type ?? entidadDeAccion(ins.accionRestauracion)) ?? modulo,
           }
         }),
       )

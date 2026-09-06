@@ -130,3 +130,42 @@ export function entidadDeAccion(accion: string): string {
 export function esBorrado(accion: string): boolean {
   return (ACCIONES_BORRADO as readonly string[]).includes(accion)
 }
+
+// ============================================
+// A que herramienta pertenece cada entidad
+// ============================================
+// Espejo exacto del primer argumento de log_borrado() en los .sql del Tramo 3.
+// Existe para que logAction() NO tenga que pedirle el modulo a cada llamada:
+// se deriva de la entidad, que ya viene siempre. Antes no se escribia, y la
+// pantalla mandaba toda edicion a "Equipo".
+//
+// null NO es un hueco: es "esto no pertenece a una herramienta". Cambiar los
+// accesos de alguien o editar el evento pasan en Configuracion, y ahi la
+// pantalla los agrupa como Equipo, que es correcto.
+export const MODULO_POR_ENTIDAD: Record<string, string | null> = {
+  guest:            'invitados',
+  party_member:     'invitados',
+  table:            'mesas',
+  song:             'playlist',
+  budget:           'presupuesto',
+  event_supplier:   'proveedores',
+  gift_item:        'regalos',
+  itinerary_moment: 'timeline',
+  timeline_task:    'timeline',
+  payment:          'pagos',
+  event:            null,
+  settings:         null,
+  collaborator:     null,
+}
+
+// Las entidades que el codigo del cliente puede llegar a escribir. La prueba
+// se apoya en esto para que agregar una entidad nueva sin mapearla falle.
+export const ENTIDADES_AUDITABLES = [
+  'guest', 'party_member', 'table', 'event', 'settings', 'collaborator',
+  'timeline_task', 'itinerary_moment', 'budget', 'event_supplier', 'payment',
+  'gift_item', 'song',
+] as const satisfies readonly AuditEntityType[]
+
+export function moduloDeEntidad(entidad: string | null): string | null {
+  return entidad ? (MODULO_POR_ENTIDAD[entidad] ?? null) : null
+}
