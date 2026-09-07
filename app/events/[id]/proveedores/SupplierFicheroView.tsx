@@ -12,6 +12,7 @@ import { Categoria, nombrePorId } from '@/lib/rolodex/categorias-store'
 import FichaDelEvento from './FichaDelEvento'
 import { EstatusProveedor } from './EstatusProveedor'
 import { formatDisplay, toWhatsApp } from '@/lib/phone'
+import Estrellas from '@/app/components/ui/Estrellas'
 import {
   desplazamientoFicha, escalaFicha, indiceAlSoltar, indicePrimeraLetra, letraDe,
   moverIndice, ordenarFichas, puedeAvanzar, veloFicha,
@@ -25,6 +26,7 @@ type Props = {
   currency: Currency
   categorias: Categoria[]
   bodaPaso: boolean
+  desempenoPorProveedor: Record<string, number | null>
   onSelect: (item: SupplierWithDetails) => void
   onStatusChange: (itemId: string, nuevo: SupplierStatus) => void
   onSaved: (item: SupplierWithDetails) => void
@@ -60,7 +62,7 @@ function useEsEscritorio(): boolean {
   return esEscritorio
 }
 
-export default function SupplierFicheroView({ items, budgets, currency, categorias, bodaPaso, onSelect, onStatusChange, onSaved, onQuitada }: Props) {
+export default function SupplierFicheroView({ items, budgets, currency, categorias, bodaPaso, desempenoPorProveedor, onSelect, onStatusChange, onSaved, onQuitada }: Props) {
   const esEscritorio = useEsEscritorio()
   const [abierta, setAbierta] = useState<SupplierWithDetails | null>(null)
   const fichas = useMemo(() => ordenarFichas(items), [items])
@@ -287,6 +289,7 @@ export default function SupplierFicheroView({ items, budgets, currency, categori
                   budgets={budgets}
                   currency={currency}
                   categorias={categorias}
+                  desempeno={desempenoPorProveedor[item.supplier_id] ?? null}
                   activa={i === alFrente}
                   arrastrando={arrastrando}
                   desplazamiento={off}
@@ -326,11 +329,12 @@ export default function SupplierFicheroView({ items, budgets, currency, categori
   )
 }
 
-function Ficha({ item, budgets, currency, categorias, activa, arrastrando, desplazamiento, paso, radio, onClick, onAbrir }: {
+function Ficha({ item, budgets, currency, categorias, desempeno, activa, arrastrando, desplazamiento, paso, radio, onClick, onAbrir }: {
   item: SupplierWithDetails
   budgets: EventBudget[]
   currency: Currency
   categorias: Categoria[]
+  desempeno: number | null
   activa: boolean
   arrastrando: boolean
   desplazamiento: number
@@ -389,6 +393,7 @@ function Ficha({ item, budgets, currency, categorias, activa, arrastrando, despl
             <p className="mt-0.5 truncate text-[11px] text-[#888]">
               {categoria}{s.city ? ` · ${s.city}` : ''}
             </p>
+            <Estrellas score={desempeno} tamano={11} className="mt-1" />
           </div>
           <span className="shrink-0"><EstatusProveedor estado={item.status} chico /></span>
         </div>
@@ -455,6 +460,7 @@ function Ficha({ item, budgets, currency, categorias, activa, arrastrando, despl
             <p className="mt-0.5 truncate text-xs text-[#888]">
               {categoria}{s.subcategory ? ` · ${s.subcategory}` : ''}
             </p>
+            <Estrellas score={desempeno} tamano={12} className="mt-1" />
           </div>
           <span className="shrink-0"><EstatusProveedor estado={item.status} /></span>
         </div>

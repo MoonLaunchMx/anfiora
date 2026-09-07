@@ -12,8 +12,8 @@ import { Categoria, activas, cargarCategorias, nombrePorId } from '@/lib/rolodex
 import StatsCollapse, { useStatsToggle, StatsToggleButton } from '@/app/components/ui/StatsCollapse'
 import AltaProveedor, { EnEstaBoda, ProveedorNuevo } from './AltaProveedor'
 import { EntradaDelRolodex } from '@/lib/rolodex/duplicados'
-import { idsVetados } from '@/lib/reviews/veto'
-import type { ReviewParaVeto } from '@/lib/reviews/veto'
+import { calcularScores } from '@/lib/reviews/scores'
+import type { ReviewParaScore } from '@/lib/reviews/scores'
 import { useGuardarCambioDeEstado } from '@/lib/rolodex/usar-bloqueo-retroceso'
 import FichaModal from './FichaModal'
 import ReviewContratacionModal from './ReviewContratacionModal'
@@ -53,6 +53,10 @@ export default function ProveedoresPage() {
   const [categorias, setCategorias] = useState<Categoria[]>([])
   const [duenoCatalogo, setDuenoCatalogo] = useState<string | null>(null)
   const [catalogoBase, setCatalogoBase] = useState<EntradaDelRolodex[]>([])
+  // Desempeno por proveedor (id de suppliers, no de event_suppliers): se carga
+  // una sola vez aqui y baja a Fichero y Kanban, para que ninguna tarjeta pida
+  // sus propias reviews.
+  const [desempenoPorProveedor, setDesempenoPorProveedor] = useState<Record<string, number | null>>({})
   const [viewMode, setViewMode] = useState<ViewMode>('fichero')
   const [modalOpen, setModalOpen]       = useState(false)
   const [selectedItem, setSelectedItem] = useState<SupplierWithDetails | null>(null)
@@ -98,7 +102,7 @@ export default function ProveedoresPage() {
   // avisar de un duplicado antes de crearlo. Hasta hoy el catalogo solo se
   // escribia, nunca se leia.
   const cargarCatalogo = async (dueno: string | null) => {
-    if (!dueno) { setCatalogoBase([]); return }
+    if (!dueno) { setCatalogoBase([]); setDesempenoPorProveedor({}); return }
 
     const { data: fichas, error } = await supabase
       .from('suppliers')
@@ -106,8 +110,8 @@ export default function ProveedoresPage() {
       .eq('user_id', dueno)
       .is('archived_at', null)
 
-    if (error) { console.error('Error cargando el Rolodex:', error?.message ?? error, error); setCatalogoBase([]); return }
-    if (!fichas || fichas.length === 0) { setCatalogoBase([]); return }
+    if (error) { console.error('Error cargando el Rolodex:', error?.message ?? error, error); setCatalogoBase([]); setDesempenoPorProveedor({}); return }
+    if (!fichas || fichas.length === 0) { setCatalogoBase([]); setDesempenoPorProveedor({}); return }
 
     const ids = fichas.map(f => f.id)
     const { data: usos } = await supabase
@@ -123,16 +127,25 @@ export default function ProveedoresPage() {
       ? await supabase.from('events').select('id, name, event_date').in('id', idsBodas)
       : { data: [] as { id: string; name: string; event_date: string | null }[] }
 
-    // El veto vive en las reviews, no en una columna: un 1 del planner en "lo
-    // volverias a contratar" saca a la ficha de las sugerencias hasta que alguien
-    // corrija esa review. Ver lib/reviews/veto.ts.
-    const { data: reviews, error: errReviews } = await supabase
+    // El desempeno de cada ficha (para el fichero y el kanban) se calcula aqui
+    // una sola vez para todo el catalogo, no tarjeta por tarjeta.
+    const { data: reviewRows, error: errReviews } = await supabase
       .from('supplier_reviews')
-      .select('supplier_id, review_type, autor, recontratacion')
+      .select('supplier_id, review_type, autor, precio_valor, calidad, comunicacion, servicio_trato, manejo_imprevistos')
       .in('supplier_id', ids)
       .eq('review_type', 'post_evento')
+      .eq('autor', 'planner')
     if (errReviews) console.error('Error leyendo las reviews del Rolodex:', errReviews?.message ?? errReviews, errReviews)
-    const vetados = idsVetados((reviews ?? []) as ReviewParaVeto[])
+
+    const reviewsPorFicha = new Map<string, ReviewParaScore[]>()
+    for (const r of (reviewRows ?? []) as (ReviewParaScore & { supplier_id: string })[]) {
+      const lista = reviewsPorFicha.get(r.supplier_id) ?? []
+      lista.push(r)
+      reviewsPorFicha.set(r.supplier_id, lista)
+    }
+    const desempeno: Record<string, number | null> = {}
+    for (const id of ids) desempeno[id] = calcularScores(reviewsPorFicha.get(id) ?? []).desempeno
+    setDesempenoPorProveedor(desempeno)
 
     const porBoda = new Map((bodas ?? []).map(b => [b.id, b]))
 
@@ -160,7 +173,6 @@ export default function ProveedoresPage() {
         veces:       mios.length,
         ultima:      ultima ? [ultima.name, mesYAno(ultima.event_date)].filter(Boolean).join(' · ') : null,
         enEstaBoda:  false,
-        vetado:      vetados.has(f.id),
       }
     }))
   }
@@ -254,7 +266,6 @@ export default function ProveedoresPage() {
       veces:       0,
       ultima:      null,
       enEstaBoda:  false,
-      vetado:      false,
     }])
   }
 
@@ -473,6 +484,7 @@ export default function ProveedoresPage() {
                   budgets={budgets}
                   currency={currency}
                   categorias={categorias}
+                  desempenoPorProveedor={desempenoPorProveedor}
                   onSelect={setSelectedItem}
                   onStatusChange={handleStatusChange}
                   puedeEditar={permiso.editar}
@@ -486,6 +498,7 @@ export default function ProveedoresPage() {
                 currency={currency}
                 categorias={categorias}
                 bodaPaso={bodaPaso}
+                desempenoPorProveedor={desempenoPorProveedor}
                 onSelect={setSelectedItem}
                 onStatusChange={handleStatusChange}
                 onSaved={handleSavedItem}

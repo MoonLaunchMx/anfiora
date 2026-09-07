@@ -11,6 +11,7 @@ import {
   SUPPLIER_STATUSES, SUPPLIER_STATUS_LABELS, SUPPLIER_STATUS_COLORS,
 } from '@/lib/types'
 import { Categoria, nombrePorId } from '@/lib/rolodex/categorias-store'
+import Estrellas from '@/app/components/ui/Estrellas'
 
 type SupplierWithDetails = EventSupplier & { supplier: Supplier }
 
@@ -19,6 +20,7 @@ type Props = {
   budgets: EventBudget[]
   currency: Currency
   categorias: Categoria[]
+  desempenoPorProveedor: Record<string, number | null>
   onSelect: (item: SupplierWithDetails) => void
   onStatusChange: (itemId: string, newStatus: SupplierStatus) => void
   puedeEditar: boolean
@@ -26,7 +28,7 @@ type Props = {
 
 const VISIBLE_STATUSES: SupplierStatus[] = ['nuevo', 'cotizado', 'contratado']
 
-export default function SupplierKanbanView({ items, budgets, currency, categorias, onSelect, onStatusChange, puedeEditar }: Props) {
+export default function SupplierKanbanView({ items, budgets, currency, categorias, desempenoPorProveedor, onSelect, onStatusChange, puedeEditar }: Props) {
   const [showDescartados, setShowDescartados] = useState(false)
  
   const sensors = useSensors(
@@ -67,6 +69,7 @@ export default function SupplierKanbanView({ items, budgets, currency, categoria
             budgets={budgets}
             currency={currency}
             categorias={categorias}
+            desempenoPorProveedor={desempenoPorProveedor}
             onSelect={onSelect}
             puedeEditar={puedeEditar}
           />
@@ -115,6 +118,7 @@ export default function SupplierKanbanView({ items, budgets, currency, categoria
                 budgets={budgets}
                 currency={currency}
                 categorias={categorias}
+                desempenoPorProveedor={desempenoPorProveedor}
                 onSelect={onSelect}
                 puedeEditar={puedeEditar}
                 dimmed
@@ -131,13 +135,14 @@ export default function SupplierKanbanView({ items, budgets, currency, categoria
 // ── COLUMNA ───────────────────────────────────────────────────────────────
  
 function KanbanColumn({
-  status, items, budgets, currency, categorias, onSelect, puedeEditar, dimmed = false,
+  status, items, budgets, currency, categorias, desempenoPorProveedor, onSelect, puedeEditar, dimmed = false,
 }: {
   status: SupplierStatus
   items: SupplierWithDetails[]
   budgets: EventBudget[]
   currency: Currency
   categorias: Categoria[]
+  desempenoPorProveedor: Record<string, number | null>
   onSelect: (item: SupplierWithDetails) => void
   puedeEditar: boolean
   dimmed?: boolean
@@ -172,6 +177,7 @@ function KanbanColumn({
             budgets={budgets}
             currency={currency}
             categorias={categorias}
+            desempeno={desempenoPorProveedor[item.supplier_id] ?? null}
             onSelect={onSelect}
             puedeEditar={puedeEditar}
           />
@@ -189,12 +195,13 @@ function KanbanColumn({
 // ── CARD KANBAN ───────────────────────────────────────────────────────────
  
 function KanbanCard({
-  item, budgets, currency, categorias, onSelect, puedeEditar,
+  item, budgets, currency, categorias, desempeno, onSelect, puedeEditar,
 }: {
   item: SupplierWithDetails
   budgets: EventBudget[]
   currency: Currency
   categorias: Categoria[]
+  desempeno: number | null
   onSelect: (item: SupplierWithDetails) => void
   puedeEditar: boolean
 }) {
@@ -229,6 +236,9 @@ function KanbanCard({
  
       {/* Nombre */}
       <p className="text-xs font-bold text-[#1D1E20]">{item.supplier.name}</p>
+
+      {/* Desempeño */}
+      <Estrellas score={desempeno} tamano={10} className="mt-1" />
  
       {/* Concepto */}
       {linkedBudget && (

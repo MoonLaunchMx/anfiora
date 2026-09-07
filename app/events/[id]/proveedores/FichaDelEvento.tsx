@@ -22,11 +22,13 @@ import {
 } from '@/lib/geo/divisiones'
 import SelectorGeo from '@/app/components/ui/SelectorGeo'
 import EscalaCinco from '@/app/components/ui/EscalaCinco'
+import Estrellas from '@/app/components/ui/Estrellas'
 import { useConfirm } from '@/app/components/ui/ConfirmModal'
-import { usePermiso } from '@/lib/event-access-context'
+import { usePermiso, useEventAccess } from '@/lib/event-access-context'
 import { carpetasDe, destinosDe, QUE_SIGNIFICA } from '@/lib/rolodex/ficha-por-estado'
 import { anclasDe, EJES_DESEMPENO, EJES_PROPUESTA, NOMBRE_EJE, ANCLAS_RECONTRATACION } from '@/lib/reviews/ejes'
 import { calcularScores } from '@/lib/reviews/scores'
+import { evaluarCandado } from '@/lib/reviews/candado'
 import { yaRechazoLaOferta, recordarRechazo } from '@/lib/rolodex/oferta-avance'
 import { TOPE_COMPROBANTES, TOPE_COTIZACIONES, visibles } from '@/lib/archivos/adjuntos'
 import PagoModal from './PagoModal'
@@ -73,6 +75,7 @@ export default function FichaDelEvento({
   const askConfirm = useConfirm()
   const permisoFicha = usePermiso('proveedores')
   const permisoPagos = usePermiso('pagos')
+  const { canAdmin } = useEventAccess()
 
   const [pagos, setPagos] = useState<SupplierPayment[]>([])
   const [cargandoPagos, setCargandoPagos] = useState(true)
@@ -96,6 +99,9 @@ export default function FichaDelEvento({
   const [mostrarModalDesempeno, setMostrarModalDesempeno] = useState(false)
   const [userId, setUserId] = useState<string | null>(null)
   const [eventName, setEventName] = useState('')
+  // Ultimo dia de la boda ('YYYY-MM-DD'): es lo que arranca el candado de la
+  // review post-evento, 15 dias despues de esta fecha. Ver lib/reviews/candado.ts.
+  const [fechaEventoISO, setFechaEventoISO] = useState<string | null>(null)
   // El dueno de la cuenta, que es de quien cuelga la review -- no quien la
   // teclea. Ver la nota en lib/reviews/useGuardarReview.ts.
   const [duenoEvento, setDuenoEvento] = useState<string | null>(null)
@@ -121,6 +127,13 @@ export default function FichaDelEvento({
     () => reviews.find(r => r.event_supplier_id === item.id && r.review_type === 'descarte') ?? null,
     [reviews, item.id],
   )
+
+  const candado = useMemo(() => evaluarCandado({
+    reviewExiste: !!reviewPostEvento,
+    tipoReview: 'post_evento',
+    fechaEvento: fechaEventoISO,
+    puedeSaltarlo: canAdmin,
+  }), [reviewPostEvento, fechaEventoISO, canAdmin])
 
   useEffect(() => { setCarpeta(0) }, [item.id, item.status])
 
@@ -185,11 +198,12 @@ export default function FichaDelEvento({
 
   useEffect(() => {
     let vigente = true
-    supabase.from('events').select('name, user_id').eq('id', item.event_id).single()
+    supabase.from('events').select('name, user_id, event_date, event_end_date').eq('id', item.event_id).single()
       .then(({ data }) => {
         if (!vigente) return
         setEventName(data?.name ?? '')
         setDuenoEvento(data?.user_id ?? null)
+        setFechaEventoISO(data?.event_end_date || data?.event_date || null)
       })
     return () => { vigente = false }
   }, [item.event_id])
@@ -406,11 +420,7 @@ export default function FichaDelEvento({
             <p className="truncate text-[11.5px] text-[#999] lg:text-xs">
               {[categoria, s.subcategory, s.city].filter(Boolean).join(' · ')}
             </p>
-            <p className="flex shrink-0 items-center gap-2.5 text-[11px] font-semibold text-[#aaa] lg:text-[11.5px]">
-              <span>Propuesta <span className={scores.propuesta == null ? 'text-[#ccc]' : 'text-[#1D1E20]'}>{scores.propuesta ?? '—'}</span></span>
-              <span aria-hidden className="text-[#ddd]">·</span>
-              <span>Desempeño <span className={scores.desempeno == null ? 'text-[#ccc]' : 'text-[#1D1E20]'}>{scores.desempeno ?? '—'}</span></span>
-            </p>
+            <Estrellas score={scores.desempeno} tamano={12} className="shrink-0" />
           </div>
 
 
@@ -868,13 +878,13 @@ export default function FichaDelEvento({
             <div className="space-y-6">
               {reviewContratacion && (
                 <GrupoReview titulo="Al contratarlo">
-                  <ResumenContratacion review={reviewContratacion} />
+                  <ResumenContratacion review={reviewContratacion} scorePropuesta={scores.propuesta} />
                 </GrupoReview>
               )}
 
               {reviewDescarte && (
                 <GrupoReview titulo="Por qué se descartó">
-                  <ResumenDescarte review={reviewDescarte} />
+                  <ResumenDescarte review={reviewDescarte} scorePropuesta={scores.propuesta} />
                 </GrupoReview>
               )}
 
@@ -883,7 +893,9 @@ export default function FichaDelEvento({
                   <ResumenPostEvento
                     review={reviewPostEvento}
                     currency={currency}
-                    onEditar={permisoFicha.editar ? () => setMostrarModalDesempeno(true) : undefined}
+                    permisoEditar={permisoFicha.editar}
+                    candado={candado}
+                    onEditar={() => setMostrarModalDesempeno(true)}
                   />
                 </GrupoReview>
               ) : bodaPaso ? (
@@ -915,6 +927,8 @@ export default function FichaDelEvento({
           supplierName={s.name}
           eventName={eventName}
           reviewExistente={reviewPostEvento}
+          bloqueado={candado.bloqueado}
+          razonBloqueo={candado.razon}
           onSaved={() => { setMostrarModalDesempeno(false); cargarReviews(item.supplier_id) }}
           onSkip={() => setMostrarModalDesempeno(false)}
         />
@@ -1123,9 +1137,14 @@ function GrupoReview({ titulo, children }: { titulo: string; children: React.Rea
   )
 }
 
-function ResumenContratacion({ review }: { review: SupplierReview }) {
+function ResumenContratacion({ review, scorePropuesta }: { review: SupplierReview; scorePropuesta: number | null }) {
   return (
     <>
+      <div>
+        <p className="mb-1.5 text-[10.5px] font-bold uppercase tracking-wider text-[#999]">Puntaje de propuesta</p>
+        <Estrellas score={scorePropuesta} tamano={13} />
+      </div>
+
       <Bloque titulo="Cómo calificaste la propuesta">
         <div className="space-y-4">
           {EJES_PROPUESTA.map(eje => (
@@ -1162,7 +1181,7 @@ function ResumenContratacion({ review }: { review: SupplierReview }) {
   )
 }
 
-function ResumenDescarte({ review }: { review: SupplierReview }) {
+function ResumenDescarte({ review, scorePropuesta }: { review: SupplierReview; scorePropuesta: number | null }) {
   const sinOpinion = review.precio_valor == null && review.calidad == null && review.comunicacion == null
 
   return (
@@ -1174,6 +1193,13 @@ function ResumenDescarte({ review }: { review: SupplierReview }) {
           <p className="text-xs text-[#999]">Sin motivo registrado.</p>
         )}
       </Bloque>
+
+      {!sinOpinion && (
+        <div>
+          <p className="mb-1.5 text-[10.5px] font-bold uppercase tracking-wider text-[#999]">Puntaje de propuesta</p>
+          <Estrellas score={scorePropuesta} tamano={13} />
+        </div>
+      )}
 
       <Bloque titulo="Cómo calificaste la propuesta">
         {sinOpinion ? (
@@ -1201,19 +1227,32 @@ function ResumenDescarte({ review }: { review: SupplierReview }) {
   )
 }
 
-function ResumenPostEvento({ review, currency, onEditar }: {
+function ResumenPostEvento({ review, currency, permisoEditar, candado, onEditar }: {
   review: SupplierReview
   currency: Currency
-  onEditar?: () => void
+  permisoEditar: boolean
+  candado: { bloqueado: boolean; razon: string | null }
+  onEditar: () => void
 }) {
   return (
     <>
       <Bloque
         titulo="Cómo calificaste el desempeño"
-        accion={onEditar ? (
-          <button onClick={onEditar} className="flex items-center gap-1 text-[11px] font-semibold text-[#48C9B0] transition hover:text-[#3aa896]">
-            <Pencil size={11} /> Editar
-          </button>
+        accion={permisoEditar ? (
+          <span className="flex items-center gap-2">
+            <button
+              onClick={candado.bloqueado ? undefined : onEditar}
+              disabled={candado.bloqueado}
+              className={`flex items-center gap-1 text-[11px] font-semibold transition ${
+                candado.bloqueado ? 'cursor-not-allowed text-[#ccc]' : 'text-[#48C9B0] hover:text-[#3aa896]'
+              }`}
+            >
+              <Pencil size={11} /> Editar
+            </button>
+            {candado.bloqueado && candado.razon && (
+              <span className="text-[10.5px] text-[#999]">{candado.razon}</span>
+            )}
+          </span>
         ) : null}
       >
         <div className="space-y-4">
@@ -1238,11 +1277,6 @@ function ResumenPostEvento({ review, currency, onEditar }: {
           onChange={() => {}}
           deshabilitado
         />
-        {review.recontratacion === 1 && (
-          <p className="mt-2 rounded-lg border border-[var(--error-border)] bg-[var(--error-bg)] px-3 py-2 text-xs font-semibold text-[var(--error-text)]">
-            Queda vetado: no aparece en sugerencias hasta que alguien lo revierta a mano.
-          </p>
-        )}
       </Bloque>
 
       <Bloque titulo="Cobros extra">
