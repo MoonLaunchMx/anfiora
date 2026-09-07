@@ -481,3 +481,64 @@ Descartado a propósito:
   `/rolodex`. Los scores de aquí son su materia prima.
 - La pieza del Rolodex en el dashboard.
 - Recordatorio automático a los novios si no contestan.
+
+---
+
+## 9. Decisiones posteriores (6 de septiembre, tarde)
+
+Diego probó el motor en local y corrigió el modelo de presentación. **Esta sección manda
+sobre lo anterior** donde se contradigan.
+
+### 9.1 Una sola calificación visible
+
+De los tres scores de §1 solo se muestra **`score_desempeno`**, y se muestra en **estrellas
+con su número al lado**. `score_propuesta` vive dentro de la pestaña Review, como encabezado
+del bloque de preguntas que lo produce; es informativo, no un indicador de cabecera.
+
+Un proveedor sin calificar dice **"Sin calificar"**. Nunca cero estrellas, nunca `0`, nunca
+una raya donde va una calificación.
+
+**Las estrellas son solo para mostrar.** Al capturar siguen los cinco botones numerados con
+su ancla — la regla de §6 contra el mar de cincos sigue vigente sin cambios.
+
+Diego: *"no sé por qué servirían 2 calificaciones... nada más sería una, que es la de
+desempeño"* y *"así podemos presentarlo en estrellas y no en números"*.
+
+### 9.2 El veto se elimina
+
+**§3.3 queda corregido: un `1` en recontratación NO veta.** Es una respuesta más de la reseña,
+sin efecto secundario. Se eliminaron la regla derivada, su módulo, sus pruebas, el filtro de
+sugerencias y los dos textos que lo prometían.
+
+Razón de Diego: un proveedor con 3.2 en desempeño pero 5 en propuesta cotiza rapidísimo, y
+**darle otra oportunidad es decisión de cada planner, no del producto**.
+
+### 9.3 Candado por tiempo en la reseña de desempeño
+
+Editar una reseña `post_evento` está abierto **15 días completos desde la fecha del evento**
+para cualquiera con permiso de editar. Del día 16 en adelante, solo el dueño de la cuenta y
+los colaboradores `admin`.
+
+Tres reglas:
+- **Bloquea modificar, nunca crear.** Una reseña que no existe se puede escribir siempre.
+- **Solo aplica a `post_evento`.** Contratación y descarte se capturan meses antes del evento.
+- **Owner y admin pasan sin fricción**, sin diálogo ni confirmación extra.
+
+Visualmente es **sutil**: el botón de editar inactivo y una línea gris al lado. Sin cajas de
+aviso ni paneles de color. Diego: *"no quiero ese candadote, algo súper sutil"*.
+
+### 9.4 La reseña del cliente final se cierra al enviarla
+
+A diferencia de la del planner, la review del cliente (§3.4, Plan 2) **no tiene ventana de
+edición**: se bloquea al momento de enviarla. Esto reemplaza lo dicho en §4.2 sobre poder
+corregirla mientras el link siga vivo.
+
+### 9.5 Las carpetas de la ficha son fijas
+
+Las cuatro — Contacto, Cotización, Pagos, Review — se muestran **siempre**, en cualquier
+estado, vacías cuando no hay nada. La carpeta "Motivo" desaparece: el motivo del descarte es
+la primera pregunta de esa review, no una carpeta aparte.
+
+Además, mover un proveedor hacia atrás contra su evidencia se **bloquea con explicación**
+(tiene cotización, tiene pagos), y al subir una cotización o registrar un pago se **ofrece**
+—nunca se impone— mover el estatus. El "no" se recuerda por proveedor y por destino.
