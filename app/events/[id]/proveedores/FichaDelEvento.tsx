@@ -113,7 +113,11 @@ export default function FichaDelEvento({
   const menuRef = useRef<HTMLDivElement>(null)
 
   const carpetas = carpetasDe()
-  const cotizaciones = useMemo(() => visibles(item.quote_files), [item.quote_files])
+  // Copia local: la ficha abierta en modal recibe un `item` congelado en el
+  // estado del padre, asi que sin esto quitar un archivo no se ve hasta recargar.
+  const [archivosCotizacion, setArchivosCotizacion] = useState(item.quote_files ?? [])
+  useEffect(() => { setArchivosCotizacion(item.quote_files ?? []) }, [item.id, item.quote_files])
+  const cotizaciones = useMemo(() => visibles(archivosCotizacion), [archivosCotizacion])
   const destinos = useMemo(() => destinosDe(item.status), [item.status])
   const puedeMover = permisoFicha.editar
 
@@ -591,10 +595,6 @@ export default function FichaDelEvento({
               </Campo>
             </div>
 
-            <Campo etiqueta="Notas de esta boda">
-              <textarea rows={3} value={borrador.notasBoda} onChange={e => setBorrador(b => ({ ...b, notasBoda: e.target.value }))} placeholder="Acuerdos, pendientes, detalles de esta boda" className={`${INPUT} resize-none`} />
-            </Campo>
-
             <Campo etiqueta="Notas del proveedor">
               <textarea rows={2} value={borrador.notasProveedor} onChange={e => setBorrador(b => ({ ...b, notasProveedor: e.target.value }))} placeholder="Lo que aplica para todas tus bodas con él" className={`${INPUT} resize-none`} />
             </Campo>
@@ -640,10 +640,6 @@ export default function FichaDelEvento({
               <p className="mt-3 text-[11px] text-[#aaa]">
                 Esto vive en tu Rolodex: si lo corriges, queda corregido en todas tus bodas.
               </p>
-            </Bloque>
-
-            <Bloque titulo="Notas de esta boda">
-              <Texto valor={item.event_notes} vacio="Sin notas de esta boda." />
             </Bloque>
 
             <Bloque titulo="Notas del proveedor">
@@ -753,12 +749,13 @@ export default function FichaDelEvento({
                 eventId={item.event_id}
                 carpeta="cotizaciones"
                 dueno={item.id}
-                archivos={item.quote_files}
+                archivos={archivosCotizacion}
                 tope={TOPE_COTIZACIONES}
                 puedeEditar={permisoFicha.editar}
                 textoVacio="Sube la cotización"
                 onCambio={lista => {
                   const subioUnaNueva = visibles(lista).length > cotizaciones.length
+                  setArchivosCotizacion(lista)
                   onSaved({ ...item, quote_files: lista })
                   if (subioUnaNueva && item.status === 'nuevo') {
                     ofrecerAvance('cotizado', 'Ya tiene una cotización guardada.')

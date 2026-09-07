@@ -67,7 +67,10 @@ export default function SupplierKanbanView({
 
   return (
     <DndContext sensors={puedeEditar ? sensors : []} onDragEnd={handleDragEnd}>
-      <div className="flex gap-3 overflow-x-auto pb-6" style={{ alignItems: 'flex-start' }}>
+      {/* Sin overflow propio a proposito: cualquier overflow aqui convertiria el
+          tablero en su propio contenedor de scroll y el encabezado sticky de
+          cada columna dejaria de pegarse al scroll de la pagina. */}
+      <div className="flex gap-3 pb-6" style={{ alignItems: 'flex-start' }}>
 
         {/* Columnas principales */}
         {VISIBLE_STATUSES.map(status => (
@@ -175,8 +178,14 @@ function KanbanColumn({
             : 'w-[240px] border-[#e8e8e8] bg-[#fafafa]'
       }`}
     >
-      {/* Header */}
-      <div className="mb-3 flex items-center justify-between">
+      {/* Header pegado: la columna es larga y el planner necesita saber en cual
+          esta mientras la recorre. Los margenes negativos lo hacen tapar las
+          tarjetas que pasan por debajo, hasta el borde de la columna. */}
+      <div
+        className={`sticky top-0 z-10 -mx-3 -mt-3 mb-3 flex items-center justify-between rounded-t-xl px-3 pb-2 pt-3 ${
+          isOver && !dimmed ? 'bg-[#f0fdfb]' : 'bg-[#fafafa]'
+        }`}
+      >
         <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${SUPPLIER_STATUS_COLORS[status]}`}>
           {SUPPLIER_STATUS_LABELS[status]}
         </span>
