@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { EventStatus } from '@/lib/types'
@@ -15,10 +15,14 @@ import { useEventAccess } from '@/lib/event-access-context'
 import { FEATURES, ALWAYS_ON_FEATURES, type FeatureKey } from '@/lib/features'
 import { logAction } from '@/lib/audit'
 import { PermisosEditor } from './PermisosEditor'
-import { aplicarKit, normalizarPermisos, permisosDeRol, resumir } from '@/lib/permisos/resolver'
+import { normalizarPermisos, resumir } from '@/lib/permisos/resolver'
 import type { PermisosEvento } from '@/lib/permisos/catalogo'
 import { Modal } from '@/app/components/ui/Modal'
-import { Copy, Check, UserPlus, X, Pencil, Eye, Lock, Activity, Settings, Settings2, MessageCircle, Users, Smartphone, Gem, Crown, Cake, GraduationCap, Sun, PartyPopper, Wine, CalendarDays, Presentation, Monitor, UsersRound, Rocket, Building2, Tent, Mic, Flame, HeartHandshake, type LucideIcon } from 'lucide-react'
+import { AltaPersonaModal } from '@/app/components/workspace/AltaPersonaModal'
+import { InvitarClienteModal } from '@/app/components/workspace/InvitarClienteModal'
+import { fetchWorkspace } from '@/lib/workspace/cliente'
+import type { WorkspaceResumen } from '@/lib/workspace/tipos'
+import { Copy, Check, UserPlus, X, Lock, Activity, Settings, Settings2, MessageCircle, Users, Smartphone, Gem, Crown, Cake, GraduationCap, Sun, PartyPopper, Wine, CalendarDays, Presentation, Monitor, UsersRound, Rocket, Building2, Tent, Mic, Flame, HeartHandshake, type LucideIcon } from 'lucide-react'
 import { Cargando } from '@/app/components/ui/Cargando'
 import ActividadTab from './ActividadTab'
 
@@ -97,11 +101,6 @@ const STATUS_OPTIONS: { status: EventStatus; label: string; dot: string }[] = [
   { status: 'active',    label: 'Activo',    dot: 'bg-[#48C9B0]' },
   { status: 'paused',    label: 'Pausado',   dot: 'bg-blue-400' },
   { status: 'cancelled', label: 'Cancelado', dot: 'bg-red-400' },
-]
-
-const ROLES = [
-  { value: 'viewer', label: 'Solo lectura', description: 'Ve todo, no toca nada', icon: Eye },
-  { value: 'editor', label: 'Puede editar', description: 'Agrega y corrige, no borra', icon: Pencil },
 ]
 
 const TABS: TabItem[] = [
@@ -300,15 +299,15 @@ export default function ConfiguracionPage() {
 
   // Colaboradores
   const [collaborators, setCollaborators] = useState<Collaborator[]>([])
-  const [inviteEmail, setInviteEmail]     = useState('')
-  const [inviteRole, setInviteRole]       = useState<'editor' | 'viewer'>('editor')
-  const [inviting, setInviting]           = useState(false)
-  const [inviteError, setInviteError]     = useState('')
   const [copiedToken, setCopiedToken]     = useState<string | null>(null)
   const [revoking, setRevoking]           = useState<string | null>(null)
   const [editandoPermisos, setEditandoPermisos] = useState<string | null>(null)
   const [borrador, setBorrador]           = useState<PermisosEvento>({})
   const [guardando, setGuardando]         = useState(false)
+
+  // Equipo: se invita desde el workspace, no desde esta boda
+  const [workspace, setWorkspace] = useState<WorkspaceResumen | null>(null)
+  const [modalEquipo, setModalEquipo] = useState<'persona' | 'cliente' | null>(null)
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -338,6 +337,16 @@ export default function ConfiguracionPage() {
   const templatesArePristine = (forType: string) =>
     templates.every((t, i) => !t?.trim() || t === (getTemplatePack(forType)[i]?.body ?? ''))
 
+  const recargarColaboradores = useCallback(async () => {
+    const { data } = await supabase
+      .from('event_collaborators')
+      .select('*')
+      .eq('event_id', id)
+      .neq('status', 'revoked')
+      .order('invited_at', { ascending: true })
+    if (data) setCollaborators(data as Collaborator[])
+  }, [id])
+
   const loadEvent = async () => {
     const [{ data: eventData }, { data: settingsData }, { data: collabData }] = await Promise.all([
       supabase.from('events').select('*').eq('id', id).single(),
@@ -365,6 +374,17 @@ export default function ConfiguracionPage() {
       setPlannerName(eventData.planner_name || '')
       setPlannerPhone(eventData.planner_phone || '')
       setPlannerEmail(eventData.planner_email || '')
+
+      // El equipo se administra desde el workspace de la boda. Si el evento
+      // no tiene workspace_id (caso raro, movido a mano) o el usuario no lo
+      // administra (403), los botones de la pestana Equipo quedan deshabilitados.
+      if (eventData.workspace_id) {
+        fetchWorkspace(eventData.workspace_id)
+          .then(r => setWorkspace(r.activo))
+          .catch(() => setWorkspace(null))
+      } else {
+        setWorkspace(null)
+      }
     }
 
     if (settingsData) {
@@ -518,28 +538,6 @@ export default function ConfiguracionPage() {
 
   const openMaps = () => {
     window.open('https://maps.google.com?q=' + encodeURIComponent(address), '_blank', 'noopener,noreferrer')
-  }
-
-  const handleInvite = async () => {
-    const email = inviteEmail.trim().toLowerCase()
-    if (!email) { setInviteError('Ingresa un email'); return }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { setInviteError('Email invalido'); return }
-    if (collaborators.find(c => c.email === email)) { setInviteError('Este email ya tiene acceso'); return }
-    setInviting(true); setInviteError('')
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) { setInviteError('Sesion expirada'); setInviting(false); return }
-    const { data, error: err } = await supabase
-      .from('event_collaborators')
-      .insert({
-        event_id: id, invited_by: user.id, email, role: inviteRole, status: 'pending',
-        permisos: aplicarKit(permisosDeRol(inviteRole), features),
-        tipo: 'equipo',
-      })
-      .select().single()
-    if (err) { setInviteError('Error al crear invitacion'); setInviting(false); return }
-    setCollaborators(prev => [...prev, data as Collaborator])
-    setInviteEmail('')
-    setInviting(false)
   }
 
   const handleCopyLink = async (token: string) => {
@@ -1114,53 +1112,27 @@ export default function ConfiguracionPage() {
                 <div className="rounded-xl border border-[#e8e8e8] bg-white p-4 lg:sticky lg:top-0">
                   <div className="mb-1 flex items-center gap-2">
                     <UserPlus size={16} className="text-[#48C9B0]" />
-                    <h2 className="text-sm font-semibold text-[#1D1E20]">Invitar a este evento</h2>
+                    <h2 className="text-sm font-semibold text-[#1D1E20]">Dar acceso a esta boda</h2>
                   </div>
-                  <p className="mb-3 text-xs text-[#888]">
-                    Copia el link y mandaselo por WhatsApp o email.
-                  </p>
-
-                  <div className="flex flex-col gap-2.5">
-                    <input
-                      type="email"
-                      value={inviteEmail}
-                      onChange={e => { setInviteEmail(e.target.value); setInviteError('') }}
-                      onKeyDown={e => e.key === 'Enter' && handleInvite()}
-                      placeholder="email@ejemplo.com"
-                      className="w-full rounded-lg border border-[#d0d0d0] bg-white px-3 py-2.5 text-sm text-[#1D1E20] outline-none transition focus:border-[#48C9B0]"
-                    />
-                    <p className="text-[11px] font-semibold text-[#888]">Empieza como</p>
-                    <div className="grid grid-cols-2 gap-1.5">
-                      {ROLES.map(r => {
-                        const Icon = r.icon
-                        return (
-                          <button
-                            key={r.value}
-                            onClick={() => setInviteRole(r.value as 'editor' | 'viewer')}
-                            className={'flex flex-col items-center gap-1 rounded-lg border px-2 py-2.5 text-center transition ' +
-                              (inviteRole === r.value
-                                ? 'border-[#48C9B0] bg-[#f0fdfb] text-[#1a9e88]'
-                                : 'border-[#e0e0e0] bg-white text-[#888] hover:border-[#48C9B0] hover:text-[#1a9e88]')}
-                          >
-                            <Icon size={14} />
-                            <span className="text-[11px] font-semibold">{r.label}</span>
-                            <span className="text-[10px] leading-tight text-[#aaa]">{r.description}</span>
-                          </button>
-                        )
-                      })}
-                    </div>
-                    {inviteError && <p className="text-xs text-[#cc3333]">{inviteError}</p>}
+                  <p className="mb-3 text-xs text-[#888]">Tu equipo entra por el workspace; el cliente, solo aquí.</p>
+                  <div className="flex flex-col gap-2">
                     <button
-                      onClick={handleInvite}
-                      disabled={inviting || !inviteEmail.trim()}
-                      className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#48C9B0] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#3ab89f] disabled:opacity-40"
+                      onClick={() => setModalEquipo('persona')}
+                      disabled={!workspace}
+                      title={workspace ? undefined : 'Administra el equipo desde el workspace'}
+                      className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#48C9B0] px-4 py-2.5 text-sm font-semibold text-[#08312a] transition disabled:opacity-40"
                     >
-                      <UserPlus size={14} />
-                      {inviting ? 'Creando invitacion...' : 'Generar link de invitacion'}
+                      <UserPlus size={14} /> Agregar persona del equipo
                     </button>
-                    <p className="text-[11px] leading-relaxed text-[#aaa]">
-                      Despues le ajustas herramienta por herramienta con el engrane.
-                    </p>
+                    <button
+                      onClick={() => setModalEquipo('cliente')}
+                      disabled={!workspace}
+                      title={workspace ? undefined : 'Administra el equipo desde el workspace'}
+                      className="w-full rounded-lg border border-[#e0e0e0] bg-white px-4 py-2.5 text-sm font-semibold text-[#1D1E20] transition hover:border-[#48C9B0] disabled:opacity-40"
+                    >
+                      Invitar cliente
+                    </button>
+                    <p className="text-[11px] leading-relaxed text-[#aaa]">Después le ajustas herramienta por herramienta con el engrane.</p>
                   </div>
                 </div>
 
@@ -1206,7 +1178,10 @@ export default function ConfiguracionPage() {
                                   </div>
 
                                   <div className="min-w-0 flex-1">
-                                    <p className="truncate text-xs font-medium text-[#1D1E20]">{c.email}</p>
+                                    <p className="flex items-center gap-1.5 truncate text-xs font-medium text-[#1D1E20]">
+                                      {c.email}
+                                      {c.tipo === 'cliente' && <span className="rounded-full border border-[#48C9B0] bg-[#f0fdfb] px-1.5 py-px text-[10px] font-semibold text-[#1a9e88]">Cliente</span>}
+                                    </p>
 
                                     <div className="mt-0.5 flex items-center gap-1.5">
                                       <span className={'h-1.5 w-1.5 shrink-0 rounded-full ' + (pendiente ? 'bg-[#f0a500]' : 'bg-[#48C9B0]')} />
@@ -1299,6 +1274,15 @@ export default function ConfiguracionPage() {
                   </Modal>
                 )
               })()}
+
+              {workspace && modalEquipo === 'persona' && (
+                <AltaPersonaModal open onClose={() => setModalEquipo(null)} workspace={workspace} bodaFija={id as string}
+                  onHecho={() => { recargarColaboradores(); fetchWorkspace(workspace.id).then(r => setWorkspace(r.activo)).catch(() => {}) }} />
+              )}
+              {workspace && modalEquipo === 'cliente' && (
+                <InvitarClienteModal open onClose={() => setModalEquipo(null)} workspace={workspace} bodaFija={id as string}
+                  onHecho={() => recargarColaboradores()} />
+              )}
             </div>
           )}
 
