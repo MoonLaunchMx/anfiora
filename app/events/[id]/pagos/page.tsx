@@ -17,6 +17,8 @@ import { useConfirm } from '@/app/components/ui/ConfirmModal'
 import { exportPagosToExcel, exportPagosToPDF } from './lib/exports'
 import { usePermiso } from '@/lib/event-access-context'
 import { Puede } from '@/lib/permisos/Puede'
+import QuienPago from '@/app/components/ui/QuienPago'
+import { etiquetaQuienPago, sugerenciasDesdeHistorial } from '@/lib/pagos/quien-pago'
 
 type Pago = {
   id: string
@@ -57,18 +59,6 @@ const METHOD_STYLE: Record<string, { bg: string; border: string; color: string }
 }
 
 const PAYMENT_METHODS = ['transferencia', 'efectivo', 'tarjeta_credito', 'tarjeta_debito', 'cheque', 'otro']
-
-const PAID_BY_LABEL: Record<string, string> = {
-  novia:       'Novia',
-  novio:       'Novio',
-  pareja:      'Pareja',
-  papas_novia: 'Papás novia',
-  papas_novio: 'Papás novio',
-  familiar:    'Familiar',
-  otro:        'Otro',
-}
-
-const PAID_BY_VALUES = ['novia', 'novio', 'pareja', 'papas_novia', 'papas_novio', 'familiar', 'otro']
 
 function MethodIcon({ method }: { method: string | null }) {
   if (!method) {
@@ -243,6 +233,9 @@ export default function PagosPage() {
 
   const suppliers = useMemo(() => [...new Set(pagos.map(p => p.supplier_name))].sort(), [pagos])
   const methods   = useMemo(() => [...new Set(pagos.map(p => p.payment_method).filter(Boolean))] as string[], [pagos])
+  // Ya se ordenaron por payment_date desc en la consulta, asi que el primero
+  // que se ve de cada valor es tambien el mas reciente.
+  const sugerenciasPaidBy = useMemo(() => sugerenciasDesdeHistorial(pagos.map(p => p.paid_by)), [pagos])
 
   const filtered = useMemo(() => {
     let result = [...pagos]
@@ -569,7 +562,7 @@ export default function PagosPage() {
                         className={`flex items-center gap-2 px-3 py-2.5 transition ${permiso.editar ? 'cursor-pointer active:bg-[#f8f5f0]' : ''} ${i < items.length - 1 ? 'border-b border-[#f0f0f0]' : ''}`}>
                         <MethodIcon method={pago.payment_method} />
                         <span className="min-w-0 flex-1 truncate text-xs text-[#1D1E20]">
-                          {pago.paid_by ? (PAID_BY_LABEL[pago.paid_by] || pago.paid_by) : <span className="text-[#ccc]">—</span>}
+                          {pago.paid_by ? etiquetaQuienPago(pago.paid_by) : <span className="text-[#ccc]">—</span>}
                         </span>
                         <span className="shrink-0 text-[11px] text-[#aaa]" style={{ minWidth: '56px', textAlign: 'right' }}>
                           {fmtDateShort(pago.payment_date)}
@@ -649,7 +642,7 @@ export default function PagosPage() {
                             <td className="px-4 py-2.5 pl-10 text-[#666]">{supplierName}</td>
                             <td className="px-4 py-2.5 text-[#888]">{fmtDate(pago.payment_date)}</td>
                             <td className="hidden px-4 py-2.5 text-[#888] md:table-cell">
-                              {pago.paid_by ? (PAID_BY_LABEL[pago.paid_by] || pago.paid_by) : <span className="text-[#ccc]">—</span>}
+                              {pago.paid_by ? etiquetaQuienPago(pago.paid_by) : <span className="text-[#ccc]">—</span>}
                             </td>
                             <td className="hidden px-4 py-2.5 md:table-cell">
                               {pago.payment_method ? (() => {
@@ -731,14 +724,10 @@ export default function PagosPage() {
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-[#aaa]">Pagado por</p>
-                    <select value={newPaidBy} onChange={e => setNewPaidBy(e.target.value)}
-                      className="w-full cursor-pointer rounded-lg border border-[#e0e0e0] bg-white px-3 py-2 text-base text-[#1D1E20] outline-none transition focus:border-[#48C9B0]">
-                      <option value="">Sin especificar</option>
-                      {PAID_BY_VALUES.map(v => (
-                        <option key={v} value={v}>{PAID_BY_LABEL[v]}</option>
-                      ))}
-                    </select>
+                    <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-[#aaa]">
+                      Pagado por <span className="font-normal normal-case tracking-normal text-[#ccc]">(opcional)</span>
+                    </p>
+                    <QuienPago value={newPaidBy} onChange={setNewPaidBy} sugerencias={sugerenciasPaidBy} />
                   </div>
                   <div>
                     <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-[#aaa]">Metodo</p>

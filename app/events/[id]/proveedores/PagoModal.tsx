@@ -1,15 +1,16 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Modal } from '@/app/components/ui/Modal'
 import { useConfirm } from '@/app/components/ui/ConfirmModal'
 import { supabase } from '@/lib/supabase'
 import { TOPE_COMPROBANTES } from '@/lib/archivos/adjuntos'
 import ListaDeArchivos from './ListaDeArchivos'
+import QuienPago from '@/app/components/ui/QuienPago'
+import { cargarSugerenciasPaidBy } from '@/lib/pagos/quien-pago'
 import {
   Currency, formatCurrency, SupplierPayment,
   PAYMENT_METHODS, PAYMENT_METHOD_LABELS, PaymentMethod,
-  PAID_BY_OPTIONS, PAID_BY_LABELS, PaidBy,
 } from '@/lib/types'
 
 type Props = {
@@ -35,12 +36,17 @@ export default function PagoModal({
   const [monto, setMonto]           = useState(pago ? pago.amount.toString() : '')
   const [fecha, setFecha]           = useState(pago?.payment_date ?? new Date().toISOString().slice(0, 10))
   const [metodo, setMetodo]         = useState<PaymentMethod>(pago?.payment_method ?? 'transferencia')
-  const [responsable, setResponsable] = useState<PaidBy>(pago?.paid_by ?? 'pareja')
+  const [responsable, setResponsable] = useState(pago?.paid_by ?? '')
+  const [sugerenciasPaidBy, setSugerenciasPaidBy] = useState<string[]>([])
   const [referencia, setReferencia] = useState(pago?.reference ?? '')
   const [idNuevo] = useState(() => crypto.randomUUID())
   const [comprobantes, setComprobantes] = useState(pago?.receipt_files ?? [])
   const [guardando, setGuardando]   = useState(false)
   const [error, setError]           = useState('')
+
+  useEffect(() => {
+    cargarSugerenciasPaidBy(eventId).then(setSugerenciasPaidBy)
+  }, [eventId])
 
   const cantidad = parseFloat(monto)
   const valido = !isNaN(cantidad) && cantidad > 0
@@ -69,7 +75,7 @@ export default function PagoModal({
         amount: cantidad,
         payment_date: fecha,
         payment_method: metodo,
-        paid_by: responsable,
+        paid_by: responsable.trim() || null,
         reference: referencia.trim() || null,
       }
 
@@ -130,10 +136,15 @@ export default function PagoModal({
           </div>
 
           <div>
-            <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-[#888]">Quién pagó</label>
-            <select value={responsable} onChange={e => setResponsable(e.target.value as PaidBy)} className={INPUT}>
-              {PAID_BY_OPTIONS.map(p => <option key={p} value={p}>{PAID_BY_LABELS[p]}</option>)}
-            </select>
+            <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-[#888]">
+              Quién pagó <span className="font-normal normal-case tracking-normal text-[#bbb]">(opcional)</span>
+            </label>
+            <QuienPago
+              value={responsable}
+              onChange={setResponsable}
+              sugerencias={sugerenciasPaidBy}
+              className={INPUT}
+            />
           </div>
 
           <div>

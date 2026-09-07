@@ -10,10 +10,11 @@ import {
   Currency, formatCurrency,
   EventSupplier, Supplier, EventBudget, SupplierPayment, SupplierStatus,
   SUPPLIER_STATUS_LABELS,
-  PAYMENT_METHOD_LABELS, PAID_BY_LABELS,
+  PAYMENT_METHOD_LABELS,
   SupplierReview, MOTIVO_DESCARTE_LABEL,
   RAZON_SELECCION_LABEL,
 } from '@/lib/types'
+import { etiquetaQuienPago } from '@/lib/pagos/quien-pago'
 import { Categoria, nombrePorId } from '@/lib/rolodex/categorias-store'
 import { formatDisplay, toWhatsApp } from '@/lib/phone'
 import {
@@ -807,7 +808,7 @@ export default function FichaDelEvento({
                         </span>
                         <span className="truncate">
                           {p.payment_method ? PAYMENT_METHOD_LABELS[p.payment_method] : 'Sin método'}
-                          {p.paid_by ? ` · ${PAID_BY_LABELS[p.paid_by]}` : ''}
+                          {p.paid_by ? ` · ${etiquetaQuienPago(p.paid_by)}` : ''}
                           {p.reference ? ` · ${p.reference}` : ''}
                         </span>
                       </span>

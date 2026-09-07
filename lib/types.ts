@@ -800,7 +800,10 @@ export type SupplierPayment = {
   amount: number
   payment_date: string
   payment_method: PaymentMethod | null
-  paid_by: PaidBy | null
+  // Ya no es un enum: texto libre por evento. PAID_BY_LABELS se conserva
+  // solo para traducir las claves heredadas (novia, papas_novio, etc.) a su
+  // etiqueta donde se muestren — ver lib/pagos/quien-pago.ts.
+  paid_by: string | null
   reference: string | null
   receipt_files: ArchivoAdjunto[]
   created_at: string
