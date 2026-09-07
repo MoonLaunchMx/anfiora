@@ -77,7 +77,7 @@ export default function InvitePage() {
     }
     if (!payload.invite) { setPageState('invalid'); return }
 
-    setInvite(payload.invite)
+    setInvite({ ...payload.invite, kind: payload.kind })
     const exists = !!payload.account_exists
     setAccountExists(exists)
 

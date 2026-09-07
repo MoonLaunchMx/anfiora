@@ -130,13 +130,13 @@ export function validarCliente(p: {
 // colaborador que la invitacion dejo pendientes en bodas de ESE workspace.
 export function filasParaActivar(p: {
   email: string
-  colaboradores: { id: string; email: string; status: string; event_id: string }[]
+  colaboradores: { id: string; email: string; status: string; event_id: string; tipo?: string | null }[]
   eventosDelWorkspace: string[]
 }): string[] {
   const email = normalizarCorreo(p.email)
   const propios = new Set(p.eventosDelWorkspace)
   return p.colaboradores
-    .filter(c => normalizarCorreo(c.email) === email && c.status === 'pending' && propios.has(c.event_id))
+    .filter(c => normalizarCorreo(c.email) === email && c.status === 'pending' && propios.has(c.event_id) && c.tipo !== 'cliente')
     .map(c => c.id)
 }
 

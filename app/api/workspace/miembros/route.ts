@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { randomUUID } from 'node:crypto'
 import { contarAsientos, puedeInvitar } from '@/lib/workspace/asientos'
 import { filasDeAlta, validarAltaEquipo, type BodaElegida } from '@/lib/workspace/invitacion'
-import { esAdministrador, planDeFila, rolEnWorkspace, usuarioDeRequest } from '@/lib/workspace/servidor'
+import { esAdministrador, planDelWorkspace, rolEnWorkspace, usuarioDeRequest } from '@/lib/workspace/servidor'
 import type { RolInvitable } from '@/lib/workspace/tipos'
 
 export async function POST(req: NextRequest) {
@@ -21,16 +21,18 @@ export async function POST(req: NextRequest) {
   const miRol = await rolEnWorkspace(admin, workspaceId, user.id)
   if (!esAdministrador(miRol)) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
-  const [{ data: ws }, { data: miembros }] = await Promise.all([
+  const [{ data: ws, error: errWs }, { data: miembros, error: errMiembros }] = await Promise.all([
     admin.from('workspaces').select('*').eq('id', workspaceId).maybeSingle(),
     admin.from('workspace_members').select('id, email, status, user_id').eq('workspace_id', workspaceId),
   ])
+  if (errWs) return NextResponse.json({ error: 'No se pudo leer el workspace: ' + errWs.message }, { status: 500 })
+  if (errMiembros) return NextResponse.json({ error: 'No se pudo leer el equipo: ' + errMiembros.message }, { status: 500 })
   if (!ws) return NextResponse.json({ error: 'Workspace no encontrado' }, { status: 404 })
 
   const v = validarAltaEquipo({ email, miembros: miembros ?? [] })
   if (!v.ok) return NextResponse.json({ error: v.error }, { status: 400 })
 
-  const permiso = puedeInvitar(planDeFila(ws), contarAsientos(miembros ?? []))
+  const permiso = puedeInvitar(await planDelWorkspace(admin, ws), contarAsientos(miembros ?? []))
   if (!permiso.ok) {
     return NextResponse.json({ error: 'Para trabajar en equipo necesitas Pro', motivo: 'plan' }, { status: 402 })
   }
@@ -74,6 +76,7 @@ export async function POST(req: NextRequest) {
     // Filas viejas del mismo correo en esas bodas se reemplazan.
     const { error: errDel } = await admin.from('event_collaborators').delete()
       .in('event_id', colaboradores.map(c => c.event_id)).eq('email', miembro.email).neq('status', 'active')
+      .or('tipo.is.null,tipo.neq.cliente')
     if (errDel) return NextResponse.json({ error: 'No se pudo preparar la invitación: ' + errDel.message }, { status: 500 })
     const { error: errC } = await admin.from('event_collaborators').insert(filasColaborador)
     if (errC) return NextResponse.json({ error: 'La persona quedó invitada pero sus bodas no: ' + errC.message }, { status: 500 })

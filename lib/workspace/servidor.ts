@@ -3,7 +3,7 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import type { NextRequest } from 'next/server'
 import { resolveFeatures, type EnabledFeatures } from '@/lib/features'
-import { normalizarPlan } from './planes'
+import { normalizarPlan, type PlanId } from './planes'
 import type { BodaDelWorkspace, RolWorkspace } from './tipos'
 
 export function clienteAdmin(): SupabaseClient {
@@ -47,7 +47,12 @@ export async function bodasDelWorkspace(admin: SupabaseClient, workspaceId: stri
   }))
 }
 
-// La columna plan puede no existir todavia: select('*') y normalizar.
-export function planDeFila(fila: Record<string, unknown> | null | undefined) {
-  return normalizarPlan(fila?.plan)
+// Mientras no corra el SQL del tramo, workspaces.plan no existe: se cae al
+// plan del dueno principal en users.plan. Este fallback muere cuando el SQL
+// del tramo agregue la columna y ws.plan siempre venga definida.
+export async function planDelWorkspace(admin: SupabaseClient, ws: Record<string, unknown>): Promise<PlanId> {
+  if (ws.plan !== undefined) return normalizarPlan(ws.plan)
+  const { data, error } = await admin.from('users').select('plan').eq('id', ws.primary_owner_id as string).maybeSingle()
+  if (error) return 'free'
+  return normalizarPlan(data?.plan)
 }

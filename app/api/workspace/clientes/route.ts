@@ -21,10 +21,13 @@ export async function POST(req: NextRequest) {
   const boda = bodas.find(b => b.id === eventId)
   if (!boda) return NextResponse.json({ error: 'Esa boda no es de este workspace' }, { status: 400 })
 
-  const [{ data: miembros }, { data: colaboradores }] = await Promise.all([
+  const [{ data: miembros, error: errMiembros }, { data: colaboradores, error: errColab }] = await Promise.all([
     admin.from('workspace_members').select('email, status').eq('workspace_id', workspaceId),
     admin.from('event_collaborators').select('email, event_id, tipo, status').in('event_id', bodas.map(b => b.id)),
   ])
+  if (errMiembros) return NextResponse.json({ error: 'No se pudo leer el equipo: ' + errMiembros.message }, { status: 500 })
+  if (errColab) return NextResponse.json({ error: 'No se pudo leer los accesos: ' + errColab.message }, { status: 500 })
+
   const v = validarCliente({ email, eventId, colaboradores: colaboradores ?? [], miembros: miembros ?? [] })
   if (!v.ok) return NextResponse.json({ error: v.error }, { status: 400 })
 

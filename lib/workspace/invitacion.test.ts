@@ -107,6 +107,18 @@ describe('filasParaActivar', () => {
     })
     expect(ids).toEqual(['c1'])
   })
+
+  it('no activa una fila de cliente pendiente del mismo correo', () => {
+    const ids = filasParaActivar({
+      email: 'regina@moonlaunch.mx',
+      colaboradores: [
+        { id: 'c1', email: 'regina@moonlaunch.mx', status: 'pending', event_id: 'e1', tipo: 'equipo' },
+        { id: 'c2', email: 'regina@moonlaunch.mx', status: 'pending', event_id: 'e1', tipo: 'cliente' },
+      ],
+      eventosDelWorkspace: ['e1'],
+    })
+    expect(ids).toEqual(['c1'])
+  })
 })
 
 describe('normalizarCorreo', () => {

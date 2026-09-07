@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { normalizarPermisos } from '@/lib/permisos/resolver'
-import { bodasDelWorkspace, esAdministrador, planDeFila, usuarioDeRequest } from '@/lib/workspace/servidor'
+import { bodasDelWorkspace, esAdministrador, planDelWorkspace, usuarioDeRequest } from '@/lib/workspace/servidor'
 import type { Cliente, Miembro, RolWorkspace, WorkspaceListado, WorkspaceResumen } from '@/lib/workspace/tipos'
 
 export async function GET(req: NextRequest) {
@@ -16,12 +16,14 @@ export async function GET(req: NextRequest) {
 
   const { data: wss } = await admin.from('workspaces').select('*').in('id', filas.map(f => f.workspace_id))
   const porId = new Map((wss ?? []).map(w => [w.id as string, w as Record<string, unknown>]))
-  const workspaces: WorkspaceListado[] = filas
-    .filter(f => porId.has(f.workspace_id))
-    .map(f => ({
-      id: f.workspace_id, name: String(porId.get(f.workspace_id)!.name),
-      plan: planDeFila(porId.get(f.workspace_id)), miRol: f.rol,
-    }))
+  const workspaces: WorkspaceListado[] = await Promise.all(
+    filas
+      .filter(f => porId.has(f.workspace_id))
+      .map(async f => ({
+        id: f.workspace_id, name: String(porId.get(f.workspace_id)!.name),
+        plan: await planDelWorkspace(admin, porId.get(f.workspace_id)!), miRol: f.rol,
+      })),
+  )
 
   const pedido = req.nextUrl.searchParams.get('id')
   const propio = filas.find(f => f.es_dueno_principal)?.workspace_id
@@ -76,7 +78,7 @@ export async function GET(req: NextRequest) {
     }))
 
   const activo: WorkspaceResumen = {
-    id: activoId, name: String(ws.name), plan: planDeFila(ws), miRol: mia.rol,
+    id: activoId, name: String(ws.name), plan: await planDelWorkspace(admin, ws), miRol: mia.rol,
     esDuenoPrincipal: mia.es_dueno_principal, miembros, clientes, bodas,
   }
   return NextResponse.json({ workspaces, activo })

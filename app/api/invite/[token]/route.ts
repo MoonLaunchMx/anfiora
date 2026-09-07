@@ -36,9 +36,15 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
     if (!m || m.status === 'revoked') return NextResponse.json({ status: 'invalid' }, { status: 404 })
     if (m.status === 'active') return NextResponse.json({ status: 'already_used', kind: 'workspace', event_id: null })
 
-    const { data: bodas } = await db
-      .from('event_collaborators').select('event_id, events ( name )')
-      .eq('email', m.email).eq('status', 'pending').neq('tipo', 'cliente')
+    const { data: eventosWs, error: errEventosWs } = await db
+      .from('events').select('id').eq('workspace_id', m.workspace_id)
+    if (errEventosWs) return NextResponse.json({ status: 'invalid' }, { status: 404 })
+    const idsWs = (eventosWs ?? []).map(e => e.id as string)
+    const { data: bodas } = idsWs.length
+      ? await db
+          .from('event_collaborators').select('event_id, events ( name )')
+          .eq('email', m.email).eq('status', 'pending').or('tipo.is.null,tipo.neq.cliente').in('event_id', idsWs)
+      : { data: [] }
     const { data: existing } = await db.from('users').select('id').ilike('email', m.email).maybeSingle()
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const ws = m.workspaces as any
@@ -122,7 +128,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
     }
 
     const { data: colabs, error: e2 } = eventIds.length
-      ? await db.from('event_collaborators').select('id, email, status, event_id').in('event_id', eventIds)
+      ? await db.from('event_collaborators').select('id, email, status, event_id, tipo').in('event_id', eventIds)
       : { data: [], error: null }
     if (e2) return NextResponse.json({ error: 'no_guardado' }, { status: 500 })
 

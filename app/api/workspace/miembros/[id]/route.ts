@@ -24,7 +24,10 @@ async function cargar(req: NextRequest, id: string) {
   if (!m) return { error: NextResponse.json({ error: 'Miembro no encontrado' }, { status: 404 }) }
   const miRol = await rolEnWorkspace(s.admin, m.workspace_id, s.user.id)
   if (!esAdministrador(miRol)) return { error: NextResponse.json({ error: 'No autorizado' }, { status: 403 }) }
-  const { data: eventos } = await s.admin.from('events').select('id').eq('workspace_id', m.workspace_id)
+  const { data: eventos, error: errEventos } = await s.admin.from('events').select('id').eq('workspace_id', m.workspace_id)
+  if (errEventos) {
+    return { error: NextResponse.json({ error: 'No se pudo leer las bodas del workspace: ' + errEventos.message }, { status: 500 }) }
+  }
   return { s, m, eventIds: (eventos ?? []).map(e => e.id as string) }
 }
 
@@ -53,7 +56,7 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
       .filter(b => propias.has(b.eventId))
       .map(b => ({ eventId: b.eventId, permisos: normalizarPermisos(b.permisos) }))
     const { data: actuales, error: errActuales } = await s.admin.from('event_collaborators')
-      .select('id, event_id, status').in('event_id', eventIds).eq('email', m.email).neq('tipo', 'cliente')
+      .select('id, event_id, status').in('event_id', eventIds).eq('email', m.email).or('tipo.is.null,tipo.neq.cliente')
     if (errActuales) return NextResponse.json({ error: 'No se pudo guardar: ' + errActuales.message }, { status: 500 })
     const porEvento = new Map((actuales ?? []).map(a => [a.event_id, a]))
 
@@ -112,7 +115,7 @@ export async function DELETE(req: NextRequest, { params }: Ctx) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   if (eventIds.length) {
     const { error: errColab } = await s.admin.from('event_collaborators').update({ status: 'revoked' })
-      .in('event_id', eventIds).eq('email', m.email).neq('tipo', 'cliente')
+      .in('event_id', eventIds).eq('email', m.email).or('tipo.is.null,tipo.neq.cliente')
     if (errColab) {
       return NextResponse.json(
         { error: 'La persona quedó fuera del workspace pero no de todas sus bodas: ' + errColab.message },
