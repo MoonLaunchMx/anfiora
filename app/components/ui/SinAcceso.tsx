@@ -4,10 +4,20 @@ import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { Lock } from 'lucide-react'
 import { MODULOS_CONFIG, type Modulo } from '@/lib/permisos/catalogo'
+import { moduloDeRutaNav } from '@/lib/permisos/rutas'
 
-export function SinAcceso({ modulo }: { modulo: Modulo }) {
+// volverA es la primera herramienta que si le toca, o null si no le toca
+// ninguna. Antes el boton apuntaba fijo a la raiz, que ES Invitados: a quien
+// no tiene Invitados lo devolvia a esta misma pantalla.
+export function SinAcceso({ modulo, volverA }: { modulo: Modulo; volverA: string | null }) {
   const { id } = useParams()
   const label = MODULOS_CONFIG.find(m => m.key === modulo)?.label ?? 'esta herramienta'
+
+  const moduloDestino = volverA !== null ? moduloDeRutaNav(volverA) : null
+  const labelDestino  = MODULOS_CONFIG.find(m => m.key === moduloDestino)?.label
+
+  const destino = labelDestino ? `/events/${id}${volverA}` : '/dashboard'
+  const textoBoton = labelDestino ? `Volver a ${labelDestino}` : 'Volver al inicio'
 
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 py-16 text-center">
@@ -21,10 +31,10 @@ export function SinAcceso({ modulo }: { modulo: Modulo }) {
         Si crees que deberías, pídeselo a quien administra la cuenta.
       </p>
       <Link
-        href={`/events/${id}`}
+        href={destino}
         className="mt-1 rounded-lg bg-[#48C9B0] px-4 py-2 text-[13px] font-semibold text-[#08312a]"
       >
-        Volver a Invitados
+        {textoBoton}
       </Link>
     </div>
   )

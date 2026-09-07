@@ -27,6 +27,7 @@ import { useSalidaGuard } from '../SalidaGuardProvider'
 import { useEventAccess, usePermiso } from '@/lib/event-access-context'
 import EstiloPanel from './EstiloPanel'
 import PersonalizarPanel from './PersonalizarPanel'
+import { Cargando } from '@/app/components/ui/Cargando'
 
 type TabKey = 'diseno' | 'config'
 
@@ -320,13 +321,7 @@ export default function InvitacionPage() {
   // El guardian llama publish sin cerrar sobre un doc viejo: siempre el actual.
   publishRef.current = handlePublish
 
-  if (loading || !doc) {
-    return (
-      <div className="flex flex-1 items-center justify-center">
-        <div className="h-7 w-7 animate-spin rounded-full border-2 border-[#e8e8e8] border-t-[#48C9B0]" />
-      </div>
-    )
-  }
+  if (loading || !doc) return <Cargando />
 
   if (!event) {
     return (

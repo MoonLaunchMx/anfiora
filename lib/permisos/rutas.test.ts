@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { MODULO_POR_RUTA, moduloDeRutaNav, filtrarPorPermiso } from './rutas'
+import { MODULO_POR_RUTA, moduloDeRutaNav, filtrarPorPermiso, primeraRutaVisible } from './rutas'
 import { MODULOS_CONFIG, type Modulo, type Nivel } from './catalogo'
 
 type Entrada =
@@ -69,5 +69,34 @@ describe('filtrarPorPermiso', () => {
     const grupo = filtrarPorPermiso(NAV, nivel)
       .find((e): e is Extract<Entrada, { type: 'group' }> => e.type === 'group')!
     expect(grupo.defaultPath).toBe('/proveedores')
+  })
+})
+
+describe('primeraRutaVisible', () => {
+  it('sin nada visible no hay puerta de entrada', () => {
+    expect(primeraRutaVisible([])).toBeNull()
+  })
+
+  it('con todo visible entra por la raiz', () => {
+    expect(primeraRutaVisible(filtrarPorPermiso(NAV, () => 'total' as Nivel))).toBe('')
+  })
+
+  it('sin invitados entra por la primera herramienta que si le toca', () => {
+    const nivel = (m: Modulo): Nivel => (m === 'invitados' ? 'ninguno' : 'ver')
+    expect(primeraRutaVisible(filtrarPorPermiso(NAV, nivel))).toBe('/timeline')
+  })
+
+  it('si lo primero que le toca es un grupo, entra por el destino del grupo', () => {
+    const nivel = (m: Modulo): Nivel =>
+      (['invitados', 'timeline'] as Modulo[]).includes(m) ? 'ninguno' : 'ver'
+    const entries = filtrarPorPermiso(NAV, nivel).filter(e => e.type === 'group')
+    expect(primeraRutaVisible(entries)).toBe('/presupuesto')
+  })
+
+  it('si el destino del grupo se escondio, entra por el hijo que quedo', () => {
+    const nivel = (m: Modulo): Nivel =>
+      (['invitados', 'timeline', 'presupuesto'] as Modulo[]).includes(m) ? 'ninguno' : 'ver'
+    const entries = filtrarPorPermiso(NAV, nivel).filter(e => e.type === 'group')
+    expect(primeraRutaVisible(entries)).toBe('/proveedores')
   })
 })

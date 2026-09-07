@@ -1,39 +1,19 @@
 import { supabase } from '@/lib/supabase'
+import type { AuditAction, AuditEntityType } from '@/lib/actividad/vocabulario'
+import { moduloDeEntidad } from '@/lib/actividad/vocabulario'
 
-// ============================================
-// Tipos de acciones auditables
-// Formato: entidad.accion
-// ============================================
-export type AuditAction =
-  | 'guest.created'
-  | 'guest.updated'
-  | 'guest.deleted'
-  | 'guest.rsvp_updated'
-  | 'guest.checked_in'
-  | 'guest.payment_confirmed'
-  | 'guest.payment_undone'
-  | 'party_member.created'
-  | 'party_member.deleted'
-  | 'party_member.rsvp_updated'
-  | 'table.created'
-  | 'table.updated'
-  | 'table.deleted'
-  | 'table.guest_assigned'
-  | 'table.guest_removed'
-  | 'event.updated'
-  | 'event.settings_updated'
-  | 'collaborator.invited'
-  | 'collaborator.revoked'
-  | 'collaborator.accepted'
-  | 'collaborator.permissions_updated'
-
-export type AuditEntityType =
-  | 'guest'
-  | 'party_member'
-  | 'table'
-  | 'event'
-  | 'settings'
-  | 'collaborator'
+// El vocabulario vive en lib/actividad/vocabulario.ts, que es puro. Aqui se
+// reexporta para no mover a ningun consumidor de sitio.
+export type { AuditAction, AuditEntityType }
+export {
+  AUDIT_ACTION_LABEL,
+  MODULO_POR_ENTIDAD,
+  moduloDeEntidad,
+  ACCIONES_BORRADO,
+  ACCIONES_RESTAURACION,
+  entidadDeAccion,
+  esBorrado,
+} from '@/lib/actividad/vocabulario'
 
 // ============================================
 // Payload que recibe logAction()
@@ -46,6 +26,8 @@ interface LogActionParams {
   entityLabel?: string   // nombre legible: "Juan García", "Mesa 5", etc.
   oldValue?: Record<string, unknown>
   newValue?: Record<string, unknown>
+  // Solo para el caso raro en que la entidad no baste. Normalmente NO se pasa.
+  modulo?: string | null
 }
 
 // ============================================
@@ -77,6 +59,10 @@ export async function logAction(params: LogActionParams): Promise<void> {
       entity_label: params.entityLabel ?? null,
       old_value: params.oldValue ?? null,
       new_value: params.newValue ?? null,
+      // Se deriva de la entidad, igual que lo hace log_borrado() en Postgres.
+      // Antes no se escribia: la fila salia sin modulo y la pantalla de
+      // Actividad mandaba TODA edicion a "Equipo".
+      modulo: params.modulo ?? moduloDeEntidad(params.entityType),
     })
   } catch {
     // Silent fail — el log nunca debe romper la operación principal
@@ -101,31 +87,4 @@ export async function getEventAuditLog(eventId: string, limit = 100) {
   }
 
   return data
-}
-
-// ============================================
-// Labels legibles para la UI del audit log
-// ============================================
-export const AUDIT_ACTION_LABEL: Record<AuditAction, string> = {
-  'guest.created': 'Invitado agregado',
-  'guest.updated': 'Invitado editado',
-  'guest.deleted': 'Invitado eliminado',
-  'guest.rsvp_updated': 'RSVP actualizado',
-  'guest.checked_in': 'Check-in realizado',
-  'guest.payment_confirmed': 'Pago confirmado',
-  'guest.payment_undone': 'Pago revertido',
-  'party_member.created': 'Acompañante agregado',
-  'party_member.deleted': 'Acompañante eliminado',
-  'party_member.rsvp_updated': 'RSVP de acompañante actualizado',
-  'table.created': 'Mesa creada',
-  'table.updated': 'Mesa editada',
-  'table.deleted': 'Mesa eliminada',
-  'table.guest_assigned': 'Invitado asignado a mesa',
-  'table.guest_removed': 'Invitado removido de mesa',
-  'event.updated': 'Evento editado',
-  'event.settings_updated': 'Configuración actualizada',
-  'collaborator.invited': 'Colaborador invitado',
-  'collaborator.revoked': 'Acceso revocado',
-  'collaborator.accepted': 'Invitación aceptada',
-  'collaborator.permissions_updated': 'Accesos del colaborador actualizados',
 }

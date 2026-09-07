@@ -7,6 +7,7 @@ import { parseDressCode, defaultDressCode, type DressCode } from '@/lib/dresscod
 import DressCodeEditor from './DressCodeEditor'
 import DressCodePreview from './DressCodePreview'
 import { usePermiso } from '@/lib/event-access-context'
+import { Cargando } from '@/app/components/ui/Cargando'
 
 export default function VestimentaPage() {
   const { id } = useParams()
@@ -60,13 +61,7 @@ export default function VestimentaPage() {
     persist(dc)
   }
 
-  if (loading) {
-    return (
-      <div className="flex flex-1 items-center justify-center">
-        <div className="h-7 w-7 animate-spin rounded-full border-2 border-[#e8e8e8] border-t-[#48C9B0]" />
-      </div>
-    )
-  }
+  if (loading) return <Cargando />
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
