@@ -8,7 +8,7 @@ import {
   Event, EventBudget, EventSupplier, Supplier,
   SupplierStatus, Currency, formatCurrency,
 } from '@/lib/types'
-import { Categoria, activas, cargarCategorias, nombrePorId } from '@/lib/rolodex/categorias-store'
+import { Categoria, activas, agregarCategoria, cargarCategorias, nombrePorId } from '@/lib/rolodex/categorias-store'
 import StatsCollapse, { useStatsToggle, StatsToggleButton } from '@/app/components/ui/StatsCollapse'
 import AltaProveedor, { EnEstaBoda, ProveedorNuevo } from './AltaProveedor'
 import { EntradaDelRolodex } from '@/lib/rolodex/duplicados'
@@ -540,6 +540,7 @@ export default function ProveedoresPage() {
         onUsarExistente={handleUsarExistente}
         onCrearNuevo={handleCrearNuevo}
         onAbrirEnEstaBoda={handleAbrirEnEstaBoda}
+        onCategoriaCreada={categoria => setCategorias(prev => agregarCategoria(prev, categoria))}
       />
 
       {selectedItem && (
