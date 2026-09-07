@@ -22,6 +22,9 @@ type SupplierWithDetails = EventSupplier & { supplier: Supplier }
 
 type Props = {
   items: SupplierWithDetails[]
+  // Sin filtrar ni buscar: solo para no perder la ficha abierta cuando un
+  // filtro activo la saca de `items` (ver el comentario junto a `abierta`).
+  todosLosItems: SupplierWithDetails[]
   budgets: EventBudget[]
   currency: Currency
   categorias: Categoria[]
@@ -34,6 +37,9 @@ type Props = {
   onDerivadosCambiaron?: () => void
   enfocar?: SupplierWithDetails | null
   onEnfocado?: () => void
+  // Ver el mismo campo en FichaDelEvento: identidad, nunca posicion.
+  abrirRevisionParaId?: string | null
+  onRevisionAbierta?: () => void
 }
 
 // Una ficha no se encima sobre la de enfrente mientras se cumpla
@@ -65,7 +71,11 @@ function useEsEscritorio(): boolean {
   return esEscritorio
 }
 
-export default function SupplierFicheroView({ items, budgets, currency, categorias, bodaPaso, desempenoPorProveedor, onSelect, onStatusChange, onSaved, onQuitada, onDerivadosCambiaron, enfocar, onEnfocado }: Props) {
+export default function SupplierFicheroView({
+  items, todosLosItems, budgets, currency, categorias, bodaPaso, desempenoPorProveedor,
+  onSelect, onStatusChange, onSaved, onQuitada, onDerivadosCambiaron, enfocar, onEnfocado,
+  abrirRevisionParaId, onRevisionAbierta,
+}: Props) {
   const esEscritorio = useEsEscritorio()
   const [abierta, setAbierta] = useState<SupplierWithDetails | null>(null)
   const fichas = useMemo(() => ordenarFichas(items), [items])
@@ -90,10 +100,19 @@ export default function SupplierFicheroView({ items, budgets, currency, categori
   useEffect(() => { setActivo(0) }, [claveDelConjunto])
 
   // El panel nunca se queda vacio: sigue a la ficha que abriste mientras exista,
-  // y si se cae del filtro cae a la primera de las que quedan.
+  // aunque un filtro la saque de `fichas` -- ahi se busca en `todosLosItems`
+  // antes de rendirse. Solo cae a la primera de las que quedan cuando de
+  // verdad ya no existe (se quito de la boda), nunca por su posicion vieja.
   useEffect(() => {
-    setAbierta(previa => (previa && fichas.find(f => f.id === previa.id)) || fichas[0] || null)
-  }, [fichas])
+    setAbierta(previa => {
+      if (!previa) return fichas[0] ?? null
+      const enVista = fichas.find(f => f.id === previa.id)
+      if (enVista) return enVista
+      const sigueExistiendo = todosLosItems.find(f => f.id === previa.id)
+      if (sigueExistiendo) return sigueExistiendo
+      return fichas[0] ?? null
+    })
+  }, [fichas, todosLosItems])
 
   // Recien creado o vinculado desde la alta: abrir su ficha como si se hubiera
   // tocado su tarjeta. Si el filtro activo lo deja fuera del carrusel igual se
@@ -235,6 +254,8 @@ export default function SupplierFicheroView({ items, budgets, currency, categori
             onSaved={onSaved}
             onQuitada={onQuitada}
             onDerivadosCambiaron={onDerivadosCambiaron}
+            abrirRevisionParaId={abrirRevisionParaId}
+            onRevisionAbierta={onRevisionAbierta}
           />
         )}
       </div>

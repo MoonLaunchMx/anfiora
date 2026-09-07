@@ -125,6 +125,11 @@ export default function ProveedoresPage() {
   const [enfocar, setEnfocar]           = useState<SupplierWithDetails | null>(null)
   const [reviewItem, setReviewItem]     = useState<SupplierWithDetails | null>(null)
   const [userId, setUserId]             = useState<string | null>(null)
+  // Id del proveedor recien calificado desde el aviso automatico de review:
+  // se avisa a la ficha que este viendo (Fichero o FichaModal) para que, si
+  // es la misma, se quede abierta en la pestana Review. Nunca se decide por
+  // posicion en una lista, siempre por este id.
+  const [revisionParaId, setRevisionParaId] = useState<string | null>(null)
 
   const [visibleCols, setVisibleCols] = useState<Set<ColumnaListaKey>>(() => cargarColumnas(eventId))
   const [showColMenu, setShowColMenu] = useState(false)
@@ -443,10 +448,18 @@ export default function ProveedoresPage() {
     if (item) setSelectedItem(item)
   }
 
-  const handleSavedItem   = (updated: SupplierWithDetails) =>
+  // Actualizar `items` no alcanza: `selectedItem` es otro estado, y sin este
+  // segundo set se queda con la version vieja del proveedor -- por id, nunca
+  // por posicion, o un refresco despues de guardar deja el FichaModal viendo
+  // a alguien mas.
+  const handleSavedItem = (updated: SupplierWithDetails) => {
     setItems(prev => prev.map(it => it.id === updated.id ? updated : it))
-  const handleDeletedItem = (deletedId: string) =>
+    setSelectedItem(prev => prev && prev.id === updated.id ? updated : prev)
+  }
+  const handleDeletedItem = (deletedId: string) => {
     setItems(prev => prev.filter(it => it.id !== deletedId))
+    setSelectedItem(prev => prev && prev.id === deletedId ? null : prev)
+  }
 
   const handleStatusChange = async (itemId: string, newStatus: SupplierStatus) => {
     if (!permiso.editar) return
@@ -459,6 +472,7 @@ export default function ProveedoresPage() {
     if (detenido) return
     const prev = actual
     setItems(p => p.map(it => it.id === itemId ? { ...it, status: newStatus } : it))
+    setSelectedItem(p => p && p.id === itemId ? { ...p, status: newStatus } : p)
     // Sin .select() un UPDATE filtrado por RLS no da error: devuelve cero filas.
     // La pantalla se quedaria con el estado nuevo y, peor, se guardaria una review
     // de una transicion que nunca ocurrio. Mismo cuidado que en FichaDelEvento.
@@ -744,6 +758,7 @@ export default function ProveedoresPage() {
             {viewMode === 'fichero' && (
               <SupplierFicheroView
                 items={filtered}
+                todosLosItems={items}
                 budgets={budgets}
                 currency={currency}
                 categorias={categorias}
@@ -756,6 +771,8 @@ export default function ProveedoresPage() {
                 onDerivadosCambiaron={refrescarDerivados}
                 enfocar={enfocar}
                 onEnfocado={() => setEnfocar(null)}
+                abrirRevisionParaId={revisionParaId}
+                onRevisionAbierta={() => setRevisionParaId(null)}
               />
             )}
           </>
@@ -790,6 +807,8 @@ export default function ProveedoresPage() {
           onSaved={handleSavedItem}
           onQuitada={handleDeletedItem}
           onDerivadosCambiaron={refrescarDerivados}
+          abrirRevisionParaId={revisionParaId}
+          onRevisionAbierta={() => setRevisionParaId(null)}
         />
       )}
 
@@ -804,7 +823,7 @@ export default function ProveedoresPage() {
             createdBy={userId}
             supplierName={reviewItem.supplier.name}
             eventName={event.name}
-            onSaved={() => { refrescarDerivados(); setReviewItem(null) }}
+            onSaved={() => { refrescarDerivados(); setRevisionParaId(reviewItem.id); setReviewItem(null) }}
             onSkip={() => setReviewItem(null)}
           />
         ) : (
@@ -816,7 +835,7 @@ export default function ProveedoresPage() {
             createdBy={userId}
             supplierName={reviewItem.supplier.name}
             eventName={event.name}
-            onSaved={() => { refrescarDerivados(); setReviewItem(null) }}
+            onSaved={() => { refrescarDerivados(); setRevisionParaId(reviewItem.id); setReviewItem(null) }}
             onSkip={() => setReviewItem(null)}
           />
         )

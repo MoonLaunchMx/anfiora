@@ -26,7 +26,11 @@ import EscalaCinco from '@/app/components/ui/EscalaCinco'
 import Estrellas from '@/app/components/ui/Estrellas'
 import { useConfirm } from '@/app/components/ui/ConfirmModal'
 import { usePermiso, useEventAccess } from '@/lib/event-access-context'
-import { carpetasDe, destinosDe, QUE_SIGNIFICA } from '@/lib/rolodex/ficha-por-estado'
+import {
+  carpetasDe, destinosDe, QUE_SIGNIFICA,
+  ORDEN_REVIEWS_FICHA, TITULO_REVIEW_FICHA, DESCRIPCION_REVIEW_FICHA, BOTON_REVIEW_FICHA,
+  esReviewLlenable, razonNoLlenableFicha,
+} from '@/lib/rolodex/ficha-por-estado'
 import { anclasDe, EJES_DESEMPENO, EJES_PROPUESTA, NOMBRE_EJE, ANCLAS_RECONTRATACION } from '@/lib/reviews/ejes'
 import { calcularScores } from '@/lib/reviews/scores'
 import { evaluarCandado } from '@/lib/reviews/candado'
@@ -34,6 +38,8 @@ import { yaRechazoLaOferta, recordarRechazo } from '@/lib/rolodex/oferta-avance'
 import { TOPE_COMPROBANTES, TOPE_COTIZACIONES, visibles } from '@/lib/archivos/adjuntos'
 import PagoModal from './PagoModal'
 import ListaDeArchivos from './ListaDeArchivos'
+import ReviewContratacionModal from './ReviewContratacionModal'
+import ReviewDescarteModal from './ReviewDescarteModal'
 import ReviewDesempenoModal from './ReviewDesempenoModal'
 import { CaminoDelTrato, COLOR_ESTADO, EstatusProveedor, ICONO_ESTADO } from './EstatusProveedor'
 import PhoneInput from '@/app/components/ui/PhoneInput'
@@ -56,6 +62,12 @@ type Props = {
   onDerivadosCambiaron?: () => void
   // Solo cuando la ficha vive en una ventana: en el panel no hay a donde cerrar.
   onCerrar?: () => void
+  // Tras guardar una review desde el aviso automatico (page.tsx, al mover a
+  // contratado/descartado), se avisa aqui con el id del proveedor recien
+  // calificado: si es ESTA ficha, se abre su pestana Review; si no, solo se
+  // descarta el aviso. Nunca se decide por posicion, siempre por identidad.
+  abrirRevisionParaId?: string | null
+  onRevisionAbierta?: () => void
 }
 
 // Se dice que fallo la lectura, no que no hay nada: ofrecer "califica" sobre una
@@ -77,6 +89,7 @@ function iniciales(nombre: string): string {
 
 export default function FichaDelEvento({
   item, budgets, currency, categorias, bodaPaso, onStatusChange, onSaved, onQuitada, onDerivadosCambiaron, onCerrar,
+  abrirRevisionParaId, onRevisionAbierta,
 }: Props) {
   const askConfirm = useConfirm()
   const permisoFicha = usePermiso('proveedores')
@@ -103,6 +116,8 @@ export default function FichaDelEvento({
   // quiza ya existe, y el upsert choca contra el indice unico.
   const [errorReviews, setErrorReviews] = useState(false)
   const [mostrarModalDesempeno, setMostrarModalDesempeno] = useState(false)
+  const [mostrarModalContratacion, setMostrarModalContratacion] = useState(false)
+  const [mostrarModalDescarte, setMostrarModalDescarte] = useState(false)
   const [userId, setUserId] = useState<string | null>(null)
   const [eventName, setEventName] = useState('')
   // Ultimo dia de la boda ('YYYY-MM-DD'): es lo que arranca el candado de la
@@ -149,6 +164,15 @@ export default function FichaDelEvento({
   // solo reiniciar al abrir una ficha distinta, no en cada cambio de estatus,
   // o mover a Contratado desde Pagos te devuelve a Contacto sin avisar.
   useEffect(() => { setCarpeta(0) }, [item.id])
+
+  // El aviso llega una sola vez y para un solo proveedor: si coincide con esta
+  // ficha se abre su Review, si no solo se limpia para no quedar pegado y
+  // disparar en la proxima ficha que se abra.
+  useEffect(() => {
+    if (abrirRevisionParaId == null) return
+    if (abrirRevisionParaId === item.id) setCarpeta(carpetasDe().indexOf('Review'))
+    onRevisionAbierta?.()
+  }, [abrirRevisionParaId, item.id, onRevisionAbierta])
 
   useEffect(() => {
     setEditando(false)
@@ -879,66 +903,93 @@ export default function FichaDelEvento({
             <div className="h-28 animate-pulse rounded-lg bg-[#f5f5f5]" />
           ) : errorReviews ? (
             <ErrorDeReviews />
-          ) : !reviewContratacion && !reviewDescarte && !reviewPostEvento && !bodaPaso ? (
-            <p className="text-xs text-[#999]">Nadie ha calificado a este proveedor todavía.</p>
           ) : (
             <div className="space-y-3">
-              {reviewContratacion && (
-                <SeccionReview
-                  titulo="Al contratarlo"
-                  descripcion="Cómo evaluaste la propuesta antes de contratarlo."
-                  score={scores.propuesta}
-                >
-                  <ResumenContratacion review={reviewContratacion} scorePropuesta={scores.propuesta} />
-                </SeccionReview>
-              )}
+              {ORDEN_REVIEWS_FICHA.map(tipo => {
+                const review =
+                  tipo === 'contratacion' ? reviewContratacion :
+                  tipo === 'descarte'     ? reviewDescarte :
+                                            reviewPostEvento
+                const score = tipo === 'post_evento' ? scores.desempeno : scores.propuesta
 
-              {reviewDescarte && (
-                <SeccionReview
-                  titulo="Por qué se descartó"
-                  descripcion="Por qué no siguió en el trato."
-                  score={scores.propuesta}
-                >
-                  <ResumenDescarte review={reviewDescarte} scorePropuesta={scores.propuesta} />
-                </SeccionReview>
-              )}
+                if (review) {
+                  return (
+                    <SeccionReview key={tipo} titulo={TITULO_REVIEW_FICHA[tipo]} descripcion={DESCRIPCION_REVIEW_FICHA[tipo]} score={score}>
+                      {tipo === 'contratacion' && (
+                        <ResumenContratacion review={review} scorePropuesta={scores.propuesta} />
+                      )}
+                      {tipo === 'descarte' && (
+                        <ResumenDescarte review={review} scorePropuesta={scores.propuesta} />
+                      )}
+                      {tipo === 'post_evento' && (
+                        <ResumenPostEvento
+                          review={review}
+                          currency={currency}
+                          permisoEditar={permisoFicha.editar}
+                          candado={candado}
+                          onEditar={() => setMostrarModalDesempeno(true)}
+                        />
+                      )}
+                    </SeccionReview>
+                  )
+                }
 
-              {reviewPostEvento ? (
-                <SeccionReview
-                  titulo="Después de la boda"
-                  descripcion="Cómo se desempeñó el día de la boda."
-                  score={scores.desempeno}
-                >
-                  <ResumenPostEvento
-                    review={reviewPostEvento}
-                    currency={currency}
-                    permisoEditar={permisoFicha.editar}
-                    candado={candado}
-                    onEditar={() => setMostrarModalDesempeno(true)}
-                  />
-                </SeccionReview>
-              ) : bodaPaso ? (
-                <SeccionReview
-                  titulo="Después de la boda"
-                  descripcion="Cómo se desempeñó el día de la boda."
-                  score={scores.desempeno}
-                >
-                  {permisoFicha.editar ? (
-                    <button
-                      onClick={() => setMostrarModalDesempeno(true)}
-                      className="rounded-lg bg-[#48C9B0] px-3.5 py-2 text-xs font-semibold text-white transition hover:bg-[#3aa896]"
-                    >
-                      Calificar el desempeño
-                    </button>
-                  ) : (
-                    <p className="text-xs text-[#999]">Todavía no se calificó el desempeño de este proveedor.</p>
-                  )}
-                </SeccionReview>
-              ) : null}
+                const llenable = esReviewLlenable(tipo, item.status, bodaPaso)
+                return (
+                  <SeccionReview key={tipo} titulo={TITULO_REVIEW_FICHA[tipo]} descripcion={DESCRIPCION_REVIEW_FICHA[tipo]} score={null} vacia>
+                    {llenable ? (
+                      permisoFicha.editar ? (
+                        <button
+                          onClick={() => {
+                            if (tipo === 'contratacion') setMostrarModalContratacion(true)
+                            if (tipo === 'descarte') setMostrarModalDescarte(true)
+                            if (tipo === 'post_evento') setMostrarModalDesempeno(true)
+                          }}
+                          className="rounded-lg bg-[#48C9B0] px-3.5 py-2 text-xs font-semibold text-white transition hover:bg-[#3aa896]"
+                        >
+                          {BOTON_REVIEW_FICHA[tipo]}
+                        </button>
+                      ) : (
+                        <p className="text-xs text-[#999]">Todavía no se ha llenado esta reseña.</p>
+                      )
+                    ) : (
+                      <p className="text-xs text-[#999]">{razonNoLlenableFicha(tipo)}</p>
+                    )}
+                  </SeccionReview>
+                )
+              })}
             </div>
           )
         )}
       </div>
+
+      {mostrarModalContratacion && userId && duenoEvento && (
+        <ReviewContratacionModal
+          eventSupplierId={item.id}
+          supplierId={item.supplier_id}
+          eventId={item.event_id}
+          duenoId={duenoEvento}
+          createdBy={userId}
+          supplierName={s.name}
+          eventName={eventName}
+          onSaved={() => { setMostrarModalContratacion(false); cargarReviews(item.supplier_id); onDerivadosCambiaron?.() }}
+          onSkip={() => setMostrarModalContratacion(false)}
+        />
+      )}
+
+      {mostrarModalDescarte && userId && duenoEvento && (
+        <ReviewDescarteModal
+          eventSupplierId={item.id}
+          supplierId={item.supplier_id}
+          eventId={item.event_id}
+          duenoId={duenoEvento}
+          createdBy={userId}
+          supplierName={s.name}
+          eventName={eventName}
+          onSaved={() => { setMostrarModalDescarte(false); cargarReviews(item.supplier_id); onDerivadosCambiaron?.() }}
+          onSkip={() => setMostrarModalDescarte(false)}
+        />
+      )}
 
       {mostrarModalDesempeno && userId && duenoEvento && (
         <ReviewDesempenoModal
@@ -1155,10 +1206,14 @@ function Texto({ valor, vacio }: { valor: string | null; vacio: string }) {
 // Cada momento de la review arranca cerrado: el header ya trae el titulo, que
 // mide y su calificacion, y eso es lo que se necesita para escanear la ficha
 // sin abrir nada.
-function SeccionReview({ titulo, descripcion, score, children }: {
+function SeccionReview({ titulo, descripcion, score, vacia, children }: {
   titulo: string
   descripcion: string
   score: number | null
+  // Una review que no existe todavia no es lo mismo que una que existe sin
+  // calificacion numerica (por ejemplo un descarte "sin opinion"): aqui se
+  // dice "Sin llenar" en vez de reusar el "Sin calificar" de Estrellas.
+  vacia?: boolean
   children: React.ReactNode
 }) {
   const [abierta, setAbierta] = useState(false)
@@ -1175,7 +1230,11 @@ function SeccionReview({ titulo, descripcion, score, children }: {
           <span className="block truncate text-[11px] text-[#999]">{descripcion}</span>
         </span>
         <span className="flex shrink-0 items-center gap-3">
-          <Estrellas score={score} tamano={13} />
+          {vacia ? (
+            <span className="text-xs font-medium text-[#bbb]">Sin llenar</span>
+          ) : (
+            <Estrellas score={score} tamano={13} />
+          )}
           <ChevronDown size={14} className={`text-[#999] transition-transform ${abierta ? 'rotate-180' : ''}`} />
         </span>
       </button>

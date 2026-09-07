@@ -30,3 +30,46 @@ export function pasosAlcanzados(estado: SupplierStatus): SupplierStatus[] {
   const hasta = CAMINO.indexOf(estado)
   return hasta === -1 ? [] : CAMINO.slice(0, hasta + 1)
 }
+
+// Las tres reviews de la ficha: se muestran siempre, aunque no exista alguna
+// todavia. El orden es fijo, no depende del estado del proveedor.
+export type TipoReviewFicha = 'contratacion' | 'descarte' | 'post_evento'
+
+export const ORDEN_REVIEWS_FICHA: TipoReviewFicha[] = ['contratacion', 'descarte', 'post_evento']
+
+export const TITULO_REVIEW_FICHA: Record<TipoReviewFicha, string> = {
+  contratacion: 'Al contratarlo',
+  descarte:     'Al descartarlo',
+  post_evento:  'Después de la boda',
+}
+
+export const DESCRIPCION_REVIEW_FICHA: Record<TipoReviewFicha, string> = {
+  contratacion: 'Cómo evaluaste la propuesta antes de contratarlo.',
+  descarte:     'Por qué no siguió en el trato.',
+  post_evento:  'Cómo se desempeñó el día de la boda.',
+}
+
+export const BOTON_REVIEW_FICHA: Record<TipoReviewFicha, string> = {
+  contratacion: 'Calificar la contratación',
+  descarte:     'Calificar el descarte',
+  post_evento:  'Calificar el desempeño',
+}
+
+const RAZON_NO_LLENABLE_FICHA: Record<TipoReviewFicha, string> = {
+  contratacion: 'Se llena al contratarlo',
+  descarte:     'Se llena al descartarlo',
+  post_evento:  'Se llena cuando pase la boda',
+}
+
+// Cada review solo tiene sentido para el estado que el proveedor de verdad
+// alcanzo: calificar la propuesta de alguien que nunca gano el trato no aplica,
+// y la de la boda no se puede llenar antes de que la boda pase.
+export function esReviewLlenable(tipo: TipoReviewFicha, estado: SupplierStatus, bodaPaso: boolean): boolean {
+  if (tipo === 'contratacion') return estado === 'contratado'
+  if (tipo === 'descarte')     return estado === 'descartado'
+  return estado === 'contratado' && bodaPaso
+}
+
+export function razonNoLlenableFicha(tipo: TipoReviewFicha): string {
+  return RAZON_NO_LLENABLE_FICHA[tipo]
+}

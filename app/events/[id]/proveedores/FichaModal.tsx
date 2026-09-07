@@ -20,6 +20,9 @@ type Props = {
   // Opcional: quien no tiene desempeno/pagado/motivo derivados que refrescar
   // (por ejemplo la ficha abierta desde Presupuesto) simplemente no lo pasa.
   onDerivadosCambiaron?: () => void
+  // Ver el mismo campo en FichaDelEvento: identidad, nunca posicion.
+  abrirRevisionParaId?: string | null
+  onRevisionAbierta?: () => void
 }
 
 // La misma ficha del fichero, metida en una ventana: fuera de la vista Fichero
