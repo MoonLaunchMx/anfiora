@@ -582,14 +582,14 @@ export default function ProveedoresPage() {
             />
           </div>
 
-          {/* Filtrar */}
-          <div className="relative shrink-0" ref={filterMenuRef}>
+          {/* Filtros */}
+          <div className="relative ml-auto shrink-0" ref={filterMenuRef}>
             <button
               onClick={() => setShowFilterMenu(v => !v)}
               className="flex items-center gap-1.5 whitespace-nowrap rounded-lg border border-[#e0e0e0] px-3 py-2 text-xs text-[#666] transition hover:border-[#48C9B0] hover:text-[#48C9B0]"
             >
               <Filter size={13} />
-              <span>Filtrar{filtrosActivos > 0 ? ` (${filtrosActivos})` : ''}</span>
+              <span>Filtros{filtrosActivos > 0 ? ` (${filtrosActivos})` : ''}</span>
             </button>
             {showFilterMenu && (
               <div className="absolute right-0 top-full z-50 mt-1 max-h-[70dvh] w-64 overflow-y-auto rounded-xl border border-[#e8e8e8] bg-white p-2 shadow-lg">
