@@ -1,4 +1,4 @@
-import { PLAN_PRICES } from '@/lib/billing'
+import { PLAN_IDS, normalizarPlan } from '@/lib/workspace/planes'
 
 export interface PlanChangeTarget {
   id: string
@@ -11,9 +11,7 @@ export interface PlanChangeCheck {
   error: string | null
 }
 
-// Los planes vivos se definen en lib/billing.ts. Cuando cambien de nombre o
-// entren nuevos, la validacion los sigue sola en vez de quedarse en el pasado.
-export const VALID_PLANS = Object.keys(PLAN_PRICES)
+export const VALID_PLANS: readonly string[] = PLAN_IDS
 
 function normalize(plan: string): string {
   return (plan || '').trim().toLowerCase()
@@ -28,7 +26,7 @@ export function checkPlanChange(params: {
 
   if (!target) return { ok: false, error: 'Usuario no encontrado.' }
   if (!VALID_PLANS.includes(newPlan)) return { ok: false, error: 'Plan no valido.' }
-  if (normalize(target.plan || 'free') === newPlan) {
+  if (normalizarPlan(target.plan) === newPlan) {
     return { ok: false, error: 'El usuario ya tiene ese plan.' }
   }
 
