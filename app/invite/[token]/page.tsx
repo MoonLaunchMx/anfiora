@@ -8,15 +8,20 @@ import { CheckCircle, XCircle, Loader, Eye, EyeOff } from 'lucide-react'
 
 // Datos seguros de la invitación que devuelve /api/invite/[token]
 interface InviteData {
-  event_id: string
+  kind?: 'event' | 'workspace'
+  event_id?: string
   email: string
-  role: string
-  roleLabel: string
-  event: {
+  role?: string
+  roleLabel?: string
+  event?: {
     name: string
     event_date: string | null
     venue: string | null
   }
+  workspace_name?: string
+  rol?: string
+  rolLabel?: string
+  bodas?: { id: string; name: string }[]
 }
 
 type PageState =
@@ -57,7 +62,7 @@ export default function InvitePage() {
   const checkInvite = async () => {
     // La verificación del token corre en una API route con service role:
     // el navegador nunca lee event_collaborators directo (sin RLS anon).
-    let payload: { status: PageState; invite?: InviteData; event_id?: string; account_exists?: boolean }
+    let payload: { status: PageState; kind?: 'event' | 'workspace'; invite?: InviteData; event_id?: string | null; account_exists?: boolean }
     try {
       const res = await fetch(`/api/invite/${token}`)
       payload = await res.json()
@@ -112,7 +117,7 @@ export default function InvitePage() {
   const acceptInvite = async (accessToken: string) => {
     setPageState('accepting')
 
-    let result: { ok?: boolean; event_id?: string; role?: string; error?: string; your_email?: string }
+    let result: { ok?: boolean; kind?: 'event' | 'workspace'; event_id?: string | null; role?: string; error?: string; your_email?: string }
     try {
       const res = await fetch(`/api/invite/${token}`, {
         method: 'POST',
@@ -128,21 +133,24 @@ export default function InvitePage() {
       setPageState('wrong_account'); return
     }
 
-    if (!result.ok || !result.event_id) { setPageState('error'); return }
+    if (!result.ok) { setPageState('error'); return }
+    if (result.kind !== 'workspace' && !result.event_id) { setPageState('error'); return }
 
-    // Registrar en audit log
-    await logAction({
-      eventId:     result.event_id,
-      action:      'collaborator.accepted',
-      entityType:  'collaborator',
-      entityLabel: result.role || '',
-    })
+    // Registrar en audit log (solo cuando hay una boda concreta a la que apuntar)
+    if (result.event_id) {
+      await logAction({
+        eventId:     result.event_id,
+        action:      'collaborator.accepted',
+        entityType:  'collaborator',
+        entityLabel: result.role || '',
+      })
+    }
 
     setPageState('success')
 
-    // Redirigir al evento después de 2 segundos
+    // Redirigir al evento (o al dashboard si es un admin de workspace sin boda puntual) después de 2 segundos
     setTimeout(() => {
-      router.push(`/events/${result.event_id}`)
+      router.push(result.event_id ? `/events/${result.event_id}` : '/dashboard')
     }, 2000)
   }
 
@@ -321,7 +329,24 @@ export default function InvitePage() {
         </div>
 
         {/* Card de invitación */}
-        {invite && (
+        {invite && invite.kind === 'workspace' && (
+          <div className="mb-4 rounded-xl border border-[#c8ede7] bg-[#f0fdfb] p-4">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-[#48C9B0]">
+              Invitación al workspace
+            </p>
+            <p className="mt-1 text-base font-bold text-[#1D1E20]">
+              Te invitaron al workspace <span className="text-[#1a9e88]">{invite.workspace_name}</span>
+            </p>
+            <p className="mt-0.5 text-xs text-[#888]">{invite.rolLabel}</p>
+            {invite.rol === 'admin' ? (
+              <p className="mt-2 text-xs text-[#aaa]">Entras a todas las bodas del workspace</p>
+            ) : invite.bodas && invite.bodas.length > 0 ? (
+              <p className="mt-2 text-xs text-[#aaa]">Vas a entrar a: {invite.bodas.map(b => b.name).join(', ')}</p>
+            ) : null}
+          </div>
+        )}
+
+        {invite && invite.kind !== 'workspace' && invite.event && (
           <div className="mb-4 rounded-xl border border-[#c8ede7] bg-[#f0fdfb] p-4">
             <p className="text-[11px] font-semibold uppercase tracking-wide text-[#48C9B0]">
               Invitación al evento
@@ -337,7 +362,7 @@ export default function InvitePage() {
             )}
             <div className="mt-2 flex items-center gap-1.5">
               <span className="rounded-full border border-[#c8ede7] bg-white px-2 py-0.5 text-[11px] font-semibold text-[#1a9e88]">
-                {ROLE_LABELS[invite.role] || invite.role}
+                {(invite.role && ROLE_LABELS[invite.role]) || invite.role}
               </span>
             </div>
           </div>
