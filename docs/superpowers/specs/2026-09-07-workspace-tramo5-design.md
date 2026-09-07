@@ -213,7 +213,7 @@ El admin no puede tocar la ruta de `/api/workspace` (facturación) ni cambiar el
 
 `/invite/[token]` busca primero en `event_collaborators` (lo de hoy) y si no, en `workspace_members`. Para un token de miembro, al entrar o registrarse: `user_id`, `status='active'`, `accepted_at` en el miembro, y **se activan todas las filas pendientes de `event_collaborators` con ese correo en bodas de ese workspace**. Una sola aceptación, N bodas. Después manda a la primera boda que tenga.
 
-Ojo heredado del Tramo 1: `testviewer@gmail.com` y `diego.garza17@gmail.com` son la misma cuenta. El correo de la invitación puede no ser el de quien acepta. Regla: **el que acepta gana** (`user_id` del que entró), y se registra el correo real en `workspace_members.email` para que la lista muestre a quien de verdad está.
+Ojo heredado del Tramo 1: `testviewer@gmail.com` y `diego.garza17@gmail.com` son la misma cuenta. Regla (corregida el 7-sep al construir): **solo el correo invitado puede aceptar**, igual que hoy en las invitaciones de boda (`email_mismatch`). Es coherente con el disparador de §3.6, que exige que `user_id` corresponda al correo de la fila. Si alguien quiere entrar con otro correo, se le reinvita a ese correo.
 
 ### 5.3 Invitar cliente
 
