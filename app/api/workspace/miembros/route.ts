@@ -62,10 +62,18 @@ export async function POST(req: NextRequest) {
   if (error || !fila) return NextResponse.json({ error: 'No se pudo crear la invitación: ' + (error?.message ?? '') }, { status: 500 })
 
   if (colaboradores.length > 0) {
+    // Si se reactivo una fila con cuenta ya ligada, sus bodas nacen ya
+    // aceptadas: no tiene sentido pedirle que acepte un invite que su cuenta
+    // ya paso antes. `filasDeAlta` se queda pura; el ajuste va aqui.
+    const userIdReactivado = revocada?.user_id ?? null
+    const filasColaborador = userIdReactivado
+      ? colaboradores.map(c => ({ ...c, status: 'active' as const, user_id: userIdReactivado, accepted_at: new Date().toISOString() }))
+      : colaboradores
+
     // Filas viejas del mismo correo en esas bodas se reemplazan.
     await admin.from('event_collaborators').delete()
       .in('event_id', colaboradores.map(c => c.event_id)).eq('email', miembro.email).neq('status', 'active')
-    const { error: errC } = await admin.from('event_collaborators').insert(colaboradores)
+    const { error: errC } = await admin.from('event_collaborators').insert(filasColaborador)
     if (errC) return NextResponse.json({ error: 'La persona quedó invitada pero sus bodas no: ' + errC.message }, { status: 500 })
   }
 
