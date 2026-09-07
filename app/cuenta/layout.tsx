@@ -21,7 +21,7 @@ function Cascara({ children }: { children: ReactNode }) {
   const router = useRouter()
 
   return (
-    <div className="min-h-screen bg-[#f8f8f8]">
+    <div className="min-h-dvh bg-[#f8f8f8]">
       <header className="sticky top-0 z-10 border-b border-[#e8e8e8] bg-white">
         <div className="mx-auto flex h-14 max-w-5xl items-center justify-between px-4 sm:h-16 sm:px-6">
           <button onClick={() => router.push('/dashboard')} className="shrink-0">
