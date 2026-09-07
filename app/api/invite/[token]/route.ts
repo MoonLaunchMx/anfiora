@@ -121,12 +121,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
       if (e1) return NextResponse.json({ error: 'no_guardado' }, { status: 500 })
     }
 
-    const { data: colabs } = await db.from('event_collaborators')
-      .select('id, email, status, event_id').in('event_id', eventIds.length ? eventIds : ['00000000-0000-0000-0000-000000000000'])
+    const { data: colabs, error: e2 } = eventIds.length
+      ? await db.from('event_collaborators').select('id, email, status, event_id').in('event_id', eventIds)
+      : { data: [], error: null }
+    if (e2) return NextResponse.json({ error: 'no_guardado' }, { status: 500 })
+
     const ids = filasParaActivar({ email: m.email, colaboradores: colabs ?? [], eventosDelWorkspace: eventIds })
     if (ids.length) {
-      await db.from('event_collaborators')
+      const { error: e3 } = await db.from('event_collaborators')
         .update({ user_id: user.id, status: 'active', accepted_at: new Date().toISOString() }).in('id', ids)
+      if (e3) return NextResponse.json({ error: 'no_guardado' }, { status: 500 })
     }
 
     // Aterriza en la primera boda que le toque; el admin, en la primera del workspace.
