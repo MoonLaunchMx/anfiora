@@ -36,7 +36,8 @@ export async function POST(req: NextRequest) {
   }
 
   // Solo bodas de este workspace.
-  const { data: propias } = await admin.from('events').select('id').eq('workspace_id', workspaceId)
+  const { data: propias, error: errPropias } = await admin.from('events').select('id').eq('workspace_id', workspaceId)
+  if (errPropias) return NextResponse.json({ error: 'No se pudo verificar las bodas del workspace: ' + errPropias.message }, { status: 500 })
   const ids = new Set((propias ?? []).map(e => e.id))
   const bodasValidas = bodas.filter(b => ids.has(b.eventId))
 
@@ -71,8 +72,9 @@ export async function POST(req: NextRequest) {
       : colaboradores
 
     // Filas viejas del mismo correo en esas bodas se reemplazan.
-    await admin.from('event_collaborators').delete()
+    const { error: errDel } = await admin.from('event_collaborators').delete()
       .in('event_id', colaboradores.map(c => c.event_id)).eq('email', miembro.email).neq('status', 'active')
+    if (errDel) return NextResponse.json({ error: 'No se pudo preparar la invitación: ' + errDel.message }, { status: 500 })
     const { error: errC } = await admin.from('event_collaborators').insert(filasColaborador)
     if (errC) return NextResponse.json({ error: 'La persona quedó invitada pero sus bodas no: ' + errC.message }, { status: 500 })
   }
