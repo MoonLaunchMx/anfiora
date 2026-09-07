@@ -317,3 +317,30 @@ describe('agrupar — la jerarquia manda, no el reloj', () => {
     expect(agrupar([proveedor()], new Map())[0].arrastreTexto).toBeNull()
   })
 })
+
+// Propuesta 4 (aprobada 7-sep): si el mismo objeto se borro dos veces, sus
+// hijos se pegan al lote MAS CERCANO en tiempo, no al que la lista encontro
+// ultimo.
+describe('agrupar — el hijo va con el padre mas cercano en tiempo', () => {
+  const prov = (lote: string, cuando: string) => fila({
+    action: 'event_supplier.deleted', entity_type: 'event_supplier', entity_id: 's1',
+    entity_label: 'Quinta', batch_id: lote, created_at: cuando, old_value: { id: 's1' },
+  })
+  const pago = (id: string, lote: string, cuando: string) => fila({
+    action: 'payment.deleted', entity_type: 'payment', entity_id: id,
+    entity_label: '$', batch_id: lote, created_at: cuando,
+    old_value: { id, event_supplier_id: 's1' },
+  })
+
+  it('el pago de las 13:03 se pega al proveedor de las 13:03, no al de las 13:59', () => {
+    const movs = agrupar([
+      prov('L-nuevo', '2026-09-06T13:59:49.000Z'),
+      prov('L-viejo', '2026-09-06T13:03:35.000Z'),
+      pago('p1', 'L-pago', '2026-09-06T13:03:35.000Z'),
+    ], new Map())
+    const viejo = movs.find(m => m.clave === 'L-viejo')!
+    const nuevo = movs.find(m => m.clave === 'L-nuevo')!
+    expect(viejo.total).toBe(2)
+    expect(nuevo.total).toBe(1)
+  })
+})

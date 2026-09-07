@@ -4,11 +4,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { ChevronDown, Check, Users } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { agrupar, mapaDeRestauraciones } from '@/lib/actividad/agrupar'
-import { entidadDeAccion, moduloDeEntidad } from '@/lib/actividad/vocabulario'
 import { dependienteDe, idPadreDe } from '@/lib/actividad/dependientes'
-import {
-  planDeRestauracion, tandasPorTabla, arrastrados, insercionDeFila, type Insercion,
-} from '@/lib/actividad/restaurar'
+import { planDeRestauracion, arrastrados } from '@/lib/actividad/restaurar'
 import type { FilaAudit, Movimiento, Restauracion } from '@/lib/actividad/tipos'
 import { MODULOS_CONFIG, type Modulo } from '@/lib/permisos/catalogo'
 import { useConfirm } from '@/app/components/ui/ConfirmModal'
@@ -187,21 +184,23 @@ export default function ActividadTab({ eventId }: { eventId: string }) {
 
   const registros = visibles.reduce((n, m) => n + m.total, 0)
 
-  // Lo que se fue colgando de este movimiento y quedo en otro lote: hoy solo
-  // los acompanantes. Se calcula aparte para poder ANUNCIARLO antes de aceptar.
+  // Lo que se fue colgando de este movimiento en el MISMO gesto: misma
+  // persona, dentro del minuto anterior al padre. Se calcula aqui solo para
+  // ANUNCIARLO antes de aceptar; el servidor lo recalcula por su cuenta.
   const arrastrePendiente = (mov: Movimiento, soloEstos?: Set<string>) =>
-    arrastrados(planDeRestauracion(mov, soloEstos), filas, restaurados)
+    arrastrados(planDeRestauracion(mov, soloEstos), filas, restaurados, {
+      userId: mov.personaId,
+      cuando: new Date(mov.cuando).getTime(),
+    })
 
+  // La restauracion vive en el servidor (/api/actividad/restaurar): un solo
+  // candado —dueno o admin de esta boda— en vez de diez policies de INSERT, una
+  // por tabla, que era donde se atoraban los pagos. El cliente solo manda ids.
   const restaurar = async (mov: Movimiento, soloEstos?: Set<string>) => {
     const base = planDeRestauracion(mov, soloEstos)
     if (base.length === 0) return
 
-    // Los hijos van DESPUES de sus padres: no entran si el padre no existe.
     const arrastreCrudo = arrastrePendiente(mov, soloEstos)
-    const extra = arrastreCrudo
-      .map(insercionDeFila)
-      .filter((i): i is Insercion => i !== null)
-    const plan = [...base, ...extra]
 
     const que = soloEstos
       ? 'este registro'
@@ -213,8 +212,8 @@ export default function ActividadTab({ eventId }: { eventId: string }) {
     const ok = await askConfirm({
       title: `¿Restaurar ${que}?`,
       message: `Vuelven a ${mov.modulo ? LABEL_MODULO[mov.modulo] : 'la boda'} tal como estaban antes de que ${mov.persona} los eliminara, ${cuandoRelativo(mov.cuando)}.`
-        + (extra.length
-            ? ` Regresan también ${nombreArrastre(extra.length, arrastreCrudo)} que venían con ellos.`
+        + (arrastreCrudo.length
+            ? ` Regresan también ${nombreArrastre(arrastreCrudo.length, arrastreCrudo)} que venían con ellos.`
             : ''),
       confirmLabel: 'Restaurar',
       cancelLabel: 'Cancelar',
@@ -225,111 +224,30 @@ export default function ActividadTab({ eventId }: { eventId: string }) {
     setError(null)
     setTrabajando(mov.clave)
 
-    // De donde sale la etiqueta y el tipo de cada fila de bitacora. Van las del
-    // movimiento MAS las del arrastre: los acompanantes no estan en mov.filas y
-    // sin su fila quedaban sin entity_type, que es NOT NULL.
-    const fuentes = [...mov.filas, ...arrastrePendiente(mov, soloEstos)]
-
-    // Tanda por tanda y EN ORDEN: dentro de una tabla da igual, pero entre
-    // tablas es la dependencia (el acompanante no entra si su invitado
-    // todavia no existe), asi que nada de Promise.all.
-    //
-    // upsert con ignoreDuplicates en vez de insert: mandando la tanda junta,
-    // un solo registro que ya estuviera tumbaria a los 42. Postgres se salta
-    // los repetidos y los demas entran, que es el "ya estaba" de siempre.
-    const hechas: Insercion[] = []
-
-    for (const tanda of tandasPorTabla(plan)) {
-      const { error } = await supabase
-        .from(tanda[0].tabla)
-        .upsert(tanda.map(i => i.fila), { onConflict: 'id', ignoreDuplicates: true })
-
-      // Un aviso no es una pregunta: va como franja, no como modal de
-      // confirmar/cancelar.
-      if (error) {
-        // Lo que YA volvio se registra igual: si no, quedan de vuelta en la
-        // boda pero la pantalla sigue creyendo que estan borrados.
-        await registrarRestauraciones(hechas, fuentes, mov.modulo)
-        setTrabajando(null)
-        // El motivo va EN el aviso. Decir solo "no se pudo" obliga a adivinar,
-        // y adivinar cuesta una vuelta entera de prueba.
-        console.error('[actividad] fallo al restaurar en', tanda[0].tabla, error)
-        setError(
-          `Regresaron ${hechas.length} de ${plan.length}. Falló al escribir en ${tanda[0].tabla}: ` +
-          `${error.message}${error.code ? ` (${error.code})` : ''}`,
-        )
-        await cargar()
-        return
-      }
-
-      hechas.push(...tanda)
-    }
-
-    const fallo = await registrarRestauraciones(hechas, fuentes, mov.modulo)
-
-    setTrabajando(null)
-    if (fallo) setError(fallo)
-    await cargar()
-  }
-
-  // La bitacora de la restauracion, de un viaje. logAction() pide el usuario y
-  // busca su nombre CADA vez que se llama: para 42 registros eran 126 viajes
-  // al servidor, que es lo que hacia lenta la restauracion de un lote.
-  // Devuelve null si todo bien, o el aviso que hay que enseñar. La bitacora NO
-  // es opcional aqui: la pantalla se guia por ella, asi que si no se escribe,
-  // lo restaurado sigue viendose como borrado y el planner le pica en vano.
-  const registrarRestauraciones = async (
-    plan: Insercion[],
-    fuentes: FilaAudit[],
-    modulo: string | null,
-  ): Promise<string | null> => {
-    if (plan.length === 0) return null
-
-    const aviso = 'Los registros ya volvieron a la boda, pero no se pudo anotar en la bitácora. Recarga para verlos.'
-
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return aviso
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) { setError('Tu sesión expiró. Recarga la página.'); return }
 
-      const { data: perfil } = await supabase
-        .from('users').select('full_name').eq('id', user.id).single()
+      const res = await fetch('/api/actividad/restaurar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ eventId, entityIds: base.map(i => i.entityId) }),
+      })
+      const out = await res.json() as { ok?: boolean; restaurados?: number; total?: number; error?: string }
 
-      const porEntidad = new Map(fuentes.map(f => [f.entity_id, f]))
-
-      const { error } = await supabase.from('event_audit_log').insert(
-        plan.map(ins => {
-          const fila = porEntidad.get(ins.entityId)
-          return {
-            event_id:     eventId,
-            user_id:      user.id,
-            user_email:   user.email ?? '',
-            user_name:    perfil?.full_name ?? null,
-            action:       ins.accionRestauracion,
-            // NOT NULL en la base. La accion siempre trae la entidad delante,
-            // asi que sirve de respaldo cuando la fila fuente no aparece.
-            entity_type:  fila?.entity_type ?? entidadDeAccion(ins.accionRestauracion),
-            entity_id:    ins.entityId,
-            entity_label: fila?.entity_label ?? null,
-            old_value:    null,
-            new_value:    null,
-            // Se deriva de la entidad, igual que lo escribe el disparador: asi
-            // la restauracion de un pago dice "pagos" aunque se haya lanzado
-            // desde el renglon del proveedor.
-            modulo: moduloDeEntidad(fila?.entity_type ?? entidadDeAccion(ins.accionRestauracion)) ?? modulo,
-          }
-        }),
-      )
-
-      // insert() NO lanza: devuelve el error. Sin revisarlo, un rechazo de la
-      // base pasaba callado y la pantalla se quedaba mintiendo.
-      if (error) {
-        console.warn('[actividad] la bitacora rechazo la restauracion:', error.message)
-        return aviso
+      // Un aviso no es una pregunta: va como franja, no como modal. Y trae el
+      // motivo: decir solo "no se pudo" obliga a adivinar.
+      if (!res.ok || !out.ok) {
+        const parcial = out.restaurados !== undefined && out.total !== undefined
+          ? `Regresaron ${out.restaurados} de ${out.total}. `
+          : ''
+        setError(parcial + (out.error ?? 'No se pudo restaurar.'))
       }
-      return null
     } catch (e) {
-      console.warn('[actividad] no se pudo registrar la restauracion:', e)
-      return aviso
+      setError('No se pudo hablar con el servidor: ' + (e instanceof Error ? e.message : String(e)))
+    } finally {
+      setTrabajando(null)
+      await cargar()
     }
   }
 

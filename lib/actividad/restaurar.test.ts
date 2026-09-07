@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { planDeRestauracion, TABLA_POR_ENTIDAD, esConflictoDeLlave, tandasPorTabla, arrastrados, insercionDeFila, type Insercion } from './restaurar'
+import { planDeRestauracion, TABLA_POR_ENTIDAD, esConflictoDeLlave, tandasPorTabla, arrastrados, insercionDeFila, seleccionarParaRestaurar, type Insercion } from './restaurar'
 import { ACCIONES_BORRADO, entidadDeAccion } from './vocabulario'
 import type { FilaAudit, Movimiento, Restauracion } from './tipos'
 
@@ -172,5 +172,87 @@ describe('arrastrados', () => {
     expect(i?.tabla).toBe('party_members')
     expect(i?.accionRestauracion).toBe('party_member.restored')
     expect(i?.entityId).toBe('p1')
+  })
+})
+
+// Propuesta 2 (aprobada 7-sep): solo regresa lo que se fue EN EL MISMO GESTO.
+// Restaurar un proveedor traia cualquier pago suyo que siguiera borrado,
+// aunque Diego lo hubiera borrado hace una hora en otra accion, a proposito.
+describe('arrastrados — solo el mismo gesto', () => {
+  const T = (s: string) => `2026-09-06T13:59:${s}.000Z`
+  const NADIE = new Map<string, Restauracion>()
+
+  const proveedor = () => fila({
+    id: 'a-s1', action: 'event_supplier.deleted', entity_type: 'event_supplier',
+    entity_id: 's1', user_id: 'diego', created_at: T('49'), old_value: { id: 's1' },
+  })
+  const pago = (id: string, cuando: string, quien = 'diego') => fila({
+    id: 'a-' + id, action: 'payment.deleted', entity_type: 'payment',
+    entity_id: id, user_id: quien, created_at: cuando,
+    old_value: { id, event_supplier_id: 's1' },
+  })
+  const plan = () => planDeRestauracion(mov([proveedor()]))
+  const ref = { userId: 'diego', cuando: Date.parse(T('49')) }
+
+  it('trae al pago borrado 2 segundos antes por la misma persona', () => {
+    const out = arrastrados(plan(), [pago('p1', T('47'))], NADIE, ref)
+    expect(out.map(f => f.entity_id)).toEqual(['p1'])
+  })
+
+  it('trae al pago de la MISMA transaccion (mismo instante)', () => {
+    expect(arrastrados(plan(), [pago('p1', T('49'))], NADIE, ref)).toHaveLength(1)
+  })
+
+  it('NO trae al pago borrado hace una hora: fue otra decision', () => {
+    const viejo = pago('p1', '2026-09-06T13:03:35.000Z')
+    expect(arrastrados(plan(), [viejo], NADIE, ref)).toEqual([])
+  })
+
+  it('NO trae al pago que borro OTRA persona aunque sea del mismo minuto', () => {
+    expect(arrastrados(plan(), [pago('p1', T('48'), 'frida')], NADIE, ref)).toEqual([])
+  })
+
+  it('sin referencia se comporta como antes: trae todo lo huerfano', () => {
+    const viejo = pago('p1', '2026-09-06T13:03:35.000Z')
+    expect(arrastrados(plan(), [viejo], NADIE)).toHaveLength(1)
+  })
+})
+
+// Propuesta 3: el servidor decide que restaurar a partir de la bitacora, no
+// del cliente. El cliente solo manda ids de entidad.
+describe('seleccionarParaRestaurar', () => {
+  const NADIE = new Map<string, Restauracion>()
+  const borrado = (id: string, cuando: string, tipo = 'guest') => fila({
+    id: 'a-' + id + cuando, action: tipo + '.deleted', entity_type: tipo,
+    entity_id: id, created_at: cuando, old_value: { id },
+  })
+
+  it('elige el borrado MAS RECIENTE de cada entidad pedida', () => {
+    const filas = [
+      borrado('g1', '2026-09-06T10:00:00.000Z'),
+      borrado('g1', '2026-09-06T12:00:00.000Z'),
+    ]
+    const out = seleccionarParaRestaurar(filas, ['g1'], NADIE)
+    expect(out).toHaveLength(1)
+    expect(out[0].created_at).toBe('2026-09-06T12:00:00.000Z')
+  })
+
+  it('ignora lo que ya volvio despues de ese borrado', () => {
+    const filas = [borrado('g1', '2026-09-06T10:00:00.000Z')]
+    const ya = new Map([['g1', { cuando: Date.parse('2026-09-06T11:00:00.000Z'), fecha: '', persona: 'x' }]])
+    expect(seleccionarParaRestaurar(filas, ['g1'], ya)).toEqual([])
+  })
+
+  it('ignora ids que no estan en la bitacora', () => {
+    expect(seleccionarParaRestaurar([], ['fantasma'], NADIE)).toEqual([])
+  })
+
+  it('devuelve padres antes que hijos', () => {
+    const filas = [
+      borrado('p1', '2026-09-06T10:00:00.000Z', 'party_member'),
+      borrado('g1', '2026-09-06T10:00:00.000Z', 'guest'),
+    ]
+    expect(seleccionarParaRestaurar(filas, ['p1', 'g1'], NADIE).map(f => f.entity_type))
+      .toEqual(['guest', 'party_member'])
   })
 })

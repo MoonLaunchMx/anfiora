@@ -121,12 +121,21 @@ export function agrupar(filas: FilaAudit[], restaurados: Map<string, Restauracio
   // aparte contaria la misma historia dos veces. En la base siguen estando.
   filas = filas.filter(f => !esRestauracion(f.action))
 
-  // Donde cayo el borrado de cada entidad, para que sus hijos lo alcancen.
-  const loteDeEntidad = new Map<string, string>()
+  // Donde cayo cada borrado de cada entidad. Puede haber varios: se borra, se
+  // restaura, se vuelve a borrar. El hijo se pega al MAS CERCANO en tiempo.
+  const lotesDeEntidad = new Map<string, { lote: string; t: number }[]>()
   for (const f of filas) {
     if (f.batch_id && f.entity_id && esBorrado(f.action) && !esEntidadHija(f.entity_type)) {
-      loteDeEntidad.set(f.entity_id, f.batch_id)
+      const lista = lotesDeEntidad.get(f.entity_id) ?? []
+      lista.push({ lote: f.batch_id, t: ts(f) })
+      lotesDeEntidad.set(f.entity_id, lista)
     }
+  }
+  const loteMasCercano = (idPadre: string, t: number): string | undefined => {
+    const lista = lotesDeEntidad.get(idPadre)
+    if (!lista) return undefined
+    return lista.reduce((mejor, l) =>
+      Math.abs(l.t - t) < Math.abs(mejor.t - t) ? l : mejor).lote
   }
 
   // El acompanante se va al lote de SU invitado. La app los borra en
@@ -137,7 +146,7 @@ export function agrupar(filas: FilaAudit[], restaurados: Map<string, Restauracio
   const loteDe = (f: FilaAudit): string | null => {
     if (!f.batch_id) return null
     const idPadre = idPadreDe(f.entity_type, f.old_value)
-    if (idPadre) return loteDeEntidad.get(idPadre) ?? f.batch_id
+    if (idPadre) return loteMasCercano(idPadre, ts(f)) ?? f.batch_id
     return f.batch_id
   }
 

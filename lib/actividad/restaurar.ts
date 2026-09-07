@@ -1,6 +1,6 @@
 import { entidadDeAccion } from './vocabulario'
 import type { FilaAudit, Movimiento, Restauracion } from './tipos'
-import { DEPENDIENTES } from './dependientes'
+import { DEPENDIENTES, rangoDeEntidad } from './dependientes'
 
 // La entidad que escribe el disparador -> la tabla de la que salio. Los
 // nombres de entidad vienen del segundo argumento de log_borrado() en los
@@ -57,10 +57,30 @@ export function planDeRestauracion(mov: Movimiento, soloEstos?: Set<string>): In
 
 // Lo que se fue colgando de otra cosa y quedo en un lote aparte. La relacion
 // padre-hijo vive en ./dependientes, porque tambien la usa el agrupado.
+// Cuanto antes del padre puede haberse ido un hijo para contar como parte del
+// MISMO gesto. La app borra a los acompanantes 1-2 s antes que al invitado;
+// un pago borrado hace una hora fue otra decision, y no se regresa sin pedir.
+export const VENTANA_GESTO_MS = 60 * 1000
+
+export interface Referencia {
+  userId: string | null   // quien hizo el borrado del padre
+  cuando: number          // created_at del padre, en ms
+}
+
+// Aqui SI se usa el reloj, a proposito: la pregunta no es quien es el padre
+// (eso lo dice el dato) sino si fue parte del mismo clic. Solo el tiempo y la
+// persona pueden decir eso.
+function mismoGesto(f: FilaAudit, ref: Referencia): boolean {
+  if (f.user_id !== ref.userId) return false
+  const t = new Date(f.created_at).getTime()
+  return t >= ref.cuando - VENTANA_GESTO_MS && t <= ref.cuando + 1000
+}
+
 export function arrastrados(
   plan: Insercion[],
   filas: FilaAudit[],
   restaurados: Map<string, Restauracion>,
+  ref?: Referencia,
 ): FilaAudit[] {
   const padresPorEntidad = new Map<string, Set<string>>()
   for (const ins of plan) {
@@ -84,6 +104,8 @@ export function arrastrados(
       // Si ya volvio despues de este borrado, no hay nada que arrastrar.
       const volvio = restaurados.get(f.entity_id)
       if (volvio && volvio.cuando > new Date(f.created_at).getTime()) continue
+
+      if (ref && !mismoGesto(f, ref)) continue
 
       const idPadre = f.old_value?.[dep.llave]
       if (typeof idPadre === 'string' && padres.has(idPadre)) out.push(f)
@@ -114,4 +136,31 @@ export function tandasPorTabla(plan: Insercion[]): Insercion[][] {
     else tandas.push([ins])
   }
   return tandas
+}
+
+// Que filas restaurar, decidido DEL LADO DEL SERVIDOR a partir de la bitacora.
+// El cliente solo manda ids de entidad; aqui se busca el borrado mas reciente
+// de cada una que no haya vuelto despues. Padres antes que hijos.
+export function seleccionarParaRestaurar(
+  filas: FilaAudit[],
+  entityIds: string[],
+  restaurados: Map<string, Restauracion>,
+): FilaAudit[] {
+  const pedidos = new Set(entityIds)
+  const mejor = new Map<string, FilaAudit>()
+
+  for (const f of filas) {
+    if (!f.entity_id || !pedidos.has(f.entity_id)) continue
+    if (!f.action.endsWith('.deleted')) continue
+    const t = new Date(f.created_at).getTime()
+    const volvio = restaurados.get(f.entity_id)
+    if (volvio && volvio.cuando > t) continue
+    const previa = mejor.get(f.entity_id)
+    if (!previa || t > new Date(previa.created_at).getTime()) mejor.set(f.entity_id, f)
+  }
+
+  return [...mejor.values()].sort(
+    (a, b) => rangoDeEntidad(a.entity_type) - rangoDeEntidad(b.entity_type)
+      || new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+  )
 }
