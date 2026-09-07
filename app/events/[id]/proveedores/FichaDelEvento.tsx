@@ -48,6 +48,11 @@ type Props = {
   onStatusChange: (itemId: string, nuevo: SupplierStatus) => void
   onSaved: (item: SupplierWithDetails) => void
   onQuitada: (itemId: string) => void
+  // Lista, Kanban y Fichero muestran desempeno, pagado y motivo de descarte,
+  // pero esos no viven en `item` -- se recalculan en la pagina. Se avisa aqui
+  // cuando la ficha guarda algo que los cambia (review de desempeno, pago).
+  // Opcional: quien abre la ficha sin esas vistas (Presupuesto) no lo pasa.
+  onDerivadosCambiaron?: () => void
   // Solo cuando la ficha vive en una ventana: en el panel no hay a donde cerrar.
   onCerrar?: () => void
 }
@@ -70,7 +75,7 @@ function iniciales(nombre: string): string {
 }
 
 export default function FichaDelEvento({
-  item, budgets, currency, categorias, bodaPaso, onStatusChange, onSaved, onQuitada, onCerrar,
+  item, budgets, currency, categorias, bodaPaso, onStatusChange, onSaved, onQuitada, onDerivadosCambiaron, onCerrar,
 }: Props) {
   const askConfirm = useConfirm()
   const permisoFicha = usePermiso('proveedores')
@@ -135,7 +140,10 @@ export default function FichaDelEvento({
     puedeSaltarlo: canAdmin,
   }), [reviewPostEvento, fechaEventoISO, canAdmin])
 
-  useEffect(() => { setCarpeta(0) }, [item.id, item.status])
+  // Las carpetas son fijas ahora (antes cambiaban de forma con el estatus):
+  // solo reiniciar al abrir una ficha distinta, no en cada cambio de estatus,
+  // o mover a Contratado desde Pagos te devuelve a Contacto sin avisar.
+  useEffect(() => { setCarpeta(0) }, [item.id])
 
   useEffect(() => {
     setEditando(false)
@@ -348,6 +356,7 @@ export default function FichaDelEvento({
       return
     }
     setPagos(previos => previos.filter(otro => otro.id !== pago.id))
+    onDerivadosCambiaron?.()
   }
 
   const guardarMontos = () => {
@@ -945,7 +954,7 @@ export default function FichaDelEvento({
           reviewExistente={reviewPostEvento}
           bloqueado={candado.bloqueado}
           razonBloqueo={candado.razon}
-          onSaved={() => { setMostrarModalDesempeno(false); cargarReviews(item.supplier_id) }}
+          onSaved={() => { setMostrarModalDesempeno(false); cargarReviews(item.supplier_id); onDerivadosCambiaron?.() }}
           onSkip={() => setMostrarModalDesempeno(false)}
         />
       )}
@@ -966,6 +975,7 @@ export default function FichaDelEvento({
                 ? previos.map(otro => (otro.id === pago.id ? pago : otro))
                 : [pago, ...previos]
             )
+            onDerivadosCambiaron?.()
             if (esNuevo && (item.status === 'nuevo' || item.status === 'cotizado')) {
               ofrecerAvance('contratado', 'Ya tiene un pago registrado.')
             }

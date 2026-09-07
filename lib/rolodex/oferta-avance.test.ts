@@ -42,4 +42,17 @@ describe('oferta-avance', () => {
     expect(yaRechazoLaOferta('es-1', 'contratado')).toBe(true)
     expect(yaRechazoLaOferta('es-1', 'contratado')).toBe(true)
   })
+
+  it('un localStorage que truena (Safari en modo privado) no rompe la lectura ni la escritura', () => {
+    (globalThis as unknown as { window: { localStorage: MiniStorage } }).window = {
+      localStorage: {
+        getItem: () => { throw new Error('SecurityError') },
+        setItem: () => { throw new Error('SecurityError') },
+        removeItem: () => {},
+      },
+    }
+    expect(() => yaRechazoLaOferta('es-1', 'cotizado')).not.toThrow()
+    expect(yaRechazoLaOferta('es-1', 'cotizado')).toBe(false)
+    expect(() => recordarRechazo('es-1', 'cotizado')).not.toThrow()
+  })
 })

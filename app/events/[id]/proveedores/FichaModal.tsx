@@ -17,6 +17,9 @@ type Props = {
   onStatusChange: (itemId: string, nuevo: SupplierStatus) => void
   onSaved: (item: SupplierWithDetails) => void
   onQuitada: (itemId: string) => void
+  // Opcional: quien no tiene desempeno/pagado/motivo derivados que refrescar
+  // (por ejemplo la ficha abierta desde Presupuesto) simplemente no lo pasa.
+  onDerivadosCambiaron?: () => void
 }
 
 // La misma ficha del fichero, metida en una ventana: fuera de la vista Fichero

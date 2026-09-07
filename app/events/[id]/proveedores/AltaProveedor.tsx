@@ -14,6 +14,7 @@ import {
   PAISES, PAIS_POR_DEFECTO, bandera, ciudadesDe, estadosDe, mismoLugar,
   nombrePais, normalizarCiudad, normalizarEstado, tieneEstados,
 } from '@/lib/geo/divisiones'
+import { ciudadSigueSiendoValida } from '@/lib/rolodex/ciudad-estado'
 import SelectorGeo, { OpcionGeo } from '@/app/components/ui/SelectorGeo'
 import TagInput from '@/app/components/ui/TagInput'
 import PhoneInput from '@/app/components/ui/PhoneInput'
@@ -669,7 +670,10 @@ export default function AltaProveedor({
                     <Etiqueta>Estado</Etiqueta>
                     <SelectorGeo
                       valor={estado}
-                      onChange={e => { setEstado(e); setCiudad('') }}
+                      // Ciudad va arriba de Estado en este formulario: borrarla siempre
+                      // que cambia el estado le tira al planner lo que acaba de teclear.
+                      // Solo se borra si de verdad deja de aplicar ahi.
+                      onChange={e => { setEstado(e); if (!ciudadSigueSiendoValida(ciudad, ciudadesDe(pais, e))) setCiudad('') }}
                       opciones={opcionesEstado}
                       libre={!tieneEstados(pais)}
                       placeholder={tieneEstados(pais) ? 'Elige el estado' : 'Escribe el estado'}

@@ -238,7 +238,7 @@ function BotonesContacto({ contactos }: { contactos: Contacto[] }) {
             key={contacto.tipo}
             href={contacto.href}
             target="_blank"
-            rel="noopener"
+            rel="noopener noreferrer"
             title={TITULO_CONTACTO[contacto.tipo]}
             onClick={e => e.stopPropagation()}
             className="flex h-6 w-6 items-center justify-center rounded-md border border-[#e0e0e0] bg-white text-[#666] transition hover:border-[#48C9B0] hover:text-[#48C9B0]"
@@ -271,7 +271,13 @@ function KanbanCard({
 
   const linkedBudget = budgets.find(b => b.id === item.event_budget_id)
   const meta = linkedBudget?.budget_amount ?? null
-  const exceeds = dinero.tipo === 'contratado' && meta !== null && dinero.contratado > meta
+  // La meta se compara contra lo que la tarjeta esta mostrando: contratado si
+  // ya lo tiene, cotizado mientras solo hay cotizacion. Un cotizado tambien
+  // puede pasarse del presupuesto, no solo un contratado.
+  const exceeds = meta !== null && (
+    (dinero.tipo === 'contratado' && dinero.contratado > meta) ||
+    (dinero.tipo === 'cotizado' && dinero.cotizado > meta)
+  )
 
   const style = transform
     ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` }
@@ -331,8 +337,11 @@ function KanbanCard({
       {dinero.tipo === 'cotizado' && (
         <div className="mt-2.5 border-t border-[#f0f0f0] pt-2.5">
           <p className="text-[9px] font-semibold uppercase tracking-wider text-[#aaa]">Cotizado</p>
-          <p className="text-[13px] font-bold tabular-nums text-[#1D1E20]">
+          <p className={`text-[13px] font-bold tabular-nums ${exceeds ? 'text-amber-600' : 'text-[#1D1E20]'}`}>
             {formatCurrency(dinero.cotizado, currency)}
+            {meta !== null && (
+              <span className="ml-1 font-normal text-[#bbb]">/ {formatCurrency(meta, currency)}</span>
+            )}
           </p>
         </div>
       )}

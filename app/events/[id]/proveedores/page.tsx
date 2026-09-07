@@ -9,7 +9,9 @@ import {
   SupplierStatus, SUPPLIER_STATUSES, SUPPLIER_STATUS_LABELS, Currency, formatCurrency,
 } from '@/lib/types'
 import { Categoria, activas, agregarCategoria, cargarCategorias, nombrePorId } from '@/lib/rolodex/categorias-store'
-import { COLUMNAS_LISTA, COLUMNA_SIEMPRE_VISIBLE, ColumnaListaKey, columnasPorDefecto } from '@/lib/rolodex/columnas-lista'
+import {
+  COLUMNAS_LISTA, COLUMNA_SIEMPRE_VISIBLE, ColumnaListaKey, columnasPorDefecto, columnasValidasDesdeJSON,
+} from '@/lib/rolodex/columnas-lista'
 import {
   FiltrosProveedores, FiltroDesempeno, FILTROS_DESEMPENO,
   filtrosVacios, contarFiltrosActivos, aplicarFiltrosProveedores,
@@ -49,7 +51,11 @@ function cargarColumnas(eventId: string): Set<ColumnaListaKey> {
   if (typeof window === 'undefined') return columnasPorDefecto()
   try {
     const raw = localStorage.getItem(colStorageKey(eventId))
-    if (raw) return new Set(JSON.parse(raw) as ColumnaListaKey[])
+    // Un JSON.parse que no truena no es lo mismo que una forma valida (ver el
+    // comentario de columnasValidasDesdeJSON): se valida la forma antes de
+    // confiar en lo guardado, o un valor corrupto deja la Lista sin columnas.
+    const validas = raw ? columnasValidasDesdeJSON(JSON.parse(raw)) : null
+    if (validas) return validas
   } catch {}
   return columnasPorDefecto()
 }
@@ -198,6 +204,41 @@ export default function ProveedoresPage() {
     setMotivoDescartePorItem(motivos)
   }
 
+  // Desempeno (ids de suppliers): se separa de cargarCatalogo para poder
+  // refrescarlo solo, sin releer todo el catalogo, cuando se guarda una
+  // review de desempeno. Se mergea sobre lo que ya habia en vez de reemplazar
+  // todo el mapa: un refresco parcial (solo los proveedores de esta boda) no
+  // debe borrar el desempeno de fichas del Rolodex que no estan en `ids`.
+  const cargarDesempeno = async (ids: string[]) => {
+    if (ids.length === 0) return
+    const { data: reviewRows, error: errReviews } = await supabase
+      .from('supplier_reviews')
+      .select('supplier_id, review_type, autor, precio_valor, calidad, comunicacion, servicio_trato, manejo_imprevistos')
+      .in('supplier_id', ids)
+      .eq('review_type', 'post_evento')
+      .eq('autor', 'planner')
+    if (errReviews) { console.error('Error leyendo las reviews del Rolodex:', errReviews?.message ?? errReviews, errReviews); return }
+
+    const reviewsPorFicha = new Map<string, ReviewParaScore[]>()
+    for (const r of (reviewRows ?? []) as (ReviewParaScore & { supplier_id: string })[]) {
+      const lista = reviewsPorFicha.get(r.supplier_id) ?? []
+      lista.push(r)
+      reviewsPorFicha.set(r.supplier_id, lista)
+    }
+    const desempeno: Record<string, number | null> = {}
+    for (const id of ids) desempeno[id] = calcularScores(reviewsPorFicha.get(id) ?? []).desempeno
+    setDesempenoPorProveedor(prev => ({ ...prev, ...desempeno }))
+  }
+
+  // Se llama tras guardar cualquiera de las cuatro cosas que Lista, Kanban y
+  // Fichero muestran pero no viven en `items`: la review de contratacion, la
+  // de descarte, la de desempeno post-evento, y un pago. Sin esto esas vistas
+  // se quedan con el valor de antes hasta recargar la pagina.
+  const refrescarDerivados = () => {
+    cargarDineroYReviews(items.map(i => i.id))
+    cargarDesempeno(items.map(i => i.supplier_id))
+  }
+
   const loadAll = async () => {
     setLoading(true)
     try {
@@ -257,23 +298,7 @@ export default function ProveedoresPage() {
 
     // El desempeno de cada ficha (para el fichero y el kanban) se calcula aqui
     // una sola vez para todo el catalogo, no tarjeta por tarjeta.
-    const { data: reviewRows, error: errReviews } = await supabase
-      .from('supplier_reviews')
-      .select('supplier_id, review_type, autor, precio_valor, calidad, comunicacion, servicio_trato, manejo_imprevistos')
-      .in('supplier_id', ids)
-      .eq('review_type', 'post_evento')
-      .eq('autor', 'planner')
-    if (errReviews) console.error('Error leyendo las reviews del Rolodex:', errReviews?.message ?? errReviews, errReviews)
-
-    const reviewsPorFicha = new Map<string, ReviewParaScore[]>()
-    for (const r of (reviewRows ?? []) as (ReviewParaScore & { supplier_id: string })[]) {
-      const lista = reviewsPorFicha.get(r.supplier_id) ?? []
-      lista.push(r)
-      reviewsPorFicha.set(r.supplier_id, lista)
-    }
-    const desempeno: Record<string, number | null> = {}
-    for (const id of ids) desempeno[id] = calcularScores(reviewsPorFicha.get(id) ?? []).desempeno
-    setDesempenoPorProveedor(desempeno)
+    await cargarDesempeno(ids)
 
     const porBoda = new Map((bodas ?? []).map(b => [b.id, b]))
 
@@ -728,6 +753,7 @@ export default function ProveedoresPage() {
                 onStatusChange={handleStatusChange}
                 onSaved={handleSavedItem}
                 onQuitada={handleDeletedItem}
+                onDerivadosCambiaron={refrescarDerivados}
                 enfocar={enfocar}
                 onEnfocado={() => setEnfocar(null)}
               />
@@ -763,6 +789,7 @@ export default function ProveedoresPage() {
           onStatusChange={handleStatusChange}
           onSaved={handleSavedItem}
           onQuitada={handleDeletedItem}
+          onDerivadosCambiaron={refrescarDerivados}
         />
       )}
 
@@ -777,7 +804,7 @@ export default function ProveedoresPage() {
             createdBy={userId}
             supplierName={reviewItem.supplier.name}
             eventName={event.name}
-            onSaved={() => setReviewItem(null)}
+            onSaved={() => { refrescarDerivados(); setReviewItem(null) }}
             onSkip={() => setReviewItem(null)}
           />
         ) : (
@@ -789,7 +816,7 @@ export default function ProveedoresPage() {
             createdBy={userId}
             supplierName={reviewItem.supplier.name}
             eventName={event.name}
-            onSaved={() => setReviewItem(null)}
+            onSaved={() => { refrescarDerivados(); setReviewItem(null) }}
             onSkip={() => setReviewItem(null)}
           />
         )

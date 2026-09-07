@@ -31,6 +31,7 @@ type Props = {
   onStatusChange: (itemId: string, nuevo: SupplierStatus) => void
   onSaved: (item: SupplierWithDetails) => void
   onQuitada: (itemId: string) => void
+  onDerivadosCambiaron?: () => void
   enfocar?: SupplierWithDetails | null
   onEnfocado?: () => void
 }
@@ -64,7 +65,7 @@ function useEsEscritorio(): boolean {
   return esEscritorio
 }
 
-export default function SupplierFicheroView({ items, budgets, currency, categorias, bodaPaso, desempenoPorProveedor, onSelect, onStatusChange, onSaved, onQuitada, enfocar, onEnfocado }: Props) {
+export default function SupplierFicheroView({ items, budgets, currency, categorias, bodaPaso, desempenoPorProveedor, onSelect, onStatusChange, onSaved, onQuitada, onDerivadosCambiaron, enfocar, onEnfocado }: Props) {
   const esEscritorio = useEsEscritorio()
   const [abierta, setAbierta] = useState<SupplierWithDetails | null>(null)
   const fichas = useMemo(() => ordenarFichas(items), [items])
@@ -233,6 +234,7 @@ export default function SupplierFicheroView({ items, budgets, currency, categori
             onStatusChange={onStatusChange}
             onSaved={onSaved}
             onQuitada={onQuitada}
+            onDerivadosCambiaron={onDerivadosCambiaron}
           />
         )}
       </div>
