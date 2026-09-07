@@ -24,12 +24,13 @@ Este tramo termina la tabla y le pone pantalla. No crea tablas nuevas.
 |---|---|---|
 | 1 | **Equipo es miembro del workspace, siempre. El asiento se ocupa al invitar.** | Invitar a un compañero desde donde sea (la pantalla del workspace o la pestaña Equipo de una boda) crea su fila en `workspace_members`. No existe "colaborador de boda" fuera del workspace. Como Notion, Figma y Linear: la invitación pendiente ya ocupa el asiento. Así nadie estaciona diez invitaciones sin pagar |
 | 2 | **Sin selector de workspace.** | El dashboard sigue siendo una sola lista con todas las bodas a las que la persona tiene acceso. Si pertenece a más de un workspace, la lista se agrupa con un encabezado por workspace. Al crear una boda aparece un campo "Workspace" **solo** si es dueño o admin de más de uno. El selector estilo Slack queda habilitado por el modelo y se construye cuando estorbe la lista |
-| 3 | **Tres planes. Pro incluye 1 asiento, Agency incluye 3. Asiento extra $290 en los dos.** | Free es solo el dueño. Studio muere: existía para vender más eventos, y ya no hay candado por eventos. Lo que vende Agency es la marca propia y la actividad sin límite, no asientos |
+| 3 | **Tres planes. Pro incluye 1 asiento, Agency incluye 3. Asiento extra $290 en los dos.** | Studio muere: existía para vender más eventos, y ya no hay candado por eventos en los planes de pago. Lo que vende Agency es la marca propia y la actividad sin límite, no asientos |
+| 3b | **Free es para probar, no para vivir.** Cuatro paredes: una boda activa a la vez, solo el dueño, sin Actividad, y sin las herramientas de Pro | Diego, 7-sep: *"no quiero regalar la app"*. Free tiene Invitados, Mesas, Timeline, Presupuesto, Proveedores, Pagos, Álbum, Playlist y Dress code. **Pro agrega** Invitación, Mensajes con IA, Mesa de regalos, importar y exportar Excel/PDF, Actividad y equipo. Las herramientas de Pro **se ven** en el menú con etiqueta PRO y al entrar sale el aviso de plan, no la herramienta: se ve lo increíble, no se toca |
 | 4 | **Transferir la propiedad se difiere a soporte manual.** | La base ya lo permite (el dueño principal es una fila, no un usuario). El día que un cliente lo pida, Diego cambia dos filas. Sin pantalla, sin deuda |
 | 5 | **Nace `/cuenta` con tres pestañas: Equipo, Actividad, Plan y facturación.** | `/perfil` se queda como está (lo personal). En el menú de usuario aparece "Mi workspace" solo si eres dueño o admin de alguno. El colaborador no lo ve ni entra por URL |
 | 6 | **Cinco datos de facturación, solo el dueño.** | Correo de facturación, razón social, RFC, régimen fiscal y código postal. Es lo que el CFDI 4.0 exige y Stripe no sabe. Sin domicilio completo ni uso de CFDI hasta que exista el cobro |
 
-Y lo que se heredó cerrado del spec madre y de las notas: dueño / admin / colaborador más cliente; cliente no es miembro y no ocupa asiento; solo dueño y admin invitan; Configuración, Equipo y Actividad son de dueños y admins; el alta es persona → bodas → permisos en tres pasos con el kit precargado de sus otras bodas; la ventana de Actividad es Free 7 / Pro 30 / Agency ilimitado y se corta la lectura, nunca las filas.
+Y lo que se heredó cerrado del spec madre y de las notas: dueño / admin / colaborador más cliente; cliente no es miembro y no ocupa asiento; solo dueño y admin invitan; Configuración, Equipo y Actividad son de dueños y admins; el alta es persona → bodas → permisos en tres pasos con el kit precargado de sus otras bodas; la ventana de Actividad es Pro 30 / Agency ilimitado (Free no la tiene, corrección del 7-sep a la nota `actividad-como-gancho-de-plan`) y se corta la lectura, nunca las filas.
 
 ---
 
@@ -105,7 +106,8 @@ Hoy solo `nivel_en()` sabe que el admin del workspace existe. Estas policies no,
 
 ### 3.8 Lo que queda habilitado, no construido
 
-- **Ventana de Actividad por plan.** Función `plan_del_evento(evento uuid) returns text` que lee `workspaces.plan` vía `events.workspace_id`. El corte en `actividad_ver` es una línea más el día que se cobre. La pantalla ya muestra "Últimos 30 días · tu plan Pro guarda 30" como texto, pero la lectura no se recorta todavía.
+- **Ventana de Actividad por plan.** Función `plan_del_evento(evento uuid) returns text` que lee `workspaces.plan` vía `events.workspace_id`. El corte en `actividad_ver` es una línea más el día que se cobre. La pantalla ya muestra "Últimos 30 días · tu plan Pro guarda 30" como texto, pero la lectura no se recorta todavía. **Free sí se cierra desde este tramo**: la pestaña no se dibuja y la ruta muestra el aviso de plan (§6), porque para Free la ventana es cero, no corta.
+- **Herramientas por plan.** El catálogo (§4.1) dice qué herramientas incluye cada plan. El candado en pantalla (etiqueta PRO en el menú y aviso de plan al entrar, más los botones de importar y exportar) es la tanda 6 del §10, que puede ir en chat propio. La regla vive donde ya se decide si una herramienta está prendida (`resolveFeatures` / `nivelEfectivo`), **no** en los permisos por persona: el plan cierra por workspace, como un switch de Configuración, nunca por quién eres.
 - **Stripe y asientos.** `workspaces.plan` es la única columna que Stripe tiene que escribir. El catálogo de la app (`lib/workspace/planes.ts`) es donde se pone el `price_id`. Contar asientos ya es una consulta.
 - **Transferir.** Dos filas: `workspaces.primary_owner_id` y el par de `es_dueno_principal`. Documentado en el SQL como operación de soporte.
 - **Selector de workspace.** El modelo lo permite; la pantalla espera.
@@ -132,12 +134,17 @@ lib/workspace/
 
 ```ts
 export const PLANES = [
-  { id: 'free',   nombre: 'Free',   precio: 0,    asientosIncluidos: 1, ventanaActividadDias: 7,    whitelabel: false },
-  { id: 'pro',    nombre: 'Pro',    precio: 990,  asientosIncluidos: 1, ventanaActividadDias: 30,   whitelabel: false },
-  { id: 'agency', nombre: 'Agency', precio: 1990, asientosIncluidos: 3, ventanaActividadDias: null, whitelabel: true  },
+  { id: 'free',   nombre: 'Free',   precio: 0,    asientosIncluidos: 1, ventanaActividadDias: 0,    bodasActivas: 1,    importExport: false, whitelabel: false,
+    herramientas: ['invitados','mesas','timeline','presupuesto','proveedores','pagos','album','playlist','vestimenta'] },
+  { id: 'pro',    nombre: 'Pro',    precio: 990,  asientosIncluidos: 1, ventanaActividadDias: 30,   bodasActivas: null, importExport: true,  whitelabel: false,
+    herramientas: MODULOS },
+  { id: 'agency', nombre: 'Agency', precio: 1990, asientosIncluidos: 3, ventanaActividadDias: null, bodasActivas: null, importExport: true,  whitelabel: true,
+    herramientas: MODULOS },
 ] as const
 export const PRECIO_ASIENTO_EXTRA = 290
 ```
+
+`ventanaActividadDias: 0` es "sin Actividad"; `null` es "sin límite". `bodasActivas: 1` es la pared de Free: **una boda activa a la vez**; para abrir otra se archiva la anterior, que queda en solo lectura. Ese medidor y el candado de archivado son la rama del muro (`feat/muro-un-evento`, tareas 1 a 4 ya hechas), que se retoma con este catálogo como fuente y no con el de junio. `herramientas` es la lista del §2 (3b); `importExport` gatea los botones de Invitados, Presupuesto y Pagos.
 
 `asientosIncluidos: 1` en Free significa **solo el dueño**: `puedeInvitar('free', 1)` devuelve `{ ok: false, motivo: 'plan' }`.
 
@@ -202,7 +209,7 @@ Hoy inserta directo en `event_collaborators` con `tipo='equipo'`. Eso desaparece
 |---|---|---|
 | `/cuenta` | **nueva**, layout con pestañas | Solo dueños y admins. Ruta cerrada con `<SinAcceso volverA="/dashboard">`. Si la persona es dueño o admin de más de uno, el encabezado muestra cuál y un enlace para cambiar |
 | `/cuenta/equipo` | **nueva** | Contador de asientos (ocupados / incluidos / extra con costo), lista de miembros con rol, estado y bodas, sección Clientes abajo. Botones: Invitar cliente, Agregar persona. Editar abre la ficha: rol, bodas, permisos por boda, revocar |
-| `/cuenta/actividad` | **nueva** | El `ActividadTab` del Tramo 4 sin `eventId`: consulta todas las bodas del workspace, gana columna de boda y filtro de boda (dropdown negro). Restaurar igual que hoy; el candado del endpoint ya acepta dueño o admin |
+| `/cuenta/actividad` | **nueva** | El `ActividadTab` del Tramo 4 sin `eventId`: consulta todas las bodas del workspace, gana columna de boda y filtro de boda (dropdown negro). Restaurar igual que hoy; el candado del endpoint ya acepta dueño o admin. **En Free la pestaña no se dibuja** y la ruta muestra el aviso de plan; la pestaña Actividad de Configuración de la boda hace lo mismo |
 | `/cuenta/plan` | **nueva**, solo dueño principal | Los tres planes con el activo marcado, la factura estimada (plan + asientos extra), y el formulario de facturación. Cambiar de plan: enlace a contacto hasta que exista Stripe. El admin que entre por URL ve `<SinAcceso>` |
 | Menú de usuario (dashboard y layout de boda) | **modificado** | Entrada "Mi workspace" con pastilla del plan, visible si eres dueño o admin de alguno |
 | `/perfil` | **modificado** | Se quita la sección "Plan actual"; queda un enlace a `/cuenta/plan` |
@@ -231,7 +238,8 @@ Reversible: el bloque de deshacer borra las filas de miembro que este script cre
 
 - **Stripe.** Cobrar, `price_id`, portal. El catálogo deja el lugar.
 - **Tope de asientos.** Se cuenta y se avisa; no se bloquea por encima de los incluidos.
-- **El medidor de Free: 1 boda al mes.** Es del paywall, no de aquí; `workspaces.plan` es lo que lo hace posible. Decidido el 7-sep: se cuenta **por mes de creación** ("puedes crear una boda al mes"), no por la fecha en que ocurre. Free no esconde módulos: sus tres palancas son bodas (1 al mes), equipo (solo el dueño) e historial (7 días). Cerrar herramientas por plan metería un segundo sistema de acceso encima del de permisos por persona.
+- **El medidor de Free: una boda activa a la vez.** Decidido el 7-sep (reemplaza el "1 al mes" del 5-sep). Es de la rama del muro, no de aquí: `workspaces.plan` y `bodasActivas` del catálogo son lo que lo hacen posible. El muro se retoma leyendo este catálogo.
+- **El candado de herramientas por plan en pantalla.** Tanda 6 del §10. El catálogo queda aquí; el menú con etiqueta PRO, el aviso de plan y los botones de importar y exportar se construyen en esa tanda o en chat propio. Esto vuelve más simple la decisión "marca por plan" del brainstorm de import/export del 5-sep: el PDF de Free ya no existe.
 - **Transferir la propiedad.** Soporte manual (decisión 4).
 - **Selector de workspace activo.** Decisión 2.
 - **Ventana de Actividad por plan.** Función lista, corte después.
@@ -267,5 +275,6 @@ Cinco tandas, cada una entregable sola. El SQL de cada tanda que lo lleve corre 
 3. **Dashboard del admin.** Policies de la §3.7, dashboard agrupado, campo Workspace al crear boda.
 4. **Actividad del workspace.** `/cuenta/actividad`, `actividad_ver` con la rama del workspace, `plan_del_evento`.
 5. **Plan y facturación.** `/cuenta/plan`, `/api/workspace` PATCH, Perfil sin plan.
+6. **Candado de plan en las herramientas.** Etiqueta PRO en el menú para lo que el plan no incluye, aviso de plan al entrar por URL, botones de importar y exportar gateados en Invitados, Presupuesto y Pagos, Actividad cerrada en Free. Todo lee `PLANES[].herramientas` e `importExport`. Puede ir en chat propio; no bloquea las cinco anteriores.
 
 Cada tanda se planea por separado con `writing-plans`. Este documento es el mapa.
