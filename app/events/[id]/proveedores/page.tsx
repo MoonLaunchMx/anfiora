@@ -1,14 +1,19 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'next/navigation'
-import { Search, Plus, List, Columns3, Disc3 } from 'lucide-react'
+import { Search, Plus, List, Columns2, Columns3, Disc3, Filter } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import {
   Event, EventBudget, EventSupplier, Supplier, MotivoDescarte,
-  SupplierStatus, Currency, formatCurrency,
+  SupplierStatus, SUPPLIER_STATUSES, SUPPLIER_STATUS_LABELS, Currency, formatCurrency,
 } from '@/lib/types'
 import { Categoria, activas, agregarCategoria, cargarCategorias, nombrePorId } from '@/lib/rolodex/categorias-store'
+import { COLUMNAS_LISTA, COLUMNA_SIEMPRE_VISIBLE, ColumnaListaKey, columnasPorDefecto } from '@/lib/rolodex/columnas-lista'
+import {
+  FiltrosProveedores, FiltroDesempeno, FILTROS_DESEMPENO,
+  filtrosVacios, contarFiltrosActivos, aplicarFiltrosProveedores,
+} from '@/lib/rolodex/filtros'
 import StatsCollapse, { useStatsToggle, StatsToggleButton } from '@/app/components/ui/StatsCollapse'
 import AltaProveedor, { EnEstaBoda, ProveedorNuevo } from './AltaProveedor'
 import { EntradaDelRolodex } from '@/lib/rolodex/duplicados'
@@ -38,6 +43,53 @@ function mesYAno(fecha: string | null): string {
   return MESES[i] ? `${MESES[i]} ${ano}` : ano
 }
 
+const colStorageKey = (eventId: string) => `anfiora_proveedores_${eventId}_columnas`
+
+function cargarColumnas(eventId: string): Set<ColumnaListaKey> {
+  if (typeof window === 'undefined') return columnasPorDefecto()
+  try {
+    const raw = localStorage.getItem(colStorageKey(eventId))
+    if (raw) return new Set(JSON.parse(raw) as ColumnaListaKey[])
+  } catch {}
+  return columnasPorDefecto()
+}
+
+type FiltrosSerializados = { categoria: string[]; estatus: string[]; ciudad: string[]; desempeno: string[] }
+
+const filtroStorageKey = (eventId: string) => `anfiora_proveedores_${eventId}_filtros`
+
+function serializarFiltros(f: FiltrosProveedores): FiltrosSerializados {
+  return { categoria: [...f.categoria], estatus: [...f.estatus], ciudad: [...f.ciudad], desempeno: [...f.desempeno] }
+}
+
+function cargarFiltros(eventId: string): FiltrosProveedores {
+  if (typeof window === 'undefined') return filtrosVacios()
+  try {
+    const raw = localStorage.getItem(filtroStorageKey(eventId))
+    if (raw) {
+      const s = JSON.parse(raw) as FiltrosSerializados
+      return {
+        categoria: new Set(s.categoria ?? []),
+        estatus:   new Set((s.estatus ?? []) as SupplierStatus[]),
+        ciudad:    new Set(s.ciudad ?? []),
+        desempeno: new Set((s.desempeno ?? []) as FiltroDesempeno[]),
+      }
+    }
+  } catch {}
+  return filtrosVacios()
+}
+
+function conFiltroActualizado(prev: FiltrosProveedores, mutar: (next: FiltrosProveedores) => void): FiltrosProveedores {
+  const next: FiltrosProveedores = {
+    categoria: new Set(prev.categoria),
+    estatus:   new Set(prev.estatus),
+    ciudad:    new Set(prev.ciudad),
+    desempeno: new Set(prev.desempeno),
+  }
+  mutar(next)
+  return next
+}
+
 export default function ProveedoresPage() {
   const { id } = useParams()
   const eventId = id as string
@@ -49,7 +101,6 @@ export default function ProveedoresPage() {
   const [budgets, setBudgets] = useState<EventBudget[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch]   = useState('')
-  const [filterCategory, setFilterCategory] = useState<string>('')
   const [categorias, setCategorias] = useState<Categoria[]>([])
   const [duenoCatalogo, setDuenoCatalogo] = useState<string | null>(null)
   const [catalogoBase, setCatalogoBase] = useState<EntradaDelRolodex[]>([])
@@ -69,12 +120,55 @@ export default function ProveedoresPage() {
   const [reviewItem, setReviewItem]     = useState<SupplierWithDetails | null>(null)
   const [userId, setUserId]             = useState<string | null>(null)
 
+  const [visibleCols, setVisibleCols] = useState<Set<ColumnaListaKey>>(() => cargarColumnas(eventId))
+  const [showColMenu, setShowColMenu] = useState(false)
+  const colMenuRef = useRef<HTMLDivElement>(null)
+
+  const [filtros, setFiltros] = useState<FiltrosProveedores>(() => cargarFiltros(eventId))
+  const [showFilterMenu, setShowFilterMenu] = useState(false)
+  const filterMenuRef = useRef<HTMLDivElement>(null)
+
   const statsToggle = useStatsToggle(eventId, 'proveedores')
 
   useEffect(() => { if (eventId) loadAll() }, [eventId])
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setUserId(data.user?.id ?? null))
   }, [])
+
+  useEffect(() => {
+    const alClicarFuera = (e: MouseEvent) => {
+      if (colMenuRef.current && !colMenuRef.current.contains(e.target as Node)) setShowColMenu(false)
+      if (filterMenuRef.current && !filterMenuRef.current.contains(e.target as Node)) setShowFilterMenu(false)
+    }
+    document.addEventListener('mousedown', alClicarFuera)
+    return () => document.removeEventListener('mousedown', alClicarFuera)
+  }, [])
+
+  const toggleCol = (key: ColumnaListaKey) => {
+    setVisibleCols(prev => {
+      if (key === COLUMNA_SIEMPRE_VISIBLE && prev.has(key)) return prev
+      const next = new Set(prev)
+      next.has(key) ? next.delete(key) : next.add(key)
+      try { localStorage.setItem(colStorageKey(eventId), JSON.stringify(Array.from(next))) } catch {}
+      return next
+    })
+  }
+
+  const guardarFiltros = (f: FiltrosProveedores): FiltrosProveedores => {
+    try { localStorage.setItem(filtroStorageKey(eventId), JSON.stringify(serializarFiltros(f))) } catch {}
+    return f
+  }
+  const toggleCategoriaFiltro = (id: string) =>
+    setFiltros(prev => guardarFiltros(conFiltroActualizado(prev, n => { n.categoria.has(id) ? n.categoria.delete(id) : n.categoria.add(id) })))
+  const toggleEstatusFiltro = (s: SupplierStatus) =>
+    setFiltros(prev => guardarFiltros(conFiltroActualizado(prev, n => { n.estatus.has(s) ? n.estatus.delete(s) : n.estatus.add(s) })))
+  const toggleCiudadFiltro = (c: string) =>
+    setFiltros(prev => guardarFiltros(conFiltroActualizado(prev, n => { n.ciudad.has(c) ? n.ciudad.delete(c) : n.ciudad.add(c) })))
+  const toggleDesempenoFiltro = (d: FiltroDesempeno) =>
+    setFiltros(prev => guardarFiltros(conFiltroActualizado(prev, n => { n.desempeno.has(d) ? n.desempeno.delete(d) : n.desempeno.add(d) })))
+  const quitarTodosLosFiltros = () => setFiltros(guardarFiltros(filtrosVacios()))
+
+  const filtrosActivos = contarFiltrosActivos(filtros)
 
   // Se recalcula cada vez que la lista de proveedores cambia de referencia
   // (alta, baja, cambio de estado): así Lista y Kanban no quedan con el pagado
@@ -370,19 +464,22 @@ export default function ProveedoresPage() {
     }
   }
 
-  const filtered = items.filter(item => {
+  const buscados = items.filter(item => {
+    if (!search.trim()) return true
     const s = item.supplier
-    if (search.trim()) {
-      const q = search.toLowerCase()
-      const categoryName = nombrePorId(categorias, s.category_id)
-      const match = s.name.toLowerCase().includes(q) ||
-                    (s.subcategory || '').toLowerCase().includes(q) ||
-                    categoryName.toLowerCase().includes(q)
-      if (!match) return false
-    }
-    if (filterCategory && s.category_id !== filterCategory) return false
-    return true
+    const q = search.toLowerCase()
+    const categoryName = nombrePorId(categorias, s.category_id)
+    return s.name.toLowerCase().includes(q) ||
+           (s.subcategory || '').toLowerCase().includes(q) ||
+           categoryName.toLowerCase().includes(q)
   })
+
+  const filtered = aplicarFiltrosProveedores(buscados, filtros, item => ({
+    categoriaId: item.supplier.category_id,
+    estatus:     item.status,
+    ciudad:      item.supplier.city,
+    desempeno:   desempenoPorProveedor[item.supplier_id] ?? null,
+  }))
 
   const categoriasDelFiltro = (() => {
     const lista = activas(categorias)
@@ -394,6 +491,12 @@ export default function ProveedoresPage() {
       if (cat) { lista.push(cat); vistas.add(catId) }
     })
     return lista
+  })()
+
+  const ciudadesDelFiltro = (() => {
+    const set = new Set<string>()
+    items.forEach(it => { if (it.supplier?.city) set.add(it.supplier.city) })
+    return [...set].sort((a, b) => a.localeCompare(b, 'es'))
   })()
 
   const totalNuevos      = items.filter(i => i.status === 'nuevo').length
@@ -475,25 +578,93 @@ export default function ProveedoresPage() {
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="Buscar proveedor..."
-              className="w-full rounded-lg border border-[#e0e0e0] bg-white py-1.5 pl-8 pr-3 text-xs outline-none transition focus:border-[#48C9B0]"
+              className="w-full rounded-lg border border-[#e0e0e0] bg-white py-2 pl-8 pr-3 text-xs outline-none transition focus:border-[#48C9B0]"
             />
           </div>
 
-          {/* Filtro categoría — solo desktop */}
-          <select
-            value={filterCategory}
-            onChange={e => setFilterCategory(e.target.value)}
-            className="hidden shrink-0 rounded-lg border border-[#e0e0e0] bg-white px-3 py-1.5 text-xs outline-none transition focus:border-[#48C9B0] lg:block"
-          >
-            <option value="">Todas las categorías</option>
-            {categoriasDelFiltro.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
+          {/* Filtrar */}
+          <div className="relative shrink-0" ref={filterMenuRef}>
+            <button
+              onClick={() => setShowFilterMenu(v => !v)}
+              className="flex items-center gap-1.5 whitespace-nowrap rounded-lg border border-[#e0e0e0] px-3 py-2 text-xs text-[#666] transition hover:border-[#48C9B0] hover:text-[#48C9B0]"
+            >
+              <Filter size={13} />
+              <span>Filtrar{filtrosActivos > 0 ? ` (${filtrosActivos})` : ''}</span>
+            </button>
+            {showFilterMenu && (
+              <div className="absolute right-0 top-full z-50 mt-1 max-h-[70dvh] w-64 overflow-y-auto rounded-xl border border-[#e8e8e8] bg-white p-2 shadow-lg">
+                <GrupoFiltro
+                  titulo="Categoría"
+                  opciones={categoriasDelFiltro.map(c => ({ value: c.id, label: c.name }))}
+                  seleccion={filtros.categoria}
+                  onToggle={toggleCategoriaFiltro}
+                />
+                <GrupoFiltro
+                  titulo="Estatus"
+                  opciones={SUPPLIER_STATUSES.map(s => ({ value: s, label: SUPPLIER_STATUS_LABELS[s] }))}
+                  seleccion={filtros.estatus}
+                  onToggle={toggleEstatusFiltro}
+                />
+                <GrupoFiltro
+                  titulo="Ciudad"
+                  opciones={ciudadesDelFiltro.map(c => ({ value: c, label: c }))}
+                  seleccion={filtros.ciudad}
+                  onToggle={toggleCiudadFiltro}
+                />
+                <GrupoFiltro
+                  titulo="Desempeño"
+                  opciones={FILTROS_DESEMPENO.map(d => ({ value: d.key, label: d.label }))}
+                  seleccion={filtros.desempeno}
+                  onToggle={toggleDesempenoFiltro}
+                />
+                {filtrosActivos > 0 && (
+                  <button
+                    onClick={quitarTodosLosFiltros}
+                    className="mt-1 w-full rounded-lg px-2 py-1.5 text-left text-xs font-medium text-[#888] transition hover:bg-[#f8f8f8] hover:text-[#1D1E20]"
+                  >
+                    Quitar todos los filtros
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Columnas — solo vista Lista */}
+          {viewMode === 'lista' && (
+            <div className="relative hidden shrink-0 lg:block" ref={colMenuRef}>
+              <button
+                onClick={() => setShowColMenu(v => !v)}
+                className="flex items-center gap-1.5 whitespace-nowrap rounded-lg border border-[#e0e0e0] px-3 py-2 text-xs text-[#666] transition hover:border-[#48C9B0] hover:text-[#48C9B0]"
+              >
+                <Columns2 size={13} />
+                <span>Columnas</span>
+              </button>
+              {showColMenu && (
+                <div className="absolute right-0 top-full z-50 mt-1 min-w-[170px] rounded-xl border border-[#e8e8e8] bg-white p-2 shadow-lg">
+                  <p className="mb-1.5 px-2 text-[10px] font-semibold uppercase tracking-wide text-[#aaa]">Mostrar columnas</p>
+                  {COLUMNAS_LISTA.map(col => (
+                    <label key={col.key} className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 transition hover:bg-[#f8f8f8]">
+                      <input
+                        type="checkbox"
+                        checked={visibleCols.has(col.key)}
+                        onChange={() => toggleCol(col.key)}
+                        disabled={col.key === COLUMNA_SIEMPRE_VISIBLE}
+                        className="accent-[#48C9B0]"
+                      />
+                      <span className="text-xs text-[#1D1E20]">{col.label}</span>
+                      {col.key === COLUMNA_SIEMPRE_VISIBLE && <span className="ml-auto text-[10px] text-[#ccc]">siempre</span>}
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* CTA */}
           <Puede modulo="proveedores" accion="editar">
             <button
               onClick={() => setModalOpen(true)}
-              className="ml-auto flex shrink-0 items-center gap-1.5 rounded-lg bg-[#48C9B0] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#3aa896]"
+              className="flex shrink-0 items-center gap-1.5 rounded-lg bg-[#48C9B0] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#3aa896]"
             >
               <Plus size={14} />
               <span>Proveedor</span>
@@ -518,11 +689,11 @@ export default function ProveedoresPage() {
             {viewMode === 'lista' && (
               <div className="hidden lg:block">
                 <SupplierListView
-                  eventId={eventId}
                   items={filtered}
                   budgets={budgets}
                   currency={currency}
                   categorias={categorias}
+                  visibleCols={visibleCols}
                   desempenoPorProveedor={desempenoPorProveedor}
                   paidByItem={paidByItem}
                   onSelect={setSelectedItem}
@@ -628,6 +799,31 @@ export default function ProveedoresPage() {
 }
 
 // ── COMPONENTES AUXILIARES ─────────────────────────────────────────────────
+
+function GrupoFiltro<T extends string>({ titulo, opciones, seleccion, onToggle }: {
+  titulo: string
+  opciones: { value: T; label: string }[]
+  seleccion: Set<T>
+  onToggle: (value: T) => void
+}) {
+  if (opciones.length === 0) return null
+  return (
+    <div className="mb-1.5">
+      <p className="mb-1 px-2 text-[10px] font-semibold uppercase tracking-wide text-[#aaa]">{titulo}</p>
+      {opciones.map(o => (
+        <label key={o.value} className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 transition hover:bg-[#f8f8f8]">
+          <input
+            type="checkbox"
+            checked={seleccion.has(o.value)}
+            onChange={() => onToggle(o.value)}
+            className="accent-[#48C9B0]"
+          />
+          <span className="text-xs text-[#1D1E20]">{o.label}</span>
+        </label>
+      ))}
+    </div>
+  )
+}
 
 function ViewButton({ active, onClick, children, className = '' }: {
   active: boolean

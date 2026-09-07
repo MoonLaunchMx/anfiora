@@ -1,11 +1,9 @@
-import type { SupplierStatus } from '@/lib/types'
-
 // Las columnas de la vista Lista de proveedores. 'proveedor' vive aqui tambien
 // -- igual que 'estatus' en el menu de columnas de invitados -- para poder
 // mostrarla en el menu con la etiqueta "siempre" en vez de esconderla del todo.
 export type ColumnaListaKey =
   | 'proveedor' | 'categoria' | 'estatus' | 'desempeno' | 'contacto' | 'telefono'
-  | 'ciudad' | 'cotizado' | 'contratado' | 'pagado' | 'partida' | 'notas'
+  | 'ciudad' | 'cotizado' | 'contratado' | 'pagado' | 'partida' | 'notas' | 'agregado'
 
 export const COLUMNA_SIEMPRE_VISIBLE: ColumnaListaKey = 'proveedor'
 
@@ -22,24 +20,13 @@ export const COLUMNAS_LISTA: { key: ColumnaListaKey; label: string }[] = [
   { key: 'pagado',     label: 'Pagado' },
   { key: 'partida',    label: 'Partida' },
   { key: 'notas',      label: 'Notas' },
+  { key: 'agregado',   label: 'Agregado' },
 ]
 
 const VISIBLES_POR_DEFECTO: ColumnaListaKey[] = [
-  'proveedor', 'categoria', 'estatus', 'desempeno', 'contacto', 'telefono', 'cotizado', 'contratado',
+  'proveedor', 'categoria', 'estatus', 'desempeno', 'contacto', 'telefono', 'cotizado', 'contratado', 'agregado',
 ]
 
 export function columnasPorDefecto(): Set<ColumnaListaKey> {
   return new Set(VISIBLES_POR_DEFECTO)
-}
-
-// El orden que Diego pidio para "Agrupar por estado": el camino del trato y
-// descartado siempre al final, porque son los que menos le importan.
-export const ORDEN_AGRUPADO: SupplierStatus[] = ['nuevo', 'cotizado', 'contratado', 'descartado']
-
-export function agruparPorEstado<T extends { status: SupplierStatus }>(
-  items: T[],
-): { estado: SupplierStatus; items: T[] }[] {
-  return ORDEN_AGRUPADO
-    .map(estado => ({ estado, items: items.filter(item => item.status === estado) }))
-    .filter(grupo => grupo.items.length > 0)
 }
