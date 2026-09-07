@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation'
 import { Search, Plus, List, Columns3, Disc3 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import {
-  Event, EventBudget, EventSupplier, Supplier,
+  Event, EventBudget, EventSupplier, Supplier, MotivoDescarte,
   SupplierStatus, Currency, formatCurrency,
 } from '@/lib/types'
 import { Categoria, activas, agregarCategoria, cargarCategorias, nombrePorId } from '@/lib/rolodex/categorias-store'
@@ -57,6 +57,11 @@ export default function ProveedoresPage() {
   // una sola vez aqui y baja a Fichero y Kanban, para que ninguna tarjeta pida
   // sus propias reviews.
   const [desempenoPorProveedor, setDesempenoPorProveedor] = useState<Record<string, number | null>>({})
+  // Pagado y motivo de descarte por proveedor DE ESTA boda (event_supplier.id,
+  // no supplier_id): a diferencia del desempeno, que es la reputacion del
+  // proveedor en todas sus bodas, esto es especifico de esta.
+  const [paidByItem, setPaidByItem] = useState<Record<string, number>>({})
+  const [motivoDescartePorItem, setMotivoDescartePorItem] = useState<Record<string, MotivoDescarte | null>>({})
   const [viewMode, setViewMode] = useState<ViewMode>('fichero')
   const [modalOpen, setModalOpen]       = useState(false)
   const [selectedItem, setSelectedItem] = useState<SupplierWithDetails | null>(null)
@@ -70,6 +75,34 @@ export default function ProveedoresPage() {
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setUserId(data.user?.id ?? null))
   }, [])
+
+  // Se recalcula cada vez que la lista de proveedores cambia de referencia
+  // (alta, baja, cambio de estado): así Lista y Kanban no quedan con el pagado
+  // o el motivo de descarte de una versión vieja del proveedor.
+  useEffect(() => { cargarDineroYReviews(items.map(i => i.id)) }, [items])
+
+  const cargarDineroYReviews = async (ids: string[]) => {
+    if (ids.length === 0) { setPaidByItem({}); setMotivoDescartePorItem({}); return }
+
+    const [{ data: pagos, error: errPagos }, { data: descartes, error: errDescartes }] = await Promise.all([
+      supabase.from('supplier_payments').select('event_supplier_id, amount').in('event_supplier_id', ids),
+      supabase.from('supplier_reviews').select('event_supplier_id, motivo_descarte').eq('review_type', 'descarte').in('event_supplier_id', ids),
+    ])
+    if (errPagos) console.error('Error cargando pagos de proveedores:', errPagos.message ?? errPagos, errPagos)
+    if (errDescartes) console.error('Error cargando motivos de descarte:', errDescartes.message ?? errDescartes, errDescartes)
+
+    const pagosPorItem: Record<string, number> = {}
+    for (const p of (pagos ?? []) as { event_supplier_id: string; amount: number }[]) {
+      pagosPorItem[p.event_supplier_id] = (pagosPorItem[p.event_supplier_id] ?? 0) + (p.amount || 0)
+    }
+    setPaidByItem(pagosPorItem)
+
+    const motivos: Record<string, MotivoDescarte | null> = {}
+    for (const r of (descartes ?? []) as { event_supplier_id: string; motivo_descarte: MotivoDescarte | null }[]) {
+      motivos[r.event_supplier_id] = r.motivo_descarte
+    }
+    setMotivoDescartePorItem(motivos)
+  }
 
   const loadAll = async () => {
     setLoading(true)
@@ -485,11 +518,13 @@ export default function ProveedoresPage() {
             {viewMode === 'lista' && (
               <div className="hidden lg:block">
                 <SupplierListView
+                  eventId={eventId}
                   items={filtered}
                   budgets={budgets}
                   currency={currency}
                   categorias={categorias}
                   desempenoPorProveedor={desempenoPorProveedor}
+                  paidByItem={paidByItem}
                   onSelect={setSelectedItem}
                 />
               </div>
@@ -502,6 +537,8 @@ export default function ProveedoresPage() {
                   currency={currency}
                   categorias={categorias}
                   desempenoPorProveedor={desempenoPorProveedor}
+                  paidByItem={paidByItem}
+                  motivoDescartePorItem={motivoDescartePorItem}
                   onSelect={setSelectedItem}
                   onStatusChange={handleStatusChange}
                   puedeEditar={permiso.editar}

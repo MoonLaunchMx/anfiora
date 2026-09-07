@@ -1,17 +1,21 @@
 'use client'
- 
-import { useState } from 'react'
+
+import { ComponentType, useState } from 'react'
 import {
   DndContext, DragEndEvent, PointerSensor, TouchSensor,
   useSensor, useSensors, useDroppable, useDraggable,
 } from '@dnd-kit/core'
+import { Globe, Mail, Star } from 'lucide-react'
+import { FaWhatsapp } from 'react-icons/fa'
+import { FiFacebook, FiInstagram } from 'react-icons/fi'
 import {
-  Currency, formatCurrency,
+  Currency, formatCurrency, MotivoDescarte, MOTIVO_DESCARTE_LABEL,
   EventSupplier, Supplier, EventBudget, SupplierStatus,
   SUPPLIER_STATUSES, SUPPLIER_STATUS_LABELS, SUPPLIER_STATUS_COLORS,
 } from '@/lib/types'
 import { Categoria, nombrePorId } from '@/lib/rolodex/categorias-store'
-import Estrellas from '@/app/components/ui/Estrellas'
+import { contactosDe, Contacto, ContactoTipo } from '@/lib/rolodex/contactos'
+import { dineroDeTarjeta } from '@/lib/rolodex/tarjeta-kanban'
 
 type SupplierWithDetails = EventSupplier & { supplier: Supplier }
 
@@ -21,6 +25,8 @@ type Props = {
   currency: Currency
   categorias: Categoria[]
   desempenoPorProveedor: Record<string, number | null>
+  paidByItem: Record<string, number>
+  motivoDescartePorItem: Record<string, MotivoDescarte | null>
   onSelect: (item: SupplierWithDetails) => void
   onStatusChange: (itemId: string, newStatus: SupplierStatus) => void
   puedeEditar: boolean
@@ -28,14 +34,17 @@ type Props = {
 
 const VISIBLE_STATUSES: SupplierStatus[] = ['nuevo', 'cotizado', 'contratado']
 
-export default function SupplierKanbanView({ items, budgets, currency, categorias, desempenoPorProveedor, onSelect, onStatusChange, puedeEditar }: Props) {
+export default function SupplierKanbanView({
+  items, budgets, currency, categorias, desempenoPorProveedor, paidByItem, motivoDescartePorItem,
+  onSelect, onStatusChange, puedeEditar,
+}: Props) {
   const [showDescartados, setShowDescartados] = useState(false)
- 
+
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } }),
   )
- 
+
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event
     if (!over || active.id === over.id) return
@@ -43,23 +52,23 @@ export default function SupplierKanbanView({ items, budgets, currency, categoria
     if (!SUPPLIER_STATUSES.includes(newStatus as SupplierStatus)) return
     const draggedItem = items.find(i => i.id === active.id as string)
     if (!draggedItem || draggedItem.status === newStatus) return
- 
+
     onStatusChange(active.id as string, newStatus as SupplierStatus)
   }
- 
+
   const itemsByStatus: Record<SupplierStatus, SupplierWithDetails[]> = {
     nuevo: [], cotizado: [], contratado: [], descartado: [],
   }
   items.forEach(item => {
     if (itemsByStatus[item.status]) itemsByStatus[item.status].push(item)
   })
- 
+
   const descartadosCount = itemsByStatus['descartado'].length
- 
+
   return (
     <DndContext sensors={puedeEditar ? sensors : []} onDragEnd={handleDragEnd}>
       <div className="flex gap-3 overflow-x-auto pb-6" style={{ alignItems: 'flex-start' }}>
- 
+
         {/* Columnas principales */}
         {VISIBLE_STATUSES.map(status => (
           <KanbanColumn
@@ -70,11 +79,13 @@ export default function SupplierKanbanView({ items, budgets, currency, categoria
             currency={currency}
             categorias={categorias}
             desempenoPorProveedor={desempenoPorProveedor}
+            paidByItem={paidByItem}
+            motivoDescartePorItem={motivoDescartePorItem}
             onSelect={onSelect}
             puedeEditar={puedeEditar}
           />
         ))}
- 
+
         {/* Descartados — barra vertical colapsada, expande como columna */}
         <div className="flex shrink-0 flex-col" style={{ alignSelf: 'flex-start' }}>
           {!showDescartados ? (
@@ -119,6 +130,8 @@ export default function SupplierKanbanView({ items, budgets, currency, categoria
                 currency={currency}
                 categorias={categorias}
                 desempenoPorProveedor={desempenoPorProveedor}
+                paidByItem={paidByItem}
+                motivoDescartePorItem={motivoDescartePorItem}
                 onSelect={onSelect}
                 puedeEditar={puedeEditar}
                 dimmed
@@ -126,16 +139,16 @@ export default function SupplierKanbanView({ items, budgets, currency, categoria
             </div>
           )}
         </div>
- 
+
       </div>
     </DndContext>
   )
 }
- 
+
 // ── COLUMNA ───────────────────────────────────────────────────────────────
- 
+
 function KanbanColumn({
-  status, items, budgets, currency, categorias, desempenoPorProveedor, onSelect, puedeEditar, dimmed = false,
+  status, items, budgets, currency, categorias, desempenoPorProveedor, paidByItem, motivoDescartePorItem, onSelect, puedeEditar, dimmed = false,
 }: {
   status: SupplierStatus
   items: SupplierWithDetails[]
@@ -143,12 +156,14 @@ function KanbanColumn({
   currency: Currency
   categorias: Categoria[]
   desempenoPorProveedor: Record<string, number | null>
+  paidByItem: Record<string, number>
+  motivoDescartePorItem: Record<string, MotivoDescarte | null>
   onSelect: (item: SupplierWithDetails) => void
   puedeEditar: boolean
   dimmed?: boolean
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: status })
- 
+
   return (
     <div
       ref={setNodeRef}
@@ -167,7 +182,7 @@ function KanbanColumn({
         </span>
         <span className="text-[10px] font-bold text-[#888]">{items.length}</span>
       </div>
- 
+
       {/* Cards */}
       <div className="flex flex-col gap-2">
         {items.map(item => (
@@ -178,6 +193,8 @@ function KanbanColumn({
             currency={currency}
             categorias={categorias}
             desempeno={desempenoPorProveedor[item.supplier_id] ?? null}
+            pagado={paidByItem[item.id] ?? 0}
+            motivoDescarte={motivoDescartePorItem[item.id] ?? null}
             onSelect={onSelect}
             puedeEditar={puedeEditar}
           />
@@ -191,31 +208,75 @@ function KanbanColumn({
     </div>
   )
 }
- 
+
 // ── CARD KANBAN ───────────────────────────────────────────────────────────
- 
+
+const ICONO_CONTACTO: Record<ContactoTipo, ComponentType<{ size?: number; className?: string }>> = {
+  whatsapp:  FaWhatsapp,
+  correo:    Mail,
+  instagram: FiInstagram,
+  facebook:  FiFacebook,
+  sitio:     Globe,
+}
+
+const TITULO_CONTACTO: Record<ContactoTipo, string> = {
+  whatsapp:  'Abrir WhatsApp',
+  correo:    'Enviar correo',
+  instagram: 'Abrir Instagram',
+  facebook:  'Abrir Facebook',
+  sitio:     'Abrir sitio web',
+}
+
+function BotonesContacto({ contactos }: { contactos: Contacto[] }) {
+  if (contactos.length === 0) return null
+  return (
+    <div className="mt-2.5 flex flex-wrap gap-1.5 border-t border-[#f0f0f0] pt-2.5">
+      {contactos.map(contacto => {
+        const Icono = ICONO_CONTACTO[contacto.tipo]
+        return (
+          <a
+            key={contacto.tipo}
+            href={contacto.href}
+            target="_blank"
+            rel="noopener"
+            title={TITULO_CONTACTO[contacto.tipo]}
+            onClick={e => e.stopPropagation()}
+            className="flex h-6 w-6 items-center justify-center rounded-md border border-[#e0e0e0] bg-white text-[#666] transition hover:border-[#48C9B0] hover:text-[#48C9B0]"
+          >
+            <Icono size={12} />
+          </a>
+        )
+      })}
+    </div>
+  )
+}
+
 function KanbanCard({
-  item, budgets, currency, categorias, desempeno, onSelect, puedeEditar,
+  item, budgets, currency, categorias, desempeno, pagado, motivoDescarte, onSelect, puedeEditar,
 }: {
   item: SupplierWithDetails
   budgets: EventBudget[]
   currency: Currency
   categorias: Categoria[]
   desempeno: number | null
+  pagado: number
+  motivoDescarte: MotivoDescarte | null
   onSelect: (item: SupplierWithDetails) => void
   puedeEditar: boolean
 }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: item.id })
- 
+
+  const dinero = dineroDeTarjeta(item, pagado, motivoDescarte)
+  const contactos = contactosDe(item.supplier)
+
   const linkedBudget = budgets.find(b => b.id === item.event_budget_id)
-  const meta         = linkedBudget?.budget_amount ?? null
-  const cotizado     = item.quoted_amount ?? item.contract_amount ?? null
-  const exceeds      = meta !== null && cotizado !== null && cotizado > meta
- 
+  const meta = linkedBudget?.budget_amount ?? null
+  const exceeds = dinero.tipo === 'contratado' && meta !== null && dinero.contratado > meta
+
   const style = transform
     ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` }
     : undefined
-  
+
   return (
     <div
       ref={setNodeRef}
@@ -229,40 +290,54 @@ function KanbanCard({
         isDragging ? 'opacity-50 shadow-lg' : 'hover:border-[#48C9B0] hover:shadow-sm'
       }`}
     >
-      {/* Categoría */}
-      <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-[#888]">
-        {nombrePorId(categorias, item.supplier.category_id)}
-      </p>
- 
-      {/* Nombre */}
-      <p className="text-xs font-bold text-[#1D1E20]">{item.supplier.name}</p>
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="truncate text-xs font-bold text-[#1D1E20]">{item.supplier.name}</p>
+          <p className="mt-0.5 truncate text-[10px] text-[#888]">
+            {[nombrePorId(categorias, item.supplier.category_id), item.supplier.city].filter(Boolean).join(' · ')}
+          </p>
+        </div>
+        {desempeno != null && (
+          <span className="flex shrink-0 items-center gap-0.5 text-[11px] font-semibold tabular-nums text-[#1D1E20]">
+            <Star size={11} className="fill-[#d4a853] text-[#d4a853]" />
+            {desempeno.toFixed(1)}
+          </span>
+        )}
+      </div>
 
-      {/* Desempeño */}
-      <Estrellas score={desempeno} tamano={10} className="mt-1" />
- 
-      {/* Concepto */}
-      {linkedBudget && (
-        <p className="mt-0.5 text-[10px] text-[#aaa]">
-          {linkedBudget.subcategory || nombrePorId(categorias, linkedBudget.category_id)}
+      {dinero.tipo === 'descarte' && (
+        <p className="mt-2.5 border-t border-[#f0f0f0] pt-2.5 text-[11px] text-[#A63B27]">
+          {dinero.motivo ? MOTIVO_DESCARTE_LABEL[dinero.motivo] : 'Sin motivo registrado'}
         </p>
       )}
- 
-      {/* Monto */}
-      {cotizado !== null && (
-        <p className={`mt-2 text-xs font-semibold tabular-nums ${exceeds ? 'text-amber-600' : 'text-[#48C9B0]'}`}>
-          {formatCurrency(cotizado, currency)}
-          {meta !== null && (
-            <span className="font-normal text-[#bbb]"> / {formatCurrency(meta, currency)}</span>
-          )}
-        </p>
+
+      {dinero.tipo === 'contratado' && (
+        <div className="mt-2.5 flex gap-4 border-t border-[#f0f0f0] pt-2.5">
+          <div>
+            <p className="text-[9px] font-semibold uppercase tracking-wider text-[#aaa]">Contratado</p>
+            <p className={`text-[13px] font-bold tabular-nums ${exceeds ? 'text-amber-600' : 'text-[#1D1E20]'}`}>
+              {formatCurrency(dinero.contratado, currency)}
+            </p>
+          </div>
+          <div>
+            <p className="text-[9px] font-semibold uppercase tracking-wider text-[#aaa]">Pagado</p>
+            <p className="text-[13px] font-bold tabular-nums text-[#1D9E75]">
+              {formatCurrency(dinero.pagado, currency)}
+            </p>
+          </div>
+        </div>
       )}
- 
-      {/* Notas truncadas */}
-      {item.event_notes && (
-        <p className="mt-1.5 truncate text-[10px] text-[#aaa]">
-          {item.event_notes}
-        </p>
+
+      {dinero.tipo === 'cotizado' && (
+        <div className="mt-2.5 border-t border-[#f0f0f0] pt-2.5">
+          <p className="text-[9px] font-semibold uppercase tracking-wider text-[#aaa]">Cotizado</p>
+          <p className="text-[13px] font-bold tabular-nums text-[#1D1E20]">
+            {formatCurrency(dinero.cotizado, currency)}
+          </p>
+        </div>
       )}
+
+      <BotonesContacto contactos={contactos} />
     </div>
   )
 }

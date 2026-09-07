@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ChevronDown, ChevronUp, ExternalLink, Globe, Mail, MapPin, Phone } from 'lucide-react'
+import { ChevronDown, ChevronUp, Globe, Mail, MapPin, Phone } from 'lucide-react'
 import { FaWhatsapp } from 'react-icons/fa'
 import { FiInstagram } from 'react-icons/fi'
 import {
@@ -309,7 +309,6 @@ export default function SupplierFicheroView({ items, budgets, currency, categori
                   arrastrando={arrastrando}
                   desplazamiento={off}
                   onClick={() => alClicarFicha(i)}
-                  onAbrir={() => abrirFicha(item)}
                 />
               )
             })}
@@ -344,7 +343,7 @@ export default function SupplierFicheroView({ items, budgets, currency, categori
   )
 }
 
-function Ficha({ item, budgets, currency, categorias, desempeno, activa, arrastrando, desplazamiento, paso, radio, onClick, onAbrir }: {
+function Ficha({ item, budgets, currency, categorias, desempeno, activa, arrastrando, desplazamiento, paso, radio, onClick }: {
   item: SupplierWithDetails
   budgets: EventBudget[]
   currency: Currency
@@ -356,7 +355,6 @@ function Ficha({ item, budgets, currency, categorias, desempeno, activa, arrastr
   paso: number
   radio: number
   onClick: () => void
-  onAbrir: () => void
 }) {
   const s = item.supplier
   const categoria = nombrePorId(categorias, s.category_id)
@@ -530,12 +528,6 @@ function Ficha({ item, budgets, currency, categorias, desempeno, activa, arrastr
                 <Mail size={14} /> Correo
               </button>
             )}
-            <button
-              onClick={e => { e.stopPropagation(); onAbrir() }}
-              className="flex items-center gap-1.5 rounded-lg border border-[#e0e0e0] bg-white px-3 py-1.5 text-xs font-medium text-[#1D1E20] transition hover:bg-[#f5f5f5]"
-            >
-              <ExternalLink size={14} /> Ver ficha
-            </button>
           </div>
         )}
 

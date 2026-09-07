@@ -875,21 +875,33 @@ export default function FichaDelEvento({
           ) : !reviewContratacion && !reviewDescarte && !reviewPostEvento && !bodaPaso ? (
             <p className="text-xs text-[#999]">Nadie ha calificado a este proveedor todavía.</p>
           ) : (
-            <div className="space-y-6">
+            <div className="space-y-3">
               {reviewContratacion && (
-                <GrupoReview titulo="Al contratarlo">
+                <SeccionReview
+                  titulo="Al contratarlo"
+                  descripcion="Cómo evaluaste la propuesta antes de contratarlo."
+                  score={scores.propuesta}
+                >
                   <ResumenContratacion review={reviewContratacion} scorePropuesta={scores.propuesta} />
-                </GrupoReview>
+                </SeccionReview>
               )}
 
               {reviewDescarte && (
-                <GrupoReview titulo="Por qué se descartó">
+                <SeccionReview
+                  titulo="Por qué se descartó"
+                  descripcion="Por qué no siguió en el trato."
+                  score={scores.propuesta}
+                >
                   <ResumenDescarte review={reviewDescarte} scorePropuesta={scores.propuesta} />
-                </GrupoReview>
+                </SeccionReview>
               )}
 
               {reviewPostEvento ? (
-                <GrupoReview titulo="Después del evento">
+                <SeccionReview
+                  titulo="Después de la boda"
+                  descripcion="Cómo se desempeñó el día de la boda."
+                  score={scores.desempeno}
+                >
                   <ResumenPostEvento
                     review={reviewPostEvento}
                     currency={currency}
@@ -897,9 +909,13 @@ export default function FichaDelEvento({
                     candado={candado}
                     onEditar={() => setMostrarModalDesempeno(true)}
                   />
-                </GrupoReview>
+                </SeccionReview>
               ) : bodaPaso ? (
-                <GrupoReview titulo="Después del evento">
+                <SeccionReview
+                  titulo="Después de la boda"
+                  descripcion="Cómo se desempeñó el día de la boda."
+                  score={scores.desempeno}
+                >
                   {permisoFicha.editar ? (
                     <button
                       onClick={() => setMostrarModalDesempeno(true)}
@@ -910,7 +926,7 @@ export default function FichaDelEvento({
                   ) : (
                     <p className="text-xs text-[#999]">Todavía no se calificó el desempeño de este proveedor.</p>
                   )}
-                </GrupoReview>
+                </SeccionReview>
               ) : null}
             </div>
           )
@@ -1128,11 +1144,38 @@ function Texto({ valor, vacio }: { valor: string | null; vacio: string }) {
   return <p className="whitespace-pre-wrap text-sm text-[#555]">{valor}</p>
 }
 
-function GrupoReview({ titulo, children }: { titulo: string; children: React.ReactNode }) {
+// Cada momento de la review arranca cerrado: el header ya trae el titulo, que
+// mide y su calificacion, y eso es lo que se necesita para escanear la ficha
+// sin abrir nada.
+function SeccionReview({ titulo, descripcion, score, children }: {
+  titulo: string
+  descripcion: string
+  score: number | null
+  children: React.ReactNode
+}) {
+  const [abierta, setAbierta] = useState(false)
   return (
-    <section className="space-y-4 border-b border-dashed border-[#eee] pb-6 last:border-b-0 last:pb-0">
-      <h3 className="text-[13px] font-bold text-[#1D1E20]">{titulo}</h3>
-      {children}
+    <section className="overflow-hidden rounded-xl border border-[#eee]">
+      <button
+        type="button"
+        onClick={() => setAbierta(v => !v)}
+        aria-expanded={abierta}
+        className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition hover:bg-[#fafafa]"
+      >
+        <span className="min-w-0">
+          <span className="block text-[13px] font-bold text-[#1D1E20]">{titulo}</span>
+          <span className="block truncate text-[11px] text-[#999]">{descripcion}</span>
+        </span>
+        <span className="flex shrink-0 items-center gap-3">
+          <Estrellas score={score} tamano={13} />
+          <ChevronDown size={14} className={`text-[#999] transition-transform ${abierta ? 'rotate-180' : ''}`} />
+        </span>
+      </button>
+      {abierta && (
+        <div className="space-y-4 border-t border-[#eee] px-4 py-4">
+          {children}
+        </div>
+      )}
     </section>
   )
 }
