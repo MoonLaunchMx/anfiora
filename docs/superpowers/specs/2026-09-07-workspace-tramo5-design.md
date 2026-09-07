@@ -231,6 +231,7 @@ Reversible: el bloque de deshacer borra las filas de miembro que este script cre
 
 - **Stripe.** Cobrar, `price_id`, portal. El catálogo deja el lugar.
 - **Tope de asientos.** Se cuenta y se avisa; no se bloquea por encima de los incluidos.
+- **El medidor de Free: 1 boda al mes.** Es del paywall, no de aquí; `workspaces.plan` es lo que lo hace posible. Decidido el 7-sep: se cuenta **por mes de creación** ("puedes crear una boda al mes"), no por la fecha en que ocurre. Free no esconde módulos: sus tres palancas son bodas (1 al mes), equipo (solo el dueño) e historial (7 días). Cerrar herramientas por plan metería un segundo sistema de acceso encima del de permisos por persona.
 - **Transferir la propiedad.** Soporte manual (decisión 4).
 - **Selector de workspace activo.** Decisión 2.
 - **Ventana de Actividad por plan.** Función lista, corte después.
