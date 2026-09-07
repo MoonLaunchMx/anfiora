@@ -2,7 +2,7 @@
 'use client'
 import { supabase } from '@/lib/supabase'
 import { normalizarPlan } from './planes'
-import type { WorkspaceListado, WorkspaceResumen } from './tipos'
+import type { RolWorkspace, WorkspaceListado, WorkspaceResumen } from './tipos'
 
 export async function bearer(): Promise<Record<string, string> | null> {
   const { data: { session } } = await supabase.auth.getSession()
@@ -38,6 +38,28 @@ export async function misWorkspacesAdministrados(): Promise<WorkspaceListado[]> 
     id: f.workspaces.id, name: f.workspaces.name,
     plan: normalizarPlan(planes.get(f.workspaces.id)), miRol: f.rol,
   }))
+}
+
+// Para el header del colaborador en /configuracion: no filtra por rol (a
+// diferencia de misWorkspacesAdministrados), solo quiere saber en que
+// workspace participa y con que rol. Tolerante a error: nunca debe romper
+// el header, en el peor caso no se muestra la linea "Colaborador en...".
+export async function miMembresia(): Promise<{ rol: RolWorkspace; workspaceName: string } | null> {
+  try {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return null
+    const { data, error } = await supabase
+      .from('workspace_members')
+      .select('rol, workspaces ( name )')
+      .eq('user_id', user.id).eq('status', 'active')
+    if (error || !data) return null
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const fila = (data as any[]).find(f => f.workspaces)
+    if (!fila) return null
+    return { rol: fila.rol as RolWorkspace, workspaceName: String(fila.workspaces.name) }
+  } catch {
+    return null
+  }
 }
 
 export async function fetchWorkspace(id?: string) {

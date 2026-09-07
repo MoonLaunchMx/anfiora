@@ -5,6 +5,12 @@ import { withSentryConfig } from "@sentry/nextjs";
 // (CSS y JS) cuando la app se abre por un tunel para probar en un telefono real.
 const nextConfig: NextConfig = {
   allowedDevOrigins: ['*.trycloudflare.com', '*.ngrok-free.app', '192.168.0.15'],
+  async redirects() {
+    return [
+      { source: '/cuenta', destination: '/configuracion/equipo', permanent: false },
+      { source: '/cuenta/:path*', destination: '/configuracion/equipo', permanent: false },
+    ];
+  },
 };
 
 export default withSentryConfig(nextConfig, {

@@ -12,7 +12,7 @@ interface BeforeInstallPromptEvent extends Event {
 const DISMISS_KEY = 'anfiora_install_dismissed'
 const COOLDOWN_MS = 14 * 24 * 60 * 60 * 1000
 const ENGAGEMENT_MS = 30 * 1000
-const AUTHED_PREFIXES = ['/dashboard', '/events', '/perfil', '/cuenta', '/admin']
+const AUTHED_PREFIXES = ['/dashboard', '/events', '/perfil', '/cuenta', '/configuracion', '/admin']
 
 function readDismissed(): string | null {
   try {

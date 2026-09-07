@@ -463,7 +463,7 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
       </div>
       {administra && (
         <button
-          onClick={() => { setAvatarOpen(false); irA('/cuenta/equipo') }}
+          onClick={() => { setAvatarOpen(false); irA('/configuracion/equipo') }}
           className="flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-xs text-[#555] transition hover:bg-[#f8f8f8]"
         >
           <Building2 size={14} className="text-[#aaa]" />
@@ -471,7 +471,7 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
         </button>
       )}
       <button
-        onClick={() => { setAvatarOpen(false); irA('/perfil') }}
+        onClick={() => { setAvatarOpen(false); irA('/configuracion/perfil') }}
         className="flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-xs text-[#555] transition hover:bg-[#f8f8f8]"
       >
         <User size={14} className="text-[#aaa]" />
@@ -577,7 +577,7 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
               </div>
               {administra && (
                 <button
-                  onClick={() => { setAvatarOpen(false); irA('/cuenta/equipo') }}
+                  onClick={() => { setAvatarOpen(false); irA('/configuracion/equipo') }}
                   className="flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-xs text-[#555] transition hover:bg-[#f8f8f8]"
                 >
                   <Building2 size={14} className="text-[#aaa]" />
@@ -585,7 +585,7 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
                 </button>
               )}
               <button
-                onClick={() => { setAvatarOpen(false); irA('/perfil') }}
+                onClick={() => { setAvatarOpen(false); irA('/configuracion/perfil') }}
                 className="flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-xs text-[#555] transition hover:bg-[#f8f8f8]"
               >
                 <User size={14} className="text-[#aaa]" />

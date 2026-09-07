@@ -10,6 +10,7 @@ export default function robots(): MetadataRoute.Robots {
         '/events/',
         '/perfil',
         '/cuenta',
+        '/configuracion',
         '/admin',
         '/mensajes',
         '/api/',

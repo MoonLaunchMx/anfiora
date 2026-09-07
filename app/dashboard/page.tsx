@@ -623,7 +623,7 @@ export default function Dashboard() {
             </button>
             {administra && (
               <button
-                onClick={() => window.location.href = '/cuenta/equipo'}
+                onClick={() => window.location.href = '/configuracion/equipo'}
                 title="Mi workspace"
                 className="flex items-center gap-1.5 rounded-lg border border-[#e0e0e0] px-2.5 py-2 text-xs text-[#888] transition hover:border-[#48C9B0] hover:text-[#1a9e88]"
               >
@@ -632,7 +632,7 @@ export default function Dashboard() {
               </button>
             )}
             <button
-              onClick={() => window.location.href = '/perfil'}
+              onClick={() => window.location.href = '/configuracion/perfil'}
               title="Mi perfil"
               className="flex items-center gap-2 rounded-lg border border-[#e0e0e0] p-1 transition hover:border-[#48C9B0] sm:pr-3"
             >
