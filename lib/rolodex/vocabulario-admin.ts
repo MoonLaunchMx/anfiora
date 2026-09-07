@@ -1,6 +1,9 @@
 import { normalizarCategoria } from './categorias'
 
-export type Uso = { proveedores: number; partidas: number }
+// eventos es opcional: solo se llena cuando la pantalla que la usa ya cargo
+// event_id junto con category_id, y nunca decide si una categoria se puede
+// borrar (eso lo siguen decidiendo proveedores y partidas).
+export type Uso = { proveedores: number; partidas: number; eventos?: number }
 
 export type CategoriaConUso = {
   id: string

@@ -8,33 +8,57 @@ import { activas, nombrePorId, type Categoria } from './categorias-store'
 export const SECCION_SIN_CATEGORIA = 'Sin categoría'
 
 // Las secciones del presupuesto son las categorias VIVAS del despacho, no una
-// lista fija de texto. Una lista fija no ve las categorias que el planner crea
-// desde Proveedores, y ademas duplica secciones cuando su grafia difiere de la
-// de la tabla ("Planeacion" contra "Planeación").
-// `orden` es la preferencia por evento (event_settings.budget_categories): solo
-// ordena, nunca filtra, porque filtrar volveria a esconder lo recien creado.
+// lista fija de texto. `seleccion` es la eleccion de ESTE evento (event_settings.
+// budget_categories): vacia o nula significa "todas las categorias activas del
+// catalogo" -- es el comportamiento de siempre para toda boda que nunca lo
+// personalizo, y tiene que seguir siendolo aunque la lista deje de ser solo
+// orden y pase a filtrar. Una seleccion no vacia SI filtra: solo entran los
+// nombres elegidos, en ese orden. Un nombre elegido que ya no existe en el
+// catalogo (se borro o se archivo) se ignora en silencio, nunca inventa seccion.
 export function seccionesDelPresupuesto(
   categorias: Categoria[],
-  orden: string[] | null | undefined,
+  seleccion: string[] | null | undefined,
 ): string[] {
   const vivas = activas(categorias)
+
+  if (!seleccion || seleccion.length === 0) {
+    return vivas.map(c => c.name)
+  }
+
   const puestas = new Set<string>()
   const secciones: string[] = []
-
-  for (const nombre of orden ?? []) {
+  for (const nombre of seleccion) {
     const cat = vivas.find(c => mismaCategoria(c.name, nombre))
     if (cat && !puestas.has(cat.id)) {
       secciones.push(cat.name)
       puestas.add(cat.id)
     }
   }
-  for (const cat of vivas) {
-    if (!puestas.has(cat.id)) {
-      secciones.push(cat.name)
-      puestas.add(cat.id)
-    }
-  }
   return secciones
+}
+
+// Quitar una categoria de la boda no toca el catalogo: solo dice que esta
+// boda ya no la muestra. Si la lista guardada estaba vacia (== "todas"), hay
+// que materializarla completa primero -- si solo se guardara la ausencia de
+// un nombre, una lista vacia se seguiria leyendo como "todas", incluida la
+// que se acaba de quitar.
+export function quitarDeSeleccion(
+  categorias: Categoria[],
+  seleccion: string[] | null | undefined,
+  nombre: string,
+): string[] {
+  return seccionesDelPresupuesto(categorias, seleccion).filter(c => !mismaCategoria(c, nombre))
+}
+
+// Una categoria con partidas en ESTA boda no se puede quitar sin antes mover
+// esas partidas a otra: quitarla las escondería junto con su monto -- lo mismo
+// que SECCION_SIN_CATEGORIA existe para evitar cuando la categoria se archiva
+// desde el catalogo, pero aqui se previene antes de que llegue a pasar.
+export function tienePartidasEnEvento<T extends { category_id?: string | null }>(
+  partidas: T[],
+  categoriaId: string,
+): boolean {
+  return partidas.some(p => p.category_id === categoriaId)
 }
 
 export function agruparPorSeccion<T extends { category_id?: string | null }>(

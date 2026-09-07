@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Trash2, Plus, GripVertical, AlertTriangle } from 'lucide-react'
+import { EyeOff, Plus, GripVertical, AlertTriangle } from 'lucide-react'
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
@@ -12,14 +12,14 @@ interface Props {
   categories: string[]
   itemCountByCategory: Record<string, number>
   onAdd: (name: string) => void
-  onDelete: (name: string) => void
+  onQuitar: (name: string) => void
   onReorder: (next: string[]) => void
   onClose: () => void
   error?: string
-  puedeBorrar: boolean
+  puedeQuitar: boolean
 }
 
-function Row({ name, count, onDelete, puedeBorrar }: { name: string; count: number; onDelete: (n: string) => void; puedeBorrar: boolean }) {
+function Row({ name, count, onQuitar, puedeQuitar }: { name: string; count: number; onQuitar: (n: string) => void; puedeQuitar: boolean }) {
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: name })
   const style = { transform: CSS.Transform.toString(transform), transition }
   return (
@@ -27,14 +27,14 @@ function Row({ name, count, onDelete, puedeBorrar }: { name: string; count: numb
       <button {...attributes} {...listeners} className="cursor-grab text-[#ccc] hover:text-[#888]"><GripVertical size={15} /></button>
       <span className="flex-1 text-left text-sm text-[#1D1E20]">{categoryLabel(name)}</span>
       {count > 0 && <span className="text-[11px] text-[#aaa]">{count}</span>}
-      {puedeBorrar && (
-        <button onClick={() => onDelete(name)} className="text-[#ccc] hover:text-[#cc3333]"><Trash2 size={14} /></button>
+      {puedeQuitar && (
+        <button onClick={() => onQuitar(name)} title="Quitar de esta boda" className="text-[#ccc] hover:text-[#cc3333]"><EyeOff size={14} /></button>
       )}
     </div>
   )
 }
 
-export function BudgetCategoriesModal({ categories, itemCountByCategory, onAdd, onDelete, onReorder, onClose, error, puedeBorrar }: Props) {
+export function BudgetCategoriesModal({ categories, itemCountByCategory, onAdd, onQuitar, onReorder, onClose, error, puedeQuitar }: Props) {
   const [adding, setAdding] = useState(false)
   const [newName, setNewName] = useState('')
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
@@ -50,7 +50,7 @@ export function BudgetCategoriesModal({ categories, itemCountByCategory, onAdd, 
 
   return (
     <Modal open onClose={onClose} size="md">
-      <Modal.Header title="Categorías" subtitle="Para cambiar el nombre de una categoría, ve a Ajustes › Categorías" />
+      <Modal.Header title="Categorías" subtitle="Quitar solo la oculta en esta boda. Para renombrarla o archivarla del catálogo, ve a Ajustes › Categorías" />
       <Modal.Body>
         {error && (
           <div className="mb-3 flex items-start gap-2 rounded-lg border p-3" style={{ background: 'var(--error-bg)', borderColor: 'var(--error-border)' }}>
@@ -62,7 +62,7 @@ export function BudgetCategoriesModal({ categories, itemCountByCategory, onAdd, 
           <SortableContext items={categories} strategy={verticalListSortingStrategy}>
             <div className="flex flex-col gap-1.5">
               {categories.map(c => (
-                <Row key={c} name={c} count={itemCountByCategory[c] || 0} onDelete={onDelete} puedeBorrar={puedeBorrar} />
+                <Row key={c} name={c} count={itemCountByCategory[c] || 0} onQuitar={onQuitar} puedeQuitar={puedeQuitar} />
               ))}
             </div>
           </SortableContext>

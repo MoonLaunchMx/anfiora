@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
-  SECCION_SIN_CATEGORIA, seccionesDelPresupuesto, agruparPorSeccion,
+  SECCION_SIN_CATEGORIA, seccionesDelPresupuesto, quitarDeSeleccion, tienePartidasEnEvento,
+  agruparPorSeccion,
 } from './secciones-presupuesto'
 import type { Categoria } from './categorias-store'
 
@@ -12,35 +13,63 @@ const PLANEACION = cat('2', 'Planeación')
 const TRANSPORTE = cat('3', 'Transporte')
 
 describe('seccionesDelPresupuesto', () => {
-  it('las secciones salen de la tabla, no de una lista fija', () => {
-    expect(seccionesDelPresupuesto([VENUE, TRANSPORTE], null))
-      .toEqual(['Venue', 'Transporte'])
+  it('una seleccion vacia o nula muestra todas las categorias activas del catalogo', () => {
+    expect(seccionesDelPresupuesto([VENUE, TRANSPORTE], null)).toEqual(['Venue', 'Transporte'])
+    expect(seccionesDelPresupuesto([VENUE, TRANSPORTE], [])).toEqual(['Venue', 'Transporte'])
   })
 
-  it('una categoria recien creada aparece aunque el orden guardado no la mencione', () => {
-    expect(seccionesDelPresupuesto([VENUE, TRANSPORTE], ['Venue']))
-      .toEqual(['Venue', 'Transporte'])
+  it('una seleccion no vacia filtra: solo entra lo elegido, en ese orden', () => {
+    expect(seccionesDelPresupuesto([VENUE, PLANEACION, TRANSPORTE], ['Transporte', 'Planeación']))
+      .toEqual(['Transporte', 'Planeación'])
   })
 
-  it('un orden guardado sin acento no duplica la seccion acentuada de la tabla', () => {
+  it('una seleccion sin acento no duplica la seccion acentuada de la tabla', () => {
     const secciones = seccionesDelPresupuesto([PLANEACION, VENUE], ['Planeacion', 'Venue'])
     expect(secciones).toEqual(['Planeación', 'Venue'])
     expect(secciones.filter(s => s.toLowerCase().startsWith('plane'))).toHaveLength(1)
   })
 
-  it('el orden guardado manda sobre el alfabetico de la tabla', () => {
-    expect(seccionesDelPresupuesto([VENUE, PLANEACION, TRANSPORTE], ['Transporte', 'Planeación']))
-      .toEqual(['Transporte', 'Planeación', 'Venue'])
-  })
-
-  it('una categoria archivada deja de ser seccion', () => {
+  it('una categoria archivada deja de ser seccion aunque una seleccion vacia pediria "todas"', () => {
     expect(seccionesDelPresupuesto([VENUE, cat('9', 'Vieja', '2026-01-01')], null))
       .toEqual(['Venue'])
   })
 
-  it('un nombre del orden guardado que ya no existe en la tabla no inventa seccion', () => {
-    expect(seccionesDelPresupuesto([VENUE], ['Venue', 'Borrada']))
-      .toEqual(['Venue'])
+  it('un nombre de la seleccion que ya no existe en la tabla no inventa seccion', () => {
+    expect(seccionesDelPresupuesto([VENUE], ['Venue', 'Borrada'])).toEqual(['Venue'])
+  })
+})
+
+describe('quitarDeSeleccion', () => {
+  it('sobre una seleccion vacia, materializa el catalogo completo menos la quitada', () => {
+    expect(quitarDeSeleccion([VENUE, PLANEACION, TRANSPORTE], null, 'Venue'))
+      .toEqual(['Planeación', 'Transporte'])
+  })
+
+  it('sobre una seleccion explicita, solo quita el nombre pedido', () => {
+    expect(quitarDeSeleccion([VENUE, PLANEACION, TRANSPORTE], ['Transporte', 'Venue'], 'Venue'))
+      .toEqual(['Transporte'])
+  })
+
+  it('quitar un nombre que ya no esta en la seleccion no hace nada', () => {
+    expect(quitarDeSeleccion([VENUE, PLANEACION], ['Venue'], 'Planeación')).toEqual(['Venue'])
+  })
+
+  it('ignora acentos al quitar', () => {
+    expect(quitarDeSeleccion([PLANEACION, VENUE], null, 'Planeacion')).toEqual(['Venue'])
+  })
+})
+
+describe('tienePartidasEnEvento', () => {
+  it('reporta true cuando alguna partida usa esa categoria', () => {
+    expect(tienePartidasEnEvento([{ category_id: '1' }, { category_id: '2' }], '1')).toBe(true)
+  })
+
+  it('reporta false cuando ninguna partida la usa', () => {
+    expect(tienePartidasEnEvento([{ category_id: '2' }], '1')).toBe(false)
+  })
+
+  it('ignora partidas sin categoria', () => {
+    expect(tienePartidasEnEvento([{ category_id: null }], '1')).toBe(false)
   })
 })
 

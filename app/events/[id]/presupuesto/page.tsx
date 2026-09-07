@@ -30,8 +30,10 @@ import ReviewDescarteModal from '../proveedores/ReviewDescarteModal'
 import { Modal } from '@/app/components/ui/Modal'
 import { Categoria, cargarCategorias, buscarPorNombre, nombrePorId, crearCategoria } from '@/lib/rolodex/categorias-store'
 import { mismaCategoria } from '@/lib/rolodex/categorias'
-import { SECCION_SIN_CATEGORIA, agruparPorSeccion, seccionesDelPresupuesto } from '@/lib/rolodex/secciones-presupuesto'
-import { archivar } from '@/lib/rolodex/aplicar-cambios'
+import {
+  SECCION_SIN_CATEGORIA, agruparPorSeccion, seccionesDelPresupuesto,
+  quitarDeSeleccion, tienePartidasEnEvento,
+} from '@/lib/rolodex/secciones-presupuesto'
 import { usePermiso } from '@/lib/event-access-context'
 import { Puede } from '@/lib/permisos/Puede'
 
@@ -489,52 +491,40 @@ export default function PresupuestoPage() {
     setNewCategoryName(''); setAddingCategory(false)
   }
 
-  const deleteCategory = async (name: string) => {
-    if (!permiso.borrar) return
-    const count = (itemsByCategory[name] || []).length
-    const borrada = buscarPorNombre(categorias, name)
-    if (!borrada) {
+  // Quitar una categoria aqui SOLO la oculta en ESTA boda: nunca toca el
+  // catalogo del despacho. Archivar el catalogo completo es una decision de
+  // cuenta -- vive en Ajustes › Categorías, para dueño y administradores -- no
+  // algo que un editor pueda hacer sin querer desde una sola boda.
+  const quitarCategoria = async (name: string) => {
+    if (!permiso.editar) return
+    setCategoryDeleteError('')
+
+    const categoria = buscarPorNombre(categorias, name)
+    if (!categoria) {
       setCategoryDeleteError('Esa categoría ya no está en tu catálogo.')
       return
     }
 
-    const ok = await askConfirm({
-      title: `¿Quitar la categoría "${categoryLabel(name)}"?`,
-      message: count > 0
-        ? `Sus ${count === 1 ? 'concepto pasa' : `${count} conceptos pasan`} a "Otro". No se pierde ningún monto. La categoría se oculta de tu catálogo y puedes restaurarla en Ajustes › Categorías.`
-        : 'La categoría se oculta de tu catálogo y deja de ofrecerse en tus eventos. Puedes restaurarla en Ajustes › Categorías.',
-      confirmLabel: 'Quitar categoría',
-    })
-    if (!ok) return
-    setCategoryDeleteError('')
-
-    // La reasignacion tiene que quedar hecha ANTES de ocultar la categoria: si
-    // aborta aqui, las partidas siguen visibles donde estaban en vez de caer al
-    // cajon de rescate sin haberse movido a ningun lado.
-    if (count > 0) {
-      const otroId = buscarPorNombre(categorias, 'Otro')?.id ?? null
-      if (!otroId) {
-        setCategoryDeleteError('No se pudo mover los conceptos a "Otro", así que la categoría no se quitó. Tus partidas siguen donde estaban.')
-        return
-      }
-      const { error } = await supabase.from('event_budgets').update({ category_id: otroId }).eq('event_id', eventId).eq('category_id', borrada.id)
-      if (error) {
-        setCategoryDeleteError('No se pudieron mover los conceptos a "Otro", así que la categoría no se quitó. Tus partidas siguen donde estaban.')
-        return
-      }
-    }
-
-    // La seccion sale de la pantalla porque la categoria queda archivada en el
-    // catalogo: la lista de secciones ya no es texto por evento.
-    const res = await archivar(borrada.id)
-    if (!res.ok) {
-      setCategoryDeleteError('No se pudo quitar la categoría de tu catálogo. Vuelve a intentarlo.')
-      await loadAll()
+    if (tienePartidasEnEvento(budgets, categoria.id)) {
+      const count = (itemsByCategory[name] || []).length
+      await askConfirm({
+        title: `No se puede quitar "${categoryLabel(name)}"`,
+        message: `${categoryLabel(name)} tiene ${count === 1 ? '1 partida' : `${count} partidas`} en esta boda. Para quitarla, primero mueve esas partidas a otra categoría. La categoría sigue disponible en tu catálogo.`,
+        confirmLabel: 'Entendido',
+        soloAviso: true,
+      })
       return
     }
-    setCategorias(prev => prev.map(c => c.id === borrada.id ? { ...c, archived_at: new Date().toISOString() } : c))
-    await persistCategories(seccionesCatalogo.filter(c => !mismaCategoria(c, name)))
-    await loadAll()
+
+    const ok = await askConfirm({
+      title: `¿Quitar "${categoryLabel(name)}" de esta boda?`,
+      message: 'Deja de mostrarse en esta boda. Sigue disponible en tu catálogo y en tus demás eventos.',
+      confirmLabel: 'Quitar de esta boda',
+      tone: 'default',
+    })
+    if (!ok) return
+
+    await persistCategories(quitarDeSeleccion(categorias, storedCategories, name))
   }
 
   const reorderCategories = (next: string[]) => persistCategories(next)
@@ -838,10 +828,10 @@ export default function PresupuestoPage() {
           categories={seccionesCatalogo}
           itemCountByCategory={Object.fromEntries(seccionesCatalogo.map(c => [c, (itemsByCategory[c] || []).length]))}
           onAdd={addCategory}
-          onDelete={deleteCategory}
+          onQuitar={quitarCategoria}
           onReorder={reorderCategories}
           error={categoryDeleteError}
-          puedeBorrar={permiso.borrar}
+          puedeQuitar={permiso.editar}
           onClose={() => { setShowCategoriesModal(false); setCategoryDeleteError('') }}
         />
       )}
