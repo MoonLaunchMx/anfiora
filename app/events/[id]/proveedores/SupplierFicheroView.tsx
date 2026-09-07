@@ -31,6 +31,8 @@ type Props = {
   onStatusChange: (itemId: string, nuevo: SupplierStatus) => void
   onSaved: (item: SupplierWithDetails) => void
   onQuitada: (itemId: string) => void
+  enfocar?: SupplierWithDetails | null
+  onEnfocado?: () => void
 }
 
 // Una ficha no se encima sobre la de enfrente mientras se cumpla
@@ -62,7 +64,7 @@ function useEsEscritorio(): boolean {
   return esEscritorio
 }
 
-export default function SupplierFicheroView({ items, budgets, currency, categorias, bodaPaso, desempenoPorProveedor, onSelect, onStatusChange, onSaved, onQuitada }: Props) {
+export default function SupplierFicheroView({ items, budgets, currency, categorias, bodaPaso, desempenoPorProveedor, onSelect, onStatusChange, onSaved, onQuitada, enfocar, onEnfocado }: Props) {
   const esEscritorio = useEsEscritorio()
   const [abierta, setAbierta] = useState<SupplierWithDetails | null>(null)
   const fichas = useMemo(() => ordenarFichas(items), [items])
@@ -91,6 +93,19 @@ export default function SupplierFicheroView({ items, budgets, currency, categori
   useEffect(() => {
     setAbierta(previa => (previa && fichas.find(f => f.id === previa.id)) || fichas[0] || null)
   }, [fichas])
+
+  // Recien creado o vinculado desde la alta: abrir su ficha como si se hubiera
+  // tocado su tarjeta. Si el filtro activo lo deja fuera del carrusel igual se
+  // muestra en el panel (o en FichaModal en movil) — solo se pierde el giro
+  // hacia su posicion, que ahi no existe.
+  useEffect(() => {
+    if (!enfocar) return
+    const indice = fichas.findIndex(f => f.id === enfocar.id)
+    if (indice !== -1) setActivo(indice)
+    if (esEscritorio) setAbierta(enfocar)
+    else onSelect(enfocar)
+    onEnfocado?.()
+  }, [enfocar, fichas, esEscritorio, onSelect, onEnfocado])
 
   const girar = useCallback((delta: number) => {
     setActivo(a => moverIndice(a, delta, total))

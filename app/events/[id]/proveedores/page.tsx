@@ -60,6 +60,7 @@ export default function ProveedoresPage() {
   const [viewMode, setViewMode] = useState<ViewMode>('fichero')
   const [modalOpen, setModalOpen]       = useState(false)
   const [selectedItem, setSelectedItem] = useState<SupplierWithDetails | null>(null)
+  const [enfocar, setEnfocar]           = useState<SupplierWithDetails | null>(null)
   const [reviewItem, setReviewItem]     = useState<SupplierWithDetails | null>(null)
   const [userId, setUserId]             = useState<string | null>(null)
 
@@ -188,7 +189,7 @@ export default function ProveedoresPage() {
     [catalogoBase, items, categorias],
   )
 
-  const vincularALaBoda = async (supplierId: string, enEstaBoda: EnEstaBoda) => {
+  const vincularALaBoda = async (supplierId: string, enEstaBoda: EnEstaBoda): Promise<SupplierWithDetails> => {
     const { data: nuevo, error } = await supabase
       .from('event_suppliers')
       .insert({
@@ -206,12 +207,25 @@ export default function ProveedoresPage() {
       if (error.code === '23505') throw new Error('Ese proveedor ya está en esta boda')
       throw error
     }
-    if (nuevo) setItems(prev => [nuevo as SupplierWithDetails, ...prev])
+    const item = nuevo as SupplierWithDetails
+    setItems(prev => [item, ...prev])
+    return item
+  }
+
+  // Tras guardar en la alta, aterrizar en la ficha de lo que se acaba de agregar
+  // en vez de dejar al usuario en la lista sin mas señal que la fila nueva. En
+  // Fichero se sigue el mismo camino que un tap de tarjeta (panel en escritorio,
+  // FichaModal en movil, resuelto adentro de SupplierFicheroView); en Lista y
+  // Kanban un tap siempre abre FichaModal, asi que se abre directo aqui.
+  const abrirFichaTrasAlta = (item: SupplierWithDetails) => {
+    if (viewMode === 'fichero') setEnfocar(item)
+    else setSelectedItem(item)
   }
 
   const handleUsarExistente = async (supplierId: string, enEstaBoda: EnEstaBoda) => {
     if (!permiso.editar) return
-    await vincularALaBoda(supplierId, enEstaBoda)
+    const item = await vincularALaBoda(supplierId, enEstaBoda)
+    abrirFichaTrasAlta(item)
   }
 
   const handleCrearNuevo = async (data: ProveedorNuevo) => {
@@ -250,7 +264,7 @@ export default function ProveedoresPage() {
 
     if (supErr) { console.error('Error creando supplier:', supErr?.message ?? supErr, supErr); throw supErr }
 
-    await vincularALaBoda(ficha.id, data)
+    const item = await vincularALaBoda(ficha.id, data)
 
     setCatalogoBase(prev => [...prev, {
       id:          ficha.id,
@@ -267,6 +281,8 @@ export default function ProveedoresPage() {
       ultima:      null,
       enEstaBoda:  false,
     }])
+
+    abrirFichaTrasAlta(item)
   }
 
   const handleAbrirEnEstaBoda = (supplierId: string) => {
@@ -503,6 +519,8 @@ export default function ProveedoresPage() {
                 onStatusChange={handleStatusChange}
                 onSaved={handleSavedItem}
                 onQuitada={handleDeletedItem}
+                enfocar={enfocar}
+                onEnfocado={() => setEnfocar(null)}
               />
             )}
           </>
