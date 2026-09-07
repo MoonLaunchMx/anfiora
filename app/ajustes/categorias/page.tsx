@@ -7,6 +7,7 @@ import { AlertTriangle } from 'lucide-react'
 import { activas, buscarPorNombre, cargarCategorias, crearCategoria, type Categoria } from '@/lib/rolodex/categorias-store'
 import { parecidas, puedeEliminarse, type CategoriaConUso } from '@/lib/rolodex/vocabulario-admin'
 import { renombrar } from '@/lib/rolodex/aplicar-cambios'
+import { puedeAdministrarCategorias, type FilaMiembroDespacho } from '@/lib/permisos/administrar-categorias'
 import AccionesCategoria, { type AccionesCategoriaHandle } from './AccionesCategoria'
 
 function plural(n: number, singular: string, otros: string): string {
@@ -44,6 +45,7 @@ export default function CategoriasPage() {
   const [pares, setPares] = useState<[string, string][]>([])
   const [loading, setLoading] = useState(true)
   const [sinAcceso, setSinAcceso] = useState(false)
+  const [noVerificado, setNoVerificado] = useState(false)
 
   const [editandoId, setEditandoId] = useState<string | null>(null)
   const [valorEdicion, setValorEdicion] = useState('')
@@ -78,25 +80,45 @@ export default function CategoriasPage() {
 
     // Este catalogo es de cuenta, no de boda: administrarlo (archivar,
     // fusionar, renombrar) es cosa de dueño y administradores del despacho,
-    // igual que en HubSpot/Asana/Notion. Sin fila de membresia (todavia sin
-    // despacho, o la tabla no existe en este entorno) se trata como dueño de
-    // su propia cuenta -- es el comportamiento de siempre y no hay nadie mas
-    // a quien cuidarle el catalogo.
+    // igual que en HubSpot/Asana/Notion. Falla cerrado: un permiso que no se
+    // pudo verificar es un permiso negado. El dueño de su propio despacho
+    // (workspaces.primary_owner_id) entra siempre, aunque workspace_members
+    // no responda -- un colaborador sin fila verificable, no.
+    let workspacePropio: { id: string } | null = null
+    let errorWorkspace: unknown = null
     try {
-      const { data: membresia } = await supabase
+      const resultado = await supabase
+        .from('workspaces')
+        .select('id')
+        .eq('primary_owner_id', user.id)
+        .maybeSingle()
+      workspacePropio = resultado.data
+      errorWorkspace = resultado.error
+    } catch (e) {
+      errorWorkspace = e
+    }
+    const esDueno = !errorWorkspace && workspacePropio !== null
+
+    let filaMiembro: FilaMiembroDespacho = null
+    let errorMiembro: unknown = null
+    try {
+      const resultado = await supabase
         .from('workspace_members')
         .select('rol')
         .eq('user_id', user.id)
         .eq('status', 'active')
         .maybeSingle()
-      if (membresia?.rol === 'colaborador') {
-        setSinAcceso(true)
-        setLoading(false)
-        return
-      }
-    } catch {
-      // Tabla ausente u otro error de lectura: no negar acceso a la propia
-      // cuenta por una pieza del cimiento de despachos que todavia no aplica.
+      filaMiembro = resultado.data
+      errorMiembro = resultado.error
+    } catch (e) {
+      errorMiembro = e
+    }
+
+    if (!puedeAdministrarCategorias(filaMiembro, errorMiembro, esDueno)) {
+      setNoVerificado(!esDueno && (errorMiembro != null || filaMiembro == null))
+      setSinAcceso(true)
+      setLoading(false)
+      return
     }
 
     const cats = await cargarCategorias(user.id)
@@ -240,6 +262,11 @@ export default function CategoriasPage() {
         <p className="text-sm font-medium text-[#666]">
           Solo el dueño y los administradores pueden administrar categorías.
         </p>
+        {noVerificado && (
+          <p className="mt-2 text-xs text-[#999]">
+            No se pudo verificar tu rol en el despacho.
+          </p>
+        )}
       </div>
     )
   }
