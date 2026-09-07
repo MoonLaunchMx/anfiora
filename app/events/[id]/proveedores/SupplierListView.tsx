@@ -6,6 +6,7 @@ import {
   SUPPLIER_STATUS_LABELS, SUPPLIER_STATUS_COLORS,
 } from '@/lib/types'
 import { Categoria, nombrePorId } from '@/lib/rolodex/categorias-store'
+import Estrellas from '@/app/components/ui/Estrellas'
 
 type SupplierWithDetails = EventSupplier & { supplier: Supplier }
 
@@ -14,10 +15,11 @@ type Props = {
   budgets: EventBudget[]
   currency: Currency
   categorias: Categoria[]
+  desempenoPorProveedor: Record<string, number | null>
   onSelect: (item: SupplierWithDetails) => void
 }
 
-export default function SupplierListView({ items, budgets, currency, categorias, onSelect }: Props) {
+export default function SupplierListView({ items, budgets, currency, categorias, desempenoPorProveedor, onSelect }: Props) {
   return (
     <div className="overflow-x-auto rounded-xl border border-[#e8e8e8] bg-white pb-6">
       <table className="w-full text-xs">
@@ -27,6 +29,7 @@ export default function SupplierListView({ items, budgets, currency, categorias,
             <th className="px-4 py-3 text-left font-semibold text-[#888]">Categoría</th>
             <th className="px-4 py-3 text-left font-semibold text-[#888]">Partida</th>
             <th className="px-4 py-3 text-left font-semibold text-[#888]">Estado</th>
+            <th className="px-4 py-3 text-left font-semibold text-[#888]">Desempeño</th>
             <th className="px-4 py-3 text-right font-semibold text-[#888]">Cotizado</th>
             <th className="px-4 py-3 text-right font-semibold text-[#888]">Contratado</th>
             <th className="px-4 py-3 text-right font-semibold text-[#888]">Meta</th>
@@ -56,6 +59,9 @@ export default function SupplierListView({ items, budgets, currency, categorias,
                   <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${SUPPLIER_STATUS_COLORS[item.status]}`}>
                     {SUPPLIER_STATUS_LABELS[item.status]}
                   </span>
+                </td>
+                <td className="px-4 py-3">
+                  <Estrellas score={desempenoPorProveedor[item.supplier_id] ?? null} tamano={11} />
                 </td>
                 <td className="px-4 py-3 text-right tabular-nums text-[#888]">
                   {item.quoted_amount ? formatCurrency(item.quoted_amount, currency) : <span className="text-[#ccc]">—</span>}

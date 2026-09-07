@@ -489,6 +489,7 @@ export default function ProveedoresPage() {
                   budgets={budgets}
                   currency={currency}
                   categorias={categorias}
+                  desempenoPorProveedor={desempenoPorProveedor}
                   onSelect={setSelectedItem}
                 />
               </div>
