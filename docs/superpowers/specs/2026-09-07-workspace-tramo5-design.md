@@ -93,16 +93,38 @@ Invariantes que la base hace cumplir sin importar quién escribe:
 
 ### 3.7 Policies que ganan la rama del workspace
 
-Hoy solo `nivel_en()` sabe que el admin del workspace existe. Estas policies no, y sin ellas el admin no ve la boda en el dashboard aunque tenga Total adentro:
+Leído en producción el 7-sep (`pg_policies` + `pg_get_functiondef`). Hoy solo `nivel_en()` sabe que el admin del workspace existe. Los tres helpers que gobiernan la cáscara de la boda **siguen leyendo el rol legado** y nunca se reimplementaron sobre `nivel_en`:
 
-| Tabla | Qué gana |
-|---|---|
-| `events` SELECT | `or es_admin_de(workspace_id)` |
-| `event_settings` SELECT/UPDATE | igual, vía `is_event_member` / `is_event_editor` reimplementadas encima de `nivel_en` (pendiente desde el Tramo 1, aquí se cobra) |
-| `event_collaborators` SELECT/INSERT/UPDATE | el admin del workspace administra el equipo de sus bodas |
-| `event_audit_log` `actividad_ver` | `or es_admin_de((select workspace_id from events where id = event_id))`. Hoy solo entra el dueño del evento y el `role='admin'` legado |
+```sql
+is_event_member(eid)  = dueño del evento OR colaborador active
+is_event_editor(eid)  = dueño del evento OR colaborador active con role in ('admin','editor')
+is_event_admin(eid)   = dueño del evento OR colaborador active con role = 'admin'
+```
 
-`es_admin_de(ws uuid)` es una función nueva hermana de `es_miembro_de`: miembro activo con rol `dueno` o `admin`. **El texto exacto de cada policy se escribe después de leer `pg_policies`** de esas cuatro tablas (consulta 5 del brainstorm). No se escribe a ciegas.
+Y las policies que los llaman:
+
+| Tabla | Policy | Hoy | Qué gana |
+|---|---|---|---|
+| `events` | `owner only` (ALL) | `user_id = auth.uid()` | nada: borrar la boda sigue siendo del dueño del evento. Admin no destruye |
+| `events` | `collaborators can read events` (SELECT) | `is_event_member(id)` | la rama del workspace, vía el helper |
+| `events` | `events_editor_update` (UPDATE) | `is_event_editor(id)` | la rama del workspace, vía el helper |
+| `event_settings` | `collaborators can read` / `editor_insert` / `editor_update` | `is_event_member` / `is_event_editor` | vía el helper. `guard_event_config` sigue cuidando columna por columna |
+| `event_collaborators` | `members read` / `admins create` / `admins update` | `is_event_member` / `is_event_admin` | vía el helper: el admin del workspace administra el equipo de sus bodas |
+| `event_audit_log` | `actividad_ver` (SELECT) | dueño del evento OR `role='admin'` legado | `OR es_admin_de((select workspace_id from events where id = event_id))` |
+
+**La forma de hacerlo es una sola: cada helper gana una rama, y ninguna policy cambia de texto.**
+
+```sql
+create function es_admin_de(ws uuid) returns boolean
+-- miembro active con rol in ('dueno','admin'). Hermana de es_miembro_de.
+
+-- los tres helpers, mismo cuerpo de hoy más:
+   OR es_admin_de((select workspace_id from events where id = eid))
+```
+
+Se conservan las ramas por `role` legado a propósito: las invitaciones de hoy todavía escriben `role` como punto de partida, y reescribir esos helpers sobre `nivel_en` es otro tramo (el de Configuración, que parte `event_settings` por columna). Aquí se agrega, no se reemplaza.
+
+`guard_events_workspace` cambia `es_miembro_de` por `es_admin_de` en sus dos verificaciones (§3.5).
 
 ### 3.8 Lo que queda habilitado, no construido
 
@@ -226,8 +248,8 @@ Diseño: el mismo de la pestaña Equipo de la boda (dos columnas en escritorio, 
 
 Corre **después** de que el código esté en producción, en archivos bajo `docs/superpowers/plans/sql/` con la fecha del día en que se escriban (uno por tanda del §10), cada uno con bloque de previo (solo lectura) y bloque de aplicar. Se corre solo si Diego aprueba el previo.
 
-1. **Plan.** `workspaces.plan` = `users.plan` del dueño principal cuando sea `free | pro | agency`; cualquier otro valor cae a `free` y sale en el previo. Quien no tiene workspace no tiene plan que migrar.
-2. **Equipo sin asiento.** Cada fila de `event_collaborators` no revocada con `tipo='equipo'` (o `tipo is null`) cuyo correo no tiene fila en `workspace_members` del workspace de esa boda recibe una: `rol='colaborador'`, `status` = `active` si ya tiene `user_id`, si no `pending`, `invited_by` = el de la fila. La consulta 3 del brainstorm dice cuántas son; la nota del 4-sep dice que son 7 en toda la base y ninguna de bodasplanner@hotmail.com. **Ojo:** si alguna de esas 7 es en realidad un cliente (una novia), se marca `tipo='cliente'` a mano en el previo antes de aplicar, y no recibe asiento.
+1. **Plan.** `workspaces.plan` = `users.plan` del dueño principal cuando sea `free | pro | agency`; `studio` (catálogo de junio) pasa a `pro`; cualquier otro valor cae a `free` y sale en el previo. Quien no tiene workspace no tiene plan que migrar. Medido el 7-sep: 18 free, 1 agency (diego.garza@) y 1 studio (diego.garza17@), los dos de prueba. Patty es free.
+2. **Equipo sin asiento.** Cada fila de `event_collaborators` no revocada con `tipo='equipo'` (o `tipo is null`) cuyo correo no tiene fila en `workspace_members` del workspace de esa boda recibe una: `rol='colaborador'`, `status` = `active` si ya tiene `user_id`, si no `pending`, `invited_by` = el de la fila. Medido el 7-sep: **9 filas, ninguna de bodasplanner@hotmail.com**; siete son cuentas de prueba de Diego, dos son reales (mariajose.grdz90@, admin activa de Elena's birthday; ventasmaruca@, viewer pendiente). Dos traen `tipo` en null y se tratan como equipo. Un mismo correo en varias bodas del mismo workspace produce **una** fila de miembro (índice único por workspace y correo). Y diego.garza@ es editor en una boda de diego.garza17@: la primera persona en dos workspaces es Diego mismo. **Ojo:** si alguna de esas 7 es en realidad un cliente (una novia), se marca `tipo='cliente'` a mano en el previo antes de aplicar, y no recibe asiento.
 3. **Nada más se toca.** `users.plan` queda. `role` queda. Ninguna fila se borra.
 
 Reversible: el bloque de deshacer borra las filas de miembro que este script creó (llevan `invited_by` y un `invited_at` igual al de la corrida) y pone `workspaces.plan` de vuelta en `free`.
