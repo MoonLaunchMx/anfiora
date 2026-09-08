@@ -491,10 +491,11 @@ export default function ProveedoresPage() {
     }
 
     // Review al llegar a un estado final (arrastrar en kanban o mover desde la
-    // ficha): una sola vez por proveedor y por tipo de review.
-    const wasAlreadyFinal = prev?.status === 'contratado' || prev?.status === 'descartado'
-    const isNowFinal      = newStatus === 'contratado' || newStatus === 'descartado'
-    if (!wasAlreadyFinal && isNowFinal && prev) {
+    // ficha). Tambien de descartado a contratado, y al reves: lo que evita
+    // repetirla no es el estado de origen sino que ya exista una review de
+    // ese tipo para este proveedor.
+    const isNowFinal = newStatus === 'contratado' || newStatus === 'descartado'
+    if (isNowFinal && prev) {
       const reviewType = newStatus === 'contratado' ? 'contratacion' : 'descarte'
       const { count, error: reviewError } = await supabase
         .from('supplier_reviews')
