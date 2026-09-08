@@ -10,7 +10,7 @@ import { validarReview } from '@/lib/reviews/validacion'
 import type { BorradorReview } from '@/lib/reviews/validacion'
 import { useGuardarReview } from '@/lib/reviews/useGuardarReview'
 import { MOTIVOS_DESCARTE, MOTIVO_DESCARTE_LABEL, MAX_COMENTARIOS } from '@/lib/types'
-import type { MotivoDescarte } from '@/lib/types'
+import type { MotivoDescarte, SupplierReview } from '@/lib/types'
 
 interface Props {
   eventSupplierId: string
@@ -20,23 +20,29 @@ interface Props {
   createdBy: string
   supplierName: string
   eventName: string
+  reviewExistente?: SupplierReview | null
   onSaved: () => void
   onSkip: () => void
 }
 
 export default function ReviewDescarteModal({
   eventSupplierId, supplierId, eventId, duenoId, createdBy, supplierName,
-  onSaved, onSkip,
+  reviewExistente, onSaved, onSkip,
 }: Props) {
   const { permiso, saving, guardar } = useGuardarReview({ eventSupplierId, supplierId, eventId, duenoId, createdBy })
 
-  const [motivo, setMotivo]           = useState<MotivoDescarte | null>(null)
+  const [motivo, setMotivo]           = useState<MotivoDescarte | null>(reviewExistente?.motivo_descarte ?? null)
   const [valores, setValores]         = useState<Record<Eje, number | null>>({
-    precio_valor: null, calidad: null, comunicacion: null,
+    precio_valor: reviewExistente?.precio_valor ?? null,
+    calidad: reviewExistente?.calidad ?? null,
+    comunicacion: reviewExistente?.comunicacion ?? null,
     servicio_trato: null, manejo_imprevistos: null,
   })
-  const [sinOpinion, setSinOpinion]   = useState(false)
-  const [comentarios, setComentarios] = useState('')
+  // Una review guardada con los tres ejes en null es un "No tengo opinion".
+  const [sinOpinion, setSinOpinion]   = useState(
+    !!reviewExistente && reviewExistente.precio_valor == null && reviewExistente.calidad == null && reviewExistente.comunicacion == null,
+  )
+  const [comentarios, setComentarios] = useState(reviewExistente?.comentarios ?? '')
   const [problemas, setProblemas]     = useState<string[]>([])
 
   const handleSave = async () => {

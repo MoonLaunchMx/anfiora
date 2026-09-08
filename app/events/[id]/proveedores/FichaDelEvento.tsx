@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
-import { ChevronDown, Globe, Mail, Paperclip, Pencil, Trash2, X } from 'lucide-react'
+import { Check, ChevronDown, Globe, Mail, Paperclip, Pencil, Trash2, X } from 'lucide-react'
 import { FaWhatsapp } from 'react-icons/fa'
 import { FiInstagram } from 'react-icons/fi'
 import { supabase } from '@/lib/supabase'
@@ -25,15 +25,16 @@ import SelectorGeo from '@/app/components/ui/SelectorGeo'
 import EscalaCinco from '@/app/components/ui/EscalaCinco'
 import Estrellas from '@/app/components/ui/Estrellas'
 import { useConfirm } from '@/app/components/ui/ConfirmModal'
-import { usePermiso, useEventAccess } from '@/lib/event-access-context'
+import { usePermiso } from '@/lib/event-access-context'
 import {
   carpetasDe, destinosDe, QUE_SIGNIFICA,
-  ORDEN_REVIEWS_FICHA, TITULO_REVIEW_FICHA, DESCRIPCION_REVIEW_FICHA, BOTON_REVIEW_FICHA,
-  esReviewLlenable, razonNoLlenableFicha,
+  TITULO_REVIEW_FICHA, DESCRIPCION_REVIEW_FICHA, BOTON_REVIEW_FICHA,
+  filasDeReview, resumenPendientes,
 } from '@/lib/rolodex/ficha-por-estado'
+import type { TipoReviewFicha } from '@/lib/rolodex/ficha-por-estado'
+import { metaDelProveedor, partidasDelProveedor } from '@/lib/presupuesto/derivados'
 import { anclasDe, EJES_DESEMPENO, EJES_PROPUESTA, NOMBRE_EJE, ANCLAS_RECONTRATACION } from '@/lib/reviews/ejes'
 import { calcularScores } from '@/lib/reviews/scores'
-import { evaluarCandado } from '@/lib/reviews/candado'
 import { yaRechazoLaOferta, recordarRechazo } from '@/lib/rolodex/oferta-avance'
 import { TOPE_COMPROBANTES, TOPE_COTIZACIONES, visibles } from '@/lib/archivos/adjuntos'
 import PagoModal from './PagoModal'
@@ -51,7 +52,6 @@ type Props = {
   budgets: EventBudget[]
   currency: Currency
   categorias: Categoria[]
-  bodaPaso: boolean
   onStatusChange: (itemId: string, nuevo: SupplierStatus) => void
   onSaved: (item: SupplierWithDetails) => void
   onQuitada: (itemId: string) => void
@@ -88,13 +88,12 @@ function iniciales(nombre: string): string {
 }
 
 export default function FichaDelEvento({
-  item, budgets, currency, categorias, bodaPaso, onStatusChange, onSaved, onQuitada, onDerivadosCambiaron, onCerrar,
+  item, budgets, currency, categorias, onStatusChange, onSaved, onQuitada, onDerivadosCambiaron, onCerrar,
   abrirRevisionParaId, onRevisionAbierta,
 }: Props) {
   const askConfirm = useConfirm()
   const permisoFicha = usePermiso('proveedores')
   const permisoPagos = usePermiso('pagos')
-  const { canAdmin } = useEventAccess()
 
   const [pagos, setPagos] = useState<SupplierPayment[]>([])
   const [cargandoPagos, setCargandoPagos] = useState(true)
@@ -120,9 +119,6 @@ export default function FichaDelEvento({
   const [mostrarModalDescarte, setMostrarModalDescarte] = useState(false)
   const [userId, setUserId] = useState<string | null>(null)
   const [eventName, setEventName] = useState('')
-  // Ultimo dia de la boda ('YYYY-MM-DD'): es lo que arranca el candado de la
-  // review post-evento, 15 dias despues de esta fecha. Ver lib/reviews/candado.ts.
-  const [fechaEventoISO, setFechaEventoISO] = useState<string | null>(null)
   // El dueno de la cuenta, que es de quien cuelga la review -- no quien la
   // teclea. Ver la nota en lib/reviews/useGuardarReview.ts.
   const [duenoEvento, setDuenoEvento] = useState<string | null>(null)
@@ -153,12 +149,24 @@ export default function FichaDelEvento({
     [reviews, item.id],
   )
 
-  const candado = useMemo(() => evaluarCandado({
-    reviewExiste: !!reviewPostEvento,
-    tipoReview: 'post_evento',
-    fechaEvento: fechaEventoISO,
-    puedeSaltarlo: canAdmin,
-  }), [reviewPostEvento, fechaEventoISO, canAdmin])
+  const reviewDe = (tipo: TipoReviewFicha) =>
+    tipo === 'contratacion' ? reviewContratacion :
+    tipo === 'descarte'     ? reviewDescarte :
+                              reviewPostEvento
+
+  const filasReview = useMemo(() => {
+    const existentes: TipoReviewFicha[] = []
+    if (reviewContratacion) existentes.push('contratacion')
+    if (reviewDescarte)     existentes.push('descarte')
+    if (reviewPostEvento)   existentes.push('post_evento')
+    return filasDeReview(item.status, existentes)
+  }, [item.status, reviewContratacion, reviewDescarte, reviewPostEvento])
+
+  const abrirModalDe = (tipo: TipoReviewFicha) => {
+    if (tipo === 'contratacion') setMostrarModalContratacion(true)
+    if (tipo === 'descarte')     setMostrarModalDescarte(true)
+    if (tipo === 'post_evento')  setMostrarModalDesempeno(true)
+  }
 
   // Las carpetas son fijas ahora (antes cambiaban de forma con el estatus):
   // solo reiniciar al abrir una ficha distinta, no en cada cambio de estatus,
@@ -235,12 +243,11 @@ export default function FichaDelEvento({
 
   useEffect(() => {
     let vigente = true
-    supabase.from('events').select('name, user_id, event_date, event_end_date').eq('id', item.event_id).single()
+    supabase.from('events').select('name, user_id').eq('id', item.event_id).single()
       .then(({ data }) => {
         if (!vigente) return
         setEventName(data?.name ?? '')
         setDuenoEvento(data?.user_id ?? null)
-        setFechaEventoISO(data?.event_end_date || data?.event_date || null)
       })
     return () => { vigente = false }
   }, [item.event_id])
@@ -263,8 +270,8 @@ export default function FichaDelEvento({
   const igLink     = s.instagram ? `https://instagram.com/${s.instagram.replace('@', '')}` : null
   const webLink    = s.website ? (s.website.startsWith('http') ? s.website : `https://${s.website}`) : null
 
-  const partida     = budgets.find(b => b.id === item.event_budget_id)
-  const presupuesto = partida?.budget_amount ?? null
+  const partidas    = partidasDelProveedor(item, budgets)
+  const presupuesto = metaDelProveedor(item, budgets)
   const pagado      = pagos.reduce((suma, p) => suma + (p.amount || 0), 0)
   const contratado  = item.contract_amount ?? null
   const falta       = contratado ? Math.max(0, contratado - pagado) : null
@@ -760,9 +767,9 @@ export default function FichaDelEvento({
             </Bloque>
 
             <Bloque titulo="Partida del presupuesto">
-              {partida ? (
+              {partidas.length > 0 ? (
                 <p className="text-sm text-[#1D1E20]">
-                  {partida.subcategory || nombrePorId(categorias, partida.category_id)}
+                  {partidas.map(p => p.subcategory || nombrePorId(categorias, p.category_id)).join(' · ')}
                 </p>
               ) : (
                 <p className="text-xs text-[#999]">Sin ligar a ninguna partida.</p>
@@ -905,56 +912,23 @@ export default function FichaDelEvento({
             <ErrorDeReviews />
           ) : (
             <div className="space-y-3">
-              {ORDEN_REVIEWS_FICHA.map(tipo => {
-                const review =
-                  tipo === 'contratacion' ? reviewContratacion :
-                  tipo === 'descarte'     ? reviewDescarte :
-                                            reviewPostEvento
-                const score = tipo === 'post_evento' ? scores.desempeno : scores.propuesta
+              <ListaQueFalta
+                filas={filasReview}
+                reviewDe={reviewDe}
+                puedeEditar={permisoFicha.editar}
+                onCalificar={abrirModalDe}
+              />
 
-                if (review) {
-                  return (
-                    <SeccionReview key={tipo} titulo={TITULO_REVIEW_FICHA[tipo]} descripcion={DESCRIPCION_REVIEW_FICHA[tipo]} score={score}>
-                      {tipo === 'contratacion' && (
-                        <ResumenContratacion review={review} scorePropuesta={scores.propuesta} />
-                      )}
-                      {tipo === 'descarte' && (
-                        <ResumenDescarte review={review} scorePropuesta={scores.propuesta} />
-                      )}
-                      {tipo === 'post_evento' && (
-                        <ResumenPostEvento
-                          review={review}
-                          currency={currency}
-                          permisoEditar={permisoFicha.editar}
-                          candado={candado}
-                          onEditar={() => setMostrarModalDesempeno(true)}
-                        />
-                      )}
-                    </SeccionReview>
-                  )
-                }
-
-                const llenable = esReviewLlenable(tipo, item.status, bodaPaso)
+              {filasReview.filter(f => f.hecha).map(({ tipo }) => {
+                const review = reviewDe(tipo)
+                if (!review) return null
+                const propio = calcularScores([review])
+                const score = tipo === 'post_evento' ? propio.desempeno : propio.propuesta
                 return (
-                  <SeccionReview key={tipo} titulo={TITULO_REVIEW_FICHA[tipo]} descripcion={DESCRIPCION_REVIEW_FICHA[tipo]} score={null} vacia>
-                    {llenable ? (
-                      permisoFicha.editar ? (
-                        <button
-                          onClick={() => {
-                            if (tipo === 'contratacion') setMostrarModalContratacion(true)
-                            if (tipo === 'descarte') setMostrarModalDescarte(true)
-                            if (tipo === 'post_evento') setMostrarModalDesempeno(true)
-                          }}
-                          className="rounded-lg bg-[#48C9B0] px-3.5 py-2 text-xs font-semibold text-white transition hover:bg-[#3aa896]"
-                        >
-                          {BOTON_REVIEW_FICHA[tipo]}
-                        </button>
-                      ) : (
-                        <p className="text-xs text-[#999]">Todavía no se ha llenado esta reseña.</p>
-                      )
-                    ) : (
-                      <p className="text-xs text-[#999]">{razonNoLlenableFicha(tipo)}</p>
-                    )}
+                  <SeccionReview key={tipo} titulo={TITULO_REVIEW_FICHA[tipo]} descripcion={DESCRIPCION_REVIEW_FICHA[tipo]} score={score}>
+                    {tipo === 'contratacion' && <ResumenContratacion review={review} scorePropuesta={score} />}
+                    {tipo === 'descarte' && <ResumenDescarte review={review} scorePropuesta={score} />}
+                    {tipo === 'post_evento' && <ResumenPostEvento review={review} currency={currency} />}
                   </SeccionReview>
                 )
               })}
@@ -972,6 +946,7 @@ export default function FichaDelEvento({
           createdBy={userId}
           supplierName={s.name}
           eventName={eventName}
+          reviewExistente={reviewContratacion}
           onSaved={() => { setMostrarModalContratacion(false); cargarReviews(item.supplier_id); onDerivadosCambiaron?.() }}
           onSkip={() => setMostrarModalContratacion(false)}
         />
@@ -986,6 +961,7 @@ export default function FichaDelEvento({
           createdBy={userId}
           supplierName={s.name}
           eventName={eventName}
+          reviewExistente={reviewDescarte}
           onSaved={() => { setMostrarModalDescarte(false); cargarReviews(item.supplier_id); onDerivadosCambiaron?.() }}
           onSkip={() => setMostrarModalDescarte(false)}
         />
@@ -1001,8 +977,6 @@ export default function FichaDelEvento({
           supplierName={s.name}
           eventName={eventName}
           reviewExistente={reviewPostEvento}
-          bloqueado={candado.bloqueado}
-          razonBloqueo={candado.razon}
           onSaved={() => { setMostrarModalDesempeno(false); cargarReviews(item.supplier_id); onDerivadosCambiaron?.() }}
           onSkip={() => setMostrarModalDesempeno(false)}
         />
@@ -1203,6 +1177,80 @@ function Texto({ valor, vacio }: { valor: string | null; vacio: string }) {
   return <p className="whitespace-pre-wrap text-sm text-[#555]">{valor}</p>
 }
 
+// La lista "Que falta": de un vistazo, que ya se califico y que no. El detalle
+// de cada review vive abajo, plegado. Hecha o pendiente se distinguen por
+// forma (palomita llena / circulo punteado), no solo por color.
+function ListaQueFalta({ filas, reviewDe, puedeEditar, onCalificar }: {
+  filas: ReturnType<typeof filasDeReview>
+  reviewDe: (tipo: TipoReviewFicha) => SupplierReview | null
+  puedeEditar: boolean
+  onCalificar: (tipo: TipoReviewFicha) => void
+}) {
+  return (
+    <section className="overflow-hidden rounded-xl border border-[#eee]">
+      <div className="flex items-center justify-between bg-[#fafafa] px-4 py-2 text-[10.5px] font-bold uppercase tracking-wider text-[#999]">
+        <span>Qué falta</span>
+        <span>{resumenPendientes(filas)}</span>
+      </div>
+      {filas.length === 0 ? (
+        <p className="px-4 py-3 text-xs text-[#999]">Se califica al contratarlo o al descartarlo.</p>
+      ) : (
+        <ul>
+          {filas.map(({ tipo, hecha }) => {
+            const review = hecha ? reviewDe(tipo) : null
+            const propio = review ? calcularScores([review]) : null
+            const score = propio ? (tipo === 'post_evento' ? propio.desempeno : propio.propuesta) : null
+            return (
+              <li key={tipo} className="flex items-center gap-3 border-t border-[#f2f2f2] px-4 py-2.5">
+                <span
+                  aria-hidden
+                  className={'flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-[1.5px] ' + (
+                    hecha ? 'border-[#48C9B0] bg-[#48C9B0] text-white' : 'border-dashed border-[#d4a853]'
+                  )}
+                >
+                  {hecha && <Check size={11} strokeWidth={3} />}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[13px] font-semibold text-[#1D1E20]">{TITULO_REVIEW_FICHA[tipo]}</span>
+                  <span className="block text-[11px] text-[#999]">{DESCRIPCION_REVIEW_FICHA[tipo]}</span>
+                </span>
+                <span className="flex shrink-0 items-center gap-2.5">
+                  {hecha ? (
+                    <>
+                      <Estrellas score={score} tamano={12} />
+                      {puedeEditar && (
+                        <button
+                          type="button"
+                          onClick={() => onCalificar(tipo)}
+                          className="flex items-center gap-1 text-[11px] font-semibold text-[#48C9B0] transition hover:text-[#3aa896]"
+                        >
+                          <Pencil size={11} /> Editar
+                        </button>
+                      )}
+                    </>
+                  ) : puedeEditar ? (
+                    <button
+                      type="button"
+                      onClick={() => onCalificar(tipo)}
+                      className="rounded-lg bg-[#48C9B0] px-3 py-1.5 text-[11.5px] font-semibold text-white transition hover:bg-[#3aa896]"
+                    >
+                      {BOTON_REVIEW_FICHA[tipo]}
+                    </button>
+                  ) : (
+                    <span className="rounded-full border border-[#efd9a6] bg-[#fdf8ee] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#a9812f]">
+                      Pendiente
+                    </span>
+                  )}
+                </span>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+    </section>
+  )
+}
+
 // Cada momento de la review arranca cerrado: el header ya trae el titulo, que
 // mide y su calificacion, y eso es lo que se necesita para escanear la ficha
 // sin abrir nada.
@@ -1337,34 +1385,13 @@ function ResumenDescarte({ review, scorePropuesta }: { review: SupplierReview; s
   )
 }
 
-function ResumenPostEvento({ review, currency, permisoEditar, candado, onEditar }: {
+function ResumenPostEvento({ review, currency }: {
   review: SupplierReview
   currency: Currency
-  permisoEditar: boolean
-  candado: { bloqueado: boolean; razon: string | null }
-  onEditar: () => void
 }) {
   return (
     <>
-      <Bloque
-        titulo="Cómo calificaste el desempeño"
-        accion={permisoEditar ? (
-          <span className="flex items-center gap-2">
-            <button
-              onClick={candado.bloqueado ? undefined : onEditar}
-              disabled={candado.bloqueado}
-              className={`flex items-center gap-1 text-[11px] font-semibold transition ${
-                candado.bloqueado ? 'cursor-not-allowed text-[#ccc]' : 'text-[#48C9B0] hover:text-[#3aa896]'
-              }`}
-            >
-              <Pencil size={11} /> Editar
-            </button>
-            {candado.bloqueado && candado.razon && (
-              <span className="text-[10.5px] text-[#999]">{candado.razon}</span>
-            )}
-          </span>
-        ) : null}
-      >
+      <Bloque titulo="Cómo calificaste el desempeño">
         <div className="space-y-4">
           {EJES_DESEMPENO.map(eje => (
             <EscalaCinco

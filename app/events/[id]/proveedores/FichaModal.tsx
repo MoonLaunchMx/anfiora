@@ -12,7 +12,6 @@ type Props = {
   budgets: EventBudget[]
   currency: Currency
   categorias: Categoria[]
-  bodaPaso: boolean
   onClose: () => void
   onStatusChange: (itemId: string, nuevo: SupplierStatus) => void
   onSaved: (item: SupplierWithDetails) => void

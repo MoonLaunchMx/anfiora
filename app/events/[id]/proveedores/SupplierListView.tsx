@@ -1,5 +1,6 @@
 'use client'
 
+import { metaDelProveedor, partidasDelProveedor } from '@/lib/presupuesto/derivados'
 import {
   Currency, formatCurrency,
   EventSupplier, Supplier, EventBudget,
@@ -79,8 +80,8 @@ function Fila({ item, visibleCols, budgets, currency, categorias, desempenoPorPr
   onSelect: (item: SupplierWithDetails) => void
 }) {
   const s = item.supplier
-  const linkedBudget = budgets.find(b => b.id === item.event_budget_id)
-  const meta = linkedBudget?.budget_amount ?? null
+  const partidas = partidasDelProveedor(item, budgets)
+  const meta = metaDelProveedor(item, budgets)
   const exceeds = meta !== null && item.contract_amount !== null && item.contract_amount > meta
 
   const telCrudo = telefonoCrudoDe(s)
@@ -136,8 +137,8 @@ function Fila({ item, visibleCols, budgets, currency, categorias, desempenoPorPr
       )}
       {visibleCols.has('partida') && (
         <td className="px-4 py-3 text-[#888]">
-          {linkedBudget
-            ? linkedBudget.subcategory || nombrePorId(categorias, linkedBudget.category_id)
+          {partidas.length > 0
+            ? partidas.map(p => p.subcategory || nombrePorId(categorias, p.category_id)).join(' · ')
             : <span className="text-[#ccc]">—</span>}
         </td>
       )}

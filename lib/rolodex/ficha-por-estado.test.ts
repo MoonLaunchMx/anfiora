@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   carpetasDe, destinosDe, pasosAlcanzados, CAMINO, QUE_SIGNIFICA,
-  ORDEN_REVIEWS_FICHA, esReviewLlenable, razonNoLlenableFicha,
+  ORDEN_REVIEWS_FICHA, esReviewLlenable, filasDeReview, pendientesDe, resumenPendientes,
   TITULO_REVIEW_FICHA, DESCRIPCION_REVIEW_FICHA, BOTON_REVIEW_FICHA,
 } from './ficha-por-estado'
 import type { SupplierStatus } from '@/lib/types'
@@ -61,43 +61,79 @@ describe('pasosAlcanzados', () => {
 describe('esReviewLlenable', () => {
   const ESTADOS: SupplierStatus[] = ['nuevo', 'cotizado', 'contratado', 'descartado']
 
-  it('contratacion solo se llena si esta contratado, pase o no la boda', () => {
+  it('contratacion solo se llena si esta contratado', () => {
     for (const estado of ESTADOS) {
-      for (const bodaPaso of [false, true]) {
-        expect(esReviewLlenable('contratacion', estado, bodaPaso)).toBe(estado === 'contratado')
-      }
+      expect(esReviewLlenable('contratacion', estado)).toBe(estado === 'contratado')
     }
   })
 
-  it('descarte solo se llena si esta descartado, pase o no la boda', () => {
+  it('descarte solo se llena si esta descartado', () => {
     for (const estado of ESTADOS) {
-      for (const bodaPaso of [false, true]) {
-        expect(esReviewLlenable('descarte', estado, bodaPaso)).toBe(estado === 'descartado')
-      }
+      expect(esReviewLlenable('descarte', estado)).toBe(estado === 'descartado')
     }
   })
 
-  it('post_evento necesita contratado Y que la boda ya haya pasado', () => {
-    expect(esReviewLlenable('post_evento', 'contratado', true)).toBe(true)
-    expect(esReviewLlenable('post_evento', 'contratado', false)).toBe(false)
-    expect(esReviewLlenable('post_evento', 'nuevo', true)).toBe(false)
-    expect(esReviewLlenable('post_evento', 'cotizado', true)).toBe(false)
-    expect(esReviewLlenable('post_evento', 'descartado', true)).toBe(false)
+  it('desempeno se llena desde que esta contratado, sin esperar la fecha del evento', () => {
+    expect(esReviewLlenable('post_evento', 'contratado')).toBe(true)
+    expect(esReviewLlenable('post_evento', 'nuevo')).toBe(false)
+    expect(esReviewLlenable('post_evento', 'cotizado')).toBe(false)
+    expect(esReviewLlenable('post_evento', 'descartado')).toBe(false)
   })
 
   it('un proveedor nuevo no puede llenar ninguna de las tres', () => {
     for (const tipo of ORDEN_REVIEWS_FICHA) {
-      expect(esReviewLlenable(tipo, 'nuevo', false)).toBe(false)
-      expect(esReviewLlenable(tipo, 'nuevo', true)).toBe(false)
+      expect(esReviewLlenable(tipo, 'nuevo')).toBe(false)
     }
   })
 })
 
-describe('razonNoLlenableFicha', () => {
-  it('cada tipo explica por que no se puede llenar todavia', () => {
-    expect(razonNoLlenableFicha('contratacion')).toBe('Se llena al contratarlo')
-    expect(razonNoLlenableFicha('descarte')).toBe('Se llena al descartarlo')
-    expect(razonNoLlenableFicha('post_evento')).toBe('Se llena cuando pase la boda')
+describe('filasDeReview: la lista "Que falta"', () => {
+  it('contratado sin reviews: contratacion y desempeno pendientes', () => {
+    expect(filasDeReview('contratado', [])).toEqual([
+      { tipo: 'contratacion', hecha: false },
+      { tipo: 'post_evento', hecha: false },
+    ])
+  })
+
+  it('descartado sin reviews: solo el descarte', () => {
+    expect(filasDeReview('descartado', [])).toEqual([{ tipo: 'descarte', hecha: false }])
+  })
+
+  it('nuevo o cotizado sin reviews: lista vacia', () => {
+    expect(filasDeReview('nuevo', [])).toEqual([])
+    expect(filasDeReview('cotizado', [])).toEqual([])
+  })
+
+  it('una review hecha se muestra aunque el estado ya no la permita', () => {
+    expect(filasDeReview('descartado', ['contratacion'])).toEqual([
+      { tipo: 'contratacion', hecha: true },
+      { tipo: 'descarte', hecha: false },
+    ])
+  })
+
+  it('respeta el orden fijo aunque las existentes vengan revueltas', () => {
+    const filas = filasDeReview('contratado', ['post_evento', 'contratacion'])
+    expect(filas.map(f => f.tipo)).toEqual(['contratacion', 'post_evento'])
+    expect(filas.every(f => f.hecha)).toBe(true)
+  })
+})
+
+describe('resumenPendientes', () => {
+  it('cuenta en singular y plural', () => {
+    expect(resumenPendientes(filasDeReview('contratado', []))).toBe('2 pendientes')
+    expect(resumenPendientes(filasDeReview('descartado', []))).toBe('1 pendiente')
+  })
+
+  it('todo hecho es "Al dia"', () => {
+    expect(resumenPendientes(filasDeReview('contratado', ['contratacion', 'post_evento']))).toBe('Al día')
+  })
+
+  it('sin filas dice que no hay nada que calificar', () => {
+    expect(resumenPendientes(filasDeReview('nuevo', []))).toBe('Nada que calificar todavía')
+  })
+
+  it('pendientesDe cuenta solo las no hechas', () => {
+    expect(pendientesDe(filasDeReview('contratado', ['contratacion']))).toBe(1)
   })
 })
 

@@ -23,12 +23,6 @@ interface Props {
   // vez de partir en blanco: el upsert de useGuardarReview ya actualiza en
   // vez de duplicar, aqui solo falta no perder lo que se habia contestado.
   reviewExistente?: SupplierReview | null
-  // El candado de lib/reviews/candado.ts, ya evaluado por quien abre el modal
-  // (necesita la fecha del evento y el rol de cuenta). Se vuelve a revisar aqui
-  // adentro, en la funcion que de verdad escribe, para no depender solo de que
-  // la pantalla de afuera haya deshabilitado el boton que abre este modal.
-  bloqueado?: boolean
-  razonBloqueo?: string | null
   onSaved: () => void
   onSkip: () => void
 }
@@ -54,11 +48,9 @@ function valoresIniciales(review?: SupplierReview | null): Record<Eje, number | 
 
 export default function ReviewDesempenoModal({
   eventSupplierId, supplierId, eventId, duenoId, createdBy, supplierName, eventName,
-  reviewExistente, bloqueado = false, razonBloqueo = null, onSaved, onSkip,
+  reviewExistente, onSaved, onSkip,
 }: Props) {
   const { permiso, saving, guardar } = useGuardarReview({ eventSupplierId, supplierId, eventId, duenoId, createdBy })
-  // El candado nunca frena crear: solo aplica si ya habia una review que editar.
-  const editarBloqueado = !!reviewExistente && bloqueado
 
   const [valores, setValores] = useState<Record<Eje, number | 'na' | null>>(() => valoresIniciales(reviewExistente))
   const [recontratacion, setRecontratacion] = useState<number | null>(reviewExistente?.recontratacion ?? null)
@@ -69,7 +61,6 @@ export default function ReviewDesempenoModal({
 
   const handleSave = async () => {
     if (!permiso.editar) return
-    if (editarBloqueado) { setProblemas([razonBloqueo ?? 'Esta review ya no se puede editar.']); return }
     const borrador: BorradorReview = {
       review_type: 'post_evento' as const,
       precio_valor: aNumero(valores.precio_valor),

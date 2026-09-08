@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useRef } from 'react'
+import { repartirEntrePartidas } from '@/lib/presupuesto/derivados'
 import { useParams } from 'next/navigation'
 import { Search, FileSpreadsheet, FileText, Plus, Upload, X, AlertTriangle, Check, ChevronDown, Sparkles, SlidersHorizontal, ArrowRight, Minus } from 'lucide-react'
 import * as XLSX from 'xlsx'
@@ -79,10 +80,6 @@ export default function PresupuestoPage() {
   const [selectedSupplier, setSelectedSupplier] = useState<EventSupplierWithName | null>(null)
   const [reviewSupplier, setReviewSupplier]     = useState<EventSupplierWithName | null>(null)
   const [userId, setUserId]                     = useState<string | null>(null)
-
-  // La boda ya paso: es lo que decide si la ficha pide resena. Con rango manda el ultimo dia.
-  const ultimoDiaDeLaBoda = event?.event_end_date || event?.event_date
-  const bodaPaso = ultimoDiaDeLaBoda ? new Date(`${ultimoDiaDeLaBoda}T23:59:59`) < new Date() : false
 
   const cambiarEstadoProveedor = async (itemId: string, nuevo: SupplierStatus) => {
     const previo = eventSuppliers.find(es => es.id === itemId)
@@ -223,18 +220,9 @@ export default function PresupuestoPage() {
     if (cat) availableSuppliersByCategory[cat].push(es)
   })
 
-  const contractedByItem: Record<string, number> = {}
-  const paidByItem: Record<string, number>       = {}
-  budgets.forEach(b => {
-    if (b.event_supplier_id) {
-      const supplier = eventSuppliersById[b.event_supplier_id]
-      contractedByItem[b.id] = Number(supplier?.contract_amount || 0)
-      paidByItem[b.id]       = paidByEventSupplier[b.event_supplier_id] || 0
-    } else {
-      contractedByItem[b.id] = 0
-      paidByItem[b.id]       = 0
-    }
-  })
+  const contractByEventSupplier: Record<string, number> = {}
+  eventSuppliers.forEach(es => { contractByEventSupplier[es.id] = Number(es.contract_amount || 0) })
+  const { contractedByItem, paidByItem } = repartirEntrePartidas(budgets, contractByEventSupplier, paidByEventSupplier)
 
   const filteredBudgets = search.trim()
     ? budgets.filter(b => {
@@ -1027,7 +1015,6 @@ export default function PresupuestoPage() {
           budgets={budgets}
           currency={currency}
           categorias={categorias}
-          bodaPaso={bodaPaso}
           onClose={() => setSelectedSupplier(null)}
           onStatusChange={cambiarEstadoProveedor}
           onSaved={updated => {

@@ -12,7 +12,7 @@ import { useGuardarReview } from '@/lib/reviews/useGuardarReview'
 import {
   RAZONES_SELECCION, RAZON_SELECCION_LABEL, MAX_RAZONES_SELECCION, MAX_COMENTARIOS,
 } from '@/lib/types'
-import type { RazonSeleccion } from '@/lib/types'
+import type { RazonSeleccion, SupplierReview } from '@/lib/types'
 
 interface Props {
   eventSupplierId: string
@@ -22,22 +22,25 @@ interface Props {
   createdBy: string
   supplierName: string
   eventName: string
+  reviewExistente?: SupplierReview | null
   onSaved: () => void
   onSkip: () => void
 }
 
 export default function ReviewContratacionModal({
   eventSupplierId, supplierId, eventId, duenoId, createdBy, supplierName,
-  onSaved, onSkip,
+  reviewExistente, onSaved, onSkip,
 }: Props) {
   const { permiso, saving, guardar } = useGuardarReview({ eventSupplierId, supplierId, eventId, duenoId, createdBy })
 
   const [valores, setValores] = useState<Record<Eje, number | null>>({
-    precio_valor: null, calidad: null, comunicacion: null,
+    precio_valor: reviewExistente?.precio_valor ?? null,
+    calidad: reviewExistente?.calidad ?? null,
+    comunicacion: reviewExistente?.comunicacion ?? null,
     servicio_trato: null, manejo_imprevistos: null,
   })
-  const [razones, setRazones]         = useState<RazonSeleccion[]>([])
-  const [comentarios, setComentarios] = useState('')
+  const [razones, setRazones]         = useState<RazonSeleccion[]>(reviewExistente?.razones_seleccion ?? [])
+  const [comentarios, setComentarios] = useState(reviewExistente?.comentarios ?? '')
   const [problemas, setProblemas]     = useState<string[]>([])
 
   const toggleRazon = (r: RazonSeleccion) => {

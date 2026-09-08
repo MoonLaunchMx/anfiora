@@ -1,6 +1,7 @@
 'use client'
 
 import { ComponentType, useState } from 'react'
+import { metaDelProveedor } from '@/lib/presupuesto/derivados'
 import {
   DndContext, DragEndEvent, PointerSensor, TouchSensor,
   useSensor, useSensors, useDroppable, useDraggable,
@@ -278,8 +279,7 @@ function KanbanCard({
   const dinero = dineroDeTarjeta(item, pagado, motivoDescarte)
   const contactos = contactosDe(item.supplier)
 
-  const linkedBudget = budgets.find(b => b.id === item.event_budget_id)
-  const meta = linkedBudget?.budget_amount ?? null
+  const meta = metaDelProveedor(item, budgets)
   // La meta se compara contra lo que la tarjeta esta mostrando: contratado si
   // ya lo tiene, cotizado mientras solo hay cotizacion. Un cotizado tambien
   // puede pasarse del presupuesto, no solo un contratado.

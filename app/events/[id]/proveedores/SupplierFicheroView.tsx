@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { metaDelProveedor } from '@/lib/presupuesto/derivados'
 import { ChevronDown, ChevronUp, Globe, Mail, MapPin, Phone } from 'lucide-react'
 import { FaWhatsapp } from 'react-icons/fa'
 import { FiInstagram } from 'react-icons/fi'
@@ -28,7 +29,6 @@ type Props = {
   budgets: EventBudget[]
   currency: Currency
   categorias: Categoria[]
-  bodaPaso: boolean
   desempenoPorProveedor: Record<string, number | null>
   onSelect: (item: SupplierWithDetails) => void
   onStatusChange: (itemId: string, nuevo: SupplierStatus) => void
@@ -72,7 +72,7 @@ function useEsEscritorio(): boolean {
 }
 
 export default function SupplierFicheroView({
-  items, todosLosItems, budgets, currency, categorias, bodaPaso, desempenoPorProveedor,
+  items, todosLosItems, budgets, currency, categorias, desempenoPorProveedor,
   onSelect, onStatusChange, onSaved, onQuitada, onDerivadosCambiaron, enfocar, onEnfocado,
   abrirRevisionParaId, onRevisionAbierta,
 }: Props) {
@@ -249,7 +249,6 @@ export default function SupplierFicheroView({
             budgets={budgets}
             currency={currency}
             categorias={categorias}
-            bodaPaso={bodaPaso}
             onStatusChange={onStatusChange}
             onSaved={onSaved}
             onQuitada={onQuitada}
@@ -389,8 +388,7 @@ function Ficha({ item, budgets, currency, categorias, desempeno, activa, arrastr
   const igLink     = s.instagram ? `https://instagram.com/${s.instagram.replace('@', '')}` : null
   const webLink    = s.website ? (s.website.startsWith('http') ? s.website : `https://${s.website}`) : null
 
-  const partida    = budgets.find(b => b.id === item.event_budget_id)
-  const meta       = partida?.budget_amount ?? null
+  const meta       = metaDelProveedor(item, budgets)
   const contraMeta = item.contract_amount ?? item.quoted_amount ?? null
   const excede     = meta !== null && contraMeta !== null && contraMeta > meta
   const ahorra     = meta !== null && contraMeta !== null && contraMeta < meta
