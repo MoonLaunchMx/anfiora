@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
-import { Check, ChevronDown, Globe, Mail, Paperclip, Pencil, Trash2, X } from 'lucide-react'
+import { Check, ChevronDown, Eye, Globe, Mail, Paperclip, Pencil, Trash2, X } from 'lucide-react'
 import { FaWhatsapp } from 'react-icons/fa'
 import { FiInstagram } from 'react-icons/fi'
 import { supabase } from '@/lib/supabase'
@@ -11,8 +11,7 @@ import {
   EventSupplier, Supplier, EventBudget, SupplierPayment, SupplierStatus,
   SUPPLIER_STATUS_LABELS,
   PAYMENT_METHOD_LABELS,
-  SupplierReview, MOTIVO_DESCARTE_LABEL,
-  RAZON_SELECCION_LABEL,
+  SupplierReview,
 } from '@/lib/types'
 import { etiquetaQuienPago } from '@/lib/pagos/quien-pago'
 import { Categoria, nombrePorId } from '@/lib/rolodex/categorias-store'
@@ -22,7 +21,6 @@ import {
   nombrePais, normalizarCiudad, normalizarEstado, tieneEstados,
 } from '@/lib/geo/divisiones'
 import SelectorGeo from '@/app/components/ui/SelectorGeo'
-import EscalaCinco from '@/app/components/ui/EscalaCinco'
 import Estrellas from '@/app/components/ui/Estrellas'
 import { useConfirm } from '@/app/components/ui/ConfirmModal'
 import { usePermiso } from '@/lib/event-access-context'
@@ -33,7 +31,6 @@ import {
 } from '@/lib/rolodex/ficha-por-estado'
 import type { TipoReviewFicha } from '@/lib/rolodex/ficha-por-estado'
 import { metaDelProveedor, partidasDelProveedor } from '@/lib/presupuesto/derivados'
-import { anclasDe, EJES_DESEMPENO, EJES_PROPUESTA, NOMBRE_EJE, ANCLAS_RECONTRATACION } from '@/lib/reviews/ejes'
 import { calcularScores } from '@/lib/reviews/scores'
 import { yaRechazoLaOferta, recordarRechazo } from '@/lib/rolodex/oferta-avance'
 import { TOPE_COMPROBANTES, TOPE_COTIZACIONES, visibles } from '@/lib/archivos/adjuntos'
@@ -916,17 +913,10 @@ export default function FichaDelEvento({
             <ErrorDeReviews />
           ) : (
             <ListaQueFalta
-              key={item.id}
               filas={filasReview}
               reviewDe={reviewDe}
               puedeEditar={permisoFicha.editar}
               onCalificar={abrirModalDe}
-              resumenDe={(tipo, review) => {
-                const propio = calcularScores([review])
-                if (tipo === 'contratacion') return <ResumenContratacion review={review} scorePropuesta={propio.propuesta} />
-                if (tipo === 'descarte')     return <ResumenDescarte review={review} scorePropuesta={propio.propuesta} />
-                return <ResumenPostEvento review={review} currency={currency} />
-              }}
             />
           )
         )}
@@ -1173,19 +1163,15 @@ function Texto({ valor, vacio }: { valor: string | null; vacio: string }) {
 }
 
 // La lista "Que falta": de un vistazo, que ya se califico y que no. Un
-// renglon hecho se despliega ahi mismo con su detalle -- no hay una segunda
-// carpeta abajo con el mismo titulo, que se leia como otra review. Hecha o
-// pendiente se distinguen por forma (palomita llena / circulo punteado), no
-// solo por color.
-function ListaQueFalta({ filas, reviewDe, puedeEditar, onCalificar, resumenDe }: {
+// renglon hecho no se despliega: se abre en su modal, para editar si se
+// puede y solo para leer si no. Hecha o pendiente se distinguen por forma
+// (palomita llena / circulo punteado), no solo por color.
+function ListaQueFalta({ filas, reviewDe, puedeEditar, onCalificar }: {
   filas: ReturnType<typeof filasDeReview>
   reviewDe: (tipo: TipoReviewFicha) => SupplierReview | null
   puedeEditar: boolean
   onCalificar: (tipo: TipoReviewFicha) => void
-  resumenDe: (tipo: TipoReviewFicha, review: SupplierReview) => React.ReactNode
 }) {
-  const [abierta, setAbierta] = useState<TipoReviewFicha | null>(null)
-
   return (
     <section className="overflow-hidden rounded-xl border border-[#eee]">
       <div className="flex items-center justify-between bg-[#fafafa] px-4 py-2 text-[10.5px] font-bold uppercase tracking-wider text-[#999]">
@@ -1200,217 +1186,52 @@ function ListaQueFalta({ filas, reviewDe, puedeEditar, onCalificar, resumenDe }:
             const review = hecha ? reviewDe(tipo) : null
             const propio = review ? calcularScores([review]) : null
             const score = propio ? (tipo === 'post_evento' ? propio.desempeno : propio.propuesta) : null
-            const desplegada = hecha && abierta === tipo
             return (
-              <li key={tipo} className="border-t border-[#f2f2f2]">
-                <div className="flex items-center gap-3 px-4 py-2.5">
-                  <span
-                    aria-hidden
-                    className={'flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-[1.5px] ' + (
-                      hecha ? 'border-[#48C9B0] bg-[#48C9B0] text-white' : 'border-dashed border-[#d4a853]'
-                    )}
-                  >
-                    {hecha && <Check size={11} strokeWidth={3} />}
-                  </span>
-
-                  {hecha && review ? (
-                    <button
-                      type="button"
-                      onClick={() => setAbierta(desplegada ? null : tipo)}
-                      aria-expanded={desplegada}
-                      className="flex min-w-0 flex-1 items-center gap-3 text-left"
-                    >
-                      <span className="min-w-0 flex-1">
-                        <span className="block text-[13px] font-semibold text-[#1D1E20]">{TITULO_REVIEW_FICHA[tipo]}</span>
-                        <span className="block text-[11px] text-[#999]">{DESCRIPCION_REVIEW_FICHA[tipo]}</span>
-                      </span>
-                      <Estrellas score={score} tamano={12} className="shrink-0" />
-                      <ChevronDown size={14} className={'shrink-0 text-[#999] transition-transform ' + (desplegada ? 'rotate-180' : '')} />
-                    </button>
-                  ) : (
-                    <span className="min-w-0 flex-1">
-                      <span className="block text-[13px] font-semibold text-[#1D1E20]">{TITULO_REVIEW_FICHA[tipo]}</span>
-                      <span className="block text-[11px] text-[#999]">{DESCRIPCION_REVIEW_FICHA[tipo]}</span>
-                    </span>
+              <li key={tipo} className="flex items-center gap-3 border-t border-[#f2f2f2] px-4 py-2.5">
+                <span
+                  aria-hidden
+                  className={'flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-[1.5px] ' + (
+                    hecha ? 'border-[#48C9B0] bg-[#48C9B0] text-white' : 'border-dashed border-[#d4a853]'
                   )}
-
-                  <span className="flex shrink-0 items-center">
-                    {hecha ? (
-                      puedeEditar && (
-                        <button
-                          type="button"
-                          onClick={() => onCalificar(tipo)}
-                          className="flex items-center gap-1 text-[11px] font-semibold text-[#48C9B0] transition hover:text-[#3aa896]"
-                        >
-                          <Pencil size={11} /> Editar
-                        </button>
-                      )
-                    ) : puedeEditar ? (
+                >
+                  {hecha && <Check size={11} strokeWidth={3} />}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[13px] font-semibold text-[#1D1E20]">{TITULO_REVIEW_FICHA[tipo]}</span>
+                  <span className="block text-[11px] text-[#999]">{DESCRIPCION_REVIEW_FICHA[tipo]}</span>
+                </span>
+                <span className="flex shrink-0 items-center gap-2.5">
+                  {hecha ? (
+                    <>
+                      <Estrellas score={score} tamano={12} />
                       <button
                         type="button"
                         onClick={() => onCalificar(tipo)}
-                        className="rounded-lg bg-[#48C9B0] px-3 py-1.5 text-[11.5px] font-semibold text-white transition hover:bg-[#3aa896]"
+                        className="flex items-center gap-1 text-[11px] font-semibold text-[#48C9B0] transition hover:text-[#3aa896]"
                       >
-                        {BOTON_REVIEW_FICHA[tipo]}
+                        {puedeEditar ? <><Pencil size={11} /> Editar</> : <><Eye size={11} /> Ver</>}
                       </button>
-                    ) : (
-                      <span className="rounded-full border border-[#efd9a6] bg-[#fdf8ee] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#a9812f]">
-                        Pendiente
-                      </span>
-                    )}
-                  </span>
-                </div>
-
-                {desplegada && review && (
-                  <div className="space-y-4 border-t border-[#f2f2f2] bg-[#fcfcfc] px-4 py-4">
-                    {resumenDe(tipo, review)}
-                  </div>
-                )}
+                    </>
+                  ) : puedeEditar ? (
+                    <button
+                      type="button"
+                      onClick={() => onCalificar(tipo)}
+                      className="rounded-lg bg-[#48C9B0] px-3 py-1.5 text-[11.5px] font-semibold text-white transition hover:bg-[#3aa896]"
+                    >
+                      {BOTON_REVIEW_FICHA[tipo]}
+                    </button>
+                  ) : (
+                    <span className="rounded-full border border-[#efd9a6] bg-[#fdf8ee] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#a9812f]">
+                      Pendiente
+                    </span>
+                  )}
+                </span>
               </li>
             )
           })}
         </ul>
       )}
     </section>
-  )
-}
-
-function ResumenContratacion({ review, scorePropuesta }: { review: SupplierReview; scorePropuesta: number | null }) {
-  return (
-    <>
-      <div>
-        <p className="mb-1.5 text-[10.5px] font-bold uppercase tracking-wider text-[#999]">Puntaje de propuesta</p>
-        <Estrellas score={scorePropuesta} tamano={13} />
-      </div>
-
-      <Bloque titulo="Cómo calificaste la propuesta">
-        <div className="space-y-4">
-          {EJES_PROPUESTA.map(eje => (
-            <EscalaCinco
-              key={eje}
-              nombre={NOMBRE_EJE[eje]}
-              anclas={anclasDe('propuesta', eje)}
-              valor={review[eje]}
-              onChange={() => {}}
-              deshabilitado
-            />
-          ))}
-        </div>
-      </Bloque>
-
-      <Bloque titulo="Por qué lo elegimos">
-        {review.razones_seleccion && review.razones_seleccion.length > 0 ? (
-          <div className="flex flex-wrap gap-1.5">
-            {review.razones_seleccion.map(r => (
-              <span key={r} className="rounded-full border border-[#e0e0e0] bg-[#fafafa] px-2.5 py-1 text-xs text-[#1D1E20]">
-                {RAZON_SELECCION_LABEL[r]}
-              </span>
-            ))}
-          </div>
-        ) : (
-          <p className="text-xs text-[#999]">Sin razones registradas.</p>
-        )}
-      </Bloque>
-
-      <Bloque titulo="Comentarios">
-        <Texto valor={review.comentarios} vacio="Sin comentarios." />
-      </Bloque>
-    </>
-  )
-}
-
-function ResumenDescarte({ review, scorePropuesta }: { review: SupplierReview; scorePropuesta: number | null }) {
-  const sinOpinion = review.precio_valor == null && review.calidad == null && review.comunicacion == null
-
-  return (
-    <>
-      <Bloque titulo="Por qué lo descartamos">
-        {review.motivo_descarte ? (
-          <p className="text-sm text-[#1D1E20]">{MOTIVO_DESCARTE_LABEL[review.motivo_descarte]}</p>
-        ) : (
-          <p className="text-xs text-[#999]">Sin motivo registrado.</p>
-        )}
-      </Bloque>
-
-      {!sinOpinion && (
-        <div>
-          <p className="mb-1.5 text-[10.5px] font-bold uppercase tracking-wider text-[#999]">Puntaje de propuesta</p>
-          <Estrellas score={scorePropuesta} tamano={13} />
-        </div>
-      )}
-
-      <Bloque titulo="Cómo calificaste la propuesta">
-        {sinOpinion ? (
-          <p className="text-xs text-[#999]">Sin opinión sobre la propuesta.</p>
-        ) : (
-          <div className="space-y-4">
-            {EJES_PROPUESTA.map(eje => (
-              <EscalaCinco
-                key={eje}
-                nombre={NOMBRE_EJE[eje]}
-                anclas={anclasDe('propuesta', eje)}
-                valor={review[eje]}
-                onChange={() => {}}
-                deshabilitado
-              />
-            ))}
-          </div>
-        )}
-      </Bloque>
-
-      <Bloque titulo="Comentarios">
-        <Texto valor={review.comentarios} vacio="Sin comentarios." />
-      </Bloque>
-    </>
-  )
-}
-
-function ResumenPostEvento({ review, currency }: {
-  review: SupplierReview
-  currency: Currency
-}) {
-  return (
-    <>
-      <Bloque titulo="Cómo calificaste el desempeño">
-        <div className="space-y-4">
-          {EJES_DESEMPENO.map(eje => (
-            <EscalaCinco
-              key={eje}
-              nombre={NOMBRE_EJE[eje]}
-              anclas={anclasDe('desempeno', eje)}
-              valor={review[eje]}
-              onChange={() => {}}
-              deshabilitado
-            />
-          ))}
-        </div>
-      </Bloque>
-
-      <Bloque titulo="¿Lo volverían a contratar?">
-        <EscalaCinco
-          nombre="Probabilidad de recontratación"
-          anclas={ANCLAS_RECONTRATACION}
-          valor={review.recontratacion}
-          onChange={() => {}}
-          deshabilitado
-        />
-      </Bloque>
-
-      <Bloque titulo="Cobros extra">
-        {review.cobros_extra == null ? (
-          <p className="text-xs text-[#999]">Sin especificar.</p>
-        ) : (
-          <p className="text-sm text-[#1D1E20]">
-            {review.cobros_extra ? 'Sí' : 'No'}
-            {review.cobros_extra && review.monto_cobros_extra ? ` · ${formatCurrency(review.monto_cobros_extra, currency)}` : ''}
-          </p>
-        )}
-      </Bloque>
-
-      <Bloque titulo="Comentarios">
-        <Texto valor={review.comentarios} vacio="Sin comentarios." />
-      </Bloque>
-    </>
   )
 }
 
