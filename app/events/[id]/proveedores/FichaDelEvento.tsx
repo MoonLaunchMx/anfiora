@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 import { Check, ChevronDown, Eye, Globe, Mail, Paperclip, Pencil, Trash2, X } from 'lucide-react'
 import { FaWhatsapp } from 'react-icons/fa'
-import { FiInstagram } from 'react-icons/fi'
+import { FiFacebook, FiInstagram } from 'react-icons/fi'
 import { supabase } from '@/lib/supabase'
 import {
   Currency, formatCurrency,
@@ -268,6 +268,7 @@ export default function FichaDelEvento({
   const waDigitos  = telCrudo ? toWhatsApp(telCrudo) : null
   const telVisible = telCrudo ? formatDisplay(telCrudo) : null
   const igLink     = s.instagram ? `https://instagram.com/${s.instagram.replace('@', '')}` : null
+  const fbLink     = s.facebook ? `https://facebook.com/${s.facebook.replace('@', '')}` : null
   const webLink    = s.website ? (s.website.startsWith('http') ? s.website : `https://${s.website}`) : null
 
   const partidas    = partidasDelProveedor(item, budgets)
@@ -293,7 +294,8 @@ export default function FichaDelEvento({
           contact_name:  borrador.contacto.trim() || null,
           phone:         borrador.telefono.trim() || null,
           email:         borrador.correo.trim() || null,
-          instagram:     borrador.instagram.trim() || null,
+          instagram:     borrador.instagram.trim().replace(/^@/, '') || null,
+          facebook:      borrador.facebook.trim().replace(/^@/, '') || null,
           website:       borrador.sitio.trim() || null,
           country:       borrador.pais || null,
           city:          normalizarCiudad(borrador.pais, borrador.estado, borrador.ciudad) || null,
@@ -508,6 +510,12 @@ export default function FichaDelEvento({
               <FiInstagram size={13} />
             </button>
           )}
+          {fbLink && (
+            <button onClick={() => abrir(fbLink)} aria-label="Abrir Facebook"
+              className="flex h-[26px] w-[26px] items-center justify-center rounded-lg border border-[#e8e8e8] bg-white text-[#777] transition hover:text-[#1D1E20]">
+              <FiFacebook size={13} />
+            </button>
+          )}
           {webLink && (
             <button onClick={() => abrir(webLink)} aria-label="Abrir sitio web"
               className="flex h-[26px] w-[26px] items-center justify-center rounded-lg border border-[#e8e8e8] bg-white text-[#777] transition hover:text-[#1D1E20]">
@@ -581,7 +589,26 @@ export default function FichaDelEvento({
                 <input type="email" value={borrador.correo} onChange={e => setBorrador(b => ({ ...b, correo: e.target.value }))} placeholder="contacto@proveedor.com" className={INPUT} />
               </Campo>
               <Campo etiqueta="Instagram">
-                <input value={borrador.instagram} onChange={e => setBorrador(b => ({ ...b, instagram: e.target.value }))} placeholder="@usuario" className={INPUT} />
+                <div className={PREFIJO}>
+                  <span className="pl-3 text-sm text-[#aaa]">@</span>
+                  <input
+                    value={borrador.instagram}
+                    onChange={e => setBorrador(b => ({ ...b, instagram: e.target.value.replace(/[^a-zA-Z0-9._]/g, '') }))}
+                    placeholder="proveedor"
+                    className="w-full flex-1 bg-transparent px-2 py-2 text-sm outline-none"
+                  />
+                </div>
+              </Campo>
+              <Campo etiqueta="Facebook">
+                <div className={PREFIJO}>
+                  <span className="pl-3 text-sm text-[#aaa]">fb.com/</span>
+                  <input
+                    value={borrador.facebook}
+                    onChange={e => setBorrador(b => ({ ...b, facebook: e.target.value.replace(/^@/, '') }))}
+                    placeholder="proveedor"
+                    className="w-full flex-1 bg-transparent px-2 py-2 text-sm outline-none"
+                  />
+                </div>
               </Campo>
               <Campo etiqueta="Sitio">
                 <input value={borrador.sitio} onChange={e => setBorrador(b => ({ ...b, sitio: e.target.value }))} placeholder="proveedor.com" className={INPUT} />
@@ -665,7 +692,8 @@ export default function FichaDelEvento({
               <dl className="grid grid-cols-2 gap-x-5 gap-y-2.5">
                 <Dato etiqueta="WhatsApp" valor={telVisible} />
                 <Dato etiqueta="Correo" valor={s.email} />
-                <Dato etiqueta="Instagram" valor={s.instagram} />
+                <Dato etiqueta="Instagram" valor={s.instagram ? '@' + s.instagram.replace(/^@/, '') : null} />
+                <Dato etiqueta="Facebook" valor={s.facebook ? 'fb.com/' + s.facebook.replace(/^@/, '') : null} />
                 <Dato etiqueta="Sitio" valor={s.website} />
                 <Dato etiqueta="Persona de contacto" valor={s.contact_name} />
                 <Dato etiqueta="Dónde" valor={[s.city, s.state_region].filter(Boolean).join(', ') || null} />
@@ -1014,6 +1042,12 @@ export default function FichaDelEvento({
             <FiInstagram size={16} />
           </button>
         )}
+        {fbLink && (
+          <button onClick={() => abrir(fbLink)} aria-label="Abrir Facebook"
+            className="flex h-9 w-9 items-center justify-center rounded-lg border border-[#e8e8e8] bg-white text-[#666]">
+            <FiFacebook size={16} />
+          </button>
+        )}
         {webLink && (
           <button onClick={() => abrir(webLink)} aria-label="Abrir sitio web"
             className="flex h-9 w-9 items-center justify-center rounded-lg border border-[#e8e8e8] bg-white text-[#666]">
@@ -1056,6 +1090,7 @@ export default function FichaDelEvento({
 }
 
 const INPUT = 'w-full rounded-lg border border-[#e0e0e0] bg-white px-3 py-2 text-sm outline-none transition focus:border-[#48C9B0]'
+const PREFIJO = 'flex items-center rounded-lg border border-[#e0e0e0] bg-white transition focus-within:border-[#48C9B0]'
 
 function borradorDe(item: SupplierWithDetails) {
   const s = item.supplier
@@ -1065,6 +1100,7 @@ function borradorDe(item: SupplierWithDetails) {
     telefono:       s.phone ?? '',
     correo:         s.email ?? '',
     instagram:      s.instagram ?? '',
+    facebook:       s.facebook ?? '',
     sitio:          s.website ?? '',
     pais:           s.country || PAIS_POR_DEFECTO,
     ciudad:         s.city ?? '',
