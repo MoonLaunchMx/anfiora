@@ -208,7 +208,7 @@ export default function PresupuestoPage() {
   // La fuente de las secciones es la tabla `categories` del despacho. NO
   // restaurar aqui una lista fija de texto: se quedaria ciega a las categorias
   // que el planner crea desde Proveedores y duplicaria secciones por acentos.
-  const seccionesCatalogo = seccionesDelPresupuesto(categorias, storedCategories)
+  const seccionesCatalogo = seccionesDelPresupuesto(categorias, storedCategories, budgets)
 
   const availableSuppliersByCategory: Record<string, EventSupplierWithName[]> = {}
   seccionesCatalogo.forEach(cat => { availableSuppliersByCategory[cat] = [] })

@@ -15,9 +15,14 @@ export const SECCION_SIN_CATEGORIA = 'Sin categoría'
 // orden y pase a filtrar. Una seleccion no vacia SI filtra: solo entran los
 // nombres elegidos, en ese orden. Un nombre elegido que ya no existe en el
 // catalogo (se borro o se archivo) se ignora en silencio, nunca inventa seccion.
+//
+// La seleccion solo esconde categorias VACIAS (issue #67): una categoria viva
+// con partidas en este evento se muestra siempre, este o no en la lista, para
+// que su monto nunca caiga a "Sin categoria" por una seleccion vieja.
 export function seccionesDelPresupuesto(
   categorias: Categoria[],
   seleccion: string[] | null | undefined,
+  partidas: { category_id?: string | null }[] = [],
 ): string[] {
   const vivas = activas(categorias)
 
@@ -30,6 +35,14 @@ export function seccionesDelPresupuesto(
   for (const nombre of seleccion) {
     const cat = vivas.find(c => mismaCategoria(c.name, nombre))
     if (cat && !puestas.has(cat.id)) {
+      secciones.push(cat.name)
+      puestas.add(cat.id)
+    }
+  }
+
+  const usadas = new Set(partidas.map(p => p.category_id).filter((id): id is string => !!id))
+  for (const cat of vivas) {
+    if (usadas.has(cat.id) && !puestas.has(cat.id)) {
       secciones.push(cat.name)
       puestas.add(cat.id)
     }

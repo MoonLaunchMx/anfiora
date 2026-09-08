@@ -34,6 +34,22 @@ describe('seccionesDelPresupuesto', () => {
       .toEqual(['Venue'])
   })
 
+  it('issue #67: una categoria viva con partidas se muestra aunque no este en la seleccion', () => {
+    expect(seccionesDelPresupuesto([VENUE, PLANEACION, TRANSPORTE], ['Venue'], [{ category_id: '3' }]))
+      .toEqual(['Venue', 'Transporte'])
+  })
+
+  it('la seleccion sigue escondiendo las categorias vacias', () => {
+    expect(seccionesDelPresupuesto([VENUE, PLANEACION, TRANSPORTE], ['Venue'], [{ category_id: '1' }]))
+      .toEqual(['Venue'])
+  })
+
+  it('una categoria archivada con partidas no revive por tenerlas: cae al cajon de rescate', () => {
+    const archivada = cat('9', 'Vieja', '2026-01-01')
+    expect(seccionesDelPresupuesto([VENUE, archivada], ['Venue'], [{ category_id: '9' }]))
+      .toEqual(['Venue'])
+  })
+
   it('un nombre de la seleccion que ya no existe en la tabla no inventa seccion', () => {
     expect(seccionesDelPresupuesto([VENUE], ['Venue', 'Borrada'])).toEqual(['Venue'])
   })
