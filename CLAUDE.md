@@ -224,7 +224,7 @@ supplier_payments (
   amount NUMERIC,
   payment_date DATE,
   payment_method TEXT,   -- PaymentMethod
-  paid_by TEXT,          -- PaidBy
+  paid_by TEXT,          -- texto libre (antes enum PaidBy; las claves viejas se traducen con etiquetaQuienPago)
   reference TEXT,
   receipt_files JSONB,   -- ArchivoAdjunto[] — comprobantes en el bucket privado event-docs
   created_at
@@ -315,11 +315,11 @@ TimelineCategory: 'evento' | 'tarea' | 'recordatorio' | 'reunion' | 'entrega' | 
 TimelinePriority: 'bloqueante' | 'no_bloqueante'
 ```
 
-### PaymentMethod (6 valores) + PaidBy (7 valores)
+### PaymentMethod (6 valores) + PaidBy (texto libre)
 
 ```ts
 PaymentMethod: 'transferencia' | 'efectivo' | 'tarjeta_credito' | 'tarjeta_debito' | 'cheque' | 'otro'
-PaidBy:        'novia' | 'novio' | 'pareja' | 'papas_novia' | 'papas_novio' | 'familiar' | 'otro'
+PaidBy:        texto libre por evento (desde 7-sep-2026). Las claves viejas 'novia' | 'novio' | 'pareja' | 'papas_novia' | 'papas_novio' | 'familiar' | 'otro' siguen en pagos historicos y se muestran con etiquetaQuienPago() de lib/pagos/quien-pago.ts
 ```
 
 Estos valores son **enums TEXT** en `supplier_payments`. Los selects en `/events/[id]/pagos` y en el modal de proveedor deben usar exactamente estas strings.
@@ -508,7 +508,7 @@ Password recovery handled at `/auth/reset` using Supabase `PASSWORD_RECOVERY` au
 - **`import { QRCodeCanvas } from 'qrcode.react'`** — named import, no default.
 - **Mensajes hub (/events/[id]/mensajes):** feature PRO. Muestra `ModalProximamente` para broadcast campaigns con signup a `waitlist_whatsapp`. Mensajes manuales sí están activos via `/api/whatsapp/send`.
 - **Colaboradores:** invitación por token. El owner crea el invite en `configuracion`, el invitado accede via `/invite/[token]` (login o registro en la misma página). RBAC en `lib/event-access-context.tsx`.
-- **Pagos (/events/[id]/pagos):** la página consulta `supplier_payments` con join a `event_suppliers → suppliers` para mostrar nombre/categoría. Permite filtros por método/responsable/proveedor, sort por columna, alta inline (modal nuevo pago) y export Excel/PDF. Los valores de `payment_method` y `paid_by` son enums TEXT en la DB — usar exactamente los valores de `PAYMENT_METHODS` y `PAID_BY_OPTIONS` de `lib/types.ts`.
+- **Pagos (/events/[id]/pagos):** la página consulta `supplier_payments` con join a `event_suppliers → suppliers` para mostrar nombre/categoría. Permite filtros por método/responsable/proveedor, sort por columna, alta inline (modal nuevo pago) y export Excel/PDF. `payment_method` es enum TEXT en la DB — usar exactamente los valores de `PAYMENT_METHODS` de `lib/types.ts`. `paid_by` es texto libre con sugerencias de lo ya usado en ese evento: componente único `app/components/ui/QuienPago.tsx` en los dos formularios de pago.
 - **Timeline rediseñado:** las tareas se agrupan por mes. `TaskCard.tsx` calcula urgencia y muestra avatar de asignado + chip de proveedor. `TaskModal.tsx` permite asignar a colaborador (`assigned_to_user_id`) o nombre libre (`assigned_to_name`), vincular a `event_supplier_id`, marcar `priority='bloqueante'` y configurar `reminder_date` con presets estilo Google Calendar (15min, 30min, 1h, 2h, 1d, 2d).
 - **Audit log:** `lib/audit.ts` expone `logAction({ eventId, action, entityType, entityId, entityLabel, oldValue, newValue })`. Falla en silencio si no hay sesión o si la inserción peta — nunca debe romper el flujo principal. Las acciones siguen el formato `<entidad>.<accion>` (ver tipo `AuditAction`). El log se lee en `/admin`.
 - **Changelog / WhatsNewModal:** `lib/changelog.ts` exporta `CURRENT_VERSION` y un array `changelog`. `WhatsNewModal` se muestra cuando `localStorage.anfiora_seen_version` difiere de `CURRENT_VERSION`. Al agregar un release, actualizar ambos. Iconos vienen de Lucide (`ICON_MAP` en el modal).

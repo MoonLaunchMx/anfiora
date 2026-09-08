@@ -71,7 +71,7 @@ export default function SupplierKanbanView({
       {/* Sin overflow propio a proposito: cualquier overflow aqui convertiria el
           tablero en su propio contenedor de scroll y el encabezado sticky de
           cada columna dejaria de pegarse al scroll de la pagina. */}
-      <div className="flex gap-3 pb-6" style={{ alignItems: 'flex-start' }}>
+      <div className="flex items-start gap-3 pb-6">
 
         {/* Columnas principales */}
         {VISIBLE_STATUSES.map(status => (

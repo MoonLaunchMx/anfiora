@@ -28,7 +28,7 @@ function Row({ name, count, onQuitar, puedeQuitar }: { name: string; count: numb
       <span className="flex-1 text-left text-sm text-[#1D1E20]">{categoryLabel(name)}</span>
       {count > 0 && <span className="text-[11px] text-[#aaa]">{count}</span>}
       {puedeQuitar && (
-        <button onClick={() => onQuitar(name)} title="Quitar de esta boda" className="text-[#ccc] hover:text-[#cc3333]"><EyeOff size={14} /></button>
+        <button onClick={() => onQuitar(name)} title="Quitar de este evento" className="text-[#ccc] hover:text-[#cc3333]"><EyeOff size={14} /></button>
       )}
     </div>
   )
@@ -50,7 +50,7 @@ export function BudgetCategoriesModal({ categories, itemCountByCategory, onAdd, 
 
   return (
     <Modal open onClose={onClose} size="md">
-      <Modal.Header title="Categorías" subtitle="Quitar solo la oculta en esta boda. Para renombrarla o archivarla del catálogo, ve a Ajustes › Categorías" />
+      <Modal.Header title="Categorías" subtitle="Quitar solo la oculta en este evento. Para renombrarla o archivarla del catálogo, ve a Ajustes › Categorías" />
       <Modal.Body>
         {error && (
           <div className="mb-3 flex items-start gap-2 rounded-lg border p-3" style={{ background: 'var(--error-bg)', borderColor: 'var(--error-border)' }}>

@@ -391,7 +391,7 @@ export default function CategoriasPage() {
                     : [
                         plural(c.uso.proveedores, 'proveedor', 'proveedores'),
                         plural(c.uso.partidas, 'partida', 'partidas'),
-                        c.uso.eventos ? plural(c.uso.eventos, 'boda', 'bodas') : null,
+                        c.uso.eventos ? plural(c.uso.eventos, 'evento', 'eventos') : null,
                       ].filter(Boolean).join(' · ')}
               </p>
               {userId && (

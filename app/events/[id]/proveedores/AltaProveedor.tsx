@@ -117,7 +117,7 @@ function FilaDelRolodex({ entrada, onClick }: { entrada: EntradaDelRolodex; onCl
         {entrada.enEstaBoda ? (
           <>
             <span className="rounded-md bg-[#FBF3E0] px-1.5 py-0.5 text-[10px] font-bold text-[#A87C1F]">
-              Ya está en esta boda
+              Ya está en este evento
             </span>
             <span className="flex items-center gap-0.5 text-[11px] font-bold text-[#999]">
               Abrir ficha <ChevronRight size={11} />
@@ -461,7 +461,7 @@ export default function AltaProveedor({
 
       {fase === 'existente' && elegida && (
         <>
-          <Modal.Header title="Agregar a esta boda" subtitle={eventoNombre ?? undefined} />
+          <Modal.Header title="Agregar a este evento" subtitle={eventoNombre ?? undefined} />
           <Modal.Body>
             {aviso}
             <div className="mb-4 flex items-center gap-3 rounded-xl border border-[#e8e8e8] bg-[#fafafa] px-3 py-3">
@@ -500,7 +500,7 @@ export default function AltaProveedor({
               disabled={enviando}
               className="rounded-lg bg-[#48C9B0] px-4 py-2 text-xs font-semibold text-white transition hover:bg-[#3aa896] disabled:opacity-50"
             >
-              {enviando ? 'Agregando...' : 'Agregar a esta boda'}
+              {enviando ? 'Agregando...' : 'Agregar a este evento'}
             </button>
           </Modal.Footer>
         </>
@@ -508,7 +508,7 @@ export default function AltaProveedor({
 
       {fase === 'nuevo' && (
         <>
-          <Modal.Header title="Nuevo proveedor" subtitle="Se guarda en tu Rolodex y entra a esta boda" />
+          <Modal.Header title="Nuevo proveedor" subtitle="Se guarda en tu Rolodex y entra a este evento" />
           <Modal.Body>
             {aviso}
 
@@ -554,7 +554,7 @@ export default function AltaProveedor({
                             <span className="block truncate text-[13px] font-semibold">{repetido.entrada.nombre}</span>
                             <span className="block truncate text-[11px] opacity-75">
                               {[repetido.entrada.categoria, repetido.entrada.ciudad].filter(Boolean).join(' · ')}
-                              {repetido.entrada.veces > 0 && ` · ${repetido.entrada.veces} bodas`}
+                              {repetido.entrada.veces > 0 && ` · ${repetido.entrada.veces} eventos`}
                             </span>
                           </span>
                         </div>
@@ -579,7 +579,7 @@ export default function AltaProveedor({
                               <span className="block truncate text-[13px] font-semibold">{p.nombre}</span>
                               <span className="block truncate text-[11px] opacity-75">
                                 {[p.categoria, p.ciudad].filter(Boolean).join(' · ')}
-                                {p.veces > 0 && ` · ${p.veces} bodas`}
+                                {p.veces > 0 && ` · ${p.veces} eventos`}
                               </span>
                             </span>
                             <button
@@ -711,12 +711,12 @@ export default function AltaProveedor({
                 <div>
                   <Etiqueta>Notas generales</Etiqueta>
                   <textarea value={notas} onChange={e => setNotas(e.target.value)} rows={2}
-                    placeholder="Lo que quieras recordar de él en cualquier boda"
+                    placeholder="Lo que quieras recordar de él en cualquier evento"
                     className={`${INPUT} resize-none`} />
                 </div>
               </Seccion>
 
-              <Seccion titulo="En esta boda" nota="Opcional">
+              <Seccion titulo="En este evento" nota="Opcional">
                 <div className="grid gap-3 sm:grid-cols-2">
                   {camposDeLaBoda}
                 </div>
@@ -741,7 +741,7 @@ export default function AltaProveedor({
                   disabled={enviando || repetido.entrada.enEstaBoda}
                   className="rounded-lg bg-[#48C9B0] px-4 py-2 text-xs font-semibold text-white transition hover:bg-[#3aa896] disabled:opacity-50"
                 >
-                  {repetido.entrada.enEstaBoda ? 'Ya está en esta boda' : `Usar ${repetido.entrada.nombre}`}
+                  {repetido.entrada.enEstaBoda ? 'Ya está en este evento' : `Usar ${repetido.entrada.nombre}`}
                 </button>
               </>
             ) : (

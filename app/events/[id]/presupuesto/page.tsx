@@ -497,7 +497,7 @@ export default function PresupuestoPage() {
       const count = (itemsByCategory[name] || []).length
       await askConfirm({
         title: `No se puede quitar "${categoryLabel(name)}"`,
-        message: `${categoryLabel(name)} tiene ${count === 1 ? '1 partida' : `${count} partidas`} en esta boda. Para quitarla, primero mueve esas partidas a otra categoría. La categoría sigue disponible en tu catálogo.`,
+        message: `${categoryLabel(name)} tiene ${count === 1 ? '1 partida' : `${count} partidas`} en este evento. Para quitarla, primero mueve esas partidas a otra categoría. La categoría sigue disponible en tu catálogo.`,
         confirmLabel: 'Entendido',
         soloAviso: true,
       })
@@ -505,9 +505,9 @@ export default function PresupuestoPage() {
     }
 
     const ok = await askConfirm({
-      title: `¿Quitar "${categoryLabel(name)}" de esta boda?`,
-      message: 'Deja de mostrarse en esta boda. Sigue disponible en tu catálogo y en tus demás eventos.',
-      confirmLabel: 'Quitar de esta boda',
+      title: `¿Quitar "${categoryLabel(name)}" de este evento?`,
+      message: 'Deja de mostrarse en este evento. Sigue disponible en tu catálogo y en los demás.',
+      confirmLabel: 'Quitar de este evento',
       tone: 'default',
     })
     if (!ok) return
