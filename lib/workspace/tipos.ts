@@ -33,6 +33,7 @@ export interface Miembro {
   email: string
   user_id: string | null
   nombre: string | null
+  avatar_url: string | null
   rol: RolWorkspace
   es_dueno_principal: boolean
   status: StatusMiembro
@@ -57,6 +58,7 @@ export interface WorkspaceResumen {
   id: string
   name: string
   plan: PlanId
+  logoUrl: string | null
   miRol: RolWorkspace
   esDuenoPrincipal: boolean
   miembros: Miembro[]

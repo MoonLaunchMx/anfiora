@@ -1,12 +1,13 @@
 'use client'
-import { Suspense, useEffect, useState, type ReactNode } from 'react'
+import { Suspense, useEffect, useRef, useState, type ReactNode } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { ArrowLeft, Bell, ChevronDown, Clock, CreditCard, User, Users } from 'lucide-react'
+import { ArrowLeft, Bell, ChevronDown, Clock, CreditCard, User, Users, X } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { Cargando } from '@/app/components/ui/Cargando'
-import { miMembresia } from '@/lib/workspace/cliente'
+import { miMembresia, patchJson } from '@/lib/workspace/cliente'
+import { borrarImagenAnterior, subirImagen } from '@/lib/workspace/subir'
 import { resumenAsientos } from '@/lib/workspace/asientos'
 import { etiquetaPlan } from '@/lib/workspace/planes'
 import type { RolWorkspace, WorkspaceListado, WorkspaceResumen } from '@/lib/workspace/tipos'
@@ -89,12 +90,81 @@ function WorkspaceSwitch({
   )
 }
 
+// El cuadro del header ES el control: es donde el logo va a salir, asi que es
+// donde se cambia. Mismo gesto que Slack y Notion con el icono del workspace.
+function LogoWorkspace({ activo, onCambio }: { activo: WorkspaceResumen; onCambio: () => void }) {
+  const [subiendo, setSubiendo] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const input = useRef<HTMLInputElement>(null)
+
+  const guardar = async (url: string | null, file?: File) => {
+    setSubiendo(true)
+    setError(null)
+    try {
+      let nueva = url
+      if (file) {
+        const r = await subirImagen('logos', activo.id, file)
+        if (r.error) { setError(r.error); setSubiendo(false); return }
+        nueva = r.url!
+      }
+      await patchJson('/api/workspace', { workspaceId: activo.id, logoUrl: nueva })
+      await borrarImagenAnterior('logos', activo.id, activo.logoUrl)
+      onCambio()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'No se pudo guardar el logo')
+    }
+    setSubiendo(false)
+  }
+
+  return (
+    <div className="relative shrink-0">
+      <button
+        onClick={() => input.current?.click()}
+        disabled={subiendo}
+        title={activo.logoUrl ? 'Cambiar el logo' : 'Subir el logo de tu empresa'}
+        className="group relative flex h-11 w-11 items-center justify-center overflow-hidden rounded-[10px] bg-[#1D1E20] text-[15px] font-semibold text-white transition hover:opacity-90"
+      >
+        {activo.logoUrl
+          ? <img src={activo.logoUrl} alt={activo.name} className="h-full w-full object-cover" />
+          : iniciales(activo.name)}
+        <span className="absolute inset-0 hidden items-center justify-center bg-black/45 text-[10px] font-semibold text-white group-hover:flex">
+          {subiendo ? '...' : 'Cambiar'}
+        </span>
+      </button>
+
+      {activo.logoUrl && !subiendo && (
+        <button
+          onClick={() => guardar(null)}
+          title="Quitar el logo"
+          className="absolute -right-1.5 -top-1.5 flex h-[18px] w-[18px] items-center justify-center rounded-full border border-[#e8e8e8] bg-white text-[#888] shadow-sm transition hover:text-[#cc3333]"
+        >
+          <X size={11} />
+        </button>
+      )}
+
+      <input
+        ref={input}
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        className="hidden"
+        onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) guardar(null, f) }}
+      />
+
+      {error && (
+        <p className="absolute left-0 top-[52px] z-10 w-56 rounded-lg border border-[#ffc0c0] bg-[#fff0f0] px-2.5 py-1.5 text-[11px] text-[#cc3333]">
+          {error}
+        </p>
+      )}
+    </div>
+  )
+}
+
 function Cascara({ children }: { children: ReactNode }) {
-  const { activo, workspaces, cargando: cargandoWorkspace } = useWorkspace()
+  const { activo, workspaces, cargando: cargandoWorkspace, recargar } = useWorkspace()
   const pathname = usePathname()
   const router = useRouter()
 
-  const [persona, setPersona] = useState<{ nombre: string; email: string } | null>(null)
+  const [persona, setPersona] = useState<{ nombre: string; email: string; foto: string | null } | null>(null)
   const [membresia, setMembresia] = useState<{ rol: RolWorkspace; workspaceName: string } | null>(null)
   const [cargandoPersona, setCargandoPersona] = useState(true)
 
@@ -104,9 +174,16 @@ function Cascara({ children }: { children: ReactNode }) {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { router.replace('/'); return }
       const { data } = await supabase.from('users').select('full_name').eq('id', user.id).single()
+      // avatar_url la agrega la migracion del Tramo 5: aparte, para que su
+      // ausencia deje la barra con iniciales y no rompa la carga.
+      const { data: conFoto } = await supabase.from('users').select('avatar_url').eq('id', user.id).single()
       const [membresiaActual] = await Promise.all([miMembresia()])
       if (!vivo) return
-      setPersona({ nombre: data?.full_name || '', email: user.email || '' })
+      setPersona({
+        nombre: data?.full_name || '',
+        email: user.email || '',
+        foto: (conFoto as { avatar_url?: string | null } | null)?.avatar_url ?? null,
+      })
       setMembresia(membresiaActual)
       setCargandoPersona(false)
     }
@@ -155,9 +232,13 @@ function Cascara({ children }: { children: ReactNode }) {
         </div>
         <div className="flex items-center gap-2.5">
           <Link href="/dashboard" className="text-[13px] text-[#666] transition hover:text-[#1D1E20]">Eventos</Link>
-          <span className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-full bg-[#e1f5ee] text-[12px] font-semibold text-[#04342C]">
-            {iniciales(nombrePersona)}
-          </span>
+          {persona?.foto
+            ? <img src={persona.foto} alt="" className="h-[30px] w-[30px] shrink-0 rounded-full object-cover" />
+            : (
+              <span className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-full bg-[#e1f5ee] text-[12px] font-semibold text-[#04342C]">
+                {iniciales(nombrePersona)}
+              </span>
+            )}
         </div>
       </header>
 
@@ -233,9 +314,7 @@ function Cascara({ children }: { children: ReactNode }) {
               {esAdmin && activo ? (
                 <>
                   <div className="flex items-center gap-3.5">
-                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[10px] bg-[#1D1E20] text-[15px] font-semibold text-white">
-                      {iniciales(activo.name)}
-                    </div>
+                    <LogoWorkspace activo={activo} onCambio={recargar} />
                     <div className="flex flex-col gap-1">
                       <div className="flex items-center gap-2">
                         <span className="text-xl font-semibold tracking-tight text-[#1D1E20]">{activo.name}</span>
@@ -250,9 +329,13 @@ function Cascara({ children }: { children: ReactNode }) {
                 </>
               ) : (
                 <div className="flex items-center gap-3.5">
-                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[10px] bg-[#f8f5f0] text-[15px] font-semibold text-[#1D1E20]">
-                    {iniciales(nombrePersona)}
-                  </div>
+                  {persona?.foto
+                    ? <img src={persona.foto} alt="" className="h-11 w-11 shrink-0 rounded-[10px] object-cover" />
+                    : (
+                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[10px] bg-[#f8f5f0] text-[15px] font-semibold text-[#1D1E20]">
+                        {iniciales(nombrePersona)}
+                      </div>
+                    )}
                   <div className="flex flex-col gap-1">
                     <span className="text-xl font-semibold tracking-tight text-[#1D1E20]">{nombrePersona}</span>
                     {membresia && membresia.rol === 'colaborador' && (

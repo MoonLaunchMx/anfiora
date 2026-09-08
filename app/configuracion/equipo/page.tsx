@@ -26,7 +26,12 @@ const iniciales = (nombre: string | null, email: string) =>
 const COLS = 'grid-cols-[minmax(0,2.2fr)_minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,2fr)_96px]'
 const COLS_CLIENTE = 'grid-cols-[minmax(0,2.2fr)_minmax(0,2fr)_minmax(0,1fr)_96px]'
 
-function Avatar({ tam, colores, texto }: { tam: number; colores: { bg: string; fg: string }; texto: string }) {
+function Avatar({ tam, colores, texto, url }: {
+  tam: number; colores: { bg: string; fg: string }; texto: string; url?: string | null
+}) {
+  if (url) {
+    return <img src={url} alt="" className="shrink-0 rounded-full object-cover" style={{ width: tam, height: tam }} />
+  }
   return (
     <span
       className="flex shrink-0 items-center justify-center rounded-full font-semibold"
@@ -153,7 +158,7 @@ export default function EquipoPage() {
           <span className="rounded-full bg-[#f4f4f4] px-2.5 py-0.5 text-[11px] font-semibold text-[#666]">Plan Free</span>
           <p className="text-[15px] font-semibold text-[#1D1E20]">El equipo es parte de Pro</p>
           <p className="max-w-[46ch] text-[13px] leading-relaxed text-[#666]">
-            En Free trabajas tú solo con un evento activo. Pro cuesta {dinero(PLANES.pro.precio)} al mes e incluye un asiento para tu equipo.
+            En Free trabajas tú solo con un evento activo. Pro cuesta {dinero(PLANES.pro.precio)} al mes, quita ese límite y te deja sumar a tu equipo por {dinero(PRECIO_ASIENTO_EXTRA)} cada asiento.
           </p>
           <button
             onClick={() => setAlta(true)}
@@ -186,7 +191,7 @@ export default function EquipoPage() {
               return (
                 <div key={m.id} className={`grid ${COLS} items-center gap-4 border-b border-[#f2f2f2] px-5 py-3.5 last:border-b-0`}>
                   <span className="flex min-w-0 items-center gap-3">
-                    <Avatar tam={32} colores={coloresDe(m)} texto={iniciales(m.nombre, m.email)} />
+                    <Avatar tam={32} colores={coloresDe(m)} texto={iniciales(m.nombre, m.email)} url={m.avatar_url} />
                     <span className="min-w-0">
                       <span className="block truncate text-sm font-medium text-[#1D1E20]">{m.nombre ?? m.email}</span>
                       <span className="block truncate text-xs text-[#666]">{m.nombre ? m.email : m.user_id ? '' : 'Sin cuenta todavía'}</span>
@@ -215,7 +220,7 @@ export default function EquipoPage() {
               const ev = eventosDe(m)
               return (
                 <div key={m.id} className="flex gap-3 rounded-xl border border-[#e8e8e8] p-3.5">
-                  <Avatar tam={36} colores={coloresDe(m)} texto={iniciales(m.nombre, m.email)} />
+                  <Avatar tam={36} colores={coloresDe(m)} texto={iniciales(m.nombre, m.email)} url={m.avatar_url} />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-start justify-between gap-2">
                       <span className="truncate text-[15px] font-semibold text-[#1D1E20]">{m.nombre ?? m.email}</span>

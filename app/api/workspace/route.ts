@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { normalizarPermisos } from '@/lib/permisos/resolver'
-import { bodasDelWorkspace, esAdministrador, planDelWorkspace, usuarioDeRequest } from '@/lib/workspace/servidor'
+import { bodasDelWorkspace, esAdministrador, planDelWorkspace, rolEnWorkspace, usuarioDeRequest } from '@/lib/workspace/servidor'
 import type { Cliente, Miembro, RolWorkspace, WorkspaceListado, WorkspaceResumen } from '@/lib/workspace/tipos'
 
 export async function GET(req: NextRequest) {
@@ -56,8 +56,19 @@ export async function GET(req: NextRequest) {
     : { data: [] }
   const nombre = new Map((perfiles ?? []).map(p => [p.id, p.full_name as string | null]))
 
+  // avatar_url la agrega la migracion del Tramo 5: se pide aparte para que su
+  // ausencia deje al equipo sin foto, no sin cargar.
+  const foto = new Map<string, string | null>()
+  if (userIds.length) {
+    const { data: conFoto, error: errFoto } = await admin.from('users').select('id, avatar_url').in('id', userIds)
+    if (!errFoto) {
+      for (const p of conFoto ?? []) foto.set(p.id as string, ((p as { avatar_url?: unknown }).avatar_url as string) ?? null)
+    }
+  }
+
   const miembros: Miembro[] = (miembrosRaw ?? []).map(m => ({
     id: m.id, email: m.email, user_id: m.user_id, nombre: m.user_id ? nombre.get(m.user_id) ?? null : null,
+    avatar_url: m.user_id ? foto.get(m.user_id) ?? null : null,
     rol: m.rol, es_dueno_principal: m.es_dueno_principal, status: m.status,
     invite_token: m.invite_token, invited_at: m.invited_at, accepted_at: m.accepted_at,
     bodas: (colabs ?? [])
@@ -78,8 +89,45 @@ export async function GET(req: NextRequest) {
     }))
 
   const activo: WorkspaceResumen = {
-    id: activoId, name: String(ws.name), plan: await planDelWorkspace(admin, ws), miRol: mia.rol,
+    id: activoId, name: String(ws.name), plan: await planDelWorkspace(admin, ws),
+    logoUrl: (ws.logo_url as string) ?? null, miRol: mia.rol,
     esDuenoPrincipal: mia.es_dueno_principal, miembros, clientes, bodas,
   }
   return NextResponse.json({ workspaces, activo })
+}
+
+// Guarda el logo del workspace. Solo la ruta publica del bucket de la app: si
+// se aceptara cualquier URL, el logo se volveria un hueco para meter enlaces
+// a donde sea en pantallas que ve gente sin sesion.
+const MARCA_BUCKET = '/object/public/event-media/'
+
+export async function PATCH(req: NextRequest) {
+  const s = await usuarioDeRequest(req)
+  if (!s) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  const { user, admin } = s
+
+  let body: { workspaceId?: string; logoUrl?: string | null }
+  try { body = await req.json() } catch { return NextResponse.json({ error: 'Cuerpo inválido' }, { status: 400 }) }
+
+  const { workspaceId } = body
+  if (!workspaceId) return NextResponse.json({ error: 'Faltan datos' }, { status: 400 })
+  if (body.logoUrl !== null && typeof body.logoUrl !== 'string') {
+    return NextResponse.json({ error: 'Faltan datos' }, { status: 400 })
+  }
+
+  const logoUrl = body.logoUrl
+  if (typeof logoUrl === 'string' && !(logoUrl.startsWith('https://') && logoUrl.includes(MARCA_BUCKET))) {
+    return NextResponse.json({ error: 'Esa imagen no es del almacenamiento de Anfiora' }, { status: 400 })
+  }
+
+  const miRol = await rolEnWorkspace(admin, workspaceId, user.id)
+  if (!esAdministrador(miRol)) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
+
+  // Un update que no alcanza ninguna fila no devuelve error: se cuentan.
+  const { data, error } = await admin
+    .from('workspaces').update({ logo_url: logoUrl }).eq('id', workspaceId).select('id')
+  if (error) return NextResponse.json({ error: 'No se pudo guardar el logo: ' + error.message }, { status: 500 })
+  if (!data || data.length === 0) return NextResponse.json({ error: 'No se guardó el logo' }, { status: 500 })
+
+  return NextResponse.json({ ok: true, logoUrl })
 }

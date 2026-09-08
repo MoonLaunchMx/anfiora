@@ -1,11 +1,18 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { Lock, Eye, EyeOff, CheckCircle, AlertCircle, ChevronDown, ChevronRight } from 'lucide-react'
 import { ROLES, getRole, Role } from '@/lib/roles'
 import PhoneInput from '@/app/components/ui/PhoneInput'
+import { borrarImagenAnterior, subirImagen } from '@/lib/workspace/subir'
+
+function inicialesDe(texto: string): string {
+  const partes = texto.trim().split(/[\s@.]+/).filter(Boolean)
+  if (partes.length === 0) return '??'
+  return partes.slice(0, 2).map(p => p[0]!.toUpperCase()).join('')
+}
 
 function Toast({ type, message }: { type: 'success' | 'error'; message: string }) {
   return (
@@ -82,6 +89,11 @@ export default function PerfilPage() {
   const [savingPass, setSavingPass]     = useState(false)
   const [passMsg, setPassMsg]           = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
+  const [avatar, setAvatar]         = useState<string | null>(null)
+  const [subiendoFoto, setSubiendo] = useState(false)
+  const [fotoMsg, setFotoMsg]       = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  const inputFoto = useRef<HTMLInputElement>(null)
+
   useEffect(() => {
     const load = async () => {
       const { data: { user } } = await supabase.auth.getUser()
@@ -102,10 +114,48 @@ export default function PerfilPage() {
         setRole(data.role || '')
       }
 
+      // avatar_url la agrega la migracion del Tramo 5: se pide aparte para que
+      // su ausencia deje el perfil sin foto, no sin cargar.
+      const { data: conFoto } = await supabase.from('users').select('avatar_url').eq('id', user.id).single()
+      if (conFoto) setAvatar((conFoto as { avatar_url?: string | null }).avatar_url ?? null)
+
       setLoading(false)
     }
     load()
   }, [router])
+
+  const guardarFoto = async (url: string | null) => {
+    const anterior = avatar
+    const { error } = await supabase.from('users').update({ avatar_url: url }).eq('id', userId)
+    if (error) {
+      setFotoMsg({ type: 'error', text: 'No se pudo guardar la foto. Intenta de nuevo.' })
+      return false
+    }
+    setAvatar(url)
+    await borrarImagenAnterior('avatars', userId, anterior)
+    return true
+  }
+
+  const handleFoto = async (file: File | undefined) => {
+    if (!file) return
+    setSubiendo(true)
+    setFotoMsg(null)
+    const { url, error } = await subirImagen('avatars', userId, file)
+    if (error) {
+      setFotoMsg({ type: 'error', text: error })
+      setSubiendo(false)
+      return
+    }
+    if (await guardarFoto(url!)) setFotoMsg({ type: 'success', text: 'Foto actualizada' })
+    setSubiendo(false)
+  }
+
+  const handleQuitarFoto = async () => {
+    setSubiendo(true)
+    setFotoMsg(null)
+    if (await guardarFoto(null)) setFotoMsg({ type: 'success', text: 'Foto quitada' })
+    setSubiendo(false)
+  }
 
   const handleChangeRole = async (newRole: Role) => {
     setSavingRole(true)
@@ -257,6 +307,49 @@ export default function PerfilPage() {
       </div>
 
       {roleMsg && <Toast type={roleMsg.type} message={roleMsg.text} />}
+
+      <div className="flex max-w-[900px] flex-wrap items-center gap-4">
+        {avatar
+          ? <img src={avatar} alt="Tu foto" className="h-16 w-16 shrink-0 rounded-full object-cover" />
+          : (
+            <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-[#e1f5ee] text-lg font-semibold text-[#04342C]">
+              {inicialesDe(name || email)}
+            </span>
+          )}
+        <div className="flex flex-col gap-1">
+          <p className="text-sm font-semibold text-[#1D1E20]">Tu foto</p>
+          <p className="text-[11.5px] text-[#999]">Si no subes una, se usan tus iniciales. JPG, PNG o WEBP hasta 4 MB.</p>
+          <div className="mt-1.5 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => inputFoto.current?.click()}
+              disabled={subiendoFoto}
+              className="rounded-lg border border-[#e8e8e8] px-3.5 py-1.5 text-[13px] font-semibold text-[#1D1E20] transition hover:border-[#48C9B0] disabled:cursor-not-allowed disabled:text-[#bbb]"
+            >
+              {subiendoFoto ? 'Subiendo...' : avatar ? 'Cambiar' : 'Subir foto'}
+            </button>
+            {avatar && (
+              <button
+                type="button"
+                onClick={handleQuitarFoto}
+                disabled={subiendoFoto}
+                className="rounded-lg px-3 py-1.5 text-[13px] font-semibold text-[#666] transition hover:text-[#cc3333] disabled:cursor-not-allowed disabled:text-[#bbb]"
+              >
+                Quitar
+              </button>
+            )}
+          </div>
+        </div>
+        <input
+          ref={inputFoto}
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          className="hidden"
+          onChange={e => { handleFoto(e.target.files?.[0]); e.target.value = '' }}
+        />
+      </div>
+
+      {fotoMsg && <div className="max-w-[900px]"><Toast type={fotoMsg.type} message={fotoMsg.text} /></div>}
 
       <div className="grid max-w-[900px] grid-cols-1 gap-x-8 gap-y-5 sm:grid-cols-2">
         <div className="flex flex-col gap-1.5">

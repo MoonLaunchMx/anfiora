@@ -5,7 +5,8 @@
 -- REQUISITO: el codigo de la tanda 1 en main y desplegado. Antes de eso la app
 -- ya tolera que nada de esto exista; despues, /admin escribe workspaces.plan.
 --
--- QUE HACE: seis columnas en workspaces, tres funciones nuevas (es_admin_de,
+-- QUE HACE: siete columnas en workspaces mas avatar_url en users, tres
+-- funciones nuevas (es_admin_de,
 -- asegurar_workspace, plan_del_evento), un disparador nuevo
 -- (guard_workspace_members), dos disparadores existentes reescritos
 -- (guard_events_workspace exige dueno/admin; set_event_workspace delega en
@@ -31,15 +32,23 @@ SELECT u.email, u.plan AS plan_en_users,
 BEGIN;
 
 -- ============================================================
--- 1. Las seis columnas
+-- 1. Las columnas: siete en workspaces y una en users
 -- ============================================================
+-- logo_url y avatar_url guardan la RUTA PUBLICA del bucket event-media,
+-- nunca el archivo. Se agregan aqui, y no en una migracion aparte, porque
+-- esta todavia no habia corrido: dos columnas de texto nulas no cambian
+-- nada de lo que ya hacia este archivo.
 ALTER TABLE public.workspaces
   ADD COLUMN IF NOT EXISTS plan          text NOT NULL DEFAULT 'free',
   ADD COLUMN IF NOT EXISTS billing_email text,
   ADD COLUMN IF NOT EXISTS legal_name    text,
   ADD COLUMN IF NOT EXISTS rfc           text,
   ADD COLUMN IF NOT EXISTS tax_regime    text,
-  ADD COLUMN IF NOT EXISTS postal_code   text;
+  ADD COLUMN IF NOT EXISTS postal_code   text,
+  ADD COLUMN IF NOT EXISTS logo_url      text;
+
+ALTER TABLE public.users
+  ADD COLUMN IF NOT EXISTS avatar_url text;
 
 ALTER TABLE public.workspaces DROP CONSTRAINT IF EXISTS workspaces_plan_valido;
 ALTER TABLE public.workspaces
