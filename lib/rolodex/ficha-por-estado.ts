@@ -1,14 +1,10 @@
 import type { SupplierStatus } from '@/lib/types'
 
-// Lo que no aplica no existe: a un proveedor que apenas contactaste no se le
-// piden pagos, y a uno que descartaste no se le piden estrellas.
-export function carpetasDe(estado: SupplierStatus, bodaPaso: boolean): string[] {
-  if (estado === 'nuevo')      return ['Contacto']
-  if (estado === 'cotizado')   return ['Contacto', 'Cotización']
-  if (estado === 'descartado') return ['Contacto', 'Motivo']
-  return bodaPaso
-    ? ['Contacto', 'Cotización', 'Pagos', 'Reseña']
-    : ['Contacto', 'Cotización', 'Pagos']
+// Las cuatro carpetas son fijas: lo que cambia es su contenido, no su
+// presencia. Ocultarlas por estado obligaba a mover el estado antes de poder
+// guardar una cotizacion que ya llego por correo -- el orden real es al reves.
+export function carpetasDe(): string[] {
+  return ['Contacto', 'Cotización', 'Pagos', 'Review']
 }
 
 // El camino del trato. Descartado no es un paso: es salirse de el.
@@ -33,4 +29,54 @@ export function pasosAlcanzados(estado: SupplierStatus): SupplierStatus[] {
   if (estado === 'descartado') return []
   const hasta = CAMINO.indexOf(estado)
   return hasta === -1 ? [] : CAMINO.slice(0, hasta + 1)
+}
+
+export type TipoReviewFicha = 'contratacion' | 'descarte' | 'post_evento'
+
+export const ORDEN_REVIEWS_FICHA: TipoReviewFicha[] = ['contratacion', 'descarte', 'post_evento']
+
+export const TITULO_REVIEW_FICHA: Record<TipoReviewFicha, string> = {
+  contratacion: 'Contratación',
+  descarte:     'Descarte',
+  post_evento:  'Desempeño',
+}
+
+export const DESCRIPCION_REVIEW_FICHA: Record<TipoReviewFicha, string> = {
+  contratacion: 'La propuesta',
+  descarte:     'Por qué no siguió',
+  post_evento:  'El día del evento',
+}
+
+export const BOTON_CALIFICAR = 'Calificar ahora'
+
+// Cada review sigue al estado que el proveedor de verdad alcanzo: no se
+// califica la propuesta de quien nunca gano el trato. La fecha del evento NO
+// entra: el desempeno se puede calificar desde el dia que se contrata y se
+// corrige cuando haga falta, sin candado.
+export function esReviewLlenable(tipo: TipoReviewFicha, estado: SupplierStatus): boolean {
+  if (tipo === 'contratacion') return estado === 'contratado'
+  if (tipo === 'descarte')     return estado === 'descartado'
+  return estado === 'contratado'
+}
+
+export type FilaDeReview = { tipo: TipoReviewFicha; hecha: boolean }
+
+// La lista "Que falta" de la ficha: lo que ya se califico (aunque el estado
+// haya cambiado despues: una review hecha no se esconde) mas lo que el estado
+// actual permite llenar. En el orden fijo de ORDEN_REVIEWS_FICHA.
+export function filasDeReview(estado: SupplierStatus, existentes: TipoReviewFicha[]): FilaDeReview[] {
+  return ORDEN_REVIEWS_FICHA
+    .filter(tipo => existentes.includes(tipo) || esReviewLlenable(tipo, estado))
+    .map(tipo => ({ tipo, hecha: existentes.includes(tipo) }))
+}
+
+export function pendientesDe(filas: FilaDeReview[]): number {
+  return filas.filter(f => !f.hecha).length
+}
+
+export function resumenPendientes(filas: FilaDeReview[]): string {
+  const n = pendientesDe(filas)
+  if (filas.length === 0) return 'Nada que calificar todavía'
+  if (n === 0) return 'Al día'
+  return n === 1 ? '1 pendiente' : `${n} pendientes`
 }

@@ -7,6 +7,7 @@ import { AlertTriangle } from 'lucide-react'
 import { activas, buscarPorNombre, cargarCategorias, crearCategoria, type Categoria } from '@/lib/rolodex/categorias-store'
 import { parecidas, puedeEliminarse, type CategoriaConUso } from '@/lib/rolodex/vocabulario-admin'
 import { renombrar } from '@/lib/rolodex/aplicar-cambios'
+import { puedeAdministrarCategorias, type FilaMiembroDespacho } from '@/lib/permisos/administrar-categorias'
 import AccionesCategoria, { type AccionesCategoriaHandle } from './AccionesCategoria'
 
 function plural(n: number, singular: string, otros: string): string {
@@ -22,6 +23,20 @@ function contarPor(filas: { category_id: string | null }[]): Map<string, number>
   return conteo
 }
 
+// Cuenta EVENTOS distintos, no partidas: una boda con 5 partidas de "Venue"
+// cuenta como 1, no como 5. Sale gratis de la misma consulta de event_budgets
+// que ya trae partidas -- pedirlo aparte, evento por evento, si hubiera sido
+// una consulta nueva por fila, no valia la pena y se hubiera omitido.
+function contarEventosPor(filas: { category_id: string | null; event_id: string }[]): Map<string, number> {
+  const porCategoria = new Map<string, Set<string>>()
+  for (const fila of filas) {
+    if (!fila.category_id) continue
+    if (!porCategoria.has(fila.category_id)) porCategoria.set(fila.category_id, new Set())
+    porCategoria.get(fila.category_id)!.add(fila.event_id)
+  }
+  return new Map(Array.from(porCategoria, ([id, eventos]) => [id, eventos.size]))
+}
+
 export default function CategoriasPage() {
   const router = useRouter()
   const [userId, setUserId] = useState<string | null>(null)
@@ -29,6 +44,8 @@ export default function CategoriasPage() {
   const [categorias, setCategorias] = useState<CategoriaConUso[]>([])
   const [pares, setPares] = useState<[string, string][]>([])
   const [loading, setLoading] = useState(true)
+  const [sinAcceso, setSinAcceso] = useState(false)
+  const [noVerificado, setNoVerificado] = useState(false)
 
   const [editandoId, setEditandoId] = useState<string | null>(null)
   const [valorEdicion, setValorEdicion] = useState('')
@@ -61,6 +78,49 @@ export default function CategoriasPage() {
     if (!user) { router.replace('/'); return }
     setUserId(user.id)
 
+    // Este catalogo es de cuenta, no de boda: administrarlo (archivar,
+    // fusionar, renombrar) es cosa de dueño y administradores del despacho,
+    // igual que en HubSpot/Asana/Notion. Falla cerrado: un permiso que no se
+    // pudo verificar es un permiso negado. El dueño de su propio despacho
+    // (workspaces.primary_owner_id) entra siempre, aunque workspace_members
+    // no responda -- un colaborador sin fila verificable, no.
+    let workspacePropio: { id: string } | null = null
+    let errorWorkspace: unknown = null
+    try {
+      const resultado = await supabase
+        .from('workspaces')
+        .select('id')
+        .eq('primary_owner_id', user.id)
+        .maybeSingle()
+      workspacePropio = resultado.data
+      errorWorkspace = resultado.error
+    } catch (e) {
+      errorWorkspace = e
+    }
+    const esDueno = !errorWorkspace && workspacePropio !== null
+
+    let filaMiembro: FilaMiembroDespacho = null
+    let errorMiembro: unknown = null
+    try {
+      const resultado = await supabase
+        .from('workspace_members')
+        .select('rol')
+        .eq('user_id', user.id)
+        .eq('status', 'active')
+        .maybeSingle()
+      filaMiembro = resultado.data
+      errorMiembro = resultado.error
+    } catch (e) {
+      errorMiembro = e
+    }
+
+    if (!puedeAdministrarCategorias(filaMiembro, errorMiembro, esDueno)) {
+      setNoVerificado(!esDueno && (errorMiembro != null || filaMiembro == null))
+      setSinAcceso(true)
+      setLoading(false)
+      return
+    }
+
     const cats = await cargarCategorias(user.id)
 
     const [{ data: proveedores }, { data: eventos }] = await Promise.all([
@@ -70,11 +130,12 @@ export default function CategoriasPage() {
 
     const eventIds = (eventos ?? []).map(e => e.id)
     const { data: partidas } = eventIds.length > 0
-      ? await supabase.from('event_budgets').select('category_id').in('event_id', eventIds)
-      : { data: [] as { category_id: string | null }[] }
+      ? await supabase.from('event_budgets').select('category_id, event_id').in('event_id', eventIds)
+      : { data: [] as { category_id: string | null; event_id: string }[] }
 
     const porProveedores = contarPor(proveedores ?? [])
     const porPartidas = contarPor(partidas ?? [])
+    const porEventos = contarEventosPor(partidas ?? [])
 
     const conUso: CategoriaConUso[] = cats
       .map(c => ({
@@ -83,6 +144,7 @@ export default function CategoriasPage() {
         uso: {
           proveedores: porProveedores.get(c.id) ?? 0,
           partidas: porPartidas.get(c.id) ?? 0,
+          eventos: porEventos.get(c.id) ?? 0,
         },
         archivada: c.archived_at !== null,
       }))
@@ -190,6 +252,21 @@ export default function CategoriasPage() {
     return (
       <div className="flex h-[50dvh] items-center justify-center">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#e8e8e8] border-t-[#48C9B0]" />
+      </div>
+    )
+  }
+
+  if (sinAcceso) {
+    return (
+      <div className="rounded-2xl border border-[#e8e8e8] bg-white px-6 py-10 text-center">
+        <p className="text-sm font-medium text-[#666]">
+          Solo el dueño y los administradores pueden administrar categorías.
+        </p>
+        {noVerificado && (
+          <p className="mt-2 text-xs text-[#999]">
+            No se pudo verificar tu rol en el despacho.
+          </p>
+        )}
       </div>
     )
   }
@@ -311,7 +388,11 @@ export default function CategoriasPage() {
                   ? mensajeExito.texto
                   : puedeEliminarse(c.uso)
                     ? 'Nadie la usa'
-                    : `${plural(c.uso.proveedores, 'proveedor', 'proveedores')} · ${plural(c.uso.partidas, 'partida', 'partidas')}`}
+                    : [
+                        plural(c.uso.proveedores, 'proveedor', 'proveedores'),
+                        plural(c.uso.partidas, 'partida', 'partidas'),
+                        c.uso.eventos ? plural(c.uso.eventos, 'evento', 'eventos') : null,
+                      ].filter(Boolean).join(' · ')}
               </p>
               {userId && (
                 <AccionesCategoria

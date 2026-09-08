@@ -1,7 +1,8 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ChevronDown, ChevronUp, ExternalLink, Globe, Mail, MapPin, Phone, Star } from 'lucide-react'
+import { metaDelProveedor } from '@/lib/presupuesto/derivados'
+import { ChevronDown, ChevronUp, Globe, Mail, MapPin, Phone } from 'lucide-react'
 import { FaWhatsapp } from 'react-icons/fa'
 import { FiInstagram } from 'react-icons/fi'
 import {
@@ -11,7 +12,10 @@ import {
 import { Categoria, nombrePorId } from '@/lib/rolodex/categorias-store'
 import FichaDelEvento from './FichaDelEvento'
 import { EstatusProveedor } from './EstatusProveedor'
-import { formatDisplay, toWhatsApp } from '@/lib/phone'
+import { formatDisplay } from '@/lib/phone'
+import { contactosDe, telefonoCrudoDe } from '@/lib/rolodex/contactos'
+import type { ContactoTipo } from '@/lib/rolodex/contactos'
+import Estrellas from '@/app/components/ui/Estrellas'
 import {
   desplazamientoFicha, escalaFicha, indiceAlSoltar, indicePrimeraLetra, letraDe,
   moverIndice, ordenarFichas, puedeAvanzar, veloFicha,
@@ -21,14 +25,24 @@ type SupplierWithDetails = EventSupplier & { supplier: Supplier }
 
 type Props = {
   items: SupplierWithDetails[]
+  // Sin filtrar ni buscar: solo para no perder la ficha abierta cuando un
+  // filtro activo la saca de `items` (ver el comentario junto a `abierta`).
+  todosLosItems: SupplierWithDetails[]
   budgets: EventBudget[]
   currency: Currency
   categorias: Categoria[]
-  bodaPaso: boolean
+  desempenoPorProveedor: Record<string, number | null>
+  conteoPagosPorItem: Record<string, number>
   onSelect: (item: SupplierWithDetails) => void
   onStatusChange: (itemId: string, nuevo: SupplierStatus) => void
   onSaved: (item: SupplierWithDetails) => void
   onQuitada: (itemId: string) => void
+  onDerivadosCambiaron?: () => void
+  enfocar?: SupplierWithDetails | null
+  onEnfocado?: () => void
+  // Ver el mismo campo en FichaDelEvento: identidad, nunca posicion.
+  abrirRevisionParaId?: string | null
+  onRevisionAbierta?: () => void
 }
 
 // Una ficha no se encima sobre la de enfrente mientras se cumpla
@@ -60,7 +74,11 @@ function useEsEscritorio(): boolean {
   return esEscritorio
 }
 
-export default function SupplierFicheroView({ items, budgets, currency, categorias, bodaPaso, onSelect, onStatusChange, onSaved, onQuitada }: Props) {
+export default function SupplierFicheroView({
+  items, todosLosItems, budgets, currency, categorias, desempenoPorProveedor, conteoPagosPorItem,
+  onSelect, onStatusChange, onSaved, onQuitada, onDerivadosCambiaron, enfocar, onEnfocado,
+  abrirRevisionParaId, onRevisionAbierta,
+}: Props) {
   const esEscritorio = useEsEscritorio()
   const [abierta, setAbierta] = useState<SupplierWithDetails | null>(null)
   const fichas = useMemo(() => ordenarFichas(items), [items])
@@ -85,10 +103,32 @@ export default function SupplierFicheroView({ items, budgets, currency, categori
   useEffect(() => { setActivo(0) }, [claveDelConjunto])
 
   // El panel nunca se queda vacio: sigue a la ficha que abriste mientras exista,
-  // y si se cae del filtro cae a la primera de las que quedan.
+  // aunque un filtro la saque de `fichas` -- ahi se busca en `todosLosItems`
+  // antes de rendirse. Solo cae a la primera de las que quedan cuando de
+  // verdad ya no existe (se quito de la boda), nunca por su posicion vieja.
   useEffect(() => {
-    setAbierta(previa => (previa && fichas.find(f => f.id === previa.id)) || fichas[0] || null)
-  }, [fichas])
+    setAbierta(previa => {
+      if (!previa) return fichas[0] ?? null
+      const enVista = fichas.find(f => f.id === previa.id)
+      if (enVista) return enVista
+      const sigueExistiendo = todosLosItems.find(f => f.id === previa.id)
+      if (sigueExistiendo) return sigueExistiendo
+      return fichas[0] ?? null
+    })
+  }, [fichas, todosLosItems])
+
+  // Recien creado o vinculado desde la alta: abrir su ficha como si se hubiera
+  // tocado su tarjeta. Si el filtro activo lo deja fuera del carrusel igual se
+  // muestra en el panel (o en FichaModal en movil) — solo se pierde el giro
+  // hacia su posicion, que ahi no existe.
+  useEffect(() => {
+    if (!enfocar) return
+    const indice = fichas.findIndex(f => f.id === enfocar.id)
+    if (indice !== -1) setActivo(indice)
+    if (esEscritorio) setAbierta(enfocar)
+    else onSelect(enfocar)
+    onEnfocado?.()
+  }, [enfocar, fichas, esEscritorio, onSelect, onEnfocado])
 
   const girar = useCallback((delta: number) => {
     setActivo(a => moverIndice(a, delta, total))
@@ -212,10 +252,13 @@ export default function SupplierFicheroView({ items, budgets, currency, categori
             budgets={budgets}
             currency={currency}
             categorias={categorias}
-            bodaPaso={bodaPaso}
+            conteoPagosInicial={conteoPagosPorItem[abierta.id] ?? 0}
             onStatusChange={onStatusChange}
             onSaved={onSaved}
             onQuitada={onQuitada}
+            onDerivadosCambiaron={onDerivadosCambiaron}
+            abrirRevisionParaId={abrirRevisionParaId}
+            onRevisionAbierta={onRevisionAbierta}
           />
         )}
       </div>
@@ -287,11 +330,11 @@ export default function SupplierFicheroView({ items, budgets, currency, categori
                   budgets={budgets}
                   currency={currency}
                   categorias={categorias}
+                  desempeno={desempenoPorProveedor[item.supplier_id] ?? null}
                   activa={i === alFrente}
                   arrastrando={arrastrando}
                   desplazamiento={off}
                   onClick={() => alClicarFicha(i)}
-                  onAbrir={() => abrirFicha(item)}
                 />
               )
             })}
@@ -326,31 +369,30 @@ export default function SupplierFicheroView({ items, budgets, currency, categori
   )
 }
 
-function Ficha({ item, budgets, currency, categorias, activa, arrastrando, desplazamiento, paso, radio, onClick, onAbrir }: {
+function Ficha({ item, budgets, currency, categorias, desempeno, activa, arrastrando, desplazamiento, paso, radio, onClick }: {
   item: SupplierWithDetails
   budgets: EventBudget[]
   currency: Currency
   categorias: Categoria[]
+  desempeno: number | null
   activa: boolean
   arrastrando: boolean
   desplazamiento: number
   paso: number
   radio: number
   onClick: () => void
-  onAbrir: () => void
 }) {
   const s = item.supplier
   const categoria = nombrePorId(categorias, s.category_id)
 
-  const telCrudo   = s.phone ? (s.phone.startsWith('+') ? s.phone : `${s.phone_country_code ?? '+52'} ${s.phone}`) : null
-  const waDigitos  = telCrudo ? toWhatsApp(telCrudo) : null
+  const telCrudo   = telefonoCrudoDe(s)
   const telVisible = telCrudo ? formatDisplay(telCrudo) : null
+  const enlace     = Object.fromEntries(contactosDe(s).map(c => [c.tipo, c.href])) as Partial<Record<ContactoTipo, string>>
+  const waLink     = enlace.whatsapp ?? null
+  const igLink     = enlace.instagram ?? null
+  const webLink    = enlace.sitio ?? null
 
-  const igLink     = s.instagram ? `https://instagram.com/${s.instagram.replace('@', '')}` : null
-  const webLink    = s.website ? (s.website.startsWith('http') ? s.website : `https://${s.website}`) : null
-
-  const partida    = budgets.find(b => b.id === item.event_budget_id)
-  const meta       = partida?.budget_amount ?? null
+  const meta       = metaDelProveedor(item, budgets)
   const contraMeta = item.contract_amount ?? item.quoted_amount ?? null
   const excede     = meta !== null && contraMeta !== null && contraMeta > meta
   const ahorra     = meta !== null && contraMeta !== null && contraMeta < meta
@@ -389,6 +431,7 @@ function Ficha({ item, budgets, currency, categorias, activa, arrastrando, despl
             <p className="mt-0.5 truncate text-[11px] text-[#888]">
               {categoria}{s.city ? ` · ${s.city}` : ''}
             </p>
+            <Estrellas score={desempeno} tamano={11} className="mt-1" />
           </div>
           <span className="shrink-0"><EstatusProveedor estado={item.status} chico /></span>
         </div>
@@ -409,10 +452,10 @@ function Ficha({ item, budgets, currency, categorias, activa, arrastrando, despl
         </div>
 
         <div className="flex gap-2">
-          {waDigitos && (
+          {waLink && (
             <button
               aria-label="Abrir WhatsApp"
-              onClick={e => abrirEnlace(e, `https://wa.me/${waDigitos}`)}
+              onClick={e => abrirEnlace(e, waLink)}
               className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#48C9B0] text-white transition hover:bg-[#3aa896]"
             >
               <FaWhatsapp size={15} />
@@ -455,6 +498,7 @@ function Ficha({ item, budgets, currency, categorias, activa, arrastrando, despl
             <p className="mt-0.5 truncate text-xs text-[#888]">
               {categoria}{s.subcategory ? ` · ${s.subcategory}` : ''}
             </p>
+            <Estrellas score={desempeno} tamano={12} className="mt-1" />
           </div>
           <span className="shrink-0"><EstatusProveedor estado={item.status} /></span>
         </div>
@@ -466,11 +510,6 @@ function Ficha({ item, budgets, currency, categorias, activa, arrastrando, despl
           {telVisible && (
             <span className="flex items-center gap-1.5"><Phone size={12} className="shrink-0 text-[#aaa]" />{telVisible}</span>
           )}
-          {item.rating ? (
-            <span className="flex items-center gap-1.5">
-              <Star size={12} className="shrink-0 fill-[#48C9B0] text-[#48C9B0]" />{item.rating}.0
-            </span>
-          ) : null}
         </div>
 
         <div className="mt-2.5 grid grid-cols-2 gap-x-4 border-t border-[#f0f0f0] pt-2.5">
@@ -498,9 +537,9 @@ function Ficha({ item, budgets, currency, categorias, activa, arrastrando, despl
 
         {activa && (
           <div className="mt-auto flex flex-wrap gap-2 pt-2.5">
-            {waDigitos && (
+            {waLink && (
               <button
-                onClick={e => abrirEnlace(e, `https://wa.me/${waDigitos}`)}
+                onClick={e => abrirEnlace(e, waLink)}
                 className="flex items-center gap-1.5 rounded-lg bg-[#48C9B0] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#3aa896]"
               >
                 <FaWhatsapp size={14} /> WhatsApp
@@ -514,12 +553,6 @@ function Ficha({ item, budgets, currency, categorias, activa, arrastrando, despl
                 <Mail size={14} /> Correo
               </button>
             )}
-            <button
-              onClick={e => { e.stopPropagation(); onAbrir() }}
-              className="flex items-center gap-1.5 rounded-lg border border-[#e0e0e0] bg-white px-3 py-1.5 text-xs font-medium text-[#1D1E20] transition hover:bg-[#f5f5f5]"
-            >
-              <ExternalLink size={14} /> Ver ficha
-            </button>
           </div>
         )}
 

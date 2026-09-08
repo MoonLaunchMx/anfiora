@@ -106,7 +106,8 @@ export default function ListaDeArchivos({
           {lista.map((archivo, i) => (
             <li
               key={archivo.path}
-              className={`flex items-center gap-3 rounded-xl border px-3 py-2 ${
+              onClick={() => abrir(archivo)}
+              className={`flex cursor-pointer items-center gap-3 rounded-xl border px-3 py-2 transition hover:border-[#48C9B0] ${
                 i === 0 ? 'border-[#a8e0d4] bg-white' : 'border-[#e8e8e8] bg-[#fafafa]'
               }`}
             >
@@ -132,7 +133,7 @@ export default function ListaDeArchivos({
 
               <span className="flex shrink-0 items-center gap-0.5">
                 <button
-                  onClick={() => abrir(archivo)}
+                  onClick={e => { e.stopPropagation(); abrir(archivo) }}
                   disabled={abriendo === archivo.path}
                   aria-label={`Ver ${archivo.nombre}`}
                   className="flex h-9 w-9 items-center justify-center rounded-lg text-[#999] transition hover:bg-white hover:text-[#1D1E20] disabled:opacity-40"
@@ -141,7 +142,7 @@ export default function ListaDeArchivos({
                 </button>
                 {puedeEditar && (
                   <button
-                    onClick={() => quitar(archivo)}
+                    onClick={e => { e.stopPropagation(); quitar(archivo) }}
                     aria-label={`Quitar ${archivo.nombre}`}
                     className="flex h-9 w-9 items-center justify-center rounded-lg text-[#999] transition hover:bg-white hover:text-[#cc3333]"
                   >

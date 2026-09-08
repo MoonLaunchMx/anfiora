@@ -28,13 +28,14 @@ type Props = {
   onOpenSupplier: (supplier: EventSupplierWithName) => void
   puedeEditar: boolean
   puedeBorrar: boolean
+  puedeAgregar?: boolean
 }
 
 export default function BudgetCategoryRow({
   category, items, currency, contractedByItem, paidByItem,
   eventSuppliersById, availableSuppliersForCategory,
   onOpenAddModal, onUpdateItem, onDeleteItem, onOpenSupplier,
-  puedeEditar, puedeBorrar,
+  puedeEditar, puedeBorrar, puedeAgregar = true,
 }: Props) {
   const [expanded, setExpanded] = useState(true)
 
@@ -118,7 +119,7 @@ export default function BudgetCategoryRow({
             </div>
           )}
 
-          {puedeEditar && (
+          {puedeEditar && puedeAgregar && (
             <div className="border-t border-[#f5f5f5] bg-[#fafafa] px-4 py-2">
               <button
                 onClick={() => onOpenAddModal(category)}

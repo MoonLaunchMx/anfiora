@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useRef } from 'react'
+import { repartirEntrePartidas } from '@/lib/presupuesto/derivados'
 import { useParams } from 'next/navigation'
 import { Search, FileSpreadsheet, FileText, Plus, Upload, X, AlertTriangle, Check, ChevronDown, Sparkles, SlidersHorizontal, ArrowRight, Minus } from 'lucide-react'
 import * as XLSX from 'xlsx'
@@ -8,7 +9,7 @@ import { supabase } from '@/lib/supabase'
 import {
   Event, EventBudget, EventBudgetInsert, Currency, EventSupplier, Supplier, SupplierStatus,
 } from '@/lib/types'
-import { getEventCategories, categoryLabel } from './lib/categories'
+import { categoryLabel } from './lib/categories'
 import {
   leerMonto, planearImport, resumenImport, mensajeImportado,
   decidirRenombre, fechaDelArchivo, avisoArchivoViejo, FilaPlan, PartidaExistente,
@@ -17,6 +18,7 @@ import { interpretarEscritura } from '@/lib/invite/persistencia'
 import { BudgetCategoriesModal } from './BudgetCategoriesModal'
 import { ImportStepsModal } from '@/app/components/ui/ImportStepsModal'
 import { useConfirm } from '@/app/components/ui/ConfirmModal'
+import { useGuardarCambioDeEstado } from '@/lib/rolodex/usar-bloqueo-retroceso'
 import BudgetMetricsCards from '@/app/components/ui/BudgetMetricsCards'
 import StatsCollapse, { useStatsToggle, StatsToggleButton } from '@/app/components/ui/StatsCollapse'
 import BudgetCategoryRow from './BudgetCategoryRow'
@@ -24,10 +26,15 @@ import BudgetItemModal from './BudgetItemModal'
 import { buildBudgetItems, BudgetTier } from './lib/templates'
 import { exportToExcel, exportToPDF, downloadImportTemplate } from './lib/exports'
 import FichaModal from '../proveedores/FichaModal'
-import SupplierReviewModal from '../proveedores/SupplierReviewModal'
+import ReviewContratacionModal from '../proveedores/ReviewContratacionModal'
+import ReviewDescarteModal from '../proveedores/ReviewDescarteModal'
 import { Modal } from '@/app/components/ui/Modal'
 import { Categoria, cargarCategorias, buscarPorNombre, nombrePorId, crearCategoria } from '@/lib/rolodex/categorias-store'
 import { mismaCategoria } from '@/lib/rolodex/categorias'
+import {
+  SECCION_SIN_CATEGORIA, agruparPorSeccion, seccionesDelPresupuesto,
+  quitarDeSeleccion, tienePartidasEnEvento,
+} from '@/lib/rolodex/secciones-presupuesto'
 import { usePermiso } from '@/lib/event-access-context'
 import { Puede } from '@/lib/permisos/Puede'
 
@@ -72,24 +79,46 @@ export default function PresupuestoPage() {
 
   const [selectedSupplier, setSelectedSupplier] = useState<EventSupplierWithName | null>(null)
   const [reviewSupplier, setReviewSupplier]     = useState<EventSupplierWithName | null>(null)
-
-  // La boda ya paso: es lo que decide si la ficha pide resena. Con rango manda el ultimo dia.
-  const ultimoDiaDeLaBoda = event?.event_end_date || event?.event_date
-  const bodaPaso = ultimoDiaDeLaBoda ? new Date(`${ultimoDiaDeLaBoda}T23:59:59`) < new Date() : false
+  const [userId, setUserId]                     = useState<string | null>(null)
 
   const cambiarEstadoProveedor = async (itemId: string, nuevo: SupplierStatus) => {
     const previo = eventSuppliers.find(es => es.id === itemId)
+    if (!previo) return
+    const detenido = await bloqueaCambioDeEstado(
+      itemId, nuevo, previo,
+      destino => cambiarEstadoProveedor(itemId, destino),
+    )
+    if (detenido) return
     setEventSuppliers(prev => prev.map(es => es.id === itemId ? { ...es, status: nuevo } : es))
     setSelectedSupplier(prev => prev && prev.id === itemId ? { ...prev, status: nuevo } : prev)
 
-    const { error } = await supabase.from('event_suppliers').update({ status: nuevo }).eq('id', itemId)
-    if (error) console.error('Error actualizando status:', error?.message ?? error, error)
+    // Sin .select() un UPDATE filtrado por RLS no da error: devuelve cero filas.
+    // La pantalla se quedaria con el estado nuevo y, peor, se guardaria una review
+    // de una transicion que nunca ocurrio. Mismo cuidado que en FichaDelEvento.
+    const { data: guardado, error } = await supabase
+      .from('event_suppliers').update({ status: nuevo }).eq('id', itemId).select().maybeSingle()
+    if (error || !guardado) {
+      console.error('Error actualizando status:', error?.message ?? error, error)
+      loadAll()
+      return
+    }
 
+    // Review al llegar a un estado final: una sola vez por proveedor y por tipo de review.
     const eraFinal = previo?.status === 'contratado' || previo?.status === 'descartado'
     const esFinal  = nuevo === 'contratado' || nuevo === 'descartado'
-    if (!eraFinal && esFinal && previo && !previo.rating && !previo.review_text) {
-      setSelectedSupplier(null)
-      setReviewSupplier({ ...previo, status: nuevo })
+    if (!eraFinal && esFinal && previo) {
+      const reviewType = nuevo === 'contratado' ? 'contratacion' : 'descarte'
+      const { count, error: reviewError } = await supabase
+        .from('supplier_reviews')
+        .select('id', { count: 'exact', head: true })
+        .eq('event_supplier_id', itemId)
+        .eq('review_type', reviewType)
+      if (reviewError) {
+        console.error('Error verificando si ya existe review:', reviewError.message ?? reviewError, reviewError)
+      } else if (!count) {
+        setSelectedSupplier(null)
+        setReviewSupplier({ ...previo, status: nuevo })
+      }
     }
   }
 
@@ -103,11 +132,16 @@ export default function PresupuestoPage() {
 
   const statsToggle = useStatsToggle(eventId, 'presupuesto')
   const askConfirm  = useConfirm()
+  const bloqueaCambioDeEstado = useGuardarCambioDeEstado()
 
   useEffect(() => {
     if (!eventId) return
     loadAll()
   }, [eventId])
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => setUserId(data.user?.id ?? null))
+  }, [])
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -171,33 +205,24 @@ export default function PresupuestoPage() {
   const eventSuppliersById: Record<string, EventSupplierWithName> = {}
   eventSuppliers.forEach(es => { eventSuppliersById[es.id] = es })
 
-  const budgetCategoryNames = budgets
-    .map(b => b.category_id ? nombrePorId(categorias, b.category_id) : '')
-    .filter(Boolean)
-  const categories = getEventCategories(storedCategories, event?.event_type ?? null, event?.event_category ?? null, budgetCategoryNames)
+  // La fuente de las secciones es la tabla `categories` del despacho. NO
+  // restaurar aqui una lista fija de texto: se quedaria ciega a las categorias
+  // que el planner crea desde Proveedores y duplicaria secciones por acentos.
+  const seccionesCatalogo = seccionesDelPresupuesto(categorias, storedCategories, budgets)
 
   const availableSuppliersByCategory: Record<string, EventSupplierWithName[]> = {}
-  categories.forEach(cat => { availableSuppliersByCategory[cat] = [] })
+  seccionesCatalogo.forEach(cat => { availableSuppliersByCategory[cat] = [] })
   eventSuppliers.forEach(es => {
     if (!es.supplier) return
     if (es.status !== 'contratado') return
     const nombre = es.supplier.category_id ? nombrePorId(categorias, es.supplier.category_id) : ''
-    const cat = categories.find(c => mismaCategoria(c, nombre))
+    const cat = seccionesCatalogo.find(c => mismaCategoria(c, nombre))
     if (cat) availableSuppliersByCategory[cat].push(es)
   })
 
-  const contractedByItem: Record<string, number> = {}
-  const paidByItem: Record<string, number>       = {}
-  budgets.forEach(b => {
-    if (b.event_supplier_id) {
-      const supplier = eventSuppliersById[b.event_supplier_id]
-      contractedByItem[b.id] = Number(supplier?.contract_amount || 0)
-      paidByItem[b.id]       = paidByEventSupplier[b.event_supplier_id] || 0
-    } else {
-      contractedByItem[b.id] = 0
-      paidByItem[b.id]       = 0
-    }
-  })
+  const contractByEventSupplier: Record<string, number> = {}
+  eventSuppliers.forEach(es => { contractByEventSupplier[es.id] = Number(es.contract_amount || 0) })
+  const { contractedByItem, paidByItem } = repartirEntrePartidas(budgets, contractByEventSupplier, paidByEventSupplier)
 
   const filteredBudgets = search.trim()
     ? budgets.filter(b => {
@@ -207,16 +232,10 @@ export default function PresupuestoPage() {
       })
     : budgets
 
-  const itemsByCategory: Record<string, EventBudget[]> = {}
-  categories.forEach(cat => { itemsByCategory[cat] = [] })
-  filteredBudgets.forEach(b => {
-    // category_id resuelve el nombre actual en categories; se empareja contra
-    // la lista de secciones visibles de este evento (mismaCategoria tolera
-    // acentos/mayusculas) para caer en la fila correcta.
-    const nombreResuelto = b.category_id ? nombrePorId(categorias, b.category_id) : ''
-    const seccion = categories.find(c => mismaCategoria(c, nombreResuelto))
-    if (seccion) itemsByCategory[seccion].push(b)
-  })
+  // El cajon de rescate solo se agrega si alguna partida se quedaria sin
+  // seccion: una partida invisible es un monto que el planner deja de ver.
+  const { secciones: categories, porSeccion: itemsByCategory } =
+    agruparPorSeccion<EventBudget>(filteredBudgets, seccionesCatalogo, categorias)
 
   const totalBudget     = budgets.reduce((sum, b) => sum + b.budget_amount, 0)
   const totalContracted = budgets.reduce((sum, b) => sum + (contractedByItem[b.id] || 0), 0)
@@ -302,7 +321,7 @@ export default function PresupuestoPage() {
           subcategory:   b.subcategory,
           budget_amount: b.budget_amount,
         }))
-        const plan = planearImport(filas, partidasExistentes, categories)
+        const plan = planearImport(filas, partidasExistentes, seccionesCatalogo)
 
         if (plan.length === 0) {
           setImportError('No se encontraron conceptos válidos en el archivo.')
@@ -450,50 +469,50 @@ export default function PresupuestoPage() {
     if (!permiso.editar) return
     const name = raw.trim()
     if (!name) return
-    if (categories.some(c => c.toLowerCase() === name.toLowerCase())) return
+    if (seccionesCatalogo.some(c => mismaCategoria(c, name))) return
     if (!duenoCatalogo) return
     const { categoria } = await crearCategoria(duenoCatalogo, name, categorias)
-    if (categoria && !categorias.some(c => c.id === categoria.id)) {
-      setCategorias(prev => [...prev, categoria])
-    }
-    await persistCategories([...categories, name])
+    if (!categoria) return
+    // Entra al estado local para que la seccion aparezca sin recargar.
+    setCategorias(prev => prev.some(c => c.id === categoria.id) ? prev : [...prev, categoria])
+    await persistCategories([...seccionesCatalogo, categoria.name])
     setNewCategoryName(''); setAddingCategory(false)
   }
 
-  const deleteCategory = async (name: string) => {
-    if (!permiso.borrar) return
-    const count = (itemsByCategory[name] || []).length
-    if (count > 0) {
-      const ok = await askConfirm({
-        title: `¿Eliminar la categoría "${categoryLabel(name)}"?`,
-        message: `Sus ${count === 1 ? 'concepto pasa' : `${count} conceptos pasan`} a "Otro". No se pierde ningún monto.`,
-        confirmLabel: 'Eliminar categoría',
-      })
-      if (!ok) return
-      setCategoryDeleteError('')
+  // Quitar una categoria aqui SOLO la oculta en ESTA boda: nunca toca el
+  // catalogo del despacho. Archivar el catalogo completo es una decision de
+  // cuenta -- vive en Ajustes › Categorías, para dueño y administradores -- no
+  // algo que un editor pueda hacer sin querer desde una sola boda.
+  const quitarCategoria = async (name: string) => {
+    if (!permiso.editar) return
+    setCategoryDeleteError('')
 
-      // La reasignacion tiene que quedar hecha ANTES de quitar la seccion de la
-      // lista: si aborta aqui, las partidas siguen visibles donde estaban en vez
-      // de desaparecer de la pantalla sin haberse movido a ningun lado.
-      const deletedId = buscarPorNombre(categorias, name)?.id ?? null
-      const otroId     = buscarPorNombre(categorias, 'Otro')?.id ?? null
-      if (!deletedId || !otroId) {
-        setCategoryDeleteError('No se pudo mover los conceptos a "Otro", así que la categoría no se eliminó. Tus partidas siguen donde estaban.')
-        return
-      }
-      const { error } = await supabase.from('event_budgets').update({ category_id: otroId }).eq('event_id', eventId).eq('category_id', deletedId)
-      if (error) {
-        setCategoryDeleteError('No se pudieron mover los conceptos a "Otro", así que la categoría no se eliminó. Tus partidas siguen donde estaban.')
-        return
-      }
-
-      const next = categories.filter(c => c !== name)
-      if (!next.includes('Otro')) next.push('Otro')
-      await persistCategories(next)
-      loadAll()
-    } else {
-      await persistCategories(categories.filter(c => c !== name))
+    const categoria = buscarPorNombre(categorias, name)
+    if (!categoria) {
+      setCategoryDeleteError('Esa categoría ya no está en tu catálogo.')
+      return
     }
+
+    if (tienePartidasEnEvento(budgets, categoria.id)) {
+      const count = (itemsByCategory[name] || []).length
+      await askConfirm({
+        title: `No se puede quitar "${categoryLabel(name)}"`,
+        message: `${categoryLabel(name)} tiene ${count === 1 ? '1 partida' : `${count} partidas`} en este evento. Para quitarla, primero mueve esas partidas a otra categoría. La categoría sigue disponible en tu catálogo.`,
+        confirmLabel: 'Entendido',
+        soloAviso: true,
+      })
+      return
+    }
+
+    const ok = await askConfirm({
+      title: `¿Quitar "${categoryLabel(name)}" de este evento?`,
+      message: 'Deja de mostrarse en este evento. Sigue disponible en tu catálogo y en los demás.',
+      confirmLabel: 'Quitar de este evento',
+      tone: 'default',
+    })
+    if (!ok) return
+
+    await persistCategories(quitarDeSeleccion(categorias, storedCategories, name))
   }
 
   const reorderCategories = (next: string[]) => persistCategories(next)
@@ -524,15 +543,30 @@ export default function PresupuestoPage() {
       return `${nombre}|${b.subcategory}`.toLowerCase()
     }))
     const rows = buildBudgetItems(eventId, event?.event_type ?? null, event?.event_category ?? null, tier, existing)
+
+    // Las categorias sugeridas de la plantilla entran al catalogo del despacho
+    // antes de insertar las partidas. Si se saltaran la tabla, las partidas
+    // quedarian sin category_id y caerian todas al cajon de rescate.
+    let catalogo = categorias
+    const genCats = Array.from(new Set(rows.map(r => r.category as string)))
+    if (duenoCatalogo) {
+      for (const nombre of genCats) {
+        if (buscarPorNombre(catalogo, nombre)) continue
+        const { categoria } = await crearCategoria(duenoCatalogo, nombre, catalogo)
+        if (categoria) catalogo = [...catalogo, categoria]
+      }
+      if (catalogo !== categorias) setCategorias(catalogo)
+    }
+
     const rowsConId: EventBudgetInsert[] = rows.map(({ category, ...rest }) => ({
       ...rest,
-      category_id: buscarPorNombre(categorias, category)?.id ?? null,
+      category_id: buscarPorNombre(catalogo, category)?.id ?? null,
     }))
     if (rowsConId.length > 0) await supabase.from('event_budgets').insert(rowsConId)
-    const genCats = Array.from(new Set(rows.map(r => r.category as string)))
-    const merged = [...categories]
-    genCats.forEach(c => { if (!merged.some(x => x.toLowerCase() === c.toLowerCase())) merged.push(c) })
-    if (merged.length !== categories.length) await persistCategories(merged)
+
+    const merged = [...seccionesCatalogo]
+    genCats.forEach(c => { if (!merged.some(x => mismaCategoria(x, c))) merged.push(c) })
+    if (merged.length !== seccionesCatalogo.length) await persistCategories(merged)
     setShowTierModal(false)
     await loadAll()
     setGenerating(false)
@@ -728,6 +762,7 @@ export default function PresupuestoPage() {
                 onOpenSupplier={setSelectedSupplier}
                 puedeEditar={permiso.editar}
                 puedeBorrar={permiso.borrar}
+                puedeAgregar={category !== SECCION_SIN_CATEGORIA}
               />
             )
           })}
@@ -778,13 +813,13 @@ export default function PresupuestoPage() {
 
       {showCategoriesModal && (
         <BudgetCategoriesModal
-          categories={categories}
-          itemCountByCategory={Object.fromEntries(categories.map(c => [c, (itemsByCategory[c] || []).length]))}
+          categories={seccionesCatalogo}
+          itemCountByCategory={Object.fromEntries(seccionesCatalogo.map(c => [c, (itemsByCategory[c] || []).length]))}
           onAdd={addCategory}
-          onDelete={deleteCategory}
+          onQuitar={quitarCategoria}
           onReorder={reorderCategories}
           error={categoryDeleteError}
-          puedeBorrar={permiso.borrar}
+          puedeQuitar={permiso.editar}
           onClose={() => { setShowCategoriesModal(false); setCategoryDeleteError('') }}
         />
       )}
@@ -794,7 +829,7 @@ export default function PresupuestoPage() {
         isOpen={modalOpen && permiso.editar}
         onClose={() => setModalOpen(false)}
         currency={currency}
-        categories={categories}
+        categories={seccionesCatalogo}
         categorias={categorias}
         initialCategory={modalCategory}
         eventSuppliers={eventSuppliers}
@@ -809,7 +844,7 @@ export default function PresupuestoPage() {
         subtitle="Trae tu presupuesto desde Excel en dos pasos."
         step1Desc="Viene con las categorías de tu evento y conceptos sugeridos. Llena los montos en Excel."
         downloadLabel="Descargar plantilla"
-        onDownload={() => downloadImportTemplate({ categories, eventType: event?.event_type ?? null, eventCategory: event?.event_category ?? null })}
+        onDownload={() => downloadImportTemplate({ categories: seccionesCatalogo, eventType: event?.event_type ?? null, eventCategory: event?.event_category ?? null })}
         step2Desc="Selecciona el Excel que llenaste (.xlsx). Verás una vista previa antes de guardar."
         selectLabel="Seleccionar archivo"
         onSelectFile={() => { setShowImportHelp(false); fileInputRef.current?.click() }}
@@ -980,7 +1015,7 @@ export default function PresupuestoPage() {
           budgets={budgets}
           currency={currency}
           categorias={categorias}
-          bodaPaso={bodaPaso}
+          conteoPagosInicial={payments.filter(p => p.event_supplier_id === selectedSupplier.id).length}
           onClose={() => setSelectedSupplier(null)}
           onStatusChange={cambiarEstadoProveedor}
           onSaved={updated => {
@@ -994,17 +1029,32 @@ export default function PresupuestoPage() {
         />
       )}
 
-      {reviewSupplier && permisoProv.editar && (
-        <SupplierReviewModal
-          eventSupplierId={reviewSupplier.id}
-          supplierName={reviewSupplier.supplier.name}
-          initialRating={(reviewSupplier as any).rating ?? null}
-          initialReview={(reviewSupplier as any).review_text ?? null}
-          initialMood={(reviewSupplier as any).mood ?? null}
-          initialSpeed={(reviewSupplier as any).response_speed ?? null}
-          onSaved={() => { setReviewSupplier(null); loadAll() }}
-          onSkip={() => setReviewSupplier(null)}
-        />
+      {reviewSupplier && permisoProv.editar && userId && duenoCatalogo && (
+        reviewSupplier.status === 'contratado' ? (
+          <ReviewContratacionModal
+            eventSupplierId={reviewSupplier.id}
+            supplierId={reviewSupplier.supplier_id}
+            eventId={eventId}
+            duenoId={duenoCatalogo}
+            createdBy={userId}
+            supplierName={reviewSupplier.supplier.name}
+            eventName={event?.name ?? ''}
+            onSaved={() => { setReviewSupplier(null); loadAll() }}
+            onSkip={() => setReviewSupplier(null)}
+          />
+        ) : (
+          <ReviewDescarteModal
+            eventSupplierId={reviewSupplier.id}
+            supplierId={reviewSupplier.supplier_id}
+            eventId={eventId}
+            duenoId={duenoCatalogo}
+            createdBy={userId}
+            supplierName={reviewSupplier.supplier.name}
+            eventName={event?.name ?? ''}
+            onSaved={() => { setReviewSupplier(null); loadAll() }}
+            onSkip={() => setReviewSupplier(null)}
+          />
+        )
       )}
     </div>
   )

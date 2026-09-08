@@ -6,6 +6,10 @@ import {
 
 export type RolCuenta = 'dueno' | 'admin' | 'colaborador' | null
 
+export function esAdminDeCuenta(rol: RolCuenta): boolean {
+  return rol === 'dueno' || rol === 'admin'
+}
+
 export interface ContextoPermiso {
   esDuenoDelEvento: boolean
   rolCuenta: RolCuenta
@@ -52,7 +56,7 @@ function estaPrendida(modulo: Modulo, features: Record<FeatureKey, boolean> | nu
 export function nivelEfectivo(ctx: ContextoPermiso, modulo: Modulo): Nivel {
   if (!estaPrendida(modulo, ctx.features)) return 'ninguno'
   if (ctx.esDuenoDelEvento) return 'total'
-  if (ctx.rolCuenta === 'dueno' || ctx.rolCuenta === 'admin') return 'total'
+  if (esAdminDeCuenta(ctx.rolCuenta)) return 'total'
   return nivelDe(ctx.permisos, modulo)
 }
 
