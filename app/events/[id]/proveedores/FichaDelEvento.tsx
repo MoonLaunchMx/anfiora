@@ -52,6 +52,9 @@ type Props = {
   budgets: EventBudget[]
   currency: Currency
   categorias: Categoria[]
+  // Lo que la pagina ya sabe de los pagos, para pintar el numero de la
+  // pestaña Pagos antes de que la ficha termine su propia consulta.
+  conteoPagosInicial?: number
   onStatusChange: (itemId: string, nuevo: SupplierStatus) => void
   onSaved: (item: SupplierWithDetails) => void
   onQuitada: (itemId: string) => void
@@ -88,7 +91,7 @@ function iniciales(nombre: string): string {
 }
 
 export default function FichaDelEvento({
-  item, budgets, currency, categorias, onStatusChange, onSaved, onQuitada, onDerivadosCambiaron, onCerrar,
+  item, budgets, currency, categorias, conteoPagosInicial, onStatusChange, onSaved, onQuitada, onDerivadosCambiaron, onCerrar,
   abrirRevisionParaId, onRevisionAbierta,
 }: Props) {
   const askConfirm = useConfirm()
@@ -273,6 +276,7 @@ export default function FichaDelEvento({
   const partidas    = partidasDelProveedor(item, budgets)
   const presupuesto = metaDelProveedor(item, budgets)
   const pagado      = pagos.reduce((suma, p) => suma + (p.amount || 0), 0)
+  const nPagos      = cargandoPagos ? (conteoPagosInicial ?? 0) : pagos.length
   const contratado  = item.contract_amount ?? null
   const falta       = contratado ? Math.max(0, contratado - pagado) : null
   const avance      = contratado && contratado > 0 ? Math.min(100, Math.round((pagado / contratado) * 100)) : 0
@@ -554,9 +558,9 @@ export default function FichaDelEvento({
             }`}
           >
             {nombre}
-            {nombre === 'Pagos' && pagos.length > 0 && (
+            {nombre === 'Pagos' && nPagos > 0 && (
               <span className={`rounded-full px-1.5 text-[10px] font-bold ${i === carpeta ? 'bg-[#f4f4f4] text-[#666]' : 'bg-white/70 text-[#777]'}`}>
-                {pagos.length}
+                {nPagos}
               </span>
             )}
           </button>
@@ -911,28 +915,19 @@ export default function FichaDelEvento({
           ) : errorReviews ? (
             <ErrorDeReviews />
           ) : (
-            <div className="space-y-3">
-              <ListaQueFalta
-                filas={filasReview}
-                reviewDe={reviewDe}
-                puedeEditar={permisoFicha.editar}
-                onCalificar={abrirModalDe}
-              />
-
-              {filasReview.filter(f => f.hecha).map(({ tipo }) => {
-                const review = reviewDe(tipo)
-                if (!review) return null
+            <ListaQueFalta
+              key={item.id}
+              filas={filasReview}
+              reviewDe={reviewDe}
+              puedeEditar={permisoFicha.editar}
+              onCalificar={abrirModalDe}
+              resumenDe={(tipo, review) => {
                 const propio = calcularScores([review])
-                const score = tipo === 'post_evento' ? propio.desempeno : propio.propuesta
-                return (
-                  <SeccionReview key={tipo} titulo={TITULO_REVIEW_FICHA[tipo]} descripcion={DESCRIPCION_REVIEW_FICHA[tipo]} score={score}>
-                    {tipo === 'contratacion' && <ResumenContratacion review={review} scorePropuesta={score} />}
-                    {tipo === 'descarte' && <ResumenDescarte review={review} scorePropuesta={score} />}
-                    {tipo === 'post_evento' && <ResumenPostEvento review={review} currency={currency} />}
-                  </SeccionReview>
-                )
-              })}
-            </div>
+                if (tipo === 'contratacion') return <ResumenContratacion review={review} scorePropuesta={propio.propuesta} />
+                if (tipo === 'descarte')     return <ResumenDescarte review={review} scorePropuesta={propio.propuesta} />
+                return <ResumenPostEvento review={review} currency={currency} />
+              }}
+            />
           )
         )}
       </div>
@@ -1177,15 +1172,20 @@ function Texto({ valor, vacio }: { valor: string | null; vacio: string }) {
   return <p className="whitespace-pre-wrap text-sm text-[#555]">{valor}</p>
 }
 
-// La lista "Que falta": de un vistazo, que ya se califico y que no. El detalle
-// de cada review vive abajo, plegado. Hecha o pendiente se distinguen por
-// forma (palomita llena / circulo punteado), no solo por color.
-function ListaQueFalta({ filas, reviewDe, puedeEditar, onCalificar }: {
+// La lista "Que falta": de un vistazo, que ya se califico y que no. Un
+// renglon hecho se despliega ahi mismo con su detalle -- no hay una segunda
+// carpeta abajo con el mismo titulo, que se leia como otra review. Hecha o
+// pendiente se distinguen por forma (palomita llena / circulo punteado), no
+// solo por color.
+function ListaQueFalta({ filas, reviewDe, puedeEditar, onCalificar, resumenDe }: {
   filas: ReturnType<typeof filasDeReview>
   reviewDe: (tipo: TipoReviewFicha) => SupplierReview | null
   puedeEditar: boolean
   onCalificar: (tipo: TipoReviewFicha) => void
+  resumenDe: (tipo: TipoReviewFicha, review: SupplierReview) => React.ReactNode
 }) {
+  const [abierta, setAbierta] = useState<TipoReviewFicha | null>(null)
+
   return (
     <section className="overflow-hidden rounded-xl border border-[#eee]">
       <div className="flex items-center justify-between bg-[#fafafa] px-4 py-2 text-[10.5px] font-bold uppercase tracking-wider text-[#999]">
@@ -1200,25 +1200,43 @@ function ListaQueFalta({ filas, reviewDe, puedeEditar, onCalificar }: {
             const review = hecha ? reviewDe(tipo) : null
             const propio = review ? calcularScores([review]) : null
             const score = propio ? (tipo === 'post_evento' ? propio.desempeno : propio.propuesta) : null
+            const desplegada = hecha && abierta === tipo
             return (
-              <li key={tipo} className="flex items-center gap-3 border-t border-[#f2f2f2] px-4 py-2.5">
-                <span
-                  aria-hidden
-                  className={'flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-[1.5px] ' + (
-                    hecha ? 'border-[#48C9B0] bg-[#48C9B0] text-white' : 'border-dashed border-[#d4a853]'
+              <li key={tipo} className="border-t border-[#f2f2f2]">
+                <div className="flex items-center gap-3 px-4 py-2.5">
+                  <span
+                    aria-hidden
+                    className={'flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-[1.5px] ' + (
+                      hecha ? 'border-[#48C9B0] bg-[#48C9B0] text-white' : 'border-dashed border-[#d4a853]'
+                    )}
+                  >
+                    {hecha && <Check size={11} strokeWidth={3} />}
+                  </span>
+
+                  {hecha && review ? (
+                    <button
+                      type="button"
+                      onClick={() => setAbierta(desplegada ? null : tipo)}
+                      aria-expanded={desplegada}
+                      className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                    >
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-[13px] font-semibold text-[#1D1E20]">{TITULO_REVIEW_FICHA[tipo]}</span>
+                        <span className="block text-[11px] text-[#999]">{DESCRIPCION_REVIEW_FICHA[tipo]}</span>
+                      </span>
+                      <Estrellas score={score} tamano={12} className="shrink-0" />
+                      <ChevronDown size={14} className={'shrink-0 text-[#999] transition-transform ' + (desplegada ? 'rotate-180' : '')} />
+                    </button>
+                  ) : (
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-[13px] font-semibold text-[#1D1E20]">{TITULO_REVIEW_FICHA[tipo]}</span>
+                      <span className="block text-[11px] text-[#999]">{DESCRIPCION_REVIEW_FICHA[tipo]}</span>
+                    </span>
                   )}
-                >
-                  {hecha && <Check size={11} strokeWidth={3} />}
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block text-[13px] font-semibold text-[#1D1E20]">{TITULO_REVIEW_FICHA[tipo]}</span>
-                  <span className="block text-[11px] text-[#999]">{DESCRIPCION_REVIEW_FICHA[tipo]}</span>
-                </span>
-                <span className="flex shrink-0 items-center gap-2.5">
-                  {hecha ? (
-                    <>
-                      <Estrellas score={score} tamano={12} />
-                      {puedeEditar && (
+
+                  <span className="flex shrink-0 items-center">
+                    {hecha ? (
+                      puedeEditar && (
                         <button
                           type="button"
                           onClick={() => onCalificar(tipo)}
@@ -1226,70 +1244,32 @@ function ListaQueFalta({ filas, reviewDe, puedeEditar, onCalificar }: {
                         >
                           <Pencil size={11} /> Editar
                         </button>
-                      )}
-                    </>
-                  ) : puedeEditar ? (
-                    <button
-                      type="button"
-                      onClick={() => onCalificar(tipo)}
-                      className="rounded-lg bg-[#48C9B0] px-3 py-1.5 text-[11.5px] font-semibold text-white transition hover:bg-[#3aa896]"
-                    >
-                      {BOTON_REVIEW_FICHA[tipo]}
-                    </button>
-                  ) : (
-                    <span className="rounded-full border border-[#efd9a6] bg-[#fdf8ee] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#a9812f]">
-                      Pendiente
-                    </span>
-                  )}
-                </span>
+                      )
+                    ) : puedeEditar ? (
+                      <button
+                        type="button"
+                        onClick={() => onCalificar(tipo)}
+                        className="rounded-lg bg-[#48C9B0] px-3 py-1.5 text-[11.5px] font-semibold text-white transition hover:bg-[#3aa896]"
+                      >
+                        {BOTON_REVIEW_FICHA[tipo]}
+                      </button>
+                    ) : (
+                      <span className="rounded-full border border-[#efd9a6] bg-[#fdf8ee] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#a9812f]">
+                        Pendiente
+                      </span>
+                    )}
+                  </span>
+                </div>
+
+                {desplegada && review && (
+                  <div className="space-y-4 border-t border-[#f2f2f2] bg-[#fcfcfc] px-4 py-4">
+                    {resumenDe(tipo, review)}
+                  </div>
+                )}
               </li>
             )
           })}
         </ul>
-      )}
-    </section>
-  )
-}
-
-// Cada momento de la review arranca cerrado: el header ya trae el titulo, que
-// mide y su calificacion, y eso es lo que se necesita para escanear la ficha
-// sin abrir nada.
-function SeccionReview({ titulo, descripcion, score, vacia, children }: {
-  titulo: string
-  descripcion: string
-  score: number | null
-  // Una review que no existe todavia no es lo mismo que una que existe sin
-  // calificacion numerica (por ejemplo un descarte "sin opinion"): aqui se
-  // dice "Sin llenar" en vez de reusar el "Sin calificar" de Estrellas.
-  vacia?: boolean
-  children: React.ReactNode
-}) {
-  const [abierta, setAbierta] = useState(false)
-  return (
-    <section className="overflow-hidden rounded-xl border border-[#eee]">
-      <button
-        type="button"
-        onClick={() => setAbierta(v => !v)}
-        aria-expanded={abierta}
-        className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition hover:bg-[#fafafa]"
-      >
-        <span className="min-w-0">
-          <span className="block text-[13px] font-bold text-[#1D1E20]">{titulo}</span>
-          <span className="block truncate text-[11px] text-[#999]">{descripcion}</span>
-        </span>
-        <span className="flex shrink-0 items-center gap-3">
-          {vacia ? (
-            <span className="text-xs font-medium text-[#bbb]">Sin llenar</span>
-          ) : (
-            <Estrellas score={score} tamano={13} />
-          )}
-          <ChevronDown size={14} className={`text-[#999] transition-transform ${abierta ? 'rotate-180' : ''}`} />
-        </span>
-      </button>
-      {abierta && (
-        <div className="space-y-4 border-t border-[#eee] px-4 py-4">
-          {children}
-        </div>
       )}
     </section>
   )

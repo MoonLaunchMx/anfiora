@@ -118,6 +118,9 @@ export default function ProveedoresPage() {
   // no supplier_id): a diferencia del desempeno, que es la reputacion del
   // proveedor en todas sus bodas, esto es especifico de esta.
   const [paidByItem, setPaidByItem] = useState<Record<string, number>>({})
+  // Cuantos pagos tiene cada proveedor: la pestaña Pagos de la ficha lo pinta
+  // desde el primer frame en vez de esperar su propia consulta.
+  const [conteoPagosPorItem, setConteoPagosPorItem] = useState<Record<string, number>>({})
   const [motivoDescartePorItem, setMotivoDescartePorItem] = useState<Record<string, MotivoDescarte | null>>({})
   const [viewMode, setViewMode] = useState<ViewMode>('fichero')
   const [modalOpen, setModalOpen]       = useState(false)
@@ -187,7 +190,7 @@ export default function ProveedoresPage() {
   useEffect(() => { cargarDineroYReviews(items.map(i => i.id)) }, [items])
 
   const cargarDineroYReviews = async (ids: string[]) => {
-    if (ids.length === 0) { setPaidByItem({}); setMotivoDescartePorItem({}); return }
+    if (ids.length === 0) { setPaidByItem({}); setConteoPagosPorItem({}); setMotivoDescartePorItem({}); return }
 
     const [{ data: pagos, error: errPagos }, { data: descartes, error: errDescartes }] = await Promise.all([
       supabase.from('supplier_payments').select('event_supplier_id, amount').in('event_supplier_id', ids),
@@ -197,10 +200,13 @@ export default function ProveedoresPage() {
     if (errDescartes) console.error('Error cargando motivos de descarte:', errDescartes.message ?? errDescartes, errDescartes)
 
     const pagosPorItem: Record<string, number> = {}
+    const conteoPorItem: Record<string, number> = {}
     for (const p of (pagos ?? []) as { event_supplier_id: string; amount: number }[]) {
       pagosPorItem[p.event_supplier_id] = (pagosPorItem[p.event_supplier_id] ?? 0) + (p.amount || 0)
+      conteoPorItem[p.event_supplier_id] = (conteoPorItem[p.event_supplier_id] ?? 0) + 1
     }
     setPaidByItem(pagosPorItem)
+    setConteoPagosPorItem(conteoPorItem)
 
     const motivos: Record<string, MotivoDescarte | null> = {}
     for (const r of (descartes ?? []) as { event_supplier_id: string; motivo_descarte: MotivoDescarte | null }[]) {
@@ -760,6 +766,7 @@ export default function ProveedoresPage() {
                 currency={currency}
                 categorias={categorias}
                 desempenoPorProveedor={desempenoPorProveedor}
+                conteoPagosPorItem={conteoPagosPorItem}
                 onSelect={setSelectedItem}
                 onStatusChange={handleStatusChange}
                 onSaved={handleSavedItem}
@@ -797,6 +804,7 @@ export default function ProveedoresPage() {
           budgets={budgets}
           currency={currency}
           categorias={categorias}
+          conteoPagosInicial={conteoPagosPorItem[selectedItem.id] ?? 0}
           onClose={() => setSelectedItem(null)}
           onStatusChange={handleStatusChange}
           onSaved={handleSavedItem}

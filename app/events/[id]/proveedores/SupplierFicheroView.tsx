@@ -30,6 +30,7 @@ type Props = {
   currency: Currency
   categorias: Categoria[]
   desempenoPorProveedor: Record<string, number | null>
+  conteoPagosPorItem: Record<string, number>
   onSelect: (item: SupplierWithDetails) => void
   onStatusChange: (itemId: string, nuevo: SupplierStatus) => void
   onSaved: (item: SupplierWithDetails) => void
@@ -72,7 +73,7 @@ function useEsEscritorio(): boolean {
 }
 
 export default function SupplierFicheroView({
-  items, todosLosItems, budgets, currency, categorias, desempenoPorProveedor,
+  items, todosLosItems, budgets, currency, categorias, desempenoPorProveedor, conteoPagosPorItem,
   onSelect, onStatusChange, onSaved, onQuitada, onDerivadosCambiaron, enfocar, onEnfocado,
   abrirRevisionParaId, onRevisionAbierta,
 }: Props) {
@@ -249,6 +250,7 @@ export default function SupplierFicheroView({
             budgets={budgets}
             currency={currency}
             categorias={categorias}
+            conteoPagosInicial={conteoPagosPorItem[abierta.id] ?? 0}
             onStatusChange={onStatusChange}
             onSaved={onSaved}
             onQuitada={onQuitada}

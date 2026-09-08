@@ -1015,6 +1015,7 @@ export default function PresupuestoPage() {
           budgets={budgets}
           currency={currency}
           categorias={categorias}
+          conteoPagosInicial={payments.filter(p => p.event_supplier_id === selectedSupplier.id).length}
           onClose={() => setSelectedSupplier(null)}
           onStatusChange={cambiarEstadoProveedor}
           onSaved={updated => {
