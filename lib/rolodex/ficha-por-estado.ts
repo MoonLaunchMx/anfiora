@@ -47,11 +47,7 @@ export const DESCRIPCION_REVIEW_FICHA: Record<TipoReviewFicha, string> = {
   post_evento:  'El día del evento',
 }
 
-export const BOTON_REVIEW_FICHA: Record<TipoReviewFicha, string> = {
-  contratacion: 'Calificar ahora',
-  descarte:     'Calificar ahora',
-  post_evento:  'Calificar ahora',
-}
+export const BOTON_CALIFICAR = 'Calificar ahora'
 
 // Cada review sigue al estado que el proveedor de verdad alcanzo: no se
 // califica la propuesta de quien nunca gano el trato. La fecha del evento NO

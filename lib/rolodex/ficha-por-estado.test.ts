@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   carpetasDe, destinosDe, pasosAlcanzados, CAMINO, QUE_SIGNIFICA,
   ORDEN_REVIEWS_FICHA, esReviewLlenable, filasDeReview, pendientesDe, resumenPendientes,
-  TITULO_REVIEW_FICHA, DESCRIPCION_REVIEW_FICHA, BOTON_REVIEW_FICHA,
+  TITULO_REVIEW_FICHA, DESCRIPCION_REVIEW_FICHA, BOTON_CALIFICAR,
 } from './ficha-por-estado'
 import type { SupplierStatus } from '@/lib/types'
 
@@ -142,11 +142,11 @@ describe('orden y textos de las tres reviews', () => {
     expect(ORDEN_REVIEWS_FICHA).toEqual(['contratacion', 'descarte', 'post_evento'])
   })
 
-  it('cada tipo tiene titulo, descripcion y boton no vacios', () => {
+  it('cada tipo tiene titulo y descripcion no vacios, y el boton es uno solo', () => {
     for (const tipo of ORDEN_REVIEWS_FICHA) {
       expect(TITULO_REVIEW_FICHA[tipo].length).toBeGreaterThan(0)
       expect(DESCRIPCION_REVIEW_FICHA[tipo].length).toBeGreaterThan(0)
-      expect(BOTON_REVIEW_FICHA[tipo].length).toBeGreaterThan(0)
     }
+    expect(BOTON_CALIFICAR).toBe('Calificar ahora')
   })
 })

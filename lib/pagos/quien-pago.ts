@@ -1,12 +1,11 @@
 import { PAID_BY_LABELS } from '@/lib/types'
+import { normalizar } from '@/lib/rolodex/duplicados'
 
 // "Quien pago" dejo de ser un enum: ahora es texto libre por evento. Las
 // claves viejas (novia, papas_novio, etc.) siguen guardadas en pagos
 // historicos y deben seguir mostrando su etiqueta en vez de la clave cruda.
 
-export function normalizar(s: string): string {
-  return s.normalize('NFD').replace(/\p{Diacritic}/gu, '').replace(/\s+/g, ' ').trim().toLowerCase()
-}
+export { normalizar }
 
 // Traduce una clave heredada a su etiqueta ("papas_novia" -> "Papás de la
 // novia"). Un valor que no esta en el mapa (texto libre nuevo) pasa tal cual.

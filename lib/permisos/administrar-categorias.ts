@@ -1,3 +1,6 @@
+import { esAdminDeCuenta } from './resolver'
+import type { RolCuenta } from './resolver'
+
 export type FilaMiembroDespacho = { rol: string } | null
 
 // falla cerrado: un permiso que no se pudo verificar es un permiso negado.
@@ -12,5 +15,5 @@ export function puedeAdministrarCategorias(
   if (esDueno) return true
   if (error) return false
   if (!filaMiembro) return false
-  return filaMiembro.rol === 'dueno' || filaMiembro.rol === 'admin'
+  return esAdminDeCuenta(filaMiembro.rol as RolCuenta)
 }

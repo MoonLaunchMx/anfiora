@@ -15,7 +15,9 @@ import {
 } from '@/lib/types'
 import { etiquetaQuienPago } from '@/lib/pagos/quien-pago'
 import { Categoria, nombrePorId } from '@/lib/rolodex/categorias-store'
-import { formatDisplay, toWhatsApp } from '@/lib/phone'
+import { formatDisplay } from '@/lib/phone'
+import { contactosDe, telefonoCrudoDe } from '@/lib/rolodex/contactos'
+import type { ContactoTipo } from '@/lib/rolodex/contactos'
 import {
   PAISES, PAIS_POR_DEFECTO, bandera, ciudadesDe, estadosDe,
   nombrePais, normalizarCiudad, normalizarEstado, tieneEstados,
@@ -26,7 +28,7 @@ import { useConfirm } from '@/app/components/ui/ConfirmModal'
 import { usePermiso } from '@/lib/event-access-context'
 import {
   carpetasDe, destinosDe, QUE_SIGNIFICA,
-  TITULO_REVIEW_FICHA, DESCRIPCION_REVIEW_FICHA, BOTON_REVIEW_FICHA,
+  TITULO_REVIEW_FICHA, DESCRIPCION_REVIEW_FICHA, BOTON_CALIFICAR,
   filasDeReview, resumenPendientes,
 } from '@/lib/rolodex/ficha-por-estado'
 import type { TipoReviewFicha } from '@/lib/rolodex/ficha-por-estado'
@@ -220,20 +222,7 @@ export default function FichaDelEvento({
   useEffect(() => {
     let vigente = true
     setCargandoReviews(true)
-    supabase
-      .from('supplier_reviews').select('*')
-      .eq('supplier_id', item.supplier_id)
-      .then(({ data, error }) => {
-        if (!vigente) return
-        if (error) {
-          console.error('Error cargando las reviews:', error?.message ?? error, error)
-          setErrorReviews(true)
-        } else {
-          setErrorReviews(false)
-          setReviews((data as SupplierReview[]) ?? [])
-        }
-        setCargandoReviews(false)
-      })
+    cargarReviews(item.supplier_id).then(() => { if (vigente) setCargandoReviews(false) })
     return () => { vigente = false }
   }, [item.supplier_id])
 
@@ -264,12 +253,13 @@ export default function FichaDelEvento({
   const s = item.supplier
   const categoria = nombrePorId(categorias, s.category_id)
 
-  const telCrudo   = s.phone ? (s.phone.startsWith('+') ? s.phone : `${s.phone_country_code ?? '+52'} ${s.phone}`) : null
-  const waDigitos  = telCrudo ? toWhatsApp(telCrudo) : null
+  const telCrudo   = telefonoCrudoDe(s)
   const telVisible = telCrudo ? formatDisplay(telCrudo) : null
-  const igLink     = s.instagram ? `https://instagram.com/${s.instagram.replace('@', '')}` : null
-  const fbLink     = s.facebook ? `https://facebook.com/${s.facebook.replace('@', '')}` : null
-  const webLink    = s.website ? (s.website.startsWith('http') ? s.website : `https://${s.website}`) : null
+  const enlace     = Object.fromEntries(contactosDe(s).map(c => [c.tipo, c.href])) as Partial<Record<ContactoTipo, string>>
+  const waLink     = enlace.whatsapp ?? null
+  const igLink     = enlace.instagram ?? null
+  const fbLink     = enlace.facebook ?? null
+  const webLink    = enlace.sitio ?? null
 
   const partidas    = partidasDelProveedor(item, budgets)
   const presupuesto = metaDelProveedor(item, budgets)
@@ -490,9 +480,9 @@ export default function FichaDelEvento({
 
         {/* Escritorio: contactos y el boton de mover */}
         <div className="mt-2.5 hidden flex-wrap items-center gap-1.5 lg:flex">
-          {waDigitos && (
+          {waLink && (
             <button
-              onClick={() => abrir(`https://wa.me/${waDigitos}`)}
+              onClick={() => abrir(waLink)}
               className="flex items-center gap-1.5 rounded-lg bg-[#48C9B0] px-2.5 py-1.5 text-[11px] font-semibold text-white transition hover:bg-[#3aa896]"
             >
               <FaWhatsapp size={13} /> WhatsApp
@@ -1021,9 +1011,9 @@ export default function FichaDelEvento({
       )}
 
       <div className="flex shrink-0 items-center gap-2 border-t border-[#e8e8e8] bg-white px-4 py-2.5 lg:hidden">
-        {waDigitos && (
+        {waLink && (
           <button
-            onClick={() => abrir(`https://wa.me/${waDigitos}`)}
+            onClick={() => abrir(waLink)}
             aria-label="Abrir WhatsApp"
             className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#48C9B0] text-white transition"
           >
@@ -1254,7 +1244,7 @@ function ListaQueFalta({ filas, reviewDe, puedeEditar, onCalificar }: {
                       onClick={() => onCalificar(tipo)}
                       className="rounded-lg bg-[#48C9B0] px-3 py-1.5 text-[11.5px] font-semibold text-white transition hover:bg-[#3aa896]"
                     >
-                      {BOTON_REVIEW_FICHA[tipo]}
+                      {BOTON_CALIFICAR}
                     </button>
                   ) : (
                     <span className="rounded-full border border-[#efd9a6] bg-[#fdf8ee] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#a9812f]">

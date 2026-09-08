@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Check } from 'lucide-react'
 import { Modal } from '@/app/components/ui/Modal'
+import { PieDeReview, ProblemasDeReview } from './PieDeReview'
 import EscalaCinco from '@/app/components/ui/EscalaCinco'
 import { anclasDe, EJES_PROPUESTA, NOMBRE_EJE, DESCRIPCION_EJE_PROPUESTA } from '@/lib/reviews/ejes'
 import type { Eje } from '@/lib/reviews/ejes'
@@ -145,33 +146,10 @@ export default function ReviewContratacionModal({
             <p className="mt-1 text-right text-xs text-[var(--text-muted)]">{comentarios.length} / {MAX_COMENTARIOS}</p>
           </div>
 
-          {problemas.length > 0 && (
-            <div className="space-y-1 rounded-lg border border-[var(--error-border)] bg-[var(--error-bg)] px-3 py-2">
-              {problemas.map(p => (
-                <p key={p} className="text-xs text-[var(--error-text)]">{p}</p>
-              ))}
-            </div>
-          )}
+          <ProblemasDeReview problemas={problemas} />
         </div>
       </Modal.Body>
-      <Modal.Footer>
-        <button
-          onClick={onSkip}
-          disabled={saving}
-          className="ml-auto px-4 py-2 text-sm text-[var(--text-sec)] hover:text-[var(--text)] disabled:opacity-50"
-        >
-          Después
-        </button>
-        {permiso.editar && (
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="rounded-lg bg-[#48C9B0] px-5 py-2 text-sm font-semibold text-white hover:bg-[#3aa896] disabled:opacity-50"
-          >
-            {saving ? 'Guardando…' : 'Guardar review'}
-          </button>
-        )}
-      </Modal.Footer>
+      <PieDeReview onSkip={onSkip} onSave={handleSave} saving={saving} puedeEditar={permiso.editar} />
     </Modal>
   )
 }

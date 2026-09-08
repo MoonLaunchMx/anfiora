@@ -12,7 +12,9 @@ import {
 import { Categoria, nombrePorId } from '@/lib/rolodex/categorias-store'
 import FichaDelEvento from './FichaDelEvento'
 import { EstatusProveedor } from './EstatusProveedor'
-import { formatDisplay, toWhatsApp } from '@/lib/phone'
+import { formatDisplay } from '@/lib/phone'
+import { contactosDe, telefonoCrudoDe } from '@/lib/rolodex/contactos'
+import type { ContactoTipo } from '@/lib/rolodex/contactos'
 import Estrellas from '@/app/components/ui/Estrellas'
 import {
   desplazamientoFicha, escalaFicha, indiceAlSoltar, indicePrimeraLetra, letraDe,
@@ -383,12 +385,12 @@ function Ficha({ item, budgets, currency, categorias, desempeno, activa, arrastr
   const s = item.supplier
   const categoria = nombrePorId(categorias, s.category_id)
 
-  const telCrudo   = s.phone ? (s.phone.startsWith('+') ? s.phone : `${s.phone_country_code ?? '+52'} ${s.phone}`) : null
-  const waDigitos  = telCrudo ? toWhatsApp(telCrudo) : null
+  const telCrudo   = telefonoCrudoDe(s)
   const telVisible = telCrudo ? formatDisplay(telCrudo) : null
-
-  const igLink     = s.instagram ? `https://instagram.com/${s.instagram.replace('@', '')}` : null
-  const webLink    = s.website ? (s.website.startsWith('http') ? s.website : `https://${s.website}`) : null
+  const enlace     = Object.fromEntries(contactosDe(s).map(c => [c.tipo, c.href])) as Partial<Record<ContactoTipo, string>>
+  const waLink     = enlace.whatsapp ?? null
+  const igLink     = enlace.instagram ?? null
+  const webLink    = enlace.sitio ?? null
 
   const meta       = metaDelProveedor(item, budgets)
   const contraMeta = item.contract_amount ?? item.quoted_amount ?? null
@@ -450,10 +452,10 @@ function Ficha({ item, budgets, currency, categorias, desempeno, activa, arrastr
         </div>
 
         <div className="flex gap-2">
-          {waDigitos && (
+          {waLink && (
             <button
               aria-label="Abrir WhatsApp"
-              onClick={e => abrirEnlace(e, `https://wa.me/${waDigitos}`)}
+              onClick={e => abrirEnlace(e, waLink)}
               className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#48C9B0] text-white transition hover:bg-[#3aa896]"
             >
               <FaWhatsapp size={15} />
@@ -535,9 +537,9 @@ function Ficha({ item, budgets, currency, categorias, desempeno, activa, arrastr
 
         {activa && (
           <div className="mt-auto flex flex-wrap gap-2 pt-2.5">
-            {waDigitos && (
+            {waLink && (
               <button
-                onClick={e => abrirEnlace(e, `https://wa.me/${waDigitos}`)}
+                onClick={e => abrirEnlace(e, waLink)}
                 className="flex items-center gap-1.5 rounded-lg bg-[#48C9B0] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#3aa896]"
               >
                 <FaWhatsapp size={14} /> WhatsApp
