@@ -184,10 +184,12 @@ export default function ProveedoresPage() {
 
   const filtrosActivos = contarFiltrosActivos(filtros)
 
-  // Se recalcula cada vez que la lista de proveedores cambia de referencia
-  // (alta, baja, cambio de estado): así Lista y Kanban no quedan con el pagado
-  // o el motivo de descarte de una versión vieja del proveedor.
-  useEffect(() => { cargarDineroYReviews(items.map(i => i.id)) }, [items])
+  // Se recalcula cuando cambia QUE proveedores hay (alta, baja), no en cada
+  // edicion: mover un estatus o corregir un telefono no cambia pagos ni
+  // descartes, y releerlos en cada setItems era el doble de consultas por
+  // accion. Lo que si los cambia (un pago, una review) avisa por refrescarDerivados.
+  const claveDeItems = useMemo(() => items.map(i => i.id).join(','), [items])
+  useEffect(() => { cargarDineroYReviews(claveDeItems ? claveDeItems.split(',') : []) }, [claveDeItems])
 
   const cargarDineroYReviews = async (ids: string[]) => {
     if (ids.length === 0) { setPaidByItem({}); setConteoPagosPorItem({}); setMotivoDescartePorItem({}); return }
@@ -294,10 +296,13 @@ export default function ProveedoresPage() {
     if (!fichas || fichas.length === 0) { setCatalogoBase([]); setDesempenoPorProveedor({}); return }
 
     const ids = fichas.map(f => f.id)
-    const { data: usos } = await supabase
-      .from('event_suppliers')
-      .select('supplier_id, event_id')
-      .in('supplier_id', ids)
+    // El desempeno de cada ficha (para el fichero y el kanban) se calcula aqui
+    // una sola vez para todo el catalogo, no tarjeta por tarjeta; solo
+    // necesita los ids, asi que va en paralelo con los usos.
+    const [{ data: usos }] = await Promise.all([
+      supabase.from('event_suppliers').select('supplier_id, event_id').in('supplier_id', ids),
+      cargarDesempeno(ids),
+    ])
 
     // Los nombres de las bodas van en consulta aparte: incrustar events en la
     // anterior la vuelve un inner join y las bodas que el colaborador no puede
@@ -307,14 +312,16 @@ export default function ProveedoresPage() {
       ? await supabase.from('events').select('id, name, event_date').in('id', idsBodas)
       : { data: [] as { id: string; name: string; event_date: string | null }[] }
 
-    // El desempeno de cada ficha (para el fichero y el kanban) se calcula aqui
-    // una sola vez para todo el catalogo, no tarjeta por tarjeta.
-    await cargarDesempeno(ids)
-
     const porBoda = new Map((bodas ?? []).map(b => [b.id, b]))
+    const usosPorFicha = new Map<string, { supplier_id: string; event_id: string }[]>()
+    for (const u of usos ?? []) {
+      const lista = usosPorFicha.get(u.supplier_id) ?? []
+      lista.push(u)
+      usosPorFicha.set(u.supplier_id, lista)
+    }
 
     setCatalogoBase(fichas.map(f => {
-      const mios = (usos ?? []).filter(u => u.supplier_id === f.id)
+      const mios = usosPorFicha.get(f.id) ?? []
       const conFecha = mios
         .map(u => porBoda.get(u.event_id))
         .filter((b): b is { id: string; name: string; event_date: string | null } => !!b)
@@ -625,7 +632,6 @@ export default function ProveedoresPage() {
             />
           </div>
 
-          {/* Filtros */}
           <div className="relative ml-auto shrink-0" ref={filterMenuRef}>
             <button
               onClick={() => setShowFilterMenu(v => !v)}
@@ -672,7 +678,6 @@ export default function ProveedoresPage() {
             )}
           </div>
 
-          {/* Columnas — solo vista Lista */}
           {viewMode === 'lista' && (
             <div className="relative hidden shrink-0 lg:block" ref={colMenuRef}>
               <button
