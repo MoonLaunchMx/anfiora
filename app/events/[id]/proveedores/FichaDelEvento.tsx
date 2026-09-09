@@ -1295,8 +1295,11 @@ function ListaQueFalta({ filas, reviewDe, puedeEditar, onCalificar, reviewClient
       {hayCliente && (
         <section>
           <EncabezadoDeGrupo texto="Cliente" />
+          <ul className="flex flex-col">
+            <RenglonCliente review={reviewCliente} opinion={opinionCliente} onVer={onVerCliente} />
+          </ul>
           {opinionCliente && (
-            <div className="mb-1">
+            <div className="mt-2">
               <AvisoOpinionCliente
                 info={opinionCliente.info}
                 contestados={opinionCliente.contestados}
@@ -1308,9 +1311,6 @@ function ListaQueFalta({ filas, reviewDe, puedeEditar, onCalificar, reviewClient
               />
             </div>
           )}
-          <ul className="flex flex-col">
-            <RenglonCliente review={reviewCliente} opinion={opinionCliente} onVer={onVerCliente} />
-          </ul>
         </section>
       )}
     </div>
