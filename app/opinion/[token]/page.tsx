@@ -203,8 +203,16 @@ export default function OpinionPublicaPage() {
         <p className="mt-2 text-sm text-[#666]">
           Calificaron {listos} de {total} proveedores de {datos.evento.nombre}. Su planner ya lo recibió.
         </p>
-        <button type="button" onClick={() => setEnviado(false)} className="mt-6 text-sm font-semibold text-[#48C9B0]">
-          Corregir algo
+        <p className="mt-4 rounded-xl border border-[#eee] bg-[#fafafa] px-4 py-3 text-[13px] leading-relaxed text-[#666]">
+          Guarden este link{datos.vence ? ` hasta el ${fechaCortaISO(datos.vence)}` : ''}: pueden volver
+          {listos < total ? ' a calificar a los que faltan' : ' a cambiar lo que contestaron'} cuando quieran.
+        </p>
+        <button
+          type="button"
+          onClick={() => setEnviado(false)}
+          className="mt-5 w-full rounded-lg border border-[#e0e0e0] bg-white py-3 text-sm font-semibold text-[#1D1E20] transition hover:bg-[#f5f5f5]"
+        >
+          Ver o corregir mis respuestas
         </button>
       </Cascara>
     )

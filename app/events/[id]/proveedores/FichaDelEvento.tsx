@@ -43,6 +43,7 @@ import ListaDeArchivos from './ListaDeArchivos'
 import ReviewContratacionModal from './ReviewContratacionModal'
 import ReviewDescarteModal from './ReviewDescarteModal'
 import ReviewDesempenoModal from './ReviewDesempenoModal'
+import ReviewClienteModal from './ReviewClienteModal'
 import { CaminoDelTrato, COLOR_ESTADO, EstatusProveedor, ICONO_ESTADO } from './EstatusProveedor'
 import PhoneInput from '@/app/components/ui/PhoneInput'
 
@@ -125,6 +126,7 @@ export default function FichaDelEvento({
   const [mostrarModalDesempeno, setMostrarModalDesempeno] = useState(false)
   const [mostrarModalContratacion, setMostrarModalContratacion] = useState(false)
   const [mostrarModalDescarte, setMostrarModalDescarte] = useState(false)
+  const [mostrarOpinionCliente, setMostrarOpinionCliente] = useState(false)
   const [userId, setUserId] = useState<string | null>(null)
   const [eventName, setEventName] = useState('')
   // El dueno de la cuenta, que es de quien cuelga la review -- no quien la
@@ -947,6 +949,7 @@ export default function FichaDelEvento({
               puedeEditar={permisoFicha.editar}
               onCalificar={abrirModalDe}
               reviewCliente={reviewCliente}
+              onVerCliente={() => setMostrarOpinionCliente(true)}
               opinionCliente={item.status === 'contratado' ? opinionCliente : undefined}
             />
           )
@@ -980,6 +983,15 @@ export default function FichaDelEvento({
           reviewExistente={reviewDescarte}
           onSaved={() => { setMostrarModalDescarte(false); cargarReviews(item.supplier_id); onDerivadosCambiaron?.() }}
           onSkip={() => setMostrarModalDescarte(false)}
+        />
+      )}
+
+      {mostrarOpinionCliente && reviewCliente && (
+        <ReviewClienteModal
+          review={reviewCliente}
+          supplierName={s.name}
+          currency={currency}
+          onClose={() => setMostrarOpinionCliente(false)}
         />
       )}
 
@@ -1205,13 +1217,14 @@ function Texto({ valor, vacio }: { valor: string | null; vacio: string }) {
 // renglon hecho no se despliega: se abre en su modal, para editar si se
 // puede y solo para leer si no. Hecha o pendiente se distinguen por forma
 // (palomita llena / circulo punteado), no solo por color.
-function ListaQueFalta({ filas, reviewDe, puedeEditar, onCalificar, reviewCliente, opinionCliente }: {
+function ListaQueFalta({ filas, reviewDe, puedeEditar, onCalificar, reviewCliente, opinionCliente, onVerCliente }: {
   filas: ReturnType<typeof filasDeReview>
   reviewDe: (tipo: TipoReviewFicha) => SupplierReview | null
   puedeEditar: boolean
   onCalificar: (tipo: TipoReviewFicha) => void
   reviewCliente: SupplierReview | null
   opinionCliente?: { info: InfoLink; onPedir?: () => void }
+  onVerCliente: () => void
 }) {
   return (
     <section className="overflow-hidden rounded-xl border border-[#eee]">
@@ -1270,7 +1283,7 @@ function ListaQueFalta({ filas, reviewDe, puedeEditar, onCalificar, reviewClient
               </li>
             )
           })}
-          <RenglonCliente review={reviewCliente} opinion={opinionCliente} puedeEditar={puedeEditar} />
+          <RenglonCliente review={reviewCliente} opinion={opinionCliente} puedeEditar={puedeEditar} onVer={onVerCliente} />
         </ul>
       )}
     </section>
@@ -1279,10 +1292,11 @@ function ListaQueFalta({ filas, reviewDe, puedeEditar, onCalificar, reviewClient
 
 // "Segun el cliente": lo que contesto el cliente final para este proveedor.
 // No cuenta en "Que falta": esa cuenta es de lo que llena el planner.
-function RenglonCliente({ review, opinion, puedeEditar }: {
+function RenglonCliente({ review, opinion, puedeEditar, onVer }: {
   review: SupplierReview | null
   opinion?: { info: InfoLink; onPedir?: () => void }
   puedeEditar: boolean
+  onVer: () => void
 }) {
   if (!review && !opinion) return null
   const hecha = !!review
@@ -1317,7 +1331,16 @@ function RenglonCliente({ review, opinion, puedeEditar }: {
       </span>
       <span className="flex shrink-0 items-center gap-2.5">
         {hecha ? (
-          <Estrellas score={score} tamano={12} />
+          <>
+            <Estrellas score={score} tamano={12} />
+            <button
+              type="button"
+              onClick={onVer}
+              className="flex items-center gap-1 text-[11px] font-semibold text-[#48C9B0] transition hover:text-[#3aa896]"
+            >
+              <Eye size={11} /> Ver
+            </button>
+          </>
         ) : info?.estado === 'sin_pedir' && opinion?.onPedir && puedeEditar ? (
           <button
             type="button"
