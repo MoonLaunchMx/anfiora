@@ -74,7 +74,7 @@ export async function GET(req: NextRequest) {
     bodas: (colabs ?? [])
       .filter(c => c.tipo !== 'cliente' && c.email.toLowerCase() === m.email.toLowerCase())
       .map(c => ({
-        eventId: c.event_id, name: nombreBoda.get(c.event_id) ?? 'Boda', collaboratorId: c.id,
+        eventId: c.event_id, name: nombreBoda.get(c.event_id) ?? 'Evento', collaboratorId: c.id,
         status: c.status, permisos: normalizarPermisos(c.permisos),
       })),
   }))
@@ -84,7 +84,7 @@ export async function GET(req: NextRequest) {
     .filter(c => c.tipo === 'cliente' && !correosEquipo.has(c.email.toLowerCase()))
     .map(c => ({
       id: c.id, email: c.email, user_id: c.user_id, status: c.status, invite_token: c.invite_token,
-      eventId: c.event_id, eventName: nombreBoda.get(c.event_id) ?? 'Boda',
+      eventId: c.event_id, eventName: nombreBoda.get(c.event_id) ?? 'Evento',
       permisos: normalizarPermisos(c.permisos),
     }))
 

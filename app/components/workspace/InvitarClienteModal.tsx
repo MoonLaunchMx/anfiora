@@ -38,7 +38,7 @@ export function InvitarClienteModal({ open, onClose, workspace, bodaFija, onHech
 
   return (
     <Modal open={open} onClose={onClose} size="md">
-      <Modal.Header title={token ? 'Invitación lista' : 'Invitar cliente'} subtitle="Los novios, sus papás, quien sea de esa boda. Entra solo ahí y no ocupa asiento." />
+      <Modal.Header title={token ? 'Invitación lista' : 'Invitar cliente'} subtitle="Los anfitriones, sus papás, quien sea de ese evento. Entra solo ahí y no ocupa asiento." />
       <Modal.Body>
         {token ? (
           <div className="flex items-center gap-2 rounded-lg border border-[#e8e8e8] bg-[#f8f8f8] px-3 py-2">
@@ -68,7 +68,7 @@ export function InvitarClienteModal({ open, onClose, workspace, bodaFija, onHech
                   </button>
                 ))}
               </div>
-              <p className="mt-1.5 text-[11px] text-[#aaa]">Después le ajustas herramienta por herramienta desde la pestaña Equipo de la boda.</p>
+              <p className="mt-1.5 text-[11px] text-[#aaa]">Después le ajustas herramienta por herramienta desde la pestaña Equipo del evento.</p>
             </div>
             {error && <p className="text-xs text-[#cc3333]">{error}</p>}
           </div>

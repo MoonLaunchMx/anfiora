@@ -58,7 +58,7 @@ export function FichaMiembroModal({ open, onClose, workspace, miembro, onHecho }
   const revocar = async () => {
     const ok = await confirm({
       title: `¿Quitar a ${miembro.nombre ?? miembro.email} del workspace?`,
-      message: 'Pierde el acceso a todas sus bodas. Su asiento se libera. Puedes volver a invitarla después.',
+      message: 'Pierde el acceso a todos sus eventos. Su asiento se libera. Puedes volver a invitarla después.',
       confirmLabel: 'Quitar', tone: 'danger',
     })
     if (!ok) return
@@ -95,10 +95,10 @@ export function FichaMiembroModal({ open, onClose, workspace, miembro, onHecho }
             </div>
           )}
           {rol === 'admin' || miembro.es_dueno_principal ? (
-            <p className="rounded-lg border border-[#e8e8e8] bg-[#f8f8f8] px-3 py-2.5 text-[13px] text-[#666]">Entra a todas las bodas con acceso total.</p>
+            <p className="rounded-lg border border-[#e8e8e8] bg-[#f8f8f8] px-3 py-2.5 text-[13px] text-[#666]">Entra a todos los eventos con acceso total.</p>
           ) : (
             <div>
-              <p className="text-xs font-semibold text-[#666]">Bodas y permisos</p>
+              <p className="text-xs font-semibold text-[#666]">Eventos y permisos</p>
               <div className="mt-1 flex flex-col gap-1.5">
                 {bodasActivas.map(b => {
                   const on = !!bodas[b.id]

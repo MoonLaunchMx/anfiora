@@ -60,7 +60,7 @@ export function AltaPersonaModal({ open, onClose, workspace, bodaFija, onHecho }
       return
     }
     if (paso === 2) {
-      if (elegidas.size === 0) { setError('Elige al menos una boda'); return }
+      if (elegidas.size === 0) { setError('Elige al menos un evento'); return }
       setBodaActual([...elegidas][0])
       setPaso(3)
     }
@@ -83,7 +83,7 @@ export function AltaPersonaModal({ open, onClose, workspace, bodaFija, onHecho }
   const link = token ? `${window.location.origin}/invite/${token}` : ''
   const copiar = async () => { await navigator.clipboard.writeText(link); setCopiado(true); setTimeout(() => setCopiado(false), 1500) }
 
-  const titulos: Record<Paso, string> = { 1: 'Persona', 2: 'Bodas', 3: 'Permisos' }
+  const titulos: Record<Paso, string> = { 1: 'Persona', 2: 'Eventos', 3: 'Permisos' }
   const pasos = (
     <p className="mb-1 text-[11px] text-[#999]">
       {([1, 2, 3] as Paso[]).filter(p => !(rol === 'admin' && p === 2)).map((p, i) => (
@@ -100,7 +100,7 @@ export function AltaPersonaModal({ open, onClose, workspace, bodaFija, onHecho }
     <Modal open={open} onClose={onClose} size="lg">
       <Modal.Header
         title={token ? 'Invitación lista' : 'Agregar persona al workspace'}
-        subtitle={token ? 'Copia el enlace y mándaselo. Al entrar ya tiene sus bodas y sus permisos.' : 'Recibe un enlace. Al entrar ya tiene sus bodas y sus permisos.'}
+        subtitle={token ? 'Copia el enlace y mándaselo. Al entrar ya tiene sus eventos y sus permisos.' : 'Recibe un enlace. Al entrar ya tiene sus eventos y sus permisos.'}
       />
       <Modal.Body>
         {token ? (
@@ -127,7 +127,7 @@ export function AltaPersonaModal({ open, onClose, workspace, bodaFija, onHecho }
                 <div>
                   <p className="text-xs font-semibold text-[#666]">Rol en el workspace</p>
                   <div className="mt-1 grid grid-cols-2 gap-1.5">
-                    {([['colaborador', 'Colaborador', 'Solo entra a las bodas que le des'], ['admin', 'Administrador', 'Entra a todas y reparte accesos']] as const).map(([v, l, d]) => (
+                    {([['colaborador', 'Colaborador', 'Solo entra a los eventos que le des'], ['admin', 'Administrador', 'Entra a todas y reparte accesos']] as const).map(([v, l, d]) => (
                       <button key={v} type="button" onClick={() => setRol(v)}
                         className={'rounded-lg border px-3 py-2.5 text-left transition ' + (rol === v ? 'border-[#48C9B0] bg-[#f0fdfb]' : 'border-[#e0e0e0] bg-white hover:border-[#48C9B0]')}>
                         <span className="block text-[12px] font-semibold text-[#1D1E20]">{l}</span>
@@ -145,7 +145,7 @@ export function AltaPersonaModal({ open, onClose, workspace, bodaFija, onHecho }
             )}
             {paso === 2 && (
               <div className="flex flex-col gap-1.5">
-                {bodasActivas.length === 0 && <p className="text-sm text-[#888]">No tienes bodas activas todavía.</p>}
+                {bodasActivas.length === 0 && <p className="text-sm text-[#888]">No tienes eventos activos todavía.</p>}
                 {bodasActivas.map(b => {
                   const on = elegidas.has(b.id)
                   return (
@@ -161,7 +161,7 @@ export function AltaPersonaModal({ open, onClose, workspace, bodaFija, onHecho }
               </div>
             )}
             {paso === 3 && rol === 'admin' && (
-              <p className="rounded-lg border border-[#e8e8e8] bg-[#f8f8f8] px-3 py-2.5 text-[13px] text-[#666]">Como administrador entra a todas las bodas con acceso total y puede repartir accesos. No hay permisos que ajustar.</p>
+              <p className="rounded-lg border border-[#e8e8e8] bg-[#f8f8f8] px-3 py-2.5 text-[13px] text-[#666]">Como administrador entra a todos los eventos con acceso total y puede repartir accesos. No hay permisos que ajustar.</p>
             )}
             {paso === 3 && rol === 'colaborador' && bodaActual && (
               <>
@@ -196,7 +196,7 @@ export function AltaPersonaModal({ open, onClose, workspace, bodaFija, onHecho }
             {paso > 1 && <button className={btnSec} onClick={() => setPaso((paso === 3 && rol === 'admin' ? 1 : paso - 1) as Paso)}>Atrás</button>}
             <button className={btnSec} onClick={onClose}>Cancelar</button>
             {paso < 3
-              ? <button className={btnCta + ' ml-auto'} onClick={siguiente}>{paso === 1 ? (rol === 'admin' ? 'Siguiente' : 'Siguiente: bodas') : 'Siguiente: permisos'}</button>
+              ? <button className={btnCta + ' ml-auto'} onClick={siguiente}>{paso === 1 ? (rol === 'admin' ? 'Siguiente' : 'Siguiente: eventos') : 'Siguiente: permisos'}</button>
               : <button className={btnCta + ' ml-auto'} disabled={guardando} onClick={guardar}>{guardando ? 'Creando…' : 'Crear enlace'}</button>}
           </>
         )}
