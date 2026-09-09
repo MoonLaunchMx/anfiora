@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { ChevronDown } from 'lucide-react'
 import DatePicker from '@/app/components/ui/DatePicker'
-import { extenderVencimiento, textoAviso } from '@/lib/reviews/link-cliente'
+import { extenderVencimiento, textoAviso, tonoDelAviso, CLASES_TONO } from '@/lib/reviews/link-cliente'
 import type { InfoLink } from '@/lib/reviews/link-cliente'
 
 type Props = {
@@ -47,11 +47,7 @@ export default function AvisoOpinionCliente({
   if (info.estado !== 'vencida' && contestados >= total) return null
 
   const vencida = info.estado === 'vencida'
-  const tono =
-    info.estado === 'sin_pedir' ? 'border-[#efd9a6] bg-[#fdf8ee]' :
-    info.estado === 'por_vencer' ? 'border-[#f0c9c5] bg-[#fdf3f2]' :
-    vencida ? 'border-[#e8e8e8] bg-[#f5f5f3]' :
-    'border-[#bdebdf] bg-[#f0faf7]'
+  const tono = CLASES_TONO[tonoDelAviso(info.estado) ?? 'teal']
 
   const aplicar = async (nuevoVence: string) => {
     setError('')

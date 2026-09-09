@@ -594,6 +594,13 @@ export default function ProveedoresPage() {
   const totalEnLink = idsEnLink.length
   const contestados = idsEnLink.filter(id => scoreClientePorItem[id] != null).length
 
+  const opinionCliente = {
+    info: infoLink,
+    contestados,
+    total: totalEnLink,
+    onAbrirLink: () => setPedirOpinionAbierto(true),
+  }
+
   const darMasTiempo = async (nuevoVence: string): Promise<string | null> => {
     const res = await supabase.from('event_settings').update({ review_expires_at: nuevoVence }).eq('event_id', eventId).select('event_id')
     const r = interpretarEscritura(res)
@@ -833,7 +840,7 @@ export default function ProveedoresPage() {
                 categorias={categorias}
                 desempenoPorProveedor={desempenoPorProveedor}
                 conteoPagosPorItem={conteoPagosPorItem}
-                opinionCliente={{ info: infoLink, onPedir: () => setPedirOpinionAbierto(true) }}
+                opinionCliente={opinionCliente}
                 onSelect={setSelectedItem}
                 onStatusChange={handleStatusChange}
                 onSaved={handleSavedItem}
@@ -883,7 +890,7 @@ export default function ProveedoresPage() {
           currency={currency}
           categorias={categorias}
           conteoPagosInicial={conteoPagosPorItem[selectedItem.id] ?? 0}
-          opinionCliente={{ info: infoLink, onPedir: () => setPedirOpinionAbierto(true) }}
+          opinionCliente={opinionCliente}
           onClose={() => setSelectedItem(null)}
           onStatusChange={handleStatusChange}
           onSaved={handleSavedItem}

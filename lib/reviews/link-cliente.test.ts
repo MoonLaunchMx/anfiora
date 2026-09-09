@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   DIAS_PLAZO_CLIENTE, sumarDias, diasEntre, venceDefault, estadoDelLink,
   extenderVencimiento, textoAviso, urlOpinion, mensajeWhatsApp,
+  tonoDelAviso, CLASES_TONO,
 } from './link-cliente'
 
 describe('fechas', () => {
@@ -88,5 +89,20 @@ describe('link y mensaje', () => {
   it('el mensaje de WhatsApp trae el evento y el link', () => {
     expect(mensajeWhatsApp('Boda Ana & Luis', 'https://anfiora.com/opinion/x'))
       .toBe('¿Nos ayudan a calificar a los proveedores de Boda Ana & Luis? Les toma unos minutos: https://anfiora.com/opinion/x')
+  })
+})
+
+describe('tonoDelAviso', () => {
+  it('antes del evento no hay aviso que pintar', () => {
+    expect(tonoDelAviso('antes')).toBeNull()
+  })
+  it('cada estado tiene su color, y todos tienen clases', () => {
+    expect(tonoDelAviso('sin_pedir')).toBe('gold')
+    expect(tonoDelAviso('enviada')).toBe('teal')
+    expect(tonoDelAviso('por_vencer')).toBe('danger')
+    expect(tonoDelAviso('vencida')).toBe('gris')
+    for (const tono of ['gold', 'teal', 'danger', 'gris'] as const) {
+      expect(CLASES_TONO[tono].length).toBeGreaterThan(0)
+    }
   })
 })

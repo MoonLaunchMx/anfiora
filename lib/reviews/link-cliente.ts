@@ -83,6 +83,26 @@ export function textoAviso(info: InfoLink, contestados: number, total: number): 
   }
 }
 
+// El color dice el estado sin leer: ambar hay algo que hacer, verde va en
+// camino, rojo se acaba el tiempo, gris ya no. Vive aqui porque lo pintan
+// dos pantallas -- el aviso de Proveedores y la carpeta Review de la ficha.
+export type TonoAviso = 'gold' | 'teal' | 'danger' | 'gris'
+
+export function tonoDelAviso(estado: EstadoLink): TonoAviso | null {
+  if (estado === 'antes') return null
+  if (estado === 'sin_pedir') return 'gold'
+  if (estado === 'por_vencer') return 'danger'
+  if (estado === 'vencida') return 'gris'
+  return 'teal'
+}
+
+export const CLASES_TONO: Record<TonoAviso, string> = {
+  gold:   'border-[#efd9a6] bg-[#fdf8ee]',
+  teal:   'border-[#bdebdf] bg-[#f0faf7]',
+  danger: 'border-[#f0c9c5] bg-[#fdf3f2]',
+  gris:   'border-[#e8e8e8] bg-[#f5f5f3]',
+}
+
 export function urlOpinion(origin: string, token: string): string {
   return `${origin}/opinion/${token}`
 }

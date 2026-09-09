@@ -33,8 +33,8 @@ import {
 } from '@/lib/rolodex/ficha-por-estado'
 import type { TipoReviewFicha } from '@/lib/rolodex/ficha-por-estado'
 import { metaDelProveedor, partidasDelProveedor } from '@/lib/presupuesto/derivados'
+import { textoAviso, tonoDelAviso, CLASES_TONO } from '@/lib/reviews/link-cliente'
 import type { InfoLink } from '@/lib/reviews/link-cliente'
-import { fechaCortaISO } from '@/lib/rolodex/fecha-corta'
 import { calcularScores } from '@/lib/reviews/scores'
 import { yaRechazoLaOferta, recordarRechazo } from '@/lib/rolodex/oferta-avance'
 import { TOPE_COMPROBANTES, TOPE_COTIZACIONES, visibles } from '@/lib/archivos/adjuntos'
@@ -49,6 +49,16 @@ import PhoneInput from '@/app/components/ui/PhoneInput'
 
 type SupplierWithDetails = EventSupplier & { supplier: Supplier }
 
+// Lo que la pagina de Proveedores sabe del link del cliente. `contestados` y
+// `total` son del EVENTO, no de este proveedor: el aviso cuenta cuantos de los
+// incluidos ya calificaron.
+export type OpinionCliente = {
+  info: InfoLink
+  contestados: number
+  total: number
+  onAbrirLink?: () => void
+}
+
 type Props = {
   item: SupplierWithDetails
   budgets: EventBudget[]
@@ -60,7 +70,7 @@ type Props = {
   // El estado del link del cliente (lo calcula la pagina de Proveedores). Si
   // no viene -- la ficha abierta desde Presupuesto -- el renglon del cliente
   // solo aparece cuando su review ya existe.
-  opinionCliente?: { info: InfoLink; onPedir?: () => void }
+  opinionCliente?: OpinionCliente
   onStatusChange: (itemId: string, nuevo: SupplierStatus) => void
   onSaved: (item: SupplierWithDetails) => void
   onQuitada: (itemId: string) => void
@@ -1223,95 +1233,156 @@ function ListaQueFalta({ filas, reviewDe, puedeEditar, onCalificar, reviewClient
   puedeEditar: boolean
   onCalificar: (tipo: TipoReviewFicha) => void
   reviewCliente: SupplierReview | null
-  opinionCliente?: { info: InfoLink; onPedir?: () => void }
+  opinionCliente?: OpinionCliente
   onVerCliente: () => void
 }) {
+  const hayCliente = !!reviewCliente || !!opinionCliente
+
   return (
     <section className="overflow-hidden rounded-xl border border-[#eee]">
+      {/* La cuenta es de lo que TU tienes que llenar: lo del cliente no depende
+          de ti y meterlo aqui dejaria un pendiente que no puedes cerrar. */}
       <div className="flex items-center justify-between bg-[#fafafa] px-4 py-2 text-[10.5px] font-bold uppercase tracking-wider text-[#999]">
         <span>Qué falta</span>
         <span>{resumenPendientes(filas)}</span>
       </div>
-      {filas.length === 0 ? (
+
+      {filas.length === 0 && !hayCliente ? (
         <p className="px-4 py-3 text-xs text-[#999]">Se califica al contratarlo o al descartarlo.</p>
       ) : (
-        <ul>
-          {filas.map(({ tipo, hecha }) => {
-            const review = hecha ? reviewDe(tipo) : null
-            const propio = review ? calcularScores([review]) : null
-            const score = propio ? (tipo === 'post_evento' ? propio.desempeno : propio.propuesta) : null
-            return (
-              <li key={tipo} className="flex items-center gap-3 border-t border-[#f2f2f2] px-4 py-2.5">
-                <span
-                  aria-hidden
-                  className={'flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-[1.5px] ' + (
-                    hecha ? 'border-[#48C9B0] bg-[#48C9B0] text-white' : 'border-dashed border-[#d4a853]'
-                  )}
-                >
-                  {hecha && <Check size={11} strokeWidth={3} />}
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block text-[13px] font-semibold text-[#1D1E20]">{TITULO_REVIEW_FICHA[tipo]}</span>
-                  <span className="block text-[11px] text-[#999]">{DESCRIPCION_REVIEW_FICHA[tipo]}</span>
-                </span>
-                <span className="flex shrink-0 items-center gap-2.5">
-                  {hecha ? (
-                    <>
-                      <Estrellas score={score} tamano={12} />
-                      <button
-                        type="button"
-                        onClick={() => onCalificar(tipo)}
-                        className="flex items-center gap-1 text-[11px] font-semibold text-[#48C9B0] transition hover:text-[#3aa896]"
+        <>
+          {filas.length > 0 && (
+            <>
+              <EncabezadoDeGrupo texto="Planner" />
+              <ul>
+                {filas.map(({ tipo, hecha }) => {
+                  const review = hecha ? reviewDe(tipo) : null
+                  const propio = review ? calcularScores([review]) : null
+                  const score = propio ? (tipo === 'post_evento' ? propio.desempeno : propio.propuesta) : null
+                  return (
+                    <li key={tipo} className="flex items-center gap-3 border-t border-[#f2f2f2] px-4 py-2.5">
+                      <span
+                        aria-hidden
+                        className={'flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-[1.5px] ' + (
+                          hecha ? 'border-[#48C9B0] bg-[#48C9B0] text-white' : 'border-dashed border-[#d4a853]'
+                        )}
                       >
-                        {puedeEditar ? <><Pencil size={11} /> Editar</> : <><Eye size={11} /> Ver</>}
-                      </button>
-                    </>
-                  ) : puedeEditar ? (
-                    <button
-                      type="button"
-                      onClick={() => onCalificar(tipo)}
-                      className="rounded-lg bg-[#48C9B0] px-3 py-1.5 text-[11.5px] font-semibold text-white transition hover:bg-[#3aa896]"
-                    >
-                      {BOTON_CALIFICAR}
-                    </button>
-                  ) : (
-                    <span className="rounded-full border border-[#efd9a6] bg-[#fdf8ee] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#a9812f]">
-                      Pendiente
-                    </span>
-                  )}
-                </span>
-              </li>
-            )
-          })}
-          <RenglonCliente review={reviewCliente} opinion={opinionCliente} puedeEditar={puedeEditar} onVer={onVerCliente} />
-        </ul>
+                        {hecha && <Check size={11} strokeWidth={3} />}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-[13px] font-semibold text-[#1D1E20]">{TITULO_REVIEW_FICHA[tipo]}</span>
+                        <span className="block text-[11px] text-[#999]">{DESCRIPCION_REVIEW_FICHA[tipo]}</span>
+                      </span>
+                      <span className="flex shrink-0 items-center gap-2.5">
+                        {hecha ? (
+                          <>
+                            <Estrellas score={score} tamano={12} />
+                            <button
+                              type="button"
+                              onClick={() => onCalificar(tipo)}
+                              className="flex items-center gap-1 text-[11px] font-semibold text-[#48C9B0] transition hover:text-[#3aa896]"
+                            >
+                              {puedeEditar ? <><Pencil size={11} /> Editar</> : <><Eye size={11} /> Ver</>}
+                            </button>
+                          </>
+                        ) : puedeEditar ? (
+                          <button
+                            type="button"
+                            onClick={() => onCalificar(tipo)}
+                            className="rounded-lg bg-[#48C9B0] px-3 py-1.5 text-[11.5px] font-semibold text-white transition hover:bg-[#3aa896]"
+                          >
+                            {BOTON_CALIFICAR}
+                          </button>
+                        ) : (
+                          <span className="rounded-full border border-[#efd9a6] bg-[#fdf8ee] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#a9812f]">
+                            Pendiente
+                          </span>
+                        )}
+                      </span>
+                    </li>
+                  )
+                })}
+              </ul>
+            </>
+          )}
+
+          {hayCliente && (
+            <>
+              <EncabezadoDeGrupo texto="Cliente" conLinea={filas.length > 0} />
+              <AvisoDelLink opinion={opinionCliente} puedeEditar={puedeEditar} />
+              <ul>
+                <RenglonCliente review={reviewCliente} opinion={opinionCliente} onVer={onVerCliente} />
+              </ul>
+            </>
+          )}
+        </>
       )}
     </section>
   )
 }
 
-// "Segun el cliente": lo que contesto el cliente final para este proveedor.
-// No cuenta en "Que falta": esa cuenta es de lo que llena el planner.
-function RenglonCliente({ review, opinion, puedeEditar, onVer }: {
+function EncabezadoDeGrupo({ texto, conLinea = false }: { texto: string; conLinea?: boolean }) {
+  return (
+    <div className={'bg-white px-4 pb-1.5 pt-2.5 text-[10px] font-bold uppercase tracking-[0.12em] text-[#bbb]' + (conLinea ? ' border-t border-[#eee]' : '')}>
+      {texto}
+    </div>
+  )
+}
+
+// El mismo aviso que vive arriba de Proveedores, metido en la carpeta: el
+// color es lo que hace que "vence el 19 sep" signifique algo. Sin el, la
+// fecha se pierde entre renglones grises.
+function AvisoDelLink({ opinion, puedeEditar }: { opinion?: OpinionCliente; puedeEditar: boolean }) {
+  if (!opinion) return null
+  const tono = tonoDelAviso(opinion.info.estado)
+  if (!tono) return null
+
+  const sinPedir = opinion.info.estado === 'sin_pedir'
+  return (
+    <div className={'mx-4 mt-1.5 flex flex-wrap items-center gap-2 rounded-lg border px-3 py-2 ' + CLASES_TONO[tono]}>
+      <span className="text-[12px] font-semibold text-[#1D1E20]">
+        {textoAviso(opinion.info, opinion.contestados, opinion.total)}
+      </span>
+      {puedeEditar && opinion.onAbrirLink && (
+        <button
+          type="button"
+          onClick={opinion.onAbrirLink}
+          className="ml-auto rounded-lg border border-[#e0e0e0] bg-white px-3 py-1.5 text-[11.5px] font-semibold text-[#1D1E20] transition hover:bg-[#f5f5f5]"
+        >
+          {sinPedir ? 'Pedir opinión' : 'Ver link'}
+        </button>
+      )}
+    </div>
+  )
+}
+
+// El desempeno segun el cliente. No cuenta en "Que falta": esa cuenta es de
+// lo que llena el planner.
+function RenglonCliente({ review, opinion, onVer }: {
   review: SupplierReview | null
-  opinion?: { info: InfoLink; onPedir?: () => void }
-  puedeEditar: boolean
+  opinion?: OpinionCliente
   onVer: () => void
 }) {
   if (!review && !opinion) return null
   const hecha = !!review
   const info = opinion?.info
   const score = review ? calcularScores([review]).clientes : null
-  const pendiente = !hecha && !!info && (info.estado === 'sin_pedir' || info.estado === 'enviada' || info.estado === 'por_vencer')
+  const pendiente = !hecha && !!info && (info.estado === 'enviada' || info.estado === 'por_vencer')
+
+  const cuando = review?.created_at
+    ? new Date(review.created_at).toLocaleDateString('es-MX', { day: '2-digit', month: 'long' })
+    : null
   const subtitulo =
-    hecha ? 'Calificó a este proveedor' :
-    !info || info.estado === 'antes' ? 'Después del evento' :
+    hecha ? (cuando ? `Calificó el ${cuando}` : 'Calificó a este proveedor') :
+    !info || info.estado === 'antes' ? 'Se pide después del evento' :
+    info.estado === 'sin_pedir' ? 'Se pide después del evento' :
     info.estado === 'vencida' ? 'No calificó a este proveedor' :
-    'Vence el ' + fechaCortaISO(info.vence)
-  const chip = (texto: string, tono: 'gris' | 'teal') => (
-    <span className={'rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ' + (
-      tono === 'teal' ? 'border-[#bdebdf] bg-[#f0faf7] text-[#2e9e88]' : 'border-[#e0e0e0] bg-[#f5f5f5] text-[#999]'
-    )}>{texto}</span>
+    'No han calificado a este proveedor'
+
+  const chip = (texto: string) => (
+    <span className="rounded-full border border-[#e0e0e0] bg-[#f5f5f5] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#999]">
+      {texto}
+    </span>
   )
 
   return (
@@ -1326,7 +1397,7 @@ function RenglonCliente({ review, opinion, puedeEditar, onVer }: {
         {hecha && <Check size={11} strokeWidth={3} />}
       </span>
       <span className="min-w-0 flex-1">
-        <span className={'block text-[13px] font-semibold ' + (hecha || pendiente ? 'text-[#1D1E20]' : 'text-[#999]')}>Según el cliente</span>
+        <span className={'block text-[13px] font-semibold ' + (hecha || pendiente ? 'text-[#1D1E20]' : 'text-[#999]')}>Desempeño</span>
         <span className="block text-[11px] text-[#999]">{subtitulo}</span>
       </span>
       <span className="flex shrink-0 items-center gap-2.5">
@@ -1341,17 +1412,9 @@ function RenglonCliente({ review, opinion, puedeEditar, onVer }: {
               <Eye size={11} /> Ver
             </button>
           </>
-        ) : info?.estado === 'sin_pedir' && opinion?.onPedir && puedeEditar ? (
-          <button
-            type="button"
-            onClick={opinion.onPedir}
-            className="rounded-lg border border-[#e0e0e0] bg-white px-3 py-1.5 text-[11.5px] font-semibold text-[#1D1E20] hover:bg-[#f5f5f5]"
-          >
-            Pedir opinión
-          </button>
-        ) : info?.estado === 'vencida' ? chip('Venció', 'gris')
-          : pendiente ? chip('Enviada', 'teal')
-          : chip('Después del evento', 'gris')}
+        ) : info?.estado === 'vencida' ? chip('Venció')
+          : pendiente ? chip('Enviada')
+          : chip('Sin pedir')}
       </span>
     </li>
   )

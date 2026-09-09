@@ -4,7 +4,7 @@ import { Modal } from '@/app/components/ui/Modal'
 import { Currency, EventBudget, EventSupplier, Supplier, SupplierStatus } from '@/lib/types'
 import { Categoria } from '@/lib/rolodex/categorias-store'
 import FichaDelEvento from './FichaDelEvento'
-import type { InfoLink } from '@/lib/reviews/link-cliente'
+import type { OpinionCliente } from './FichaDelEvento'
 
 type SupplierWithDetails = EventSupplier & { supplier: Supplier }
 
@@ -14,7 +14,7 @@ type Props = {
   currency: Currency
   categorias: Categoria[]
   conteoPagosInicial?: number
-  opinionCliente?: { info: InfoLink; onPedir?: () => void }
+  opinionCliente?: OpinionCliente
   onClose: () => void
   onStatusChange: (itemId: string, nuevo: SupplierStatus) => void
   onSaved: (item: SupplierWithDetails) => void

@@ -1,7 +1,6 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { InfoLink } from '@/lib/reviews/link-cliente'
 import { metaDelProveedor } from '@/lib/presupuesto/derivados'
 import { ChevronDown, ChevronUp, Globe, Mail, MapPin, Phone } from 'lucide-react'
 import { FaWhatsapp } from 'react-icons/fa'
@@ -12,6 +11,7 @@ import {
 } from '@/lib/types'
 import { Categoria, nombrePorId } from '@/lib/rolodex/categorias-store'
 import FichaDelEvento from './FichaDelEvento'
+import type { OpinionCliente } from './FichaDelEvento'
 import { EstatusProveedor } from './EstatusProveedor'
 import { formatDisplay } from '@/lib/phone'
 import { contactosDe, telefonoCrudoDe } from '@/lib/rolodex/contactos'
@@ -34,7 +34,7 @@ type Props = {
   categorias: Categoria[]
   desempenoPorProveedor: Record<string, number | null>
   conteoPagosPorItem: Record<string, number>
-  opinionCliente?: { info: InfoLink; onPedir?: () => void }
+  opinionCliente?: OpinionCliente
   onSelect: (item: SupplierWithDetails) => void
   onStatusChange: (itemId: string, nuevo: SupplierStatus) => void
   onSaved: (item: SupplierWithDetails) => void
