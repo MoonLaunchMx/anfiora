@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { InfoLink } from '@/lib/reviews/link-cliente'
 import { metaDelProveedor } from '@/lib/presupuesto/derivados'
 import { ChevronDown, ChevronUp, Globe, Mail, MapPin, Phone } from 'lucide-react'
 import { FaWhatsapp } from 'react-icons/fa'
@@ -33,6 +34,7 @@ type Props = {
   categorias: Categoria[]
   desempenoPorProveedor: Record<string, number | null>
   conteoPagosPorItem: Record<string, number>
+  opinionCliente?: { info: InfoLink; onPedir?: () => void }
   onSelect: (item: SupplierWithDetails) => void
   onStatusChange: (itemId: string, nuevo: SupplierStatus) => void
   onSaved: (item: SupplierWithDetails) => void
@@ -75,7 +77,7 @@ function useEsEscritorio(): boolean {
 }
 
 export default function SupplierFicheroView({
-  items, todosLosItems, budgets, currency, categorias, desempenoPorProveedor, conteoPagosPorItem,
+  items, todosLosItems, budgets, currency, categorias, desempenoPorProveedor, conteoPagosPorItem, opinionCliente,
   onSelect, onStatusChange, onSaved, onQuitada, onDerivadosCambiaron, enfocar, onEnfocado,
   abrirRevisionParaId, onRevisionAbierta,
 }: Props) {
@@ -253,6 +255,7 @@ export default function SupplierFicheroView({
             currency={currency}
             categorias={categorias}
             conteoPagosInicial={conteoPagosPorItem[abierta.id] ?? 0}
+            opinionCliente={opinionCliente}
             onStatusChange={onStatusChange}
             onSaved={onSaved}
             onQuitada={onQuitada}

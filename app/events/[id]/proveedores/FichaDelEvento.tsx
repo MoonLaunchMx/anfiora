@@ -33,6 +33,8 @@ import {
 } from '@/lib/rolodex/ficha-por-estado'
 import type { TipoReviewFicha } from '@/lib/rolodex/ficha-por-estado'
 import { metaDelProveedor, partidasDelProveedor } from '@/lib/presupuesto/derivados'
+import type { InfoLink } from '@/lib/reviews/link-cliente'
+import { fechaCortaISO } from '@/lib/rolodex/fecha-corta'
 import { calcularScores } from '@/lib/reviews/scores'
 import { yaRechazoLaOferta, recordarRechazo } from '@/lib/rolodex/oferta-avance'
 import { TOPE_COMPROBANTES, TOPE_COTIZACIONES, visibles } from '@/lib/archivos/adjuntos'
@@ -54,6 +56,10 @@ type Props = {
   // Lo que la pagina ya sabe de los pagos, para pintar el numero de la
   // pestaña Pagos antes de que la ficha termine su propia consulta.
   conteoPagosInicial?: number
+  // El estado del link del cliente (lo calcula la pagina de Proveedores). Si
+  // no viene -- la ficha abierta desde Presupuesto -- el renglon del cliente
+  // solo aparece cuando su review ya existe.
+  opinionCliente?: { info: InfoLink; onPedir?: () => void }
   onStatusChange: (itemId: string, nuevo: SupplierStatus) => void
   onSaved: (item: SupplierWithDetails) => void
   onQuitada: (itemId: string) => void
@@ -90,7 +96,7 @@ function iniciales(nombre: string): string {
 }
 
 export default function FichaDelEvento({
-  item, budgets, currency, categorias, conteoPagosInicial, onStatusChange, onSaved, onQuitada, onDerivadosCambiaron, onCerrar,
+  item, budgets, currency, categorias, conteoPagosInicial, opinionCliente, onStatusChange, onSaved, onQuitada, onDerivadosCambiaron, onCerrar,
   abrirRevisionParaId, onRevisionAbierta,
 }: Props) {
   const askConfirm = useConfirm()
@@ -148,6 +154,11 @@ export default function FichaDelEvento({
   )
   const reviewDescarte = useMemo(
     () => reviews.find(r => r.event_supplier_id === item.id && r.review_type === 'descarte') ?? null,
+    [reviews, item.id],
+  )
+
+  const reviewCliente = useMemo(
+    () => reviews.find(r => r.event_supplier_id === item.id && r.review_type === 'post_evento' && r.autor === 'cliente') ?? null,
     [reviews, item.id],
   )
 
@@ -935,6 +946,8 @@ export default function FichaDelEvento({
               reviewDe={reviewDe}
               puedeEditar={permisoFicha.editar}
               onCalificar={abrirModalDe}
+              reviewCliente={reviewCliente}
+              opinionCliente={item.status === 'contratado' ? opinionCliente : undefined}
             />
           )
         )}
@@ -1192,11 +1205,13 @@ function Texto({ valor, vacio }: { valor: string | null; vacio: string }) {
 // renglon hecho no se despliega: se abre en su modal, para editar si se
 // puede y solo para leer si no. Hecha o pendiente se distinguen por forma
 // (palomita llena / circulo punteado), no solo por color.
-function ListaQueFalta({ filas, reviewDe, puedeEditar, onCalificar }: {
+function ListaQueFalta({ filas, reviewDe, puedeEditar, onCalificar, reviewCliente, opinionCliente }: {
   filas: ReturnType<typeof filasDeReview>
   reviewDe: (tipo: TipoReviewFicha) => SupplierReview | null
   puedeEditar: boolean
   onCalificar: (tipo: TipoReviewFicha) => void
+  reviewCliente: SupplierReview | null
+  opinionCliente?: { info: InfoLink; onPedir?: () => void }
 }) {
   return (
     <section className="overflow-hidden rounded-xl border border-[#eee]">
@@ -1255,9 +1270,67 @@ function ListaQueFalta({ filas, reviewDe, puedeEditar, onCalificar }: {
               </li>
             )
           })}
+          <RenglonCliente review={reviewCliente} opinion={opinionCliente} puedeEditar={puedeEditar} />
         </ul>
       )}
     </section>
+  )
+}
+
+// "Segun el cliente": lo que contesto el cliente final para este proveedor.
+// No cuenta en "Que falta": esa cuenta es de lo que llena el planner.
+function RenglonCliente({ review, opinion, puedeEditar }: {
+  review: SupplierReview | null
+  opinion?: { info: InfoLink; onPedir?: () => void }
+  puedeEditar: boolean
+}) {
+  if (!review && !opinion) return null
+  const hecha = !!review
+  const info = opinion?.info
+  const score = review ? calcularScores([review]).clientes : null
+  const pendiente = !hecha && !!info && (info.estado === 'sin_pedir' || info.estado === 'enviada' || info.estado === 'por_vencer')
+  const subtitulo =
+    hecha ? 'Calificó a este proveedor' :
+    !info || info.estado === 'antes' ? 'Después del evento' :
+    info.estado === 'vencida' ? 'No calificó a este proveedor' :
+    'Vence el ' + fechaCortaISO(info.vence)
+  const chip = (texto: string, tono: 'gris' | 'teal') => (
+    <span className={'rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ' + (
+      tono === 'teal' ? 'border-[#bdebdf] bg-[#f0faf7] text-[#2e9e88]' : 'border-[#e0e0e0] bg-[#f5f5f5] text-[#999]'
+    )}>{texto}</span>
+  )
+
+  return (
+    <li className="flex items-center gap-3 border-t border-[#f2f2f2] px-4 py-2.5">
+      <span
+        aria-hidden
+        className={'flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-[1.5px] ' + (
+          hecha ? 'border-[#48C9B0] bg-[#48C9B0] text-white' :
+          pendiente ? 'border-dashed border-[#d4a853]' : 'border-[#ccc]'
+        )}
+      >
+        {hecha && <Check size={11} strokeWidth={3} />}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className={'block text-[13px] font-semibold ' + (hecha || pendiente ? 'text-[#1D1E20]' : 'text-[#999]')}>Según el cliente</span>
+        <span className="block text-[11px] text-[#999]">{subtitulo}</span>
+      </span>
+      <span className="flex shrink-0 items-center gap-2.5">
+        {hecha ? (
+          <Estrellas score={score} tamano={12} />
+        ) : info?.estado === 'sin_pedir' && opinion?.onPedir && puedeEditar ? (
+          <button
+            type="button"
+            onClick={opinion.onPedir}
+            className="rounded-lg border border-[#e0e0e0] bg-white px-3 py-1.5 text-[11.5px] font-semibold text-[#1D1E20] hover:bg-[#f5f5f5]"
+          >
+            Pedir opinión
+          </button>
+        ) : info?.estado === 'vencida' ? chip('Venció', 'gris')
+          : pendiente ? chip('Enviada', 'teal')
+          : chip('Después del evento', 'gris')}
+      </span>
+    </li>
   )
 }
 
