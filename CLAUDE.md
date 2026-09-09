@@ -119,6 +119,9 @@ event_settings (
   album_url TEXT,
   playlist_token TEXT,
   playlist_categories JSONB   -- "etapas" en UI
+  review_token TEXT,          -- link publico /opinion/[token] para que el cliente califique proveedores
+  review_expires_at DATE,     -- null = 14 dias despues del ultimo dia del evento; solo admin lo mueve
+  review_event_supplier_ids UUID[]  -- proveedores contratados que el planner eligio para el link
 )
 
 -- guests: invitados
@@ -507,6 +510,7 @@ Password recovery handled at `/auth/reset` using Supabase `PASSWORD_RECOVERY` au
 - **Drag and drop playlist:** @dnd-kit con `PointerSensor` (distance: 5) y `TouchSensor` (delay: 200).
 - **`import { QRCodeCanvas } from 'qrcode.react'`** — named import, no default.
 - **Mensajes hub (/events/[id]/mensajes):** feature PRO. Muestra `ModalProximamente` para broadcast campaigns con signup a `waitlist_whatsapp`. Mensajes manuales sí están activos via `/api/whatsapp/send`.
+- **Opinión del cliente:** link público  (un proveedor por pantalla, teléfono primero). API  con service role: valida token, vigencia y selección, y hace upsert en  con . Plazo 14 días desde el último día del evento (); solo owner/admin mueve  (candado en el trigger ). Aviso de una línea arriba de Proveedores y renglón "Según el cliente" en la ficha.
 - **Colaboradores:** invitación por token. El owner crea el invite en `configuracion`, el invitado accede via `/invite/[token]` (login o registro en la misma página). RBAC en `lib/event-access-context.tsx`.
 - **Pagos (/events/[id]/pagos):** la página consulta `supplier_payments` con join a `event_suppliers → suppliers` para mostrar nombre/categoría. Permite filtros por método/responsable/proveedor, sort por columna, alta inline (modal nuevo pago) y export Excel/PDF. `payment_method` es enum TEXT en la DB — usar exactamente los valores de `PAYMENT_METHODS` de `lib/types.ts`. `paid_by` es texto libre con sugerencias de lo ya usado en ese evento: componente único `app/components/ui/QuienPago.tsx` en los dos formularios de pago.
 - **Timeline rediseñado:** las tareas se agrupan por mes. `TaskCard.tsx` calcula urgencia y muestra avatar de asignado + chip de proveedor. `TaskModal.tsx` permite asignar a colaborador (`assigned_to_user_id`) o nombre libre (`assigned_to_name`), vincular a `event_supplier_id`, marcar `priority='bloqueante'` y configurar `reminder_date` con presets estilo Google Calendar (15min, 30min, 1h, 2h, 1d, 2d).
