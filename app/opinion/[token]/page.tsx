@@ -199,9 +199,9 @@ export default function OpinionPublicaPage() {
   if (enviado) {
     return (
       <Cascara>
-        <h1 className="mt-10 text-[22px] font-bold tracking-tight">Gracias por su tiempo</h1>
+        <h1 className="mt-10 text-[22px] font-bold tracking-tight">Gracias por su opinión</h1>
         <p className="mt-3 text-[15px] leading-relaxed text-[#555]">
-          Sus comentarios nos ayudan a mejorar el servicio y a elegir mejor a los proveedores de cada evento.
+          Nos ayuda a seguir mejorando y a trabajar con los mejores proveedores.
         </p>
         <p className="mt-4 text-[13px] leading-relaxed text-[#999]">
           Calificaron {listos} de {total} proveedores de {datos.evento.nombre}. Su planner ya lo recibió.
