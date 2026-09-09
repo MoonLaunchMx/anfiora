@@ -24,10 +24,23 @@ describe('parseRespuestaCliente', () => {
     expect(parseRespuestaCliente({ ...completa, calidad: 6 }).ok).toBe(false)
     expect(parseRespuestaCliente({ ...completa, calidad: 'cinco' }).ok).toBe(false)
   })
-  it('exige recomendacion y cobros extra', () => {
-    const r = parseRespuestaCliente({ ...completa, recontratacion: null, cobros_extra: null })
+  it('la recomendacion es lo unico obligatorio', () => {
+    const r = parseRespuestaCliente({ ...completa, recontratacion: null })
     expect(r.ok).toBe(false)
-    if (!r.ok) expect(r.problemas.length).toBeGreaterThanOrEqual(2)
+  })
+
+  it('acepta solo la recomendacion: los cinco ejes y los cobros pueden ir vacios', () => {
+    const r = parseRespuestaCliente({
+      event_supplier_id: '11111111-1111-1111-1111-111111111111',
+      precio_valor: null, calidad: null, comunicacion: null, servicio_trato: null, manejo_imprevistos: null,
+      recontratacion: 4, cobros_extra: null, monto_cobros_extra: null, comentarios: null,
+    })
+    expect(r.ok).toBe(true)
+    if (r.ok) {
+      expect(r.datos.recontratacion).toBe(4)
+      expect(r.datos.calidad).toBeNull()
+      expect(r.datos.cobros_extra).toBeNull()
+    }
   })
   it('el monto solo cuenta si hubo cobros extra', () => {
     const r = parseRespuestaCliente({ ...completa, cobros_extra: false, monto_cobros_extra: 500 })

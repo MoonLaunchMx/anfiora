@@ -1,5 +1,3 @@
-import { validarReview } from './validacion'
-import type { BorradorReview } from './validacion'
 import { EJES_DESEMPENO } from './ejes'
 import { MAX_COMENTARIOS } from '@/lib/types'
 
@@ -45,15 +43,14 @@ export function parseRespuestaCliente(body: unknown): { ok: true; datos: Respues
   const montoCrudo = typeof b.monto_cobros_extra === 'number' && b.monto_cobros_extra > 0 ? b.monto_cobros_extra : null
   const comentarios = typeof b.comentarios === 'string' ? b.comentarios.trim().slice(0, MAX_COMENTARIOS) || null : null
 
-  const borrador: BorradorReview = {
-    review_type: 'post_evento',
-    precio_valor: ejes.precio_valor, calidad: ejes.calidad, comunicacion: ejes.comunicacion,
-    servicio_trato: ejes.servicio_trato, manejo_imprevistos: ejes.manejo_imprevistos,
-    razones_seleccion: null, motivo_descarte: null,
-    recontratacion, cobros_extra, comentarios,
+  // El cliente solo tiene que contestar si lo recomendaria. Los cinco ejes,
+  // los cobros extra y el comentario son opcionales: con catorce proveedores,
+  // exigirlos era pedirle 112 respuestas y nadie llegaba al final. Un eje en
+  // null sale del promedio por definicion de avg(). La review del planner NO
+  // se toca: esa sigue validandose con validarReview.
+  if (recontratacion === null) {
+    return { ok: false, problemas: ['Falta decir si lo recomendarían.'] }
   }
-  const problemas = validarReview(borrador)
-  if (problemas.length > 0) return { ok: false, problemas }
 
   return {
     ok: true,
