@@ -138,6 +138,12 @@ export type EventSettings = {
   requires_approval?: boolean | null
   shared_token?: string | null
   max_companions?: number | null
+  // Link publico para que el cliente califique a los proveedores contratados.
+  // Vencimiento null = 14 dias despues del ultimo dia del evento (ver
+  // lib/reviews/link-cliente.ts); solo un admin lo mueve.
+  review_token?: string | null
+  review_expires_at?: string | null
+  review_event_supplier_ids?: string[] | null
   created_at: string
   updated_at: string
 }
