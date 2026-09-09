@@ -18,6 +18,7 @@ import { exportPagosToExcel, exportPagosToPDF } from './lib/exports'
 import { usePermiso } from '@/lib/event-access-context'
 import { Puede } from '@/lib/permisos/Puede'
 import QuienPago from '@/app/components/ui/QuienPago'
+import DatePicker from '@/app/components/ui/DatePicker'
 import { etiquetaQuienPago, sugerenciasDesdeHistorial } from '@/lib/pagos/quien-pago'
 
 type Pago = {
@@ -222,6 +223,9 @@ export default function PagosPage() {
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
+      // El calendario se dibuja en un portal fuera de estos contenedores: sin esto,
+      // elegir un dia cerraria el filtro y desmontaria el propio calendario.
+      if ((e.target as HTMLElement).closest?.('[data-datepicker-portal]')) return
       if (supplierRef.current      && !supplierRef.current.contains(e.target as Node))      setSupplierOpen(false)
       if (methodRef.current        && !methodRef.current.contains(e.target as Node))        setMethodOpen(false)
       if (dateRangeRef.current     && !dateRangeRef.current.contains(e.target as Node))     setDateRangeOpen(false)
@@ -495,16 +499,13 @@ export default function PagosPage() {
               <div className="absolute right-0 top-full z-20 mt-1 w-60 overflow-hidden rounded-lg border border-[#e8e8e8] bg-white shadow-lg">
                 <div className="flex flex-col gap-2 p-3">
                   <p className="text-[10px] font-semibold uppercase tracking-wider text-[#aaa]">Rango de fechas</p>
-                  <div>
-                    <p className="mb-1 text-[11px] text-[#888]">Desde</p>
-                    <input type="date" value={filterDateFrom} onChange={e => setFilterDateFrom(e.target.value)}
-                      className="w-full rounded-lg border border-[#e0e0e0] px-3 py-1.5 text-xs outline-none focus:border-[#48C9B0]" />
-                  </div>
-                  <div>
-                    <p className="mb-1 text-[11px] text-[#888]">Hasta</p>
-                    <input type="date" value={filterDateTo} onChange={e => setFilterDateTo(e.target.value)}
-                      className="w-full rounded-lg border border-[#e0e0e0] px-3 py-1.5 text-xs outline-none focus:border-[#48C9B0]" />
-                  </div>
+                  <DatePicker
+                    mode="range"
+                    startValue={filterDateFrom}
+                    endValue={filterDateTo}
+                    onRangeChange={(desde, hasta) => { setFilterDateFrom(desde); setFilterDateTo(hasta) }}
+                    placeholder="Todas las fechas"
+                  />
                   <button onClick={() => setDateRangeOpen(false)}
                     className="w-full rounded-lg bg-[#48C9B0] py-1.5 text-xs font-semibold text-white">Aplicar</button>
                 </div>
@@ -717,8 +718,7 @@ export default function PagosPage() {
                   </div>
                   <div>
                     <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-[#aaa]">Fecha *</p>
-                    <input type="date" value={newDate} onChange={e => setNewDate(e.target.value)}
-                      className="w-full rounded-lg border border-[#e0e0e0] bg-white px-3 py-2 text-base outline-none transition focus:border-[#48C9B0]" />
+                    <DatePicker value={newDate} onChange={setNewDate} placeholder="Elegir fecha" />
                   </div>
                 </div>
 

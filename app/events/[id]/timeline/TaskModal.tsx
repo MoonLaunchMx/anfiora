@@ -8,6 +8,7 @@ import {
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Modal } from '@/app/components/ui/Modal'
+import DatePicker from '@/app/components/ui/DatePicker'
 import { usePermiso } from '@/lib/event-access-context'
 import { Puede } from '@/lib/permisos/Puede'
 import {
@@ -281,15 +282,11 @@ export function TaskModal({ editTask, prefillDate, eventId, onClose, onSaved }: 
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-xs font-medium text-[#555] mb-1 block">Fecha</label>
-              <input
-                type="date"
+              <DatePicker
                 value={form.task_date}
-                onChange={e => setForm(f => ({ ...f, task_date: e.target.value }))}
-                readOnly={soloLectura}
-                className={[
-                  'w-full border border-[#e0e0e0] rounded-xl px-3 py-2 text-base focus:outline-none focus:border-[#48C9B0] bg-[#f8f8f8]',
-                  soloLectura ? 'cursor-default text-[#666]' : '',
-                ].join(' ')}
+                onChange={v => setForm(f => ({ ...f, task_date: v }))}
+                disabled={soloLectura}
+                placeholder="Elegir fecha"
               />
             </div>
             <div>
@@ -343,13 +340,12 @@ export function TaskModal({ editTask, prefillDate, eventId, onClose, onSaved }: 
               <div className="grid grid-cols-2 gap-2 mt-2 p-3 border border-[#48C9B0] rounded-xl bg-[#f0fdfb]">
                 <div>
                   <label className="text-[11px] font-medium text-[#0F6E56] mb-1 block">Fecha</label>
-                  <input type="date" value={form.reminder_custom_date}
-                    onChange={e => setForm(f => ({ ...f, reminder_custom_date: e.target.value }))}
-                    readOnly={soloLectura}
-                    className={[
-                      'w-full border border-[#9FE1CB] rounded-lg px-2 py-1.5 text-base focus:outline-none focus:border-[#48C9B0] bg-white',
-                      soloLectura ? 'cursor-default text-[#666]' : '',
-                    ].join(' ')} />
+                  <DatePicker
+                    value={form.reminder_custom_date}
+                    onChange={v => setForm(f => ({ ...f, reminder_custom_date: v }))}
+                    disabled={soloLectura}
+                    placeholder="Elegir fecha"
+                  />
                 </div>
                 <div>
                   <label className="text-[11px] font-medium text-[#0F6E56] mb-1 block">Hora</label>
