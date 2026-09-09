@@ -216,8 +216,12 @@ export default function OpinionPublicaPage() {
           referencia de donde estas y cuanto falta. */}
       <header className="sticky top-0 z-20 border-b border-[#eee] bg-white/95 backdrop-blur">
         <div className="mx-auto w-full max-w-md px-5 pb-2.5 pt-3">
-          <p className="text-[9.5px] font-bold uppercase tracking-[0.22em] text-[#bbb]" style={josefin}>Anfiora</p>
-          <h1 className="mt-0.5 text-[15px] font-semibold tracking-tight">{datos.evento.nombre}</h1>
+          <p className="flex items-center gap-1.5 text-[9.5px] font-bold uppercase tracking-[0.18em] text-[#bbb]">
+            <span style={josefin}>Anfiora</span>
+            <span aria-hidden>·</span>
+            <span className="truncate tracking-[0.06em]">{datos.evento.nombre}</span>
+          </p>
+          <h1 className="mt-1 text-[16px] font-semibold tracking-tight">Califica a tus proveedores</h1>
           <div className="mt-2 flex items-center justify-between text-[11px] tabular-nums text-[#999]">
             <span>{listos} de {total} calificados</span>
             <span>{listos === total ? 'Listo' : `Te faltan ${total - listos}`}</span>
@@ -229,11 +233,9 @@ export default function OpinionPublicaPage() {
       </header>
 
       <div className="mx-auto w-full max-w-md px-5 pb-32 pt-4">
-        <p className="text-[15px] font-semibold">¿Recomendarían a cada proveedor?</p>
-        <div className="mt-2.5 flex items-center justify-between rounded-lg border border-[#eee] bg-[#fafafa] px-3 py-2 text-[11px] text-[#666]">
-          <span><b className="text-[#1D1E20]">1</b> pésimo</span>
-          <span><b className="text-[#1D1E20]">5</b> excelente</span>
-        </div>
+        <p className="text-[12px] leading-relaxed text-[#888]">
+          <b className="font-semibold text-[#1D1E20]">1</b> no lo recomiendan · <b className="font-semibold text-[#1D1E20]">5</b> lo recomiendan sin dudar
+        </p>
 
         <ul className="mt-3 flex flex-col gap-2.5">
           {datos.proveedores.map(p => {
