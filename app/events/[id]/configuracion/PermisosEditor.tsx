@@ -89,7 +89,7 @@ export function PermisosEditor({ permisos, features, onChange }: Props) {
               {comun ? `Todas en ${ETIQUETA_NIVEL[comun]}` : 'Mezcladas'}
             </span>
           </span>
-          <span className="flex w-full shrink-0 rounded-lg bg-[#f4f4f2] p-0.5 sm:w-auto">
+          <span className="anf-sin-barra flex w-full shrink-0 overflow-x-auto rounded-lg bg-[#f4f4f2] p-0.5 sm:w-auto">
             {NIVELES.map(n => (
               <button
                 key={n}
@@ -135,7 +135,7 @@ export function PermisosEditor({ permisos, features, onChange }: Props) {
                   </span>
 
                   {prendida ? (
-                    <span className="flex w-full shrink-0 rounded-lg bg-[#f4f4f2] p-0.5 sm:w-auto">
+                    <span className="anf-sin-barra flex w-full shrink-0 overflow-x-auto rounded-lg bg-[#f4f4f2] p-0.5 sm:w-auto">
                       {NIVELES.map(n => (
                         <button
                           key={n}

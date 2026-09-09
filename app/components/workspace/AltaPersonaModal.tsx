@@ -188,7 +188,7 @@ export function AltaPersonaModal({ open, onClose, workspace, bodaFija, onHecho }
                   // pega al panel y le tapa el borde, asi se ve que lo de abajo
                   // es de ese evento. Se recorren de lado, nunca se apilan.
                   <div>
-                    <div className="flex gap-[3px] overflow-x-auto px-3.5">
+                    <div className="anf-sin-barra flex gap-[3px] overflow-x-auto px-3.5">
                       {[...elegidas].map(id => {
                         const abierta = bodaActual === id
                         return (
