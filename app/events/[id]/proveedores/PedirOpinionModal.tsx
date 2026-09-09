@@ -91,8 +91,17 @@ export default function PedirOpinionModal({
   const n = marcados.size
 
   return (
-    <Modal open onClose={onClose} size="md">
-      <Modal.Header title="Pedir la opinión de tu cliente" subtitle={`${contratados.length} proveedores contratados`} />
+    <Modal open onClose={onClose} size="lg">
+      <Modal.Header
+        title="¿Qué proveedores quieres que califiquen?"
+        subtitle={`${contratados.length} proveedores contratados`}
+        right={
+          <span className="block text-right">
+            <span className="block text-sm font-bold tabular-nums text-[#1D1E20]">{n} de {contratados.length}</span>
+            {n > 0 && <span className="mt-0.5 block whitespace-nowrap text-[11px] text-[#999]">les toma {n} min</span>}
+          </span>
+        }
+      />
       <Modal.Body>
         <ul className="divide-y divide-[#f2f2f2] rounded-xl border border-[#eee]">
           {contratados.map(c => {
@@ -122,22 +131,21 @@ export default function PedirOpinionModal({
         {copiado && <p className="mt-3 text-xs text-[#2a7a50]">Link copiado.</p>}
       </Modal.Body>
       <Modal.Footer>
-        <span className="text-xs tabular-nums text-[#666]"><b className="text-[#1D1E20]">{n}</b> de {contratados.length} · les toma {Math.max(1, n)} min</span>
         <button
           type="button"
           onClick={copiarLink}
           disabled={guardando}
-          className="ml-auto flex items-center gap-1.5 rounded-lg border border-[#e0e0e0] px-3 py-2 text-xs font-semibold text-[#1D1E20] hover:bg-[#f5f5f5] disabled:opacity-50"
+          className="ml-auto flex items-center gap-2 rounded-lg border border-[#e0e0e0] px-4 py-2.5 text-sm font-semibold text-[#1D1E20] hover:bg-[#f5f5f5] disabled:opacity-50"
         >
-          <Copy size={13} /> Copiar link
+          <Copy size={14} /> Copiar link
         </button>
         <button
           type="button"
           onClick={enviarWhatsApp}
           disabled={guardando}
-          className="flex items-center gap-1.5 rounded-lg bg-[#48C9B0] px-4 py-2 text-xs font-semibold text-white hover:bg-[#3aa896] disabled:opacity-50"
+          className="flex items-center gap-2 rounded-lg bg-[#48C9B0] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#3aa896] disabled:opacity-50"
         >
-          <FaWhatsapp size={14} /> Enviar por WhatsApp
+          <FaWhatsapp size={16} /> Enviar por WhatsApp
         </button>
       </Modal.Footer>
     </Modal>
