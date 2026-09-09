@@ -32,7 +32,6 @@ import { usePermiso, useEventAccess } from '@/lib/event-access-context'
 import { estadoDelLink } from '@/lib/reviews/link-cliente'
 import { interpretarEscritura } from '@/lib/invite/persistencia'
 import PedirOpinionModal from './PedirOpinionModal'
-import AvisoOpinionCliente from './AvisoOpinionCliente'
 import { Puede } from '@/lib/permisos/Puede'
 
 type SupplierWithDetails = EventSupplier & { supplier: Supplier }
@@ -594,19 +593,23 @@ export default function ProveedoresPage() {
   const totalEnLink = idsEnLink.length
   const contestados = idsEnLink.filter(id => scoreClientePorItem[id] != null).length
 
-  const opinionCliente = {
-    info: infoLink,
-    contestados,
-    total: totalEnLink,
-    onAbrirLink: () => setPedirOpinionAbierto(true),
-  }
-
   const darMasTiempo = async (nuevoVence: string): Promise<string | null> => {
     const res = await supabase.from('event_settings').update({ review_expires_at: nuevoVence }).eq('event_id', eventId).select('event_id')
     const r = interpretarEscritura(res)
     if (!r.ok) return r.motivo
     setAjustesLink(prev => ({ ...prev, expiresAt: nuevoVence }))
     return null
+  }
+
+  // El aviso del link ya no vive arriba de la lista: vive dentro de la carpeta
+  // Review de cada proveedor incluido, que es donde se pregunta por el.
+  const opinionCliente = {
+    info: infoLink,
+    contestados,
+    total: totalEnLink,
+    canAdmin,
+    onAbrirLink: () => setPedirOpinionAbierto(true),
+    onDarMasTiempo: darMasTiempo,
   }
 
   const totalNuevos      = items.filter(i => i.status === 'nuevo').length
@@ -791,16 +794,6 @@ export default function ProveedoresPage() {
           </div>
         ) : (
           <>
-            <AvisoOpinionCliente
-              info={infoLink}
-              contestados={contestados}
-              total={totalEnLink}
-              puedeEditar={permiso.editar}
-              canAdmin={canAdmin}
-              onPedir={() => setPedirOpinionAbierto(true)}
-              onReenviar={() => setPedirOpinionAbierto(true)}
-              onDarMasTiempo={darMasTiempo}
-            />
             {viewMode === 'lista' && (
               <div className="hidden lg:block">
                 <SupplierListView

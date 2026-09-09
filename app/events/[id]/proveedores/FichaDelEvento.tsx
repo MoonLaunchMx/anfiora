@@ -29,11 +29,10 @@ import { usePermiso } from '@/lib/event-access-context'
 import {
   carpetasDe, destinosDe, QUE_SIGNIFICA,
   TITULO_REVIEW_FICHA, DESCRIPCION_REVIEW_FICHA, BOTON_CALIFICAR,
-  filasDeReview, resumenPendientes,
+  filasDeReview,
 } from '@/lib/rolodex/ficha-por-estado'
 import type { TipoReviewFicha } from '@/lib/rolodex/ficha-por-estado'
 import { metaDelProveedor, partidasDelProveedor } from '@/lib/presupuesto/derivados'
-import { textoAviso, tonoDelAviso, CLASES_TONO } from '@/lib/reviews/link-cliente'
 import type { InfoLink } from '@/lib/reviews/link-cliente'
 import { calcularScores } from '@/lib/reviews/scores'
 import { yaRechazoLaOferta, recordarRechazo } from '@/lib/rolodex/oferta-avance'
@@ -44,6 +43,7 @@ import ReviewContratacionModal from './ReviewContratacionModal'
 import ReviewDescarteModal from './ReviewDescarteModal'
 import ReviewDesempenoModal from './ReviewDesempenoModal'
 import ReviewClienteModal from './ReviewClienteModal'
+import AvisoOpinionCliente from './AvisoOpinionCliente'
 import { CaminoDelTrato, COLOR_ESTADO, EstatusProveedor, ICONO_ESTADO } from './EstatusProveedor'
 import PhoneInput from '@/app/components/ui/PhoneInput'
 
@@ -56,7 +56,9 @@ export type OpinionCliente = {
   info: InfoLink
   contestados: number
   total: number
+  canAdmin: boolean
   onAbrirLink?: () => void
+  onDarMasTiempo: (nuevoVence: string) => Promise<string | null>
 }
 
 type Props = {
@@ -1238,122 +1240,99 @@ function ListaQueFalta({ filas, reviewDe, puedeEditar, onCalificar, reviewClient
 }) {
   const hayCliente = !!reviewCliente || !!opinionCliente
 
-  return (
-    <section className="overflow-hidden rounded-xl border border-[#eee]">
-      {/* La cuenta es de lo que TU tienes que llenar: lo del cliente no depende
-          de ti y meterlo aqui dejaria un pendiente que no puedes cerrar. */}
-      <div className="flex items-center justify-between bg-[#fafafa] px-4 py-2 text-[10.5px] font-bold uppercase tracking-wider text-[#999]">
-        <span>Qué falta</span>
-        <span>{resumenPendientes(filas)}</span>
-      </div>
+  if (filas.length === 0 && !hayCliente) {
+    return <p className="text-xs text-[#999]">Se califica al contratarlo o al descartarlo.</p>
+  }
 
-      {filas.length === 0 && !hayCliente ? (
-        <p className="px-4 py-3 text-xs text-[#999]">Se califica al contratarlo o al descartarlo.</p>
-      ) : (
-        <>
-          {filas.length > 0 && (
-            <>
-              <EncabezadoDeGrupo texto="Planner" />
-              <ul>
-                {filas.map(({ tipo, hecha }) => {
-                  const review = hecha ? reviewDe(tipo) : null
-                  const propio = review ? calcularScores([review]) : null
-                  const score = propio ? (tipo === 'post_evento' ? propio.desempeno : propio.propuesta) : null
-                  return (
-                    <li key={tipo} className="flex items-center gap-3 border-t border-[#f2f2f2] px-4 py-2.5">
-                      <span
-                        aria-hidden
-                        className={'flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-[1.5px] ' + (
-                          hecha ? 'border-[#48C9B0] bg-[#48C9B0] text-white' : 'border-dashed border-[#d4a853]'
-                        )}
+  return (
+    <div className="flex flex-col gap-6">
+      {filas.length > 0 && (
+        <section>
+          <EncabezadoDeGrupo texto="Planner" />
+          <ul className="flex flex-col gap-1">
+            {filas.map(({ tipo, hecha }) => {
+              const review = hecha ? reviewDe(tipo) : null
+              const propio = review ? calcularScores([review]) : null
+              const score = propio ? (tipo === 'post_evento' ? propio.desempeno : propio.propuesta) : null
+              return (
+                <li key={tipo} className="flex items-center gap-3 py-1.5">
+                  <IconoDeEstado hecha={hecha} />
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-[13px] font-semibold text-[#1D1E20]">{TITULO_REVIEW_FICHA[tipo]}</span>
+                    <span className="block text-[11px] text-[#999]">{DESCRIPCION_REVIEW_FICHA[tipo]}</span>
+                  </span>
+                  <span className="flex shrink-0 items-center gap-2.5">
+                    {hecha ? (
+                      <>
+                        <Estrellas score={score} tamano={12} />
+                        <button
+                          type="button"
+                          onClick={() => onCalificar(tipo)}
+                          className="flex items-center gap-1 text-[11px] font-semibold text-[#48C9B0] transition hover:text-[#3aa896]"
+                        >
+                          {puedeEditar ? <><Pencil size={11} /> Editar</> : <><Eye size={11} /> Ver</>}
+                        </button>
+                      </>
+                    ) : puedeEditar ? (
+                      <button
+                        type="button"
+                        onClick={() => onCalificar(tipo)}
+                        className="rounded-lg bg-[#48C9B0] px-3 py-1.5 text-[11.5px] font-semibold text-white transition hover:bg-[#3aa896]"
                       >
-                        {hecha && <Check size={11} strokeWidth={3} />}
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block text-[13px] font-semibold text-[#1D1E20]">{TITULO_REVIEW_FICHA[tipo]}</span>
-                        <span className="block text-[11px] text-[#999]">{DESCRIPCION_REVIEW_FICHA[tipo]}</span>
-                      </span>
-                      <span className="flex shrink-0 items-center gap-2.5">
-                        {hecha ? (
-                          <>
-                            <Estrellas score={score} tamano={12} />
-                            <button
-                              type="button"
-                              onClick={() => onCalificar(tipo)}
-                              className="flex items-center gap-1 text-[11px] font-semibold text-[#48C9B0] transition hover:text-[#3aa896]"
-                            >
-                              {puedeEditar ? <><Pencil size={11} /> Editar</> : <><Eye size={11} /> Ver</>}
-                            </button>
-                          </>
-                        ) : puedeEditar ? (
-                          <button
-                            type="button"
-                            onClick={() => onCalificar(tipo)}
-                            className="rounded-lg bg-[#48C9B0] px-3 py-1.5 text-[11.5px] font-semibold text-white transition hover:bg-[#3aa896]"
-                          >
-                            {BOTON_CALIFICAR}
-                          </button>
-                        ) : (
-                          <span className="rounded-full border border-[#efd9a6] bg-[#fdf8ee] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#a9812f]">
-                            Pendiente
-                          </span>
-                        )}
-                      </span>
-                    </li>
-                  )
-                })}
-              </ul>
-            </>
-          )}
-
-          {hayCliente && (
-            <>
-              <EncabezadoDeGrupo texto="Cliente" conLinea={filas.length > 0} />
-              <AvisoDelLink opinion={opinionCliente} puedeEditar={puedeEditar} />
-              <ul>
-                <RenglonCliente review={reviewCliente} opinion={opinionCliente} onVer={onVerCliente} />
-              </ul>
-            </>
-          )}
-        </>
+                        {BOTON_CALIFICAR}
+                      </button>
+                    ) : (
+                      <span className="text-[11px] font-medium text-[#a9812f]">Pendiente</span>
+                    )}
+                  </span>
+                </li>
+              )
+            })}
+          </ul>
+        </section>
       )}
-    </section>
-  )
-}
 
-function EncabezadoDeGrupo({ texto, conLinea = false }: { texto: string; conLinea?: boolean }) {
-  return (
-    <div className={'bg-white px-4 pb-1.5 pt-2.5 text-[10px] font-bold uppercase tracking-[0.12em] text-[#bbb]' + (conLinea ? ' border-t border-[#eee]' : '')}>
-      {texto}
+      {hayCliente && (
+        <section>
+          <EncabezadoDeGrupo texto="Cliente" />
+          {opinionCliente && (
+            <div className="mb-1">
+              <AvisoOpinionCliente
+                info={opinionCliente.info}
+                contestados={opinionCliente.contestados}
+                total={opinionCliente.total}
+                puedeEditar={puedeEditar}
+                canAdmin={opinionCliente.canAdmin}
+                onAbrirLink={opinionCliente.onAbrirLink ?? (() => {})}
+                onDarMasTiempo={opinionCliente.onDarMasTiempo}
+              />
+            </div>
+          )}
+          <ul className="flex flex-col">
+            <RenglonCliente review={reviewCliente} opinion={opinionCliente} onVer={onVerCliente} />
+          </ul>
+        </section>
+      )}
     </div>
   )
 }
 
-// El mismo aviso que vive arriba de Proveedores, metido en la carpeta: el
-// color es lo que hace que "vence el 19 sep" signifique algo. Sin el, la
-// fecha se pierde entre renglones grises.
-function AvisoDelLink({ opinion, puedeEditar }: { opinion?: OpinionCliente; puedeEditar: boolean }) {
-  if (!opinion) return null
-  const tono = tonoDelAviso(opinion.info.estado)
-  if (!tono) return null
-
-  const sinPedir = opinion.info.estado === 'sin_pedir'
+function IconoDeEstado({ hecha, apagado = false }: { hecha: boolean; apagado?: boolean }) {
   return (
-    <div className={'mx-4 mt-1.5 flex flex-wrap items-center gap-2 rounded-lg border px-3 py-2 ' + CLASES_TONO[tono]}>
-      <span className="text-[12px] font-semibold text-[#1D1E20]">
-        {textoAviso(opinion.info, opinion.contestados, opinion.total)}
-      </span>
-      {puedeEditar && opinion.onAbrirLink && (
-        <button
-          type="button"
-          onClick={opinion.onAbrirLink}
-          className="ml-auto rounded-lg border border-[#e0e0e0] bg-white px-3 py-1.5 text-[11.5px] font-semibold text-[#1D1E20] transition hover:bg-[#f5f5f5]"
-        >
-          {sinPedir ? 'Pedir opinión' : 'Ver link'}
-        </button>
+    <span
+      aria-hidden
+      className={'flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-[1.5px] ' + (
+        hecha ? 'border-[#48C9B0] bg-[#48C9B0] text-white' :
+        apagado ? 'border-[#ddd]' : 'border-dashed border-[#d4a853]'
       )}
-    </div>
+    >
+      {hecha && <Check size={11} strokeWidth={3} />}
+    </span>
   )
+}
+
+function EncabezadoDeGrupo({ texto }: { texto: string }) {
+  return <p className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-[#bbb]">{texto}</p>
 }
 
 // El desempeno segun el cliente. No cuenta en "Que falta": esa cuenta es de
@@ -1379,23 +1358,11 @@ function RenglonCliente({ review, opinion, onVer }: {
     info.estado === 'vencida' ? 'No calificó a este proveedor' :
     'No han calificado a este proveedor'
 
-  const chip = (texto: string) => (
-    <span className="rounded-full border border-[#e0e0e0] bg-[#f5f5f5] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#999]">
-      {texto}
-    </span>
-  )
+  const chip = (texto: string) => <span className="text-[11px] font-medium text-[#999]">{texto}</span>
 
   return (
-    <li className="flex items-center gap-3 border-t border-[#f2f2f2] px-4 py-2.5">
-      <span
-        aria-hidden
-        className={'flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-[1.5px] ' + (
-          hecha ? 'border-[#48C9B0] bg-[#48C9B0] text-white' :
-          pendiente ? 'border-dashed border-[#d4a853]' : 'border-[#ccc]'
-        )}
-      >
-        {hecha && <Check size={11} strokeWidth={3} />}
-      </span>
+    <li className="flex items-center gap-3 py-1.5">
+      <IconoDeEstado hecha={hecha} apagado={!pendiente} />
       <span className="min-w-0 flex-1">
         <span className={'block text-[13px] font-semibold ' + (hecha || pendiente ? 'text-[#1D1E20]' : 'text-[#999]')}>Desempeño</span>
         <span className="block text-[11px] text-[#999]">{subtitulo}</span>

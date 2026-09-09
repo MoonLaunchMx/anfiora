@@ -12,17 +12,18 @@ type Props = {
   total: number
   puedeEditar: boolean
   canAdmin: boolean
-  onPedir: () => void
-  onReenviar: () => void
+  // Pedir por primera vez y volver a ver el link abren el mismo modal.
+  onAbrirLink: () => void
   onDarMasTiempo: (nuevoVence: string) => Promise<string | null>
 }
 
 const hoyISO = () => new Date().toISOString().slice(0, 10)
 
-// Una linea. Solo existe despues del evento, y se va cuando todos contestaron.
-// Vencido no desaparece: es donde vive Reactivar.
+// Una linea, dentro de la carpeta Review de la ficha. Solo existe despues del
+// evento, y se va cuando todos contestaron. Vencido no desaparece: es donde
+// vive Reactivar.
 export default function AvisoOpinionCliente({
-  info, contestados, total, puedeEditar, canAdmin, onPedir, onReenviar, onDarMasTiempo,
+  info, contestados, total, puedeEditar, canAdmin, onAbrirLink, onDarMasTiempo,
 }: Props) {
   const [menu, setMenu] = useState(false)
   const [eligiendoFecha, setEligiendoFecha] = useState(false)
@@ -63,19 +64,22 @@ export default function AvisoOpinionCliente({
     aplicar(extenderVencimiento({ hoy: hoyISO(), venceActual: info.vence, dias }))
 
   return (
-    <div className={`mb-3 rounded-xl border px-4 py-2.5 ${tono}`}>
+    <div className={`rounded-lg border px-3 py-2 ${tono}`}>
       <div className="flex flex-wrap items-center gap-2">
-        <p className="text-[13px] font-semibold text-[#1D1E20]">{textoAviso(info, contestados, total)}</p>
+        <p className="text-[12px] font-semibold text-[#1D1E20]">{textoAviso(info, contestados, total)}</p>
 
-        <div className="ml-auto flex items-center gap-2">
-          {info.estado === 'sin_pedir' && puedeEditar && (
-            <button type="button" onClick={onPedir} className="rounded-lg bg-[#48C9B0] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#3aa896]">
-              Pedir opinión
-            </button>
-          )}
-          {(info.estado === 'enviada' || info.estado === 'por_vencer') && puedeEditar && (
-            <button type="button" onClick={onReenviar} className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${info.estado === 'por_vencer' ? 'bg-[#48C9B0] text-white hover:bg-[#3aa896]' : 'border border-[#e0e0e0] bg-white text-[#1D1E20] hover:bg-[#f5f5f5]'}`}>
-              {info.estado === 'por_vencer' ? 'Reenviar' : 'Ver link'}
+        <div className="ml-auto flex items-center gap-1.5">
+          {puedeEditar && (
+            <button
+              type="button"
+              onClick={onAbrirLink}
+              className={`rounded-lg px-2.5 py-1.5 text-[11.5px] font-semibold ${
+                info.estado === 'sin_pedir' || info.estado === 'por_vencer'
+                  ? 'bg-[#48C9B0] text-white hover:bg-[#3aa896]'
+                  : 'border border-[#e0e0e0] bg-white text-[#1D1E20] hover:bg-[#f5f5f5]'
+              }`}
+            >
+              {info.estado === 'sin_pedir' ? 'Pedir opinión' : 'Ver link'}
             </button>
           )}
           {canAdmin && info.estado !== 'sin_pedir' && (
@@ -84,7 +88,7 @@ export default function AvisoOpinionCliente({
                 type="button"
                 onClick={() => setMenu(v => !v)}
                 disabled={ocupado}
-                className="flex items-center gap-1 rounded-lg border border-[#e0e0e0] bg-white px-3 py-1.5 text-xs font-semibold text-[#1D1E20] hover:bg-[#f5f5f5] disabled:opacity-50"
+                className="flex items-center gap-1 rounded-lg border border-[#e0e0e0] bg-white px-2.5 py-1.5 text-[11.5px] font-semibold text-[#1D1E20] hover:bg-[#f5f5f5] disabled:opacity-50"
               >
                 {vencida ? 'Reactivar' : 'Dar más tiempo'} <ChevronDown size={12} />
               </button>
