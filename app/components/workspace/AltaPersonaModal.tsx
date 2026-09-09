@@ -165,21 +165,41 @@ export function AltaPersonaModal({ open, onClose, workspace, bodaFija, onHecho }
             )}
             {paso === 3 && rol === 'colaborador' && bodaActual && (
               <>
-                {elegidas.size > 1 && (
-                  <div className="flex flex-wrap gap-1">
-                    {[...elegidas].map(id => (
-                      <button key={id} type="button" onClick={() => setBodaActual(id)}
-                        className={'rounded-full border px-2.5 py-1 text-[11px] font-semibold ' + (bodaActual === id ? 'border-[#1D1E20] bg-[#1D1E20] text-white' : 'border-[#e0e0e0] text-[#666]')}>
-                        {workspace.bodas.find(b => b.id === id)?.name}
-                      </button>
-                    ))}
+                {elegidas.size > 1 ? (
+                  // Carpetas como las de la ficha de proveedor: la abierta se
+                  // pega al panel y le tapa el borde, asi se ve que lo de abajo
+                  // es de ese evento. Se recorren de lado, nunca se apilan.
+                  <div>
+                    <div className="flex gap-[3px] overflow-x-auto px-3.5">
+                      {[...elegidas].map(id => {
+                        const abierta = bodaActual === id
+                        return (
+                          <button
+                            key={id}
+                            type="button"
+                            onClick={() => setBodaActual(id)}
+                            className={'relative top-px flex max-w-[190px] shrink-0 items-center rounded-t-[10px] border border-b-0 border-[#e4e1db] px-3.5 pt-2 text-xs font-semibold transition ' + (abierta ? 'bg-white pb-2.5 text-[#1D1E20]' : 'bg-[#efede8] pb-2 text-[#8a8a8a] hover:text-[#5F5C57]')}
+                          >
+                            <span className="truncate">{workspace.bodas.find(b => b.id === id)?.name}</span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                    <div className="border-t border-[#e4e1db] bg-white px-4 py-3">
+                      <PermisosEditor
+                        permisos={permisosDe(bodaActual)}
+                        features={workspace.bodas.find(b => b.id === bodaActual)!.features}
+                        onChange={next => setPermisos(prev => ({ ...prev, [bodaActual]: next }))}
+                      />
+                    </div>
                   </div>
+                ) : (
+                  <PermisosEditor
+                    permisos={permisosDe(bodaActual)}
+                    features={workspace.bodas.find(b => b.id === bodaActual)!.features}
+                    onChange={next => setPermisos(prev => ({ ...prev, [bodaActual]: next }))}
+                  />
                 )}
-                <PermisosEditor
-                  permisos={permisosDe(bodaActual)}
-                  features={workspace.bodas.find(b => b.id === bodaActual)!.features}
-                  onChange={next => setPermisos(prev => ({ ...prev, [bodaActual]: next }))}
-                />
               </>
             )}
             {error && <p className="text-xs text-[#cc3333]">{error}</p>}
