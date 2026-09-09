@@ -6,6 +6,7 @@ import { PermisosEditor } from '@/app/events/[id]/configuracion/PermisosEditor'
 import type { PermisosEvento } from '@/lib/permisos/catalogo'
 import { aplicarKit, permisosDeRol } from '@/lib/permisos/resolver'
 import { contarAsientos, puedeInvitar } from '@/lib/workspace/asientos'
+import { eventosParaRepartir, hoyISO } from '@/lib/workspace/eventos'
 import { postJson } from '@/lib/workspace/cliente'
 import { kitDesde, validarAltaEquipo } from '@/lib/workspace/invitacion'
 import { PLANES } from '@/lib/workspace/planes'
@@ -35,7 +36,10 @@ export function AltaPersonaModal({ open, onClose, workspace, bodaFija, onHecho }
 
   const ocupados = contarAsientos(workspace.miembros)
   const permiso = puedeInvitar(workspace.plan, ocupados)
-  const bodasActivas = workspace.bodas.filter(b => b.event_status !== 'archived' && b.event_status !== 'cancelled')
+  // Solo lo que sigue por delante: repartir acceso a un evento que ya pasó no
+  // le sirve a nadie y alarga la lista justo donde se elige.
+  const bodasActivas = eventosParaRepartir(workspace.bodas, hoyISO())
+  const todasElegidas = bodasActivas.length > 0 && bodasActivas.every(b => elegidas.has(b.id))
 
   // Kit: lo que ese correo ya tiene en otras bodas; si nada, "Puede editar".
   const kit = useMemo(() => {
@@ -127,7 +131,7 @@ export function AltaPersonaModal({ open, onClose, workspace, bodaFija, onHecho }
                 <div>
                   <p className="text-xs font-semibold text-[#666]">Rol en el workspace</p>
                   <div className="mt-1 grid grid-cols-2 gap-1.5">
-                    {([['colaborador', 'Colaborador', 'Solo entra a los eventos que le des'], ['admin', 'Administrador', 'Entra a todas y reparte accesos']] as const).map(([v, l, d]) => (
+                    {([['colaborador', 'Colaborador', 'Solo entra a los eventos que le des'], ['admin', 'Administrador', 'Entra a todos y reparte accesos']] as const).map(([v, l, d]) => (
                       <button key={v} type="button" onClick={() => setRol(v)}
                         className={'rounded-lg border px-3 py-2.5 text-left transition ' + (rol === v ? 'border-[#48C9B0] bg-[#f0fdfb]' : 'border-[#e0e0e0] bg-white hover:border-[#48C9B0]')}>
                         <span className="block text-[12px] font-semibold text-[#1D1E20]">{l}</span>
@@ -146,6 +150,20 @@ export function AltaPersonaModal({ open, onClose, workspace, bodaFija, onHecho }
             {paso === 2 && (
               <div className="flex flex-col gap-1.5">
                 {bodasActivas.length === 0 && <p className="text-sm text-[#888]">No tienes eventos activos todavía.</p>}
+                {bodasActivas.length > 1 && (
+                  <div className="flex items-center justify-between pb-0.5">
+                    <span className="text-[11px] text-[#999]">
+                      {elegidas.size} de {bodasActivas.length} {bodasActivas.length === 1 ? 'evento' : 'eventos'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setElegidas(todasElegidas ? new Set() : new Set(bodasActivas.map(b => b.id)))}
+                      className="text-[12px] font-semibold text-[#1a9e88] transition hover:text-[#48C9B0]"
+                    >
+                      {todasElegidas ? 'Quitar todos' : 'Seleccionar todos'}
+                    </button>
+                  </div>
+                )}
                 {bodasActivas.map(b => {
                   const on = elegidas.has(b.id)
                   return (
@@ -216,7 +234,7 @@ export function AltaPersonaModal({ open, onClose, workspace, bodaFija, onHecho }
             {paso > 1 && <button className={btnSec} onClick={() => setPaso((paso === 3 && rol === 'admin' ? 1 : paso - 1) as Paso)}>Atrás</button>}
             <button className={btnSec} onClick={onClose}>Cancelar</button>
             {paso < 3
-              ? <button className={btnCta + ' ml-auto'} onClick={siguiente}>{paso === 1 ? (rol === 'admin' ? 'Siguiente' : 'Siguiente: eventos') : 'Siguiente: permisos'}</button>
+              ? <button className={btnCta + ' ml-auto'} onClick={siguiente}>Continuar</button>
               : <button className={btnCta + ' ml-auto'} disabled={guardando} onClick={guardar}>{guardando ? 'Creando…' : 'Crear enlace'}</button>}
           </>
         )}

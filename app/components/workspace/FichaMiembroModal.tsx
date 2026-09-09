@@ -4,6 +4,7 @@ import { Check, Copy } from 'lucide-react'
 import { Modal } from '@/app/components/ui/Modal'
 import { useConfirm } from '@/app/components/ui/ConfirmModal'
 import { PermisosEditor } from '@/app/events/[id]/configuracion/PermisosEditor'
+import { eventosParaRepartir, hoyISO } from '@/lib/workspace/eventos'
 import type { PermisosEvento } from '@/lib/permisos/catalogo'
 import { aplicarKit, permisosDeRol } from '@/lib/permisos/resolver'
 import { deleteJson, patchJson } from '@/lib/workspace/cliente'
@@ -29,7 +30,10 @@ export function FichaMiembroModal({ open, onClose, workspace, miembro, onHecho }
   const [guardando, setGuardando] = useState(false)
   const [copiado, setCopiado] = useState(false)
   const kit = kitDesde(miembro.bodas)
-  const bodasActivas = workspace.bodas.filter(b => b.event_status !== 'archived' && b.event_status !== 'cancelled')
+  // Mismo criterio que el alta, pero NUNCA se esconde un evento donde la
+  // persona ya tiene acceso: desaparecerlo la dejaria sin manera de quitarselo.
+  const yaTiene = new Set(miembro.bodas.filter(b => b.status !== 'revoked').map(b => b.eventId))
+  const bodasActivas = eventosParaRepartir(workspace.bodas, hoyISO(), yaTiene)
 
   const alternar = (eventId: string) => {
     setBodas(prev => {
