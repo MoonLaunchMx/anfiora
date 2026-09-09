@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase'
 import { TOPE_COMPROBANTES } from '@/lib/archivos/adjuntos'
 import ListaDeArchivos from './ListaDeArchivos'
 import QuienPago from '@/app/components/ui/QuienPago'
+import DatePicker from '@/app/components/ui/DatePicker'
 import { cargarSugerenciasPaidBy } from '@/lib/pagos/quien-pago'
 import {
   Currency, formatCurrency, SupplierPayment,
@@ -53,6 +54,7 @@ export default function PagoModal({
 
   const guardar = async () => {
     if (!valido) { setError('Escribe cuánto le pagaste.'); return }
+    if (!fecha) { setError('Elige la fecha del pago.'); return }
 
     // Mismo aviso que el formulario completo: pagar de mas casi siempre es un
     // monto acordado que cambio, no un error, asi que se avisa y se deja pasar.
@@ -125,7 +127,7 @@ export default function PagoModal({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-[#888]">Cuándo</label>
-              <input type="date" value={fecha} onChange={e => setFecha(e.target.value)} className={INPUT} />
+              <DatePicker value={fecha} onChange={setFecha} placeholder="Elegir fecha" />
             </div>
             <div>
               <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-[#888]">Cómo</label>
