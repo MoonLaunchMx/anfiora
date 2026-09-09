@@ -130,7 +130,7 @@ export default function EquipoPage() {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h2 className="text-xl font-semibold text-[#1D1E20]">Equipo</h2>
-          <p className="mt-1 text-[13px] text-[#666]">Quién entra al workspace y a qué eventos. Los clientes no ocupan asiento.</p>
+          <p className="mt-1 text-[13px] text-[#666]">Quién entra al workspace y a qué eventos.</p>
         </div>
         <button
           onClick={() => setAlta(true)}

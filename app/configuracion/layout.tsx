@@ -6,7 +6,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { ArrowLeft, Bell, ChevronDown, Clock, CreditCard, User, Users, X } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { Cargando } from '@/app/components/ui/Cargando'
-import { miMembresia, patchJson } from '@/lib/workspace/cliente'
+import { miMembresia, patchJson, perfilConFoto } from '@/lib/workspace/cliente'
 import { borrarImagenAnterior, subirImagen } from '@/lib/workspace/subir'
 import { resumenAsientos } from '@/lib/workspace/asientos'
 import { etiquetaPlan } from '@/lib/workspace/planes'
@@ -173,21 +173,19 @@ function Cascara({ children }: { children: ReactNode }) {
     const cargar = async () => {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { router.replace('/'); return }
-      const { data } = await supabase.from('users').select('full_name').eq('id', user.id).single()
-      // avatar_url la agrega la migracion del Tramo 5: aparte, para que su
-      // ausencia deje la barra con iniciales y no rompa la carga.
-      const { data: conFoto } = await supabase.from('users').select('avatar_url').eq('id', user.id).single()
-      const [membresiaActual] = await Promise.all([miMembresia()])
+      const perfil = await perfilConFoto(user.id)
+      const membresiaActual = await miMembresia(user.id)
       if (!vivo) return
-      setPersona({
-        nombre: data?.full_name || '',
-        email: user.email || '',
-        foto: (conFoto as { avatar_url?: string | null } | null)?.avatar_url ?? null,
-      })
+      setPersona({ nombre: perfil.nombre, email: user.email || '', foto: perfil.foto })
       setMembresia(membresiaActual)
-      setCargandoPersona(false)
     }
+    // Si algo aqui revienta, la espera TIENE que terminar igual. El candado de
+    // sesion de Supabase rechaza con AbortError cuando dos efectos se lo pelean,
+    // y sin este finally la pantalla se quedaba en "Cargando" para siempre en
+    // vez de dibujarse con las iniciales.
     cargar()
+      .catch(e => console.error('No se pudo cargar la persona:', e))
+      .finally(() => { if (vivo) setCargandoPersona(false) })
     return () => { vivo = false }
   }, [router])
 

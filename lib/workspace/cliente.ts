@@ -44,9 +44,12 @@ export async function misWorkspacesAdministrados(): Promise<WorkspaceListado[]> 
 // diferencia de misWorkspacesAdministrados), solo quiere saber en que
 // workspace participa y con que rol. Tolerante a error: nunca debe romper
 // el header, en el peor caso no se muestra la linea "Colaborador en...".
-export async function miMembresia(): Promise<{ rol: RolWorkspace; workspaceName: string } | null> {
+// `userId` se recibe cuando quien llama ya pidio la sesion. Sin el, esta
+// funcion abre una segunda peticion de sesion en paralelo con la del layout y
+// las dos se pelean el mismo candado de gotrue.
+export async function miMembresia(userId?: string): Promise<{ rol: RolWorkspace; workspaceName: string } | null> {
   try {
-    const { data: { user } } = await supabase.auth.getUser()
+    const user = userId ? { id: userId } : (await supabase.auth.getUser()).data.user
     if (!user) return null
     const { data, error } = await supabase
       .from('workspace_members')
@@ -60,6 +63,22 @@ export async function miMembresia(): Promise<{ rol: RolWorkspace; workspaceName:
   } catch {
     return null
   }
+}
+
+// Nombre y foto en UN solo viaje. `avatar_url` llega con la migracion del
+// Tramo 5, asi que si la columna no existe todavia se reintenta sin ella.
+// Importa que sea una sola consulta: dos en serie alargaban la ventana donde
+// el candado de sesion de Supabase se pelea entre efectos y rechaza con
+// AbortError, y eso dejaba la pantalla colgada en "Cargando".
+export async function perfilConFoto(userId: string): Promise<{ nombre: string; foto: string | null }> {
+  const conFoto = await supabase.from('users').select('full_name, avatar_url').eq('id', userId).maybeSingle()
+  if (!conFoto.error) {
+    const fila = conFoto.data as { full_name?: string | null; avatar_url?: string | null } | null
+    return { nombre: fila?.full_name ?? '', foto: fila?.avatar_url ?? null }
+  }
+  const soloNombre = await supabase.from('users').select('full_name').eq('id', userId).maybeSingle()
+  const fila = soloNombre.data as { full_name?: string | null } | null
+  return { nombre: fila?.full_name ?? '', foto: null }
 }
 
 export async function fetchWorkspace(id?: string) {

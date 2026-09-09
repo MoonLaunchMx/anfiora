@@ -102,26 +102,28 @@ export default function PerfilPage() {
       setUserId(user.id)
       setEmail(user.email || '')
 
-      const { data } = await supabase
-        .from('users')
-        .select('full_name, phone, role')
-        .eq('id', user.id)
-        .single()
+      // Un solo viaje. `avatar_url` llega con la migracion del Tramo 5, asi que
+      // si la columna no existe todavia se reintenta sin ella. Dos consultas en
+      // serie alargaban la ventana donde el candado de sesion de Supabase se
+      // pelea y dejaba la pantalla colgada.
+      const conFoto = await supabase.from('users').select('full_name, phone, role, avatar_url').eq('id', user.id).maybeSingle()
+      const fila = conFoto.error
+        ? (await supabase.from('users').select('full_name, phone, role').eq('id', user.id).maybeSingle()).data
+        : conFoto.data
 
-      if (data) {
-        setName(data.full_name || '')
-        setPhone(data.phone || '')
-        setRole(data.role || '')
+      if (fila) {
+        const f = fila as { full_name?: string | null; phone?: string | null; role?: string | null; avatar_url?: string | null }
+        setName(f.full_name || '')
+        setPhone(f.phone || '')
+        setRole(f.role || '')
+        setAvatar(f.avatar_url ?? null)
       }
-
-      // avatar_url la agrega la migracion del Tramo 5: se pide aparte para que
-      // su ausencia deje el perfil sin foto, no sin cargar.
-      const { data: conFoto } = await supabase.from('users').select('avatar_url').eq('id', user.id).single()
-      if (conFoto) setAvatar((conFoto as { avatar_url?: string | null }).avatar_url ?? null)
-
-      setLoading(false)
     }
+    // La espera termina pase lo que pase: si la carga revienta, el formulario
+    // se dibuja vacio y se puede reintentar, en vez de quedarse en "Cargando".
     load()
+      .catch(e => console.error('No se pudo cargar el perfil:', e))
+      .finally(() => setLoading(false))
   }, [router])
 
   const guardarFoto = async (url: string | null) => {
