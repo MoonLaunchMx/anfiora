@@ -16,7 +16,9 @@ interface Props {
   onClose: () => void
   workspace: WorkspaceResumen
   miembro: Miembro
-  onHecho: () => void
+  // Devuelve promesa cuando quien llama recarga la lista: el modal la espera
+  // antes de cerrarse, para no dejar la fila vieja un segundo en pantalla.
+  onHecho: () => void | Promise<void>
 }
 
 export function FichaMiembroModal({ open, onClose, workspace, miembro, onHecho }: Props) {
@@ -27,8 +29,9 @@ export function FichaMiembroModal({ open, onClose, workspace, miembro, onHecho }
   )
   const [abierta, setAbierta] = useState<string | null>(null)
   const [error, setError] = useState('')
-  const [guardando, setGuardando] = useState(false)
+  const [accion, setAccion] = useState<'guardar' | 'quitar' | null>(null)
   const [copiado, setCopiado] = useState(false)
+  const ocupado = accion !== null
   const kit = kitDesde(miembro.bodas)
   // Mismo criterio que el alta, pero NUNCA se esconde un evento donde la
   // persona ya tiene acceso: desaparecerlo la dejaria sin manera de quitarselo.
@@ -48,15 +51,18 @@ export function FichaMiembroModal({ open, onClose, workspace, miembro, onHecho }
   }
 
   const guardar = async () => {
-    setGuardando(true); setError('')
+    setAccion('guardar'); setError('')
     try {
       await patchJson(`/api/workspace/miembros/${miembro.id}`, {
         rol,
         bodas: rol === 'admin' ? [] : Object.entries(bodas).map(([eventId, permisos]) => ({ eventId, permisos })),
       })
-      onHecho(); onClose()
+      // Se espera a que la lista se refresque ANTES de cerrar. Si no, el modal
+      // desaparece y la fila vieja se queda un segundo en pantalla.
+      await onHecho()
+      onClose()
     } catch (e) { setError(e instanceof Error ? e.message : 'No se pudo guardar') }
-    finally { setGuardando(false) }
+    finally { setAccion(null) }
   }
 
   const revocar = async () => {
@@ -66,10 +72,15 @@ export function FichaMiembroModal({ open, onClose, workspace, miembro, onHecho }
       confirmLabel: 'Quitar', tone: 'danger',
     })
     if (!ok) return
-    setGuardando(true)
-    try { await deleteJson(`/api/workspace/miembros/${miembro.id}`); onHecho(); onClose() }
-    catch (e) { setError(e instanceof Error ? e.message : 'No se pudo quitar') }
-    finally { setGuardando(false) }
+    setAccion('quitar')
+    setError('')
+    try {
+      await deleteJson(`/api/workspace/miembros/${miembro.id}`)
+      // Igual que al guardar: primero desaparece de la lista, luego se cierra.
+      await onHecho()
+      onClose()
+    } catch (e) { setError(e instanceof Error ? e.message : 'No se pudo quitar') }
+    finally { setAccion(null) }
   }
 
   const link = miembro.invite_token ? `${window.location.origin}/invite/${miembro.invite_token}` : ''
@@ -128,9 +139,9 @@ export function FichaMiembroModal({ open, onClose, workspace, miembro, onHecho }
         </div>
       </Modal.Body>
       <Modal.Footer>
-        {!miembro.es_dueno_principal && <button className="rounded-lg border border-[#ffc0c0] bg-[#fff0f0] px-4 py-2 text-sm text-[#cc3333]" disabled={guardando} onClick={revocar}>Quitar del workspace</button>}
-        <button className="ml-auto rounded-lg border border-[#e0e0e0] px-4 py-2 text-sm text-[#888] transition hover:bg-[#f5f5f5]" onClick={onClose}>Cancelar</button>
-        {!miembro.es_dueno_principal && <button className="rounded-lg bg-[#48C9B0] px-4 py-2 text-sm font-semibold text-[#08312a] disabled:opacity-60" disabled={guardando} onClick={guardar}>{guardando ? 'Guardando…' : 'Guardar'}</button>}
+        {!miembro.es_dueno_principal && <button className="rounded-lg border border-[#ffc0c0] bg-[#fff0f0] px-4 py-2 text-sm text-[#cc3333] disabled:opacity-60" disabled={ocupado} onClick={revocar}>{accion === 'quitar' ? 'Quitando…' : 'Quitar del workspace'}</button>}
+        <button className="ml-auto rounded-lg border border-[#e0e0e0] px-4 py-2 text-sm text-[#888] transition hover:bg-[#f5f5f5] disabled:opacity-60" disabled={ocupado} onClick={onClose}>Cancelar</button>
+        {!miembro.es_dueno_principal && <button className="rounded-lg bg-[#48C9B0] px-4 py-2 text-sm font-semibold text-[#08312a] disabled:opacity-60" disabled={ocupado} onClick={guardar}>{accion === 'guardar' ? 'Guardando…' : 'Guardar'}</button>}
       </Modal.Footer>
     </Modal>
   )
