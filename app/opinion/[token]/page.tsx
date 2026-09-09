@@ -199,20 +199,19 @@ export default function OpinionPublicaPage() {
   if (enviado) {
     return (
       <Cascara>
-        <h1 className="mt-10 text-xl font-bold">Listo, gracias</h1>
-        <p className="mt-2 text-sm text-[#666]">
-          Calificaron {listos} de {total} proveedores de {datos.evento.nombre}. Su planner ya lo recibió.
+        <h1 className="mt-10 text-[22px] font-bold tracking-tight">Gracias por su tiempo</h1>
+        <p className="mt-3 text-[15px] leading-relaxed text-[#555]">
+          Sus comentarios nos ayudan a mejorar el servicio y a elegir mejor a los proveedores de cada evento.
         </p>
-        <p className="mt-4 rounded-xl border border-[#eee] bg-[#fafafa] px-4 py-3 text-[13px] leading-relaxed text-[#666]">
-          Guarden este link{datos.vence ? ` hasta el ${fechaCortaISO(datos.vence)}` : ''}: pueden volver
-          {listos < total ? ' a calificar a los que faltan' : ' a cambiar lo que contestaron'} cuando quieran.
+        <p className="mt-4 text-[13px] leading-relaxed text-[#999]">
+          Calificaron {listos} de {total} proveedores de {datos.evento.nombre}. Su planner ya lo recibió.
         </p>
         <button
           type="button"
           onClick={() => setEnviado(false)}
-          className="mt-5 w-full rounded-lg border border-[#e0e0e0] bg-white py-3 text-sm font-semibold text-[#1D1E20] transition hover:bg-[#f5f5f5]"
+          className="mt-6 w-full rounded-lg border border-[#e0e0e0] bg-white py-3 text-sm font-semibold text-[#1D1E20] transition hover:bg-[#f5f5f5]"
         >
-          Ver o corregir mis respuestas
+          Ver o corregir sus respuestas
         </button>
       </Cascara>
     )
