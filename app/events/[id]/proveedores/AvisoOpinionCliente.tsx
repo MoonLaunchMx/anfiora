@@ -74,7 +74,7 @@ export default function AvisoOpinionCliente({
           )}
           {(info.estado === 'enviada' || info.estado === 'por_vencer') && puedeEditar && (
             <button type="button" onClick={onReenviar} className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${info.estado === 'por_vencer' ? 'bg-[#48C9B0] text-white hover:bg-[#3aa896]' : 'border border-[#e0e0e0] bg-white text-[#1D1E20] hover:bg-[#f5f5f5]'}`}>
-              Reenviar
+              {info.estado === 'por_vencer' ? 'Reenviar' : 'Ver link'}
             </button>
           )}
           {canAdmin && info.estado !== 'sin_pedir' && (
