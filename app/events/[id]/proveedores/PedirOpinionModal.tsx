@@ -17,6 +17,9 @@ type Props = {
   eventoId: string
   eventoNombre: string
   contratados: Contratado[]
+  // Quienes ya contestaron: desmarcarlos los saca del link (su respuesta se
+  // conserva), asi que hay que verlo antes de hacerlo.
+  yaCalificaron: Set<string>
   seleccionActual: string[] | null
   token: string | null
   onEnviado: (token: string, ids: string[]) => void
@@ -25,7 +28,7 @@ type Props = {
 // El planner elige a quienes califica el cliente: es el unico que sabe con
 // quien tuvieron cara. Vienen todos palomeados; desmarca al generador de luz.
 export default function PedirOpinionModal({
-  abierto, onClose, eventoId, eventoNombre, contratados, seleccionActual, token, onEnviado,
+  abierto, onClose, eventoId, eventoNombre, contratados, yaCalificaron, seleccionActual, token, onEnviado,
 }: Props) {
   const [marcados, setMarcados] = useState<Set<string>>(new Set())
   const [guardando, setGuardando] = useState(false)
@@ -66,6 +69,11 @@ export default function PedirOpinionModal({
     if (!r.ok) { setError(r.motivo); return null }
     onEnviado(tokenFinal, ids)
     return tokenFinal
+  }
+
+  const soloGuardar = async () => {
+    const t = await asegurarLink()
+    if (t) onClose()
   }
 
   const enviarWhatsApp = async () => {
@@ -116,6 +124,14 @@ export default function PedirOpinionModal({
               <span className="min-w-0 flex-1 truncate rounded-lg border border-[#e8e8e8] bg-white px-3 py-2 font-mono text-xs text-[#555]">
                 {url.replace(/^https?:\/\//, '')}
               </span>
+              <button
+                type="button"
+                onClick={copiarLink}
+                disabled={guardando}
+                className="flex shrink-0 items-center gap-1.5 rounded-lg border border-[#e0e0e0] bg-white px-3 py-2 text-xs font-medium text-[#555] transition hover:border-[#48C9B0] hover:text-[#48C9B0] disabled:opacity-50"
+              >
+                <Copy size={14} /> {copiado ? 'Copiado' : 'Copiar'}
+              </button>
               <a
                 href={url}
                 target="_blank"
@@ -150,6 +166,11 @@ export default function PedirOpinionModal({
                     <span className={`block text-sm font-medium ${on ? 'text-[#1D1E20]' : 'text-[#999]'}`}>{c.nombre}</span>
                     {c.categoria && <span className="block text-xs text-[#999]">{c.categoria}</span>}
                   </span>
+                  {yaCalificaron.has(c.id) && (
+                    <span className="shrink-0 rounded-full border border-[#bdebdf] bg-[#f0faf7] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#2e9e88]">
+                      Ya calificó
+                    </span>
+                  )}
                 </button>
               </li>
             )
@@ -161,11 +182,11 @@ export default function PedirOpinionModal({
       <Modal.Footer>
         <button
           type="button"
-          onClick={copiarLink}
+          onClick={token ? soloGuardar : copiarLink}
           disabled={guardando}
           className="ml-auto flex items-center gap-2 rounded-lg border border-[#e0e0e0] px-4 py-2.5 text-sm font-semibold text-[#1D1E20] hover:bg-[#f5f5f5] disabled:opacity-50"
         >
-          <Copy size={14} /> {token ? 'Guardar y copiar' : 'Copiar link'}
+          {token ? 'Guardar' : <><Copy size={14} /> Copiar link</>}
         </button>
         <button
           type="button"

@@ -126,7 +126,7 @@ export default function ProveedoresPage() {
   const [conteoPagosPorItem, setConteoPagosPorItem] = useState<Record<string, number>>({})
   const { canAdmin } = useEventAccess()
   const [ajustesLink, setAjustesLink] = useState<{ token: string | null; expiresAt: string | null; ids: string[] | null }>({ token: null, expiresAt: null, ids: null })
-  const [scoreClientePorItem, setScoreClientePorItem] = useState<Record<string, number | null>>({})
+  const [clienteRespondio, setClienteRespondio] = useState<Set<string>>(new Set())
   const [pedirOpinionAbierto, setPedirOpinionAbierto] = useState(false)
   const [motivoDescartePorItem, setMotivoDescartePorItem] = useState<Record<string, MotivoDescarte | null>>({})
   const [viewMode, setViewMode] = useState<ViewMode>('fichero')
@@ -199,13 +199,13 @@ export default function ProveedoresPage() {
   useEffect(() => { cargarDineroYReviews(claveDeItems ? claveDeItems.split(',') : []) }, [claveDeItems])
 
   const cargarDineroYReviews = async (ids: string[]) => {
-    if (ids.length === 0) { setPaidByItem({}); setConteoPagosPorItem({}); setMotivoDescartePorItem({}); setScoreClientePorItem({}); return }
+    if (ids.length === 0) { setPaidByItem({}); setConteoPagosPorItem({}); setMotivoDescartePorItem({}); setClienteRespondio(new Set()); return }
 
     const [{ data: pagos, error: errPagos }, { data: descartes, error: errDescartes }, { data: opinionesCliente, error: errCliente }] = await Promise.all([
       supabase.from('supplier_payments').select('event_supplier_id, amount').in('event_supplier_id', ids),
       supabase.from('supplier_reviews').select('event_supplier_id, motivo_descarte').eq('review_type', 'descarte').in('event_supplier_id', ids),
       supabase.from('supplier_reviews')
-        .select('event_supplier_id, review_type, autor, precio_valor, calidad, comunicacion, servicio_trato, manejo_imprevistos')
+        .select('event_supplier_id')
         .eq('review_type', 'post_evento').eq('autor', 'cliente').in('event_supplier_id', ids),
     ])
     if (errCliente) console.error('Error cargando opiniones del cliente:', errCliente.message ?? errCliente, errCliente)
@@ -227,11 +227,11 @@ export default function ProveedoresPage() {
     }
     setMotivoDescartePorItem(motivos)
 
-    const clientes: Record<string, number | null> = {}
-    for (const r of (opinionesCliente ?? []) as (ReviewParaScore & { event_supplier_id: string })[]) {
-      clientes[r.event_supplier_id] = calcularScores([r]).clientes
-    }
-    setScoreClientePorItem(clientes)
+    // Existencia, no promedio. Un cliente que solo contesta la recomendacion
+    // deja los cinco ejes en null, asi que su score sale null: contarlo por
+    // score lo dejaba fuera y el aviso decia "0 de 14" con respuestas ya
+    // guardadas.
+    setClienteRespondio(new Set((opinionesCliente ?? []).map(r => (r as { event_supplier_id: string }).event_supplier_id)))
   }
 
   // Desempeno (ids de suppliers): se separa de cargarCatalogo para poder
@@ -591,7 +591,7 @@ export default function ProveedoresPage() {
     .map(i => ({ id: i.id, nombre: i.supplier.name, categoria: nombrePorId(categorias, i.supplier.category_id) }))
   const idsEnLink = ajustesLink.ids && ajustesLink.ids.length > 0 ? ajustesLink.ids : contratados.map(c => c.id)
   const totalEnLink = idsEnLink.length
-  const contestados = idsEnLink.filter(id => scoreClientePorItem[id] != null).length
+  const contestados = idsEnLink.filter(id => clienteRespondio.has(id)).length
 
   const darMasTiempo = async (nuevoVence: string): Promise<string | null> => {
     const res = await supabase.from('event_settings').update({ review_expires_at: nuevoVence }).eq('event_id', eventId).select('event_id')
@@ -871,6 +871,7 @@ export default function ProveedoresPage() {
         eventoId={eventId}
         eventoNombre={event.name}
         contratados={contratados}
+        yaCalificaron={clienteRespondio}
         seleccionActual={ajustesLink.ids}
         token={ajustesLink.token}
         onEnviado={(token, ids) => setAjustesLink(prev => ({ ...prev, token, ids }))}
