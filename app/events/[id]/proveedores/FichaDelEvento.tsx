@@ -2,30 +2,45 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
-import { ChevronDown, Globe, Mail, Paperclip, Pencil, Star, Trash2, X } from 'lucide-react'
+import { Check, ChevronDown, Eye, Globe, Mail, Paperclip, Pencil, Trash2, X } from 'lucide-react'
 import { FaWhatsapp } from 'react-icons/fa'
-import { FiInstagram } from 'react-icons/fi'
+import { FiFacebook, FiInstagram } from 'react-icons/fi'
 import { supabase } from '@/lib/supabase'
 import {
   Currency, formatCurrency,
   EventSupplier, Supplier, EventBudget, SupplierPayment, SupplierStatus,
   SUPPLIER_STATUS_LABELS,
-  PAYMENT_METHOD_LABELS, PAID_BY_LABELS,
-  RESPONSE_SPEEDS, RESPONSE_SPEED_LABELS, ResponseSpeed,
+  PAYMENT_METHOD_LABELS,
+  SupplierReview,
 } from '@/lib/types'
+import { etiquetaQuienPago } from '@/lib/pagos/quien-pago'
 import { Categoria, nombrePorId } from '@/lib/rolodex/categorias-store'
-import { formatDisplay, toWhatsApp } from '@/lib/phone'
+import { formatDisplay } from '@/lib/phone'
+import { contactosDe, telefonoCrudoDe } from '@/lib/rolodex/contactos'
+import type { ContactoTipo } from '@/lib/rolodex/contactos'
 import {
   PAISES, PAIS_POR_DEFECTO, bandera, ciudadesDe, estadosDe,
   nombrePais, normalizarCiudad, normalizarEstado, tieneEstados,
 } from '@/lib/geo/divisiones'
 import SelectorGeo from '@/app/components/ui/SelectorGeo'
+import Estrellas from '@/app/components/ui/Estrellas'
 import { useConfirm } from '@/app/components/ui/ConfirmModal'
 import { usePermiso } from '@/lib/event-access-context'
-import { carpetasDe, destinosDe, QUE_SIGNIFICA } from '@/lib/rolodex/ficha-por-estado'
+import {
+  carpetasDe, destinosDe, QUE_SIGNIFICA,
+  TITULO_REVIEW_FICHA, DESCRIPCION_REVIEW_FICHA, BOTON_CALIFICAR,
+  filasDeReview, resumenPendientes,
+} from '@/lib/rolodex/ficha-por-estado'
+import type { TipoReviewFicha } from '@/lib/rolodex/ficha-por-estado'
+import { metaDelProveedor, partidasDelProveedor } from '@/lib/presupuesto/derivados'
+import { calcularScores } from '@/lib/reviews/scores'
+import { yaRechazoLaOferta, recordarRechazo } from '@/lib/rolodex/oferta-avance'
 import { TOPE_COMPROBANTES, TOPE_COTIZACIONES, visibles } from '@/lib/archivos/adjuntos'
 import PagoModal from './PagoModal'
 import ListaDeArchivos from './ListaDeArchivos'
+import ReviewContratacionModal from './ReviewContratacionModal'
+import ReviewDescarteModal from './ReviewDescarteModal'
+import ReviewDesempenoModal from './ReviewDesempenoModal'
 import { CaminoDelTrato, COLOR_ESTADO, EstatusProveedor, ICONO_ESTADO } from './EstatusProveedor'
 import PhoneInput from '@/app/components/ui/PhoneInput'
 
@@ -36,12 +51,35 @@ type Props = {
   budgets: EventBudget[]
   currency: Currency
   categorias: Categoria[]
-  bodaPaso: boolean
+  // Lo que la pagina ya sabe de los pagos, para pintar el numero de la
+  // pestaña Pagos antes de que la ficha termine su propia consulta.
+  conteoPagosInicial?: number
   onStatusChange: (itemId: string, nuevo: SupplierStatus) => void
   onSaved: (item: SupplierWithDetails) => void
   onQuitada: (itemId: string) => void
+  // Lista, Kanban y Fichero muestran desempeno, pagado y motivo de descarte,
+  // pero esos no viven en `item` -- se recalculan en la pagina. Se avisa aqui
+  // cuando la ficha guarda algo que los cambia (review de desempeno, pago).
+  // Opcional: quien abre la ficha sin esas vistas (Presupuesto) no lo pasa.
+  onDerivadosCambiaron?: () => void
   // Solo cuando la ficha vive en una ventana: en el panel no hay a donde cerrar.
   onCerrar?: () => void
+  // Tras guardar una review desde el aviso automatico (page.tsx, al mover a
+  // contratado/descartado), se avisa aqui con el id del proveedor recien
+  // calificado: si es ESTA ficha, se abre su pestana Review; si no, solo se
+  // descarta el aviso. Nunca se decide por posicion, siempre por identidad.
+  abrirRevisionParaId?: string | null
+  onRevisionAbierta?: () => void
+}
+
+// Se dice que fallo la lectura, no que no hay nada: ofrecer "califica" sobre una
+// lectura rota lleva al planner a chocar contra una review que si existe.
+function ErrorDeReviews() {
+  return (
+    <p className="rounded-lg border border-[var(--error-border)] bg-[var(--error-bg)] px-3 py-2 text-xs text-[var(--error-text)]">
+      No se pudieron cargar las reseñas de este proveedor. Recarga la página antes de calificarlo.
+    </p>
+  )
 }
 
 function iniciales(nombre: string): string {
@@ -52,7 +90,8 @@ function iniciales(nombre: string): string {
 }
 
 export default function FichaDelEvento({
-  item, budgets, currency, categorias, bodaPaso, onStatusChange, onSaved, onQuitada, onCerrar,
+  item, budgets, currency, categorias, conteoPagosInicial, onStatusChange, onSaved, onQuitada, onDerivadosCambiaron, onCerrar,
+  abrirRevisionParaId, onRevisionAbierta,
 }: Props) {
   const askConfirm = useConfirm()
   const permisoFicha = usePermiso('proveedores')
@@ -71,15 +110,79 @@ export default function FichaDelEvento({
   const [borrador, setBorrador] = useState(() => borradorDe(item))
   const [editandoMontos, setEditandoMontos] = useState(false)
   const [montos, setMontos] = useState(() => montosDe(item))
-  const [resena, setResena] = useState(() => resenaDe(item))
+  const [reviews, setReviews] = useState<SupplierReview[]>([])
+  const [cargandoReviews, setCargandoReviews] = useState(true)
+  // Una lectura que falla -- tabla ausente, RLS -- no es lo mismo que "nadie lo
+  // ha calificado". Sin esta bandera la ficha ofrece escribir una review que
+  // quiza ya existe, y el upsert choca contra el indice unico.
+  const [errorReviews, setErrorReviews] = useState(false)
+  const [mostrarModalDesempeno, setMostrarModalDesempeno] = useState(false)
+  const [mostrarModalContratacion, setMostrarModalContratacion] = useState(false)
+  const [mostrarModalDescarte, setMostrarModalDescarte] = useState(false)
+  const [userId, setUserId] = useState<string | null>(null)
+  const [eventName, setEventName] = useState('')
+  // El dueno de la cuenta, que es de quien cuelga la review -- no quien la
+  // teclea. Ver la nota en lib/reviews/useGuardarReview.ts.
+  const [duenoEvento, setDuenoEvento] = useState<string | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
 
-  const carpetas = useMemo(() => carpetasDe(item.status, bodaPaso), [item.status, bodaPaso])
-  const cotizaciones = useMemo(() => visibles(item.quote_files), [item.quote_files])
+  const carpetas = carpetasDe()
+  // Copia local: la ficha abierta en modal recibe un `item` congelado en el
+  // estado del padre, asi que sin esto quitar un archivo no se ve hasta recargar.
+  const [archivosCotizacion, setArchivosCotizacion] = useState(item.quote_files ?? [])
+  useEffect(() => { setArchivosCotizacion(item.quote_files ?? []) }, [item.id, item.quote_files])
+  const cotizaciones = useMemo(() => visibles(archivosCotizacion), [archivosCotizacion])
   const destinos = useMemo(() => destinosDe(item.status), [item.status])
   const puedeMover = permisoFicha.editar
 
-  useEffect(() => { setCarpeta(0) }, [item.id, item.status])
+  // Todas las reviews del proveedor (todas sus bodas): los scores de la
+  // cabecera son la reputacion del proveedor, no solo la de esta boda.
+  const scores = useMemo(() => calcularScores(reviews), [reviews])
+  const reviewContratacion = useMemo(
+    () => reviews.find(r => r.event_supplier_id === item.id && r.review_type === 'contratacion') ?? null,
+    [reviews, item.id],
+  )
+  const reviewPostEvento = useMemo(
+    () => reviews.find(r => r.event_supplier_id === item.id && r.review_type === 'post_evento' && r.autor === 'planner') ?? null,
+    [reviews, item.id],
+  )
+  const reviewDescarte = useMemo(
+    () => reviews.find(r => r.event_supplier_id === item.id && r.review_type === 'descarte') ?? null,
+    [reviews, item.id],
+  )
+
+  const reviewDe = (tipo: TipoReviewFicha) =>
+    tipo === 'contratacion' ? reviewContratacion :
+    tipo === 'descarte'     ? reviewDescarte :
+                              reviewPostEvento
+
+  const filasReview = useMemo(() => {
+    const existentes: TipoReviewFicha[] = []
+    if (reviewContratacion) existentes.push('contratacion')
+    if (reviewDescarte)     existentes.push('descarte')
+    if (reviewPostEvento)   existentes.push('post_evento')
+    return filasDeReview(item.status, existentes)
+  }, [item.status, reviewContratacion, reviewDescarte, reviewPostEvento])
+
+  const abrirModalDe = (tipo: TipoReviewFicha) => {
+    if (tipo === 'contratacion') setMostrarModalContratacion(true)
+    if (tipo === 'descarte')     setMostrarModalDescarte(true)
+    if (tipo === 'post_evento')  setMostrarModalDesempeno(true)
+  }
+
+  // Las carpetas son fijas ahora (antes cambiaban de forma con el estatus):
+  // solo reiniciar al abrir una ficha distinta, no en cada cambio de estatus,
+  // o mover a Contratado desde Pagos te devuelve a Contacto sin avisar.
+  useEffect(() => { setCarpeta(0) }, [item.id])
+
+  // El aviso llega una sola vez y para un solo proveedor: si coincide con esta
+  // ficha se abre su Review, si no solo se limpia para no quedar pegado y
+  // disparar en la proxima ficha que se abra.
+  useEffect(() => {
+    if (abrirRevisionParaId == null) return
+    if (abrirRevisionParaId === item.id) setCarpeta(carpetasDe().indexOf('Review'))
+    onRevisionAbierta?.()
+  }, [abrirRevisionParaId, item.id, onRevisionAbierta])
 
   useEffect(() => {
     setEditando(false)
@@ -87,7 +190,6 @@ export default function FichaDelEvento({
     setErrorGuardar('')
     setBorrador(borradorDe(item))
     setMontos(montosDe(item))
-    setResena(resenaDe(item))
   }, [item])
 
   useEffect(() => {
@@ -105,6 +207,40 @@ export default function FichaDelEvento({
     return () => { vigente = false }
   }, [item.id])
 
+  const cargarReviews = (supplierId: string) =>
+    supabase.from('supplier_reviews').select('*').eq('supplier_id', supplierId)
+      .then(({ data, error }) => {
+        if (error) {
+          console.error('Error cargando las reviews:', error?.message ?? error, error)
+          setErrorReviews(true)
+          return
+        }
+        setErrorReviews(false)
+        setReviews((data as SupplierReview[]) ?? [])
+      })
+
+  useEffect(() => {
+    let vigente = true
+    setCargandoReviews(true)
+    cargarReviews(item.supplier_id).then(() => { if (vigente) setCargandoReviews(false) })
+    return () => { vigente = false }
+  }, [item.supplier_id])
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => setUserId(data.user?.id ?? null))
+  }, [])
+
+  useEffect(() => {
+    let vigente = true
+    supabase.from('events').select('name, user_id').eq('id', item.event_id).single()
+      .then(({ data }) => {
+        if (!vigente) return
+        setEventName(data?.name ?? '')
+        setDuenoEvento(data?.user_id ?? null)
+      })
+    return () => { vigente = false }
+  }, [item.event_id])
+
   useEffect(() => {
     if (!menuAbierto) return
     const alClicarFuera = (e: MouseEvent) => {
@@ -117,15 +253,18 @@ export default function FichaDelEvento({
   const s = item.supplier
   const categoria = nombrePorId(categorias, s.category_id)
 
-  const telCrudo   = s.phone ? (s.phone.startsWith('+') ? s.phone : `${s.phone_country_code ?? '+52'} ${s.phone}`) : null
-  const waDigitos  = telCrudo ? toWhatsApp(telCrudo) : null
+  const telCrudo   = telefonoCrudoDe(s)
   const telVisible = telCrudo ? formatDisplay(telCrudo) : null
-  const igLink     = s.instagram ? `https://instagram.com/${s.instagram.replace('@', '')}` : null
-  const webLink    = s.website ? (s.website.startsWith('http') ? s.website : `https://${s.website}`) : null
+  const enlace     = Object.fromEntries(contactosDe(s).map(c => [c.tipo, c.href])) as Partial<Record<ContactoTipo, string>>
+  const waLink     = enlace.whatsapp ?? null
+  const igLink     = enlace.instagram ?? null
+  const fbLink     = enlace.facebook ?? null
+  const webLink    = enlace.sitio ?? null
 
-  const partida     = budgets.find(b => b.id === item.event_budget_id)
-  const presupuesto = partida?.budget_amount ?? null
+  const partidas    = partidasDelProveedor(item, budgets)
+  const presupuesto = metaDelProveedor(item, budgets)
   const pagado      = pagos.reduce((suma, p) => suma + (p.amount || 0), 0)
+  const nPagos      = cargandoPagos ? (conteoPagosInicial ?? 0) : pagos.length
   const contratado  = item.contract_amount ?? null
   const falta       = contratado ? Math.max(0, contratado - pagado) : null
   const avance      = contratado && contratado > 0 ? Math.min(100, Math.round((pagado / contratado) * 100)) : 0
@@ -145,7 +284,8 @@ export default function FichaDelEvento({
           contact_name:  borrador.contacto.trim() || null,
           phone:         borrador.telefono.trim() || null,
           email:         borrador.correo.trim() || null,
-          instagram:     borrador.instagram.trim() || null,
+          instagram:     borrador.instagram.trim().replace(/^@/, '') || null,
+          facebook:      borrador.facebook.trim().replace(/^@/, '') || null,
           website:       borrador.sitio.trim() || null,
           country:       borrador.pais || null,
           city:          normalizarCiudad(borrador.pais, borrador.estado, borrador.ciudad) || null,
@@ -245,6 +385,7 @@ export default function FichaDelEvento({
       return
     }
     setPagos(previos => previos.filter(otro => otro.id !== pago.id))
+    onDerivadosCambiaron?.()
   }
 
   const guardarMontos = () => {
@@ -260,15 +401,31 @@ export default function FichaDelEvento({
         contract_amount: contrato,
         event_budget_id: montos.partida || null,
       },
-      () => setEditandoMontos(false)
+      () => {
+        setEditandoMontos(false)
+        if (cotizado != null && item.status === 'nuevo') {
+          ofrecerAvance('cotizado', 'Ya tiene un monto cotizado.')
+        }
+      }
     )
   }
 
-  const guardarResena = () => guardarEnLaBoda({
-    rating:         resena.estrellas || null,
-    response_speed: resena.velocidad,
-    review_text:    resena.nota.trim() || null,
-  })
+  // Se ofrece, nunca se impone: un "no" se guarda y no se vuelve a preguntar
+  // por ESA oferta puntual (cotizado o contratado, cada una por su lado). Ver
+  // lib/rolodex/oferta-avance.ts.
+  const ofrecerAvance = async (destino: SupplierStatus, motivo: string) => {
+    if (!permisoFicha.editar) return
+    if (destino === item.status) return
+    if (yaRechazoLaOferta(item.id, destino)) return
+    const ok = await askConfirm({
+      title: `¿Mover a ${SUPPLIER_STATUS_LABELS[destino]}?`,
+      message: motivo,
+      confirmLabel: `Mover a ${SUPPLIER_STATUS_LABELS[destino]}`,
+      tone: 'default',
+    })
+    if (ok) onStatusChange(item.id, destino)
+    else recordarRechazo(item.id, destino)
+  }
 
   const moverA = (destino: SupplierStatus) => {
     setMenuAbierto(false)
@@ -301,6 +458,7 @@ export default function FichaDelEvento({
             <p className="truncate text-[11.5px] text-[#999] lg:text-xs">
               {[categoria, s.subcategory, s.city].filter(Boolean).join(' · ')}
             </p>
+            <Estrellas score={scores.desempeno} tamano={12} className="shrink-0" />
           </div>
 
 
@@ -322,9 +480,9 @@ export default function FichaDelEvento({
 
         {/* Escritorio: contactos y el boton de mover */}
         <div className="mt-2.5 hidden flex-wrap items-center gap-1.5 lg:flex">
-          {waDigitos && (
+          {waLink && (
             <button
-              onClick={() => abrir(`https://wa.me/${waDigitos}`)}
+              onClick={() => abrir(waLink)}
               className="flex items-center gap-1.5 rounded-lg bg-[#48C9B0] px-2.5 py-1.5 text-[11px] font-semibold text-white transition hover:bg-[#3aa896]"
             >
               <FaWhatsapp size={13} /> WhatsApp
@@ -340,6 +498,12 @@ export default function FichaDelEvento({
             <button onClick={() => abrir(igLink)} aria-label="Abrir Instagram"
               className="flex h-[26px] w-[26px] items-center justify-center rounded-lg border border-[#e8e8e8] bg-white text-[#777] transition hover:text-[#1D1E20]">
               <FiInstagram size={13} />
+            </button>
+          )}
+          {fbLink && (
+            <button onClick={() => abrir(fbLink)} aria-label="Abrir Facebook"
+              className="flex h-[26px] w-[26px] items-center justify-center rounded-lg border border-[#e8e8e8] bg-white text-[#777] transition hover:text-[#1D1E20]">
+              <FiFacebook size={13} />
             </button>
           )}
           {webLink && (
@@ -389,9 +553,9 @@ export default function FichaDelEvento({
             }`}
           >
             {nombre}
-            {nombre === 'Pagos' && pagos.length > 0 && (
+            {nombre === 'Pagos' && nPagos > 0 && (
               <span className={`rounded-full px-1.5 text-[10px] font-bold ${i === carpeta ? 'bg-[#f4f4f4] text-[#666]' : 'bg-white/70 text-[#777]'}`}>
-                {pagos.length}
+                {nPagos}
               </span>
             )}
           </button>
@@ -415,7 +579,26 @@ export default function FichaDelEvento({
                 <input type="email" value={borrador.correo} onChange={e => setBorrador(b => ({ ...b, correo: e.target.value }))} placeholder="contacto@proveedor.com" className={INPUT} />
               </Campo>
               <Campo etiqueta="Instagram">
-                <input value={borrador.instagram} onChange={e => setBorrador(b => ({ ...b, instagram: e.target.value }))} placeholder="@usuario" className={INPUT} />
+                <div className={PREFIJO}>
+                  <span className="pl-3 text-sm text-[#aaa]">@</span>
+                  <input
+                    value={borrador.instagram}
+                    onChange={e => setBorrador(b => ({ ...b, instagram: e.target.value.replace(/[^a-zA-Z0-9._]/g, '') }))}
+                    placeholder="proveedor"
+                    className="w-full flex-1 bg-transparent px-2 py-2 text-sm outline-none"
+                  />
+                </div>
+              </Campo>
+              <Campo etiqueta="Facebook">
+                <div className={PREFIJO}>
+                  <span className="pl-3 text-sm text-[#aaa]">fb.com/</span>
+                  <input
+                    value={borrador.facebook}
+                    onChange={e => setBorrador(b => ({ ...b, facebook: e.target.value.replace(/^@/, '') }))}
+                    placeholder="proveedor"
+                    className="w-full flex-1 bg-transparent px-2 py-2 text-sm outline-none"
+                  />
+                </div>
               </Campo>
               <Campo etiqueta="Sitio">
                 <input value={borrador.sitio} onChange={e => setBorrador(b => ({ ...b, sitio: e.target.value }))} placeholder="proveedor.com" className={INPUT} />
@@ -462,10 +645,6 @@ export default function FichaDelEvento({
               </Campo>
             </div>
 
-            <Campo etiqueta="Notas de esta boda">
-              <textarea rows={3} value={borrador.notasBoda} onChange={e => setBorrador(b => ({ ...b, notasBoda: e.target.value }))} placeholder="Acuerdos, pendientes, detalles de esta boda" className={`${INPUT} resize-none`} />
-            </Campo>
-
             <Campo etiqueta="Notas del proveedor">
               <textarea rows={2} value={borrador.notasProveedor} onChange={e => setBorrador(b => ({ ...b, notasProveedor: e.target.value }))} placeholder="Lo que aplica para todas tus bodas con él" className={`${INPUT} resize-none`} />
             </Campo>
@@ -503,7 +682,8 @@ export default function FichaDelEvento({
               <dl className="grid grid-cols-2 gap-x-5 gap-y-2.5">
                 <Dato etiqueta="WhatsApp" valor={telVisible} />
                 <Dato etiqueta="Correo" valor={s.email} />
-                <Dato etiqueta="Instagram" valor={s.instagram} />
+                <Dato etiqueta="Instagram" valor={s.instagram ? '@' + s.instagram.replace(/^@/, '') : null} />
+                <Dato etiqueta="Facebook" valor={s.facebook ? 'fb.com/' + s.facebook.replace(/^@/, '') : null} />
                 <Dato etiqueta="Sitio" valor={s.website} />
                 <Dato etiqueta="Persona de contacto" valor={s.contact_name} />
                 <Dato etiqueta="Dónde" valor={[s.city, s.state_region].filter(Boolean).join(', ') || null} />
@@ -511,10 +691,6 @@ export default function FichaDelEvento({
               <p className="mt-3 text-[11px] text-[#aaa]">
                 Esto vive en tu Rolodex: si lo corriges, queda corregido en todas tus bodas.
               </p>
-            </Bloque>
-
-            <Bloque titulo="Notas de esta boda">
-              <Texto valor={item.event_notes} vacio="Sin notas de esta boda." />
             </Bloque>
 
             <Bloque titulo="Notas del proveedor">
@@ -610,9 +786,9 @@ export default function FichaDelEvento({
             </Bloque>
 
             <Bloque titulo="Partida del presupuesto">
-              {partida ? (
+              {partidas.length > 0 ? (
                 <p className="text-sm text-[#1D1E20]">
-                  {partida.subcategory || nombrePorId(categorias, partida.category_id)}
+                  {partidas.map(p => p.subcategory || nombrePorId(categorias, p.category_id)).join(' · ')}
                 </p>
               ) : (
                 <p className="text-xs text-[#999]">Sin ligar a ninguna partida.</p>
@@ -624,11 +800,18 @@ export default function FichaDelEvento({
                 eventId={item.event_id}
                 carpeta="cotizaciones"
                 dueno={item.id}
-                archivos={item.quote_files}
+                archivos={archivosCotizacion}
                 tope={TOPE_COTIZACIONES}
                 puedeEditar={permisoFicha.editar}
                 textoVacio="Sube la cotización"
-                onCambio={lista => onSaved({ ...item, quote_files: lista })}
+                onCambio={lista => {
+                  const subioUnaNueva = visibles(lista).length > cotizaciones.length
+                  setArchivosCotizacion(lista)
+                  onSaved({ ...item, quote_files: lista })
+                  if (subioUnaNueva && item.status === 'nuevo') {
+                    ofrecerAvance('cotizado', 'Ya tiene una cotización guardada.')
+                  }
+                }}
               />
             </Bloque>
           </>
@@ -675,7 +858,7 @@ export default function FichaDelEvento({
                         </span>
                         <span className="truncate">
                           {p.payment_method ? PAYMENT_METHOD_LABELS[p.payment_method] : 'Sin método'}
-                          {p.paid_by ? ` · ${PAID_BY_LABELS[p.paid_by]}` : ''}
+                          {p.paid_by ? ` · ${etiquetaQuienPago(p.paid_by)}` : ''}
                           {p.reference ? ` · ${p.reference}` : ''}
                         </span>
                       </span>
@@ -741,94 +924,66 @@ export default function FichaDelEvento({
           </>
         )}
 
-        {carpetas[carpeta] === 'Reseña' && (
-          <>
-            <div className="rounded-xl border border-[#f0e4c8] bg-[#fffbf0] px-4 py-3 text-xs font-medium text-[#b8912f]">
-              Esta boda ya pasó. ¿Cómo te fue con {s.name}?
-            </div>
-
-            <Bloque titulo="Tu calificación">
-              <div className="flex items-center gap-1">
-                {[1, 2, 3, 4, 5].map(n => (
-                  <button
-                    key={n}
-                    disabled={!permisoFicha.editar}
-                    onClick={() => setResena(r => ({ ...r, estrellas: r.estrellas === n ? 0 : n }))}
-                    aria-label={`${n} de 5`}
-                    className="transition disabled:cursor-default"
-                  >
-                    <Star
-                      size={22}
-                      className={n <= resena.estrellas ? 'fill-[#48C9B0] text-[#48C9B0]' : 'fill-transparent text-[#d8d8d8]'}
-                    />
-                  </button>
-                ))}
-              </div>
-            </Bloque>
-
-            <Bloque titulo="Qué tan rápido contesta">
-              <div className="flex flex-wrap gap-1.5">
-                {RESPONSE_SPEEDS.map(velocidad => (
-                  <button
-                    key={velocidad}
-                    disabled={!permisoFicha.editar}
-                    onClick={() => setResena(r => ({ ...r, velocidad: r.velocidad === velocidad ? null : velocidad }))}
-                    className={`rounded-full border px-3 py-1 text-[11px] font-semibold transition disabled:cursor-default ${
-                      resena.velocidad === velocidad
-                        ? 'border-[#1D1E20] bg-[#1D1E20] text-white'
-                        : 'border-[#e0e0e0] bg-white text-[#666] hover:bg-[#f5f5f5]'
-                    }`}
-                  >
-                    {RESPONSE_SPEED_LABELS[velocidad]}
-                  </button>
-                ))}
-              </div>
-            </Bloque>
-
-            <Bloque titulo="Nota">
-              {permisoFicha.editar ? (
-                <textarea
-                  rows={3}
-                  value={resena.nota}
-                  onChange={e => setResena(r => ({ ...r, nota: e.target.value }))}
-                  placeholder="Cómo cumplió el día del evento"
-                  className={`${INPUT} resize-none`}
-                />
-              ) : (
-                <Texto valor={item.review_text} vacio="Sin nota de cómo te fue." />
-              )}
-            </Bloque>
-
-            {errorGuardar && (
-              <p className="rounded-lg border border-[#ffc0c0] bg-[#fff0f0] px-3 py-2 text-xs text-[#cc3333]">{errorGuardar}</p>
-            )}
-
-            {permisoFicha.editar && (
-              <button
-                onClick={guardarResena}
-                disabled={guardando}
-                className="self-start rounded-lg bg-[#48C9B0] px-3.5 py-2 text-xs font-semibold text-white transition hover:bg-[#3aa896] disabled:opacity-50"
-              >
-                {guardando ? 'Guardando…' : 'Guardar la reseña'}
-              </button>
-            )}
-          </>
-        )}
-
-        {carpetas[carpeta] === 'Motivo' && (
-          <>
-            <Bloque titulo="Por qué lo descartaste">
-              <p className="text-xs text-[#999]">
-                Todavía no se guarda el motivo del descarte. Es la columna que falta del spec.
-              </p>
-            </Bloque>
-            <Bloque titulo="Notas de esta boda">
-              <Texto valor={item.event_notes} vacio="Sin notas." />
-            </Bloque>
-            <p className="text-[11px] text-[#aaa]">Sin estrellas: nunca trabajaste con él, no hay nada que calificar.</p>
-          </>
+        {carpetas[carpeta] === 'Review' && (
+          cargandoReviews ? (
+            <div className="h-28 animate-pulse rounded-lg bg-[#f5f5f5]" />
+          ) : errorReviews ? (
+            <ErrorDeReviews />
+          ) : (
+            <ListaQueFalta
+              filas={filasReview}
+              reviewDe={reviewDe}
+              puedeEditar={permisoFicha.editar}
+              onCalificar={abrirModalDe}
+            />
+          )
         )}
       </div>
+
+      {mostrarModalContratacion && userId && duenoEvento && (
+        <ReviewContratacionModal
+          eventSupplierId={item.id}
+          supplierId={item.supplier_id}
+          eventId={item.event_id}
+          duenoId={duenoEvento}
+          createdBy={userId}
+          supplierName={s.name}
+          eventName={eventName}
+          reviewExistente={reviewContratacion}
+          onSaved={() => { setMostrarModalContratacion(false); cargarReviews(item.supplier_id); onDerivadosCambiaron?.() }}
+          onSkip={() => setMostrarModalContratacion(false)}
+        />
+      )}
+
+      {mostrarModalDescarte && userId && duenoEvento && (
+        <ReviewDescarteModal
+          eventSupplierId={item.id}
+          supplierId={item.supplier_id}
+          eventId={item.event_id}
+          duenoId={duenoEvento}
+          createdBy={userId}
+          supplierName={s.name}
+          eventName={eventName}
+          reviewExistente={reviewDescarte}
+          onSaved={() => { setMostrarModalDescarte(false); cargarReviews(item.supplier_id); onDerivadosCambiaron?.() }}
+          onSkip={() => setMostrarModalDescarte(false)}
+        />
+      )}
+
+      {mostrarModalDesempeno && userId && duenoEvento && (
+        <ReviewDesempenoModal
+          eventSupplierId={item.id}
+          supplierId={item.supplier_id}
+          eventId={item.event_id}
+          duenoId={duenoEvento}
+          createdBy={userId}
+          supplierName={s.name}
+          eventName={eventName}
+          reviewExistente={reviewPostEvento}
+          onSaved={() => { setMostrarModalDesempeno(false); cargarReviews(item.supplier_id); onDerivadosCambiaron?.() }}
+          onSkip={() => setMostrarModalDesempeno(false)}
+        />
+      )}
 
       {(cobrando || pagoEnEdicion) && (
         <PagoModal
@@ -839,19 +994,26 @@ export default function FichaDelEvento({
           contratado={contratado}
           pagadoHastaAhora={pagado}
           pago={pagoEnEdicion}
-          onGuardado={pago => setPagos(previos =>
-            previos.some(otro => otro.id === pago.id)
-              ? previos.map(otro => (otro.id === pago.id ? pago : otro))
-              : [pago, ...previos]
-          )}
+          onGuardado={pago => {
+            const esNuevo = !pagos.some(otro => otro.id === pago.id)
+            setPagos(previos =>
+              previos.some(otro => otro.id === pago.id)
+                ? previos.map(otro => (otro.id === pago.id ? pago : otro))
+                : [pago, ...previos]
+            )
+            onDerivadosCambiaron?.()
+            if (esNuevo && (item.status === 'nuevo' || item.status === 'cotizado')) {
+              ofrecerAvance('contratado', 'Ya tiene un pago registrado.')
+            }
+          }}
           onCerrar={() => { setCobrando(false); setPagoEnEdicion(null) }}
         />
       )}
 
       <div className="flex shrink-0 items-center gap-2 border-t border-[#e8e8e8] bg-white px-4 py-2.5 lg:hidden">
-        {waDigitos && (
+        {waLink && (
           <button
-            onClick={() => abrir(`https://wa.me/${waDigitos}`)}
+            onClick={() => abrir(waLink)}
             aria-label="Abrir WhatsApp"
             className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#48C9B0] text-white transition"
           >
@@ -868,6 +1030,12 @@ export default function FichaDelEvento({
           <button onClick={() => abrir(igLink)} aria-label="Abrir Instagram"
             className="flex h-9 w-9 items-center justify-center rounded-lg border border-[#e8e8e8] bg-white text-[#666]">
             <FiInstagram size={16} />
+          </button>
+        )}
+        {fbLink && (
+          <button onClick={() => abrir(fbLink)} aria-label="Abrir Facebook"
+            className="flex h-9 w-9 items-center justify-center rounded-lg border border-[#e8e8e8] bg-white text-[#666]">
+            <FiFacebook size={16} />
           </button>
         )}
         {webLink && (
@@ -912,6 +1080,7 @@ export default function FichaDelEvento({
 }
 
 const INPUT = 'w-full rounded-lg border border-[#e0e0e0] bg-white px-3 py-2 text-sm outline-none transition focus:border-[#48C9B0]'
+const PREFIJO = 'flex items-center rounded-lg border border-[#e0e0e0] bg-white transition focus-within:border-[#48C9B0]'
 
 function borradorDe(item: SupplierWithDetails) {
   const s = item.supplier
@@ -921,6 +1090,7 @@ function borradorDe(item: SupplierWithDetails) {
     telefono:       s.phone ?? '',
     correo:         s.email ?? '',
     instagram:      s.instagram ?? '',
+    facebook:       s.facebook ?? '',
     sitio:          s.website ?? '',
     pais:           s.country || PAIS_POR_DEFECTO,
     ciudad:         s.city ?? '',
@@ -935,14 +1105,6 @@ function montosDe(item: SupplierWithDetails) {
     cotizado:   item.quoted_amount?.toString() ?? '',
     contratado: item.contract_amount?.toString() ?? '',
     partida:    item.event_budget_id ?? '',
-  }
-}
-
-function resenaDe(item: SupplierWithDetails) {
-  return {
-    estrellas: item.rating ?? 0,
-    velocidad: item.response_speed as ResponseSpeed | null,
-    nota:      item.review_text ?? '',
   }
 }
 
@@ -1024,6 +1186,79 @@ function Dato({ etiqueta, valor }: { etiqueta: string; valor: string | null | un
 function Texto({ valor, vacio }: { valor: string | null; vacio: string }) {
   if (!valor) return <p className="text-xs text-[#999]">{vacio}</p>
   return <p className="whitespace-pre-wrap text-sm text-[#555]">{valor}</p>
+}
+
+// La lista "Que falta": de un vistazo, que ya se califico y que no. Un
+// renglon hecho no se despliega: se abre en su modal, para editar si se
+// puede y solo para leer si no. Hecha o pendiente se distinguen por forma
+// (palomita llena / circulo punteado), no solo por color.
+function ListaQueFalta({ filas, reviewDe, puedeEditar, onCalificar }: {
+  filas: ReturnType<typeof filasDeReview>
+  reviewDe: (tipo: TipoReviewFicha) => SupplierReview | null
+  puedeEditar: boolean
+  onCalificar: (tipo: TipoReviewFicha) => void
+}) {
+  return (
+    <section className="overflow-hidden rounded-xl border border-[#eee]">
+      <div className="flex items-center justify-between bg-[#fafafa] px-4 py-2 text-[10.5px] font-bold uppercase tracking-wider text-[#999]">
+        <span>Qué falta</span>
+        <span>{resumenPendientes(filas)}</span>
+      </div>
+      {filas.length === 0 ? (
+        <p className="px-4 py-3 text-xs text-[#999]">Se califica al contratarlo o al descartarlo.</p>
+      ) : (
+        <ul>
+          {filas.map(({ tipo, hecha }) => {
+            const review = hecha ? reviewDe(tipo) : null
+            const propio = review ? calcularScores([review]) : null
+            const score = propio ? (tipo === 'post_evento' ? propio.desempeno : propio.propuesta) : null
+            return (
+              <li key={tipo} className="flex items-center gap-3 border-t border-[#f2f2f2] px-4 py-2.5">
+                <span
+                  aria-hidden
+                  className={'flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-[1.5px] ' + (
+                    hecha ? 'border-[#48C9B0] bg-[#48C9B0] text-white' : 'border-dashed border-[#d4a853]'
+                  )}
+                >
+                  {hecha && <Check size={11} strokeWidth={3} />}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[13px] font-semibold text-[#1D1E20]">{TITULO_REVIEW_FICHA[tipo]}</span>
+                  <span className="block text-[11px] text-[#999]">{DESCRIPCION_REVIEW_FICHA[tipo]}</span>
+                </span>
+                <span className="flex shrink-0 items-center gap-2.5">
+                  {hecha ? (
+                    <>
+                      <Estrellas score={score} tamano={12} />
+                      <button
+                        type="button"
+                        onClick={() => onCalificar(tipo)}
+                        className="flex items-center gap-1 text-[11px] font-semibold text-[#48C9B0] transition hover:text-[#3aa896]"
+                      >
+                        {puedeEditar ? <><Pencil size={11} /> Editar</> : <><Eye size={11} /> Ver</>}
+                      </button>
+                    </>
+                  ) : puedeEditar ? (
+                    <button
+                      type="button"
+                      onClick={() => onCalificar(tipo)}
+                      className="rounded-lg bg-[#48C9B0] px-3 py-1.5 text-[11.5px] font-semibold text-white transition hover:bg-[#3aa896]"
+                    >
+                      {BOTON_CALIFICAR}
+                    </button>
+                  ) : (
+                    <span className="rounded-full border border-[#efd9a6] bg-[#fdf8ee] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#a9812f]">
+                      Pendiente
+                    </span>
+                  )}
+                </span>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+    </section>
+  )
 }
 
 function Renglon({ etiqueta, valor, currency, vacio, fuerte, color }: {

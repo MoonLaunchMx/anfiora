@@ -1,6 +1,7 @@
 import * as XLSX from 'xlsx'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
+import { etiquetaQuienPago } from '@/lib/pagos/quien-pago'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -79,7 +80,7 @@ export function exportPagosToExcel(data: PagosExportData) {
       tab1.push([
         i === 0 ? supplierName : '',
         fmtDate(p.payment_date),
-        p.paid_by   || '—',
+        etiquetaQuienPago(p.paid_by) || '—',
         METHOD_LABEL[p.payment_method || ''] || p.payment_method || '—',
         p.reference || '—',
         p.amount,
@@ -108,7 +109,7 @@ export function exportPagosToExcel(data: PagosExportData) {
   data.pagos.forEach(p => {
     tab2.push([
       p.supplier_name,
-      p.paid_by   || '—',
+      etiquetaQuienPago(p.paid_by) || '—',
       METHOD_LABEL[p.payment_method || ''] || p.payment_method || '—',
       p.amount,
       fmtDate(p.payment_date),
@@ -194,7 +195,7 @@ export function exportPagosToPDF(data: PagosExportData) {
       tableRows.push([
         { content: supplierName, styles: { textColor: [150, 150, 150], fontSize: 7.5 } },
         fmtDate(p.payment_date),
-        p.paid_by   || '—',
+        etiquetaQuienPago(p.paid_by) || '—',
         METHOD_LABEL[p.payment_method || ''] || p.payment_method || '—',
         p.reference || '—',
         { content: fmtCurrency(p.amount, data.currency), styles: { halign: 'right' } },

@@ -591,6 +591,8 @@ export const SUPPLIER_STATUS_COLORS: Record<SupplierStatus, string> = {
   descartado: 'bg-red-100 text-red-600',
 }
 
+// Heredado: reemplazado por supplier_reviews (lib/reviews). Se conserva porque
+// lo usa la migracion de datos viejos en docs/superpowers/plans/sql/2026-09-06-migrar-resenas-viejas.sql.
 export const SUPPLIER_MOODS = ['no', 'normal', 'love'] as const
 export type SupplierMood = typeof SUPPLIER_MOODS[number]
 
@@ -612,6 +614,8 @@ export const SUPPLIER_MOOD_COLORS: Record<SupplierMood, string> = {
   love:   'text-[#48C9B0]',
 }
 
+// Heredado: reemplazado por supplier_reviews (lib/reviews). Se conserva porque
+// lo usa la migracion de datos viejos en docs/superpowers/plans/sql/2026-09-06-migrar-resenas-viejas.sql.
 export const RESPONSE_SPEEDS = ['lentisimo', 'normal', 'bueno', 'rapidos'] as const
 export type ResponseSpeed = typeof RESPONSE_SPEEDS[number]
 
@@ -647,12 +651,8 @@ export type EventSupplier = {
   event_id: string
   supplier_id: string
   status: SupplierStatus
-  mood: SupplierMood | null
-  response_speed: ResponseSpeed | null
   quoted_amount: number | null
   contract_amount: number | null
-  rating: number | null
-  review_text: string | null
   event_notes: string | null
   quote_files: ArchivoAdjunto[]
   event_budget_id: string | null
@@ -671,6 +671,83 @@ export type EventSupplierWithDetails = EventSupplier & {
   payments: SupplierPayment[]
   total_paid?: number
   payment_progress?: number
+}
+
+export const REVIEW_TYPES = ['contratacion', 'descarte', 'post_evento'] as const
+export type ReviewType = typeof REVIEW_TYPES[number]
+
+export const REVIEW_AUTORES = ['planner', 'cliente'] as const
+export type ReviewAutor = typeof REVIEW_AUTORES[number]
+
+export const MOTIVOS_DESCARTE = [
+  'precio',
+  'disponibilidad',
+  'comunicacion',
+  'calidad',
+  'estilo',
+  'cliente_eligio_otro',
+  'no_respondio',
+] as const
+export type MotivoDescarte = typeof MOTIVOS_DESCARTE[number]
+
+export const MOTIVO_DESCARTE_LABEL: Record<MotivoDescarte, string> = {
+  precio:              'Precio fuera de presupuesto',
+  disponibilidad:      'No disponible en la fecha',
+  comunicacion:        'Comunicación lenta o poco clara',
+  calidad:             'Propuesta o calidad insuficiente',
+  estilo:              'No encajaba con el estilo del evento',
+  cliente_eligio_otro: 'El cliente eligió a otro',
+  no_respondio:        'Se retiró o no respondió',
+}
+
+export const RAZONES_SELECCION = [
+  'precio',
+  'relacion_calidad_precio',
+  'calidad',
+  'disponibilidad',
+  'comunicacion',
+  'recomendacion',
+  'estilo',
+  'decision_cliente',
+] as const
+export type RazonSeleccion = typeof RAZONES_SELECCION[number]
+
+export const RAZON_SELECCION_LABEL: Record<RazonSeleccion, string> = {
+  precio:                  'Mejor precio',
+  relacion_calidad_precio: 'Mejor relación calidad/precio',
+  calidad:                 'Mejor calidad o portafolio',
+  disponibilidad:          'Disponibilidad en la fecha',
+  comunicacion:            'Mejor comunicación',
+  recomendacion:           'Recomendación o relación previa',
+  estilo:                  'Encajaba con el estilo del evento',
+  decision_cliente:        'Decisión del cliente',
+}
+
+export const MAX_RAZONES_SELECCION = 2
+export const MAX_COMENTARIOS = 500
+
+export interface SupplierReview {
+  id: string
+  user_id: string
+  supplier_id: string
+  event_id: string
+  event_supplier_id: string
+  review_type: ReviewType
+  autor: ReviewAutor
+  precio_valor: number | null
+  calidad: number | null
+  comunicacion: number | null
+  servicio_trato: number | null
+  manejo_imprevistos: number | null
+  razones_seleccion: RazonSeleccion[] | null
+  motivo_descarte: MotivoDescarte | null
+  recontratacion: number | null
+  cobros_extra: boolean | null
+  monto_cobros_extra: number | null
+  comentarios: string | null
+  created_by: string | null
+  created_at: string
+  updated_at: string
 }
 
 // ─── FINANZAS — SUPPLIER PAYMENTS ────────────────────────────────────────────
@@ -723,7 +800,10 @@ export type SupplierPayment = {
   amount: number
   payment_date: string
   payment_method: PaymentMethod | null
-  paid_by: PaidBy | null
+  // Ya no es un enum: texto libre por evento. PAID_BY_LABELS se conserva
+  // solo para traducir las claves heredadas (novia, papas_novio, etc.) a su
+  // etiqueta donde se muestren — ver lib/pagos/quien-pago.ts.
+  paid_by: string | null
   reference: string | null
   receipt_files: ArchivoAdjunto[]
   created_at: string

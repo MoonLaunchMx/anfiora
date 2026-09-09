@@ -1,19 +1,30 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'next/navigation'
-import { Search, Plus, List, Columns3, Disc3 } from 'lucide-react'
+import { Search, Plus, List, Columns2, Columns3, Disc3, Filter } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import {
-  Event, EventBudget, EventSupplier, Supplier,
-  SupplierStatus, Currency, formatCurrency,
+  Event, EventBudget, EventSupplier, Supplier, MotivoDescarte,
+  SupplierStatus, SUPPLIER_STATUSES, SUPPLIER_STATUS_LABELS, Currency, formatCurrency,
 } from '@/lib/types'
-import { Categoria, activas, cargarCategorias, nombrePorId } from '@/lib/rolodex/categorias-store'
+import { Categoria, activas, agregarCategoria, cargarCategorias, nombrePorId } from '@/lib/rolodex/categorias-store'
+import {
+  COLUMNAS_LISTA, COLUMNA_SIEMPRE_VISIBLE, ColumnaListaKey, columnasPorDefecto, columnasValidasDesdeJSON,
+} from '@/lib/rolodex/columnas-lista'
+import {
+  FiltrosProveedores, FiltroDesempeno, FILTROS_DESEMPENO,
+  filtrosVacios, contarFiltrosActivos, aplicarFiltrosProveedores,
+} from '@/lib/rolodex/filtros'
 import StatsCollapse, { useStatsToggle, StatsToggleButton } from '@/app/components/ui/StatsCollapse'
 import AltaProveedor, { EnEstaBoda, ProveedorNuevo } from './AltaProveedor'
 import { EntradaDelRolodex } from '@/lib/rolodex/duplicados'
+import { calcularScores } from '@/lib/reviews/scores'
+import type { ReviewParaScore } from '@/lib/reviews/scores'
+import { useGuardarCambioDeEstado } from '@/lib/rolodex/usar-bloqueo-retroceso'
 import FichaModal from './FichaModal'
-import SupplierReviewModal from './SupplierReviewModal'
+import ReviewContratacionModal from './ReviewContratacionModal'
+import ReviewDescarteModal from './ReviewDescarteModal'
 import SupplierListView from './SupplierListView'
 import SupplierKanbanView from './SupplierKanbanView'
 import SupplierFicheroView from './SupplierFicheroView'
@@ -34,28 +45,212 @@ function mesYAno(fecha: string | null): string {
   return MESES[i] ? `${MESES[i]} ${ano}` : ano
 }
 
+const colStorageKey = (eventId: string) => `anfiora_proveedores_${eventId}_columnas`
+
+function cargarColumnas(eventId: string): Set<ColumnaListaKey> {
+  if (typeof window === 'undefined') return columnasPorDefecto()
+  try {
+    const raw = localStorage.getItem(colStorageKey(eventId))
+    // Un JSON.parse que no truena no es lo mismo que una forma valida (ver el
+    // comentario de columnasValidasDesdeJSON): se valida la forma antes de
+    // confiar en lo guardado, o un valor corrupto deja la Lista sin columnas.
+    const validas = raw ? columnasValidasDesdeJSON(JSON.parse(raw)) : null
+    if (validas) return validas
+  } catch {}
+  return columnasPorDefecto()
+}
+
+type FiltrosSerializados = { categoria: string[]; estatus: string[]; ciudad: string[]; desempeno: string[] }
+
+const filtroStorageKey = (eventId: string) => `anfiora_proveedores_${eventId}_filtros`
+
+function serializarFiltros(f: FiltrosProveedores): FiltrosSerializados {
+  return { categoria: [...f.categoria], estatus: [...f.estatus], ciudad: [...f.ciudad], desempeno: [...f.desempeno] }
+}
+
+function cargarFiltros(eventId: string): FiltrosProveedores {
+  if (typeof window === 'undefined') return filtrosVacios()
+  try {
+    const raw = localStorage.getItem(filtroStorageKey(eventId))
+    if (raw) {
+      const s = JSON.parse(raw) as FiltrosSerializados
+      return {
+        categoria: new Set(s.categoria ?? []),
+        estatus:   new Set((s.estatus ?? []) as SupplierStatus[]),
+        ciudad:    new Set(s.ciudad ?? []),
+        desempeno: new Set((s.desempeno ?? []) as FiltroDesempeno[]),
+      }
+    }
+  } catch {}
+  return filtrosVacios()
+}
+
+function conFiltroActualizado(prev: FiltrosProveedores, mutar: (next: FiltrosProveedores) => void): FiltrosProveedores {
+  const next: FiltrosProveedores = {
+    categoria: new Set(prev.categoria),
+    estatus:   new Set(prev.estatus),
+    ciudad:    new Set(prev.ciudad),
+    desempeno: new Set(prev.desempeno),
+  }
+  mutar(next)
+  return next
+}
+
 export default function ProveedoresPage() {
   const { id } = useParams()
   const eventId = id as string
   const permiso = usePermiso('proveedores')
+  const bloqueaCambioDeEstado = useGuardarCambioDeEstado()
 
   const [event, setEvent]     = useState<Event | null>(null)
   const [items, setItems]     = useState<SupplierWithDetails[]>([])
   const [budgets, setBudgets] = useState<EventBudget[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch]   = useState('')
-  const [filterCategory, setFilterCategory] = useState<string>('')
   const [categorias, setCategorias] = useState<Categoria[]>([])
   const [duenoCatalogo, setDuenoCatalogo] = useState<string | null>(null)
   const [catalogoBase, setCatalogoBase] = useState<EntradaDelRolodex[]>([])
+  // Desempeno por proveedor (id de suppliers, no de event_suppliers): se carga
+  // una sola vez aqui y baja a Fichero y Kanban, para que ninguna tarjeta pida
+  // sus propias reviews.
+  const [desempenoPorProveedor, setDesempenoPorProveedor] = useState<Record<string, number | null>>({})
+  // Pagado y motivo de descarte por proveedor DE ESTA boda (event_supplier.id,
+  // no supplier_id): a diferencia del desempeno, que es la reputacion del
+  // proveedor en todas sus bodas, esto es especifico de esta.
+  const [paidByItem, setPaidByItem] = useState<Record<string, number>>({})
+  // Cuantos pagos tiene cada proveedor: la pestaña Pagos de la ficha lo pinta
+  // desde el primer frame en vez de esperar su propia consulta.
+  const [conteoPagosPorItem, setConteoPagosPorItem] = useState<Record<string, number>>({})
+  const [motivoDescartePorItem, setMotivoDescartePorItem] = useState<Record<string, MotivoDescarte | null>>({})
   const [viewMode, setViewMode] = useState<ViewMode>('fichero')
   const [modalOpen, setModalOpen]       = useState(false)
   const [selectedItem, setSelectedItem] = useState<SupplierWithDetails | null>(null)
+  const [enfocar, setEnfocar]           = useState<SupplierWithDetails | null>(null)
   const [reviewItem, setReviewItem]     = useState<SupplierWithDetails | null>(null)
+  const [userId, setUserId]             = useState<string | null>(null)
+  // Id del proveedor recien calificado desde el aviso automatico de review:
+  // se avisa a la ficha que este viendo (Fichero o FichaModal) para que, si
+  // es la misma, se quede abierta en la pestana Review. Nunca se decide por
+  // posicion en una lista, siempre por este id.
+  const [revisionParaId, setRevisionParaId] = useState<string | null>(null)
+
+  const [visibleCols, setVisibleCols] = useState<Set<ColumnaListaKey>>(() => cargarColumnas(eventId))
+  const [showColMenu, setShowColMenu] = useState(false)
+  const colMenuRef = useRef<HTMLDivElement>(null)
+
+  const [filtros, setFiltros] = useState<FiltrosProveedores>(() => cargarFiltros(eventId))
+  const [showFilterMenu, setShowFilterMenu] = useState(false)
+  const filterMenuRef = useRef<HTMLDivElement>(null)
 
   const statsToggle = useStatsToggle(eventId, 'proveedores')
 
   useEffect(() => { if (eventId) loadAll() }, [eventId])
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => setUserId(data.user?.id ?? null))
+  }, [])
+
+  useEffect(() => {
+    const alClicarFuera = (e: MouseEvent) => {
+      if (colMenuRef.current && !colMenuRef.current.contains(e.target as Node)) setShowColMenu(false)
+      if (filterMenuRef.current && !filterMenuRef.current.contains(e.target as Node)) setShowFilterMenu(false)
+    }
+    document.addEventListener('mousedown', alClicarFuera)
+    return () => document.removeEventListener('mousedown', alClicarFuera)
+  }, [])
+
+  const toggleCol = (key: ColumnaListaKey) => {
+    setVisibleCols(prev => {
+      if (key === COLUMNA_SIEMPRE_VISIBLE && prev.has(key)) return prev
+      const next = new Set(prev)
+      next.has(key) ? next.delete(key) : next.add(key)
+      try { localStorage.setItem(colStorageKey(eventId), JSON.stringify(Array.from(next))) } catch {}
+      return next
+    })
+  }
+
+  const guardarFiltros = (f: FiltrosProveedores): FiltrosProveedores => {
+    try { localStorage.setItem(filtroStorageKey(eventId), JSON.stringify(serializarFiltros(f))) } catch {}
+    return f
+  }
+  const toggleCategoriaFiltro = (id: string) =>
+    setFiltros(prev => guardarFiltros(conFiltroActualizado(prev, n => { n.categoria.has(id) ? n.categoria.delete(id) : n.categoria.add(id) })))
+  const toggleEstatusFiltro = (s: SupplierStatus) =>
+    setFiltros(prev => guardarFiltros(conFiltroActualizado(prev, n => { n.estatus.has(s) ? n.estatus.delete(s) : n.estatus.add(s) })))
+  const toggleCiudadFiltro = (c: string) =>
+    setFiltros(prev => guardarFiltros(conFiltroActualizado(prev, n => { n.ciudad.has(c) ? n.ciudad.delete(c) : n.ciudad.add(c) })))
+  const toggleDesempenoFiltro = (d: FiltroDesempeno) =>
+    setFiltros(prev => guardarFiltros(conFiltroActualizado(prev, n => { n.desempeno.has(d) ? n.desempeno.delete(d) : n.desempeno.add(d) })))
+  const quitarTodosLosFiltros = () => setFiltros(guardarFiltros(filtrosVacios()))
+
+  const filtrosActivos = contarFiltrosActivos(filtros)
+
+  // Se recalcula cuando cambia QUE proveedores hay (alta, baja), no en cada
+  // edicion: mover un estatus o corregir un telefono no cambia pagos ni
+  // descartes, y releerlos en cada setItems era el doble de consultas por
+  // accion. Lo que si los cambia (un pago, una review) avisa por refrescarDerivados.
+  const claveDeItems = useMemo(() => items.map(i => i.id).join(','), [items])
+  useEffect(() => { cargarDineroYReviews(claveDeItems ? claveDeItems.split(',') : []) }, [claveDeItems])
+
+  const cargarDineroYReviews = async (ids: string[]) => {
+    if (ids.length === 0) { setPaidByItem({}); setConteoPagosPorItem({}); setMotivoDescartePorItem({}); return }
+
+    const [{ data: pagos, error: errPagos }, { data: descartes, error: errDescartes }] = await Promise.all([
+      supabase.from('supplier_payments').select('event_supplier_id, amount').in('event_supplier_id', ids),
+      supabase.from('supplier_reviews').select('event_supplier_id, motivo_descarte').eq('review_type', 'descarte').in('event_supplier_id', ids),
+    ])
+    if (errPagos) console.error('Error cargando pagos de proveedores:', errPagos.message ?? errPagos, errPagos)
+    if (errDescartes) console.error('Error cargando motivos de descarte:', errDescartes.message ?? errDescartes, errDescartes)
+
+    const pagosPorItem: Record<string, number> = {}
+    const conteoPorItem: Record<string, number> = {}
+    for (const p of (pagos ?? []) as { event_supplier_id: string; amount: number }[]) {
+      pagosPorItem[p.event_supplier_id] = (pagosPorItem[p.event_supplier_id] ?? 0) + (p.amount || 0)
+      conteoPorItem[p.event_supplier_id] = (conteoPorItem[p.event_supplier_id] ?? 0) + 1
+    }
+    setPaidByItem(pagosPorItem)
+    setConteoPagosPorItem(conteoPorItem)
+
+    const motivos: Record<string, MotivoDescarte | null> = {}
+    for (const r of (descartes ?? []) as { event_supplier_id: string; motivo_descarte: MotivoDescarte | null }[]) {
+      motivos[r.event_supplier_id] = r.motivo_descarte
+    }
+    setMotivoDescartePorItem(motivos)
+  }
+
+  // Desempeno (ids de suppliers): se separa de cargarCatalogo para poder
+  // refrescarlo solo, sin releer todo el catalogo, cuando se guarda una
+  // review de desempeno. Se mergea sobre lo que ya habia en vez de reemplazar
+  // todo el mapa: un refresco parcial (solo los proveedores de esta boda) no
+  // debe borrar el desempeno de fichas del Rolodex que no estan en `ids`.
+  const cargarDesempeno = async (ids: string[]) => {
+    if (ids.length === 0) return
+    const { data: reviewRows, error: errReviews } = await supabase
+      .from('supplier_reviews')
+      .select('supplier_id, review_type, autor, precio_valor, calidad, comunicacion, servicio_trato, manejo_imprevistos')
+      .in('supplier_id', ids)
+      .eq('review_type', 'post_evento')
+      .eq('autor', 'planner')
+    if (errReviews) { console.error('Error leyendo las reviews del Rolodex:', errReviews?.message ?? errReviews, errReviews); return }
+
+    const reviewsPorFicha = new Map<string, ReviewParaScore[]>()
+    for (const r of (reviewRows ?? []) as (ReviewParaScore & { supplier_id: string })[]) {
+      const lista = reviewsPorFicha.get(r.supplier_id) ?? []
+      lista.push(r)
+      reviewsPorFicha.set(r.supplier_id, lista)
+    }
+    const desempeno: Record<string, number | null> = {}
+    for (const id of ids) desempeno[id] = calcularScores(reviewsPorFicha.get(id) ?? []).desempeno
+    setDesempenoPorProveedor(prev => ({ ...prev, ...desempeno }))
+  }
+
+  // Se llama tras guardar cualquiera de las cuatro cosas que Lista, Kanban y
+  // Fichero muestran pero no viven en `items`: la review de contratacion, la
+  // de descarte, la de desempeno post-evento, y un pago. Sin esto esas vistas
+  // se quedan con el valor de antes hasta recargar la pagina.
+  const refrescarDerivados = () => {
+    cargarDineroYReviews(items.map(i => i.id))
+    cargarDesempeno(items.map(i => i.supplier_id))
+  }
 
   const loadAll = async () => {
     setLoading(true)
@@ -89,7 +284,7 @@ export default function ProveedoresPage() {
   // avisar de un duplicado antes de crearlo. Hasta hoy el catalogo solo se
   // escribia, nunca se leia.
   const cargarCatalogo = async (dueno: string | null) => {
-    if (!dueno) { setCatalogoBase([]); return }
+    if (!dueno) { setCatalogoBase([]); setDesempenoPorProveedor({}); return }
 
     const { data: fichas, error } = await supabase
       .from('suppliers')
@@ -97,14 +292,17 @@ export default function ProveedoresPage() {
       .eq('user_id', dueno)
       .is('archived_at', null)
 
-    if (error) { console.error('Error cargando el Rolodex:', error?.message ?? error, error); setCatalogoBase([]); return }
-    if (!fichas || fichas.length === 0) { setCatalogoBase([]); return }
+    if (error) { console.error('Error cargando el Rolodex:', error?.message ?? error, error); setCatalogoBase([]); setDesempenoPorProveedor({}); return }
+    if (!fichas || fichas.length === 0) { setCatalogoBase([]); setDesempenoPorProveedor({}); return }
 
     const ids = fichas.map(f => f.id)
-    const { data: usos } = await supabase
-      .from('event_suppliers')
-      .select('supplier_id, event_id')
-      .in('supplier_id', ids)
+    // El desempeno de cada ficha (para el fichero y el kanban) se calcula aqui
+    // una sola vez para todo el catalogo, no tarjeta por tarjeta; solo
+    // necesita los ids, asi que va en paralelo con los usos.
+    const [{ data: usos }] = await Promise.all([
+      supabase.from('event_suppliers').select('supplier_id, event_id').in('supplier_id', ids),
+      cargarDesempeno(ids),
+    ])
 
     // Los nombres de las bodas van en consulta aparte: incrustar events en la
     // anterior la vuelve un inner join y las bodas que el colaborador no puede
@@ -115,9 +313,15 @@ export default function ProveedoresPage() {
       : { data: [] as { id: string; name: string; event_date: string | null }[] }
 
     const porBoda = new Map((bodas ?? []).map(b => [b.id, b]))
+    const usosPorFicha = new Map<string, { supplier_id: string; event_id: string }[]>()
+    for (const u of usos ?? []) {
+      const lista = usosPorFicha.get(u.supplier_id) ?? []
+      lista.push(u)
+      usosPorFicha.set(u.supplier_id, lista)
+    }
 
     setCatalogoBase(fichas.map(f => {
-      const mios = (usos ?? []).filter(u => u.supplier_id === f.id)
+      const mios = usosPorFicha.get(f.id) ?? []
       const conFecha = mios
         .map(u => porBoda.get(u.event_id))
         .filter((b): b is { id: string; name: string; event_date: string | null } => !!b)
@@ -155,7 +359,7 @@ export default function ProveedoresPage() {
     [catalogoBase, items, categorias],
   )
 
-  const vincularALaBoda = async (supplierId: string, enEstaBoda: EnEstaBoda) => {
+  const vincularALaBoda = async (supplierId: string, enEstaBoda: EnEstaBoda): Promise<SupplierWithDetails> => {
     const { data: nuevo, error } = await supabase
       .from('event_suppliers')
       .insert({
@@ -173,12 +377,25 @@ export default function ProveedoresPage() {
       if (error.code === '23505') throw new Error('Ese proveedor ya está en esta boda')
       throw error
     }
-    if (nuevo) setItems(prev => [nuevo as SupplierWithDetails, ...prev])
+    const item = nuevo as SupplierWithDetails
+    setItems(prev => [item, ...prev])
+    return item
+  }
+
+  // Tras guardar en la alta, aterrizar en la ficha de lo que se acaba de agregar
+  // en vez de dejar al usuario en la lista sin mas señal que la fila nueva. En
+  // Fichero se sigue el mismo camino que un tap de tarjeta (panel en escritorio,
+  // FichaModal en movil, resuelto adentro de SupplierFicheroView); en Lista y
+  // Kanban un tap siempre abre FichaModal, asi que se abre directo aqui.
+  const abrirFichaTrasAlta = (item: SupplierWithDetails) => {
+    if (viewMode === 'fichero') setEnfocar(item)
+    else setSelectedItem(item)
   }
 
   const handleUsarExistente = async (supplierId: string, enEstaBoda: EnEstaBoda) => {
     if (!permiso.editar) return
-    await vincularALaBoda(supplierId, enEstaBoda)
+    const item = await vincularALaBoda(supplierId, enEstaBoda)
+    abrirFichaTrasAlta(item)
   }
 
   const handleCrearNuevo = async (data: ProveedorNuevo) => {
@@ -217,7 +434,7 @@ export default function ProveedoresPage() {
 
     if (supErr) { console.error('Error creando supplier:', supErr?.message ?? supErr, supErr); throw supErr }
 
-    await vincularALaBoda(ficha.id, data)
+    const item = await vincularALaBoda(ficha.id, data)
 
     setCatalogoBase(prev => [...prev, {
       id:          ficha.id,
@@ -234,6 +451,8 @@ export default function ProveedoresPage() {
       ultima:      null,
       enEstaBoda:  false,
     }])
+
+    abrirFichaTrasAlta(item)
   }
 
   const handleAbrirEnEstaBoda = (supplierId: string) => {
@@ -242,45 +461,78 @@ export default function ProveedoresPage() {
     if (item) setSelectedItem(item)
   }
 
-  const handleSavedItem   = (updated: SupplierWithDetails) =>
+  // Actualizar `items` no alcanza: `selectedItem` es otro estado, y sin este
+  // segundo set se queda con la version vieja del proveedor -- por id, nunca
+  // por posicion, o un refresco despues de guardar deja el FichaModal viendo
+  // a alguien mas.
+  const handleSavedItem = (updated: SupplierWithDetails) => {
     setItems(prev => prev.map(it => it.id === updated.id ? updated : it))
-  const handleDeletedItem = (deletedId: string) =>
+    setSelectedItem(prev => prev && prev.id === updated.id ? updated : prev)
+  }
+  const handleDeletedItem = (deletedId: string) => {
     setItems(prev => prev.filter(it => it.id !== deletedId))
-
-  // Review se maneja desde page para evitar stacking context de Framer Motion
-  const handleReviewNeeded = (item: SupplierWithDetails) => {
-    setSelectedItem(null)
-    setReviewItem(item)
+    setSelectedItem(prev => prev && prev.id === deletedId ? null : prev)
   }
 
   const handleStatusChange = async (itemId: string, newStatus: SupplierStatus) => {
     if (!permiso.editar) return
-    const prev = items.find(i => i.id === itemId)
+    const actual = items.find(i => i.id === itemId)
+    if (!actual) return
+    const detenido = await bloqueaCambioDeEstado(
+      itemId, newStatus, actual,
+      destino => handleStatusChange(itemId, destino),
+    )
+    if (detenido) return
+    const prev = actual
     setItems(p => p.map(it => it.id === itemId ? { ...it, status: newStatus } : it))
-    const { error } = await supabase.from('event_suppliers').update({ status: newStatus }).eq('id', itemId)
-    if (error) { console.error('Error actualizando status:', error?.message ?? error, error); loadAll() }
+    setSelectedItem(p => p && p.id === itemId ? { ...p, status: newStatus } : p)
+    // Sin .select() un UPDATE filtrado por RLS no da error: devuelve cero filas.
+    // La pantalla se quedaria con el estado nuevo y, peor, se guardaria una review
+    // de una transicion que nunca ocurrio. Mismo cuidado que en FichaDelEvento.
+    const { data: guardado, error } = await supabase
+      .from('event_suppliers').update({ status: newStatus }).eq('id', itemId).select().maybeSingle()
+    if (error || !guardado) {
+      console.error('Error actualizando status:', error?.message ?? error, error)
+      loadAll()
+      return
+    }
 
-    // Review al arrastrar en kanban a estado final
-    const wasAlreadyFinal = prev?.status === 'contratado' || prev?.status === 'descartado'
-    const isNowFinal      = newStatus === 'contratado' || newStatus === 'descartado'
-    if (!wasAlreadyFinal && isNowFinal && prev && !prev.rating && !prev.review_text) {
-      setReviewItem({ ...prev, status: newStatus })
+    // Review al llegar a un estado final (arrastrar en kanban o mover desde la
+    // ficha). Tambien de descartado a contratado, y al reves: lo que evita
+    // repetirla no es el estado de origen sino que ya exista una review de
+    // ese tipo para este proveedor.
+    const isNowFinal = newStatus === 'contratado' || newStatus === 'descartado'
+    if (isNowFinal && prev) {
+      const reviewType = newStatus === 'contratado' ? 'contratacion' : 'descarte'
+      const { count, error: reviewError } = await supabase
+        .from('supplier_reviews')
+        .select('id', { count: 'exact', head: true })
+        .eq('event_supplier_id', itemId)
+        .eq('review_type', reviewType)
+      if (reviewError) {
+        console.error('Error verificando si ya existe review:', reviewError.message ?? reviewError, reviewError)
+      } else if (!count) {
+        setReviewItem({ ...prev, status: newStatus })
+      }
     }
   }
 
-  const filtered = items.filter(item => {
+  const buscados = items.filter(item => {
+    if (!search.trim()) return true
     const s = item.supplier
-    if (search.trim()) {
-      const q = search.toLowerCase()
-      const categoryName = nombrePorId(categorias, s.category_id)
-      const match = s.name.toLowerCase().includes(q) ||
-                    (s.subcategory || '').toLowerCase().includes(q) ||
-                    categoryName.toLowerCase().includes(q)
-      if (!match) return false
-    }
-    if (filterCategory && s.category_id !== filterCategory) return false
-    return true
+    const q = search.toLowerCase()
+    const categoryName = nombrePorId(categorias, s.category_id)
+    return s.name.toLowerCase().includes(q) ||
+           (s.subcategory || '').toLowerCase().includes(q) ||
+           categoryName.toLowerCase().includes(q)
   })
+
+  const filtered = aplicarFiltrosProveedores(buscados, filtros, item => ({
+    categoriaId: item.supplier.category_id,
+    estatus:     item.status,
+    ciudad:      item.supplier.city,
+    desempeno:   desempenoPorProveedor[item.supplier_id] ?? null,
+  }))
 
   const categoriasDelFiltro = (() => {
     const lista = activas(categorias)
@@ -292,6 +544,12 @@ export default function ProveedoresPage() {
       if (cat) { lista.push(cat); vistas.add(catId) }
     })
     return lista
+  })()
+
+  const ciudadesDelFiltro = (() => {
+    const set = new Set<string>()
+    items.forEach(it => { if (it.supplier?.city) set.add(it.supplier.city) })
+    return [...set].sort((a, b) => a.localeCompare(b, 'es'))
   })()
 
   const totalNuevos      = items.filter(i => i.status === 'nuevo').length
@@ -315,9 +573,6 @@ export default function ProveedoresPage() {
 
   const currency: Currency = event.currency || 'MXN'
 
-  // La resena solo se pregunta despues del evento; si hay rango, manda el ultimo dia.
-  const ultimoDia = event.event_end_date || event.event_date
-  const bodaPaso = ultimoDia ? new Date(`${ultimoDia}T23:59:59`) < new Date() : false
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#ffffff' }}>
@@ -373,25 +628,91 @@ export default function ProveedoresPage() {
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="Buscar proveedor..."
-              className="w-full rounded-lg border border-[#e0e0e0] bg-white py-1.5 pl-8 pr-3 text-xs outline-none transition focus:border-[#48C9B0]"
+              className="w-full rounded-lg border border-[#e0e0e0] bg-white py-2 pl-8 pr-3 text-xs outline-none transition focus:border-[#48C9B0]"
             />
           </div>
 
-          {/* Filtro categoría — solo desktop */}
-          <select
-            value={filterCategory}
-            onChange={e => setFilterCategory(e.target.value)}
-            className="hidden shrink-0 rounded-lg border border-[#e0e0e0] bg-white px-3 py-1.5 text-xs outline-none transition focus:border-[#48C9B0] lg:block"
-          >
-            <option value="">Todas las categorías</option>
-            {categoriasDelFiltro.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
+          <div className="relative ml-auto shrink-0" ref={filterMenuRef}>
+            <button
+              onClick={() => setShowFilterMenu(v => !v)}
+              className="flex items-center gap-1.5 whitespace-nowrap rounded-lg border border-[#e0e0e0] px-3 py-2 text-xs text-[#666] transition hover:border-[#48C9B0] hover:text-[#48C9B0]"
+            >
+              <Filter size={13} />
+              <span>Filtros{filtrosActivos > 0 ? ` (${filtrosActivos})` : ''}</span>
+            </button>
+            {showFilterMenu && (
+              <div className="absolute right-0 top-full z-50 mt-1 max-h-[70dvh] w-64 overflow-y-auto rounded-xl border border-[#e8e8e8] bg-white p-2 shadow-lg">
+                <GrupoFiltro
+                  titulo="Categoría"
+                  opciones={categoriasDelFiltro.map(c => ({ value: c.id, label: c.name }))}
+                  seleccion={filtros.categoria}
+                  onToggle={toggleCategoriaFiltro}
+                />
+                <GrupoFiltro
+                  titulo="Estatus"
+                  opciones={SUPPLIER_STATUSES.map(s => ({ value: s, label: SUPPLIER_STATUS_LABELS[s] }))}
+                  seleccion={filtros.estatus}
+                  onToggle={toggleEstatusFiltro}
+                />
+                <GrupoFiltro
+                  titulo="Ciudad"
+                  opciones={ciudadesDelFiltro.map(c => ({ value: c, label: c }))}
+                  seleccion={filtros.ciudad}
+                  onToggle={toggleCiudadFiltro}
+                />
+                <GrupoFiltro
+                  titulo="Desempeño"
+                  opciones={FILTROS_DESEMPENO.map(d => ({ value: d.key, label: d.label }))}
+                  seleccion={filtros.desempeno}
+                  onToggle={toggleDesempenoFiltro}
+                />
+                {filtrosActivos > 0 && (
+                  <button
+                    onClick={quitarTodosLosFiltros}
+                    className="mt-1 w-full rounded-lg px-2 py-1.5 text-left text-xs font-medium text-[#888] transition hover:bg-[#f8f8f8] hover:text-[#1D1E20]"
+                  >
+                    Quitar todos los filtros
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+
+          {viewMode === 'lista' && (
+            <div className="relative hidden shrink-0 lg:block" ref={colMenuRef}>
+              <button
+                onClick={() => setShowColMenu(v => !v)}
+                className="flex items-center gap-1.5 whitespace-nowrap rounded-lg border border-[#e0e0e0] px-3 py-2 text-xs text-[#666] transition hover:border-[#48C9B0] hover:text-[#48C9B0]"
+              >
+                <Columns2 size={13} />
+                <span>Columnas</span>
+              </button>
+              {showColMenu && (
+                <div className="absolute right-0 top-full z-50 mt-1 min-w-[170px] rounded-xl border border-[#e8e8e8] bg-white p-2 shadow-lg">
+                  <p className="mb-1.5 px-2 text-[10px] font-semibold uppercase tracking-wide text-[#aaa]">Mostrar columnas</p>
+                  {COLUMNAS_LISTA.map(col => (
+                    <label key={col.key} className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 transition hover:bg-[#f8f8f8]">
+                      <input
+                        type="checkbox"
+                        checked={visibleCols.has(col.key)}
+                        onChange={() => toggleCol(col.key)}
+                        disabled={col.key === COLUMNA_SIEMPRE_VISIBLE}
+                        className="accent-[#48C9B0]"
+                      />
+                      <span className="text-xs text-[#1D1E20]">{col.label}</span>
+                      {col.key === COLUMNA_SIEMPRE_VISIBLE && <span className="ml-auto text-[10px] text-[#ccc]">siempre</span>}
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* CTA */}
           <Puede modulo="proveedores" accion="editar">
             <button
               onClick={() => setModalOpen(true)}
-              className="ml-auto flex shrink-0 items-center gap-1.5 rounded-lg bg-[#48C9B0] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#3aa896]"
+              className="flex shrink-0 items-center gap-1.5 rounded-lg bg-[#48C9B0] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#3aa896]"
             >
               <Plus size={14} />
               <span>Proveedor</span>
@@ -420,6 +741,9 @@ export default function ProveedoresPage() {
                   budgets={budgets}
                   currency={currency}
                   categorias={categorias}
+                  visibleCols={visibleCols}
+                  desempenoPorProveedor={desempenoPorProveedor}
+                  paidByItem={paidByItem}
                   onSelect={setSelectedItem}
                 />
               </div>
@@ -431,6 +755,9 @@ export default function ProveedoresPage() {
                   budgets={budgets}
                   currency={currency}
                   categorias={categorias}
+                  desempenoPorProveedor={desempenoPorProveedor}
+                  paidByItem={paidByItem}
+                  motivoDescartePorItem={motivoDescartePorItem}
                   onSelect={setSelectedItem}
                   onStatusChange={handleStatusChange}
                   puedeEditar={permiso.editar}
@@ -440,14 +767,21 @@ export default function ProveedoresPage() {
             {viewMode === 'fichero' && (
               <SupplierFicheroView
                 items={filtered}
+                todosLosItems={items}
                 budgets={budgets}
                 currency={currency}
                 categorias={categorias}
-                bodaPaso={bodaPaso}
+                desempenoPorProveedor={desempenoPorProveedor}
+                conteoPagosPorItem={conteoPagosPorItem}
                 onSelect={setSelectedItem}
                 onStatusChange={handleStatusChange}
                 onSaved={handleSavedItem}
                 onQuitada={handleDeletedItem}
+                onDerivadosCambiaron={refrescarDerivados}
+                enfocar={enfocar}
+                onEnfocado={() => setEnfocar(null)}
+                abrirRevisionParaId={revisionParaId}
+                onRevisionAbierta={() => setRevisionParaId(null)}
               />
             )}
           </>
@@ -467,6 +801,7 @@ export default function ProveedoresPage() {
         onUsarExistente={handleUsarExistente}
         onCrearNuevo={handleCrearNuevo}
         onAbrirEnEstaBoda={handleAbrirEnEstaBoda}
+        onCategoriaCreada={categoria => setCategorias(prev => agregarCategoria(prev, categoria))}
       />
 
       {selectedItem && (
@@ -475,35 +810,75 @@ export default function ProveedoresPage() {
           budgets={budgets}
           currency={currency}
           categorias={categorias}
-          bodaPaso={bodaPaso}
+          conteoPagosInicial={conteoPagosPorItem[selectedItem.id] ?? 0}
           onClose={() => setSelectedItem(null)}
           onStatusChange={handleStatusChange}
           onSaved={handleSavedItem}
           onQuitada={handleDeletedItem}
+          onDerivadosCambiaron={refrescarDerivados}
+          abrirRevisionParaId={revisionParaId}
+          onRevisionAbierta={() => setRevisionParaId(null)}
         />
       )}
 
       {/* Review fuera del DetailModal — evita stacking context de Framer Motion */}
-      {reviewItem && permiso.editar && (
-        <SupplierReviewModal
-          eventSupplierId={reviewItem.id}
-          supplierName={reviewItem.supplier.name}
-          initialRating={reviewItem.rating}
-          initialReview={reviewItem.review_text}
-          initialMood={reviewItem.mood}
-          initialSpeed={reviewItem.response_speed}
-          onSaved={updates => {
-            setItems(prev => prev.map(it => it.id === reviewItem.id ? { ...it, ...updates } : it))
-            setReviewItem(null)
-          }}
-          onSkip={() => setReviewItem(null)}
-        />
+      {reviewItem && permiso.editar && userId && duenoCatalogo && (
+        reviewItem.status === 'contratado' ? (
+          <ReviewContratacionModal
+            eventSupplierId={reviewItem.id}
+            supplierId={reviewItem.supplier_id}
+            eventId={eventId}
+            duenoId={duenoCatalogo}
+            createdBy={userId}
+            supplierName={reviewItem.supplier.name}
+            eventName={event.name}
+            onSaved={() => { refrescarDerivados(); setRevisionParaId(reviewItem.id); setReviewItem(null) }}
+            onSkip={() => setReviewItem(null)}
+          />
+        ) : (
+          <ReviewDescarteModal
+            eventSupplierId={reviewItem.id}
+            supplierId={reviewItem.supplier_id}
+            eventId={eventId}
+            duenoId={duenoCatalogo}
+            createdBy={userId}
+            supplierName={reviewItem.supplier.name}
+            eventName={event.name}
+            onSaved={() => { refrescarDerivados(); setRevisionParaId(reviewItem.id); setReviewItem(null) }}
+            onSkip={() => setReviewItem(null)}
+          />
+        )
       )}
     </div>
   )
 }
 
 // ── COMPONENTES AUXILIARES ─────────────────────────────────────────────────
+
+function GrupoFiltro<T extends string>({ titulo, opciones, seleccion, onToggle }: {
+  titulo: string
+  opciones: { value: T; label: string }[]
+  seleccion: Set<T>
+  onToggle: (value: T) => void
+}) {
+  if (opciones.length === 0) return null
+  return (
+    <div className="mb-1.5">
+      <p className="mb-1 px-2 text-[10px] font-semibold uppercase tracking-wide text-[#aaa]">{titulo}</p>
+      {opciones.map(o => (
+        <label key={o.value} className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 transition hover:bg-[#f8f8f8]">
+          <input
+            type="checkbox"
+            checked={seleccion.has(o.value)}
+            onChange={() => onToggle(o.value)}
+            className="accent-[#48C9B0]"
+          />
+          <span className="text-xs text-[#1D1E20]">{o.label}</span>
+        </label>
+      ))}
+    </div>
+  )
+}
 
 function ViewButton({ active, onClick, children, className = '' }: {
   active: boolean

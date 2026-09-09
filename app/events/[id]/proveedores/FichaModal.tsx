@@ -12,11 +12,17 @@ type Props = {
   budgets: EventBudget[]
   currency: Currency
   categorias: Categoria[]
-  bodaPaso: boolean
+  conteoPagosInicial?: number
   onClose: () => void
   onStatusChange: (itemId: string, nuevo: SupplierStatus) => void
   onSaved: (item: SupplierWithDetails) => void
   onQuitada: (itemId: string) => void
+  // Opcional: quien no tiene desempeno/pagado/motivo derivados que refrescar
+  // (por ejemplo la ficha abierta desde Presupuesto) simplemente no lo pasa.
+  onDerivadosCambiaron?: () => void
+  // Ver el mismo campo en FichaDelEvento: identidad, nunca posicion.
+  abrirRevisionParaId?: string | null
+  onRevisionAbierta?: () => void
 }
 
 // La misma ficha del fichero, metida en una ventana: fuera de la vista Fichero

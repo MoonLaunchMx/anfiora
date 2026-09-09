@@ -22,6 +22,15 @@ export function nombrePorId(cats: Categoria[], id: string | null | undefined): s
   return cats.find(c => c.id === id)?.name ?? ''
 }
 
+// Mete una categoria (tipicamente recien creada desde un picker) a una lista
+// ya cargada, sin duplicar y ordenada. Es la pieza que hace que una categoria
+// creada en un modal aparezca de inmediato en el resto de la pantalla, sin
+// esperar a un reload.
+export function agregarCategoria(cats: Categoria[], categoria: Categoria): Categoria[] {
+  if (cats.some(c => c.id === categoria.id)) return cats
+  return [...cats, categoria].sort((a, b) => a.name.localeCompare(b.name, 'es'))
+}
+
 // Import dinamico: si fuera estatico, crear el cliente de Supabase se
 // ejecutaria al cargar el modulo y romperia las pruebas de las funciones
 // puras de arriba, que no necesitan tocar la base de datos.

@@ -14,6 +14,7 @@ import {
   PAISES, PAIS_POR_DEFECTO, bandera, ciudadesDe, estadosDe, mismoLugar,
   nombrePais, normalizarCiudad, normalizarEstado, tieneEstados,
 } from '@/lib/geo/divisiones'
+import { ciudadSigueSiendoValida } from '@/lib/rolodex/ciudad-estado'
 import SelectorGeo, { OpcionGeo } from '@/app/components/ui/SelectorGeo'
 import TagInput from '@/app/components/ui/TagInput'
 import PhoneInput from '@/app/components/ui/PhoneInput'
@@ -56,6 +57,7 @@ type Props = {
   onUsarExistente: (supplierId: string, enEstaBoda: EnEstaBoda) => Promise<void>
   onCrearNuevo: (data: ProveedorNuevo) => Promise<void>
   onAbrirEnEstaBoda: (supplierId: string) => void
+  onCategoriaCreada?: (categoria: Categoria) => void
 }
 
 type Fase = 'buscar' | 'existente' | 'nuevo'
@@ -115,7 +117,7 @@ function FilaDelRolodex({ entrada, onClick }: { entrada: EntradaDelRolodex; onCl
         {entrada.enEstaBoda ? (
           <>
             <span className="rounded-md bg-[#FBF3E0] px-1.5 py-0.5 text-[10px] font-bold text-[#A87C1F]">
-              Ya está en esta boda
+              Ya está en este evento
             </span>
             <span className="flex items-center gap-0.5 text-[11px] font-bold text-[#999]">
               Abrir ficha <ChevronRight size={11} />
@@ -136,7 +138,7 @@ function FilaDelRolodex({ entrada, onClick }: { entrada: EntradaDelRolodex; onCl
 
 export default function AltaProveedor({
   isOpen, onClose, currency, budgets, categorias, duenoCatalogo, catalogo,
-  eventoNombre, onUsarExistente, onCrearNuevo, onAbrirEnEstaBoda,
+  eventoNombre, onUsarExistente, onCrearNuevo, onAbrirEnEstaBoda, onCategoriaCreada,
 }: Props) {
   const [fase, setFase]         = useState<Fase>('buscar')
   const [consulta, setConsulta] = useState('')
@@ -144,8 +146,13 @@ export default function AltaProveedor({
   const [enviando, setEnviando] = useState(false)
   const [error, setError]       = useState('')
 
-  const [nombre, setNombre]         = useState('')
-  const [categoryId, setCategoryId] = useState('')
+  const [nombre, setNombre]                 = useState('')
+  // El objeto completo, no solo el id: CategoriaPicker puede devolver una
+  // categoria recien creada que todavia no esta en la prop `categorias` (el
+  // padre la refleja un instante despues). Guardar solo el id la dejaba
+  // huerfana: la busqueda contra la prop fallaba y el alta se rechazaba con
+  // "Elige una categoria" aunque el picker ya la mostrara seleccionada.
+  const [categoriaElegida, setCategoriaElegida] = useState<Categoria | null>(null)
   const [contacto, setContacto]     = useState('')
   const [telefono, setTelefono]     = useState('')
   const [instagram, setInstagram]   = useState('')
@@ -177,7 +184,7 @@ export default function AltaProveedor({
   useEffect(() => {
     if (!isOpen) return
     setFase('buscar'); setConsulta(''); setElegida(null); setEnviando(false); setError('')
-    setNombre(''); setCategoryId(''); setContacto(''); setTelefono('')
+    setNombre(''); setCategoriaElegida(null); setContacto(''); setTelefono('')
     setInstagram(''); setFacebook(''); setCorreo(''); setSitio('')
     setPais(paisDominante); setCiudad(''); setEstado('')
     setRadio(''); setEtiquetas([]); setNotas('')
@@ -247,8 +254,6 @@ export default function AltaProveedor({
     return [...usadas, ...sugeridas]
   }, [ciudadesQueUsas, pais, estado])
 
-  const categoriaElegida = categorias.find(c => c.id === categoryId) ?? null
-
   // Los conceptos se filtran por la categoria del proveedor: la que se esta
   // tecleando si es nuevo, la que ya trae su ficha si viene del Rolodex.
   const categoriaActiva = fase === 'nuevo' ? categoriaElegida?.id ?? null : elegida?.categoriaId ?? null
@@ -266,7 +271,7 @@ export default function AltaProveedor({
     const activasIniciales = activas(categorias)
     const porDefecto = buscarPorNombre(activasIniciales, 'Venue') ?? activasIniciales[0] ?? null
     setNombre(consulta.trim())
-    setCategoryId(porDefecto?.id ?? '')
+    setCategoriaElegida(porDefecto)
     setError('')
     setFase('nuevo')
   }
@@ -456,7 +461,7 @@ export default function AltaProveedor({
 
       {fase === 'existente' && elegida && (
         <>
-          <Modal.Header title="Agregar a esta boda" subtitle={eventoNombre ?? undefined} />
+          <Modal.Header title="Agregar a este evento" subtitle={eventoNombre ?? undefined} />
           <Modal.Body>
             {aviso}
             <div className="mb-4 flex items-center gap-3 rounded-xl border border-[#e8e8e8] bg-[#fafafa] px-3 py-3">
@@ -495,7 +500,7 @@ export default function AltaProveedor({
               disabled={enviando}
               className="rounded-lg bg-[#48C9B0] px-4 py-2 text-xs font-semibold text-white transition hover:bg-[#3aa896] disabled:opacity-50"
             >
-              {enviando ? 'Agregando...' : 'Agregar a esta boda'}
+              {enviando ? 'Agregando...' : 'Agregar a este evento'}
             </button>
           </Modal.Footer>
         </>
@@ -503,66 +508,9 @@ export default function AltaProveedor({
 
       {fase === 'nuevo' && (
         <>
-          <Modal.Header title="Nuevo proveedor" subtitle="Se guarda en tu Rolodex y entra a esta boda" />
+          <Modal.Header title="Nuevo proveedor" subtitle="Se guarda en tu Rolodex y entra a este evento" />
           <Modal.Body>
             {aviso}
-
-            {repetido && (
-              <div className="mb-4 flex gap-2.5 rounded-xl bg-[#FBF3E0] px-3 py-3 text-[#A87C1F]">
-                <AlertTriangle size={15} className="mt-0.5 shrink-0" />
-                <div className="min-w-0 flex-1">
-                  <p className="text-[12.5px] font-bold">
-                    Ese {repetido.campo === 'telefono' ? 'WhatsApp' : 'correo'} ya es de un proveedor tuyo
-                  </p>
-                  <p className="mt-0.5 text-[11.5px] leading-snug opacity-90">
-                    Es el mismo contacto de {repetido.entrada.nombre}. Crear otra ficha parte su historial en dos.
-                  </p>
-                  <div className="mt-2 flex items-center gap-2.5 rounded-lg bg-white/60 px-2.5 py-2">
-                    <Inicial nombre={repetido.entrada.nombre} />
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-[13px] font-semibold">{repetido.entrada.nombre}</span>
-                      <span className="block truncate text-[11px] opacity-75">
-                        {[repetido.entrada.categoria, repetido.entrada.ciudad].filter(Boolean).join(' · ')}
-                        {repetido.entrada.veces > 0 && ` · ${repetido.entrada.veces} bodas`}
-                      </span>
-                    </span>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {!repetido && parecidos.length > 0 && (
-              <div className="mb-4 flex gap-2.5 rounded-xl bg-[#f1efe8] px-3 py-3 text-[#5F5C57]">
-                <Info size={15} className="mt-0.5 shrink-0" />
-                <div className="min-w-0 flex-1">
-                  <p className="text-[12.5px] font-bold">
-                    Tienes {parecidos.length === 1 ? 'uno' : `${parecidos.length}`} con nombre parecido
-                  </p>
-                  <p className="mt-0.5 text-[11.5px] leading-snug opacity-90">
-                    Si es el mismo, úsalo y conservas su historial. Si son distintos, sigue creando.
-                  </p>
-                  {parecidos.map(p => (
-                    <div key={p.id} className="mt-2 flex items-center gap-2.5 rounded-lg bg-white/60 px-2.5 py-2">
-                      <Inicial nombre={p.nombre} />
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-[13px] font-semibold">{p.nombre}</span>
-                        <span className="block truncate text-[11px] opacity-75">
-                          {[p.categoria, p.ciudad].filter(Boolean).join(' · ')}
-                          {p.veces > 0 && ` · ${p.veces} bodas`}
-                        </span>
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => elegir(p)}
-                        className="shrink-0 text-[11.5px] font-extrabold underline underline-offset-2"
-                      >
-                        {p.enEstaBoda ? 'Abrir ficha' : 'Usar esa'}
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
 
             <div className="space-y-4">
               <Seccion titulo="Quién es">
@@ -571,8 +519,8 @@ export default function AltaProveedor({
                     <Etiqueta obligatorio>Categoría</Etiqueta>
                     <CategoriaPicker
                       categorias={categorias}
-                      valorId={categoryId || null}
-                      onChange={c => { setCategoryId(c.id); setEventBudgetId('') }}
+                      valorId={categoriaElegida?.id ?? null}
+                      onChange={c => { setCategoriaElegida(c); setEventBudgetId(''); onCategoriaCreada?.(c) }}
                       duenoCatalogo={duenoCatalogo}
                       className="border-[#e0e0e0]"
                     />
@@ -583,10 +531,69 @@ export default function AltaProveedor({
                       placeholder="Ej. Marisol Cruz" className={INPUT} />
                   </div>
                 </div>
-                <div>
+                {/* relative + overlay: el aviso de duplicado no debe empujar los
+                    campos de abajo mientras se teclea el nombre, solo flotar. */}
+                <div className="relative">
                   <Etiqueta obligatorio>Nombre</Etiqueta>
                   <input type="text" value={nombre} onChange={e => setNombre(e.target.value)}
                     placeholder="Ej. Luz y Sonido Zafiro" className={INPUT} />
+
+                  {repetido && (
+                    <div className="absolute inset-x-0 top-full z-20 mt-2 flex gap-2.5 rounded-xl bg-[#FBF3E0] px-3 py-3 text-[#A87C1F] shadow-lg">
+                      <AlertTriangle size={15} className="mt-0.5 shrink-0" />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[12.5px] font-bold">
+                          Ese {repetido.campo === 'telefono' ? 'WhatsApp' : 'correo'} ya es de un proveedor tuyo
+                        </p>
+                        <p className="mt-0.5 text-[11.5px] leading-snug opacity-90">
+                          Es el mismo contacto de {repetido.entrada.nombre}. Crear otra ficha parte su historial en dos.
+                        </p>
+                        <div className="mt-2 flex items-center gap-2.5 rounded-lg bg-white/60 px-2.5 py-2">
+                          <Inicial nombre={repetido.entrada.nombre} />
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-[13px] font-semibold">{repetido.entrada.nombre}</span>
+                            <span className="block truncate text-[11px] opacity-75">
+                              {[repetido.entrada.categoria, repetido.entrada.ciudad].filter(Boolean).join(' · ')}
+                              {repetido.entrada.veces > 0 && ` · ${repetido.entrada.veces} eventos`}
+                            </span>
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {!repetido && parecidos.length > 0 && (
+                    <div className="absolute inset-x-0 top-full z-20 mt-2 flex gap-2.5 rounded-xl bg-[#f1efe8] px-3 py-3 text-[#5F5C57] shadow-lg">
+                      <Info size={15} className="mt-0.5 shrink-0" />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[12.5px] font-bold">
+                          Tienes {parecidos.length === 1 ? 'uno' : `${parecidos.length}`} con nombre parecido
+                        </p>
+                        <p className="mt-0.5 text-[11.5px] leading-snug opacity-90">
+                          Si es el mismo, úsalo y conservas su historial. Si son distintos, sigue creando.
+                        </p>
+                        {parecidos.map(p => (
+                          <div key={p.id} className="mt-2 flex items-center gap-2.5 rounded-lg bg-white/60 px-2.5 py-2">
+                            <Inicial nombre={p.nombre} />
+                            <span className="min-w-0 flex-1">
+                              <span className="block truncate text-[13px] font-semibold">{p.nombre}</span>
+                              <span className="block truncate text-[11px] opacity-75">
+                                {[p.categoria, p.ciudad].filter(Boolean).join(' · ')}
+                                {p.veces > 0 && ` · ${p.veces} eventos`}
+                              </span>
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => elegir(p)}
+                              className="shrink-0 text-[11.5px] font-extrabold underline underline-offset-2"
+                            >
+                              {p.enEstaBoda ? 'Abrir ficha' : 'Usar esa'}
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </Seccion>
 
@@ -648,22 +655,6 @@ export default function AltaProveedor({
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div>
-                    <Etiqueta>Estado</Etiqueta>
-                    <SelectorGeo
-                      valor={estado}
-                      onChange={e => { setEstado(e); setCiudad('') }}
-                      opciones={opcionesEstado}
-                      libre={!tieneEstados(pais)}
-                      placeholder={tieneEstados(pais) ? 'Elige el estado' : 'Escribe el estado'}
-                      buscarPlaceholder={tieneEstados(pais) ? 'Buscar…' : 'Escribe el estado'}
-                      sinOpcionesTexto={
-                        tieneEstados(pais)
-                          ? 'Sin coincidencias'
-                          : `Todavía no tenemos la lista de ${nombrePais(pais)}, escríbelo`
-                      }
-                    />
-                  </div>
-                  <div>
                     <Etiqueta>Ciudad</Etiqueta>
                     <SelectorGeo
                       valor={ciudad}
@@ -673,6 +664,25 @@ export default function AltaProveedor({
                       placeholder="Elige o escribe"
                       buscarPlaceholder="Buscar o escribir…"
                       sinOpcionesTexto="Escribe el nombre de la ciudad"
+                    />
+                  </div>
+                  <div>
+                    <Etiqueta>Estado</Etiqueta>
+                    <SelectorGeo
+                      valor={estado}
+                      // Ciudad va arriba de Estado en este formulario: borrarla siempre
+                      // que cambia el estado le tira al planner lo que acaba de teclear.
+                      // Solo se borra si de verdad deja de aplicar ahi.
+                      onChange={e => { setEstado(e); if (!ciudadSigueSiendoValida(ciudad, ciudadesDe(pais, e))) setCiudad('') }}
+                      opciones={opcionesEstado}
+                      libre={!tieneEstados(pais)}
+                      placeholder={tieneEstados(pais) ? 'Elige el estado' : 'Escribe el estado'}
+                      buscarPlaceholder={tieneEstados(pais) ? 'Buscar…' : 'Escribe el estado'}
+                      sinOpcionesTexto={
+                        tieneEstados(pais)
+                          ? 'Sin coincidencias'
+                          : `Todavía no tenemos la lista de ${nombrePais(pais)}, escríbelo`
+                      }
                     />
                   </div>
                 </div>
@@ -701,12 +711,12 @@ export default function AltaProveedor({
                 <div>
                   <Etiqueta>Notas generales</Etiqueta>
                   <textarea value={notas} onChange={e => setNotas(e.target.value)} rows={2}
-                    placeholder="Lo que quieras recordar de él en cualquier boda"
+                    placeholder="Lo que quieras recordar de él en cualquier evento"
                     className={`${INPUT} resize-none`} />
                 </div>
               </Seccion>
 
-              <Seccion titulo="En esta boda" nota="Opcional">
+              <Seccion titulo="En este evento" nota="Opcional">
                 <div className="grid gap-3 sm:grid-cols-2">
                   {camposDeLaBoda}
                 </div>
@@ -731,7 +741,7 @@ export default function AltaProveedor({
                   disabled={enviando || repetido.entrada.enEstaBoda}
                   className="rounded-lg bg-[#48C9B0] px-4 py-2 text-xs font-semibold text-white transition hover:bg-[#3aa896] disabled:opacity-50"
                 >
-                  {repetido.entrada.enEstaBoda ? 'Ya está en esta boda' : `Usar ${repetido.entrada.nombre}`}
+                  {repetido.entrada.enEstaBoda ? 'Ya está en este evento' : `Usar ${repetido.entrada.nombre}`}
                 </button>
               </>
             ) : (
