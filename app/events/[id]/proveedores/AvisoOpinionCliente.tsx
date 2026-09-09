@@ -1,0 +1,120 @@
+'use client'
+
+import { useEffect, useRef, useState } from 'react'
+import { ChevronDown } from 'lucide-react'
+import DatePicker from '@/app/components/ui/DatePicker'
+import { extenderVencimiento, textoAviso } from '@/lib/reviews/link-cliente'
+import type { InfoLink } from '@/lib/reviews/link-cliente'
+
+type Props = {
+  info: InfoLink
+  contestados: number
+  total: number
+  puedeEditar: boolean
+  canAdmin: boolean
+  onPedir: () => void
+  onReenviar: () => void
+  onDarMasTiempo: (nuevoVence: string) => Promise<string | null>
+}
+
+const hoyISO = () => new Date().toISOString().slice(0, 10)
+
+// Una linea. Solo existe despues del evento, y se va cuando todos contestaron.
+// Vencido no desaparece: es donde vive Reactivar.
+export default function AvisoOpinionCliente({
+  info, contestados, total, puedeEditar, canAdmin, onPedir, onReenviar, onDarMasTiempo,
+}: Props) {
+  const [menu, setMenu] = useState(false)
+  const [eligiendoFecha, setEligiendoFecha] = useState(false)
+  const [fecha, setFecha] = useState('')
+  const [error, setError] = useState('')
+  const [ocupado, setOcupado] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!menu) return
+    const fuera = (e: MouseEvent) => { if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenu(false) }
+    document.addEventListener('mousedown', fuera)
+    return () => document.removeEventListener('mousedown', fuera)
+  }, [menu])
+
+  if (info.estado === 'antes' || total === 0) return null
+  if (info.estado !== 'vencida' && contestados >= total) return null
+
+  const vencida = info.estado === 'vencida'
+  const tono =
+    info.estado === 'sin_pedir' ? 'border-[#efd9a6] bg-[#fdf8ee]' :
+    info.estado === 'por_vencer' ? 'border-[#f0c9c5] bg-[#fdf3f2]' :
+    vencida ? 'border-[#e8e8e8] bg-[#f5f5f3]' :
+    'border-[#bdebdf] bg-[#f0faf7]'
+
+  const aplicar = async (nuevoVence: string) => {
+    setError('')
+    setOcupado(true)
+    const problema = await onDarMasTiempo(nuevoVence)
+    setOcupado(false)
+    if (problema) { setError(problema); return }
+    setMenu(false)
+    setEligiendoFecha(false)
+  }
+
+  const masDias = (dias: number) =>
+    aplicar(extenderVencimiento({ hoy: hoyISO(), venceActual: info.vence, dias }))
+
+  return (
+    <div className={`mb-3 rounded-xl border px-4 py-2.5 ${tono}`}>
+      <div className="flex flex-wrap items-center gap-2">
+        <p className="text-[13px] font-semibold text-[#1D1E20]">{textoAviso(info, contestados, total)}</p>
+
+        <div className="ml-auto flex items-center gap-2">
+          {info.estado === 'sin_pedir' && puedeEditar && (
+            <button type="button" onClick={onPedir} className="rounded-lg bg-[#48C9B0] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#3aa896]">
+              Pedir opinión
+            </button>
+          )}
+          {(info.estado === 'enviada' || info.estado === 'por_vencer') && puedeEditar && (
+            <button type="button" onClick={onReenviar} className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${info.estado === 'por_vencer' ? 'bg-[#48C9B0] text-white hover:bg-[#3aa896]' : 'border border-[#e0e0e0] bg-white text-[#1D1E20] hover:bg-[#f5f5f5]'}`}>
+              Reenviar
+            </button>
+          )}
+          {canAdmin && info.estado !== 'sin_pedir' && (
+            <div ref={menuRef} className="relative">
+              <button
+                type="button"
+                onClick={() => setMenu(v => !v)}
+                disabled={ocupado}
+                className="flex items-center gap-1 rounded-lg border border-[#e0e0e0] bg-white px-3 py-1.5 text-xs font-semibold text-[#1D1E20] hover:bg-[#f5f5f5] disabled:opacity-50"
+              >
+                {vencida ? 'Reactivar' : 'Dar más tiempo'} <ChevronDown size={12} />
+              </button>
+              {menu && (
+                <div className="absolute right-0 z-20 mt-1.5 w-56 rounded-xl border border-[#e0e0e0] bg-white p-1.5 shadow-lg">
+                  {!eligiendoFecha ? (
+                    <>
+                      <button type="button" onClick={() => masDias(7)} className="block w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-[#f5f5f5]">7 días más</button>
+                      <button type="button" onClick={() => masDias(14)} className="block w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-[#f5f5f5]">14 días más</button>
+                      <button type="button" onClick={() => setEligiendoFecha(true)} className="block w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-[#f5f5f5]">Elegir fecha</button>
+                    </>
+                  ) : (
+                    <div className="p-1">
+                      <DatePicker mode="single" value={fecha} onChange={setFecha} minDate={hoyISO()} placeholder="Nueva fecha" />
+                      <button
+                        type="button"
+                        disabled={!fecha || ocupado}
+                        onClick={() => aplicar(fecha)}
+                        className="mt-2 w-full rounded-lg bg-[#48C9B0] px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
+                      >
+                        Guardar
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+      {error && <p className="mt-1.5 text-xs text-[var(--error-text)]">{error}</p>}
+    </div>
+  )
+}

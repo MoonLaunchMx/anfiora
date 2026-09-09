@@ -28,7 +28,11 @@ import ReviewDescarteModal from './ReviewDescarteModal'
 import SupplierListView from './SupplierListView'
 import SupplierKanbanView from './SupplierKanbanView'
 import SupplierFicheroView from './SupplierFicheroView'
-import { usePermiso } from '@/lib/event-access-context'
+import { usePermiso, useEventAccess } from '@/lib/event-access-context'
+import { estadoDelLink } from '@/lib/reviews/link-cliente'
+import { interpretarEscritura } from '@/lib/invite/persistencia'
+import PedirOpinionModal from './PedirOpinionModal'
+import AvisoOpinionCliente from './AvisoOpinionCliente'
 import { Puede } from '@/lib/permisos/Puede'
 
 type SupplierWithDetails = EventSupplier & { supplier: Supplier }
@@ -121,6 +125,10 @@ export default function ProveedoresPage() {
   // Cuantos pagos tiene cada proveedor: la pestaña Pagos de la ficha lo pinta
   // desde el primer frame en vez de esperar su propia consulta.
   const [conteoPagosPorItem, setConteoPagosPorItem] = useState<Record<string, number>>({})
+  const { canAdmin } = useEventAccess()
+  const [ajustesLink, setAjustesLink] = useState<{ token: string | null; expiresAt: string | null; ids: string[] | null }>({ token: null, expiresAt: null, ids: null })
+  const [scoreClientePorItem, setScoreClientePorItem] = useState<Record<string, number | null>>({})
+  const [pedirOpinionAbierto, setPedirOpinionAbierto] = useState(false)
   const [motivoDescartePorItem, setMotivoDescartePorItem] = useState<Record<string, MotivoDescarte | null>>({})
   const [viewMode, setViewMode] = useState<ViewMode>('fichero')
   const [modalOpen, setModalOpen]       = useState(false)
@@ -192,12 +200,16 @@ export default function ProveedoresPage() {
   useEffect(() => { cargarDineroYReviews(claveDeItems ? claveDeItems.split(',') : []) }, [claveDeItems])
 
   const cargarDineroYReviews = async (ids: string[]) => {
-    if (ids.length === 0) { setPaidByItem({}); setConteoPagosPorItem({}); setMotivoDescartePorItem({}); return }
+    if (ids.length === 0) { setPaidByItem({}); setConteoPagosPorItem({}); setMotivoDescartePorItem({}); setScoreClientePorItem({}); return }
 
-    const [{ data: pagos, error: errPagos }, { data: descartes, error: errDescartes }] = await Promise.all([
+    const [{ data: pagos, error: errPagos }, { data: descartes, error: errDescartes }, { data: opinionesCliente, error: errCliente }] = await Promise.all([
       supabase.from('supplier_payments').select('event_supplier_id, amount').in('event_supplier_id', ids),
       supabase.from('supplier_reviews').select('event_supplier_id, motivo_descarte').eq('review_type', 'descarte').in('event_supplier_id', ids),
+      supabase.from('supplier_reviews')
+        .select('event_supplier_id, review_type, autor, precio_valor, calidad, comunicacion, servicio_trato, manejo_imprevistos')
+        .eq('review_type', 'post_evento').eq('autor', 'cliente').in('event_supplier_id', ids),
     ])
+    if (errCliente) console.error('Error cargando opiniones del cliente:', errCliente.message ?? errCliente, errCliente)
     if (errPagos) console.error('Error cargando pagos de proveedores:', errPagos.message ?? errPagos, errPagos)
     if (errDescartes) console.error('Error cargando motivos de descarte:', errDescartes.message ?? errDescartes, errDescartes)
 
@@ -215,6 +227,12 @@ export default function ProveedoresPage() {
       motivos[r.event_supplier_id] = r.motivo_descarte
     }
     setMotivoDescartePorItem(motivos)
+
+    const clientes: Record<string, number | null> = {}
+    for (const r of (opinionesCliente ?? []) as (ReviewParaScore & { event_supplier_id: string })[]) {
+      clientes[r.event_supplier_id] = calcularScores([r]).clientes
+    }
+    setScoreClientePorItem(clientes)
   }
 
   // Desempeno (ids de suppliers): se separa de cargarCatalogo para poder
@@ -255,12 +273,20 @@ export default function ProveedoresPage() {
   const loadAll = async () => {
     setLoading(true)
     try {
-      const [eventRes, suppliersRes, budgetsRes] = await Promise.all([
+      const [eventRes, suppliersRes, budgetsRes, ajustesRes] = await Promise.all([
         supabase.from('events').select('*').eq('id', eventId).single(),
         supabase.from('event_suppliers').select('*, supplier:suppliers(*)').eq('event_id', eventId).order('created_at', { ascending: false }),
         supabase.from('event_budgets').select('*').eq('event_id', eventId).order('created_at', { ascending: true }),
+        supabase.from('event_settings').select('review_token, review_expires_at, review_event_supplier_ids').eq('event_id', eventId).maybeSingle(),
       ])
       if (eventRes.data)     setEvent(eventRes.data as Event)
+      if (ajustesRes.data) {
+        setAjustesLink({
+          token: ajustesRes.data.review_token ?? null,
+          expiresAt: ajustesRes.data.review_expires_at ?? null,
+          ids: ajustesRes.data.review_event_supplier_ids ?? null,
+        })
+      }
       if (suppliersRes.data) setItems(suppliersRes.data as SupplierWithDetails[])
       if (budgetsRes.data)   setBudgets(budgetsRes.data as EventBudget[])
 
@@ -552,6 +578,30 @@ export default function ProveedoresPage() {
     return [...set].sort((a, b) => a.localeCompare(b, 'es'))
   })()
 
+  // El link del cliente: su estado sale de la fecha del evento, del token y del
+  // vencimiento guardado. La seleccion vacia quiere decir "todos los contratados".
+  const ultimoDia = event ? (event.event_end_date || event.event_date) : null
+  const infoLink = estadoDelLink({
+    hoy: new Date().toISOString().slice(0, 10),
+    ultimoDiaEvento: ultimoDia,
+    token: ajustesLink.token,
+    expiresAt: ajustesLink.expiresAt,
+  })
+  const contratados = items
+    .filter(i => i.status === 'contratado')
+    .map(i => ({ id: i.id, nombre: i.supplier.name, categoria: nombrePorId(categorias, i.supplier.category_id) }))
+  const idsEnLink = ajustesLink.ids && ajustesLink.ids.length > 0 ? ajustesLink.ids : contratados.map(c => c.id)
+  const totalEnLink = idsEnLink.length
+  const contestados = idsEnLink.filter(id => scoreClientePorItem[id] != null).length
+
+  const darMasTiempo = async (nuevoVence: string): Promise<string | null> => {
+    const res = await supabase.from('event_settings').update({ review_expires_at: nuevoVence }).eq('event_id', eventId).select('event_id')
+    const r = interpretarEscritura(res)
+    if (!r.ok) return r.motivo
+    setAjustesLink(prev => ({ ...prev, expiresAt: nuevoVence }))
+    return null
+  }
+
   const totalNuevos      = items.filter(i => i.status === 'nuevo').length
   const totalCotizando   = items.filter(i => i.status === 'cotizado').length
   const totalContratados = items.filter(i => i.status === 'contratado').length
@@ -734,6 +784,16 @@ export default function ProveedoresPage() {
           </div>
         ) : (
           <>
+            <AvisoOpinionCliente
+              info={infoLink}
+              contestados={contestados}
+              total={totalEnLink}
+              puedeEditar={permiso.editar}
+              canAdmin={canAdmin}
+              onPedir={() => setPedirOpinionAbierto(true)}
+              onReenviar={() => setPedirOpinionAbierto(true)}
+              onDarMasTiempo={darMasTiempo}
+            />
             {viewMode === 'lista' && (
               <div className="hidden lg:block">
                 <SupplierListView
@@ -773,6 +833,7 @@ export default function ProveedoresPage() {
                 categorias={categorias}
                 desempenoPorProveedor={desempenoPorProveedor}
                 conteoPagosPorItem={conteoPagosPorItem}
+                opinionCliente={{ info: infoLink, onPedir: () => setPedirOpinionAbierto(true) }}
                 onSelect={setSelectedItem}
                 onStatusChange={handleStatusChange}
                 onSaved={handleSavedItem}
@@ -804,6 +865,17 @@ export default function ProveedoresPage() {
         onCategoriaCreada={categoria => setCategorias(prev => agregarCategoria(prev, categoria))}
       />
 
+      <PedirOpinionModal
+        abierto={pedirOpinionAbierto && permiso.editar}
+        onClose={() => setPedirOpinionAbierto(false)}
+        eventoId={eventId}
+        eventoNombre={event.name}
+        contratados={contratados}
+        seleccionActual={ajustesLink.ids}
+        token={ajustesLink.token}
+        onEnviado={(token, ids) => setAjustesLink(prev => ({ ...prev, token, ids }))}
+      />
+
       {selectedItem && (
         <FichaModal
           item={selectedItem}
@@ -811,6 +883,7 @@ export default function ProveedoresPage() {
           currency={currency}
           categorias={categorias}
           conteoPagosInicial={conteoPagosPorItem[selectedItem.id] ?? 0}
+          opinionCliente={{ info: infoLink, onPedir: () => setPedirOpinionAbierto(true) }}
           onClose={() => setSelectedItem(null)}
           onStatusChange={handleStatusChange}
           onSaved={handleSavedItem}
