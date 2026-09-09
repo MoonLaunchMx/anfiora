@@ -33,7 +33,12 @@ export default function AvisoOpinionCliente({
 
   useEffect(() => {
     if (!menu) return
-    const fuera = (e: MouseEvent) => { if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenu(false) }
+    const fuera = (e: MouseEvent) => {
+      // El calendario se dibuja en un portal fuera de este menu: sin esto,
+      // elegir un dia cerraria el menu y desmontaria el propio calendario.
+      if ((e.target as HTMLElement).closest?.('[data-datepicker-portal]')) return
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenu(false)
+    }
     document.addEventListener('mousedown', fuera)
     return () => document.removeEventListener('mousedown', fuera)
   }, [menu])
