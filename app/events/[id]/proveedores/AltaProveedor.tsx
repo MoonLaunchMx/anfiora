@@ -294,6 +294,7 @@ export default function AltaProveedor({
     }))
 
   const crearNuevo = () => {
+    if (repetido) return
     if (!nombre.trim())      { setError('Escribe el nombre del proveedor'); return }
     if (!categoriaElegida)   { setError('Elige una categoría'); return }
     if (!telefono.trim() && !instagram.trim() && !facebook.trim() && !correo.trim()) {
@@ -509,7 +510,7 @@ export default function AltaProveedor({
                           Ese {repetido.campo === 'telefono' ? 'WhatsApp' : 'correo'} ya es de un proveedor tuyo
                         </p>
                         <p className="mt-0.5 text-[11.5px] leading-snug opacity-90">
-                          Es el mismo contacto de {repetido.entrada.nombre}. Crear otra ficha parte su historial en dos.
+                          Es el mismo contacto de {repetido.entrada.nombre}.
                         </p>
                         <div className="mt-2 flex items-center gap-2.5 rounded-lg bg-white/60 px-2.5 py-2">
                           <Inicial nombre={repetido.entrada.nombre} />
@@ -538,11 +539,11 @@ export default function AltaProveedor({
                             <>
                               <button
                                 type="button"
-                                onClick={crearNuevo}
+                                onClick={() => (repetido.campo === 'telefono' ? setTelefono('') : setCorreo(''))}
                                 disabled={enviando}
                                 className="rounded-lg px-3 py-1.5 text-[11.5px] font-medium text-[#A87C1F] transition hover:bg-white/60 disabled:opacity-50"
                               >
-                                Crear otra
+                                {repetido.campo === 'telefono' ? 'Corregir el número' : 'Corregir el correo'}
                               </button>
                               <button
                                 type="button"
