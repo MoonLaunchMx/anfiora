@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { metaDelProveedor } from '@/lib/presupuesto/derivados'
+import { metaDelProveedor, contratadoDelProveedor } from '@/lib/presupuesto/derivados'
 import { ChevronDown, ChevronUp, Globe, Mail, MapPin, Phone } from 'lucide-react'
 import { FaWhatsapp } from 'react-icons/fa'
 import { FiInstagram } from 'react-icons/fi'
@@ -35,6 +35,7 @@ type Props = {
   desempenoPorProveedor: Record<string, number | null>
   conteoPagosPorItem: Record<string, number>
   opinionCliente?: OpinionCliente
+  onElegirPartidas?: (item: SupplierWithDetails) => void
   onSelect: (item: SupplierWithDetails) => void
   onStatusChange: (itemId: string, nuevo: SupplierStatus) => void
   onSaved: (item: SupplierWithDetails) => void
@@ -77,7 +78,7 @@ function useEsEscritorio(): boolean {
 }
 
 export default function SupplierFicheroView({
-  items, todosLosItems, budgets, currency, categorias, desempenoPorProveedor, conteoPagosPorItem, opinionCliente,
+  items, todosLosItems, budgets, currency, categorias, desempenoPorProveedor, conteoPagosPorItem, opinionCliente, onElegirPartidas,
   onSelect, onStatusChange, onSaved, onQuitada, onDerivadosCambiaron, enfocar, onEnfocado,
   abrirRevisionParaId, onRevisionAbierta,
 }: Props) {
@@ -256,6 +257,7 @@ export default function SupplierFicheroView({
             categorias={categorias}
             conteoPagosInicial={conteoPagosPorItem[abierta.id] ?? 0}
             opinionCliente={opinionCliente}
+            onElegirPartidas={onElegirPartidas}
             onStatusChange={onStatusChange}
             onSaved={onSaved}
             onQuitada={onQuitada}
@@ -396,7 +398,8 @@ function Ficha({ item, budgets, currency, categorias, desempeno, activa, arrastr
   const webLink    = enlace.sitio ?? null
 
   const meta       = metaDelProveedor(item, budgets)
-  const contraMeta = item.contract_amount ?? item.quoted_amount ?? null
+  const contratado = contratadoDelProveedor(item, budgets)
+  const contraMeta = contratado ?? item.quoted_amount ?? null
   const excede     = meta !== null && contraMeta !== null && contraMeta > meta
   const ahorra     = meta !== null && contraMeta !== null && contraMeta < meta
 
@@ -448,8 +451,8 @@ function Ficha({ item, budgets, currency, categorias, desempeno, activa, arrastr
           </div>
           <div>
             <p className="text-[9px] font-semibold uppercase tracking-wider text-[#aaa]">Contratado</p>
-            <p className={`text-[13px] font-bold tabular-nums ${item.contract_amount == null ? 'text-[#ccc]' : 'text-[#1D9E75]'}`}>
-              {item.contract_amount == null ? '—' : formatCurrency(item.contract_amount, currency)}
+            <p className={`text-[13px] font-bold tabular-nums ${contratado == null ? 'text-[#ccc]' : 'text-[#1D9E75]'}`}>
+              {contratado == null ? '—' : formatCurrency(contratado, currency)}
             </p>
           </div>
         </div>
@@ -524,8 +527,8 @@ function Ficha({ item, budgets, currency, categorias, desempeno, activa, arrastr
           </div>
           <div>
             <p className="text-[10px] uppercase tracking-wider text-[#aaa]">Contratado</p>
-            <p className={`text-sm font-semibold tabular-nums ${item.contract_amount == null ? 'text-[#ccc]' : 'text-[#1D9E75]'}`}>
-              {item.contract_amount == null ? '—' : formatCurrency(item.contract_amount, currency)}
+            <p className={`text-sm font-semibold tabular-nums ${contratado == null ? 'text-[#ccc]' : 'text-[#1D9E75]'}`}>
+              {contratado == null ? '—' : formatCurrency(contratado, currency)}
             </p>
           </div>
         </div>

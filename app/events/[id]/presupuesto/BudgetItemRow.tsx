@@ -20,7 +20,7 @@ type Props = {
   paidAmount: number
   availableSuppliers: EventSupplierWithName[]
   linkedSupplier: EventSupplierWithName | null
-  onUpdate: (id: string, updates: { subcategory?: string; budget_amount?: number; event_supplier_id?: string | null }) => void
+  onUpdate: (id: string, updates: { subcategory?: string; budget_amount?: number; event_supplier_id?: string | null; contract_amount?: number | null }) => void
   onDelete: (id: string) => void
   onOpenSupplier: (supplier: EventSupplierWithName) => void
   puedeEditar: boolean
@@ -37,9 +37,14 @@ export default function BudgetItemRow({
   const [localAmount, setLocalAmount]     = useState(item.budget_amount.toString())
   const [amountFocused, setAmountFocused] = useState(false)
   const [pickerOpen, setPickerOpen]       = useState(false)
+  const [pickerQuery, setPickerQuery]     = useState('')
+  // Lo contratado se edita aqui mismo, como lo estimado. Vive en la partida.
+  const [localContract, setLocalContract] = useState(item.contract_amount != null ? String(item.contract_amount) : '')
+  const [contractFocused, setContractFocused] = useState(false)
 
   useEffect(() => { setLocalName(item.subcategory || '') }, [item.subcategory])
   useEffect(() => { setLocalAmount(item.budget_amount.toString()) }, [item.budget_amount])
+  useEffect(() => { setLocalContract(item.contract_amount != null ? String(item.contract_amount) : '') }, [item.contract_amount])
 
   const safeSuppliers = availableSuppliers || []
   const pendingAmount = contractedAmount - paidAmount
@@ -48,6 +53,7 @@ export default function BudgetItemRow({
 
   const lastSavedName   = useRef(item.subcategory || '')
   const lastSavedAmount = useRef(item.budget_amount)
+  const lastSavedContract = useRef<number | null>(item.contract_amount ?? null)
   const pickerRef       = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -78,14 +84,34 @@ export default function BudgetItemRow({
     }
   }
 
+  // Al ligar, lo contratado arranca igual a lo estimado: es la mejor
+  // suposicion y se corrige en la misma fila.
   const handleLinkSupplier = (eventSupplierId: string) => {
-    onUpdate(item.id, { event_supplier_id: eventSupplierId })
+    onUpdate(item.id, { event_supplier_id: eventSupplierId, contract_amount: item.contract_amount ?? item.budget_amount })
     setPickerOpen(false)
+    setPickerQuery('')
   }
 
   const handleUnlinkSupplier = () => {
-    onUpdate(item.id, { event_supplier_id: null })
+    onUpdate(item.id, { event_supplier_id: null, contract_amount: null })
   }
+
+  const saveContract = () => {
+    setContractFocused(false)
+    const parsed = localContract.trim() === '' ? null : (parseFloat(localContract) || 0)
+    if (parsed !== lastSavedContract.current) {
+      onUpdate(item.id, { contract_amount: parsed })
+      lastSavedContract.current = parsed
+    }
+  }
+
+  const contractDisplay = contractFocused
+    ? localContract
+    : formatCurrency(parseFloat(localContract) || 0, currency)
+
+  const suppliersFiltrados = pickerQuery.trim()
+    ? safeSuppliers.filter(es => es.supplier.name.toLowerCase().includes(pickerQuery.trim().toLowerCase()))
+    : safeSuppliers
 
   const amountDisplay = amountFocused
     ? localAmount
@@ -152,11 +178,24 @@ export default function BudgetItemRow({
           >
             <div className="border-b border-[#f0f0f0] bg-[#1D1E20] px-3 py-2">
               <p className="text-[10px] font-semibold uppercase tracking-wider text-white/70">
-                Contratados en {categoryName}
+                Proveedores contratados · {safeSuppliers.length}
               </p>
             </div>
+            <div className="border-b border-[#f0f0f0] px-2 py-1.5">
+              <input
+                autoFocus
+                type="text"
+                value={pickerQuery}
+                onChange={e => setPickerQuery(e.target.value)}
+                placeholder="Buscar proveedor…"
+                className="w-full rounded-md border border-[#e8e8e8] bg-[#fafafa] px-2 py-1.5 text-xs outline-none focus:border-[#48C9B0]"
+              />
+            </div>
             <div className="max-h-[240px] overflow-y-auto py-1">
-              {safeSuppliers.map(es => (
+              {suppliersFiltrados.length === 0 && (
+                <p className="px-3 py-2 text-[11px] italic text-[#bbb]">Sin coincidencias</p>
+              )}
+              {suppliersFiltrados.map(es => (
                 <button
                   key={es.id}
                   onClick={() => handleLinkSupplier(es.id)}
@@ -165,9 +204,11 @@ export default function BudgetItemRow({
                   <span className="flex-1 truncate text-xs font-medium text-[#1D1E20]">
                     {es.supplier.name}
                   </span>
-                  <span className="shrink-0 text-[11px] tabular-nums text-[#888]">
-                    {formatCurrency(Number(es.contract_amount || 0), currency)}
-                  </span>
+                  {es.quoted_amount != null && (
+                    <span className="shrink-0 text-[11px] tabular-nums text-[#888]">
+                      cotizó {formatCurrency(Number(es.quoted_amount), currency)}
+                    </span>
+                  )}
                 </button>
               ))}
             </div>
@@ -228,11 +269,28 @@ export default function BudgetItemRow({
           </p>
         )}
 
-        <div className={`text-right text-xs tabular-nums ${
-          hasNoData ? 'text-[#bbb]' : isOverBudget ? 'text-amber-600 font-semibold' : 'text-[#888]'
-        }`}>
-          {hasNoData ? '—' : formatCurrency(contractedAmount, currency)}
-        </div>
+        {!hasNoData && puedeEditar ? (
+          <input
+            type="text"
+            inputMode="decimal"
+            value={contractDisplay}
+            onFocus={() => setContractFocused(true)}
+            onChange={e => {
+              const cleaned = e.target.value.replace(/[^0-9.]/g, '')
+              if (cleaned.split('.').length > 2) return
+              setLocalContract(cleaned)
+            }}
+            onBlur={saveContract}
+            placeholder={formatCurrency(0, currency)}
+            className={`w-full rounded border border-transparent px-2 py-1 text-right text-xs tabular-nums outline-none transition focus:border-[#48C9B0] focus:bg-white ${isOverBudget ? 'text-amber-600 font-semibold' : 'text-[#1D1E20]'}`}
+          />
+        ) : (
+          <div className={`text-right text-xs tabular-nums ${
+            hasNoData ? 'text-[#bbb]' : isOverBudget ? 'text-amber-600 font-semibold' : 'text-[#888]'
+          }`}>
+            {hasNoData ? '—' : formatCurrency(contractedAmount, currency)}
+          </div>
+        )}
         <div className={`text-right text-xs tabular-nums ${hasNoData ? 'text-[#bbb]' : 'text-[#888]'}`}>
           {hasNoData ? '—' : formatCurrency(paidAmount, currency)}
         </div>
@@ -315,11 +373,27 @@ export default function BudgetItemRow({
           </div>
           <div>
             <p className="text-[#aaa]">Contratado</p>
-            <p className={`px-2 py-1 text-sm tabular-nums ${
-              hasNoData ? 'text-[#bbb]' : isOverBudget ? 'text-amber-600 font-semibold' : 'text-[#888]'
-            }`}>
-              {hasNoData ? '—' : formatCurrency(contractedAmount, currency)}
-            </p>
+            {!hasNoData && puedeEditar ? (
+              <input
+                type="text"
+                inputMode="decimal"
+                value={contractDisplay}
+                onFocus={() => setContractFocused(true)}
+                onChange={e => {
+                  const cleaned = e.target.value.replace(/[^0-9.]/g, '')
+                  if (cleaned.split('.').length > 2) return
+                  setLocalContract(cleaned)
+                }}
+                onBlur={saveContract}
+                className={`w-full rounded border border-transparent px-2 py-1 text-sm tabular-nums outline-none focus:border-[#48C9B0] focus:bg-white ${isOverBudget ? 'text-amber-600 font-semibold' : 'text-[#1D1E20]'}`}
+              />
+            ) : (
+              <p className={`px-2 py-1 text-sm tabular-nums ${
+                hasNoData ? 'text-[#bbb]' : isOverBudget ? 'text-amber-600 font-semibold' : 'text-[#888]'
+              }`}>
+                {hasNoData ? '—' : formatCurrency(contractedAmount, currency)}
+              </p>
+            )}
           </div>
           <div>
             <p className="text-[#aaa]">Pagado</p>

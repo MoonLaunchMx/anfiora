@@ -32,7 +32,7 @@ import {
   filasDeReview,
 } from '@/lib/rolodex/ficha-por-estado'
 import type { TipoReviewFicha } from '@/lib/rolodex/ficha-por-estado'
-import { metaDelProveedor, partidasDelProveedor } from '@/lib/presupuesto/derivados'
+import { metaDelProveedor, partidasDelProveedor, contratadoDelProveedor } from '@/lib/presupuesto/derivados'
 import type { InfoLink } from '@/lib/reviews/link-cliente'
 import { calcularScores } from '@/lib/reviews/scores'
 import { yaRechazoLaOferta, recordarRechazo } from '@/lib/rolodex/oferta-avance'
@@ -73,6 +73,8 @@ type Props = {
   // no viene -- la ficha abierta desde Presupuesto -- el renglon del cliente
   // solo aparece cuando su review ya existe.
   opinionCliente?: OpinionCliente
+  // Abre el reparto del contrato entre partidas (vive en la pagina).
+  onElegirPartidas?: (item: SupplierWithDetails) => void
   onStatusChange: (itemId: string, nuevo: SupplierStatus) => void
   onSaved: (item: SupplierWithDetails) => void
   onQuitada: (itemId: string) => void
@@ -109,7 +111,7 @@ function iniciales(nombre: string): string {
 }
 
 export default function FichaDelEvento({
-  item, budgets, currency, categorias, conteoPagosInicial, opinionCliente, onStatusChange, onSaved, onQuitada, onDerivadosCambiaron, onCerrar,
+  item, budgets, currency, categorias, conteoPagosInicial, opinionCliente, onElegirPartidas, onStatusChange, onSaved, onQuitada, onDerivadosCambiaron, onCerrar,
   abrirRevisionParaId, onRevisionAbierta,
 }: Props) {
   const askConfirm = useConfirm()
@@ -290,7 +292,7 @@ export default function FichaDelEvento({
   const presupuesto = metaDelProveedor(item, budgets)
   const pagado      = pagos.reduce((suma, p) => suma + (p.amount || 0), 0)
   const nPagos      = cargandoPagos ? (conteoPagosInicial ?? 0) : pagos.length
-  const contratado  = item.contract_amount ?? null
+  const contratado  = contratadoDelProveedor(item, budgets)
   const falta       = contratado ? Math.max(0, contratado - pagado) : null
   const avance      = contratado && contratado > 0 ? Math.min(100, Math.round((pagado / contratado) * 100)) : 0
 
@@ -413,19 +415,16 @@ export default function FichaDelEvento({
     onDerivadosCambiaron?.()
   }
 
+  // Solo lo cotizado vive en el proveedor. Lo contratado es de cada partida
+  // y se captura al contratar, en PartidasModal.
   const guardarMontos = () => {
     const cotizado = montos.cotizado.trim() === '' ? null : Number(montos.cotizado)
-    const contrato  = montos.contratado.trim() === '' ? null : Number(montos.contratado)
-    if ((cotizado != null && isNaN(cotizado)) || (contrato != null && isNaN(contrato))) {
-      setErrorGuardar('Los montos tienen que ser números.')
+    if (cotizado != null && isNaN(cotizado)) {
+      setErrorGuardar('El monto tiene que ser un número.')
       return
     }
     guardarEnLaBoda(
-      {
-        quoted_amount:   cotizado,
-        contract_amount: contrato,
-        event_budget_id: montos.partida || null,
-      },
+      { quoted_amount: cotizado },
       () => {
         setEditandoMontos(false)
         if (cotizado != null && item.status === 'nuevo') {
@@ -737,28 +736,7 @@ export default function FichaDelEvento({
                   className={INPUT}
                 />
               </Campo>
-              <Campo etiqueta="Contratado">
-                <input
-                  type="number"
-                  inputMode="decimal"
-                  value={montos.contratado}
-                  onChange={e => setMontos(m => ({ ...m, contratado: e.target.value }))}
-                  placeholder="0.00"
-                  className={INPUT}
-                />
-              </Campo>
             </div>
-
-            <Campo etiqueta="Partida del presupuesto">
-              <select value={montos.partida} onChange={e => setMontos(m => ({ ...m, partida: e.target.value }))} className={INPUT}>
-                <option value="">Sin ligar a ninguna partida</option>
-                {budgets.map(b => (
-                  <option key={b.id} value={b.id}>
-                    {b.subcategory || nombrePorId(categorias, b.category_id)}
-                  </option>
-                ))}
-              </select>
-            </Campo>
 
             {errorGuardar && (
               <p className="rounded-lg border border-[#ffc0c0] bg-[#fff0f0] px-3 py-2 text-xs text-[#cc3333]">{errorGuardar}</p>
@@ -810,13 +788,36 @@ export default function FichaDelEvento({
               />
             </Bloque>
 
-            <Bloque titulo="Partida del presupuesto">
+            <Bloque
+              titulo="Cómo se reparte"
+              accion={permisoFicha.editar && onElegirPartidas && partidas.length > 0 ? (
+                <button onClick={() => onElegirPartidas(item)} className="flex items-center gap-1 text-[11px] font-semibold text-[#48C9B0] transition hover:text-[#3aa896]">
+                  <Pencil size={11} /> Editar
+                </button>
+              ) : null}
+            >
               {partidas.length > 0 ? (
-                <p className="text-sm text-[#1D1E20]">
-                  {partidas.map(p => p.subcategory || nombrePorId(categorias, p.category_id)).join(' · ')}
-                </p>
+                <ul className="divide-y divide-[#f2f2f2]">
+                  {partidas.map(p => (
+                    <li key={p.id} className="flex items-center justify-between gap-3 py-1.5 text-[13px]">
+                      <span className="min-w-0 truncate text-[#555]">{p.subcategory || nombrePorId(categorias, p.category_id)}</span>
+                      <span className={`shrink-0 tabular-nums ${p.contract_amount == null ? 'text-[#bbb]' : 'font-semibold text-[#1D1E20]'}`}>
+                        {p.contract_amount == null ? 'sin monto' : formatCurrency(p.contract_amount, currency)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              ) : item.status === 'contratado' ? (
+                <div className="flex flex-wrap items-center gap-2 rounded-lg border border-[#efd9a6] bg-[#fdf8ee] px-3 py-2">
+                  <span className="text-[12px] font-semibold text-[#1D1E20]">Falta ponerlo en el presupuesto</span>
+                  {permisoFicha.editar && onElegirPartidas && (
+                    <button onClick={() => onElegirPartidas(item)} className="ml-auto rounded-lg bg-[#48C9B0] px-2.5 py-1.5 text-[11.5px] font-semibold text-white hover:bg-[#3aa896]">
+                      Elegir partidas
+                    </button>
+                  )}
+                </div>
               ) : (
-                <p className="text-xs text-[#999]">Sin ligar a ninguna partida.</p>
+                <p className="text-xs text-[#999]">Se reparte al contratarlo.</p>
               )}
             </Bloque>
 
@@ -1138,11 +1139,7 @@ function borradorDe(item: SupplierWithDetails) {
 }
 
 function montosDe(item: SupplierWithDetails) {
-  return {
-    cotizado:   item.quoted_amount?.toString() ?? '',
-    contratado: item.contract_amount?.toString() ?? '',
-    partida:    item.event_budget_id ?? '',
-  }
+  return { cotizado: item.quoted_amount?.toString() ?? '' }
 }
 
 function Campo({ etiqueta, children }: { etiqueta: string; children: React.ReactNode }) {

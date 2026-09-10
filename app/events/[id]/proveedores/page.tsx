@@ -23,6 +23,8 @@ import { calcularScores } from '@/lib/reviews/scores'
 import type { ReviewParaScore } from '@/lib/reviews/scores'
 import { useGuardarCambioDeEstado } from '@/lib/rolodex/usar-bloqueo-retroceso'
 import FichaModal from './FichaModal'
+import PartidasModal from './PartidasModal'
+import { contratadoDelProveedor } from '@/lib/presupuesto/derivados'
 import ReviewContratacionModal from './ReviewContratacionModal'
 import ReviewDescarteModal from './ReviewDescarteModal'
 import SupplierListView from './SupplierListView'
@@ -128,6 +130,8 @@ export default function ProveedoresPage() {
   const [ajustesLink, setAjustesLink] = useState<{ token: string | null; expiresAt: string | null; ids: string[] | null }>({ token: null, expiresAt: null, ids: null })
   const [clienteRespondio, setClienteRespondio] = useState<Set<string>>(new Set())
   const [pedirOpinionAbierto, setPedirOpinionAbierto] = useState(false)
+  // Al contratar se reparte el contrato entre sus partidas: es el mismo acto.
+  const [partidasItem, setPartidasItem] = useState<SupplierWithDetails | null>(null)
   const [motivoDescartePorItem, setMotivoDescartePorItem] = useState<Record<string, MotivoDescarte | null>>({})
   const [viewMode, setViewMode] = useState<ViewMode>('fichero')
   const [modalOpen, setModalOpen]       = useState(false)
@@ -392,7 +396,6 @@ export default function ProveedoresPage() {
         supplier_id:     supplierId,
         status:          enEstaBoda.quoted_amount ? 'cotizado' : 'nuevo',
         quoted_amount:   enEstaBoda.quoted_amount,
-        event_budget_id: enEstaBoda.event_budget_id,
       })
       .select('*, supplier:suppliers(*)')
       .single()
@@ -431,15 +434,13 @@ export default function ProveedoresPage() {
     if (!permiso.editar) return
     if (!duenoCatalogo) throw new Error('El evento aún no carga, intenta de nuevo')
 
-    const concepto = data.event_budget_id ? budgets.find(b => b.id === data.event_budget_id) : null
-
     const { data: ficha, error: supErr } = await supabase
       .from('suppliers')
       .insert({
         user_id:            duenoCatalogo,
         name:               data.name,
         category_id:        data.category_id,
-        subcategory:        concepto?.subcategory || data.subcategory,
+        subcategory:        data.subcategory,
         contact_name:       data.contact_name,
         phone:              data.phone,
         phone_country_code: data.phone_country_code,
@@ -522,23 +523,25 @@ export default function ProveedoresPage() {
       return
     }
 
-    // Review al llegar a un estado final (arrastrar en kanban o mover desde la
-    // ficha). Tambien de descartado a contratado, y al reves: lo que evita
-    // repetirla no es el estado de origen sino que ya exista una review de
-    // ese tipo para este proveedor.
-    const isNowFinal = newStatus === 'contratado' || newStatus === 'descartado'
-    if (isNowFinal && prev) {
-      const reviewType = newStatus === 'contratado' ? 'contratacion' : 'descarte'
-      const { count, error: reviewError } = await supabase
-        .from('supplier_reviews')
-        .select('id', { count: 'exact', head: true })
-        .eq('event_supplier_id', itemId)
-        .eq('review_type', reviewType)
-      if (reviewError) {
-        console.error('Error verificando si ya existe review:', reviewError.message ?? reviewError, reviewError)
-      } else if (!count) {
-        setReviewItem({ ...prev, status: newStatus })
-      }
+    // Contratar y ligar son el mismo acto: primero en que partidas va y con
+    // cuanto, y al cerrar eso, la review. Descartar va directo a la review.
+    if (newStatus === 'contratado') { setPartidasItem({ ...prev, status: newStatus }); return }
+    if (newStatus === 'descartado') await ofrecerReview({ ...prev, status: newStatus })
+  }
+
+  // Una sola vez por proveedor y por tipo de review: lo que evita repetirla no
+  // es el estado de origen sino que ya exista una review de ese tipo.
+  const ofrecerReview = async (item: SupplierWithDetails) => {
+    const reviewType = item.status === 'contratado' ? 'contratacion' : 'descarte'
+    const { count, error: reviewError } = await supabase
+      .from('supplier_reviews')
+      .select('id', { count: 'exact', head: true })
+      .eq('event_supplier_id', item.id)
+      .eq('review_type', reviewType)
+    if (reviewError) {
+      console.error('Error verificando si ya existe review:', reviewError.message ?? reviewError, reviewError)
+    } else if (!count) {
+      setReviewItem(item)
     }
   }
 
@@ -617,7 +620,7 @@ export default function ProveedoresPage() {
   const totalContratados = items.filter(i => i.status === 'contratado').length
   const totalInvestment  = items
     .filter(i => i.status === 'contratado')
-    .reduce((sum, i) => sum + (i.contract_amount || 0), 0)
+    .reduce((sum, i) => sum + (contratadoDelProveedor(i, budgets) ?? 0), 0)
 
   if (loading || !event) {
     return (
@@ -839,6 +842,7 @@ export default function ProveedoresPage() {
                 onSaved={handleSavedItem}
                 onQuitada={handleDeletedItem}
                 onDerivadosCambiaron={refrescarDerivados}
+                onElegirPartidas={setPartidasItem}
                 enfocar={enfocar}
                 onEnfocado={() => setEnfocar(null)}
                 abrirRevisionParaId={revisionParaId}
@@ -890,8 +894,22 @@ export default function ProveedoresPage() {
           onSaved={handleSavedItem}
           onQuitada={handleDeletedItem}
           onDerivadosCambiaron={refrescarDerivados}
+          onElegirPartidas={it => { setSelectedItem(null); setPartidasItem(it) }}
           abrirRevisionParaId={revisionParaId}
           onRevisionAbierta={() => setRevisionParaId(null)}
+        />
+      )}
+
+      {partidasItem && permiso.editar && (
+        <PartidasModal
+          item={partidasItem}
+          budgets={budgets}
+          categorias={categorias}
+          currency={currency}
+          nombreDeProveedor={id => items.find(i => i.id === id)?.supplier.name ?? 'otro proveedor'}
+          etiquetaGuardar={partidasItem.status === 'contratado' ? 'Contratar' : 'Guardar'}
+          onClose={() => { const it = partidasItem; setPartidasItem(null); if (it.status === 'contratado') ofrecerReview(it) }}
+          onGuardado={nuevos => { setBudgets(nuevos); const it = partidasItem; setPartidasItem(null); if (it.status === 'contratado') ofrecerReview(it) }}
         />
       )}
 

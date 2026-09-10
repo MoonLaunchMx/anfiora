@@ -15,6 +15,7 @@ type Props = {
   categorias: Categoria[]
   conteoPagosInicial?: number
   opinionCliente?: OpinionCliente
+  onElegirPartidas?: (item: SupplierWithDetails) => void
   onClose: () => void
   onStatusChange: (itemId: string, nuevo: SupplierStatus) => void
   onSaved: (item: SupplierWithDetails) => void

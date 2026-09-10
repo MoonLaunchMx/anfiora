@@ -22,7 +22,6 @@ import { Modal } from '@/app/components/ui/Modal'
 import CategoriaPicker from './CategoriaPicker'
 
 export type EnEstaBoda = {
-  event_budget_id: string | null
   quoted_amount: number | null
 }
 
@@ -166,7 +165,6 @@ export default function AltaProveedor({
   const [etiquetas, setEtiquetas]   = useState<string[]>([])
   const [notas, setNotas]           = useState('')
 
-  const [eventBudgetId, setEventBudgetId] = useState('')
   const [cotizacion, setCotizacion]       = useState('')
 
   // La boda no guarda pais, asi que el default sale del Rolodex: el pais donde
@@ -188,7 +186,7 @@ export default function AltaProveedor({
     setInstagram(''); setFacebook(''); setCorreo(''); setSitio('')
     setPais(paisDominante); setCiudad(''); setEstado('')
     setRadio(''); setEtiquetas([]); setNotas('')
-    setEventBudgetId(''); setCotizacion('')
+    setCotizacion('')
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen])
 
@@ -254,12 +252,6 @@ export default function AltaProveedor({
     return [...usadas, ...sugeridas]
   }, [ciudadesQueUsas, pais, estado])
 
-  // Los conceptos se filtran por la categoria del proveedor: la que se esta
-  // tecleando si es nuevo, la que ya trae su ficha si viene del Rolodex.
-  const categoriaActiva = fase === 'nuevo' ? categoriaElegida?.id ?? null : elegida?.categoriaId ?? null
-  const conceptos   = categoriaActiva ? budgets.filter(b => b.category_id === categoriaActiva) : []
-  const conceptoSel = eventBudgetId ? budgets.find(b => b.id === eventBudgetId) : null
-
   const montoCotizado = (): number | null => {
     const limpio = cotizacion.trim()
     if (!limpio) return null
@@ -279,7 +271,6 @@ export default function AltaProveedor({
   const elegir = (entrada: EntradaDelRolodex) => {
     if (entrada.enEstaBoda) { onAbrirEnEstaBoda(entrada.id); return }
     setElegida(entrada)
-    setEventBudgetId('')
     setCotizacion('')
     setError('')
     setFase('existente')
@@ -299,8 +290,7 @@ export default function AltaProveedor({
 
   const usarExistente = (supplierId: string) =>
     conEnvio(() => onUsarExistente(supplierId, {
-      event_budget_id: eventBudgetId || null,
-      quoted_amount:   montoCotizado(),
+      quoted_amount: montoCotizado(),
     }))
 
   const crearNuevo = () => {
@@ -317,7 +307,7 @@ export default function AltaProveedor({
     return conEnvio(() => onCrearNuevo({
       name:               nombre.trim(),
       category_id:        categoriaElegida.id,
-      subcategory:        conceptoSel?.subcategory || null,
+      subcategory:        null,
       contact_name:       contacto.trim() || null,
       phone:              telefono.trim() || null,
       phone_country_code: telefono.trim() && cc ? dialCode(cc) || null : null,
@@ -331,7 +321,6 @@ export default function AltaProveedor({
       service_radius_km:  km !== null && Number.isFinite(km) && km > 0 ? km : null,
       tags:               etiquetas,
       general_notes:      notas.trim() || null,
-      event_budget_id:    eventBudgetId || null,
       quoted_amount:      montoCotizado(),
     }))
   }
@@ -341,32 +330,6 @@ export default function AltaProveedor({
   // cotizacion perderia el foco a cada tecla.
   const camposDeLaBoda = (
     <>
-      <div>
-        <Etiqueta>Concepto del presupuesto</Etiqueta>
-        {conceptos.length > 0 ? (
-          <select value={eventBudgetId} onChange={e => setEventBudgetId(e.target.value)} className={INPUT}>
-            <option value="">Sin concepto</option>
-            {conceptos.map(b => (
-              <option key={b.id} value={b.id}>
-                {b.subcategory || nombrePorId(categorias, b.category_id)}
-                {b.budget_amount ? ` — ${formatCurrency(b.budget_amount, currency)}` : ''}
-              </option>
-            ))}
-          </select>
-        ) : (
-          <div className="rounded-lg border border-dashed border-[#e0e0e0] bg-[#fafafa] px-3 py-2.5 text-center">
-            <p className="text-xs text-[#aaa]">
-              No hay conceptos de {categoriaElegida?.name ?? elegida?.categoria ?? 'esta categoría'} — créalos en Presupuesto
-            </p>
-          </div>
-        )}
-        {conceptoSel && (
-          <p className="mt-1 text-[10px] text-[#48C9B0]">
-            Meta: {formatCurrency(conceptoSel.budget_amount, currency)}
-          </p>
-        )}
-      </div>
-
       <div>
         <Etiqueta>Cotización</Etiqueta>
         <div className={PREFIJO}>
@@ -520,7 +483,7 @@ export default function AltaProveedor({
                     <CategoriaPicker
                       categorias={categorias}
                       valorId={categoriaElegida?.id ?? null}
-                      onChange={c => { setCategoriaElegida(c); setEventBudgetId(''); onCategoriaCreada?.(c) }}
+                      onChange={c => { setCategoriaElegida(c); onCategoriaCreada?.(c) }}
                       duenoCatalogo={duenoCatalogo}
                       className="border-[#e0e0e0]"
                     />

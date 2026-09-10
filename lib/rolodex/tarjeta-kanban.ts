@@ -11,13 +11,14 @@ export type DineroTarjeta =
 
 type ItemParaDinero = {
   status: SupplierStatus
-  contract_amount: number | null
   quoted_amount: number | null
 }
 
-export function dineroDeTarjeta(item: ItemParaDinero, pagado: number, motivo: MotivoDescarte | null): DineroTarjeta {
+// `contratado` viene de la suma de sus partidas (contratadoDelProveedor):
+// el proveedor ya no guarda un monto de contrato propio.
+export function dineroDeTarjeta(item: ItemParaDinero, contratado: number | null, pagado: number, motivo: MotivoDescarte | null): DineroTarjeta {
   if (item.status === 'descartado') return { tipo: 'descarte', motivo }
-  if (item.contract_amount != null) return { tipo: 'contratado', contratado: item.contract_amount, pagado }
+  if (contratado != null) return { tipo: 'contratado', contratado, pagado }
   if (item.quoted_amount != null) return { tipo: 'cotizado', cotizado: item.quoted_amount }
   return { tipo: 'ninguno' }
 }
