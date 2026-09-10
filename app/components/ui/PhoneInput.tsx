@@ -6,10 +6,10 @@ import { ChevronDown, Search, X } from 'lucide-react'
 import {
   COUNTRIES,
   DEFAULT_COUNTRY,
-  toE164,
+  componerTelefono,
   formatAsYouType,
   detectCountry,
-  isValidPhone,
+  ladaEscrita,
   nationalNumber,
   dialCode,
   sinAcentos,
@@ -199,7 +199,15 @@ export default function PhoneInput({
   }, [open, layout.mode])
 
   const emit = (raw: string, targetCountry: CountryCode) => {
-    const next = raw.trim() ? (toE164(raw, targetCountry) ?? '') : ''
+    // Vaciar el campo si vacia el dato, pero un numero que todavia no se puede
+    // componer NO borra el que ya habia: se conserva el anterior.
+    if (!raw.trim()) {
+      lastSyncedRef.current = ''
+      onChange('')
+      return
+    }
+    const next = componerTelefono(raw, targetCountry)
+    if (next === null) return
     lastSyncedRef.current = next
     onChange(next)
   }
@@ -223,7 +231,14 @@ export default function PhoneInput({
   }
 
   const current = COUNTRIES.find(c => c.iso === country)
-  const showError = text.trim() !== '' && !isValidPhone(text, country)
+  // El boton muestra la lada que el numero trae escrita; solo cuando no trae
+  // ninguna manda la del pais seleccionado. Nunca una tercera inventada: decir
+  // +52 sobre un numero que empieza con +1 es lo que volvia loco al planner.
+  const ladaMostrada = ladaEscrita(text) ?? current?.dial ?? dialCode(country)
+  // Rojo solo cuando el numero no cabe en E.164, que es la misma vara con la que
+  // se guarda. Si ese prefijo existe o no en el mundo, Anfiora no opina: eso lo
+  // sabra el planner cuando marque o cuando WhatsApp no entregue.
+  const showError = text.trim() !== '' && componerTelefono(text, country) === null
 
   // Sin acentos y sin el "+" de la lada: quien escribe "España" o "+34" tiene que
   // encontrar su pais, no una lista vacia.
@@ -294,7 +309,7 @@ export default function PhoneInput({
               : 'border-[#e8e8e8] text-[#1D1E20] hover:bg-[#f8f8f8]'
           }`}
         >
-          <span>{current?.dial ?? dialCode(country)}</span>
+          <span>{ladaMostrada}</span>
           <ChevronDown size={12} className="text-[#999]" />
         </button>
 

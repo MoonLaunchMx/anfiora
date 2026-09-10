@@ -107,8 +107,11 @@ export function detectCountry(raw: string): CountryCode | null {
   return parsed?.country ?? null
 }
 
+// Abrir WhatsApp es una accion del planner, no un candado: se arma la liga con lo
+// que haya y que WhatsApp diga si el numero existe. Antes un numero con lada rara
+// no alcanzaba a abrir la conversacion.
 export function toWhatsApp(raw: string, defaultCountry: CountryCode = DEFAULT_COUNTRY): string | null {
-  const e164 = toE164(raw, defaultCountry)
+  const e164 = componerTelefono(raw, defaultCountry)
   if (!e164) return null
   return e164.replace(/\D/g, '')
 }
@@ -123,4 +126,88 @@ export function nationalNumber(raw: string): string {
   const parsed = parsePhoneNumberFromString(raw.trim())
   if (parsed) return parsed.nationalNumber
   return raw.replace(/\D/g, '')
+}
+
+const MAX_E164_DIGITS = 15
+
+// Mexico retiro el "1" troncal de moviles en 2019; libphonenumber ya no lo acepta,
+// pero contactos viejos y exports de WhatsApp aun traen +521 + 10 digitos.
+function sinTroncalMx(digitos: string): string {
+  return /^521\d{10}$/.test(digitos) ? '52' + digitos.slice(3) : digitos
+}
+
+// Pega la lada con el numero y lo devuelve en E.164. NO opina si ese prefijo
+// existe en el mundo: quien sabe si un numero sirve es el planner cuando marca o
+// cuando WhatsApp no entrega, no la metadata de una libreria que siempre va atras
+// de las asignaciones reales. Lo unico que rechaza es lo que no cabe en E.164.
+// Para candados sobre entrada no confiable (la puerta publica) sigue estando toE164.
+export function componerTelefono(raw: string, country: CountryCode = DEFAULT_COUNTRY): string | null {
+  if (!raw || !raw.trim()) return null
+  const texto = raw.trim()
+  const digitos = sinTroncalMx(texto.replace(/\D/g, ''))
+  if (!digitos || digitos.length > MAX_E164_DIGITS) return null
+  // Una lada sola no es un telefono: no hay a quien marcar. AsYouType sabe donde
+  // termina la lada aun en numeros que no reconoce, asi que se pregunta en vez de
+  // adivinar por largo. Esto no es opinar si el numero existe, es notar que no hay
+  // numero del suscriptor.
+  if (texto.startsWith('+')) {
+    const ayt = new AsYouType()
+    ayt.input('+' + digitos)
+    const lada = ayt.getCallingCode()
+    if (lada && digitos.length <= lada.length) return null
+  }
+
+  // Mientras la libreria entienda el numero se usa su lectura, que sabe quitar
+  // prefijos troncales y no duplicar la lada. Cuando no lo entiende no se rechaza:
+  // se pega la lada del selector a mano.
+  const parsed = parsePhoneNumberFromString(texto.startsWith('+') ? '+' + digitos : texto, country)
+  if (parsed) return parsed.number
+  if (texto.startsWith('+')) return '+' + digitos
+
+  const total = getCountryCallingCode(country) + digitos
+  return total.length > MAX_E164_DIGITS ? null : '+' + total
+}
+
+// La lada de la plantilla: digitos ("51", "+51", "0051") o el nombre del pais
+// ("Peru", "España", "PE"). Vacio o irreconocible devuelve null y manda al default.
+function ladaADigitos(lada: string): string | null {
+  const texto = (lada || '').trim()
+  if (!texto) return null
+  const digitos = texto.replace(/^\+/, '').replace(/^00/, '')
+  if (/^\d{1,4}$/.test(digitos)) return digitos
+  const norm = sinAcentos(texto)
+  const pais = COUNTRIES.find(c => sinAcentos(c.name) === norm || sinAcentos(c.iso) === norm)
+  return pais ? pais.dial.replace('+', '') : null
+}
+
+// Importacion: la lada vive en su propia columna porque Excel trata cualquier celda
+// que empieza con "+" como formula y se lo come.
+export function componerDesdeLada(
+  lada: string,
+  telefono: string,
+  porDefecto: CountryCode = DEFAULT_COUNTRY
+): string | null {
+  const tel = (telefono || '').trim()
+  if (!tel) return null
+  if (tel.startsWith('+')) return componerTelefono(tel, porDefecto)
+
+  const dial = ladaADigitos(lada)
+  if (!dial) return componerTelefono(tel, porDefecto)
+
+  let digitos = tel.replace(/\D/g, '')
+  if (!digitos) return null
+  // Hay quien escribe la lada en las dos columnas; no se duplica.
+  if (digitos.startsWith(dial) && digitos.length - dial.length >= 6) digitos = digitos.slice(dial.length)
+  return componerTelefono('+' + dial + digitos, porDefecto)
+}
+
+// La lada que el propio numero trae escrita. El selector la usa para no mentir:
+// cuando libphonenumber no puede nombrar el pais (+1 663 no es una clave de area
+// asignada), antes caia en Mexico y el boton decia +52 sobre un numero que
+// empieza con +1. Devuelve null si el numero no trae lada explicita.
+export function ladaEscrita(raw: string): string | null {
+  const texto = (raw || '').trim()
+  if (!texto.startsWith('+')) return null
+  const parsed = parsePhoneNumberFromString(texto)
+  return parsed?.countryCallingCode ? '+' + parsed.countryCallingCode : null
 }
