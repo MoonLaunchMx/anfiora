@@ -16,6 +16,8 @@ const ROLE_LABELS: Record<string, string> = {
   viewer: 'Solo lectura',
 }
 
+type DatosEvento = { name?: string | null; event_date?: string | null; venue?: string | null }
+
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params
   if (!token) return NextResponse.json({ status: 'invalid' }, { status: 404 })
@@ -30,7 +32,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
   if (error || !data) {
     const { data: m } = await db
       .from('workspace_members')
-      .select('id, workspace_id, email, rol, status, user_id, workspaces ( name )')
+      .select('id, workspace_id, email, rol, status, user_id, invited_by, workspaces ( name )')
       .eq('invite_token', token)
       .maybeSingle()
     if (!m || m.status === 'revoked') return NextResponse.json({ status: 'invalid' }, { status: 404 })
@@ -40,12 +42,24 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
       .from('events').select('id').eq('workspace_id', m.workspace_id)
     if (errEventosWs) return NextResponse.json({ status: 'invalid' }, { status: 404 })
     const idsWs = (eventosWs ?? []).map(e => e.id as string)
+    // Fecha y lugar viajan con cada evento: quien acepta necesita saber a que
+    // esta diciendo que si antes de crear una cuenta.
     const { data: bodas } = idsWs.length
       ? await db
-          .from('event_collaborators').select('event_id, events ( name )')
+          .from('event_collaborators').select('event_id, events ( name, event_date, venue )')
           .eq('email', m.email).eq('status', 'pending').or('tipo.is.null,tipo.neq.cliente').in('event_id', idsWs)
       : { data: [] }
     const { data: existing } = await db.from('users').select('id').ilike('email', m.email).maybeSingle()
+
+    // Quien invita es la señal de confianza de esta pantalla: llega por un
+    // enlace de WhatsApp y el nombre le dice de quien viene. Si no se puede
+    // leer, la pantalla se dibuja igual sin esa linea.
+    let invitadoPor: string | null = null
+    if (m.invited_by) {
+      const { data: quien } = await db.from('users').select('full_name').eq('id', m.invited_by).maybeSingle()
+      invitadoPor = (quien?.full_name as string | null) ?? null
+    }
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const ws = m.workspaces as any
     return NextResponse.json({
@@ -53,8 +67,19 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
       invite: {
         workspace_id: m.workspace_id, workspace_name: ws?.name ?? 'Workspace',
         email: m.email, rol: m.rol, rolLabel: m.rol === 'admin' ? 'Administrador' : 'Colaborador',
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        bodas: (bodas ?? []).map((b: any) => ({ id: b.event_id, name: b.events?.name ?? 'Boda' })),
+        invitado_por: invitadoPor,
+        // El join de Supabase se tipa como arreglo aunque la relacion sea a
+        // uno, asi que se acepta cualquiera de las dos formas.
+        bodas: (bodas ?? []).map(fila => {
+          const b = fila as unknown as { event_id: string; events?: DatosEvento | DatosEvento[] | null }
+          const e = Array.isArray(b.events) ? b.events[0] : b.events
+          return {
+            id: b.event_id,
+            name: e?.name ?? 'Evento',
+            event_date: e?.event_date ?? null,
+            venue: e?.venue ?? null,
+          }
+        }),
       },
     })
   }
