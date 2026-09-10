@@ -362,10 +362,10 @@ export default function AltaProveedor({
       <AlertTriangle size={15} className="mt-0.5 shrink-0" />
       <div className="min-w-0 flex-1">
         <p className="text-[12.5px] font-bold">
-          Ese {repetido.campo === 'telefono' ? 'WhatsApp' : 'correo'} ya es de un proveedor {repetido.entrada.enEstaBoda ? 'de este evento' : 'tuyo'}
+          Este {repetido.campo === 'telefono' ? 'número' : 'correo'} ya existe en tu Rolodex
         </p>
         <p className="mt-0.5 text-[11.5px] leading-snug opacity-90">
-          {repetido.entrada.enEstaBoda ? 'Ábrelo' : 'Agrégalo'}, o escribe el {repetido.campo === 'telefono' ? 'número' : 'correo'} correcto arriba.
+          {repetido.entrada.enEstaBoda ? 'Ya está en este evento.' : 'Agrégalo al evento.'}
         </p>
         <div className="mt-2 flex items-center gap-2.5 rounded-lg bg-white/60 px-2.5 py-2">
           <Inicial nombre={repetido.entrada.nombre} />
