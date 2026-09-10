@@ -26,6 +26,7 @@ type Props = {
     subcategory: string
     budget_amount: number
     event_supplier_id: string | null
+    contract_amount: number | null
     notes: string | null
   }) => Promise<void>
 }
@@ -53,7 +54,7 @@ export default function BudgetItemModal({
 
   const suggestions = SUBCATEGORIES_BY_CATEGORY[category as BudgetCategory] || []
 
-  // Solo proveedores con status 'contratado' — son los unicos con contract_amount real y pagos
+  // Solo contratados: son los unicos que pueden tener un monto en una partida.
   const contratados = eventSuppliers.filter(es =>
     es.supplier && es.status === 'contratado'
   )
@@ -70,6 +71,9 @@ export default function BudgetItemModal({
         subcategory:       subcategory.trim(),
         budget_amount:     parseFloat(amount) || 0,
         event_supplier_id: supplierId || null,
+        // Con proveedor, la partida nace con lo contratado igual a lo estimado;
+        // se corrige en la tabla o desde la ficha del proveedor.
+        contract_amount:   supplierId ? (parseFloat(amount) || 0) : null,
         notes:             notes.trim() || null,
       })
       onClose()
@@ -170,12 +174,12 @@ export default function BudgetItemModal({
                   {contratados.map(es => (
                     <option key={es.id} value={es.id}>
                       {es.supplier.name}
-                      {es.contract_amount ? ` — ${formatCurrency(es.contract_amount, currency)}` : ''}
+                      {es.quoted_amount ? ` — cotizó ${formatCurrency(es.quoted_amount, currency)}` : ''}
                     </option>
                   ))}
                 </select>
                 <p className="mt-1 text-[10px] text-[#aaa]">
-                  Si vinculas, los montos y pagos se actualizan automáticamente.
+                  Lo contratado de esta partida arranca igual a lo estimado; lo corriges en la tabla.
                 </p>
               </>
             ) : (

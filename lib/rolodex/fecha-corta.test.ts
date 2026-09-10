@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { formatFechaCorta } from './fecha-corta'
+import {formatFechaCorta, fechaCortaISO, MESES_CORTOS } from './fecha-corta'
 
 describe('formatFechaCorta', () => {
   it('da dia, mes corto en minusculas y ano de dos digitos', () => {
@@ -14,5 +14,19 @@ describe('formatFechaCorta', () => {
     expect(formatFechaCorta(null)).toBe('')
     expect(formatFechaCorta('')).toBe('')
     expect(formatFechaCorta('no-es-fecha')).toBe('')
+  })
+})
+
+describe('fechaCortaISO', () => {
+  it('parte la fecha a mano: 2026-07-26 es 26 jul, sin corrimiento UTC', () => {
+    expect(fechaCortaISO('2026-07-26')).toBe('26 jul')
+    expect(fechaCortaISO('2026-01-01')).toBe('1 ene')
+  })
+  it('vacio o basura devuelve cadena vacia', () => {
+    expect(fechaCortaISO(null)).toBe('')
+    expect(fechaCortaISO('hoy')).toBe('')
+  })
+  it('los meses son doce', () => {
+    expect(MESES_CORTOS).toHaveLength(12)
   })
 })

@@ -8,7 +8,7 @@ export const EJES = [
 
 export type Eje = typeof EJES[number]
 
-export type ContextoAnclas = 'propuesta' | 'desempeno'
+export type ContextoAnclas = 'propuesta' | 'desempeno' | 'desempeno_cliente'
 
 export const EJES_PROPUESTA: Eje[] = ['precio_valor', 'calidad', 'comunicacion']
 export const EJES_DESEMPENO: Eje[] = [...EJES]
@@ -88,6 +88,32 @@ export const ANCLAS: Record<ContextoAnclas, Partial<Record<Eje, string[]>>> = {
       'Resolvió antes de que nadie lo notara',
     ],
   },
+  // La voz del cliente: mismo eje, mismo 1-5, misma posicion. Solo cambia el
+  // sujeto de la frase. precio_valor y calidad no tienen espejo porque ya
+  // estaban escritas sin sujeto: anclasDe cae a 'desempeno'.
+  desempeno_cliente: {
+    comunicacion: [
+      'Nunca pudimos localizarlo',
+      'Tuvimos que perseguirlo todo el proceso',
+      'Respondía, pero siempre empezábamos nosotros',
+      'Accesible y claro todo el proceso',
+      'Proactivo, nos avisaba antes de preguntar',
+    ],
+    servicio_trato: [
+      'Nos trató mal a nosotros o a nuestros invitados',
+      'Correcto pero frío',
+      'Profesional, sin más',
+      'Cálido, se notó',
+      'Lo comentamos entre nosotros sin que nadie preguntara',
+    ],
+    manejo_imprevistos: [
+      'Empeoró el problema o lo negó',
+      'Se paralizó, lo resolvieron otros',
+      'Resolvió a medias o con ayuda',
+      'Resolvió solo, sin alarmar a nadie',
+      'Lo resolvió sin que nos enteráramos',
+    ],
+  },
 }
 
 export const ANCLAS_RECONTRATACION = [
@@ -98,6 +124,16 @@ export const ANCLAS_RECONTRATACION = [
   'Definitivamente sí, es mi primera opción',
 ]
 
+export const ANCLAS_RECOMENDACION_CLIENTE = [
+  ...ANCLAS_RECONTRATACION.slice(0, 4),
+  'Definitivamente sí, sería nuestra primera opción',
+]
+
+export const ETIQUETA_NO_APLICO_CLIENTE = 'No hubo imprevistos'
+
 export function anclasDe(contexto: ContextoAnclas, eje: Eje): string[] {
-  return ANCLAS[contexto][eje] ?? []
+  const propias = ANCLAS[contexto][eje]
+  if (propias) return propias
+  if (contexto === 'desempeno_cliente') return ANCLAS.desempeno[eje] ?? []
+  return []
 }

@@ -29,10 +29,11 @@ import { usePermiso } from '@/lib/event-access-context'
 import {
   carpetasDe, destinosDe, QUE_SIGNIFICA,
   TITULO_REVIEW_FICHA, DESCRIPCION_REVIEW_FICHA, BOTON_CALIFICAR,
-  filasDeReview, resumenPendientes,
+  filasDeReview,
 } from '@/lib/rolodex/ficha-por-estado'
 import type { TipoReviewFicha } from '@/lib/rolodex/ficha-por-estado'
-import { metaDelProveedor, partidasDelProveedor } from '@/lib/presupuesto/derivados'
+import { metaDelProveedor, partidasDelProveedor, contratadoDelProveedor } from '@/lib/presupuesto/derivados'
+import type { InfoLink } from '@/lib/reviews/link-cliente'
 import { calcularScores } from '@/lib/reviews/scores'
 import { yaRechazoLaOferta, recordarRechazo } from '@/lib/rolodex/oferta-avance'
 import { TOPE_COMPROBANTES, TOPE_COTIZACIONES, visibles } from '@/lib/archivos/adjuntos'
@@ -41,10 +42,24 @@ import ListaDeArchivos from './ListaDeArchivos'
 import ReviewContratacionModal from './ReviewContratacionModal'
 import ReviewDescarteModal from './ReviewDescarteModal'
 import ReviewDesempenoModal from './ReviewDesempenoModal'
+import ReviewClienteModal from './ReviewClienteModal'
+import AvisoOpinionCliente from './AvisoOpinionCliente'
 import { CaminoDelTrato, COLOR_ESTADO, EstatusProveedor, ICONO_ESTADO } from './EstatusProveedor'
 import PhoneInput from '@/app/components/ui/PhoneInput'
 
 type SupplierWithDetails = EventSupplier & { supplier: Supplier }
+
+// Lo que la pagina de Proveedores sabe del link del cliente. `contestados` y
+// `total` son del EVENTO, no de este proveedor: el aviso cuenta cuantos de los
+// incluidos ya calificaron.
+export type OpinionCliente = {
+  info: InfoLink
+  contestados: number
+  total: number
+  canAdmin: boolean
+  onAbrirLink?: () => void
+  onDarMasTiempo: (nuevoVence: string) => Promise<string | null>
+}
 
 type Props = {
   item: SupplierWithDetails
@@ -54,6 +69,12 @@ type Props = {
   // Lo que la pagina ya sabe de los pagos, para pintar el numero de la
   // pestaña Pagos antes de que la ficha termine su propia consulta.
   conteoPagosInicial?: number
+  // El estado del link del cliente (lo calcula la pagina de Proveedores). Si
+  // no viene -- la ficha abierta desde Presupuesto -- el renglon del cliente
+  // solo aparece cuando su review ya existe.
+  opinionCliente?: OpinionCliente
+  // Abre el reparto del contrato entre partidas (vive en la pagina).
+  onElegirPartidas?: (item: SupplierWithDetails) => void
   onStatusChange: (itemId: string, nuevo: SupplierStatus) => void
   onSaved: (item: SupplierWithDetails) => void
   onQuitada: (itemId: string) => void
@@ -90,7 +111,7 @@ function iniciales(nombre: string): string {
 }
 
 export default function FichaDelEvento({
-  item, budgets, currency, categorias, conteoPagosInicial, onStatusChange, onSaved, onQuitada, onDerivadosCambiaron, onCerrar,
+  item, budgets, currency, categorias, conteoPagosInicial, opinionCliente, onElegirPartidas, onStatusChange, onSaved, onQuitada, onDerivadosCambiaron, onCerrar,
   abrirRevisionParaId, onRevisionAbierta,
 }: Props) {
   const askConfirm = useConfirm()
@@ -119,6 +140,7 @@ export default function FichaDelEvento({
   const [mostrarModalDesempeno, setMostrarModalDesempeno] = useState(false)
   const [mostrarModalContratacion, setMostrarModalContratacion] = useState(false)
   const [mostrarModalDescarte, setMostrarModalDescarte] = useState(false)
+  const [mostrarOpinionCliente, setMostrarOpinionCliente] = useState(false)
   const [userId, setUserId] = useState<string | null>(null)
   const [eventName, setEventName] = useState('')
   // El dueno de la cuenta, que es de quien cuelga la review -- no quien la
@@ -148,6 +170,11 @@ export default function FichaDelEvento({
   )
   const reviewDescarte = useMemo(
     () => reviews.find(r => r.event_supplier_id === item.id && r.review_type === 'descarte') ?? null,
+    [reviews, item.id],
+  )
+
+  const reviewCliente = useMemo(
+    () => reviews.find(r => r.event_supplier_id === item.id && r.review_type === 'post_evento' && r.autor === 'cliente') ?? null,
     [reviews, item.id],
   )
 
@@ -265,7 +292,7 @@ export default function FichaDelEvento({
   const presupuesto = metaDelProveedor(item, budgets)
   const pagado      = pagos.reduce((suma, p) => suma + (p.amount || 0), 0)
   const nPagos      = cargandoPagos ? (conteoPagosInicial ?? 0) : pagos.length
-  const contratado  = item.contract_amount ?? null
+  const contratado  = contratadoDelProveedor(item, budgets)
   const falta       = contratado ? Math.max(0, contratado - pagado) : null
   const avance      = contratado && contratado > 0 ? Math.min(100, Math.round((pagado / contratado) * 100)) : 0
 
@@ -388,19 +415,16 @@ export default function FichaDelEvento({
     onDerivadosCambiaron?.()
   }
 
+  // Solo lo cotizado vive en el proveedor. Lo contratado es de cada partida
+  // y se captura al contratar, en PartidasModal.
   const guardarMontos = () => {
     const cotizado = montos.cotizado.trim() === '' ? null : Number(montos.cotizado)
-    const contrato  = montos.contratado.trim() === '' ? null : Number(montos.contratado)
-    if ((cotizado != null && isNaN(cotizado)) || (contrato != null && isNaN(contrato))) {
-      setErrorGuardar('Los montos tienen que ser números.')
+    if (cotizado != null && isNaN(cotizado)) {
+      setErrorGuardar('El monto tiene que ser un número.')
       return
     }
     guardarEnLaBoda(
-      {
-        quoted_amount:   cotizado,
-        contract_amount: contrato,
-        event_budget_id: montos.partida || null,
-      },
+      { quoted_amount: cotizado },
       () => {
         setEditandoMontos(false)
         if (cotizado != null && item.status === 'nuevo') {
@@ -712,28 +736,7 @@ export default function FichaDelEvento({
                   className={INPUT}
                 />
               </Campo>
-              <Campo etiqueta="Contratado">
-                <input
-                  type="number"
-                  inputMode="decimal"
-                  value={montos.contratado}
-                  onChange={e => setMontos(m => ({ ...m, contratado: e.target.value }))}
-                  placeholder="0.00"
-                  className={INPUT}
-                />
-              </Campo>
             </div>
-
-            <Campo etiqueta="Partida del presupuesto">
-              <select value={montos.partida} onChange={e => setMontos(m => ({ ...m, partida: e.target.value }))} className={INPUT}>
-                <option value="">Sin ligar a ninguna partida</option>
-                {budgets.map(b => (
-                  <option key={b.id} value={b.id}>
-                    {b.subcategory || nombrePorId(categorias, b.category_id)}
-                  </option>
-                ))}
-              </select>
-            </Campo>
 
             {errorGuardar && (
               <p className="rounded-lg border border-[#ffc0c0] bg-[#fff0f0] px-3 py-2 text-xs text-[#cc3333]">{errorGuardar}</p>
@@ -785,13 +788,36 @@ export default function FichaDelEvento({
               />
             </Bloque>
 
-            <Bloque titulo="Partida del presupuesto">
+            <Bloque
+              titulo="Cómo se reparte"
+              accion={permisoFicha.editar && onElegirPartidas && partidas.length > 0 ? (
+                <button onClick={() => onElegirPartidas(item)} className="flex items-center gap-1 text-[11px] font-semibold text-[#48C9B0] transition hover:text-[#3aa896]">
+                  <Pencil size={11} /> Editar
+                </button>
+              ) : null}
+            >
               {partidas.length > 0 ? (
-                <p className="text-sm text-[#1D1E20]">
-                  {partidas.map(p => p.subcategory || nombrePorId(categorias, p.category_id)).join(' · ')}
-                </p>
+                <ul className="divide-y divide-[#f2f2f2]">
+                  {partidas.map(p => (
+                    <li key={p.id} className="flex items-center justify-between gap-3 py-1.5 text-[13px]">
+                      <span className="min-w-0 truncate text-[#555]">{p.subcategory || nombrePorId(categorias, p.category_id)}</span>
+                      <span className={`shrink-0 tabular-nums ${p.contract_amount == null ? 'text-[#bbb]' : 'font-semibold text-[#1D1E20]'}`}>
+                        {p.contract_amount == null ? 'sin monto' : formatCurrency(p.contract_amount, currency)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              ) : item.status === 'contratado' ? (
+                <div className="flex flex-wrap items-center gap-2 rounded-lg border border-[#efd9a6] bg-[#fdf8ee] px-3 py-2">
+                  <span className="text-[12px] font-semibold text-[#1D1E20]">Falta ponerlo en el presupuesto</span>
+                  {permisoFicha.editar && onElegirPartidas && (
+                    <button onClick={() => onElegirPartidas(item)} className="ml-auto rounded-lg bg-[#48C9B0] px-2.5 py-1.5 text-[11.5px] font-semibold text-white hover:bg-[#3aa896]">
+                      Elegir partidas
+                    </button>
+                  )}
+                </div>
               ) : (
-                <p className="text-xs text-[#999]">Sin ligar a ninguna partida.</p>
+                <p className="text-xs text-[#999]">Se reparte al contratarlo.</p>
               )}
             </Bloque>
 
@@ -935,6 +961,9 @@ export default function FichaDelEvento({
               reviewDe={reviewDe}
               puedeEditar={permisoFicha.editar}
               onCalificar={abrirModalDe}
+              reviewCliente={reviewCliente}
+              onVerCliente={() => setMostrarOpinionCliente(true)}
+              opinionCliente={item.status === 'contratado' ? opinionCliente : undefined}
             />
           )
         )}
@@ -967,6 +996,15 @@ export default function FichaDelEvento({
           reviewExistente={reviewDescarte}
           onSaved={() => { setMostrarModalDescarte(false); cargarReviews(item.supplier_id); onDerivadosCambiaron?.() }}
           onSkip={() => setMostrarModalDescarte(false)}
+        />
+      )}
+
+      {mostrarOpinionCliente && reviewCliente && (
+        <ReviewClienteModal
+          review={reviewCliente}
+          supplierName={s.name}
+          currency={currency}
+          onClose={() => setMostrarOpinionCliente(false)}
         />
       )}
 
@@ -1101,11 +1139,7 @@ function borradorDe(item: SupplierWithDetails) {
 }
 
 function montosDe(item: SupplierWithDetails) {
-  return {
-    cotizado:   item.quoted_amount?.toString() ?? '',
-    contratado: item.contract_amount?.toString() ?? '',
-    partida:    item.event_budget_id ?? '',
-  }
+  return { cotizado: item.quoted_amount?.toString() ?? '' }
 }
 
 function Campo({ etiqueta, children }: { etiqueta: string; children: React.ReactNode }) {
@@ -1192,72 +1226,161 @@ function Texto({ valor, vacio }: { valor: string | null; vacio: string }) {
 // renglon hecho no se despliega: se abre en su modal, para editar si se
 // puede y solo para leer si no. Hecha o pendiente se distinguen por forma
 // (palomita llena / circulo punteado), no solo por color.
-function ListaQueFalta({ filas, reviewDe, puedeEditar, onCalificar }: {
+function ListaQueFalta({ filas, reviewDe, puedeEditar, onCalificar, reviewCliente, opinionCliente, onVerCliente }: {
   filas: ReturnType<typeof filasDeReview>
   reviewDe: (tipo: TipoReviewFicha) => SupplierReview | null
   puedeEditar: boolean
   onCalificar: (tipo: TipoReviewFicha) => void
+  reviewCliente: SupplierReview | null
+  opinionCliente?: OpinionCliente
+  onVerCliente: () => void
 }) {
+  const hayCliente = !!reviewCliente || !!opinionCliente
+
+  if (filas.length === 0 && !hayCliente) {
+    return <p className="text-xs text-[#999]">Se califica al contratarlo o al descartarlo.</p>
+  }
+
   return (
-    <section className="overflow-hidden rounded-xl border border-[#eee]">
-      <div className="flex items-center justify-between bg-[#fafafa] px-4 py-2 text-[10.5px] font-bold uppercase tracking-wider text-[#999]">
-        <span>Qué falta</span>
-        <span>{resumenPendientes(filas)}</span>
-      </div>
-      {filas.length === 0 ? (
-        <p className="px-4 py-3 text-xs text-[#999]">Se califica al contratarlo o al descartarlo.</p>
-      ) : (
-        <ul>
-          {filas.map(({ tipo, hecha }) => {
-            const review = hecha ? reviewDe(tipo) : null
-            const propio = review ? calcularScores([review]) : null
-            const score = propio ? (tipo === 'post_evento' ? propio.desempeno : propio.propuesta) : null
-            return (
-              <li key={tipo} className="flex items-center gap-3 border-t border-[#f2f2f2] px-4 py-2.5">
-                <span
-                  aria-hidden
-                  className={'flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-[1.5px] ' + (
-                    hecha ? 'border-[#48C9B0] bg-[#48C9B0] text-white' : 'border-dashed border-[#d4a853]'
-                  )}
-                >
-                  {hecha && <Check size={11} strokeWidth={3} />}
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block text-[13px] font-semibold text-[#1D1E20]">{TITULO_REVIEW_FICHA[tipo]}</span>
-                  <span className="block text-[11px] text-[#999]">{DESCRIPCION_REVIEW_FICHA[tipo]}</span>
-                </span>
-                <span className="flex shrink-0 items-center gap-2.5">
-                  {hecha ? (
-                    <>
-                      <Estrellas score={score} tamano={12} />
+    <div className="flex flex-col gap-6">
+      {filas.length > 0 && (
+        <section>
+          <EncabezadoDeGrupo texto="Planner" />
+          <ul className="flex flex-col gap-1">
+            {filas.map(({ tipo, hecha }) => {
+              const review = hecha ? reviewDe(tipo) : null
+              const propio = review ? calcularScores([review]) : null
+              const score = propio ? (tipo === 'post_evento' ? propio.desempeno : propio.propuesta) : null
+              return (
+                <li key={tipo} className="flex items-center gap-3 py-1.5">
+                  <IconoDeEstado hecha={hecha} />
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-[13px] font-semibold text-[#1D1E20]">{TITULO_REVIEW_FICHA[tipo]}</span>
+                    <span className="block text-[11px] text-[#999]">{DESCRIPCION_REVIEW_FICHA[tipo]}</span>
+                  </span>
+                  <span className="flex shrink-0 items-center gap-2.5">
+                    {hecha ? (
+                      <>
+                        <Estrellas score={score} tamano={12} />
+                        <button
+                          type="button"
+                          onClick={() => onCalificar(tipo)}
+                          className="flex items-center gap-1 text-[11px] font-semibold text-[#48C9B0] transition hover:text-[#3aa896]"
+                        >
+                          {puedeEditar ? <><Pencil size={11} /> Editar</> : <><Eye size={11} /> Ver</>}
+                        </button>
+                      </>
+                    ) : puedeEditar ? (
                       <button
                         type="button"
                         onClick={() => onCalificar(tipo)}
-                        className="flex items-center gap-1 text-[11px] font-semibold text-[#48C9B0] transition hover:text-[#3aa896]"
+                        className="rounded-lg bg-[#48C9B0] px-3 py-1.5 text-[11.5px] font-semibold text-white transition hover:bg-[#3aa896]"
                       >
-                        {puedeEditar ? <><Pencil size={11} /> Editar</> : <><Eye size={11} /> Ver</>}
+                        {BOTON_CALIFICAR}
                       </button>
-                    </>
-                  ) : puedeEditar ? (
-                    <button
-                      type="button"
-                      onClick={() => onCalificar(tipo)}
-                      className="rounded-lg bg-[#48C9B0] px-3 py-1.5 text-[11.5px] font-semibold text-white transition hover:bg-[#3aa896]"
-                    >
-                      {BOTON_CALIFICAR}
-                    </button>
-                  ) : (
-                    <span className="rounded-full border border-[#efd9a6] bg-[#fdf8ee] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#a9812f]">
-                      Pendiente
-                    </span>
-                  )}
-                </span>
-              </li>
-            )
-          })}
-        </ul>
+                    ) : (
+                      <span className="text-[11px] font-medium text-[#a9812f]">Pendiente</span>
+                    )}
+                  </span>
+                </li>
+              )
+            })}
+          </ul>
+        </section>
       )}
-    </section>
+
+      {hayCliente && (
+        <section>
+          <EncabezadoDeGrupo texto="Cliente" />
+          <ul className="flex flex-col">
+            <RenglonCliente review={reviewCliente} opinion={opinionCliente} onVer={onVerCliente} />
+          </ul>
+          {opinionCliente && (
+            <div className="mt-2">
+              <AvisoOpinionCliente
+                info={opinionCliente.info}
+                contestados={opinionCliente.contestados}
+                total={opinionCliente.total}
+                puedeEditar={puedeEditar}
+                canAdmin={opinionCliente.canAdmin}
+                onAbrirLink={opinionCliente.onAbrirLink ?? (() => {})}
+                onDarMasTiempo={opinionCliente.onDarMasTiempo}
+              />
+            </div>
+          )}
+        </section>
+      )}
+    </div>
+  )
+}
+
+function IconoDeEstado({ hecha, apagado = false }: { hecha: boolean; apagado?: boolean }) {
+  return (
+    <span
+      aria-hidden
+      className={'flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-[1.5px] ' + (
+        hecha ? 'border-[#48C9B0] bg-[#48C9B0] text-white' :
+        apagado ? 'border-[#ddd]' : 'border-dashed border-[#d4a853]'
+      )}
+    >
+      {hecha && <Check size={11} strokeWidth={3} />}
+    </span>
+  )
+}
+
+function EncabezadoDeGrupo({ texto }: { texto: string }) {
+  return <p className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-[#bbb]">{texto}</p>
+}
+
+// El desempeno segun el cliente. No cuenta en "Que falta": esa cuenta es de
+// lo que llena el planner.
+function RenglonCliente({ review, opinion, onVer }: {
+  review: SupplierReview | null
+  opinion?: OpinionCliente
+  onVer: () => void
+}) {
+  if (!review && !opinion) return null
+  const hecha = !!review
+  const info = opinion?.info
+  const score = review ? calcularScores([review]).clientes : null
+  const pendiente = !hecha && !!info && (info.estado === 'enviada' || info.estado === 'por_vencer')
+
+  const cuando = review?.created_at
+    ? new Date(review.created_at).toLocaleDateString('es-MX', { day: '2-digit', month: 'long' })
+    : null
+  const subtitulo =
+    hecha ? (cuando ? `Calificó el ${cuando}` : 'Calificó a este proveedor') :
+    !info || info.estado === 'antes' ? 'Se pide después del evento' :
+    info.estado === 'sin_pedir' ? 'Se pide después del evento' :
+    info.estado === 'vencida' ? 'No calificó a este proveedor' :
+    'No han calificado a este proveedor'
+
+  const chip = (texto: string) => <span className="text-[11px] font-medium text-[#999]">{texto}</span>
+
+  return (
+    <li className="flex items-center gap-3 py-1.5">
+      <IconoDeEstado hecha={hecha} apagado={!pendiente} />
+      <span className="min-w-0 flex-1">
+        <span className={'block text-[13px] font-semibold ' + (hecha || pendiente ? 'text-[#1D1E20]' : 'text-[#999]')}>Desempeño</span>
+        <span className="block text-[11px] text-[#999]">{subtitulo}</span>
+      </span>
+      <span className="flex shrink-0 items-center gap-2.5">
+        {hecha ? (
+          <>
+            <Estrellas score={score} tamano={12} />
+            <button
+              type="button"
+              onClick={onVer}
+              className="flex items-center gap-1 text-[11px] font-semibold text-[#48C9B0] transition hover:text-[#3aa896]"
+            >
+              <Eye size={11} /> Ver
+            </button>
+          </>
+        ) : info?.estado === 'vencida' ? chip('Venció')
+          : pendiente ? chip('Enviada')
+          : chip('Sin pedir')}
+      </span>
+    </li>
   )
 }
 

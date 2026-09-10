@@ -70,13 +70,3 @@ export function filasDeReview(estado: SupplierStatus, existentes: TipoReviewFich
     .map(tipo => ({ tipo, hecha: existentes.includes(tipo) }))
 }
 
-export function pendientesDe(filas: FilaDeReview[]): number {
-  return filas.filter(f => !f.hecha).length
-}
-
-export function resumenPendientes(filas: FilaDeReview[]): string {
-  const n = pendientesDe(filas)
-  if (filas.length === 0) return 'Nada que calificar todavía'
-  if (n === 0) return 'Al día'
-  return n === 1 ? '1 pendiente' : `${n} pendientes`
-}
