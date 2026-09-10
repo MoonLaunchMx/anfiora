@@ -1,11 +1,13 @@
 'use client'
 import { useMemo, useState } from 'react'
 import { Check, Copy } from 'lucide-react'
+import { FaWhatsapp } from 'react-icons/fa'
 import { Modal } from '@/app/components/ui/Modal'
 import { PermisosEditor } from '@/app/events/[id]/configuracion/PermisosEditor'
 import type { PermisosEvento } from '@/lib/permisos/catalogo'
 import { aplicarKit, permisosDeRol } from '@/lib/permisos/resolver'
 import { contarAsientos, puedeInvitar } from '@/lib/workspace/asientos'
+import { enlaceWhatsApp, mensajeEquipo } from '@/lib/workspace/compartir'
 import { eventosParaRepartir, hoyISO } from '@/lib/workspace/eventos'
 import { postJson } from '@/lib/workspace/cliente'
 import { kitDesde, validarAltaEquipo } from '@/lib/workspace/invitacion'
@@ -108,11 +110,23 @@ export function AltaPersonaModal({ open, onClose, workspace, bodaFija, onHecho }
       />
       <Modal.Body>
         {token ? (
-          <div className="flex items-center gap-2 rounded-lg border border-[#e8e8e8] bg-[#f8f8f8] px-3 py-2">
-            <span className="min-w-0 flex-1 truncate text-xs text-[#666]">{link}</span>
-            <button onClick={copiar} className="flex items-center gap-1 rounded-md border border-[#e0e0e0] bg-white px-2 py-1 text-xs font-semibold text-[#1D1E20]">
-              {copiado ? <Check size={12} className="text-[#48C9B0]" /> : <Copy size={12} />} {copiado ? 'Copiado' : 'Copiar'}
-            </button>
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center gap-2 rounded-lg border border-[#e8e8e8] bg-[#f8f8f8] px-3 py-2">
+              <span className="min-w-0 flex-1 truncate text-xs text-[#666]">{link}</span>
+              <button onClick={copiar} className="flex shrink-0 items-center gap-1 rounded-md border border-[#e0e0e0] bg-white px-2 py-1 text-xs font-semibold text-[#1D1E20]">
+                {copiado ? <Check size={12} className="text-[#48C9B0]" /> : <Copy size={12} />} {copiado ? 'Copiado' : 'Copiar'}
+              </button>
+            </div>
+            {/* wa.me sin numero: abre WhatsApp con el mensaje escrito y el
+                planner escoge el contacto. No hace falta guardar telefonos. */}
+            <a
+              href={enlaceWhatsApp(mensajeEquipo(workspace.name, link))}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center justify-center gap-2 rounded-lg bg-[#25D366] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#1eb855]"
+            >
+              <FaWhatsapp size={16} /> Enviar por WhatsApp
+            </a>
           </div>
         ) : !permiso.ok ? (
           <div className="rounded-xl border border-[#f0dfae] bg-[#fffbf0] px-4 py-3 text-sm text-[#7a5a14]">

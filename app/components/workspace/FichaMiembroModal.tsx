@@ -1,6 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { Check, Copy } from 'lucide-react'
+import { FaWhatsapp } from 'react-icons/fa'
 import { Modal } from '@/app/components/ui/Modal'
 import { useConfirm } from '@/app/components/ui/ConfirmModal'
 import { PermisosEditor } from '@/app/events/[id]/configuracion/PermisosEditor'
@@ -8,6 +9,7 @@ import { eventosParaRepartir, hoyISO } from '@/lib/workspace/eventos'
 import type { PermisosEvento } from '@/lib/permisos/catalogo'
 import { aplicarKit, permisosDeRol } from '@/lib/permisos/resolver'
 import { deleteJson, patchJson } from '@/lib/workspace/cliente'
+import { enlaceWhatsApp, mensajeEquipo } from '@/lib/workspace/compartir'
 import { kitDesde } from '@/lib/workspace/invitacion'
 import { ROL_LABEL, type Miembro, type RolInvitable, type WorkspaceResumen } from '@/lib/workspace/tipos'
 
@@ -92,11 +94,19 @@ export function FichaMiembroModal({ open, onClose, workspace, miembro, onHecho }
       <Modal.Body>
         <div className="flex flex-col gap-4">
           {miembro.status === 'pending' && link && (
-            <div className="flex items-center gap-2 rounded-lg border border-[#f0dfae] bg-[#fffbf0] px-3 py-2">
+            <div className="flex flex-wrap items-center gap-2 rounded-lg border border-[#f0dfae] bg-[#fffbf0] px-3 py-2">
               <span className="min-w-0 flex-1 truncate text-xs text-[#7a5a14]">Todavía no entra. Enlace: {link}</span>
-              <button onClick={copiar} className="flex items-center gap-1 rounded-md border border-[#e0e0e0] bg-white px-2 py-1 text-xs font-semibold text-[#1D1E20]">
+              <button onClick={copiar} className="flex shrink-0 items-center gap-1 rounded-md border border-[#e0e0e0] bg-white px-2 py-1 text-xs font-semibold text-[#1D1E20]">
                 {copiado ? <Check size={12} className="text-[#48C9B0]" /> : <Copy size={12} />} {copiado ? 'Copiado' : 'Copiar'}
               </button>
+              <a
+                href={enlaceWhatsApp(mensajeEquipo(workspace.name, link))}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex shrink-0 items-center gap-1 rounded-md bg-[#25D366] px-2 py-1 text-xs font-semibold text-white transition hover:bg-[#1eb855]"
+              >
+                <FaWhatsapp size={12} /> Reenviar
+              </a>
             </div>
           )}
           {!miembro.es_dueno_principal && (

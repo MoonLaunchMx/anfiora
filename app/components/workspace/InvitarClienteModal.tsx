@@ -1,8 +1,10 @@
 'use client'
 import { useState } from 'react'
 import { Check, Copy } from 'lucide-react'
+import { FaWhatsapp } from 'react-icons/fa'
 import { Modal } from '@/app/components/ui/Modal'
 import { postJson } from '@/lib/workspace/cliente'
+import { enlaceWhatsApp, mensajeCliente } from '@/lib/workspace/compartir'
 import type { WorkspaceResumen } from '@/lib/workspace/tipos'
 
 interface Props {
@@ -16,6 +18,7 @@ interface Props {
 export function InvitarClienteModal({ open, onClose, workspace, bodaFija, onHecho }: Props) {
   const [email, setEmail] = useState('')
   const [eventId, setEventId] = useState(bodaFija ?? workspace.bodas[0]?.id ?? '')
+  const nombreBoda = workspace.bodas.find(b => b.id === eventId)?.name ?? ''
   const [punto, setPunto] = useState<'ver' | 'editar'>('ver')
   const [error, setError] = useState('')
   const [guardando, setGuardando] = useState(false)
@@ -41,11 +44,21 @@ export function InvitarClienteModal({ open, onClose, workspace, bodaFija, onHech
       <Modal.Header title={token ? 'Invitación lista' : 'Invitar cliente'} subtitle="Los anfitriones, sus papás, quien sea de ese evento. Entra solo ahí y no ocupa asiento." />
       <Modal.Body>
         {token ? (
-          <div className="flex items-center gap-2 rounded-lg border border-[#e8e8e8] bg-[#f8f8f8] px-3 py-2">
-            <span className="min-w-0 flex-1 truncate text-xs text-[#666]">{link}</span>
-            <button onClick={copiar} className="flex items-center gap-1 rounded-md border border-[#e0e0e0] bg-white px-2 py-1 text-xs font-semibold text-[#1D1E20]">
-              {copiado ? <Check size={12} className="text-[#48C9B0]" /> : <Copy size={12} />} {copiado ? 'Copiado' : 'Copiar'}
-            </button>
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center gap-2 rounded-lg border border-[#e8e8e8] bg-[#f8f8f8] px-3 py-2">
+              <span className="min-w-0 flex-1 truncate text-xs text-[#666]">{link}</span>
+              <button onClick={copiar} className="flex shrink-0 items-center gap-1 rounded-md border border-[#e0e0e0] bg-white px-2 py-1 text-xs font-semibold text-[#1D1E20]">
+                {copiado ? <Check size={12} className="text-[#48C9B0]" /> : <Copy size={12} />} {copiado ? 'Copiado' : 'Copiar'}
+              </button>
+            </div>
+            <a
+              href={enlaceWhatsApp(mensajeCliente(nombreBoda, link))}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center justify-center gap-2 rounded-lg bg-[#25D366] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#1eb855]"
+            >
+              <FaWhatsapp size={16} /> Enviar por WhatsApp
+            </a>
           </div>
         ) : (
           <div className="flex flex-col gap-3">
