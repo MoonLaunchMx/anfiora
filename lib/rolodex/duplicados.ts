@@ -1,4 +1,4 @@
-import { toE164 } from '@/lib/phone'
+import { componerTelefono } from '@/lib/phone'
 
 // Una ficha del catalogo con lo poco que el alta necesita saber de ella: como
 // se llama, como se le contacta y que tanto la has usado. La pagina la arma
@@ -86,16 +86,17 @@ export type ContactoRepetido = {
 }
 
 // Aviso FUERTE. Un nombre parecido es coincidencia; un telefono repetido es la
-// misma persona. Se compara normalizado a E.164, para que "442 118 4420" y
-// "+524421184420" sean el mismo numero. El telefono manda sobre el correo
+// misma persona. Se compara con el MISMO normalizador con el que se guarda, para
+// que "442 118 4420" y "+524421184420" sean el mismo numero y para que ningun
+// numero de lada rara se escape del candado. El telefono manda sobre el correo
 // porque es el contacto que el planner de verdad usa.
 export function contactoRepetido(
   entradas: EntradaDelRolodex[],
   contacto: { telefono?: string | null; correo?: string | null },
 ): ContactoRepetido | null {
-  const tel = contacto.telefono ? toE164(contacto.telefono) : null
+  const tel = contacto.telefono ? componerTelefono(contacto.telefono) : null
   if (tel) {
-    const hit = entradas.find(e => e.telefono && toE164(e.telefono) === tel)
+    const hit = entradas.find(e => e.telefono && componerTelefono(e.telefono) === tel)
     if (hit) return { entrada: hit, campo: 'telefono' }
   }
 
