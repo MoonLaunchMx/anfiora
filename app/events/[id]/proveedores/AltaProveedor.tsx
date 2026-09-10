@@ -521,6 +521,40 @@ export default function AltaProveedor({
                             </span>
                           </span>
                         </div>
+                        <div className="mt-2.5 flex items-center justify-end gap-2">
+                          {repetido.entrada.enEstaBoda ? (
+                            <>
+                              <span className="mr-auto text-[11.5px] font-semibold">Ya está en este evento</span>
+                              <button
+                                type="button"
+                                onClick={() => onAbrirEnEstaBoda(repetido.entrada.id)}
+                                disabled={enviando}
+                                className="rounded-lg bg-[#48C9B0] px-3 py-1.5 text-[11.5px] font-semibold text-white transition hover:bg-[#3aa896] disabled:opacity-50"
+                              >
+                                Ver su ficha
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <button
+                                type="button"
+                                onClick={crearNuevo}
+                                disabled={enviando}
+                                className="rounded-lg px-3 py-1.5 text-[11.5px] font-medium text-[#A87C1F] transition hover:bg-white/60 disabled:opacity-50"
+                              >
+                                Crear otra
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => usarExistente(repetido.entrada.id)}
+                                disabled={enviando}
+                                className="rounded-lg bg-[#48C9B0] px-3 py-1.5 text-[11.5px] font-semibold text-white transition hover:bg-[#3aa896] disabled:opacity-50"
+                              >
+                                {enviando ? 'Guardando...' : `Usar ${repetido.entrada.nombre}`}
+                              </button>
+                            </>
+                          )}
+                        </div>
                       </div>
                     </div>
                   )}
@@ -689,24 +723,14 @@ export default function AltaProveedor({
 
           <Modal.Footer>
             {repetido ? (
-              <>
-                <button
-                  type="button"
-                  onClick={crearNuevo}
-                  disabled={enviando}
-                  className="ml-auto rounded-lg px-4 py-2 text-xs font-medium text-[#666] transition hover:bg-[#f0f0f0] disabled:opacity-50"
-                >
-                  Crear otra de todos modos
-                </button>
-                <button
-                  type="button"
-                  onClick={() => usarExistente(repetido.entrada.id)}
-                  disabled={enviando || repetido.entrada.enEstaBoda}
-                  className="rounded-lg bg-[#48C9B0] px-4 py-2 text-xs font-semibold text-white transition hover:bg-[#3aa896] disabled:opacity-50"
-                >
-                  {repetido.entrada.enEstaBoda ? 'Ya está en este evento' : `Usar ${repetido.entrada.nombre}`}
-                </button>
-              </>
+              <button
+                type="button"
+                onClick={() => setFase('buscar')}
+                disabled={enviando}
+                className="ml-auto rounded-lg px-4 py-2 text-xs font-medium text-[#666] transition hover:bg-[#f0f0f0] disabled:opacity-50"
+              >
+                Volver a buscar
+              </button>
             ) : (
               <>
                 <button
