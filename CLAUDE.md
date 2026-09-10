@@ -179,7 +179,8 @@ event_budgets (
   category TEXT,        -- BudgetCategory (14 valores)
   subcategory TEXT,     -- nombre libre de la partida
   budget_amount NUMERIC,
-  event_supplier_id UUID,  -- FK a event_suppliers (nullable)
+  event_supplier_id UUID,  -- FK a event_suppliers (nullable). Una partida tiene maximo UN proveedor
+  contract_amount NUMERIC, -- lo contratado por ESTA partida con ese proveedor (nullable)
   notes TEXT,
   created_at
 )
@@ -210,9 +211,9 @@ event_suppliers (
   id, event_id, supplier_id,
   status TEXT,               -- SupplierStatus (4 valores)
   quoted_amount NUMERIC,
-  contract_amount NUMERIC,
   event_notes TEXT,
-  event_budget_id UUID,      -- FK a event_budgets (nullable)
+  -- contract_amount y event_budget_id se BORRAN con docs/superpowers/plans/sql/2026-09-09-contrato-por-partida-drop.sql
+  -- (correr solo despues del deploy). El contrato vive por partida en event_budgets.
   rating INTEGER,            -- 1-5
   review_text TEXT,
   mood TEXT,                 -- 'no' | 'normal' | 'love'
@@ -498,8 +499,8 @@ Password recovery handled at `/auth/reset` using Supabase `PASSWORD_RECOVERY` au
 - **event_settings vs events:** `message_templates`, `template_names`, `playlist_token`, `playlist_categories`, `album_url` viven en `event_settings`, NO en `events`.
 - **currency en events:** campo `currency` (TEXT) en tabla `events`. Default `'MXN'`. Usar `formatCurrency(amount, currency)` de `lib/types.ts` para mostrar montos.
 - **Presupuesto seed:** al cargar `presupuesto` por primera vez (0 partidas), se auto-insertan 10 partidas base para bodas MX (`lib/seed.ts`). Es intencional.
-- **Presupuesto ↔ Proveedores:** la conexión es bidireccional. `event_budgets.event_supplier_id` apunta al proveedor vinculado; `event_suppliers.event_budget_id` apunta a la partida. La actualización es manual (el usuario vincula desde ambos lados).
-- **Montos derivados:** `contractedByItem` y `paidByItem` en `presupuesto/page.tsx` son calculados en el cliente a partir de `event_suppliers.contract_amount` y suma de `supplier_payments`. No se guardan en `event_budgets`.
+- **Presupuesto ↔ Proveedores:** UN solo vínculo, `event_budgets.event_supplier_id`. Un proveedor puede tener varias partidas; una partida tiene máximo un proveedor. La categoría solo agrupa, no filtra qué se puede ligar. Lo **cotizado** vive en el proveedor (`event_suppliers.quoted_amount`); lo **contratado** vive en cada partida (`event_budgets.contract_amount`) y se captura al mover a Contratado en `PartidasModal` (Proveedores y Presupuesto lo abren). El contratado del proveedor es la suma de sus partidas (`contratadoDelProveedor` en `lib/presupuesto/derivados.ts`). No hay regla dura: un contratado sin partida se muestra con "Falta ponerlo en el presupuesto".
+- **Montos derivados:** `repartirEntrePartidas(budgets, paidByEventSupplier)` en `lib/presupuesto/derivados.ts`: contratado por partida es su propio `contract_amount`; los pagos son por proveedor y se reparten entre sus partidas en proporción al contrato.
 - **SupplierDetailModal estilos:** usa `<style jsx global>` con clases `.input-base` y `.country-code-select` — no Tailwind — para los inputs del modal de proveedor.
 - **Dos clientes Supabase:** `lib/supabase.ts` (browser) y `SUPABASE_SERVICE_ROLE_KEY` solo en API routes.
 - **Twilio WhatsApp:** el webhook valida requests con `validateRequest` de `twilio`. Envío via `https://api.twilio.com/2010-04-01/Accounts/{SID}/Messages.json`. El número `TWILIO_WHATSAPP_FROM` tiene prefijo `whatsapp:`.
