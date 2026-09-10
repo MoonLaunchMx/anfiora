@@ -10,6 +10,7 @@ import {
   formatAsYouType,
   detectCountry,
   ladaEscrita,
+  paisDeNumero,
   nationalNumber,
   dialCode,
   sinAcentos,
@@ -89,9 +90,14 @@ export default function PhoneInput({
       setCountry(defaultCountry)
       return
     }
-    const detected = detectCountry(value) ?? defaultCountry
-    setCountry(detected)
-    setText(formatAsYouType(value, detected))
+    // El texto lleva SOLO la parte nacional: la lada ya vive en el boton de al
+    // lado. Ponerla en los dos lados la ensenaba dos veces, y como queda al
+    // principio del texto obligaba a borrar el numero entero para llegar a ella.
+    // Si la lada no corresponde a ningun pais conocido se deja el numero completo,
+    // que es la unica forma de no perderla.
+    const pais = paisDeNumero(value)
+    setCountry(pais ?? defaultCountry)
+    setText(pais ? formatAsYouType(nationalNumber(value), pais) : formatAsYouType(value, defaultCountry))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value])
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { toE164, formatDisplay, isValidPhone, detectCountry, toWhatsApp, nationalNumber, localeCountry, sinAcentos, componerTelefono, componerDesdeLada, ladaEscrita } from './phone'
+import { toE164, formatDisplay, isValidPhone, detectCountry, toWhatsApp, nationalNumber, localeCountry, sinAcentos, componerTelefono, componerDesdeLada, ladaEscrita, paisDeNumero } from './phone'
 
 describe('toE164', () => {
   it('MX local sin lada asume +52', () => {
@@ -252,5 +252,23 @@ describe('componerTelefono con ladas largas fuera de la lista', () => {
   })
   it('esa lada mas digitos si se guarda, aunque el pais no este en el selector', () => {
     expect(componerTelefono('+998 90 123 4567', 'MX')).toBe('+998901234567')
+  })
+})
+
+describe('paisDeNumero', () => {
+  it('resuelve el pais normal', () => {
+    expect(paisDeNumero('+528112345678')).toBe('MX')
+  })
+  it('resuelve Peru aunque el numero no sea peruano de verdad', () => {
+    expect(paisDeNumero('+51663112270')).toBe('PE')
+  })
+  it('resuelve por la lada cuando la libreria no puede nombrar el pais', () => {
+    expect(paisDeNumero('+16631122702')).toBe('US')
+  })
+  it('sin lada no hay pais', () => {
+    expect(paisDeNumero('663112270')).toBeNull()
+  })
+  it('vacio devuelve null', () => {
+    expect(paisDeNumero('')).toBeNull()
   })
 })

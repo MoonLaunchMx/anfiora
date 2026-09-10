@@ -211,3 +211,15 @@ export function ladaEscrita(raw: string): string | null {
   const parsed = parsePhoneNumberFromString(texto)
   return parsed?.countryCallingCode ? '+' + parsed.countryCallingCode : null
 }
+
+// El pais al que pertenece un numero ya guardado. Si libphonenumber no puede
+// nombrarlo (+1 663 no es una clave de area asignada) se resuelve por la lada
+// contra la lista del selector. Sirve para que el campo no ensene la lada dos
+// veces, una en el boton y otra dentro del texto.
+export function paisDeNumero(raw: string): CountryCode | null {
+  const directo = detectCountry(raw)
+  if (directo) return directo
+  const lada = ladaEscrita(raw)
+  if (!lada) return null
+  return COUNTRIES.find(c => c.dial === lada)?.iso ?? null
+}
