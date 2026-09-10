@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { enmascararCorreo } from '@/lib/workspace/correo-enmascarado'
 import { logAction } from '@/lib/audit'
 import { CheckCircle, XCircle, Loader, Eye, EyeOff } from 'lucide-react'
 
@@ -271,15 +272,16 @@ export default function InvitePage() {
       <div className="flex min-h-[100dvh] items-center justify-center bg-white px-4">
         <div className="flex max-w-sm flex-col items-center gap-4 text-center">
           <XCircle size={48} className="text-[#cc3333]" />
-          <h1 className="text-lg font-bold text-[#1D1E20]">Cuenta incorrecta</h1>
+          <h1 className="text-lg font-bold text-[#1D1E20]">Esta invitación no es para esta cuenta</h1>
+          {/* Su propia cuenta va completa, que ya la conoce. La ajena va
+              enmascarada: este enlace viaja por WhatsApp y se reenvia. */}
           <p className="text-sm text-[#888]">
-            Esta invitación es para <span className="font-semibold text-[#1D1E20]">{invite?.email}</span>
-            {currentEmail && <> pero iniciaste sesión como <span className="font-semibold text-[#1D1E20]">{currentEmail}</span></>}.
-            Cierra sesión e inicia con el correo invitado para aceptarla.
+            {currentEmail && <>Estás como <span className="font-semibold text-[#1D1E20]">{currentEmail}</span>. </>}
+            La invitación es para <span className="font-semibold text-[#1D1E20]">{enmascararCorreo(invite?.email ?? '')}</span>.
           </p>
           <button onClick={handleSwitchAccount}
             className="mt-2 rounded-lg bg-[#48C9B0] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#3ab89f]">
-            Cerrar sesión y usar el correo invitado
+            Entrar con la cuenta invitada
           </button>
           <button onClick={() => router.push('/dashboard')}
             className="text-xs font-medium text-[#888] transition hover:text-[#555]">
@@ -295,8 +297,14 @@ export default function InvitePage() {
       <div className="flex min-h-[100dvh] items-center justify-center bg-white px-4">
         <div className="flex max-w-sm flex-col items-center gap-4 text-center">
           <CheckCircle size={48} className="text-[#48C9B0]" />
-          <h1 className="text-lg font-bold text-[#1D1E20]">Acceso confirmado</h1>
-          <p className="text-sm text-[#888]">Ya tienes acceso al evento. Redirigiendo...</p>
+          <h1 className="text-lg font-bold text-[#1D1E20]">Listo, ya estás dentro</h1>
+          {/* Decia "ya tienes acceso al evento" incluso cuando la invitacion era
+              al workspace completo: a quien entraba a varios le mentia. */}
+          <p className="text-sm text-[#888]">
+            {invite?.kind === 'workspace' && invite.workspace_name
+              ? <>Ahora eres parte de {invite.workspace_name}. Te llevamos adentro...</>
+              : <>Ya tienes acceso. Te llevamos al evento...</>}
+          </p>
         </div>
       </div>
     )
@@ -332,17 +340,29 @@ export default function InvitePage() {
         {invite && invite.kind === 'workspace' && (
           <div className="mb-4 rounded-xl border border-[#c8ede7] bg-[#f0fdfb] p-4">
             <p className="text-[11px] font-semibold uppercase tracking-wide text-[#48C9B0]">
-              Invitación al workspace
+              Invitación de acceso
             </p>
+            {/* Se nombra a que la invitan, no donde la meten. Y el alcance va
+                pegado al rol: saber que es colaboradora sin saber en cuantos
+                eventos no le dice nada. */}
             <p className="mt-1 text-base font-bold text-[#1D1E20]">
-              Te invitaron al workspace <span className="text-[#1a9e88]">{invite.workspace_name}</span>
+              Te invitaron a trabajar en <span className="text-[#1a9e88]">{invite.workspace_name}</span>
             </p>
-            <p className="mt-0.5 text-xs text-[#888]">{invite.rolLabel}</p>
             {invite.rol === 'admin' ? (
-              <p className="mt-2 text-xs text-[#aaa]">Entras a todas las bodas del workspace</p>
+              <>
+                <p className="mt-0.5 text-xs text-[#888]">{invite.rolLabel}, en todos los eventos</p>
+                <p className="mt-2 text-xs text-[#aaa]">También en los que se creen después</p>
+              </>
             ) : invite.bodas && invite.bodas.length > 0 ? (
-              <p className="mt-2 text-xs text-[#aaa]">Vas a entrar a: {invite.bodas.map(b => b.name).join(', ')}</p>
-            ) : null}
+              <>
+                <p className="mt-0.5 text-xs text-[#888]">
+                  {invite.rolLabel}, en {invite.bodas.length} {invite.bodas.length === 1 ? 'evento' : 'eventos'}
+                </p>
+                <p className="mt-2 text-xs text-[#aaa]">{invite.bodas.map(b => b.name).join(' · ')}</p>
+              </>
+            ) : (
+              <p className="mt-0.5 text-xs text-[#888]">{invite.rolLabel}</p>
+            )}
           </div>
         )}
 
