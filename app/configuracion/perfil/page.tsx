@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { Lock, Eye, EyeOff, CheckCircle, AlertCircle, ChevronDown, ChevronRight } from 'lucide-react'
+import { Lock, Eye, EyeOff, CheckCircle, AlertCircle, ChevronDown } from 'lucide-react'
 import { ROLES, getRole, Role } from '@/lib/roles'
 import PhoneInput from '@/app/components/ui/PhoneInput'
 import { borrarImagenAnterior, subirImagen } from '@/lib/workspace/subir'
@@ -431,20 +431,10 @@ export default function PerfilPage() {
 
       <div className="flex max-w-[900px] flex-col gap-2.5 pt-2">
         <p className="text-[11px] font-semibold uppercase tracking-wide text-[#999]">Más opciones</p>
+        {/* Categorias salio de aqui: es una pantalla entera, no una accion, y
+            ademas el catalogo es del workspace. Vive en el nav lateral. */}
         <div className="overflow-hidden rounded-xl border border-[#e8e8e8]">
-          <button
-            type="button"
-            onClick={() => router.push('/ajustes/categorias')}
-            className="flex w-full items-center justify-between gap-4 px-4 py-3.5 text-left transition hover:bg-[#f8f8f8]"
-          >
-            <span>
-              <span className="block text-sm font-semibold text-[#1D1E20]">Mis categorías</span>
-              <span className="block text-[11.5px] text-[#999]">Cómo agrupas proveedores y presupuesto</span>
-            </span>
-            <ChevronRight size={16} className="shrink-0 text-[#bbb]" />
-          </button>
-
-          <div className="flex items-center justify-between gap-4 border-t border-[#e8e8e8] px-4 py-3.5">
+          <div className="flex items-center justify-between gap-4 px-4 py-3.5">
             <span>
               <span className="block text-sm font-semibold text-[#1D1E20]">Ayuda y feedback</span>
               <span className="block text-[11.5px] text-[#999]">Una idea, un error o una nota. Leemos todo</span>

@@ -3,7 +3,7 @@ import { Suspense, useEffect, useRef, useState, type ReactNode } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { ArrowLeft, Bell, ChevronDown, Clock, CreditCard, User, Users, X } from 'lucide-react'
+import { ArrowLeft, Bell, ChevronDown, Clock, CreditCard, Tags, User, Users, X } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { Cargando } from '@/app/components/ui/Cargando'
 import { miMembresia, patchJson, perfilConFoto } from '@/lib/workspace/cliente'
@@ -211,6 +211,9 @@ function Cascara({ children }: { children: ReactNode }) {
   ]
   const WORKSPACE_ITEMS: { href: string | null; label: string; Icon: typeof Users }[] = [
     { href: '/configuracion/equipo', label: 'Equipo', Icon: Users },
+    // El catalogo de categorias es del workspace, no del perfil: es una
+    // pantalla entera y por eso vive en el nav, no como renglon en Perfil.
+    { href: '/ajustes/categorias', label: 'Categorías', Icon: Tags },
     { href: null, label: 'Actividad', Icon: Clock },
     { href: null, label: 'Plan y facturación', Icon: CreditCard },
   ]
