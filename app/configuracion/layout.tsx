@@ -7,6 +7,7 @@ import { ArrowLeft, Bell, ChevronDown, Clock, CreditCard, Tags, User, Users, X }
 import { supabase } from '@/lib/supabase'
 import { Cargando } from '@/app/components/ui/Cargando'
 import { miMembresia, patchJson, perfilConFoto } from '@/lib/workspace/cliente'
+import { usuarioActual } from '@/lib/workspace/sesion'
 import { borrarImagenAnterior, subirImagen } from '@/lib/workspace/subir'
 import { resumenAsientos } from '@/lib/workspace/asientos'
 import { etiquetaPlan } from '@/lib/workspace/planes'
@@ -171,7 +172,7 @@ function Cascara({ children }: { children: ReactNode }) {
   useEffect(() => {
     let vivo = true
     const cargar = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
+      const user = await usuarioActual()
       if (!user) { router.replace('/'); return }
       const perfil = await perfilConFoto(user.id)
       const membresiaActual = await miMembresia(user.id)

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { usuarioActual } from '@/lib/workspace/sesion'
 import { Bell, CheckCircle, AlertCircle } from 'lucide-react'
 import { PUSH_TYPES, type PushType, type NotificationPrefs } from '@/lib/types'
 import { readPrefs, withPref } from '@/lib/notifications/prefs'
@@ -50,7 +51,7 @@ export default function NotificacionesPage() {
 
   useEffect(() => {
     const load = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
+      const user = await usuarioActual()
       if (!user) { router.replace('/'); return }
       setUserId(user.id)
 

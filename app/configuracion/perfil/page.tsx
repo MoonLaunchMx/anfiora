@@ -7,6 +7,7 @@ import { Lock, Eye, EyeOff, CheckCircle, AlertCircle, ChevronDown } from 'lucide
 import { ROLES, getRole, Role } from '@/lib/roles'
 import PhoneInput from '@/app/components/ui/PhoneInput'
 import { borrarImagenAnterior, subirImagen } from '@/lib/workspace/subir'
+import { usuarioActual } from '@/lib/workspace/sesion'
 
 function inicialesDe(texto: string): string {
   const partes = texto.trim().split(/[\s@.]+/).filter(Boolean)
@@ -96,11 +97,11 @@ export default function PerfilPage() {
 
   useEffect(() => {
     const load = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
+      const user = await usuarioActual()
       if (!user) { router.replace('/'); return }
 
       setUserId(user.id)
-      setEmail(user.email || '')
+      setEmail(user.email)
 
       // Un solo viaje. `avatar_url` llega con la migracion del Tramo 5, asi que
       // si la columna no existe todavia se reintenta sin ella. Dos consultas en
