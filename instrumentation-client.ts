@@ -1,5 +1,5 @@
 import * as Sentry from "@sentry/nextjs";
-import { sentryInitOptions } from "@/lib/sentry/config";
+import { sentryInitOptions, SENTRY_DENY_URLS } from "@/lib/sentry/config";
 import { CURRENT_VERSION } from "@/lib/changelog";
 import { zonaDesdePath } from "@/lib/observabilidad/zona";
 
@@ -32,8 +32,7 @@ Sentry.init({
     // catch. No afecta al usuario y no es parcheable desde nuestro codigo.
     /Lock was stolen by another request/i,
   ],
-  // Errores originados por extensiones del navegador, no por nuestro codigo.
-  denyUrls: [/^chrome-extension:\/\//i, /^moz-extension:\/\//i, /extensions\//i],
+  denyUrls: SENTRY_DENY_URLS,
   beforeSend(event) {
     event.tags = event.tags ?? {};
     if (!event.tags.zona) {

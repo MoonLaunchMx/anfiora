@@ -1,5 +1,24 @@
 import { describe, it, expect } from "vitest";
-import { isSentryEnabled, sentryInitOptions } from "./config";
+import { isSentryEnabled, sentryInitOptions, SENTRY_DENY_URLS } from "./config";
+
+const esAjena = (url: string) => SENTRY_DENY_URLS.some((re) => re.test(url));
+
+describe("SENTRY_DENY_URLS", () => {
+  it("ignora el toolbar de Vercel que se inyecta en los previews", () => {
+    expect(
+      esAjena("app:///_next-live/feedback/instrument.699d724cc73166e3b2f9.js")
+    ).toBe(true);
+  });
+
+  it("ignora scripts de extensiones del navegador", () => {
+    expect(esAjena("chrome-extension://abc/content.js")).toBe(true);
+    expect(esAjena("moz-extension://abc/content.js")).toBe(true);
+  });
+
+  it("no ignora nuestros chunks", () => {
+    expect(esAjena("https://anfiora.com/_next/static/chunks/app/dashboard/page.js")).toBe(false);
+  });
+});
 
 describe("isSentryEnabled", () => {
   it("solo se activa en produccion y con DSN", () => {
