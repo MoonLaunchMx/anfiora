@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { estadoDelLink } from '@/lib/reviews/link-cliente'
+import { estadoDelLink, venceAlCerrar } from '@/lib/reviews/link-cliente'
 import { parseRespuestaCliente } from '@/lib/reviews/opinion-publica'
 
 // La opinion del cliente final, acotada por token. Va por service role como
@@ -143,6 +143,28 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
 
   if (error) {
     console.error('Error guardando la opinion del cliente:', error.message ?? error, error)
+    return NextResponse.json({ error: 'server' }, { status: 500 })
+  }
+  return NextResponse.json({ ok: true })
+}
+
+// Enviar cierra el link: el cliente ya no edita hasta que el planner lo
+// reactive desde Proveedores. El trigger de event_settings deja pasar al
+// service role, que es quien escribe aqui.
+export async function PUT(_req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
+  const { token } = await params
+  const db = admin()
+  const r = await resolver(db, token)
+  if (!r) return NextResponse.json({ error: 'not_found' }, { status: 404 })
+  if (r.info.estado === 'vencida') return NextResponse.json({ ok: true })
+
+  const { error } = await db
+    .from('event_settings')
+    .update({ review_expires_at: venceAlCerrar(hoyISO()) })
+    .eq('review_token', token)
+
+  if (error) {
+    console.error('Error cerrando el link de opinion:', error.message ?? error, error)
     return NextResponse.json({ error: 'server' }, { status: 500 })
   }
   return NextResponse.json({ ok: true })
