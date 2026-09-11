@@ -313,7 +313,7 @@ export function AltaPersonaModal({ open, onClose, workspace, bodaFija, onHecho }
             <button className={btnSec} onClick={onClose}>Cancelar</button>
             {paso < 3
               ? <button className={btnCta + ' ml-auto'} onClick={siguiente}>Continuar</button>
-              : <button className={btnCta + ' ml-auto'} disabled={guardando} onClick={guardar}>{guardando ? 'Creando…' : 'Crear enlace'}</button>}
+              : <button className={btnCta + ' ml-auto'} disabled={guardando} onClick={guardar}>{guardando ? 'Creando' : 'Crear enlace'}</button>}
           </>
         )}
       </Modal.Footer>

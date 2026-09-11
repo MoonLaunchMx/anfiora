@@ -274,7 +274,7 @@ export default function InvitePage() {
         <div className="flex flex-col items-center gap-3 rounded-2xl border border-[#e8e8e8] bg-white px-6 py-10">
           <Loader size={26} className="animate-spin text-[#48C9B0]" />
           <p className="text-sm text-[#888]">
-            {pageState === 'loading' ? 'Verificando invitación...' : 'Entrando...'}
+            {pageState === 'loading' ? 'Verificando invitación' : 'Entrando'}
           </p>
         </div>
       </Cascara>
@@ -537,7 +537,7 @@ export default function InvitePage() {
             className="min-h-[48px] w-full rounded-[10px] bg-[#48C9B0] text-[15px] font-semibold text-white shadow-[0_4px_16px_rgba(72,201,176,.35)] transition hover:bg-[#3ab89f] disabled:opacity-40 disabled:shadow-none"
           >
             {authLoading
-              ? 'Un momento...'
+              ? 'Un momento'
               : authMode === 'login'
                 ? 'Iniciar sesión y entrar'
                 : esWorkspace ? 'Crear cuenta y entrar' : 'Entrar al evento'}

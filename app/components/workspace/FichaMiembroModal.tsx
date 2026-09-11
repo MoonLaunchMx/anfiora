@@ -149,9 +149,9 @@ export function FichaMiembroModal({ open, onClose, workspace, miembro, onHecho }
         </div>
       </Modal.Body>
       <Modal.Footer>
-        {!miembro.es_dueno_principal && <button className="rounded-lg border border-[#ffc0c0] bg-[#fff0f0] px-4 py-2 text-sm text-[#cc3333] disabled:opacity-60" disabled={ocupado} onClick={revocar}>{accion === 'quitar' ? 'Revocando acceso…' : 'Revocar acceso'}</button>}
+        {!miembro.es_dueno_principal && <button className="rounded-lg border border-[#ffc0c0] bg-[#fff0f0] px-4 py-2 text-sm text-[#cc3333] disabled:opacity-60" disabled={ocupado} onClick={revocar}>{accion === 'quitar' ? 'Revocando acceso' : 'Revocar acceso'}</button>}
         <button className="ml-auto rounded-lg border border-[#e0e0e0] px-4 py-2 text-sm text-[#888] transition hover:bg-[#f5f5f5] disabled:opacity-60" disabled={ocupado} onClick={onClose}>Cancelar</button>
-        {!miembro.es_dueno_principal && <button className="rounded-lg bg-[#48C9B0] px-4 py-2 text-sm font-semibold text-[#08312a] disabled:opacity-60" disabled={ocupado} onClick={guardar}>{accion === 'guardar' ? 'Guardando…' : 'Guardar'}</button>}
+        {!miembro.es_dueno_principal && <button className="rounded-lg bg-[#48C9B0] px-4 py-2 text-sm font-semibold text-[#08312a] disabled:opacity-60" disabled={ocupado} onClick={guardar}>{accion === 'guardar' ? 'Guardando' : 'Guardar'}</button>}
       </Modal.Footer>
     </Modal>
   )

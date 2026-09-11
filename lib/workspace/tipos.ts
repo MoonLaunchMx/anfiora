@@ -69,6 +69,7 @@ export interface WorkspaceResumen {
   name: string
   plan: PlanId
   logoUrl: string | null
+  tagline: string | null
   miRol: RolWorkspace
   esDuenoPrincipal: boolean
   miembros: Miembro[]

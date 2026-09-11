@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { Aviso } from '@/app/components/ui/Aviso'
 import { Lock, Eye, EyeOff, CheckCircle, AlertCircle, ChevronDown } from 'lucide-react'
 import { ROLES, getRole, Role } from '@/lib/roles'
 import PhoneInput from '@/app/components/ui/PhoneInput'
@@ -15,22 +16,6 @@ function inicialesDe(texto: string): string {
   return partes.slice(0, 2).map(p => p[0]!.toUpperCase()).join('')
 }
 
-function Toast({ type, message }: { type: 'success' | 'error'; message: string }) {
-  return (
-    <div className={`flex items-center gap-2 rounded-lg border px-3 py-2.5 text-xs
-      ${type === 'success'
-        ? 'border-[#a0e0c0] bg-[#f0fff6] text-[#2a7a50]'
-        : 'border-[#ffc0c0] bg-[#fff0f0] text-[#cc3333]'
-      }`}
-    >
-      {type === 'success'
-        ? <CheckCircle size={14} className="shrink-0" />
-        : <AlertCircle size={14} className="shrink-0" />
-      }
-      {message}
-    </div>
-  )
-}
 
 function PassInput({
   icon, value, onChange, placeholder, show, onToggleShow,
@@ -309,7 +294,7 @@ export default function PerfilPage() {
         </div>
       </div>
 
-      {roleMsg && <Toast type={roleMsg.type} message={roleMsg.text} />}
+      {roleMsg && <Aviso tono={roleMsg.type === 'success' ? 'exito' : 'error'} mensaje={roleMsg.text} />}
 
       <div className="flex max-w-[900px] flex-wrap items-center gap-4">
         {avatar
@@ -329,7 +314,7 @@ export default function PerfilPage() {
               disabled={subiendoFoto}
               className="rounded-lg border border-[#e8e8e8] px-3.5 py-1.5 text-[13px] font-semibold text-[#1D1E20] transition hover:border-[#48C9B0] disabled:cursor-not-allowed disabled:text-[#bbb]"
             >
-              {subiendoFoto ? 'Subiendo...' : avatar ? 'Cambiar' : 'Subir foto'}
+              {subiendoFoto ? 'Subiendo' : avatar ? 'Cambiar' : 'Subir foto'}
             </button>
             {avatar && (
               <button
@@ -352,7 +337,7 @@ export default function PerfilPage() {
         />
       </div>
 
-      {fotoMsg && <div className="max-w-[900px]"><Toast type={fotoMsg.type} message={fotoMsg.text} /></div>}
+      {fotoMsg && <div className="max-w-[900px]"><Aviso tono={fotoMsg.type === 'success' ? 'exito' : 'error'} mensaje={fotoMsg.text} /></div>}
 
       <div className="grid max-w-[900px] grid-cols-1 gap-x-8 gap-y-5 sm:grid-cols-2">
         <div className="flex flex-col gap-1.5">
@@ -389,7 +374,7 @@ export default function PerfilPage() {
         </div>
       </div>
 
-      {profileMsg && <div className="max-w-[900px]"><Toast type={profileMsg.type} message={profileMsg.text} /></div>}
+      {profileMsg && <div className="max-w-[900px]"><Aviso tono={profileMsg.type === 'success' ? 'exito' : 'error'} mensaje={profileMsg.text} /></div>}
 
       <button
         onClick={handleSaveProfile}
@@ -400,7 +385,7 @@ export default function PerfilPage() {
             : 'cursor-pointer bg-[#48C9B0] hover:bg-[#3ab89f]'
           }`}
       >
-        {savingProfile ? 'Guardando...' : 'Guardar'}
+        {savingProfile ? 'Guardando' : 'Guardar'}
       </button>
 
       {showPasswordForm && (
@@ -414,7 +399,7 @@ export default function PerfilPage() {
             <PassInput icon={<Lock size={15} />} value={confirmPass} onChange={setConfirmPass} placeholder="Confirmar nueva contraseña" show={showConfirm} onToggleShow={() => setShowConfirm(p => !p)} />
           </div>
 
-          {passMsg && <div className="mt-4"><Toast type={passMsg.type} message={passMsg.text} /></div>}
+          {passMsg && <div className="mt-4"><Aviso tono={passMsg.type === 'success' ? 'exito' : 'error'} mensaje={passMsg.text} /></div>}
 
           <button
             onClick={handleChangePassword}
@@ -425,7 +410,7 @@ export default function PerfilPage() {
                 : 'cursor-pointer bg-[#48C9B0] hover:bg-[#3ab89f]'
               }`}
           >
-            {savingPass ? 'Cambiando...' : 'Cambiar contraseña'}
+            {savingPass ? 'Cambiando' : 'Cambiar contraseña'}
           </button>
         </div>
       )}

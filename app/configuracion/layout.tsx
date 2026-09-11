@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { ArrowLeft, Bell, ChevronDown, Clock, CreditCard, Pencil, Tags, User, Users, X } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { Aviso } from '@/app/components/ui/Aviso'
 import { Cargando } from '@/app/components/ui/Cargando'
 import { miMembresia, patchJson, perfilConFoto } from '@/lib/workspace/cliente'
 import { usuarioActual } from '@/lib/workspace/sesion'
@@ -135,7 +136,7 @@ function LogoWorkspace({ activo, onCambio }: { activo: WorkspaceResumen; onCambi
           ? <img src={activo.logoUrl} alt={activo.name} className="h-full w-full object-cover" />
           : iniciales(activo.name)}
         <span className="absolute inset-0 hidden items-center justify-center bg-black/45 text-[10px] font-semibold text-white group-hover:flex">
-          {subiendo ? '...' : 'Cambiar'}
+          {subiendo ? '' : 'Cambiar'}
         </span>
       </button>
 
@@ -157,14 +158,11 @@ function LogoWorkspace({ activo, onCambio }: { activo: WorkspaceResumen; onCambi
         onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) guardar(null, f) }}
       />
 
-      {/* El aviso se va solo a los 6 segundos y ademas se puede cerrar. Antes
-          se quedaba clavado en pantalla sin salida. */}
+      {/* Mismo aviso que la foto de perfil: uno solo para toda la app. Se va
+          a los 6 segundos y ademas se puede cerrar. */}
       {error && (
-        <div className="absolute left-0 top-[52px] z-20 flex w-60 items-start gap-2 rounded-lg border border-[#ffc0c0] bg-[#fff0f0] px-2.5 py-2 text-[11px] leading-snug text-[#cc3333] shadow-sm">
-          <span className="min-w-0 flex-1">{error}</span>
-          <button onClick={() => setError(null)} aria-label="Cerrar aviso" className="shrink-0 text-[#cc3333]/70 transition hover:text-[#cc3333]">
-            <X size={12} />
-          </button>
+        <div className="absolute left-0 top-[52px] z-20 w-64">
+          <Aviso tono="error" mensaje={error} onCerrar={() => setError(null)} className="shadow-sm" />
         </div>
       )}
     </div>
@@ -176,16 +174,18 @@ function LogoWorkspace({ activo, onCambio }: { activo: WorkspaceResumen; onCambi
 function NombreWorkspace({ activo, onCambio }: { activo: WorkspaceResumen; onCambio: () => void }) {
   const [editando, setEditando] = useState(false)
   const [valor, setValor] = useState(activo.name)
+  const [lema, setLema] = useState(activo.tagline ?? '')
   const [guardando, setGuardando] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const guardar = async () => {
     const limpio = valor.trim()
-    if (limpio === activo.name) { setEditando(false); return }
+    const frase = lema.trim()
+    if (limpio === activo.name && frase === (activo.tagline ?? '')) { setEditando(false); return }
     setGuardando(true)
     setError(null)
     try {
-      await patchJson('/api/workspace', { workspaceId: activo.id, name: limpio })
+      await patchJson('/api/workspace', { workspaceId: activo.id, name: limpio, tagline: frase })
       setEditando(false)
       onCambio()
     } catch (e) {
@@ -194,12 +194,12 @@ function NombreWorkspace({ activo, onCambio }: { activo: WorkspaceResumen; onCam
     setGuardando(false)
   }
 
-  const cancelar = () => { setValor(activo.name); setError(null); setEditando(false) }
+  const cancelar = () => { setValor(activo.name); setLema(activo.tagline ?? ''); setError(null); setEditando(false) }
 
   if (!editando) {
     return (
       <button
-        onClick={() => { setValor(activo.name); setEditando(true) }}
+        onClick={() => { setValor(activo.name); setLema(activo.tagline ?? ''); setEditando(true) }}
         title="Cambiar el nombre del workspace"
         className="group flex items-center gap-1.5 text-left text-xl font-semibold tracking-tight text-[#1D1E20]"
       >
@@ -228,12 +228,20 @@ function NombreWorkspace({ activo, onCambio }: { activo: WorkspaceResumen; onCam
           disabled={guardando || valor.trim().length < 2}
           className="rounded-lg bg-[#48C9B0] px-3 py-1.5 text-[13px] font-semibold text-white transition hover:bg-[#3ab89f] disabled:opacity-50"
         >
-          {guardando ? 'Guardando…' : 'Guardar'}
+          {guardando ? 'Guardando' : 'Guardar'}
         </button>
         <button onClick={cancelar} className="px-1.5 text-[13px] font-medium text-[#888] transition hover:text-[#555]">
           Cancelar
         </button>
       </span>
+      <input
+        value={lema}
+        onChange={e => setLema(e.target.value)}
+        onKeyDown={e => { if (e.key === 'Enter') guardar(); if (e.key === 'Escape') cancelar() }}
+        maxLength={90}
+        placeholder="Tu eslogan, opcional"
+        className="w-[320px] max-w-full rounded-lg border border-[#e8e8e8] px-2.5 py-1 text-[13px] text-[#666] outline-none placeholder:text-[#bbb] focus:border-[#48C9B0]"
+      />
       {error && <span className="text-[11px] text-[#cc3333]">{error}</span>}
     </span>
   )
@@ -401,6 +409,9 @@ function Cascara({ children }: { children: ReactNode }) {
                         <NombreWorkspace activo={activo} onCambio={recargar} />
                         <span className="rounded-full bg-[#e1f5ee] px-2 py-0.5 text-[11px] font-semibold text-[#04342C]">{etiquetaPlan(activo.plan)}</span>
                       </div>
+                      {activo.tagline && (
+                        <p className="max-w-[46ch] text-[13px] italic leading-snug text-[#8a8a85]">{activo.tagline}</p>
+                      )}
                       <p className="text-[13px] text-[#666]">
                         Eres {rolTexto(activo)} · {eventosActivos} evento{eventosActivos === 1 ? '' : 's'} activo{eventosActivos === 1 ? '' : 's'}
                       </p>

@@ -89,7 +89,7 @@ export function InvitarClienteModal({ open, onClose, workspace, bodaFija, onHech
       </Modal.Body>
       <Modal.Footer>
         <button className="rounded-lg border border-[#e0e0e0] px-4 py-2 text-sm text-[#888] transition hover:bg-[#f5f5f5]" onClick={onClose}>{token ? 'Listo' : 'Cancelar'}</button>
-        {!token && <button className="ml-auto rounded-lg bg-[#48C9B0] px-4 py-2 text-sm font-semibold text-[#08312a] disabled:opacity-60" disabled={guardando || !email.trim() || !eventId} onClick={guardar}>{guardando ? 'Creando…' : 'Crear enlace'}</button>}
+        {!token && <button className="ml-auto rounded-lg bg-[#48C9B0] px-4 py-2 text-sm font-semibold text-[#08312a] disabled:opacity-60" disabled={guardando || !email.trim() || !eventId} onClick={guardar}>{guardando ? 'Creando' : 'Crear enlace'}</button>}
       </Modal.Footer>
     </Modal>
   )

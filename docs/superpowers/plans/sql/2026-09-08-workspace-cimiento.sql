@@ -45,7 +45,8 @@ ALTER TABLE public.workspaces
   ADD COLUMN IF NOT EXISTS rfc           text,
   ADD COLUMN IF NOT EXISTS tax_regime    text,
   ADD COLUMN IF NOT EXISTS postal_code   text,
-  ADD COLUMN IF NOT EXISTS logo_url      text;
+  ADD COLUMN IF NOT EXISTS logo_url      text,
+  ADD COLUMN IF NOT EXISTS tagline       text;
 
 ALTER TABLE public.users
   ADD COLUMN IF NOT EXISTS avatar_url text;

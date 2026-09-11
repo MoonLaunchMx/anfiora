@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { Aviso } from '@/app/components/ui/Aviso'
 import { usuarioActual } from '@/lib/workspace/sesion'
 import { Bell, CheckCircle, AlertCircle } from 'lucide-react'
 import { PUSH_TYPES, type PushType, type NotificationPrefs } from '@/lib/types'
@@ -18,22 +19,6 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array<ArrayBuffer> {
   return output
 }
 
-function Toast({ type, message }: { type: 'success' | 'error'; message: string }) {
-  return (
-    <div className={`flex items-center gap-2 rounded-lg border px-3 py-2.5 text-xs
-      ${type === 'success'
-        ? 'border-[#a0e0c0] bg-[#f0fff6] text-[#2a7a50]'
-        : 'border-[#ffc0c0] bg-[#fff0f0] text-[#cc3333]'
-      }`}
-    >
-      {type === 'success'
-        ? <CheckCircle size={14} className="shrink-0" />
-        : <AlertCircle size={14} className="shrink-0" />
-      }
-      {message}
-    </div>
-  )
-}
 
 export default function NotificacionesPage() {
   const router = useRouter()
@@ -308,7 +293,7 @@ export default function NotificacionesPage() {
           </div>
         )}
 
-        {pushMsg && <div className="mt-4"><Toast type={pushMsg.type} message={pushMsg.text} /></div>}
+        {pushMsg && <div className="mt-4"><Aviso tono={pushMsg.type === 'success' ? 'exito' : 'error'} mensaje={pushMsg.text} /></div>}
       </div>
     </div>
   )

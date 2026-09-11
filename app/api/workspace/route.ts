@@ -106,7 +106,8 @@ export async function GET(req: NextRequest) {
 
   const activo: WorkspaceResumen = {
     id: activoId, name: String(ws.name), plan: await planDelWorkspace(admin, ws),
-    logoUrl: (ws.logo_url as string) ?? null, miRol: mia.rol,
+    logoUrl: (ws.logo_url as string) ?? null,
+    tagline: (ws.tagline as string) ?? null, miRol: mia.rol,
     esDuenoPrincipal: mia.es_dueno_principal, miembros, clientes, accesosSueltos, bodas,
   }
   return NextResponse.json({ workspaces, activo })
@@ -122,7 +123,7 @@ export async function PATCH(req: NextRequest) {
   if (!s) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   const { user, admin } = s
 
-  let body: { workspaceId?: string; logoUrl?: string | null; name?: string }
+  let body: { workspaceId?: string; logoUrl?: string | null; name?: string; tagline?: string | null }
   try { body = await req.json() } catch { return NextResponse.json({ error: 'Cuerpo inválido' }, { status: 400 }) }
 
   const { workspaceId } = body
@@ -137,6 +138,14 @@ export async function PATCH(req: NextRequest) {
     if (nombre.length < 2) return NextResponse.json({ error: 'El nombre necesita al menos 2 letras' }, { status: 400 })
     if (nombre.length > 60) return NextResponse.json({ error: 'El nombre no puede pasar de 60 caracteres' }, { status: 400 })
     cambios.name = nombre
+  }
+
+  // El eslogan sirve para el whitelabel de Agency: es la linea que va a salir
+  // en lo que el planner le manda a sus clientes. Vacio se guarda como null.
+  if (body.tagline !== undefined) {
+    const frase = String(body.tagline ?? '').trim()
+    if (frase.length > 90) return NextResponse.json({ error: 'El eslogan no puede pasar de 90 caracteres' }, { status: 400 })
+    cambios.tagline = frase.length > 0 ? frase : null
   }
 
   if (body.logoUrl !== undefined) {
