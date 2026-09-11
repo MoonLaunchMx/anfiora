@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { esEventoVigente, eventosParaRepartir, hoyISO } from './eventos'
+import { ESTADOS_TERMINADOS, esEventoVigente, eventoTerminado, eventosParaRepartir, hoyISO } from './eventos'
 
 const HOY = '2026-09-09'
 const ev = (id: string, event_date: string | null, event_status: string | null = 'active') =>
@@ -69,5 +69,28 @@ describe('hoyISO', () => {
 
   it('rellena mes y dia con cero', () => {
     expect(hoyISO(new Date(2026, 0, 5))).toBe('2026-01-05')
+  })
+})
+
+describe('eventoTerminado', () => {
+  it('lo terminado esta muerto para el acceso', () => {
+    for (const estado of ESTADOS_TERMINADOS) expect(eventoTerminado(estado)).toBe(true)
+  })
+
+  it('un evento que solo PASO de fecha sigue vivo', () => {
+    // Es el caso que Diego cerro el 11-sep: despues del evento todavia hay
+    // ajustes, reviews y pagos por cerrar.
+    expect(eventoTerminado('active')).toBe(false)
+    expect(eventoTerminado('paused')).toBe(false)
+  })
+
+  it('sin estado no se da por muerto', () => {
+    expect(eventoTerminado(null)).toBe(false)
+    expect(eventoTerminado(undefined)).toBe(false)
+    expect(eventoTerminado('')).toBe(false)
+  })
+
+  it('son exactamente tres y no cambian sin querer', () => {
+    expect([...ESTADOS_TERMINADOS].sort()).toEqual(['archived', 'cancelled', 'completed'])
   })
 })

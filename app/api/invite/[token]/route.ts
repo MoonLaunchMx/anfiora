@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { filasParaActivar } from '@/lib/workspace/invitacion'
+import { ESTADOS_TERMINADOS } from '@/lib/workspace/eventos'
 
 // API de invitaciones de colaborador, acotada por token. Usa service role para
 // no abrir RLS anon en event_collaborators: solo expone los datos de ESA
@@ -40,6 +41,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
 
     const { data: eventosWs, error: errEventosWs } = await db
       .from('events').select('id').eq('workspace_id', m.workspace_id)
+      .not('event_status', 'in', '(' + ESTADOS_TERMINADOS.join(',') + ')')
     if (errEventosWs) return NextResponse.json({ status: 'invalid' }, { status: 404 })
     const idsWs = (eventosWs ?? []).map(e => e.id as string)
     // Fecha y lugar viajan con cada evento: quien acepta necesita saber a que
@@ -142,7 +144,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
       return NextResponse.json({ error: 'email_mismatch', invited: m.email, your_email: user.email }, { status: 403 })
     }
 
+    // Un evento cancelado, completado o archivado NO revive una invitacion
+    // pendiente: aceptar no debe devolverle acceso a algo que ya se cerro.
     const { data: eventos } = await db.from('events').select('id').eq('workspace_id', m.workspace_id)
+      .not('event_status', 'in', '(' + ESTADOS_TERMINADOS.join(',') + ')')
     const eventIds = (eventos ?? []).map(e => e.id as string)
 
     if (m.status === 'pending') {

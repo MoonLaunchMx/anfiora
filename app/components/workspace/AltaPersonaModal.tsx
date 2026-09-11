@@ -1,5 +1,5 @@
 'use client'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Check, Copy } from 'lucide-react'
 import { FaWhatsapp } from 'react-icons/fa'
 import { Modal } from '@/app/components/ui/Modal'
@@ -8,7 +8,7 @@ import type { PermisosEvento } from '@/lib/permisos/catalogo'
 import { aplicarKit, permisosDeRol } from '@/lib/permisos/resolver'
 import { contarAsientos, puedeInvitar } from '@/lib/workspace/asientos'
 import { enlaceWhatsApp, mensajeEquipo } from '@/lib/workspace/compartir'
-import { eventosParaRepartir, hoyISO } from '@/lib/workspace/eventos'
+import { eventoTerminado, eventosParaRepartir, hoyISO } from '@/lib/workspace/eventos'
 import { postJson } from '@/lib/workspace/cliente'
 import { kitDesde, validarAltaEquipo } from '@/lib/workspace/invitacion'
 import { PLANES } from '@/lib/workspace/planes'
@@ -38,12 +38,46 @@ export function AltaPersonaModal({ open, onClose, workspace, bodaFija, onHecho }
 
   const ocupados = contarAsientos(workspace.miembros)
   const permiso = puedeInvitar(workspace.plan, ocupados)
-  // Solo lo que sigue por delante: repartir acceso a un evento que ya pasó no
-  // le sirve a nadie y alarga la lista justo donde se elige.
-  const bodasActivas = eventosParaRepartir(workspace.bodas, hoyISO())
+
+  // Lo que ese correo YA tiene vivo en este workspace, venga de un miembro o de
+  // una invitacion suelta de antes. Sin esto el alta ofrece una lista en blanco
+  // y al aceptar se le suman accesos que nunca viste: elegias dos y entraban
+  // cuatro.
+  const yaTiene = useMemo(() => {
+    const correo = email.trim().toLowerCase()
+    if (!correo) return new Map<string, string>()
+    const mapa = new Map<string, string>()
+    const miembro = workspace.miembros.find(m => m.email.toLowerCase() === correo)
+    for (const b of miembro?.bodas ?? []) {
+      if (b.status !== 'revoked') mapa.set(b.eventId, b.status)
+    }
+    for (const a of workspace.accesosSueltos ?? []) {
+      if (a.email.toLowerCase() === correo && a.status !== 'revoked') mapa.set(a.eventId, a.status)
+    }
+    return mapa
+  }, [workspace.miembros, workspace.accesosSueltos, email])
+
+  // Ofrecer y revelar son dos trabajos distintos. Se OFRECE solo lo vigente; se
+  // REVELA todo lo que ya tiene, incluso si ya paso de fecha, porque lo que no
+  // se ve no se puede quitar. Lo terminado no entra en ninguna de las dos.
+  const vivos = workspace.bodas.filter(b => !eventoTerminado(b.event_status))
+  const conAcceso = vivos.filter(b => yaTiene.has(b.id))
+  const paraAgregar = eventosParaRepartir(vivos, hoyISO()).filter(b => !yaTiene.has(b.id))
+  const bodasActivas = [...conAcceso, ...paraAgregar]
   const todasElegidas = bodasActivas.length > 0 && bodasActivas.every(b => elegidas.has(b.id))
 
-  // Kit: lo que ese correo ya tiene en otras bodas; si nada, "Puede editar".
+  // Lo que ya tiene nace palomeado: el total de abajo tiene que cuadrar con lo
+  // que va a recibir. Despalomear ahi es quitarle ese acceso.
+  useEffect(() => {
+    if (yaTiene.size === 0) return
+    setElegidas(prev => {
+      const n = new Set(prev)
+      for (const id of yaTiene.keys()) n.add(id)
+      return n
+    })
+  }, [yaTiene])
+
+  // Kit: lo que ese correo ya tiene en otros eventos; si nada, "Puede editar".
   const kit = useMemo(() => {
     const m = workspace.miembros.find(x => x.email.toLowerCase() === email.trim().toLowerCase())
     return m ? kitDesde(m.bodas) : {}
@@ -184,18 +218,42 @@ export function AltaPersonaModal({ open, onClose, workspace, bodaFija, onHecho }
                     </button>
                   </div>
                 )}
-                {bodasActivas.map(b => {
-                  const on = elegidas.has(b.id)
-                  return (
-                    <label key={b.id} className={'flex cursor-pointer items-center gap-3 rounded-lg border px-3 py-2.5 ' + (on ? 'border-[#48C9B0] bg-[#f0fdfb]' : 'border-[#e0e0e0] bg-white')}>
-                      <input type="checkbox" checked={on} onChange={() => setElegidas(prev => { const n = new Set(prev); if (n.has(b.id)) n.delete(b.id); else n.add(b.id); return n })} className="accent-[#48C9B0]" />
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-medium text-[#1D1E20]">{b.name}</span>
-                        <span className="block text-[11px] text-[#999]">{b.event_date ?? 'Sin fecha'}</span>
-                      </span>
-                    </label>
-                  )
-                })}
+                {[
+                  { titulo: `Ya tiene acceso · ${conAcceso.length}`, lista: conAcceso, yaEra: true },
+                  { titulo: 'Agregar a', lista: paraAgregar, yaEra: false },
+                ].map(({ titulo, lista, yaEra }) => lista.length === 0 ? null : (
+                  <div key={titulo} className="flex flex-col gap-1.5">
+                    {conAcceso.length > 0 && (
+                      <p className="pt-1.5 text-[10.5px] font-bold uppercase tracking-[0.08em] text-[#b9b8b2]">{titulo}</p>
+                    )}
+                    {lista.map(b => {
+                      const on = elegidas.has(b.id)
+                      const paso = b.event_date ? b.event_date < hoyISO() : false
+                      return (
+                        <label key={b.id} className={'flex cursor-pointer items-center gap-3 rounded-lg border px-3 py-2.5 ' + (on ? 'border-[#48C9B0] bg-[#f0fdfb]' : 'border-[#e0e0e0] bg-white')}>
+                          <input type="checkbox" checked={on} onChange={() => setElegidas(prev => { const n = new Set(prev); if (n.has(b.id)) n.delete(b.id); else n.add(b.id); return n })} className="accent-[#48C9B0]" />
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-sm font-medium text-[#1D1E20]">{b.name}</span>
+                            <span className="block text-[11px] text-[#999]">
+                              {b.event_date ?? 'Sin fecha'}{paso && ' · ya pasó'}
+                            </span>
+                          </span>
+                          {yaEra && (
+                            <span className="shrink-0 rounded-full border border-[#f0dfae] bg-[#fffbf0] px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.04em] text-[#8a6a1f]">
+                              {yaTiene.get(b.id) === 'pending' ? 'Invitado' : 'Dentro'}
+                            </span>
+                          )}
+                        </label>
+                      )
+                    })}
+                  </div>
+                ))}
+
+                {conAcceso.length > 0 && (
+                  <p className="mt-1 rounded-lg border border-[#f0dfae] bg-[#fffbf0] px-3 py-2 text-[12px] leading-snug text-[#7a5a14]">
+                    Ese correo ya tenía acceso a {conAcceso.length} {conAcceso.length === 1 ? 'evento' : 'eventos'}. Vienen palomeados. Si despalomeas uno, se lo quitas.
+                  </p>
+                )}
               </div>
             )}
             {paso === 3 && rol === 'admin' && (

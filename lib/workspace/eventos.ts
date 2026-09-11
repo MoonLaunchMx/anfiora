@@ -1,7 +1,17 @@
 // Que evento se ofrece al repartir accesos. Puro a proposito: no importa
 // lib/supabase, para que se pueda probar con Vitest.
 
-const TERMINADOS = new Set(['cancelled', 'completed', 'archived'])
+// Un evento terminado esta muerto para efectos de acceso: ni se ofrece, ni se
+// lista en el enlace de invitacion, ni revive una invitacion pendiente al
+// aceptar. Un evento que solo PASO de fecha no esta aqui: sigue vivo porque
+// todavia se le hacen ajustes, reviews y cierres de pago.
+export const ESTADOS_TERMINADOS = ['cancelled', 'completed', 'archived'] as const
+
+const TERMINADOS: ReadonlySet<string> = new Set(ESTADOS_TERMINADOS)
+
+export function eventoTerminado(estado: string | null | undefined): boolean {
+  return TERMINADOS.has(estado ?? '')
+}
 
 export interface EventoElegible {
   id: string

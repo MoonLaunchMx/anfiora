@@ -54,6 +54,16 @@ export interface Cliente {
   permisos: PermisosEvento
 }
 
+// Un acceso que existe en event_collaborators pero no cuelga de ningun miembro
+// ni de ningun cliente. Nacen de invitaciones viejas; el alta los enseña para
+// que el numero de eventos nunca sorprenda.
+export interface AccesoSuelto {
+  email: string
+  eventId: string
+  eventName: string
+  status: StatusMiembro
+}
+
 export interface WorkspaceResumen {
   id: string
   name: string
@@ -63,6 +73,7 @@ export interface WorkspaceResumen {
   esDuenoPrincipal: boolean
   miembros: Miembro[]
   clientes: Cliente[]
+  accesosSueltos: AccesoSuelto[]
   bodas: BodaDelWorkspace[]
 }
 

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { normalizarPermisos } from '@/lib/permisos/resolver'
 import { bodasDelWorkspace, esAdministrador, planDelWorkspace, rolEnWorkspace, usuarioDeRequest } from '@/lib/workspace/servidor'
-import type { Cliente, Miembro, RolWorkspace, WorkspaceListado, WorkspaceResumen } from '@/lib/workspace/tipos'
+import type { AccesoSuelto, Cliente, Miembro, RolWorkspace, WorkspaceListado, WorkspaceResumen } from '@/lib/workspace/tipos'
 
 export async function GET(req: NextRequest) {
   const s = await usuarioDeRequest(req)
@@ -88,10 +88,26 @@ export async function GET(req: NextRequest) {
       permisos: normalizarPermisos(c.permisos),
     }))
 
+  // Filas de colaborador que no pertenecen ni a un miembro ni a un cliente:
+  // invitaciones sueltas de antes de que existiera el workspace. Se exponen
+  // para que el alta pueda AVISAR que ese correo ya tiene acceso, en vez de
+  // sumarselo por debajo al aceptar.
+  const correosCliente = new Set(clientes.map(c => c.email.toLowerCase()))
+  const accesosSueltos: AccesoSuelto[] = (colabs ?? [])
+    .filter(c => c.tipo !== 'cliente'
+      && !correosEquipo.has(c.email.toLowerCase())
+      && !correosCliente.has(c.email.toLowerCase()))
+    .map(c => ({
+      email: c.email,
+      eventId: c.event_id,
+      eventName: nombreBoda.get(c.event_id) ?? 'Evento',
+      status: c.status,
+    }))
+
   const activo: WorkspaceResumen = {
     id: activoId, name: String(ws.name), plan: await planDelWorkspace(admin, ws),
     logoUrl: (ws.logo_url as string) ?? null, miRol: mia.rol,
-    esDuenoPrincipal: mia.es_dueno_principal, miembros, clientes, bodas,
+    esDuenoPrincipal: mia.es_dueno_principal, miembros, clientes, accesosSueltos, bodas,
   }
   return NextResponse.json({ workspaces, activo })
 }
