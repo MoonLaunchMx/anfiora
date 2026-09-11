@@ -168,8 +168,16 @@ export async function PATCH(req: NextRequest) {
   // Un update que no alcanza ninguna fila no devuelve error: se cuentan.
   const { data, error } = await admin
     .from('workspaces').update(cambios).eq('id', workspaceId).select('id')
-  if (error) return NextResponse.json({ error: 'No se pudo guardar: ' + error.message }, { status: 500 })
-  if (!data || data.length === 0) return NextResponse.json({ error: 'No se guardó el cambio' }, { status: 500 })
+  // Sin esto, un 500 aqui solo deja el codigo en el log y el motivo se pierde:
+  // paso una vez al guardar el logo y no hubo manera de saber por que.
+  if (error) {
+    console.error('PATCH /api/workspace fallo:', { workspaceId, campos: Object.keys(cambios), mensaje: error.message, code: error.code })
+    return NextResponse.json({ error: 'No se pudo guardar: ' + error.message }, { status: 500 })
+  }
+  if (!data || data.length === 0) {
+    console.error('PATCH /api/workspace no alcanzo ninguna fila:', { workspaceId, campos: Object.keys(cambios) })
+    return NextResponse.json({ error: 'No se guardó el cambio' }, { status: 500 })
+  }
 
   return NextResponse.json({ ok: true })
 }
