@@ -51,6 +51,7 @@ interface InviteData {
     venue: string | null
   }
   workspace_name?: string
+  workspace_logo?: string | null
   rol?: string
   rolLabel?: string
   invitado_por?: string | null
@@ -413,11 +414,22 @@ export default function InvitePage() {
 
         {/* Quien invita y a que */}
         <div className="flex flex-col items-center gap-1.5 text-center">
-          {esWorkspace && (
-            <span className="mb-1 flex h-[52px] w-[52px] items-center justify-center rounded-xl bg-[#1D1E20] text-[17px] font-semibold text-white">
-              {iniciales(invite?.workspace_name ?? '')}
-            </span>
-          )}
+          {/* El logo del workspace es la primera cara de quien invita: si el
+              planner lo subio, aqui es donde tiene que salir. */}
+          {esWorkspace && (invite?.workspace_logo
+            ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={invite.workspace_logo}
+                alt={invite.workspace_name ?? 'Workspace'}
+                className="mb-1 h-[52px] w-[52px] rounded-xl object-cover"
+              />
+            )
+            : (
+              <span className="mb-1 flex h-[52px] w-[52px] items-center justify-center rounded-xl bg-[#1D1E20] text-[17px] font-semibold text-white">
+                {iniciales(invite?.workspace_name ?? '')}
+              </span>
+            ))}
           <p className="text-[13px] text-[#666]">
             {invite?.invitado_por
               ? <>{invite.invitado_por} te invitó a</>

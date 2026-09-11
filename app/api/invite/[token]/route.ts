@@ -33,7 +33,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
   if (error || !data) {
     const { data: m } = await db
       .from('workspace_members')
-      .select('id, workspace_id, email, rol, status, user_id, invited_by, workspaces ( name )')
+      .select('id, workspace_id, email, rol, status, user_id, invited_by, workspaces ( name, logo_url )')
       .eq('invite_token', token)
       .maybeSingle()
     if (!m || m.status === 'revoked') return NextResponse.json({ status: 'invalid' }, { status: 404 })
@@ -68,6 +68,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
       status: 'pending', kind: 'workspace', account_exists: !!existing,
       invite: {
         workspace_id: m.workspace_id, workspace_name: ws?.name ?? 'Workspace',
+        workspace_logo: ws?.logo_url ?? null,
         email: m.email, rol: m.rol, rolLabel: m.rol === 'admin' ? 'Administrador' : 'Colaborador',
         invitado_por: invitadoPor,
         // El join de Supabase se tipa como arreglo aunque la relacion sea a

@@ -74,6 +74,7 @@ export default function PerfilPage() {
   const [showConfirm, setShowConfirm]   = useState(false)
   const [savingPass, setSavingPass]     = useState(false)
   const [passMsg, setPassMsg]           = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  const [enviandoRecuperar, setEnviandoRecuperar] = useState(false)
 
   const [avatar, setAvatar]         = useState<string | null>(null)
   const [subiendoFoto, setSubiendo] = useState(false)
@@ -189,6 +190,29 @@ export default function PerfilPage() {
       setProfileMsg({ type: 'success', text: 'Perfil actualizado correctamente' })
     }
     setSavingProfile(false)
+  }
+
+  // Cerrar tambien limpia: si vuelve a abrir, no se encuentra su intento
+  // anterior a medias ni el error de la vez pasada.
+  const cerrarCambioPass = () => {
+    setShowPasswordForm(false)
+    setCurrentPass(''); setNewPass(''); setConfirmPass('')
+    setPassMsg(null)
+  }
+
+  // La salida cuando no recuerda la actual: el mismo correo de recuperacion de
+  // la pantalla de entrar, pedido desde aqui. No se dice si el correo existe o
+  // no, aunque aqui ya sabemos quien es: el mensaje es el mismo siempre.
+  const recuperarPass = async () => {
+    setEnviandoRecuperar(true)
+    setPassMsg(null)
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/auth/reset`,
+    })
+    setPassMsg(error
+      ? { type: 'error', text: 'No se pudo enviar el correo. Intenta de nuevo en un momento.' }
+      : { type: 'success', text: `Te mandamos un correo a ${email} con el enlace para ponerte una nueva.` })
+    setEnviandoRecuperar(false)
   }
 
   const handleChangePassword = async () => {
@@ -401,16 +425,36 @@ export default function PerfilPage() {
 
           {passMsg && <div className="mt-4"><Aviso tono={passMsg.type === 'success' ? 'exito' : 'error'} mensaje={passMsg.text} /></div>}
 
+          <div className="mt-5 flex flex-wrap items-center gap-2">
+            <button
+              onClick={handleChangePassword}
+              disabled={savingPass || !currentPass || !newPass || !confirmPass}
+              className={`rounded-lg border-none px-6 py-2.5 text-sm font-semibold text-white transition-colors
+                ${savingPass || !currentPass || !newPass || !confirmPass
+                  ? 'cursor-not-allowed bg-[#9ee0d4]'
+                  : 'cursor-pointer bg-[#48C9B0] hover:bg-[#3ab89f]'
+                }`}
+            >
+              {savingPass ? 'Cambiando' : 'Cambiar contraseña'}
+            </button>
+            <button
+              type="button"
+              onClick={cerrarCambioPass}
+              className="rounded-lg border border-[#e8e8e8] px-4 py-2.5 text-sm font-medium text-[#888] transition hover:text-[#555]"
+            >
+              Cancelar
+            </button>
+          </div>
+
+          {/* Si no recuerda la actual, aqui se queda sin salida: el enlace de
+              recuperar vive en la pantalla de entrar, y a esta ya entro. */}
           <button
-            onClick={handleChangePassword}
-            disabled={savingPass || !currentPass || !newPass || !confirmPass}
-            className={`mt-5 rounded-lg border-none px-6 py-2.5 text-sm font-semibold text-white transition-colors
-              ${savingPass || !currentPass || !newPass || !confirmPass
-                ? 'cursor-not-allowed bg-[#9ee0d4]'
-                : 'cursor-pointer bg-[#48C9B0] hover:bg-[#3ab89f]'
-              }`}
+            type="button"
+            onClick={recuperarPass}
+            disabled={enviandoRecuperar}
+            className="mt-3 text-[12.5px] font-medium text-[#1a9e88] transition hover:text-[#48C9B0] disabled:text-[#bbb]"
           >
-            {savingPass ? 'Cambiando' : 'Cambiar contraseña'}
+            {enviandoRecuperar ? 'Enviando el correo' : '¿No recuerdas tu contraseña actual?'}
           </button>
         </div>
       )}
