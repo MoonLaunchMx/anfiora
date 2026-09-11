@@ -87,6 +87,8 @@ export default function InvitePage() {
   const [usedEventId, setUsedEventId] = useState<string | null>(null)
   const [currentEmail, setCurrentEmail] = useState('')
   const [accountExists, setAccountExists] = useState(false)
+  // Cuando llega por "cambiar de cuenta", el correo lo escribe la persona.
+  const [debeEscribirCorreo, setDebeEscribirCorreo] = useState(false)
 
   // Al montar: verificar token y sesión activa
   useEffect(() => {
@@ -143,7 +145,11 @@ export default function InvitePage() {
     setCurrentEmail('')
     setPassword('')
     setAuthMode(accountExists ? 'login' : 'register')
-    setEmail(invite?.email || '')
+    // El correo se queda VACIO a proposito. Darselo escrito aqui destapaba lo
+    // que la pantalla anterior acababa de enmascarar, y entonces la mascara
+    // solo costaba friccion sin dar ninguna proteccion.
+    setEmail('')
+    setDebeEscribirCorreo(true)
     setAuthError('')
     setPageState('auth_required')
   }
@@ -483,10 +489,28 @@ export default function InvitePage() {
         <div className="flex flex-col gap-3 border-t border-[#f0f0f0] pt-4">
           <div>
             <label className={etiqueta}>Tu correo</label>
-            <div className="flex min-h-[44px] items-center justify-between gap-2 rounded-lg border border-[#e8e8e8] bg-[#f8f8f8] px-3">
-              <span className="min-w-0 truncate text-[15px] text-[#666]">{email}</span>
-              <Lock size={15} className="shrink-0 text-[#999]" />
-            </div>
+            {/* Llegando por "cambiar de cuenta" lo escribe la persona: si se lo
+                diéramos hecho, enmascararlo antes no habría servido de nada. */}
+            {debeEscribirCorreo ? (
+              <>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  placeholder="nombre@correo.com"
+                  autoFocus
+                  className={campo}
+                />
+                <p className="mt-1.5 text-[11.5px] text-[#999]">
+                  El enlace es para <span className="font-semibold text-[#666]">{enmascararCorreo(invite?.email ?? '')}</span>
+                </p>
+              </>
+            ) : (
+              <div className="flex min-h-[44px] items-center justify-between gap-2 rounded-lg border border-[#e8e8e8] bg-[#f8f8f8] px-3">
+                <span className="min-w-0 truncate text-[15px] text-[#666]">{email}</span>
+                <Lock size={15} className="shrink-0 text-[#999]" />
+              </div>
+            )}
           </div>
 
           {authMode === 'register' && (

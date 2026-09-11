@@ -6,6 +6,7 @@ import { Modal } from '@/app/components/ui/Modal'
 import { PermisosEditor } from '@/app/events/[id]/configuracion/PermisosEditor'
 import type { PermisosEvento } from '@/lib/permisos/catalogo'
 import { aplicarKit, permisosDeRol } from '@/lib/permisos/resolver'
+import { resumenPermisos } from '@/lib/permisos/resumen'
 import { contarAsientos, puedeInvitar } from '@/lib/workspace/asientos'
 import { enlaceWhatsApp, mensajeEquipo } from '@/lib/workspace/compartir'
 import { eventoTerminado, eventosParaRepartir, hoyISO } from '@/lib/workspace/eventos'
@@ -137,7 +138,7 @@ export function AltaPersonaModal({ open, onClose, workspace, bodaFija, onHecho }
   const btnSec = 'rounded-lg border border-[#e0e0e0] px-4 py-2 text-sm text-[#888] transition hover:bg-[#f5f5f5]'
 
   return (
-    <Modal open={open} onClose={onClose} size="lg">
+    <Modal open={open} onClose={onClose} size={paso === 3 && rol === 'colaborador' && elegidas.size > 1 ? '2xl' : 'lg'}>
       <Modal.Header
         title={token ? 'Invitación lista' : 'Agregar persona al workspace'}
         subtitle={token ? 'Copia el enlace y mándaselo. Al entrar ya tiene sus eventos y sus permisos.' : 'Recibe un enlace. Al entrar ya tiene sus eventos y sus permisos.'}
@@ -262,26 +263,38 @@ export function AltaPersonaModal({ open, onClose, workspace, bodaFija, onHecho }
             {paso === 3 && rol === 'colaborador' && bodaActual && (
               <>
                 {elegidas.size > 1 ? (
-                  // Carpetas como las de la ficha de proveedor: la abierta se
-                  // pega al panel y le tapa el borde, asi se ve que lo de abajo
-                  // es de ese evento. Se recorren de lado, nunca se apilan.
-                  <div>
-                    <div className="anf-sin-barra flex gap-[3px] overflow-x-auto px-3.5">
+                  // Lista vertical a la izquierda y permisos a la derecha. Las
+                  // pestañas servian para tres o cuatro; aqui el numero lo pone
+                  // el planner y puede ser veinte. El scroll de arriba abajo si
+                  // lo sabe usar cualquiera, el de lado no.
+                  <div className="grid gap-0 overflow-hidden rounded-xl border border-[#e4e1db] sm:grid-cols-[minmax(0,210px)_minmax(0,1fr)]">
+                    <div className="anf-barra-fina flex max-h-[180px] flex-col gap-0.5 overflow-y-auto border-b border-[#e4e1db] bg-[#fcfcfb] p-2 sm:max-h-[340px] sm:border-b-0 sm:border-r">
                       {[...elegidas].map(id => {
+                        const boda = workspace.bodas.find(b => b.id === id)
+                        if (!boda) return null
                         const abierta = bodaActual === id
+                        const resumen = resumenPermisos(permisosDe(id))
                         return (
                           <button
                             key={id}
                             type="button"
                             onClick={() => setBodaActual(id)}
-                            className={'relative top-px flex max-w-[190px] shrink-0 items-center rounded-t-[10px] border border-b-0 border-[#e4e1db] px-3.5 pt-2 text-xs font-semibold transition ' + (abierta ? 'bg-white pb-2.5 text-[#1D1E20]' : 'bg-[#efede8] pb-2 text-[#8a8a8a] hover:text-[#5F5C57]')}
+                            className={'flex flex-col gap-px rounded-lg px-2.5 py-[7px] text-left transition ' + (abierta ? 'bg-white shadow-[inset_0_0_0_1px_#e8e8e8]' : 'hover:bg-white/70')}
                           >
-                            <span className="truncate">{workspace.bodas.find(b => b.id === id)?.name}</span>
+                            <span className="truncate text-[12.5px] font-semibold text-[#1D1E20]">{boda.name}</span>
+                            <span className="truncate text-[10.5px] text-[#999]">{boda.event_date ?? 'Sin fecha'}</span>
+                            <span className={'text-[10px] font-bold tracking-[0.03em] ' + (resumen.entra === 0 ? 'text-[#bbb]' : 'text-[#1a9e88]')}>
+                              {resumen.texto}
+                            </span>
                           </button>
                         )
                       })}
                     </div>
-                    <div className="border-t border-[#e4e1db] bg-white px-4 py-3">
+                    <div className="min-w-0 bg-white px-4 py-3">
+                      <p className="text-[13px] font-bold text-[#1D1E20]">{workspace.bodas.find(b => b.id === bodaActual)?.name}</p>
+                      <p className="mb-2.5 text-[11.5px] text-[#999]">
+                        {workspace.bodas.find(b => b.id === bodaActual)?.event_date ?? 'Sin fecha'}
+                      </p>
                       <PermisosEditor
                         permisos={permisosDe(bodaActual)}
                         features={workspace.bodas.find(b => b.id === bodaActual)!.features}
