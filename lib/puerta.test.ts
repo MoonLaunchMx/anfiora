@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { occupiedSeats, seatsLeft, canFit, parseRegistration, montoAPagar, estadoAcceso, ocupaLugar, plazoPago } from './puerta'
+import { toE164 } from './phone'
 
 describe('cupo', () => {
   it('el aforo suma party_size, no cabezas de fila', () => {
@@ -195,5 +196,27 @@ describe('plazoPago', () => {
   it('fecha invalida no rompe: se comporta como si no hubiera fecha', () => {
     const limite = plazoPago(desde, 'no-es-fecha', '20:00')
     expect(limite?.toISOString()).toBe(new Date('2026-07-18T10:00:00Z').toISOString())
+  })
+})
+
+// La puerta es la UNICA superficie donde Anfiora sigue exigiendo un numero marcable,
+// porque ahi captura un desconocido sin nadie que lo ayude. El campo se pinta de rojo
+// con la MISMA vara que usa este servidor (PhoneInput estricto -> toE164), para que no
+// exista un numero que el formulario da por bueno y el servidor rechaza sin explicar.
+describe('la puerta sigue exigiendo un numero marcable', () => {
+  const body = (phone: string) => ({ name: 'Karina Torrentegui', phone, companions: 0 })
+
+  it('un numero normal entra', () => {
+    expect(parseRegistration(body('+52 81 1234 5678'), 3)?.phone).toBe('+528112345678')
+  })
+  it('el numero de Karina bajo una lada que no le queda NO entra', () => {
+    expect(parseRegistration(body('+51 663 112 2702'), 3)).toBeNull()
+  })
+  it('y el campo lo pinta de rojo con esa misma vara, sin dejarlo mandar', () => {
+    expect(toE164('+51 663 112 2702')).toBeNull()
+  })
+  it('bajo su lada buena entra por los dos lados', () => {
+    expect(toE164('+52 663 112 2702')).toBe('+526631122702')
+    expect(parseRegistration(body('+52 663 112 2702'), 3)?.phone).toBe('+526631122702')
   })
 })
