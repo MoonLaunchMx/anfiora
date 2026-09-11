@@ -147,3 +147,19 @@ describe('contactoRepetido', () => {
     expect(contactoRepetido(CATALOGO, { telefono: 'no es un numero' })).toBeNull()
   })
 })
+
+// El candado de duplicados tiene que usar el MISMO normalizador con el que
+// PhoneInput guarda. Con toE164 se quedaba ciego justo con los numeros de lada
+// rara, que son los que se pueden capturar dos veces sin darse cuenta.
+describe('contactoRepetido con ladas que la libreria no reconoce', () => {
+  const CON_LADA_RARA = [ficha({ nombre: 'Banquetes Lima', telefono: '+516631122702' })]
+
+  it('detecta el repetido aunque la libreria no reconozca ese numero', () => {
+    const r = contactoRepetido(CON_LADA_RARA, { telefono: '+516631122702' })
+    expect(r?.campo).toBe('telefono')
+    expect(r?.entrada.nombre).toBe('Banquetes Lima')
+  })
+  it('un numero distinto con la misma lada no es repetido', () => {
+    expect(contactoRepetido(CON_LADA_RARA, { telefono: '+51987654321' })).toBeNull()
+  })
+})

@@ -4,7 +4,7 @@ import { useEffect, useState, useRef, useMemo } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { motion, useMotionValue, useTransform, animate } from 'framer-motion'
 import type { PanInfo } from 'framer-motion'
-import { Trash2, Send, Clock, MessageSquare, AlertCircle, CheckCircle, XCircle, Download, Upload, Columns3, Search, UserPlus, Users, Wallet, Plus, Check, Copy, X, Filter, Loader2, FileSpreadsheet, FileText, AlertTriangle, ChevronDown } from 'lucide-react'
+import { Trash2, Send, Clock, MessageSquare, AlertCircle, CheckCircle, XCircle, Download, Upload, Columns3, Search, UserPlus, Users, Wallet, Plus, Check, Copy, X, Filter, Loader2, FileSpreadsheet, FileText, AlertTriangle, ChevronDown, Phone } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { buildGuestDeletionOps, executeGuestDeletion, guestConversationIds, buildBulkGuestDeletionOps, guestConversationRowsForMany, survivingGuestIds } from '@/lib/guests/delete'
 import { PartyMember, Guest, Event, EventSettings, EventStatus, RsvpStatus, Currency, formatCurrency } from '@/lib/types'
@@ -17,7 +17,7 @@ import { Modal } from '@/app/components/ui/Modal'
 import PhoneInput from '@/app/components/ui/PhoneInput'
 import { useConfirm } from '@/app/components/ui/ConfirmModal'
 import TagInput, { getTagColor } from '@/app/components/ui/TagInput'
-import { toWhatsApp, toE164 } from '@/lib/phone'
+import { toWhatsApp, componerTelefono, componerDesdeLada } from '@/lib/phone'
 import { reportError } from '@/lib/observabilidad/report'
 import { usePermiso } from '@/lib/event-access-context'
 import { Puede } from '@/lib/permisos/Puede'
@@ -309,6 +309,9 @@ type CsvDuplicateResult = {
   hasDuplicates: boolean
   rows: Array<{ event_id: string; name: string; phone: string | null; email: string | null; party_size: number; rsvp_status: string; tags: string[]; notes: string | null; side: string | null; allergies: string[] | null; _companions: string[] }>
   duplicates: Array<{ row: number; name: string; phone: string; conflictWith: string }>
+  // Filas que traian algo en la celda de telefono pero no eran un numero. Entran
+  // igual, sin telefono: el nombre y la mesa importan mas que el celular.
+  sinTelefono: Array<{ name: string; raw: string }>
   newTags: string[]
   newGroups: string[]
   newAllergies: string[]
@@ -348,9 +351,9 @@ function CobroBadge({ guest, currency, onConfirmar, onDeshacer }: {
   return null
 }
 
-function SwipeableGuestCard({ guest, groupColor, isSelected, guestTags, availableTags, cobroBadge, onSelect, onEdit, onDelete, onWaLongPressStart, onWaLongPressEnd, onWaTouchMove, onStatusChange, onOpenConversation, puedeBorrar, puedeEditar }: {
+function SwipeableGuestCard({ guest, groupColor, isSelected, guestTags, availableTags, cobroBadge, onSelect, onEdit, onDelete, onCall, onWaLongPressStart, onWaLongPressEnd, onWaTouchMove, onStatusChange, onOpenConversation, puedeBorrar, puedeEditar }: {
   guest: Guest; groupColor: string | null; isSelected: boolean; guestTags: string[]; availableTags: string[]; cobroBadge?: React.ReactNode
-  onSelect: () => void; onEdit: () => void; onDelete: () => void
+  onSelect: () => void; onEdit: () => void; onDelete: () => void; onCall: () => void
   onWaLongPressStart: (g: Guest) => void; onWaLongPressEnd: (g: Guest) => void; onWaTouchMove: () => void; onStatusChange: (s: RsvpStatus) => void
   onOpenConversation: (guestId: string) => void
   puedeBorrar: boolean
@@ -358,14 +361,30 @@ function SwipeableGuestCard({ guest, groupColor, isSelected, guestTags, availabl
 }) {
   const x = useMotionValue(0)
   const bgOpacity = useTransform(x, [-80, -20, 0], [1, 0.5, 0])
+  // Llamar no agrega un boton a la tarjeta: usa el lado que el gesto de borrar
+  // dejaba cerrado. Marcar es seguro porque el propio telefono pregunta antes
+  // de llamar; nosotros solo abrimos el marcador con el numero puesto.
+  const puedeLlamar = !!guest.phone
+  const callOpacity = useTransform(x, [0, 20, 80], [0, 0.5, 1])
+  const SWIPE_LIMITE = 60
   return (
     <div className={'relative overflow-hidden ' + (groupColor ? 'rounded-t-xl' : 'rounded-xl')}>
       <motion.div className="absolute inset-0 flex items-center justify-end bg-red-500 pr-5" style={{ opacity: bgOpacity }}>
         <Trash2 size={20} className="text-white" />
       </motion.div>
-      <motion.div style={{ x }} drag={puedeBorrar ? 'x' : false} dragConstraints={{ left: -80, right: 0 }} dragElastic={{ left: 0.1, right: 0 }}
+      <motion.div className="absolute inset-0 flex items-center justify-start gap-2 bg-[#48C9B0] pl-5" style={{ opacity: callOpacity }}>
+        <Phone size={18} className="text-white" />
+        <span className="text-xs font-bold uppercase tracking-wide text-white">Llamar</span>
+      </motion.div>
+      <motion.div style={{ x }} drag={puedeBorrar || puedeLlamar ? 'x' : false}
+        dragConstraints={{ left: puedeBorrar ? -80 : 0, right: puedeLlamar ? 80 : 0 }}
+        dragElastic={{ left: puedeBorrar ? 0.1 : 0, right: puedeLlamar ? 0.1 : 0 }}
         onDragEnd={(_: unknown, info: PanInfo) => {
-          if (info.offset.x < -60) onDelete()
+          if (puedeBorrar && info.offset.x < -SWIPE_LIMITE) onDelete()
+          else if (puedeLlamar && info.offset.x > SWIPE_LIMITE) {
+            onCall()
+            animate(x, 0, { type: 'spring', stiffness: 500, damping: 35 })
+          }
           else animate(x, 0, { type: 'spring', stiffness: 500, damping: 35 })
         }}
         className={'relative z-10 rounded-xl border bg-white px-3 py-3 ' + (isSelected ? 'border-[#48C9B0] bg-[#f0fdfb]' : 'border-[#e8e8e8]') + (groupColor ? ' rounded-b-none border-b-0' : '')}>
@@ -923,9 +942,9 @@ export default function EventPage() {
     if (!permiso.editar) return null
     if (!f.name) return 'El nombre es obligatorio'
     if (f.phone) {
-      const normalizedEdit = toE164(f.phone, 'MX')
+      const normalizedEdit = componerTelefono(f.phone, 'MX')
       if (normalizedEdit) {
-        const duplicate = guests.find(g => g.id !== guest.id && g.phone && toE164(g.phone, 'MX') === normalizedEdit)
+        const duplicate = guests.find(g => g.id !== guest.id && g.phone && componerTelefono(g.phone, 'MX') === normalizedEdit)
         if (duplicate) return `Este WhatsApp ya está registrado para "${duplicate.name}"`
       }
     }
@@ -1151,6 +1170,15 @@ export default function EventPage() {
 
   // Abre WhatsApp reusando una sola pestana en desktop (web.whatsapp.com/send, sin la pagina
   // intermedia de wa.me). En mobile abre la app con wa.me. encodedText ya viene de buildWaText.
+  // Abre el marcador del telefono con el numero puesto. El sistema pregunta antes
+  // de llamar (iOS muestra su alerta, Android deja el numero cargado sin timbrar),
+  // asi que un deslizon accidental nunca marca solo.
+  const llamar = (phone: string) => {
+    const e164 = componerTelefono(phone, 'MX')
+    if (!e164) return
+    window.location.href = 'tel:' + e164
+  }
+
   const openWhatsApp = (phone: string, encodedText?: string) => {
     const num = toWhatsApp(phone)
     if (!num) { alert('Este invitado no tiene un número de WhatsApp válido'); return }
@@ -1181,9 +1209,9 @@ export default function EventPage() {
     if (!permiso.editar) return null
     if (!f.name) return 'El nombre es obligatorio'
     if (f.phone) {
-      const normalizedNew = toE164(f.phone, 'MX')
+      const normalizedNew = componerTelefono(f.phone, 'MX')
       if (normalizedNew) {
-        const duplicate = guests.find(g => g.phone && toE164(g.phone, 'MX') === normalizedNew)
+        const duplicate = guests.find(g => g.phone && componerTelefono(g.phone, 'MX') === normalizedNew)
         if (duplicate) return `Este WhatsApp ya está registrado para "${duplicate.name}"`
       }
     }
@@ -1208,7 +1236,10 @@ export default function EventPage() {
       const sep = lines[0].includes(';') ? ';' : ','
       const headers = lines[0].split(sep).map(h => h.trim().toLowerCase().replace(/"/g, '').replace(/\r/g, ''))
       const nameIdx   = headers.findIndex(h => h.includes('nombre') || h.includes('name'))
-      const phoneIdx  = headers.findIndex(h => h.includes('tel') || h.includes('phone') || h.includes('whatsapp') || h.includes('celular'))
+      // "lada" va antes que "tel": la columna de lada no debe capturar el encabezado
+      // del telefono ni al reves.
+      const ladaIdx   = headers.findIndex(h => h.includes('lada') || h.includes('pais') || h.includes('country') || h.includes('codigo'))
+      const phoneIdx  = headers.findIndex((h, i) => i !== ladaIdx && (h.includes('tel') || h.includes('phone') || h.includes('whatsapp') || h.includes('celular')))
       const emailIdx  = headers.findIndex(h => h.includes('email') || h.includes('correo'))
       const notesIdx  = headers.findIndex(h => h.includes('nota') || h.includes('note'))
       const tagsIdx   = headers.findIndex(h => h.includes('tag') || h.includes('etiqueta'))
@@ -1232,15 +1263,23 @@ export default function EventPage() {
         const sideVal = grupoIdx >= 0 ? (cols[grupoIdx] || '').trim() || null : null
         const alergRaw = alergIdx >= 0 ? cols[alergIdx] || '' : ''
         const alergArr = alergRaw ? alergRaw.split(/[|]/).map((s: string) => s.trim()).filter(Boolean) : []
-        return { event_id: id as string, name: cols[nameIdx] || '', phone: phoneIdx >= 0 ? (toE164(cols[phoneIdx] || '', 'MX') ?? (cols[phoneIdx] || null)) : null, email: emailIdx >= 0 ? cols[emailIdx] || null : null, party_size: 1 + _companions.length, rsvp_status: rsvpStatus, tags: parsedTags, notes: notesIdx >= 0 ? cols[notesIdx] || null : null, side: sideVal, allergies: alergArr.length > 0 ? alergArr : null, _companions }
+        // La lada vive en su propia columna porque Excel se come el "+" de una celda
+        // que empieza con el. Si no viene, manda el "+" del telefono y si tampoco,
+        // Mexico. Lo que no se puede componer entra como null, nunca como texto crudo.
+        const telRaw = phoneIdx >= 0 ? (cols[phoneIdx] || '') : ''
+        const telefono = telRaw ? componerDesdeLada(ladaIdx >= 0 ? (cols[ladaIdx] || '') : '', telRaw) : null
+        return { event_id: id as string, name: cols[nameIdx] || '', phone: telefono, _telRaw: telRaw, email: emailIdx >= 0 ? cols[emailIdx] || null : null, party_size: 1 + _companions.length, rsvp_status: rsvpStatus, tags: parsedTags, notes: notesIdx >= 0 ? cols[notesIdx] || null : null, side: sideVal, allergies: alergArr.length > 0 ? alergArr : null, _companions }
       }).filter(r => r.name)
       if (!rows.length) { setCsvError('No se encontraron invitados válidos'); return }
       const duplicates: CsvDuplicateResult['duplicates'] = []
       const seenInFile = new Map<string, string>()
+      // Se compara con el mismo normalizador con el que se guarda, para que un
+      // numero exotico no se escape del dedupe por no ser "posible".
+      const sinTelefono = rows.filter(r => r._telRaw.trim() && !r.phone).map(r => ({ name: r.name, raw: r._telRaw }))
       rows.forEach((row, idx) => {
         if (!row.phone) return
-        const norm = toE164(row.phone, 'MX'); if (!norm) return
-        const existingGuest = guests.find(g => g.phone && toE164(g.phone, 'MX') === norm)
+        const norm = componerTelefono(row.phone, 'MX'); if (!norm) return
+        const existingGuest = guests.find(g => g.phone && componerTelefono(g.phone, 'MX') === norm)
         if (existingGuest) { duplicates.push({ row: idx + 2, name: row.name, phone: row.phone, conflictWith: existingGuest.name + ' (ya registrado)' }); return }
         if (seenInFile.has(norm)) { duplicates.push({ row: idx + 2, name: row.name, phone: row.phone, conflictWith: seenInFile.get(norm)! + ' (misma importación)' }); return }
         seenInFile.set(norm, row.name)
@@ -1248,7 +1287,7 @@ export default function EventPage() {
       const newTags = Array.from(new Set(rows.flatMap(r => r.tags))).filter(t => !eventTags.includes(t))
       const newGroups = Array.from(new Set(rows.map(r => r.side).filter((s): s is string => !!s))).filter(s => !groupPool.includes(s))
       const newAllergies = Array.from(new Set(rows.flatMap(r => r.allergies || []))).filter(a => !allergyPool.includes(a))
-      setCsvPreview({ hasDuplicates: duplicates.length > 0, rows, duplicates, newTags, newGroups, newAllergies })
+      setCsvPreview({ hasDuplicates: duplicates.length > 0, rows, duplicates, sinTelefono, newTags, newGroups, newAllergies })
       if (fileRef.current) fileRef.current.value = ''
     }
     const readerUtf8 = new FileReader()
@@ -1394,13 +1433,14 @@ export default function EventPage() {
   const downloadTemplate = () => {
     const eventTags = event?.guest_tags || []
     const tagExample = eventTags.length >= 2 ? `${eventTags[0]} | ${eventTags[1]}` : eventTags.length === 1 ? eventTags[0] : 'Familia'
-    const headers = 'nombre,telefono,email,notas,tags,rsvp_status,acompanantes,grupo,alergias'
+    const headers = 'nombre,lada,telefono,email,notas,tags,rsvp_status,acompanantes,grupo,alergias'
     const examples = [
-      `"Maria Jose Garcia","+52 81 1234 5678","mj@ejemplo.com","Mesa 3","${tagExample}","confirmed","Juan Garcia | Sofia Garcia","Novia","Gluten | Mariscos"`,
-      `"Patricio Juarez","+52 55 9876 5432","","Sin restricciones alimentarias","","pending","","Novio",""`,
-      `"Andres Garza","","andres@ejemplo.com","Llegara tarde","","pending","Acompanante de Andres","","Nueces"`,
+      `"Maria Jose Garcia","","8112345678","mj@ejemplo.com","Mesa 3","${tagExample}","confirmed","Juan Garcia | Sofia Garcia","Novia","Gluten | Mariscos"`,
+      `"Karina Torrentegui","51","987654321","","Llega el viernes","","pending","","Novia",""`,
+      `"John Smith","1","3055551234","john@ejemplo.com","","","pending","","Novio",""`,
+      `"Andres Garza","","","andres@ejemplo.com","Llegara tarde","","pending","Acompanante de Andres","","Nueces"`,
     ]
-    const instructions = ['', '# INSTRUCCIONES:', '# nombre -> obligatorio', '# telefono -> formato +52 XX XXXX XXXX (opcional)', '# email -> correo electronico (opcional)', '# notas -> texto libre (opcional)', `# tags -> separados por | (pipe): ${eventTags.length ? eventTags.join(' | ') : 'VIP | Familia'} (se crean los nuevos)`, '# rsvp_status -> confirmed | pending | declined  (vacio = pending)', '# acompanantes -> nombres separados por | (pipe): Juan Perez | Maria Lopez (opcional)', '# grupo -> un valor (ej. Novia, Novio, Trabajo) - se crean los nuevos (opcional)', '# alergias -> separadas por | (pipe): Gluten | Nueces - se crean las nuevas (opcional)']
+    const instructions = ['', '# INSTRUCCIONES:', '# nombre -> obligatorio', '# lada -> pais del telefono: 52, 1, 51 o el nombre del pais (Peru, Espana). Vacio = Mexico', '# telefono -> solo los digitos, SIN el signo +. Excel se come el + y arruina el numero', '# email -> correo electronico (opcional)', '# notas -> texto libre (opcional)', `# tags -> separados por | (pipe): ${eventTags.length ? eventTags.join(' | ') : 'VIP | Familia'} (se crean los nuevos)`, '# rsvp_status -> confirmed | pending | declined  (vacio = pending)', '# acompanantes -> nombres separados por | (pipe): Juan Perez | Maria Lopez (opcional)', '# grupo -> un valor (ej. Novia, Novio, Trabajo) - se crean los nuevos (opcional)', '# alergias -> separadas por | (pipe): Gluten | Nueces - se crean las nuevas (opcional)']
     const csv = [headers, ...examples, ...instructions].join('\n')
     const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
@@ -1730,6 +1770,7 @@ export default function EventPage() {
                       cobroBadge={tienePrecio ? <CobroBadge guest={guest} currency={currency} onConfirmar={() => confirmarPago(guest)} onDeshacer={() => deshacerPago(guest)} /> : undefined}
                       onSelect={() => toggleSelect(guest.id, gIdx, false)}
                       onEdit={() => openEdit(guest)} onDelete={() => deleteGuest(guest.id)}
+                      onCall={() => guest.phone && llamar(guest.phone)}
                       onWaLongPressStart={handleWaLongPressStart} onWaLongPressEnd={handleWaLongPressEnd}
                       onWaTouchMove={handleWaTouchMove} onStatusChange={(s) => updateStatus(guest.id, s)}
                       onOpenConversation={openConversation}
@@ -2019,7 +2060,20 @@ export default function EventPage() {
               <p className="mb-1 text-sm font-semibold text-[#1D1E20]">Resumen del archivo</p>
               <p className="text-xs text-[#666]">{csvPreview.rows.length} invitados encontrados</p>
               {csvPreview.hasDuplicates && <p className="mt-1 text-xs font-semibold text-[#cc3333]">{csvPreview.duplicates.length} con WhatsApp duplicado</p>}
+              {csvPreview.sinTelefono.length > 0 && <p className="mt-1 text-xs font-semibold text-[#999]">{csvPreview.sinTelefono.length} se {csvPreview.sinTelefono.length === 1 ? 'importa' : 'importan'} sin teléfono</p>}
             </div>
+            {csvPreview.sinTelefono.length > 0 && (
+              <div className="mb-4">
+                <p className="mb-2 text-xs font-semibold text-[#666]">Se importan sin teléfono:</p>
+                <div className="flex max-h-40 flex-col gap-1 overflow-y-auto rounded-lg border border-[#e8e8e8] bg-[#f8f8f8] p-3">
+                  {csvPreview.sinTelefono.map((s, i) => (
+                    <div key={i} className="text-xs text-[#666]">
+                      <span className="font-semibold text-[#1D1E20]">{s.name}</span> — no se entendió &ldquo;{s.raw}&rdquo;
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             {csvPreview.hasDuplicates && (
               <div className="mb-4">
                 <p className="mb-2 text-xs font-semibold text-[#cc3333]">Números duplicados detectados:</p>
