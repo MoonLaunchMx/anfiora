@@ -131,7 +131,13 @@ export function AltaPersonaModal({ open, onClose, workspace, bodaFija, onHecho }
         ) : !permiso.ok ? (
           <div className="rounded-xl border border-[#f0dfae] bg-[#fffbf0] px-4 py-3 text-sm text-[#7a5a14]">
             <p className="font-semibold">Para trabajar en equipo necesitas Pro.</p>
-            <p className="mt-1 text-[13px]">Tu plan {PLANES[workspace.plan].nombre} es solo para ti. Escríbenos y te lo activamos.</p>
+            {/* Mientras no haya cobro, Pro se activa a mano. El aviso tiene que
+                decir A DONDE escribir, no solo "escribenos". */}
+            <p className="mt-1 text-[13px]">
+              Tu plan {PLANES[workspace.plan].nombre} es solo para ti. Escríbenos a{' '}
+              <a href="mailto:partners@anfiora.com" className="font-semibold underline underline-offset-2">partners@anfiora.com</a>
+              {' '}y te lo activamos sin costo.
+            </p>
           </div>
         ) : (
           <div className="flex flex-col gap-3">
