@@ -7,6 +7,7 @@ import {
   COUNTRIES,
   DEFAULT_COUNTRY,
   componerTelefono,
+  toE164,
   formatAsYouType,
   detectCountry,
   ladaEscrita,
@@ -50,6 +51,12 @@ type PhoneInputProps = {
   disabled?: boolean
   className?: string
   compact?: boolean
+  // Para superficies PUBLICAS. El campo exige un numero marcable con la misma vara
+  // que usa el servidor (toE164), se pinta de rojo y no entrega valor hasta que lo
+  // sea. En la app del planner no se usa: ahi Anfiora no opina si un numero existe.
+  // Sin esto el invitado veia el campo normal, el servidor lo rechazaba, y se
+  // quedaba sin saber que arreglar.
+  estricto?: boolean
 }
 
 export default function PhoneInput({
@@ -60,6 +67,7 @@ export default function PhoneInput({
   disabled,
   className = '',
   compact,
+  estricto,
 }: PhoneInputProps) {
   // py-2 en ambos casos: con el input a text-base (16px), iguala el alto de los
   // campos hermanos de los modales (px-3 py-2 text-base) que usan PhoneInput.
@@ -208,6 +216,10 @@ export default function PhoneInput({
     }
   }, [open, layout.mode])
 
+  // En estricto se usa LA MISMA vara que el servidor, para que no exista un numero
+  // que el campo da por bueno y el servidor rechaza.
+  const revisar = (raw: string, c: CountryCode) => (estricto ? toE164(raw, c) : componerTelefono(raw, c))
+
   const emit = (raw: string, targetCountry: CountryCode) => {
     // Vaciar el campo si vacia el dato, pero un numero que todavia no se puede
     // componer NO borra el que ya habia: se conserva el anterior.
@@ -216,8 +228,16 @@ export default function PhoneInput({
       onChange('')
       return
     }
-    const next = componerTelefono(raw, targetCountry)
-    if (next === null) return
+    const next = revisar(raw, targetCountry)
+    if (next === null) {
+      // En estricto el padre TIENE que enterarse de que aun no hay numero usable,
+      // para poder frenar el envio. En la app no aplica: no hay servidor que
+      // contradiga al campo, y borrar lo anterior seria peor.
+      if (!estricto) return
+      lastSyncedRef.current = ''
+      onChange('')
+      return
+    }
     lastSyncedRef.current = next
     onChange(next)
   }
@@ -273,7 +293,7 @@ export default function PhoneInput({
   // Rojo solo cuando el numero no cabe en E.164, que es la misma vara con la que
   // se guarda. Si ese prefijo existe o no en el mundo, Anfiora no opina: eso lo
   // sabra el planner cuando marque o cuando WhatsApp no entregue.
-  const showError = text.trim() !== '' && componerTelefono(text, country) === null
+  const showError = text.trim() !== '' && revisar(text, country) === null
 
   // Sin acentos y sin el "+" de la lada: quien escribe "España" o "+34" tiene que
   // encontrar su pais, no una lista vacia.
@@ -359,6 +379,14 @@ export default function PhoneInput({
           className={`min-w-0 flex-1 rounded-r-lg bg-transparent px-3 ${padY} text-base text-[#1D1E20] outline-none placeholder:text-[#c0c0c0] disabled:cursor-not-allowed disabled:text-[#ccc]`}
         />
       </div>
+
+      {/* Solo en superficies publicas: el invitado no tiene a quien preguntarle, asi
+          que el problema se dice antes de que apriete el boton, no despues. */}
+      {estricto && showError && (
+        <p role="alert" className="mt-1.5 text-xs leading-snug text-[#cc3333]">
+          Revisa tu número o cambia la lada
+        </p>
+      )}
 
       {open && mounted && createPortal(
         layout.mode === 'sheet' ? (
