@@ -294,3 +294,20 @@ describe('posicionDelCaret', () => {
     expect(posicionDelCaret('', 3)).toBe(0)
   })
 })
+
+// El tope se mide sobre el numero ya compuesto con su lada, no sobre lo que se
+// tecleo. Antes, en Mexico, teclear 15 digitos guardaba 17 y se pasaba de E.164.
+describe('el tope de 15 digitos cuenta la lada', () => {
+  it('13 digitos nacionales mas la lada mexicana caben justo', () => {
+    const out = componerTelefono('9'.repeat(13), 'MX')
+    expect(out).toBe('+529999999999999')
+    expect(out!.replace(/\D/g, '')).toHaveLength(15)
+  })
+  it('14 digitos nacionales ya se pasan con la lada', () => {
+    expect(componerTelefono('9'.repeat(14), 'MX')).toBeNull()
+  })
+  it('lo mismo con una lada de tres digitos', () => {
+    expect(componerTelefono('9'.repeat(12), 'UZ')).toBe('+998999999999999')
+    expect(componerTelefono('9'.repeat(13), 'UZ')).toBeNull()
+  })
+})

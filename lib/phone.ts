@@ -161,11 +161,15 @@ export function componerTelefono(raw: string, country: CountryCode = DEFAULT_COU
   // prefijos troncales y no duplicar la lada. Cuando no lo entiende no se rechaza:
   // se pega la lada del selector a mano.
   const parsed = parsePhoneNumberFromString(texto.startsWith('+') ? '+' + digitos : texto, country)
-  if (parsed) return parsed.number
-  if (texto.startsWith('+')) return '+' + digitos
+  const salida = parsed
+    ? parsed.number
+    : texto.startsWith('+')
+      ? '+' + digitos
+      : '+' + getCountryCallingCode(country) + digitos
 
-  const total = getCountryCallingCode(country) + digitos
-  return total.length > MAX_E164_DIGITS ? null : '+' + total
+  // El tope se mide sobre el numero YA COMPUESTO, no sobre lo que se tecleo: en
+  // Mexico teclear 15 digitos guardaba 17 con la lada, pasandose de E.164.
+  return salida.replace(/\D/g, '').length > MAX_E164_DIGITS ? null : salida
 }
 
 // La lada de la plantilla: digitos ("51", "+51", "0051") o el nombre del pais
