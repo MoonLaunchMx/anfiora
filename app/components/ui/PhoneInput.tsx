@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, useSyncExternalStore } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef, useSyncExternalStore } from 'react'
 import { createPortal } from 'react-dom'
 import { ChevronDown, Search, X } from 'lucide-react'
 import {
@@ -11,6 +11,7 @@ import {
   detectCountry,
   ladaEscrita,
   paisDeNumero,
+  posicionDelCaret,
   nationalNumber,
   dialCode,
   sinAcentos,
@@ -76,6 +77,9 @@ export default function PhoneInput({
   })
   const containerRef = useRef<HTMLDivElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+  // Donde dejar el cursor despues de que React re-escriba el campo formateado.
+  const caretRef = useRef<number | null>(null)
   // Guarda el ultimo valor E.164 conocido (recibido por props o emitido por nosotros)
   // para no volver a derivar country/text cuando el padre solo nos regresa lo que ya emitimos.
   const lastSyncedRef = useRef<string | null>(null)
@@ -220,12 +224,37 @@ export default function PhoneInput({
 
   const handleTextChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const raw = e.target.value
-    const detected = raw ? detectCountry(raw) : null
-    const nextCountry = detected ?? country
+    const caret = e.target.selectionStart ?? raw.length
+    const digitosAntes = raw.slice(0, caret).replace(/\D/g, '').length
+
+    // Si el texto trae la lada escrita, se MUDA al boton en vez de quedarse dentro
+    // del campo. Tenerla en los dos lados la ensena dos veces, y como queda al
+    // principio obliga a borrar el numero entero para llegar a ella.
+    const pais = raw ? paisDeNumero(raw) : null
+    const lada = pais ? ladaEscrita(raw) : null
+    const digitos = raw.replace(/\D/g, '')
+    const ladaDigitos = lada ? lada.slice(1) : ''
+    const mudarLada = !!lada && digitos.startsWith(ladaDigitos) && digitos.length > ladaDigitos.length
+
+    const nextCountry = pais ?? (raw ? detectCountry(raw) : null) ?? country
+    const base = mudarLada ? digitos.slice(ladaDigitos.length) : raw
+    const nextText = base ? formatAsYouType(base, nextCountry) : ''
+
     if (nextCountry !== country) setCountry(nextCountry)
-    setText(raw ? formatAsYouType(raw, nextCountry) : '')
-    emit(raw, nextCountry)
+    setText(nextText)
+    caretRef.current = posicionDelCaret(nextText, digitosAntes - (mudarLada ? ladaDigitos.length : 0))
+    emit(base, nextCountry)
   }
+
+  // Se corre DESPUES de pintar y antes de que el navegador dibuje, para que el
+  // cursor no se vea brincar al final.
+  useLayoutEffect(() => {
+    if (caretRef.current === null) return
+    const pos = caretRef.current
+    caretRef.current = null
+    const el = inputRef.current
+    if (el && document.activeElement === el) el.setSelectionRange(pos, pos)
+  })
 
   const handleSelectCountry = (iso: CountryCode) => {
     setCountry(iso)
@@ -320,6 +349,7 @@ export default function PhoneInput({
         </button>
 
         <input
+          ref={inputRef}
           type="tel"
           inputMode="tel"
           disabled={disabled}

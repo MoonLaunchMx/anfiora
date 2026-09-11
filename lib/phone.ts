@@ -223,3 +223,19 @@ export function paisDeNumero(raw: string): CountryCode | null {
   if (!lada) return null
   return COUNTRIES.find(c => c.dial === lada)?.iso ?? null
 }
+
+// A donde vuelve el cursor despues de reformatear. El campo se re-escribe en cada
+// tecla, y sin esto el navegador manda el cursor al FINAL: borrar un digito de
+// enmedio se volvia imposible. Se cuenta por digitos, no por posicion, porque los
+// separadores se mueven solos al reformatear.
+export function posicionDelCaret(texto: string, digitosAntes: number): number {
+  if (digitosAntes <= 0) return 0
+  let vistos = 0
+  for (let i = 0; i < texto.length; i++) {
+    if (texto[i] >= '0' && texto[i] <= '9') {
+      vistos++
+      if (vistos === digitosAntes) return i + 1
+    }
+  }
+  return texto.length
+}

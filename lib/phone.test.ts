@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { toE164, formatDisplay, isValidPhone, detectCountry, toWhatsApp, nationalNumber, localeCountry, sinAcentos, componerTelefono, componerDesdeLada, ladaEscrita, paisDeNumero } from './phone'
+import { toE164, formatDisplay, isValidPhone, detectCountry, toWhatsApp, nationalNumber, localeCountry, sinAcentos, componerTelefono, componerDesdeLada, ladaEscrita, paisDeNumero, posicionDelCaret } from './phone'
 
 describe('toE164', () => {
   it('MX local sin lada asume +52', () => {
@@ -270,5 +270,27 @@ describe('paisDeNumero', () => {
   })
   it('vacio devuelve null', () => {
     expect(paisDeNumero('')).toBeNull()
+  })
+})
+
+describe('posicionDelCaret', () => {
+  it('despues del primer digito', () => {
+    expect(posicionDelCaret('81 1234 5678', 1)).toBe(1)
+  })
+  it('salta el separador que sigue al segundo digito', () => {
+    expect(posicionDelCaret('81 1234 5678', 2)).toBe(2)
+  })
+  it('cuenta digitos, no posiciones', () => {
+    // "81 1234 5678": el sexto digito es el 4 del indice 6, el cursor va justo despues
+    expect(posicionDelCaret('81 1234 5678', 6)).toBe(7)
+  })
+  it('al principio va a cero', () => {
+    expect(posicionDelCaret('81 1234 5678', 0)).toBe(0)
+  })
+  it('mas digitos de los que hay se va al final', () => {
+    expect(posicionDelCaret('81 1234', 99)).toBe(7)
+  })
+  it('texto vacio', () => {
+    expect(posicionDelCaret('', 3)).toBe(0)
   })
 })
