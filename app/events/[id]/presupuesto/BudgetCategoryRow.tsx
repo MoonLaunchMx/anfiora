@@ -21,9 +21,9 @@ type Props = {
   contractedByItem: Record<string, number>
   paidByItem: Record<string, number>
   eventSuppliersById: Record<string, EventSupplierWithName>
-  availableSuppliersForCategory: EventSupplierWithName[]
+  availableSuppliers: EventSupplierWithName[]
   onOpenAddModal: (category: string) => void
-  onUpdateItem: (id: string, updates: { subcategory?: string; budget_amount?: number; event_supplier_id?: string | null }) => void
+  onUpdateItem: (id: string, updates: { subcategory?: string; budget_amount?: number; event_supplier_id?: string | null; contract_amount?: number | null }) => void
   onDeleteItem: (id: string) => void
   onOpenSupplier: (supplier: EventSupplierWithName) => void
   puedeEditar: boolean
@@ -33,7 +33,7 @@ type Props = {
 
 export default function BudgetCategoryRow({
   category, items, currency, contractedByItem, paidByItem,
-  eventSuppliersById, availableSuppliersForCategory,
+  eventSuppliersById, availableSuppliers,
   onOpenAddModal, onUpdateItem, onDeleteItem, onOpenSupplier,
   puedeEditar, puedeBorrar, puedeAgregar = true,
 }: Props) {
@@ -102,7 +102,7 @@ export default function BudgetCategoryRow({
                 currency={currency}
                 contractedAmount={contractedByItem[item.id] || 0}
                 paidAmount={paidByItem[item.id] || 0}
-                availableSuppliers={availableSuppliersForCategory}
+                availableSuppliers={availableSuppliers}
                 linkedSupplier={linked}
                 onUpdate={onUpdateItem}
                 onDelete={onDeleteItem}

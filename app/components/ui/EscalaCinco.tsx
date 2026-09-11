@@ -1,7 +1,7 @@
 'use client'
 
 interface Props {
-  nombre: string
+  nombre?: string
   anclas: string[]
   valor: number | 'na' | null
   onChange: (valor: number | 'na' | null) => void
@@ -27,7 +27,7 @@ export default function EscalaCinco({
 
   return (
     <div className={deshabilitado ? 'opacity-40' : ''}>
-      <div className="text-sm font-medium text-[var(--text)]">{nombre}</div>
+      {nombre && <div className="text-sm font-medium text-[var(--text)]">{nombre}</div>}
       {descripcion && (
         <div className="mt-0.5 text-xs leading-snug text-[var(--text-muted)]">{descripcion}</div>
       )}

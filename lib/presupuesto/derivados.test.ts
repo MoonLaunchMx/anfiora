@@ -1,119 +1,96 @@
 import { describe, it, expect } from 'vitest'
-import { repartirEntrePartidas, metaDelProveedor, partidasDelProveedor } from './derivados'
+import { repartirEntrePartidas, metaDelProveedor, partidasDelProveedor, contratadoDelProveedor } from './derivados'
 import type { EventBudget } from '@/lib/types'
 
-const partida = (id: string, budget_amount: number, event_supplier_id: string | null): EventBudget => ({
-  id, event_id: 'e1', category_id: null, subcategory: id, budget_amount, event_supplier_id, notes: null, created_at: '',
+const partida = (
+  id: string,
+  budget_amount: number,
+  event_supplier_id: string | null,
+  contract_amount: number | null = null,
+): EventBudget => ({
+  id, event_id: 'e1', category_id: null, subcategory: id, budget_amount, event_supplier_id, contract_amount, notes: null, created_at: '',
 })
 
 describe('repartirEntrePartidas', () => {
-  it('una partida por proveedor se lleva el contrato completo, como antes', () => {
-    const { contractedByItem, paidByItem } = repartirEntrePartidas(
-      [partida('salon', 120000, 'hotel'), partida('flores', 30000, 'flor')],
-      { hotel: 120000, flor: 28000 },
-      { hotel: 60000, flor: 0 },
-    )
-    expect(contractedByItem).toEqual({ salon: 120000, flores: 28000 })
-    expect(paidByItem).toEqual({ salon: 60000, flores: 0 })
-  })
-
-  it('issue #68: dos partidas del mismo proveedor NO duplican el contrato', () => {
+  it('el contratado de cada partida es el que se escribio en ella, tal cual', () => {
     const { contractedByItem } = repartirEntrePartidas(
-      [partida('salon', 120000, 'hotel'), partida('jardin', 0, 'hotel')],
-      { hotel: 120000 },
+      [partida('salon', 120000, 'hotel', 118000), partida('mobiliario', 30000, 'hotel', 32000), partida('flores', 30000, 'flor', 28000)],
       {},
     )
-    const total = Object.values(contractedByItem).reduce((a, b) => a + b, 0)
-    expect(total).toBe(120000)
+    expect(contractedByItem).toEqual({ salon: 118000, mobiliario: 32000, flores: 28000 })
   })
 
-  it('reparte en proporcion a lo presupuestado en cada partida', () => {
-    const { contractedByItem, paidByItem } = repartirEntrePartidas(
-      [partida('habitaciones', 50000, 'hotel'), partida('banquete', 100000, 'hotel'), partida('salon', 150000, 'hotel')],
-      { hotel: 270000 },
-      { hotel: 27000 },
-    )
-    expect(contractedByItem.habitaciones).toBeCloseTo(45000)
-    expect(contractedByItem.banquete).toBeCloseTo(90000)
-    expect(contractedByItem.salon).toBeCloseTo(135000)
-    expect(paidByItem.habitaciones).toBeCloseTo(4500)
-    expect(paidByItem.salon).toBeCloseTo(13500)
-  })
-
-  it('si ninguna partida trae presupuesto, reparte en partes iguales', () => {
+  it('issue #68: dos partidas del mismo proveedor ya no duplican ni inventan nada', () => {
     const { contractedByItem } = repartirEntrePartidas(
-      [partida('a', 0, 'hotel'), partida('b', 0, 'hotel')],
-      { hotel: 100 },
-      {},
-    )
-    expect(contractedByItem).toEqual({ a: 50, b: 50 })
-  })
-
-  it('una partida con presupuesto y otra en cero: la de cero no recibe nada', () => {
-    const { contractedByItem } = repartirEntrePartidas(
-      [partida('salon', 120000, 'hotel'), partida('jardin', 0, 'hotel')],
-      { hotel: 120000 },
+      [partida('salon', 120000, 'hotel', 120000), partida('jardin', 0, 'hotel', 0)],
       {},
     )
     expect(contractedByItem).toEqual({ salon: 120000, jardin: 0 })
   })
 
-  it('partidas sin proveedor quedan en cero y no truenan', () => {
-    const { contractedByItem, paidByItem } = repartirEntrePartidas(
-      [partida('suelta', 5000, null)],
-      {},
-      {},
+  it('una partida ligada sin contrato capturado cuenta cero', () => {
+    const { contractedByItem } = repartirEntrePartidas([partida('salon', 120000, 'hotel', null)], {})
+    expect(contractedByItem).toEqual({ salon: 0 })
+  })
+
+  it('el pago del proveedor se muestra por partida en proporcion a lo contratado', () => {
+    const { paidByItem } = repartirEntrePartidas(
+      [partida('salon', 0, 'hotel', 120000), partida('mobiliario', 0, 'hotel', 30000)],
+      { hotel: 50000 },
     )
+    expect(paidByItem.salon).toBeCloseTo(40000)
+    expect(paidByItem.mobiliario).toBeCloseTo(10000)
+  })
+
+  it('si ninguna partida trae contrato, el pago se reparte en partes iguales', () => {
+    const { paidByItem } = repartirEntrePartidas(
+      [partida('a', 100, 'hotel', null), partida('b', 100, 'hotel', null)],
+      { hotel: 100 },
+    )
+    expect(paidByItem).toEqual({ a: 50, b: 50 })
+  })
+
+  it('partidas sin proveedor quedan en cero y no truenan', () => {
+    const { contractedByItem, paidByItem } = repartirEntrePartidas([partida('suelta', 5000, null, 4000)], {})
     expect(contractedByItem).toEqual({ suelta: 0 })
     expect(paidByItem).toEqual({ suelta: 0 })
   })
-
-  it('un proveedor ligado sin contrato registrado reparte cero', () => {
-    const { contractedByItem } = repartirEntrePartidas(
-      [partida('salon', 120000, 'hotel')],
-      {},
-      {},
-    )
-    expect(contractedByItem).toEqual({ salon: 0 })
-  })
 })
 
-describe('partidasDelProveedor', () => {
+describe('partidasDelProveedor: una sola liga, la de la partida', () => {
   const budgets = [
-    partida('habitaciones', 50000, 'hotel'),
-    partida('salon', 150000, 'hotel'),
+    partida('habitaciones', 50000, 'hotel', 48000),
+    partida('salon', 150000, 'hotel', 150000),
     partida('flores', 30000, null),
   ]
 
   it('devuelve todas las que apuntan al proveedor', () => {
-    expect(partidasDelProveedor({ id: 'hotel', event_budget_id: 'salon' }, budgets).map(b => b.id)).toEqual(['habitaciones', 'salon'])
+    expect(partidasDelProveedor({ id: 'hotel' }, budgets).map(b => b.id)).toEqual(['habitaciones', 'salon'])
   })
 
-  it('si ninguna apunta a el, la que el apunta', () => {
-    expect(partidasDelProveedor({ id: 'flor', event_budget_id: 'flores' }, budgets).map(b => b.id)).toEqual(['flores'])
-  })
-
-  it('sin liga, lista vacia', () => {
-    expect(partidasDelProveedor({ id: 'dj', event_budget_id: null }, budgets)).toEqual([])
+  it('sin partidas que lo apunten, lista vacia', () => {
+    expect(partidasDelProveedor({ id: 'dj' }, budgets)).toEqual([])
   })
 })
 
 describe('metaDelProveedor', () => {
-  const budgets = [
-    partida('habitaciones', 50000, 'hotel'),
-    partida('salon', 150000, 'hotel'),
-    partida('flores', 30000, null),
-  ]
-
-  it('suma todas las partidas que apuntan al proveedor', () => {
-    expect(metaDelProveedor({ id: 'hotel', event_budget_id: 'salon' }, budgets)).toBe(200000)
+  it('suma lo estimado de sus partidas', () => {
+    expect(metaDelProveedor({ id: 'hotel' }, [partida('a', 50000, 'hotel'), partida('b', 150000, 'hotel')])).toBe(200000)
   })
-
-  it('si ninguna partida apunta a el, usa la que el proveedor apunta', () => {
-    expect(metaDelProveedor({ id: 'flor', event_budget_id: 'flores' }, budgets)).toBe(30000)
+  it('sin partidas, no hay meta', () => {
+    expect(metaDelProveedor({ id: 'dj' }, [partida('a', 50000, 'hotel')])).toBeNull()
   })
+})
 
-  it('sin liga de ningun lado, no hay meta', () => {
-    expect(metaDelProveedor({ id: 'dj', event_budget_id: null }, budgets)).toBeNull()
+describe('contratadoDelProveedor', () => {
+  it('es la suma de lo contratado en sus partidas', () => {
+    expect(contratadoDelProveedor({ id: 'hotel' }, [partida('a', 0, 'hotel', 118000), partida('b', 0, 'hotel', 32000)])).toBe(150000)
+  })
+  it('ignora las partidas ligadas sin contrato todavia', () => {
+    expect(contratadoDelProveedor({ id: 'hotel' }, [partida('a', 0, 'hotel', 118000), partida('b', 0, 'hotel', null)])).toBe(118000)
+  })
+  it('null cuando no hay partidas o ninguna trae contrato: la ficha lo pide', () => {
+    expect(contratadoDelProveedor({ id: 'hotel' }, [])).toBeNull()
+    expect(contratadoDelProveedor({ id: 'hotel' }, [partida('a', 0, 'hotel', null)])).toBeNull()
   })
 })

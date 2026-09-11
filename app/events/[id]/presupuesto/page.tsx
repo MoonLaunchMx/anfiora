@@ -28,6 +28,7 @@ import { exportToExcel, exportToPDF, downloadImportTemplate } from './lib/export
 import FichaModal from '../proveedores/FichaModal'
 import ReviewContratacionModal from '../proveedores/ReviewContratacionModal'
 import ReviewDescarteModal from '../proveedores/ReviewDescarteModal'
+import PartidasModal from '../proveedores/PartidasModal'
 import { Modal } from '@/app/components/ui/Modal'
 import { Categoria, cargarCategorias, buscarPorNombre, nombrePorId, crearCategoria } from '@/lib/rolodex/categorias-store'
 import { mismaCategoria } from '@/lib/rolodex/categorias'
@@ -79,6 +80,7 @@ export default function PresupuestoPage() {
 
   const [selectedSupplier, setSelectedSupplier] = useState<EventSupplierWithName | null>(null)
   const [reviewSupplier, setReviewSupplier]     = useState<EventSupplierWithName | null>(null)
+  const [partidasSupplier, setPartidasSupplier] = useState<EventSupplierWithName | null>(null)
   const [userId, setUserId]                     = useState<string | null>(null)
 
   const cambiarEstadoProveedor = async (itemId: string, nuevo: SupplierStatus) => {
@@ -103,22 +105,25 @@ export default function PresupuestoPage() {
       return
     }
 
-    // Review al llegar a un estado final: una sola vez por proveedor y por tipo de review.
-    const eraFinal = previo?.status === 'contratado' || previo?.status === 'descartado'
-    const esFinal  = nuevo === 'contratado' || nuevo === 'descartado'
-    if (!eraFinal && esFinal && previo) {
-      const reviewType = nuevo === 'contratado' ? 'contratacion' : 'descarte'
-      const { count, error: reviewError } = await supabase
-        .from('supplier_reviews')
-        .select('id', { count: 'exact', head: true })
-        .eq('event_supplier_id', itemId)
-        .eq('review_type', reviewType)
-      if (reviewError) {
-        console.error('Error verificando si ya existe review:', reviewError.message ?? reviewError, reviewError)
-      } else if (!count) {
-        setSelectedSupplier(null)
-        setReviewSupplier({ ...previo, status: nuevo })
-      }
+    // Contratar y ligar son el mismo acto: primero en que partidas va y con
+    // cuanto, y al cerrar eso, la review. Descartar va directo a la review.
+    if (nuevo === 'contratado') { setSelectedSupplier(null); setPartidasSupplier({ ...previo, status: nuevo }); return }
+    if (nuevo === 'descartado') await ofrecerReview({ ...previo, status: nuevo })
+  }
+
+  // Una sola vez por proveedor y por tipo de review.
+  const ofrecerReview = async (es: EventSupplierWithName) => {
+    const reviewType = es.status === 'contratado' ? 'contratacion' : 'descarte'
+    const { count, error: reviewError } = await supabase
+      .from('supplier_reviews')
+      .select('id', { count: 'exact', head: true })
+      .eq('event_supplier_id', es.id)
+      .eq('review_type', reviewType)
+    if (reviewError) {
+      console.error('Error verificando si ya existe review:', reviewError.message ?? reviewError, reviewError)
+    } else if (!count) {
+      setSelectedSupplier(null)
+      setReviewSupplier(es)
     }
   }
 
@@ -210,19 +215,9 @@ export default function PresupuestoPage() {
   // que el planner crea desde Proveedores y duplicaria secciones por acentos.
   const seccionesCatalogo = seccionesDelPresupuesto(categorias, storedCategories, budgets)
 
-  const availableSuppliersByCategory: Record<string, EventSupplierWithName[]> = {}
-  seccionesCatalogo.forEach(cat => { availableSuppliersByCategory[cat] = [] })
-  eventSuppliers.forEach(es => {
-    if (!es.supplier) return
-    if (es.status !== 'contratado') return
-    const nombre = es.supplier.category_id ? nombrePorId(categorias, es.supplier.category_id) : ''
-    const cat = seccionesCatalogo.find(c => mismaCategoria(c, nombre))
-    if (cat) availableSuppliersByCategory[cat].push(es)
-  })
+  const proveedoresContratados = eventSuppliers.filter(es => es.supplier && es.status === 'contratado')
 
-  const contractByEventSupplier: Record<string, number> = {}
-  eventSuppliers.forEach(es => { contractByEventSupplier[es.id] = Number(es.contract_amount || 0) })
-  const { contractedByItem, paidByItem } = repartirEntrePartidas(budgets, contractByEventSupplier, paidByEventSupplier)
+  const { contractedByItem, paidByItem } = repartirEntrePartidas(budgets, paidByEventSupplier)
 
   const filteredBudgets = search.trim()
     ? budgets.filter(b => {
@@ -408,6 +403,7 @@ export default function PresupuestoPage() {
     subcategory: string
     budget_amount: number
     event_supplier_id: string | null
+    contract_amount: number | null
     notes: string | null
   }) => {
     if (!permiso.editar) return
@@ -436,7 +432,7 @@ export default function PresupuestoPage() {
 
   const handleUpdateItem = async (
     itemId: string,
-    updates: { subcategory?: string; budget_amount?: number; event_supplier_id?: string | null },
+    updates: { subcategory?: string; budget_amount?: number; event_supplier_id?: string | null; contract_amount?: number | null },
   ) => {
     if (!permiso.editar) return
     setBudgets(prev => prev.map(b => b.id === itemId ? { ...b, ...updates } : b))
@@ -755,7 +751,7 @@ export default function PresupuestoPage() {
                 contractedByItem={contractedByItem}
                 paidByItem={paidByItem}
                 eventSuppliersById={eventSuppliersById}
-                availableSuppliersForCategory={availableSuppliersByCategory[category] || []}
+                availableSuppliers={proveedoresContratados}
                 onOpenAddModal={openAddModalForCategory}
                 onUpdateItem={handleUpdateItem}
                 onDeleteItem={handleDeleteItem}
@@ -1017,6 +1013,7 @@ export default function PresupuestoPage() {
           categorias={categorias}
           conteoPagosInicial={payments.filter(p => p.event_supplier_id === selectedSupplier.id).length}
           onClose={() => setSelectedSupplier(null)}
+          onElegirPartidas={it => { setSelectedSupplier(null); setPartidasSupplier(it as unknown as EventSupplierWithName) }}
           onStatusChange={cambiarEstadoProveedor}
           onSaved={updated => {
             setEventSuppliers(prev => prev.map(es => es.id === updated.id ? { ...es, ...updated } as EventSupplierWithName : es))
@@ -1026,6 +1023,19 @@ export default function PresupuestoPage() {
             setEventSuppliers(prev => prev.filter(es => es.id !== deletedId))
             setSelectedSupplier(null)
           }}
+        />
+      )}
+
+      {partidasSupplier && permisoProv.editar && (
+        <PartidasModal
+          item={partidasSupplier}
+          budgets={budgets}
+          categorias={categorias}
+          currency={currency}
+          nombreDeProveedor={id => eventSuppliersById[id]?.supplier?.name ?? 'otro proveedor'}
+          etiquetaGuardar={partidasSupplier.status === 'contratado' ? 'Contratar' : 'Guardar'}
+          onClose={() => { const es = partidasSupplier; setPartidasSupplier(null); if (es.status === 'contratado') ofrecerReview(es) }}
+          onGuardado={nuevos => { setBudgets(nuevos); const es = partidasSupplier; setPartidasSupplier(null); if (es.status === 'contratado') ofrecerReview(es) }}
         />
       )}
 

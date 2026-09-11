@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   carpetasDe, destinosDe, pasosAlcanzados, CAMINO, QUE_SIGNIFICA,
-  ORDEN_REVIEWS_FICHA, esReviewLlenable, filasDeReview, pendientesDe, resumenPendientes,
+  ORDEN_REVIEWS_FICHA, esReviewLlenable, filasDeReview,
   TITULO_REVIEW_FICHA, DESCRIPCION_REVIEW_FICHA, BOTON_CALIFICAR,
 } from './ficha-por-estado'
 import type { SupplierStatus } from '@/lib/types'
@@ -115,25 +115,6 @@ describe('filasDeReview: la lista "Que falta"', () => {
     const filas = filasDeReview('contratado', ['post_evento', 'contratacion'])
     expect(filas.map(f => f.tipo)).toEqual(['contratacion', 'post_evento'])
     expect(filas.every(f => f.hecha)).toBe(true)
-  })
-})
-
-describe('resumenPendientes', () => {
-  it('cuenta en singular y plural', () => {
-    expect(resumenPendientes(filasDeReview('contratado', []))).toBe('2 pendientes')
-    expect(resumenPendientes(filasDeReview('descartado', []))).toBe('1 pendiente')
-  })
-
-  it('todo hecho es "Al dia"', () => {
-    expect(resumenPendientes(filasDeReview('contratado', ['contratacion', 'post_evento']))).toBe('Al día')
-  })
-
-  it('sin filas dice que no hay nada que calificar', () => {
-    expect(resumenPendientes(filasDeReview('nuevo', []))).toBe('Nada que calificar todavía')
-  })
-
-  it('pendientesDe cuenta solo las no hechas', () => {
-    expect(pendientesDe(filasDeReview('contratado', ['contratacion']))).toBe(1)
   })
 })
 

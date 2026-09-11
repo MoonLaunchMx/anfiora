@@ -138,6 +138,12 @@ export type EventSettings = {
   requires_approval?: boolean | null
   shared_token?: string | null
   max_companions?: number | null
+  // Link publico para que el cliente califique a los proveedores contratados.
+  // Vencimiento null = 14 dias despues del ultimo dia del evento (ver
+  // lib/reviews/link-cliente.ts); solo un admin lo mueve.
+  review_token?: string | null
+  review_expires_at?: string | null
+  review_event_supplier_ids?: string[] | null
   created_at: string
   updated_at: string
 }
@@ -519,6 +525,9 @@ export type EventBudget = {
   subcategory: string
   budget_amount: number
   event_supplier_id: string | null
+  // Lo contratado por ESTA partida con su proveedor. El contratado del
+  // proveedor es la suma de sus partidas (lib/presupuesto/derivados.ts).
+  contract_amount?: number | null
   notes: string | null
   created_at: string
 }
@@ -652,10 +661,11 @@ export type EventSupplier = {
   supplier_id: string
   status: SupplierStatus
   quoted_amount: number | null
-  contract_amount: number | null
+  // Lo contratado ya no vive aqui: es la suma de event_budgets.contract_amount
+  // de sus partidas (contratadoDelProveedor). Las columnas viejas
+  // contract_amount y event_budget_id se borran con el SQL del paso 2.
   event_notes: string | null
   quote_files: ArchivoAdjunto[]
-  event_budget_id: string | null
   created_at: string
 }
 

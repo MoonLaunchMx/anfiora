@@ -1,6 +1,6 @@
 'use client'
 
-import { metaDelProveedor, partidasDelProveedor } from '@/lib/presupuesto/derivados'
+import { metaDelProveedor, partidasDelProveedor, contratadoDelProveedor } from '@/lib/presupuesto/derivados'
 import {
   Currency, formatCurrency,
   EventSupplier, Supplier, EventBudget,
@@ -82,7 +82,8 @@ function Fila({ item, visibleCols, budgets, currency, categorias, desempenoPorPr
   const s = item.supplier
   const partidas = partidasDelProveedor(item, budgets)
   const meta = metaDelProveedor(item, budgets)
-  const exceeds = meta !== null && item.contract_amount !== null && item.contract_amount > meta
+  const contratado = contratadoDelProveedor(item, budgets)
+  const exceeds = meta !== null && contratado !== null && contratado > meta
 
   const telCrudo = telefonoCrudoDe(s)
   const telVisible = telCrudo ? formatDisplay(telCrudo) : null
@@ -127,7 +128,7 @@ function Fila({ item, visibleCols, budgets, currency, categorias, desempenoPorPr
       )}
       {visibleCols.has('contratado') && (
         <td className={`px-4 py-3 text-right tabular-nums font-medium ${exceeds ? 'text-amber-600' : 'text-[#1D1E20]'}`}>
-          {item.contract_amount ? formatCurrency(item.contract_amount, currency) : <span className="text-[#ccc]">—</span>}
+          {contratado != null ? formatCurrency(contratado, currency) : <span className="text-[#ccc]">—</span>}
         </td>
       )}
       {visibleCols.has('pagado') && (

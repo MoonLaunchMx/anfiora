@@ -22,7 +22,6 @@ import { Modal } from '@/app/components/ui/Modal'
 import CategoriaPicker from './CategoriaPicker'
 
 export type EnEstaBoda = {
-  event_budget_id: string | null
   quoted_amount: number | null
 }
 
@@ -166,7 +165,6 @@ export default function AltaProveedor({
   const [etiquetas, setEtiquetas]   = useState<string[]>([])
   const [notas, setNotas]           = useState('')
 
-  const [eventBudgetId, setEventBudgetId] = useState('')
   const [cotizacion, setCotizacion]       = useState('')
 
   // La boda no guarda pais, asi que el default sale del Rolodex: el pais donde
@@ -188,7 +186,7 @@ export default function AltaProveedor({
     setInstagram(''); setFacebook(''); setCorreo(''); setSitio('')
     setPais(paisDominante); setCiudad(''); setEstado('')
     setRadio(''); setEtiquetas([]); setNotas('')
-    setEventBudgetId(''); setCotizacion('')
+    setCotizacion('')
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen])
 
@@ -254,12 +252,6 @@ export default function AltaProveedor({
     return [...usadas, ...sugeridas]
   }, [ciudadesQueUsas, pais, estado])
 
-  // Los conceptos se filtran por la categoria del proveedor: la que se esta
-  // tecleando si es nuevo, la que ya trae su ficha si viene del Rolodex.
-  const categoriaActiva = fase === 'nuevo' ? categoriaElegida?.id ?? null : elegida?.categoriaId ?? null
-  const conceptos   = categoriaActiva ? budgets.filter(b => b.category_id === categoriaActiva) : []
-  const conceptoSel = eventBudgetId ? budgets.find(b => b.id === eventBudgetId) : null
-
   const montoCotizado = (): number | null => {
     const limpio = cotizacion.trim()
     if (!limpio) return null
@@ -279,7 +271,6 @@ export default function AltaProveedor({
   const elegir = (entrada: EntradaDelRolodex) => {
     if (entrada.enEstaBoda) { onAbrirEnEstaBoda(entrada.id); return }
     setElegida(entrada)
-    setEventBudgetId('')
     setCotizacion('')
     setError('')
     setFase('existente')
@@ -299,11 +290,11 @@ export default function AltaProveedor({
 
   const usarExistente = (supplierId: string) =>
     conEnvio(() => onUsarExistente(supplierId, {
-      event_budget_id: eventBudgetId || null,
-      quoted_amount:   montoCotizado(),
+      quoted_amount: montoCotizado(),
     }))
 
   const crearNuevo = () => {
+    if (repetido) return
     if (!nombre.trim())      { setError('Escribe el nombre del proveedor'); return }
     if (!categoriaElegida)   { setError('Elige una categoría'); return }
     if (!telefono.trim() && !instagram.trim() && !facebook.trim() && !correo.trim()) {
@@ -317,7 +308,7 @@ export default function AltaProveedor({
     return conEnvio(() => onCrearNuevo({
       name:               nombre.trim(),
       category_id:        categoriaElegida.id,
-      subcategory:        conceptoSel?.subcategory || null,
+      subcategory:        null,
       contact_name:       contacto.trim() || null,
       phone:              telefono.trim() || null,
       phone_country_code: telefono.trim() && cc ? dialCode(cc) || null : null,
@@ -331,7 +322,6 @@ export default function AltaProveedor({
       service_radius_km:  km !== null && Number.isFinite(km) && km > 0 ? km : null,
       tags:               etiquetas,
       general_notes:      notas.trim() || null,
-      event_budget_id:    eventBudgetId || null,
       quoted_amount:      montoCotizado(),
     }))
   }
@@ -341,32 +331,6 @@ export default function AltaProveedor({
   // cotizacion perderia el foco a cada tecla.
   const camposDeLaBoda = (
     <>
-      <div>
-        <Etiqueta>Concepto del presupuesto</Etiqueta>
-        {conceptos.length > 0 ? (
-          <select value={eventBudgetId} onChange={e => setEventBudgetId(e.target.value)} className={INPUT}>
-            <option value="">Sin concepto</option>
-            {conceptos.map(b => (
-              <option key={b.id} value={b.id}>
-                {b.subcategory || nombrePorId(categorias, b.category_id)}
-                {b.budget_amount ? ` — ${formatCurrency(b.budget_amount, currency)}` : ''}
-              </option>
-            ))}
-          </select>
-        ) : (
-          <div className="rounded-lg border border-dashed border-[#e0e0e0] bg-[#fafafa] px-3 py-2.5 text-center">
-            <p className="text-xs text-[#aaa]">
-              No hay conceptos de {categoriaElegida?.name ?? elegida?.categoria ?? 'esta categoría'} — créalos en Presupuesto
-            </p>
-          </div>
-        )}
-        {conceptoSel && (
-          <p className="mt-1 text-[10px] text-[#48C9B0]">
-            Meta: {formatCurrency(conceptoSel.budget_amount, currency)}
-          </p>
-        )}
-      </div>
-
       <div>
         <Etiqueta>Cotización</Etiqueta>
         <div className={PREFIJO}>
@@ -390,6 +354,40 @@ export default function AltaProveedor({
   const aviso = error ? (
     <p className="mb-3 rounded-lg bg-[#fff0f0] px-3 py-2 text-xs font-semibold text-[#cc3333]">{error}</p>
   ) : null
+
+  // El aviso de contacto repetido sale en linea debajo del campo que coincidio,
+  // nunca flotando: el campo queda visible y corregirlo es reescribirlo ahi.
+  const avisoRepetido = repetido && (
+    <div className="mt-2 flex gap-2.5 rounded-xl bg-[#FBF3E0] px-3 py-3 text-[#A87C1F]">
+      <AlertTriangle size={15} className="mt-0.5 shrink-0" />
+      <div className="min-w-0 flex-1">
+        <p className="text-[12.5px] font-bold">
+          Este {repetido.campo === 'telefono' ? 'número' : 'correo'} ya existe en tu Rolodex
+        </p>
+        <p className="mt-0.5 text-[11.5px] leading-snug opacity-90">
+          {repetido.entrada.enEstaBoda ? 'Ya está en este evento.' : 'Agrégalo al evento.'}
+        </p>
+        <div className="mt-2 flex items-center gap-2.5 rounded-lg bg-white/60 px-2.5 py-2">
+          <Inicial nombre={repetido.entrada.nombre} />
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-[13px] font-semibold">{repetido.entrada.nombre}</span>
+            <span className="block truncate text-[11px] opacity-75">
+              {[repetido.entrada.categoria, repetido.entrada.ciudad].filter(Boolean).join(' · ')}
+              {repetido.entrada.veces > 0 && ` · ${repetido.entrada.veces} eventos`}
+            </span>
+          </span>
+          <button
+            type="button"
+            onClick={() => (repetido.entrada.enEstaBoda ? onAbrirEnEstaBoda(repetido.entrada.id) : usarExistente(repetido.entrada.id))}
+            disabled={enviando}
+            className="shrink-0 rounded-lg bg-[#48C9B0] px-3 py-1.5 text-[11.5px] font-semibold text-white transition hover:bg-[#3aa896] disabled:opacity-50"
+          >
+            {repetido.entrada.enEstaBoda ? 'Ver su ficha' : enviando ? 'Agregando...' : 'Agregar'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
 
   return (
     <Modal open={isOpen} onClose={onClose} size={fase === 'nuevo' ? 'xl' : 'md'}>
@@ -520,7 +518,7 @@ export default function AltaProveedor({
                     <CategoriaPicker
                       categorias={categorias}
                       valorId={categoriaElegida?.id ?? null}
-                      onChange={c => { setCategoriaElegida(c); setEventBudgetId(''); onCategoriaCreada?.(c) }}
+                      onChange={c => { setCategoriaElegida(c); onCategoriaCreada?.(c) }}
                       duenoCatalogo={duenoCatalogo}
                       className="border-[#e0e0e0]"
                     />
@@ -531,36 +529,12 @@ export default function AltaProveedor({
                       placeholder="Ej. Marisol Cruz" className={INPUT} />
                   </div>
                 </div>
-                {/* relative + overlay: el aviso de duplicado no debe empujar los
-                    campos de abajo mientras se teclea el nombre, solo flotar. */}
+                {/* relative + overlay: el aviso de nombres parecidos no debe empujar
+                    los campos de abajo mientras se teclea el nombre, solo flotar. */}
                 <div className="relative">
                   <Etiqueta obligatorio>Nombre</Etiqueta>
                   <input type="text" value={nombre} onChange={e => setNombre(e.target.value)}
                     placeholder="Ej. Luz y Sonido Zafiro" className={INPUT} />
-
-                  {repetido && (
-                    <div className="absolute inset-x-0 top-full z-20 mt-2 flex gap-2.5 rounded-xl bg-[#FBF3E0] px-3 py-3 text-[#A87C1F] shadow-lg">
-                      <AlertTriangle size={15} className="mt-0.5 shrink-0" />
-                      <div className="min-w-0 flex-1">
-                        <p className="text-[12.5px] font-bold">
-                          Ese {repetido.campo === 'telefono' ? 'WhatsApp' : 'correo'} ya es de un proveedor tuyo
-                        </p>
-                        <p className="mt-0.5 text-[11.5px] leading-snug opacity-90">
-                          Es el mismo contacto de {repetido.entrada.nombre}. Crear otra ficha parte su historial en dos.
-                        </p>
-                        <div className="mt-2 flex items-center gap-2.5 rounded-lg bg-white/60 px-2.5 py-2">
-                          <Inicial nombre={repetido.entrada.nombre} />
-                          <span className="min-w-0 flex-1">
-                            <span className="block truncate text-[13px] font-semibold">{repetido.entrada.nombre}</span>
-                            <span className="block truncate text-[11px] opacity-75">
-                              {[repetido.entrada.categoria, repetido.entrada.ciudad].filter(Boolean).join(' · ')}
-                              {repetido.entrada.veces > 0 && ` · ${repetido.entrada.veces} eventos`}
-                            </span>
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
 
                   {!repetido && parecidos.length > 0 && (
                     <div className="absolute inset-x-0 top-full z-20 mt-2 flex gap-2.5 rounded-xl bg-[#f1efe8] px-3 py-3 text-[#5F5C57] shadow-lg">
@@ -601,6 +575,7 @@ export default function AltaProveedor({
                 <div>
                   <Etiqueta><FaWhatsapp size={12} /> WhatsApp</Etiqueta>
                   <PhoneInput value={telefono} onChange={setTelefono} placeholder="55 1234 5678" />
+                  {repetido?.campo === 'telefono' && avisoRepetido}
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div>
@@ -628,6 +603,7 @@ export default function AltaProveedor({
                     <Etiqueta><FiMail size={12} /> Correo</Etiqueta>
                     <input type="email" value={correo} onChange={e => setCorreo(e.target.value)}
                       placeholder="hola@proveedor.mx" className={INPUT} />
+                    {repetido?.campo === 'correo' && avisoRepetido}
                   </div>
                   <div>
                     <Etiqueta><FiGlobe size={12} /> Sitio web</Etiqueta>
@@ -725,45 +701,22 @@ export default function AltaProveedor({
           </Modal.Body>
 
           <Modal.Footer>
-            {repetido ? (
-              <>
-                <button
-                  type="button"
-                  onClick={crearNuevo}
-                  disabled={enviando}
-                  className="ml-auto rounded-lg px-4 py-2 text-xs font-medium text-[#666] transition hover:bg-[#f0f0f0] disabled:opacity-50"
-                >
-                  Crear otra de todos modos
-                </button>
-                <button
-                  type="button"
-                  onClick={() => usarExistente(repetido.entrada.id)}
-                  disabled={enviando || repetido.entrada.enEstaBoda}
-                  className="rounded-lg bg-[#48C9B0] px-4 py-2 text-xs font-semibold text-white transition hover:bg-[#3aa896] disabled:opacity-50"
-                >
-                  {repetido.entrada.enEstaBoda ? 'Ya está en este evento' : `Usar ${repetido.entrada.nombre}`}
-                </button>
-              </>
-            ) : (
-              <>
-                <button
-                  type="button"
-                  onClick={() => setFase('buscar')}
-                  disabled={enviando}
-                  className="ml-auto rounded-lg px-4 py-2 text-xs font-medium text-[#666] transition hover:bg-[#f0f0f0] disabled:opacity-50"
-                >
-                  Volver a buscar
-                </button>
-                <button
-                  type="button"
-                  onClick={crearNuevo}
-                  disabled={enviando}
-                  className="rounded-lg bg-[#48C9B0] px-4 py-2 text-xs font-semibold text-white transition hover:bg-[#3aa896] disabled:opacity-50"
-                >
-                  {enviando ? 'Guardando...' : 'Crear y agregar'}
-                </button>
-              </>
-            )}
+            <button
+              type="button"
+              onClick={() => setFase('buscar')}
+              disabled={enviando}
+              className="ml-auto rounded-lg px-4 py-2 text-xs font-medium text-[#666] transition hover:bg-[#f0f0f0] disabled:opacity-50"
+            >
+              Volver a buscar
+            </button>
+            <button
+              type="button"
+              onClick={crearNuevo}
+              disabled={enviando || !!repetido}
+              className="rounded-lg bg-[#48C9B0] px-4 py-2 text-xs font-semibold text-white transition hover:bg-[#3aa896] disabled:opacity-50"
+            >
+              {enviando ? 'Guardando...' : 'Crear y agregar'}
+            </button>
           </Modal.Footer>
         </>
       )}

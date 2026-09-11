@@ -23,12 +23,17 @@ import { calcularScores } from '@/lib/reviews/scores'
 import type { ReviewParaScore } from '@/lib/reviews/scores'
 import { useGuardarCambioDeEstado } from '@/lib/rolodex/usar-bloqueo-retroceso'
 import FichaModal from './FichaModal'
+import PartidasModal from './PartidasModal'
+import { contratadoDelProveedor } from '@/lib/presupuesto/derivados'
 import ReviewContratacionModal from './ReviewContratacionModal'
 import ReviewDescarteModal from './ReviewDescarteModal'
 import SupplierListView from './SupplierListView'
 import SupplierKanbanView from './SupplierKanbanView'
 import SupplierFicheroView from './SupplierFicheroView'
-import { usePermiso } from '@/lib/event-access-context'
+import { usePermiso, useEventAccess } from '@/lib/event-access-context'
+import { estadoDelLink } from '@/lib/reviews/link-cliente'
+import { interpretarEscritura } from '@/lib/invite/persistencia'
+import PedirOpinionModal from './PedirOpinionModal'
 import { Puede } from '@/lib/permisos/Puede'
 
 type SupplierWithDetails = EventSupplier & { supplier: Supplier }
@@ -121,6 +126,12 @@ export default function ProveedoresPage() {
   // Cuantos pagos tiene cada proveedor: la pestaña Pagos de la ficha lo pinta
   // desde el primer frame en vez de esperar su propia consulta.
   const [conteoPagosPorItem, setConteoPagosPorItem] = useState<Record<string, number>>({})
+  const { canAdmin } = useEventAccess()
+  const [ajustesLink, setAjustesLink] = useState<{ token: string | null; expiresAt: string | null; ids: string[] | null }>({ token: null, expiresAt: null, ids: null })
+  const [clienteRespondio, setClienteRespondio] = useState<Set<string>>(new Set())
+  const [pedirOpinionAbierto, setPedirOpinionAbierto] = useState(false)
+  // Al contratar se reparte el contrato entre sus partidas: es el mismo acto.
+  const [partidasItem, setPartidasItem] = useState<SupplierWithDetails | null>(null)
   const [motivoDescartePorItem, setMotivoDescartePorItem] = useState<Record<string, MotivoDescarte | null>>({})
   const [viewMode, setViewMode] = useState<ViewMode>('fichero')
   const [modalOpen, setModalOpen]       = useState(false)
@@ -192,12 +203,16 @@ export default function ProveedoresPage() {
   useEffect(() => { cargarDineroYReviews(claveDeItems ? claveDeItems.split(',') : []) }, [claveDeItems])
 
   const cargarDineroYReviews = async (ids: string[]) => {
-    if (ids.length === 0) { setPaidByItem({}); setConteoPagosPorItem({}); setMotivoDescartePorItem({}); return }
+    if (ids.length === 0) { setPaidByItem({}); setConteoPagosPorItem({}); setMotivoDescartePorItem({}); setClienteRespondio(new Set()); return }
 
-    const [{ data: pagos, error: errPagos }, { data: descartes, error: errDescartes }] = await Promise.all([
+    const [{ data: pagos, error: errPagos }, { data: descartes, error: errDescartes }, { data: opinionesCliente, error: errCliente }] = await Promise.all([
       supabase.from('supplier_payments').select('event_supplier_id, amount').in('event_supplier_id', ids),
       supabase.from('supplier_reviews').select('event_supplier_id, motivo_descarte').eq('review_type', 'descarte').in('event_supplier_id', ids),
+      supabase.from('supplier_reviews')
+        .select('event_supplier_id')
+        .eq('review_type', 'post_evento').eq('autor', 'cliente').in('event_supplier_id', ids),
     ])
+    if (errCliente) console.error('Error cargando opiniones del cliente:', errCliente.message ?? errCliente, errCliente)
     if (errPagos) console.error('Error cargando pagos de proveedores:', errPagos.message ?? errPagos, errPagos)
     if (errDescartes) console.error('Error cargando motivos de descarte:', errDescartes.message ?? errDescartes, errDescartes)
 
@@ -215,6 +230,12 @@ export default function ProveedoresPage() {
       motivos[r.event_supplier_id] = r.motivo_descarte
     }
     setMotivoDescartePorItem(motivos)
+
+    // Existencia, no promedio. Un cliente que solo contesta la recomendacion
+    // deja los cinco ejes en null, asi que su score sale null: contarlo por
+    // score lo dejaba fuera y el aviso decia "0 de 14" con respuestas ya
+    // guardadas.
+    setClienteRespondio(new Set((opinionesCliente ?? []).map(r => (r as { event_supplier_id: string }).event_supplier_id)))
   }
 
   // Desempeno (ids de suppliers): se separa de cargarCatalogo para poder
@@ -255,12 +276,20 @@ export default function ProveedoresPage() {
   const loadAll = async () => {
     setLoading(true)
     try {
-      const [eventRes, suppliersRes, budgetsRes] = await Promise.all([
+      const [eventRes, suppliersRes, budgetsRes, ajustesRes] = await Promise.all([
         supabase.from('events').select('*').eq('id', eventId).single(),
         supabase.from('event_suppliers').select('*, supplier:suppliers(*)').eq('event_id', eventId).order('created_at', { ascending: false }),
         supabase.from('event_budgets').select('*').eq('event_id', eventId).order('created_at', { ascending: true }),
+        supabase.from('event_settings').select('review_token, review_expires_at, review_event_supplier_ids').eq('event_id', eventId).maybeSingle(),
       ])
       if (eventRes.data)     setEvent(eventRes.data as Event)
+      if (ajustesRes.data) {
+        setAjustesLink({
+          token: ajustesRes.data.review_token ?? null,
+          expiresAt: ajustesRes.data.review_expires_at ?? null,
+          ids: ajustesRes.data.review_event_supplier_ids ?? null,
+        })
+      }
       if (suppliersRes.data) setItems(suppliersRes.data as SupplierWithDetails[])
       if (budgetsRes.data)   setBudgets(budgetsRes.data as EventBudget[])
 
@@ -367,7 +396,6 @@ export default function ProveedoresPage() {
         supplier_id:     supplierId,
         status:          enEstaBoda.quoted_amount ? 'cotizado' : 'nuevo',
         quoted_amount:   enEstaBoda.quoted_amount,
-        event_budget_id: enEstaBoda.event_budget_id,
       })
       .select('*, supplier:suppliers(*)')
       .single()
@@ -406,15 +434,13 @@ export default function ProveedoresPage() {
     if (!permiso.editar) return
     if (!duenoCatalogo) throw new Error('El evento aún no carga, intenta de nuevo')
 
-    const concepto = data.event_budget_id ? budgets.find(b => b.id === data.event_budget_id) : null
-
     const { data: ficha, error: supErr } = await supabase
       .from('suppliers')
       .insert({
         user_id:            duenoCatalogo,
         name:               data.name,
         category_id:        data.category_id,
-        subcategory:        concepto?.subcategory || data.subcategory,
+        subcategory:        data.subcategory,
         contact_name:       data.contact_name,
         phone:              data.phone,
         phone_country_code: data.phone_country_code,
@@ -497,23 +523,25 @@ export default function ProveedoresPage() {
       return
     }
 
-    // Review al llegar a un estado final (arrastrar en kanban o mover desde la
-    // ficha). Tambien de descartado a contratado, y al reves: lo que evita
-    // repetirla no es el estado de origen sino que ya exista una review de
-    // ese tipo para este proveedor.
-    const isNowFinal = newStatus === 'contratado' || newStatus === 'descartado'
-    if (isNowFinal && prev) {
-      const reviewType = newStatus === 'contratado' ? 'contratacion' : 'descarte'
-      const { count, error: reviewError } = await supabase
-        .from('supplier_reviews')
-        .select('id', { count: 'exact', head: true })
-        .eq('event_supplier_id', itemId)
-        .eq('review_type', reviewType)
-      if (reviewError) {
-        console.error('Error verificando si ya existe review:', reviewError.message ?? reviewError, reviewError)
-      } else if (!count) {
-        setReviewItem({ ...prev, status: newStatus })
-      }
+    // Contratar y ligar son el mismo acto: primero en que partidas va y con
+    // cuanto, y al cerrar eso, la review. Descartar va directo a la review.
+    if (newStatus === 'contratado') { setPartidasItem({ ...prev, status: newStatus }); return }
+    if (newStatus === 'descartado') await ofrecerReview({ ...prev, status: newStatus })
+  }
+
+  // Una sola vez por proveedor y por tipo de review: lo que evita repetirla no
+  // es el estado de origen sino que ya exista una review de ese tipo.
+  const ofrecerReview = async (item: SupplierWithDetails) => {
+    const reviewType = item.status === 'contratado' ? 'contratacion' : 'descarte'
+    const { count, error: reviewError } = await supabase
+      .from('supplier_reviews')
+      .select('id', { count: 'exact', head: true })
+      .eq('event_supplier_id', item.id)
+      .eq('review_type', reviewType)
+    if (reviewError) {
+      console.error('Error verificando si ya existe review:', reviewError.message ?? reviewError, reviewError)
+    } else if (!count) {
+      setReviewItem(item)
     }
   }
 
@@ -552,12 +580,47 @@ export default function ProveedoresPage() {
     return [...set].sort((a, b) => a.localeCompare(b, 'es'))
   })()
 
+  // El link del cliente: su estado sale de la fecha del evento, del token y del
+  // vencimiento guardado. La seleccion vacia quiere decir "todos los contratados".
+  const ultimoDia = event ? (event.event_end_date || event.event_date) : null
+  const infoLink = estadoDelLink({
+    hoy: new Date().toISOString().slice(0, 10),
+    ultimoDiaEvento: ultimoDia,
+    token: ajustesLink.token,
+    expiresAt: ajustesLink.expiresAt,
+  })
+  const contratados = items
+    .filter(i => i.status === 'contratado')
+    .map(i => ({ id: i.id, nombre: i.supplier.name, categoria: nombrePorId(categorias, i.supplier.category_id) }))
+  const idsEnLink = ajustesLink.ids && ajustesLink.ids.length > 0 ? ajustesLink.ids : contratados.map(c => c.id)
+  const totalEnLink = idsEnLink.length
+  const contestados = idsEnLink.filter(id => clienteRespondio.has(id)).length
+
+  const darMasTiempo = async (nuevoVence: string): Promise<string | null> => {
+    const res = await supabase.from('event_settings').update({ review_expires_at: nuevoVence }).eq('event_id', eventId).select('event_id')
+    const r = interpretarEscritura(res)
+    if (!r.ok) return r.motivo
+    setAjustesLink(prev => ({ ...prev, expiresAt: nuevoVence }))
+    return null
+  }
+
+  // El aviso del link ya no vive arriba de la lista: vive dentro de la carpeta
+  // Review de cada proveedor incluido, que es donde se pregunta por el.
+  const opinionCliente = {
+    info: infoLink,
+    contestados,
+    total: totalEnLink,
+    canAdmin,
+    onAbrirLink: () => setPedirOpinionAbierto(true),
+    onDarMasTiempo: darMasTiempo,
+  }
+
   const totalNuevos      = items.filter(i => i.status === 'nuevo').length
   const totalCotizando   = items.filter(i => i.status === 'cotizado').length
   const totalContratados = items.filter(i => i.status === 'contratado').length
   const totalInvestment  = items
     .filter(i => i.status === 'contratado')
-    .reduce((sum, i) => sum + (i.contract_amount || 0), 0)
+    .reduce((sum, i) => sum + (contratadoDelProveedor(i, budgets) ?? 0), 0)
 
   if (loading || !event) {
     return (
@@ -773,11 +836,13 @@ export default function ProveedoresPage() {
                 categorias={categorias}
                 desempenoPorProveedor={desempenoPorProveedor}
                 conteoPagosPorItem={conteoPagosPorItem}
+                opinionCliente={opinionCliente}
                 onSelect={setSelectedItem}
                 onStatusChange={handleStatusChange}
                 onSaved={handleSavedItem}
                 onQuitada={handleDeletedItem}
                 onDerivadosCambiaron={refrescarDerivados}
+                onElegirPartidas={setPartidasItem}
                 enfocar={enfocar}
                 onEnfocado={() => setEnfocar(null)}
                 abrirRevisionParaId={revisionParaId}
@@ -804,6 +869,18 @@ export default function ProveedoresPage() {
         onCategoriaCreada={categoria => setCategorias(prev => agregarCategoria(prev, categoria))}
       />
 
+      <PedirOpinionModal
+        abierto={pedirOpinionAbierto && permiso.editar}
+        onClose={() => setPedirOpinionAbierto(false)}
+        eventoId={eventId}
+        eventoNombre={event.name}
+        contratados={contratados}
+        yaCalificaron={clienteRespondio}
+        seleccionActual={ajustesLink.ids}
+        token={ajustesLink.token}
+        onEnviado={(token, ids) => setAjustesLink(prev => ({ ...prev, token, ids }))}
+      />
+
       {selectedItem && (
         <FichaModal
           item={selectedItem}
@@ -811,13 +888,28 @@ export default function ProveedoresPage() {
           currency={currency}
           categorias={categorias}
           conteoPagosInicial={conteoPagosPorItem[selectedItem.id] ?? 0}
+          opinionCliente={opinionCliente}
           onClose={() => setSelectedItem(null)}
           onStatusChange={handleStatusChange}
           onSaved={handleSavedItem}
           onQuitada={handleDeletedItem}
           onDerivadosCambiaron={refrescarDerivados}
+          onElegirPartidas={it => { setSelectedItem(null); setPartidasItem(it) }}
           abrirRevisionParaId={revisionParaId}
           onRevisionAbierta={() => setRevisionParaId(null)}
+        />
+      )}
+
+      {partidasItem && permiso.editar && (
+        <PartidasModal
+          item={partidasItem}
+          budgets={budgets}
+          categorias={categorias}
+          currency={currency}
+          nombreDeProveedor={id => items.find(i => i.id === id)?.supplier.name ?? 'otro proveedor'}
+          etiquetaGuardar={partidasItem.status === 'contratado' ? 'Contratar' : 'Guardar'}
+          onClose={() => { const it = partidasItem; setPartidasItem(null); if (it.status === 'contratado') ofrecerReview(it) }}
+          onGuardado={nuevos => { setBudgets(nuevos); const it = partidasItem; setPartidasItem(null); if (it.status === 'contratado') ofrecerReview(it) }}
         />
       )}
 

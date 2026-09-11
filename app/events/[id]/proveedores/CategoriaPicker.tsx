@@ -52,13 +52,20 @@ export default function CategoriaPicker({ categorias, valorId, onChange, duenoCa
     return act
   }, [todas, propia])
 
+  const nombreTecleado = query.trim()
+
   const filtradas = useMemo(() => {
     const q = normalizarCategoria(query)
-    if (!q) return opciones
-    return opciones.filter(c => normalizarCategoria(c.name).includes(q))
-  }, [opciones, query])
-
-  const nombreTecleado = query.trim()
+    const base = q ? opciones.filter(c => normalizarCategoria(c.name).includes(q)) : opciones
+    if (!nombreTecleado) return base
+    // Una categoria archivada con ese nombre exacto no se puede volver a crear
+    // -- el indice unico la rechaza -- y como no se ofrece, tecleandola el
+    // usuario se quedaba sin salida: ni elegirla ni crearla, solo "Sin
+    // coincidencias". Se ofrece, marcada como archivada.
+    const homonima = buscarPorNombre(todas, nombreTecleado)
+    if (homonima && !base.some(c => c.id === homonima.id)) return [...base, homonima]
+    return base
+  }, [opciones, query, nombreTecleado, todas])
   // Busca entre TODAS las categorias (incluidas archivadas ajenas y las
   // creadas en esta sesion), no solo las ofrecidas: si ya existe con ese
   // nombre no hay nada que crear.
@@ -161,7 +168,11 @@ export default function CategoriaPicker({ categorias, valorId, onChange, duenoCa
       {open && (
         <div className="absolute left-0 right-0 top-full z-30 mt-1 max-h-60 overflow-auto rounded-xl border border-[#e8e8e8] bg-white shadow-lg">
           {items.length === 0 && (
-            <p className="px-3 py-2.5 text-sm text-[#aaa]">Sin coincidencias</p>
+            // Pasa cuando la cuenta todavia no tiene ninguna categoria: antes
+            // decia "Sin coincidencias" y se leia como un callejon sin salida.
+            <p className="px-3 py-2.5 text-sm text-[#888]">
+              Todavía no tienes categorías. Escribe el nombre de la primera.
+            </p>
           )}
           {items.map((item, i) => {
             const isHighlighted = i === highlight

@@ -1,7 +1,7 @@
 'use client'
 
 import { ComponentType, useState } from 'react'
-import { metaDelProveedor } from '@/lib/presupuesto/derivados'
+import { metaDelProveedor, contratadoDelProveedor } from '@/lib/presupuesto/derivados'
 import {
   DndContext, DragEndEvent, PointerSensor, TouchSensor,
   useSensor, useSensors, useDroppable, useDraggable,
@@ -276,7 +276,7 @@ function KanbanCard({
 }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: item.id })
 
-  const dinero = dineroDeTarjeta(item, pagado, motivoDescarte)
+  const dinero = dineroDeTarjeta(item, contratadoDelProveedor(item, budgets), pagado, motivoDescarte)
   const contactos = contactosDe(item.supplier)
 
   const meta = metaDelProveedor(item, budgets)
