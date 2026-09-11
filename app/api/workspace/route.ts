@@ -122,28 +122,45 @@ export async function PATCH(req: NextRequest) {
   if (!s) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   const { user, admin } = s
 
-  let body: { workspaceId?: string; logoUrl?: string | null }
+  let body: { workspaceId?: string; logoUrl?: string | null; name?: string }
   try { body = await req.json() } catch { return NextResponse.json({ error: 'Cuerpo inválido' }, { status: 400 }) }
 
   const { workspaceId } = body
   if (!workspaceId) return NextResponse.json({ error: 'Faltan datos' }, { status: 400 })
-  if (body.logoUrl !== null && typeof body.logoUrl !== 'string') {
-    return NextResponse.json({ error: 'Faltan datos' }, { status: 400 })
+
+  // El nombre del workspace y el logo se guardan por la misma puerta. Se
+  // aceptan por separado: mandar uno no borra el otro.
+  const cambios: Record<string, string | null> = {}
+
+  if (body.name !== undefined) {
+    const nombre = String(body.name).trim()
+    if (nombre.length < 2) return NextResponse.json({ error: 'El nombre necesita al menos 2 letras' }, { status: 400 })
+    if (nombre.length > 60) return NextResponse.json({ error: 'El nombre no puede pasar de 60 caracteres' }, { status: 400 })
+    cambios.name = nombre
+  }
+
+  if (body.logoUrl !== undefined) {
+    if (body.logoUrl !== null && typeof body.logoUrl !== 'string') {
+      return NextResponse.json({ error: 'Faltan datos' }, { status: 400 })
+    }
   }
 
   const logoUrl = body.logoUrl
   if (typeof logoUrl === 'string' && !(logoUrl.startsWith('https://') && logoUrl.includes(MARCA_BUCKET))) {
     return NextResponse.json({ error: 'Esa imagen no es del almacenamiento de Anfiora' }, { status: 400 })
   }
+  if (body.logoUrl !== undefined) cambios.logo_url = logoUrl ?? null
+
+  if (Object.keys(cambios).length === 0) return NextResponse.json({ error: 'No hay nada que guardar' }, { status: 400 })
 
   const miRol = await rolEnWorkspace(admin, workspaceId, user.id)
   if (!esAdministrador(miRol)) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
   // Un update que no alcanza ninguna fila no devuelve error: se cuentan.
   const { data, error } = await admin
-    .from('workspaces').update({ logo_url: logoUrl }).eq('id', workspaceId).select('id')
-  if (error) return NextResponse.json({ error: 'No se pudo guardar el logo: ' + error.message }, { status: 500 })
-  if (!data || data.length === 0) return NextResponse.json({ error: 'No se guardó el logo' }, { status: 500 })
+    .from('workspaces').update(cambios).eq('id', workspaceId).select('id')
+  if (error) return NextResponse.json({ error: 'No se pudo guardar: ' + error.message }, { status: 500 })
+  if (!data || data.length === 0) return NextResponse.json({ error: 'No se guardó el cambio' }, { status: 500 })
 
-  return NextResponse.json({ ok: true, logoUrl })
+  return NextResponse.json({ ok: true })
 }

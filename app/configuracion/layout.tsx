@@ -3,7 +3,7 @@ import { Suspense, useEffect, useRef, useState, type ReactNode } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { ArrowLeft, Bell, ChevronDown, Clock, CreditCard, Tags, User, Users, X } from 'lucide-react'
+import { ArrowLeft, Bell, ChevronDown, Clock, CreditCard, Pencil, Tags, User, Users, X } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { Cargando } from '@/app/components/ui/Cargando'
 import { miMembresia, patchJson, perfilConFoto } from '@/lib/workspace/cliente'
@@ -98,6 +98,12 @@ function LogoWorkspace({ activo, onCambio }: { activo: WorkspaceResumen; onCambi
   const [error, setError] = useState<string | null>(null)
   const input = useRef<HTMLInputElement>(null)
 
+  useEffect(() => {
+    if (!error) return
+    const t = setTimeout(() => setError(null), 6000)
+    return () => clearTimeout(t)
+  }, [error])
+
   const guardar = async (url: string | null, file?: File) => {
     setSubiendo(true)
     setError(null)
@@ -151,12 +157,85 @@ function LogoWorkspace({ activo, onCambio }: { activo: WorkspaceResumen; onCambi
         onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) guardar(null, f) }}
       />
 
+      {/* El aviso se va solo a los 6 segundos y ademas se puede cerrar. Antes
+          se quedaba clavado en pantalla sin salida. */}
       {error && (
-        <p className="absolute left-0 top-[52px] z-10 w-56 rounded-lg border border-[#ffc0c0] bg-[#fff0f0] px-2.5 py-1.5 text-[11px] text-[#cc3333]">
-          {error}
-        </p>
+        <div className="absolute left-0 top-[52px] z-20 flex w-60 items-start gap-2 rounded-lg border border-[#ffc0c0] bg-[#fff0f0] px-2.5 py-2 text-[11px] leading-snug text-[#cc3333] shadow-sm">
+          <span className="min-w-0 flex-1">{error}</span>
+          <button onClick={() => setError(null)} aria-label="Cerrar aviso" className="shrink-0 text-[#cc3333]/70 transition hover:text-[#cc3333]">
+            <X size={12} />
+          </button>
+        </div>
       )}
     </div>
+  )
+}
+
+// El nombre del workspace nace del nombre de quien lo creo, asi que casi
+// siempre hay que cambiarlo. Se edita donde se lee, sin mandar a otra pantalla.
+function NombreWorkspace({ activo, onCambio }: { activo: WorkspaceResumen; onCambio: () => void }) {
+  const [editando, setEditando] = useState(false)
+  const [valor, setValor] = useState(activo.name)
+  const [guardando, setGuardando] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const guardar = async () => {
+    const limpio = valor.trim()
+    if (limpio === activo.name) { setEditando(false); return }
+    setGuardando(true)
+    setError(null)
+    try {
+      await patchJson('/api/workspace', { workspaceId: activo.id, name: limpio })
+      setEditando(false)
+      onCambio()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'No se pudo guardar')
+    }
+    setGuardando(false)
+  }
+
+  const cancelar = () => { setValor(activo.name); setError(null); setEditando(false) }
+
+  if (!editando) {
+    return (
+      <button
+        onClick={() => { setValor(activo.name); setEditando(true) }}
+        title="Cambiar el nombre del workspace"
+        className="group flex items-center gap-1.5 text-left text-xl font-semibold tracking-tight text-[#1D1E20]"
+      >
+        {activo.name}
+        <Pencil size={13} className="shrink-0 text-[#c4c4c4] opacity-0 transition group-hover:opacity-100" />
+      </button>
+    )
+  }
+
+  return (
+    <span className="flex flex-col gap-1">
+      <span className="flex flex-wrap items-center gap-1.5">
+        <input
+          value={valor}
+          onChange={e => setValor(e.target.value)}
+          onKeyDown={e => {
+            if (e.key === 'Enter') guardar()
+            if (e.key === 'Escape') cancelar()
+          }}
+          autoFocus
+          maxLength={60}
+          className="w-[220px] rounded-lg border border-[#e8e8e8] px-2.5 py-1 text-xl font-semibold tracking-tight text-[#1D1E20] outline-none focus:border-[#48C9B0]"
+        />
+        <button
+          onClick={guardar}
+          disabled={guardando || valor.trim().length < 2}
+          className="rounded-lg bg-[#48C9B0] px-3 py-1.5 text-[13px] font-semibold text-white transition hover:bg-[#3ab89f] disabled:opacity-50"
+        >
+          {guardando ? 'Guardando…' : 'Guardar'}
+        </button>
+        <button onClick={cancelar} className="px-1.5 text-[13px] font-medium text-[#888] transition hover:text-[#555]">
+          Cancelar
+        </button>
+      </span>
+      {error && <span className="text-[11px] text-[#cc3333]">{error}</span>}
+    </span>
   )
 }
 
@@ -319,7 +398,7 @@ function Cascara({ children }: { children: ReactNode }) {
                     <LogoWorkspace activo={activo} onCambio={recargar} />
                     <div className="flex flex-col gap-1">
                       <div className="flex items-center gap-2">
-                        <span className="text-xl font-semibold tracking-tight text-[#1D1E20]">{activo.name}</span>
+                        <NombreWorkspace activo={activo} onCambio={recargar} />
                         <span className="rounded-full bg-[#e1f5ee] px-2 py-0.5 text-[11px] font-semibold text-[#04342C]">{etiquetaPlan(activo.plan)}</span>
                       </div>
                       <p className="text-[13px] text-[#666]">

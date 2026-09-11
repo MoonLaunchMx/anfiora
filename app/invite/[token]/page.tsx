@@ -433,11 +433,9 @@ export default function InvitePage() {
             <p className="text-sm text-[#666]">{invite.event.venue}</p>
           )}
           <span className="mt-2 rounded-full border border-[#cdeee6] bg-[#f0fdfb] px-2.5 py-[3px] text-xs font-semibold text-[#04342C]">
-            {esWorkspace
-              ? invite?.rol === 'admin'
-                ? 'Entras como administrador, a todos los eventos'
-                : `Entras como ${(invite?.rolLabel ?? 'colaborador').toLowerCase()}`
-              : `Entras como ${((invite?.role && ROLE_LABELS[invite.role]) || invite?.role || '').toLowerCase()}`}
+            Acceso: {esWorkspace
+              ? (invite?.rolLabel ?? 'Colaborador')
+              : ((invite?.role && ROLE_LABELS[invite.role]) || invite?.role || 'Invitado')}
           </span>
         </div>
 
@@ -465,7 +463,7 @@ export default function InvitePage() {
 
         {esWorkspace && invite?.rol === 'admin' && (
           <p className="border-t border-[#f0f0f0] pt-4 text-[13px] leading-relaxed text-[#666]">
-            Entras a todos los eventos de este workspace, también a los que se creen después.
+            Entras a todos los eventos, incluidos los que se creen después.
           </p>
         )}
 
