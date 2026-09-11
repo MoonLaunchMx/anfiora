@@ -4,7 +4,6 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { ArrowLeft, Bell, ChevronDown, Clock, CreditCard, Pencil, Tags, User, Users, X } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
 import { Aviso } from '@/app/components/ui/Aviso'
 import { Cargando } from '@/app/components/ui/Cargando'
 import { miMembresia, patchJson, perfilConFoto } from '@/lib/workspace/cliente'
@@ -174,18 +173,16 @@ function LogoWorkspace({ activo, onCambio }: { activo: WorkspaceResumen; onCambi
 function NombreWorkspace({ activo, onCambio }: { activo: WorkspaceResumen; onCambio: () => void }) {
   const [editando, setEditando] = useState(false)
   const [valor, setValor] = useState(activo.name)
-  const [lema, setLema] = useState(activo.tagline ?? '')
   const [guardando, setGuardando] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const guardar = async () => {
     const limpio = valor.trim()
-    const frase = lema.trim()
-    if (limpio === activo.name && frase === (activo.tagline ?? '')) { setEditando(false); return }
+    if (limpio === activo.name) { setEditando(false); return }
     setGuardando(true)
     setError(null)
     try {
-      await patchJson('/api/workspace', { workspaceId: activo.id, name: limpio, tagline: frase })
+      await patchJson('/api/workspace', { workspaceId: activo.id, name: limpio })
       setEditando(false)
       onCambio()
     } catch (e) {
@@ -194,12 +191,12 @@ function NombreWorkspace({ activo, onCambio }: { activo: WorkspaceResumen; onCam
     setGuardando(false)
   }
 
-  const cancelar = () => { setValor(activo.name); setLema(activo.tagline ?? ''); setError(null); setEditando(false) }
+  const cancelar = () => { setValor(activo.name); setError(null); setEditando(false) }
 
   if (!editando) {
     return (
       <button
-        onClick={() => { setValor(activo.name); setLema(activo.tagline ?? ''); setEditando(true) }}
+        onClick={() => { setValor(activo.name); setEditando(true) }}
         title="Cambiar el nombre del workspace"
         className="group flex items-center gap-1.5 text-left text-xl font-semibold tracking-tight text-[#1D1E20]"
       >
@@ -234,16 +231,88 @@ function NombreWorkspace({ activo, onCambio }: { activo: WorkspaceResumen; onCam
           Cancelar
         </button>
       </span>
-      <input
-        value={lema}
-        onChange={e => setLema(e.target.value)}
-        onKeyDown={e => { if (e.key === 'Enter') guardar(); if (e.key === 'Escape') cancelar() }}
-        maxLength={90}
-        placeholder="Tu eslogan, opcional"
-        className="w-[320px] max-w-full rounded-lg border border-[#e8e8e8] px-2.5 py-1 text-[13px] text-[#666] outline-none placeholder:text-[#bbb] focus:border-[#48C9B0]"
-      />
+
       {error && <span className="text-[11px] text-[#cc3333]">{error}</span>}
     </span>
+  )
+}
+
+// El eslogan vive por su cuenta, debajo del nombre. Cuando esta vacio deja una
+// invitacion discreta a escribirlo: antes solo se descubria entrando a editar
+// el nombre, y ahi nadie lo iba a encontrar.
+function Eslogan({ activo, onCambio }: { activo: WorkspaceResumen; onCambio: () => void }) {
+  const [editando, setEditando] = useState(false)
+  const [valor, setValor] = useState(activo.tagline ?? '')
+  const [guardando, setGuardando] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const abrir = () => { setValor(activo.tagline ?? ''); setError(null); setEditando(true) }
+  const cancelar = () => { setValor(activo.tagline ?? ''); setError(null); setEditando(false) }
+
+  const guardar = async () => {
+    const frase = valor.trim()
+    if (frase === (activo.tagline ?? '')) { setEditando(false); return }
+    setGuardando(true)
+    setError(null)
+    try {
+      await patchJson('/api/workspace', { workspaceId: activo.id, tagline: frase })
+      setEditando(false)
+      onCambio()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'No se pudo guardar')
+    }
+    setGuardando(false)
+  }
+
+  if (editando) {
+    return (
+      <span className="flex flex-col gap-1">
+        <span className="flex flex-wrap items-center gap-1.5">
+          <input
+            value={valor}
+            onChange={e => setValor(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') guardar(); if (e.key === 'Escape') cancelar() }}
+            autoFocus
+            maxLength={90}
+            placeholder="Bodas que se sienten tuyas"
+            className="w-[340px] max-w-full rounded-lg border border-[#e8e8e8] px-2.5 py-1 text-[13px] text-[#1D1E20] outline-none placeholder:text-[#bbb] focus:border-[#48C9B0]"
+          />
+          <button
+            onClick={guardar}
+            disabled={guardando}
+            className="rounded-lg bg-[#48C9B0] px-3 py-1 text-[12px] font-semibold text-white transition hover:bg-[#3ab89f] disabled:opacity-50"
+          >
+            {guardando ? 'Guardando' : 'Guardar'}
+          </button>
+          <button onClick={cancelar} className="px-1 text-[12px] font-medium text-[#888] transition hover:text-[#555]">
+            Cancelar
+          </button>
+        </span>
+        {error && <span className="text-[11px] text-[#cc3333]">{error}</span>}
+      </span>
+    )
+  }
+
+  if (!activo.tagline) {
+    return (
+      <button
+        onClick={abrir}
+        className="w-fit text-[13px] font-medium text-[#a8a8a2] transition hover:text-[#1a9e88]"
+      >
+        Agregar eslogan
+      </button>
+    )
+  }
+
+  return (
+    <button
+      onClick={abrir}
+      title="Cambiar el eslogan"
+      className="group flex w-fit items-center gap-1.5 text-left"
+    >
+      <span className="max-w-[46ch] text-[13px] italic leading-snug text-[#8a8a85]">{activo.tagline}</span>
+      <Pencil size={12} className="shrink-0 text-[#c4c4c4] opacity-0 transition group-hover:opacity-100" />
+    </button>
   )
 }
 
@@ -380,9 +449,12 @@ function Cascara({ children }: { children: ReactNode }) {
           )}
 
           {esAdmin && activo && (
-            <div className="mt-auto rounded-[10px] border border-[#e8e8e8] bg-white p-3">
-              <p className="mb-1 text-xs font-semibold text-[#1D1E20]">Plan {etiquetaPlan(activo.plan)}</p>
+            <div className="mt-auto flex flex-col gap-1 rounded-[10px] border border-[#e8e8e8] bg-white p-3">
+              <p className="text-xs font-semibold text-[#1D1E20]">Plan {etiquetaPlan(activo.plan)}</p>
               <p className="text-xs leading-[1.5] text-[#666]">{asientosTexto}</p>
+              <p className="text-xs leading-[1.5] text-[#999]">
+                Eres {rolTexto(activo)} · {eventosActivos} evento{eventosActivos === 1 ? '' : 's'} activo{eventosActivos === 1 ? '' : 's'}
+              </p>
             </div>
           )}
         </aside>
@@ -409,12 +481,7 @@ function Cascara({ children }: { children: ReactNode }) {
                         <NombreWorkspace activo={activo} onCambio={recargar} />
                         <span className="rounded-full bg-[#e1f5ee] px-2 py-0.5 text-[11px] font-semibold text-[#04342C]">{etiquetaPlan(activo.plan)}</span>
                       </div>
-                      {activo.tagline && (
-                        <p className="max-w-[46ch] text-[13px] italic leading-snug text-[#8a8a85]">{activo.tagline}</p>
-                      )}
-                      <p className="text-[13px] text-[#666]">
-                        Eres {rolTexto(activo)} · {eventosActivos} evento{eventosActivos === 1 ? '' : 's'} activo{eventosActivos === 1 ? '' : 's'}
-                      </p>
+                      <Eslogan activo={activo} onCambio={recargar} />
                     </div>
                   </div>
                   {workspaces.length > 1 && <WorkspaceSwitch activo={activo} workspaces={workspaces} variant="boton" />}
