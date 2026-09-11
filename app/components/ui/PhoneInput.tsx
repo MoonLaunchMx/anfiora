@@ -75,6 +75,9 @@ export default function PhoneInput({
   const txt = compact ? 'text-[13px]' : 'text-sm'
   const [country, setCountry] = useState<CountryCode>(defaultCountry)
   const [text, setText] = useState('')
+  // El aviso espera a que salga del campo. Marcarle error en el primer digito, con
+  // el numero a medio escribir, es regañar a alguien que todavia no termina.
+  const [tocado, setTocado] = useState(false)
   const [open, setOpen] = useState(false)
   const [filter, setFilter] = useState('')
   const [layout, setLayout] = useState<DropdownLayout>({
@@ -293,7 +296,8 @@ export default function PhoneInput({
   // Rojo solo cuando el numero no cabe en E.164, que es la misma vara con la que
   // se guarda. Si ese prefijo existe o no en el mundo, Anfiora no opina: eso lo
   // sabra el planner cuando marque o cuando WhatsApp no entregue.
-  const showError = text.trim() !== '' && revisar(text, country) === null
+  // Ya que aviso una vez, se re-evalua en vivo: el rojo se va solo en cuanto lo corrige.
+  const showError = tocado && text.trim() !== '' && revisar(text, country) === null
 
   // Sin acentos y sin el "+" de la lada: quien escribe "España" o "+34" tiene que
   // encontrar su pais, no una lista vacia.
@@ -375,6 +379,7 @@ export default function PhoneInput({
           disabled={disabled}
           value={text}
           onChange={handleTextChange}
+          onBlur={() => setTocado(true)}
           placeholder={placeholder}
           className={`min-w-0 flex-1 rounded-r-lg bg-transparent px-3 ${padY} text-base text-[#1D1E20] outline-none placeholder:text-[#c0c0c0] disabled:cursor-not-allowed disabled:text-[#ccc]`}
         />
