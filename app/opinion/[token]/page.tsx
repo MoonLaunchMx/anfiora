@@ -6,7 +6,6 @@ import { Check, ChevronDown } from 'lucide-react'
 import EscalaCinco from '@/app/components/ui/EscalaCinco'
 import { anclasDe, EJES_DESEMPENO, NOMBRE_EJE, ANCLAS_RECOMENDACION_CLIENTE } from '@/lib/reviews/ejes'
 import type { Eje } from '@/lib/reviews/ejes'
-import { fechaCortaISO } from '@/lib/rolodex/fecha-corta'
 import { MAX_COMENTARIOS } from '@/lib/types'
 
 type Proveedor = { id: string; nombre: string; categoria: string }
@@ -98,6 +97,8 @@ export default function OpinionPublicaPage() {
   const [errorPorId, setErrorPorId] = useState<Record<string, string>>({})
   const [enviado, setEnviado] = useState(false)
   const [guardando, setGuardando] = useState(false)
+  const [enviando, setEnviando] = useState(false)
+  const [errorEnvio, setErrorEnvio] = useState('')
 
   const filaRefs = useRef<Record<string, HTMLLIElement | null>>({})
   const pendientes = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
@@ -124,9 +125,9 @@ export default function OpinionPublicaPage() {
   // Se guarda solo, proveedor por proveedor: si cierran el navegador a la
   // mitad, el planner ya se quedo con lo contestado. Sin recomendacion no hay
   // nada que guardar todavia.
-  const guardar = useCallback(async (id: string) => {
+  const guardar = useCallback(async (id: string): Promise<boolean> => {
     const r = ultima.current[id]
-    if (!r || r.rec === null) return
+    if (!r || r.rec === null) return true
     setGuardando(true)
     const res = await fetch(`/api/opinion/${token}`, {
       method: 'POST',
@@ -137,10 +138,10 @@ export default function OpinionPublicaPage() {
 
     if (!res || !res.ok) {
       const motivo = res?.status === 410
-        ? 'El link venció.'
+        ? 'Este link ya se cerró.'
         : 'No se pudo guardar. Revisa tu conexión.'
       setErrorPorId(prev => ({ ...prev, [id]: motivo }))
-      return
+      return false
     }
     setErrorPorId(prev => {
       if (!prev[id]) return prev
@@ -148,6 +149,7 @@ export default function OpinionPublicaPage() {
       delete n[id]
       return n
     })
+    return true
   }, [token])
 
   const cambiar = (id: string, cambio: Partial<Respuesta>) => {
@@ -170,11 +172,26 @@ export default function OpinionPublicaPage() {
     })
   }
 
+  // Enviar guarda lo que falte y cierra el link. Si algo no se guardo, no se
+  // cierra: cerrarlo dejaria fuera lo que el cliente ya contesto.
   const enviar = async () => {
     Object.values(pendientes.current).forEach(clearTimeout)
     pendientes.current = {}
+    setErrorEnvio('')
+    setEnviando(true)
     const ids = Object.keys(ultima.current).filter(id => ultima.current[id].rec !== null)
-    for (const id of ids) await guardar(id)
+    let todoGuardado = true
+    for (const id of ids) {
+      if (!(await guardar(id))) todoGuardado = false
+    }
+    const cerrado = todoGuardado
+      ? await fetch(`/api/opinion/${token}`, { method: 'PUT' }).then(res => res.ok).catch(() => false)
+      : false
+    setEnviando(false)
+    if (!cerrado) {
+      setErrorEnvio('No se pudo enviar. Revisa tu conexión.')
+      return
+    }
     setEnviado(true)
     window.scrollTo({ top: 0 })
   }
@@ -184,8 +201,8 @@ export default function OpinionPublicaPage() {
   if (datos.vencido) {
     return (
       <Cascara>
-        <h1 className="mt-10 text-xl font-bold">Este link venció{datos.vence ? ` el ${fechaCortaISO(datos.vence)}` : ''}.</h1>
-        <p className="mt-2 text-sm text-[#666]">Pídele a tu planner que lo reactive.</p>
+        <h1 className="mt-10 text-xl font-bold">Este link ya se cerró.</h1>
+        <p className="mt-2 text-sm text-[#666]">Si necesitas cambiar algo, pídele a tu planner que lo reactive.</p>
       </Cascara>
     )
   }
@@ -206,13 +223,6 @@ export default function OpinionPublicaPage() {
         <p className="mt-4 text-[13px] leading-relaxed text-[#999]">
           Calificaron {listos} de {total} proveedores de {datos.evento.nombre}. Su planner ya lo recibió.
         </p>
-        <button
-          type="button"
-          onClick={() => setEnviado(false)}
-          className="mt-6 w-full rounded-lg border border-[#e0e0e0] bg-white py-3 text-sm font-semibold text-[#1D1E20] transition hover:bg-[#f5f5f5]"
-        >
-          Ver o corregir sus respuestas
-        </button>
       </Cascara>
     )
   }
@@ -398,13 +408,14 @@ export default function OpinionPublicaPage() {
           className="mx-auto w-full max-w-md px-5 pt-3"
           style={{ paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom, 0px))' }}
         >
+          {errorEnvio && <p className="mb-2 text-center text-[11px] text-[var(--error-text)]">{errorEnvio}</p>}
           <button
             type="button"
-            disabled={listos === 0 || guardando}
+            disabled={listos === 0 || guardando || enviando}
             onClick={enviar}
             className="w-full rounded-lg bg-[#48C9B0] py-3 text-sm font-semibold text-white transition hover:bg-[#3aa896] disabled:bg-[#f2f2f2] disabled:text-[#bbb]"
           >
-            {guardando ? 'Guardando…' : listos === 0 ? 'Enviar' : listos === total ? `Enviar los ${total}` : `Enviar ${listos} de ${total}`}
+            {guardando || enviando ? 'Guardando…' : 'Enviar'}
           </button>
         </div>
       </footer>

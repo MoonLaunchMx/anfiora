@@ -109,6 +109,7 @@ export default function RegistroForm({ token, maxCompanions, botonClassName, tic
           onChange={setPhone}
           defaultCountry={pais}
           placeholder="Número de WhatsApp"
+          estricto
         />
       </div>
 

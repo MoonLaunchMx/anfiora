@@ -107,8 +107,11 @@ export function detectCountry(raw: string): CountryCode | null {
   return parsed?.country ?? null
 }
 
+// Abrir WhatsApp es una accion del planner, no un candado: se arma la liga con lo
+// que haya y que WhatsApp diga si el numero existe. Antes un numero con lada rara
+// no alcanzaba a abrir la conversacion.
 export function toWhatsApp(raw: string, defaultCountry: CountryCode = DEFAULT_COUNTRY): string | null {
-  const e164 = toE164(raw, defaultCountry)
+  const e164 = componerTelefono(raw, defaultCountry)
   if (!e164) return null
   return e164.replace(/\D/g, '')
 }
@@ -123,4 +126,120 @@ export function nationalNumber(raw: string): string {
   const parsed = parsePhoneNumberFromString(raw.trim())
   if (parsed) return parsed.nationalNumber
   return raw.replace(/\D/g, '')
+}
+
+const MAX_E164_DIGITS = 15
+
+// Mexico retiro el "1" troncal de moviles en 2019; libphonenumber ya no lo acepta,
+// pero contactos viejos y exports de WhatsApp aun traen +521 + 10 digitos.
+function sinTroncalMx(digitos: string): string {
+  return /^521\d{10}$/.test(digitos) ? '52' + digitos.slice(3) : digitos
+}
+
+// Pega la lada con el numero y lo devuelve en E.164. NO opina si ese prefijo
+// existe en el mundo: quien sabe si un numero sirve es el planner cuando marca o
+// cuando WhatsApp no entrega, no la metadata de una libreria que siempre va atras
+// de las asignaciones reales. Lo unico que rechaza es lo que no cabe en E.164.
+// Para candados sobre entrada no confiable (la puerta publica) sigue estando toE164.
+export function componerTelefono(raw: string, country: CountryCode = DEFAULT_COUNTRY): string | null {
+  if (!raw || !raw.trim()) return null
+  const texto = raw.trim()
+  const digitos = sinTroncalMx(texto.replace(/\D/g, ''))
+  if (!digitos || digitos.length > MAX_E164_DIGITS) return null
+  // Una lada sola no es un telefono: no hay a quien marcar. AsYouType sabe donde
+  // termina la lada aun en numeros que no reconoce, asi que se pregunta en vez de
+  // adivinar por largo. Esto no es opinar si el numero existe, es notar que no hay
+  // numero del suscriptor.
+  if (texto.startsWith('+')) {
+    const ayt = new AsYouType()
+    ayt.input('+' + digitos)
+    const lada = ayt.getCallingCode()
+    if (lada && digitos.length <= lada.length) return null
+  }
+
+  // Mientras la libreria entienda el numero se usa su lectura, que sabe quitar
+  // prefijos troncales y no duplicar la lada. Cuando no lo entiende no se rechaza:
+  // se pega la lada del selector a mano.
+  const parsed = parsePhoneNumberFromString(texto.startsWith('+') ? '+' + digitos : texto, country)
+  const salida = parsed
+    ? parsed.number
+    : texto.startsWith('+')
+      ? '+' + digitos
+      : '+' + getCountryCallingCode(country) + digitos
+
+  // El tope se mide sobre el numero YA COMPUESTO, no sobre lo que se tecleo: en
+  // Mexico teclear 15 digitos guardaba 17 con la lada, pasandose de E.164.
+  return salida.replace(/\D/g, '').length > MAX_E164_DIGITS ? null : salida
+}
+
+// La lada de la plantilla: digitos ("51", "+51", "0051") o el nombre del pais
+// ("Peru", "España", "PE"). Vacio o irreconocible devuelve null y manda al default.
+function ladaADigitos(lada: string): string | null {
+  const texto = (lada || '').trim()
+  if (!texto) return null
+  const digitos = texto.replace(/^\+/, '').replace(/^00/, '')
+  if (/^\d{1,4}$/.test(digitos)) return digitos
+  const norm = sinAcentos(texto)
+  const pais = COUNTRIES.find(c => sinAcentos(c.name) === norm || sinAcentos(c.iso) === norm)
+  return pais ? pais.dial.replace('+', '') : null
+}
+
+// Importacion: la lada vive en su propia columna porque Excel trata cualquier celda
+// que empieza con "+" como formula y se lo come.
+export function componerDesdeLada(
+  lada: string,
+  telefono: string,
+  porDefecto: CountryCode = DEFAULT_COUNTRY
+): string | null {
+  const tel = (telefono || '').trim()
+  if (!tel) return null
+  if (tel.startsWith('+')) return componerTelefono(tel, porDefecto)
+
+  const dial = ladaADigitos(lada)
+  if (!dial) return componerTelefono(tel, porDefecto)
+
+  let digitos = tel.replace(/\D/g, '')
+  if (!digitos) return null
+  // Hay quien escribe la lada en las dos columnas; no se duplica.
+  if (digitos.startsWith(dial) && digitos.length - dial.length >= 6) digitos = digitos.slice(dial.length)
+  return componerTelefono('+' + dial + digitos, porDefecto)
+}
+
+// La lada que el propio numero trae escrita. El selector la usa para no mentir:
+// cuando libphonenumber no puede nombrar el pais (+1 663 no es una clave de area
+// asignada), antes caia en Mexico y el boton decia +52 sobre un numero que
+// empieza con +1. Devuelve null si el numero no trae lada explicita.
+export function ladaEscrita(raw: string): string | null {
+  const texto = (raw || '').trim()
+  if (!texto.startsWith('+')) return null
+  const parsed = parsePhoneNumberFromString(texto)
+  return parsed?.countryCallingCode ? '+' + parsed.countryCallingCode : null
+}
+
+// El pais al que pertenece un numero ya guardado. Si libphonenumber no puede
+// nombrarlo (+1 663 no es una clave de area asignada) se resuelve por la lada
+// contra la lista del selector. Sirve para que el campo no ensene la lada dos
+// veces, una en el boton y otra dentro del texto.
+export function paisDeNumero(raw: string): CountryCode | null {
+  const directo = detectCountry(raw)
+  if (directo) return directo
+  const lada = ladaEscrita(raw)
+  if (!lada) return null
+  return COUNTRIES.find(c => c.dial === lada)?.iso ?? null
+}
+
+// A donde vuelve el cursor despues de reformatear. El campo se re-escribe en cada
+// tecla, y sin esto el navegador manda el cursor al FINAL: borrar un digito de
+// enmedio se volvia imposible. Se cuenta por digitos, no por posicion, porque los
+// separadores se mueven solos al reformatear.
+export function posicionDelCaret(texto: string, digitosAntes: number): number {
+  if (digitosAntes <= 0) return 0
+  let vistos = 0
+  for (let i = 0; i < texto.length; i++) {
+    if (texto[i] >= '0' && texto[i] <= '9') {
+      vistos++
+      if (vistos === digitosAntes) return i + 1
+    }
+  }
+  return texto.length
 }
