@@ -1,6 +1,6 @@
 'use client'
 import { useState } from 'react'
-import { Check, Copy, UserPlus, Users } from 'lucide-react'
+import { Check, Copy, UserPlus } from 'lucide-react'
 import { AltaPersonaModal } from '@/app/components/workspace/AltaPersonaModal'
 import { FichaMiembroModal } from '@/app/components/workspace/FichaMiembroModal'
 import { resumenAsientos } from '@/lib/workspace/asientos'
@@ -153,34 +153,18 @@ export default function EquipoPage() {
         </div>
       </div>
 
-      {soloYo && esFree ? (
-        <div className="flex flex-col items-start gap-2.5 rounded-xl border border-[#e8e8e8] p-6">
-          <span className="rounded-full bg-[#f4f4f4] px-2.5 py-0.5 text-[11px] font-semibold text-[#666]">Plan Free</span>
-          <p className="text-[15px] font-semibold text-[#1D1E20]">El equipo es parte de Pro</p>
-          <p className="max-w-[46ch] text-[13px] leading-relaxed text-[#666]">
-            En Free trabajas tú solo con un evento activo. Pro cuesta {dinero(PLANES.pro.precio)} al mes, quita ese límite y te deja sumar a tu equipo por {dinero(PRECIO_ASIENTO_EXTRA)} cada asiento.
+      {soloYo && esFree && (
+        <div className="flex flex-col items-start gap-2 rounded-xl border border-[#f0dfae] bg-[#fffbf0] p-5">
+          <p className="text-sm font-semibold text-[#7a5a14]">El equipo es parte de Pro</p>
+          <p className="max-w-[52ch] text-[13px] leading-relaxed text-[#7a5a14]">
+            En Free trabajas tú solo. Escríbenos a{' '}
+            <a href="mailto:partners@anfiora.com" className="font-semibold underline underline-offset-2">partners@anfiora.com</a>
+            {' '}y te activamos Pro sin costo. Invitar clientes sí está incluido, y se hace desde cada evento.
           </p>
-          <button
-            onClick={() => setAlta(true)}
-            className="mt-1 rounded-[10px] bg-[#48C9B0] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#3ab89f]"
-          >
-            Ver Pro
-          </button>
-          <p className="text-xs text-[#999]">Invitar clientes sí está incluido en Free. Se hace desde cada evento.</p>
         </div>
-      ) : soloYo ? (
-        <div className="flex flex-col items-center gap-2.5 rounded-xl border border-[#e8e8e8] px-6 py-8 text-center">
-          <Users size={28} className="text-[#ccc]" strokeWidth={1.5} />
-          <p className="text-[15px] font-semibold text-[#1D1E20]">Todavía trabajas solo</p>
-          <p className="max-w-[36ch] text-[13px] leading-relaxed text-[#666]">Agrega a alguien de tu equipo y elige a qué eventos entra.</p>
-          <button
-            onClick={() => setAlta(true)}
-            className="mt-1.5 rounded-[10px] bg-[#48C9B0] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#3ab89f]"
-          >
-            Agregar persona
-          </button>
-        </div>
-      ) : (
+      )}
+
+      {(
         <>
           <div className="hidden overflow-hidden rounded-xl border border-[#e8e8e8] sm:block">
             <div className={`grid ${COLS} gap-4 border-b border-[#e8e8e8] bg-[#fafafa] px-5 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-[#999]`}>
@@ -297,6 +281,12 @@ export default function EquipoPage() {
           </>
         )}
       </div>
+
+      {soloYo && !esFree && (
+        <p className="text-[13px] text-[#888]">
+          Por ahora solo estás tú. Agrega a alguien de tu equipo y elige a qué eventos entra.
+        </p>
+      )}
 
       {alta && <AltaPersonaModal open onClose={() => setAlta(false)} workspace={activo} onHecho={() => recargar()} />}
       {ficha && <FichaMiembroModal open onClose={() => setFicha(null)} workspace={activo} miembro={ficha} onHecho={() => recargar()} />}
