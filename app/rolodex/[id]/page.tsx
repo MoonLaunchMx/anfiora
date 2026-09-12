@@ -147,7 +147,7 @@ export default function ExpedientePage() {
                 </span>
               )}
             </div>
-            <p className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[12.5px] text-[#999]">
+            <p className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[13.5px] text-[#999]">
               {ubicacion && (
                 <span className="inline-flex items-center gap-1">
                   <MapPin size={12} className="text-[#c4c4c4]" />
@@ -163,7 +163,7 @@ export default function ExpedientePage() {
               )}
             </p>
             {(s.contact_name || telVisible || s.email) && (
-              <p className="text-[12.5px] text-[#666]">
+              <p className="text-[13.5px] text-[#666]">
                 {[s.contact_name && <b key="n" className="font-semibold text-[#1D1E20]">{s.contact_name}</b>, telVisible && <span key="t" className="tabular-nums">{telVisible}</span>, s.email]
                   .filter(Boolean)
                   .map((parte, i) => <span key={i}>{i > 0 && <span className="text-[#c4c4c4]"> · </span>}{parte}</span>)}
@@ -225,7 +225,7 @@ export default function ExpedientePage() {
               key={nombre}
               type="button"
               onClick={() => setCarpeta(nombre)}
-              className={`relative top-px flex items-center gap-1.5 rounded-t-[10px] border border-b-0 border-[#e4e1db] px-3.5 pb-2 pt-2 text-xs font-semibold transition ${
+              className={`relative top-px flex items-center gap-1.5 rounded-t-[10px] border border-b-0 border-[#e4e1db] px-4 pb-2 pt-2 text-[13px] font-semibold transition ${
                 activa ? 'bg-white pb-2.5 text-[#1D1E20]' : 'bg-[#efede8] text-[#8a8a8a] hover:text-[#5F5C57]'
               }`}
             >
@@ -253,7 +253,7 @@ function Kpi({ etiqueta, pie, chico, children }: { etiqueta: string; pie: string
     <div className="flex flex-col gap-0.5 bg-white px-4 py-3.5">
       <span className="text-[10px] font-bold uppercase tracking-[.09em] text-[#999]">{etiqueta}</span>
       <span className={`flex items-baseline gap-1.5 font-extrabold leading-tight tracking-tight text-[#1D1E20] ${chico ? 'text-[15px] sm:text-base' : 'text-xl'}`}>{children}</span>
-      <span className="text-[11px] text-[#999]">{pie}</span>
+      <span className="text-[11.5px] text-[#999]">{pie}</span>
     </div>
   )
 }
