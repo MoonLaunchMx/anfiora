@@ -7,6 +7,7 @@ import { Event, EventStatus, formatEventDate } from '@/lib/types'
 import { Bell, MessageSquarePlus } from 'lucide-react'
 import { WhatsNewModal } from '@/app/components/WhatsNewModal'
 import { NewEventModal } from '@/app/components/NewEventModal'
+import { EnlaceRolodex } from '@/app/components/EnlaceRolodex'
 import { OnboardingModal } from '@/app/components/OnboardingModal'
 
 export const dynamic = 'force-dynamic'
@@ -611,6 +612,7 @@ export default function Dashboard() {
                 </div>
               )}
             </div>
+            <EnlaceRolodex />
             <button
               onClick={() => window.dispatchEvent(new CustomEvent('anfiora:open-feedback'))}
               title="Enviar feedback"
