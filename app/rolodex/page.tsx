@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Columns2, Filter, Search, X } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { Cargando } from '@/app/components/ui/Cargando'
+import StatsCollapse, { useStatsToggle, StatsToggleButton } from '@/app/components/ui/StatsCollapse'
 import { Categoria, cargarCategorias, nombrePorId } from '@/lib/rolodex/categorias-store'
 import { hoyISO } from '@/lib/rolodex/expediente'
 import type { EventoCrudo, PagoCrudo, PartidaCruda } from '@/lib/rolodex/expediente'
@@ -43,6 +44,10 @@ export default function DirectorioPage() {
   const [menu, setMenu] = useState<Menu>(null)
   const barraRef = useRef<HTMLDivElement>(null)
   const hoy = useMemo(() => hoyISO(), [])
+  // El Rolodex es de la cuenta, no de un evento: 'rolodex' hace de id para la
+  // preferencia guardada. El plegado solo ocurre en movil, que es donde las
+  // fichas estorban; en escritorio las cifras van junto al titulo y no pesan.
+  const plegable = useStatsToggle('rolodex', 'directorio')
 
   useEffect(() => { setColumnas(cargarColumnasDirectorio()) }, [])
 
@@ -188,12 +193,9 @@ export default function DirectorioPage() {
   return (
     <div className="flex flex-col gap-4">
 
-      <div>
-        <h1 className="text-2xl font-extrabold tracking-tight text-[#1D1E20]">Rolodex</h1>
-        <p className="mt-0.5 text-[13px] text-[#999]">Todos tus proveedores, con su historia en cada evento</p>
-      </div>
-
       {estado.filas.length === 0 ? (
+        <>
+        <Titulo />
         <div className="flex min-h-[40dvh] flex-col items-center justify-center rounded-2xl border border-dashed border-[#e0e0e0] bg-white p-6 text-center">
           <p className="text-sm font-semibold text-[#1D1E20]">Tu Rolodex está vacío</p>
           <p className="mt-1 max-w-sm text-xs text-[#888]">
@@ -203,25 +205,35 @@ export default function DirectorioPage() {
             Ir a mis eventos
           </a>
         </div>
+        </>
       ) : (
         <>
-          <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-4">
-            <Ficha etiqueta="Proveedores" valor={String(stats.total)} pie={stats.sinEvento > 0 ? `${stats.sinEvento} sin evento todavía` : 'todos han estado en un evento'} />
-            <Ficha etiqueta="Contratados" valor={String(stats.contratados)} pie={`de ${stats.conEvento} que has usado`} />
-            <Ficha
-              etiqueta="Tasa de cierre"
-              valor={stats.tasa != null ? `${stats.tasa}%` : 'Sin datos'}
-              pie={stats.tasa != null ? `${stats.tasaContratados} de ${stats.tasaCotizados} cotizaciones` : 'todavía no pides cotizaciones'}
-              verde={stats.tasa != null}
-              apagado={stats.tasa == null}
-            />
-            <Ficha
-              etiqueta="Ahorro negociado"
-              valor={stats.ahorro != null ? `${stats.ahorro > 0 ? '+' : ''}${stats.ahorro}%` : 'Sin datos'}
-              pie={stats.ahorro != null ? `promedio de ${stats.ahorroN} ${stats.ahorroN === 1 ? 'contrato' : 'contratos'}` : 'falta cotizado y contratado'}
-              verde={stats.ahorro != null && stats.ahorro <= 0}
-              apagado={stats.ahorro == null}
-            />
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between lg:gap-8">
+            <Titulo>
+              <div className="mt-1 lg:hidden">
+                <StatsToggleButton visible={plegable.visible} onClick={plegable.toggle} />
+              </div>
+            </Titulo>
+            <StatsCollapse visible={plegable.visible}>
+              <div className="grid grid-cols-2 gap-2.5 lg:flex lg:gap-7">
+                <Ficha etiqueta="Proveedores" valor={String(stats.total)} pie={stats.sinEvento > 0 ? `${stats.sinEvento} sin evento todavía` : 'todos con evento'} />
+                <Ficha etiqueta="Contratados" valor={String(stats.contratados)} pie={`de ${stats.conEvento} que has usado`} />
+                <Ficha
+                  etiqueta="Tasa de cierre"
+                  valor={stats.tasa != null ? `${stats.tasa}%` : 'Sin datos'}
+                  pie={stats.tasa != null ? `${stats.tasaContratados} de ${stats.tasaCotizados} cotizaciones` : 'todavía no pides cotizaciones'}
+                  verde={stats.tasa != null}
+                  apagado={stats.tasa == null}
+                />
+                <Ficha
+                  etiqueta="Ahorro negociado"
+                  valor={stats.ahorro != null ? `${stats.ahorro > 0 ? '+' : ''}${stats.ahorro}%` : 'Sin datos'}
+                  pie={stats.ahorro != null ? `promedio de ${stats.ahorroN} ${stats.ahorroN === 1 ? 'contrato' : 'contratos'}` : 'falta cotizado y contratado'}
+                  verde={stats.ahorro != null && stats.ahorro <= 0}
+                  apagado={stats.ahorro == null}
+                />
+              </div>
+            </StatsCollapse>
           </div>
 
           <div ref={barraRef} className="flex flex-wrap items-center gap-2">
@@ -370,6 +382,19 @@ export default function DirectorioPage() {
   )
 }
 
+function Titulo({ children }: { children?: React.ReactNode }) {
+  return (
+    <div className="shrink-0">
+      <h1 className="text-2xl font-extrabold tracking-tight text-[#1D1E20]">Rolodex</h1>
+      <p className="mt-0.5 text-[13px] text-[#999]">Todos tus proveedores, con su historia en cada evento</p>
+      {children}
+    </div>
+  )
+}
+
+// En escritorio las cifras van desnudas junto al titulo: sin caja, sin borde y
+// sin fondo, para no robarle alto a la tabla. En movil, donde van debajo y se
+// pliegan, si llevan tarjeta para que se lean como bloques aparte.
 function Ficha({ etiqueta, valor, pie, verde, apagado }: {
   etiqueta: string
   valor: string
@@ -378,12 +403,12 @@ function Ficha({ etiqueta, valor, pie, verde, apagado }: {
   apagado?: boolean
 }) {
   return (
-    <div className="flex flex-col gap-px rounded-2xl border border-[#e8e8e8] bg-white px-4 py-3.5">
-      <span className="text-[10.5px] font-bold uppercase tracking-[.1em] text-[#999]">{etiqueta}</span>
-      <span className={`text-[30px] font-extrabold leading-[1.15] tracking-tight tabular-nums ${apagado ? 'text-[19px] text-[#c4c4c4]' : verde ? 'text-[#1D9E75]' : 'text-[#1D1E20]'}`}>
+    <div className="flex flex-col gap-px rounded-2xl border border-[#e8e8e8] bg-white px-4 py-3.5 lg:rounded-none lg:border-0 lg:bg-transparent lg:px-0 lg:py-0">
+      <span className="text-[10.5px] font-bold uppercase tracking-[.1em] text-[#999] lg:whitespace-nowrap">{etiqueta}</span>
+      <span className={`font-extrabold leading-[1.15] tracking-tight tabular-nums ${apagado ? 'text-[19px] text-[#c4c4c4] lg:text-base' : `text-[30px] lg:text-[26px] ${verde ? 'text-[#1D9E75]' : 'text-[#1D1E20]'}`}`}>
         {valor}
       </span>
-      <span className="text-[11.5px] text-[#999]">{pie}</span>
+      <span className="text-[11.5px] text-[#999] lg:whitespace-nowrap">{pie}</span>
     </div>
   )
 }
