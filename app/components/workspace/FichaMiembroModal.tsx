@@ -8,6 +8,7 @@ import { PermisosEditor } from '@/app/events/[id]/configuracion/PermisosEditor'
 import { eventosParaRepartir, hoyISO } from '@/lib/workspace/eventos'
 import type { PermisosEvento } from '@/lib/permisos/catalogo'
 import { aplicarKit, permisosDeRol } from '@/lib/permisos/resolver'
+import { resumenPermisos } from '@/lib/permisos/resumen'
 import { deleteJson, patchJson } from '@/lib/workspace/cliente'
 import { enlaceWhatsApp, mensajeEquipo } from '@/lib/workspace/compartir'
 import { kitDesde } from '@/lib/workspace/invitacion'
@@ -30,6 +31,8 @@ export function FichaMiembroModal({ open, onClose, workspace, miembro, onHecho }
     Object.fromEntries(miembro.bodas.filter(b => b.status !== 'revoked').map(b => [b.eventId, b.permisos])),
   )
   const [abierta, setAbierta] = useState<string | null>(null)
+  // Eventos agregados en esta sesion que todavia no tienen permisos elegidos.
+  const [porElegir, setPorElegir] = useState<Set<string>>(new Set())
   const [error, setError] = useState('')
   const [accion, setAccion] = useState<'guardar' | 'quitar' | null>(null)
   const [copiado, setCopiado] = useState(false)
@@ -41,6 +44,7 @@ export function FichaMiembroModal({ open, onClose, workspace, miembro, onHecho }
   const bodasActivas = eventosParaRepartir(workspace.bodas, hoyISO(), yaTiene)
 
   const alternar = (eventId: string) => {
+    const yaEstaba = !!bodas[eventId]
     setBodas(prev => {
       const n = { ...prev }
       if (n[eventId]) delete n[eventId]
@@ -50,9 +54,25 @@ export function FichaMiembroModal({ open, onClose, workspace, miembro, onHecho }
       }
       return n
     })
+    setPorElegir(prev => {
+      const n = new Set(prev)
+      if (yaEstaba) n.delete(eventId)
+      else n.add(eventId)
+      return n
+    })
+    // Se abre solo: agregar un evento ES elegir sus permisos.
+    if (!yaEstaba) setAbierta(eventId)
   }
 
   const guardar = async () => {
+    if (porElegir.size > 0) {
+      const nombres = [...porElegir]
+        .map(id => workspace.bodas.find(b => b.id === id)?.name)
+        .filter(Boolean)
+      setError('Falta elegir los permisos de: ' + nombres.join(', '))
+      setAbierta([...porElegir][0])
+      return
+    }
     setAccion('guardar'); setError('')
     try {
       await patchJson(`/api/workspace/miembros/${miembro.id}`, {
@@ -127,16 +147,50 @@ export function FichaMiembroModal({ open, onClose, workspace, miembro, onHecho }
               <div className="mt-1 flex flex-col gap-1.5">
                 {bodasActivas.map(b => {
                   const on = !!bodas[b.id]
+                  const falta = porElegir.has(b.id)
+                  const resumen = on ? resumenPermisos(bodas[b.id]) : null
                   return (
-                    <div key={b.id} className={'rounded-lg border ' + (on ? 'border-[#48C9B0]' : 'border-[#e0e0e0]')}>
+                    <div
+                      key={b.id}
+                      className={'rounded-lg border ' + (
+                        falta ? 'border-[#f0dfae] bg-[#fffbf0]'
+                        : on ? 'border-[#48C9B0] bg-[#f0fdfb]'
+                        : 'border-[#e0e0e0]'
+                      )}
+                    >
                       <div className="flex items-center gap-3 px-3 py-2.5">
                         <input type="checkbox" checked={on} onChange={() => alternar(b.id)} className="accent-[#48C9B0]" />
-                        <span className="min-w-0 flex-1 truncate text-sm font-medium text-[#1D1E20]">{b.name}</span>
-                        {on && <button type="button" onClick={() => setAbierta(abierta === b.id ? null : b.id)} className="text-[11px] font-semibold text-[#1a9e88]">{abierta === b.id ? 'Cerrar' : 'Permisos'}</button>}
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-sm font-semibold text-[#1D1E20]">{b.name}</span>
+                          {on && (
+                            <span className={'block text-xs ' + (falta ? 'font-semibold text-[#8a6a1f]' : 'text-[#1a9e88]')}>
+                              {falta ? 'Falta elegir permisos' : resumen!.texto === 'Sin acceso' ? 'Sin herramientas' : resumen!.texto + ' herramientas'}
+                            </span>
+                          )}
+                        </span>
+                        {on && (
+                          <button
+                            type="button"
+                            onClick={() => setAbierta(abierta === b.id ? null : b.id)}
+                            className={'shrink-0 rounded-lg border bg-white px-3 py-1.5 text-xs font-semibold transition ' + (
+                              falta ? 'border-[#f0dfae] text-[#8a6a1f]' : 'border-[#cdeee6] text-[#1a9e88]'
+                            )}
+                          >
+                            {abierta === b.id ? 'Cerrar' : falta ? 'Elegir' : 'Ajustar'}
+                          </button>
+                        )}
                       </div>
                       {on && abierta === b.id && (
-                        <div className="border-t border-[#e8e8e8] px-3 py-3">
-                          <PermisosEditor permisos={bodas[b.id]} features={b.features} onChange={next => setBodas(prev => ({ ...prev, [b.id]: next }))} />
+                        <div className="border-t border-[#e8e8e8] bg-white px-3 py-3">
+                          <PermisosEditor
+                            permisos={bodas[b.id]}
+                            features={b.features}
+                            onChange={next => {
+                              setBodas(prev => ({ ...prev, [b.id]: next }))
+                              // Tocar los permisos ES elegirlos: deja de faltar.
+                              setPorElegir(prev => { const n = new Set(prev); n.delete(b.id); return n })
+                            }}
+                          />
                         </div>
                       )}
                     </div>

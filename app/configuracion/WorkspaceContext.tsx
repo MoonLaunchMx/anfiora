@@ -37,6 +37,20 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => { recargar() }, [recargar])
 
+  // Refresco al volver. Si cambiaste algo en el telefono y regresas a esta
+  // pestaña, o se cayo el internet y volvio, los datos se vuelven a pedir. Es
+  // el piso que tiene cualquier SaaS; el tiempo real de verdad (que el
+  // servidor avise al instante) es otro proyecto y no hace falta aqui.
+  useEffect(() => {
+    const alVolver = () => { if (document.visibilityState === 'visible') recargar() }
+    document.addEventListener('visibilitychange', alVolver)
+    window.addEventListener('online', recargar)
+    return () => {
+      document.removeEventListener('visibilitychange', alVolver)
+      window.removeEventListener('online', recargar)
+    }
+  }, [recargar])
+
   const value = useMemo(() => ({ activo, workspaces, cargando, error, recargar }), [activo, workspaces, cargando, error, recargar])
   return <WorkspaceCtx.Provider value={value}>{children}</WorkspaceCtx.Provider>
 }

@@ -6,7 +6,6 @@ import { Modal } from '@/app/components/ui/Modal'
 import { PermisosEditor } from '@/app/events/[id]/configuracion/PermisosEditor'
 import type { PermisosEvento } from '@/lib/permisos/catalogo'
 import { aplicarKit, permisosDeRol } from '@/lib/permisos/resolver'
-import { resumenPermisos } from '@/lib/permisos/resumen'
 import { contarAsientos, puedeInvitar } from '@/lib/workspace/asientos'
 import { enlaceWhatsApp, mensajeEquipo } from '@/lib/workspace/compartir'
 import { eventoTerminado, eventosParaRepartir, hoyISO } from '@/lib/workspace/eventos'
@@ -124,14 +123,16 @@ export function AltaPersonaModal({ open, onClose, workspace, bodaFija, onHecho }
   const link = token ? `${window.location.origin}/invite/${token}` : ''
   const copiar = async () => { await navigator.clipboard.writeText(link); setCopiado(true); setTimeout(() => setCopiado(false), 1500) }
 
-  const titulos: Record<Paso, string> = { 1: 'Persona', 2: 'Eventos', 3: 'Permisos' }
-  const pasos = (
-    <p className="mb-1 text-[11px] text-[#999]">
-      {([1, 2, 3] as Paso[]).filter(p => !(rol === 'admin' && p === 2)).map((p, i) => (
-        <span key={p}>{i > 0 && <span className="mx-1 text-[#ccc]">›</span>}<span className={p === paso ? 'font-semibold text-[#1D1E20]' : ''}>{p} {titulos[p]}</span></span>
-      ))}
-    </p>
-  )
+  // Los pasos se dicen en el subtitulo, con el resto del texto: la tira de
+  // migajas a 11 px no se leia y ademas competia con el contenido.
+  const totalPasos = rol === 'admin' ? 2 : 3
+  const pasoActual = rol === 'admin' && paso === 3 ? 2 : paso
+  const queHacer: Record<Paso, string> = {
+    1: 'quién entra y con qué rol',
+    2: 'a qué eventos entra',
+    3: 'qué puede hacer en cada evento',
+  }
+  const subtituloPaso = `Paso ${pasoActual} de ${totalPasos} · ${queHacer[paso]}`
 
   const btnBase = 'rounded-lg px-4 py-2 text-sm font-semibold transition disabled:opacity-60'
   const btnCta = btnBase + ' bg-[#48C9B0] text-[#08312a]'
@@ -141,7 +142,7 @@ export function AltaPersonaModal({ open, onClose, workspace, bodaFija, onHecho }
     <Modal open={open} onClose={onClose} size={paso === 3 && rol === 'colaborador' && elegidas.size > 1 ? '2xl' : 'lg'}>
       <Modal.Header
         title={token ? 'Invitación lista' : 'Agregar persona al workspace'}
-        subtitle={token ? 'Copia el enlace y mándaselo. Al entrar ya tiene sus eventos y sus permisos.' : 'Recibe un enlace. Al entrar ya tiene sus eventos y sus permisos.'}
+        subtitle={token ? 'Copia el enlace y mándaselo. Al entrar ya tiene sus eventos y sus permisos.' : subtituloPaso}
       />
       <Modal.Body>
         {token ? (
@@ -176,7 +177,6 @@ export function AltaPersonaModal({ open, onClose, workspace, bodaFija, onHecho }
           </div>
         ) : (
           <div className="flex flex-col gap-3">
-            {pasos}
             {paso === 1 && (
               <>
                 <label className="text-xs font-semibold text-[#666]">Correo
@@ -267,34 +267,26 @@ export function AltaPersonaModal({ open, onClose, workspace, bodaFija, onHecho }
                   // pestañas servian para tres o cuatro; aqui el numero lo pone
                   // el planner y puede ser veinte. El scroll de arriba abajo si
                   // lo sabe usar cualquiera, el de lado no.
-                  <div className="grid gap-0 overflow-hidden rounded-xl border border-[#e4e1db] sm:grid-cols-[minmax(0,210px)_minmax(0,1fr)]">
-                    <div className="anf-barra-fina flex max-h-[180px] flex-col gap-0.5 overflow-y-auto border-b border-[#e4e1db] bg-[#fcfcfb] p-2 sm:max-h-[340px] sm:border-b-0 sm:border-r">
+                  <div className="grid gap-0 sm:grid-cols-[minmax(0,230px)_minmax(0,1fr)] sm:gap-6">
+                    <div className="anf-barra-fina flex max-h-[200px] flex-col gap-1 overflow-y-auto border-b border-[#f0eeea] pb-3 sm:max-h-[360px] sm:border-b-0 sm:border-r sm:pb-0 sm:pr-4">
                       {[...elegidas].map(id => {
                         const boda = workspace.bodas.find(b => b.id === id)
                         if (!boda) return null
                         const abierta = bodaActual === id
-                        const resumen = resumenPermisos(permisosDe(id))
                         return (
                           <button
                             key={id}
                             type="button"
                             onClick={() => setBodaActual(id)}
-                            className={'flex flex-col gap-px rounded-lg px-2.5 py-[7px] text-left transition ' + (abierta ? 'bg-white shadow-[inset_0_0_0_1px_#e8e8e8]' : 'hover:bg-white/70')}
+                            className={'flex flex-col gap-0.5 rounded-lg border px-3 py-2.5 text-left transition ' + (abierta ? 'border-[#48C9B0] bg-[#f0fdfb]' : 'border-transparent hover:bg-[#f8f8f6]')}
                           >
-                            <span className="truncate text-[12.5px] font-semibold text-[#1D1E20]">{boda.name}</span>
-                            <span className="truncate text-[10.5px] text-[#999]">{boda.event_date ?? 'Sin fecha'}</span>
-                            <span className={'text-[10px] font-bold tracking-[0.03em] ' + (resumen.entra === 0 ? 'text-[#bbb]' : 'text-[#1a9e88]')}>
-                              {resumen.texto}
-                            </span>
+                            <span className={'truncate text-sm font-semibold ' + (abierta ? 'text-[#0a5c4e]' : 'text-[#1D1E20]')}>{boda.name}</span>
+                            <span className="truncate text-xs text-[#999]">{boda.event_date ?? 'Sin fecha'}</span>
                           </button>
                         )
                       })}
                     </div>
-                    <div className="min-w-0 bg-white px-4 py-3">
-                      <p className="text-[13px] font-bold text-[#1D1E20]">{workspace.bodas.find(b => b.id === bodaActual)?.name}</p>
-                      <p className="mb-2.5 text-[11.5px] text-[#999]">
-                        {workspace.bodas.find(b => b.id === bodaActual)?.event_date ?? 'Sin fecha'}
-                      </p>
+                    <div className="min-w-0 pt-3 sm:pt-0">
                       <PermisosEditor
                         permisos={permisosDe(bodaActual)}
                         features={workspace.bodas.find(b => b.id === bodaActual)!.features}
