@@ -82,17 +82,27 @@ export function EventAccessProvider({
           setFeatures(resolveFeatures(event.event_type, settings?.enabled_features ?? null))
         }
 
+        // Una sola lectura de membresia para los dos caminos. 'dueno' aqui
+        // significa dueno DEL WORKSPACE, verificado contra workspace_members;
+        // ser dueno del evento ya lo expresa esDuenoDelEvento.
+        const leerRolCuenta = async (): Promise<RolCuenta> => {
+          try {
+            const { data: ev } = await supabase
+              .from('events').select('workspace_id').eq('id', eventId).maybeSingle()
+            if (!ev?.workspace_id) return null
+            const { data: miembro } = await supabase
+              .from('workspace_members').select('rol')
+              .eq('workspace_id', ev.workspace_id).eq('user_id', user.id).eq('status', 'active')
+              .maybeSingle()
+            return (miembro?.rol as RolCuenta) ?? null
+          } catch {
+            return null
+          }
+        }
+
         if (event?.user_id === user.id) {
           setRole('owner')
-          // Atajo: 'dueno' aqui significa "dueno de ESTE evento", no un rol de
-          // despacho verificado contra workspace_members. Hoy es inocuo porque
-          // nadie decide nada con rolCuenta, pero queda expuesto en el contexto
-          // como si lo fuera: una pantalla futura que lea rolCuenta === 'dueno'
-          // para facturacion o para administrar el despacho le daria acceso de
-          // dueno a cualquiera que posea un evento, aunque en el despacho sea
-          // colaborador. El tramo del despacho tiene que resolver rolCuenta
-          // desde workspace_members tambien en este camino.
-          setRolCuenta('dueno')
+          setRolCuenta(await leerRolCuenta())
           return
         }
 
@@ -108,7 +118,7 @@ export function EventAccessProvider({
           setRole(collaborator.role as CollaboratorRole)
         }
 
-        // Membresia de despacho y permisos por herramienta: consultas aparte,
+        // Permisos por herramienta y rol de workspace: consultas aparte,
         // tolerantes a que workspaces/workspace_members/permisos aun no existan.
         // Si fallan con error de Postgrest, data llega null y se cae al respaldo
         // legado (comportamiento de hoy). Try/catch propio: si alguna truena con
@@ -116,15 +126,7 @@ export function EventAccessProvider({
         // legado, nunca dejar permisos en null.
         let permisosLeidos: PermisosEvento | null = null
         try {
-          // Los permisos del colaborador no dependen del despacho: van en
-          // paralelo para no alargar isLoading un viaje de mas. Solo
-          // workspace_members espera, porque necesita el workspace_id.
-          const [{ data: ev }, { data: fila }] = await Promise.all([
-            supabase
-              .from('events')
-              .select('workspace_id')
-              .eq('id', eventId)
-              .maybeSingle(),
+          const [{ data: fila }, rolLeido] = await Promise.all([
             supabase
               .from('event_collaborators')
               .select('permisos')
@@ -132,23 +134,14 @@ export function EventAccessProvider({
               .eq('user_id', user.id)
               .eq('status', 'active')
               .maybeSingle(),
+            leerRolCuenta(),
           ])
 
           if (fila?.permisos != null) permisosLeidos = normalizarPermisos(fila.permisos)
-
-          if (ev?.workspace_id) {
-            const { data: miembro } = await supabase
-              .from('workspace_members')
-              .select('rol')
-              .eq('workspace_id', ev.workspace_id)
-              .eq('user_id', user.id)
-              .eq('status', 'active')
-              .maybeSingle()
-            setRolCuenta((miembro?.rol as RolCuenta) ?? null)
-          }
+          setRolCuenta(rolLeido)
         } catch (e) {
           console.error(
-            '[event-access] Error leyendo el despacho o los permisos por herramienta, se cae al respaldo legado:',
+            '[event-access] Error leyendo el workspace o los permisos por herramienta, se cae al respaldo legado:',
             e,
           )
         } finally {

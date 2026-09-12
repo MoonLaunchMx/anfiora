@@ -997,3 +997,34 @@ body {
   .anf-pulso   { animation: none; opacity: .55; }
   .anf-respira { animation: none; opacity: 1; }
 }
+
+/* ── Barras de scroll ─────────────────────────────────────────────────────
+   Dos casos distintos, a proposito.
+
+   .anf-sin-barra: filas que se arrastran de lado y donde la barra es puro
+   estorbo, como una tira de pestanas. Se esconde la barra, NUNCA el scroll:
+   el contenido se sigue pudiendo arrastrar, con dedo o con rueda.
+
+   .anf-barra-fina: contenedores donde la barra es informacion -- avisa que
+   hay mas abajo -- pero la del sistema se ve tosca. Se adelgaza y se pinta
+   con los grises de la app en vez de los del sistema operativo.          */
+
+.anf-sin-barra {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.anf-sin-barra::-webkit-scrollbar { display: none; }
+
+.anf-barra-fina {
+  scrollbar-width: thin;
+  scrollbar-color: #d6d4cf transparent;
+}
+.anf-barra-fina::-webkit-scrollbar { width: 8px; height: 8px; }
+.anf-barra-fina::-webkit-scrollbar-track { background: transparent; }
+.anf-barra-fina::-webkit-scrollbar-thumb {
+  background: #d6d4cf;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  border-radius: 999px;
+}
+.anf-barra-fina::-webkit-scrollbar-thumb:hover { background: #bdbab4; background-clip: padding-box; }

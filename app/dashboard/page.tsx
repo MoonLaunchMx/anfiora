@@ -4,11 +4,12 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import type { User } from '@supabase/supabase-js'
 import { Event, EventStatus, formatEventDate } from '@/lib/types'
-import { Bell, MessageSquarePlus } from 'lucide-react'
+import { Bell, Building2, MessageSquarePlus } from 'lucide-react'
 import { WhatsNewModal } from '@/app/components/WhatsNewModal'
 import { NewEventModal } from '@/app/components/NewEventModal'
 import { EnlaceRolodex } from '@/app/components/EnlaceRolodex'
 import { OnboardingModal } from '@/app/components/OnboardingModal'
+import { misWorkspacesAdministrados } from '@/lib/workspace/cliente'
 
 export const dynamic = 'force-dynamic'
 
@@ -103,6 +104,7 @@ export default function Dashboard() {
   const [showBellMenu, setShowBellMenu] = useState(false)
   const [showNewEvent, setShowNewEvent] = useState(false)
   const [showOnboarding, setShowOnboarding] = useState(false)
+  const [administra, setAdministra]     = useState(false)
 
   useEffect(() => {
     const interval = setInterval(() => setNow(new Date()), 1000)
@@ -129,6 +131,7 @@ export default function Dashboard() {
     if (!user) { window.location.href = '/'; return }
     checkAuth(user)
     loadData(user)
+    misWorkspacesAdministrados().then(ws => setAdministra(ws.length > 0))
   }
 
   const checkAuth = async (user: User) => {
@@ -620,8 +623,18 @@ export default function Dashboard() {
             >
               <MessageSquarePlus size={16} />
             </button>
+            {administra && (
+              <button
+                onClick={() => window.location.href = '/configuracion/equipo'}
+                title="Mi workspace"
+                className="flex items-center gap-1.5 rounded-lg border border-[#e0e0e0] px-2.5 py-2 text-xs text-[#888] transition hover:border-[#48C9B0] hover:text-[#1a9e88]"
+              >
+                <Building2 size={16} />
+                <span className="hidden sm:inline">Mi workspace</span>
+              </button>
+            )}
             <button
-              onClick={() => window.location.href = '/perfil'}
+              onClick={() => window.location.href = '/configuracion/perfil'}
               title="Mi perfil"
               className="flex items-center gap-2 rounded-lg border border-[#e0e0e0] p-1 transition hover:border-[#48C9B0] sm:pr-3"
             >

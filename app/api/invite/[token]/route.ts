@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { filasParaActivar } from '@/lib/workspace/invitacion'
+import { ESTADOS_TERMINADOS } from '@/lib/workspace/eventos'
 
 // API de invitaciones de colaborador, acotada por token. Usa service role para
 // no abrir RLS anon en event_collaborators: solo expone los datos de ESA
@@ -15,6 +17,8 @@ const ROLE_LABELS: Record<string, string> = {
   viewer: 'Solo lectura',
 }
 
+type DatosEvento = { name?: string | null; event_date?: string | null; venue?: string | null }
+
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params
   if (!token) return NextResponse.json({ status: 'invalid' }, { status: 404 })
@@ -26,7 +30,62 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
     .eq('invite_token', token)
     .maybeSingle()
 
-  if (error || !data) return NextResponse.json({ status: 'invalid' }, { status: 404 })
+  if (error || !data) {
+    const { data: m } = await db
+      .from('workspace_members')
+      .select('id, workspace_id, email, rol, status, user_id, invited_by, workspaces ( name, logo_url )')
+      .eq('invite_token', token)
+      .maybeSingle()
+    if (!m || m.status === 'revoked') return NextResponse.json({ status: 'invalid' }, { status: 404 })
+    if (m.status === 'active') return NextResponse.json({ status: 'already_used', kind: 'workspace', event_id: null })
+
+    const { data: eventosWs, error: errEventosWs } = await db
+      .from('events').select('id').eq('workspace_id', m.workspace_id)
+      .not('event_status', 'in', '(' + ESTADOS_TERMINADOS.join(',') + ')')
+    if (errEventosWs) return NextResponse.json({ status: 'invalid' }, { status: 404 })
+    const idsWs = (eventosWs ?? []).map(e => e.id as string)
+    // Fecha y lugar viajan con cada evento: quien acepta necesita saber a que
+    // esta diciendo que si antes de crear una cuenta.
+    const { data: bodas } = idsWs.length
+      ? await db
+          .from('event_collaborators').select('event_id, events ( name, event_date, venue )')
+          .eq('email', m.email).eq('status', 'pending').or('tipo.is.null,tipo.neq.cliente').in('event_id', idsWs)
+      : { data: [] }
+    const { data: existing } = await db.from('users').select('id').ilike('email', m.email).maybeSingle()
+
+    // Quien invita es la señal de confianza de esta pantalla: llega por un
+    // enlace de WhatsApp y el nombre le dice de quien viene. Si no se puede
+    // leer, la pantalla se dibuja igual sin esa linea.
+    let invitadoPor: string | null = null
+    if (m.invited_by) {
+      const { data: quien } = await db.from('users').select('full_name').eq('id', m.invited_by).maybeSingle()
+      invitadoPor = (quien?.full_name as string | null) ?? null
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const ws = m.workspaces as any
+    return NextResponse.json({
+      status: 'pending', kind: 'workspace', account_exists: !!existing,
+      invite: {
+        workspace_id: m.workspace_id, workspace_name: ws?.name ?? 'Workspace',
+        workspace_logo: ws?.logo_url ?? null,
+        email: m.email, rol: m.rol, rolLabel: m.rol === 'admin' ? 'Administrador' : 'Colaborador',
+        invitado_por: invitadoPor,
+        // El join de Supabase se tipa como arreglo aunque la relacion sea a
+        // uno, asi que se acepta cualquiera de las dos formas.
+        bodas: (bodas ?? []).map(fila => {
+          const b = fila as unknown as { event_id: string; events?: DatosEvento | DatosEvento[] | null }
+          const e = Array.isArray(b.events) ? b.events[0] : b.events
+          return {
+            id: b.event_id,
+            name: e?.name ?? 'Evento',
+            event_date: e?.event_date ?? null,
+            venue: e?.venue ?? null,
+          }
+        }),
+      },
+    })
+  }
   if (data.status === 'revoked') return NextResponse.json({ status: 'invalid' }, { status: 404 })
   if (data.status === 'active') return NextResponse.json({ status: 'already_used', event_id: data.event_id })
 
@@ -45,6 +104,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
 
   return NextResponse.json({
     status: 'pending',
+    kind: 'event',
     account_exists: accountExists,
     invite: {
       event_id: data.event_id,
@@ -75,7 +135,48 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
     .maybeSingle()
 
   if (!invite || invite.status === 'revoked') {
-    return NextResponse.json({ error: 'invalid' }, { status: 404 })
+    const { data: m } = await db.from('workspace_members')
+      .select('id, workspace_id, email, rol, status, user_id').eq('invite_token', token).maybeSingle()
+    if (!m || m.status === 'revoked') return NextResponse.json({ error: 'invalid' }, { status: 404 })
+
+    const invitedEmail = (m.email || '').trim().toLowerCase()
+    const sessionEmail = (user.email || '').trim().toLowerCase()
+    if (invitedEmail && sessionEmail !== invitedEmail) {
+      return NextResponse.json({ error: 'email_mismatch', invited: m.email, your_email: user.email }, { status: 403 })
+    }
+
+    // Un evento cancelado, completado o archivado NO revive una invitacion
+    // pendiente: aceptar no debe devolverle acceso a algo que ya se cerro.
+    const { data: eventos } = await db.from('events').select('id').eq('workspace_id', m.workspace_id)
+      .not('event_status', 'in', '(' + ESTADOS_TERMINADOS.join(',') + ')')
+    const eventIds = (eventos ?? []).map(e => e.id as string)
+
+    if (m.status === 'pending') {
+      const { error: e1 } = await db.from('workspace_members')
+        .update({ user_id: user.id, status: 'active', accepted_at: new Date().toISOString() })
+        .eq('id', m.id).eq('status', 'pending')
+      if (e1) return NextResponse.json({ error: 'no_guardado' }, { status: 500 })
+    }
+
+    const { data: colabs, error: e2 } = eventIds.length
+      ? await db.from('event_collaborators').select('id, email, status, event_id, tipo').in('event_id', eventIds)
+      : { data: [], error: null }
+    if (e2) return NextResponse.json({ error: 'no_guardado' }, { status: 500 })
+
+    const ids = filasParaActivar({ email: m.email, colaboradores: colabs ?? [], eventosDelWorkspace: eventIds })
+    if (ids.length) {
+      const { error: e3 } = await db.from('event_collaborators')
+        .update({ user_id: user.id, status: 'active', accepted_at: new Date().toISOString() }).in('id', ids)
+      if (e3) return NextResponse.json({ error: 'no_guardado' }, { status: 500 })
+    }
+
+    // Aterriza en la primera boda que le toque; el admin, en la primera del workspace.
+    const primera = m.rol === 'admin'
+      ? eventIds[0] ?? null
+      : (colabs ?? []).find(c => ids.includes(c.id))?.event_id
+        ?? (colabs ?? []).find(c => c.email.toLowerCase() === invitedEmail && c.status === 'active')?.event_id
+        ?? null
+    return NextResponse.json({ ok: true, kind: 'workspace', event_id: primera })
   }
 
   // La invitacion solo la acepta el correo al que fue enviada.
