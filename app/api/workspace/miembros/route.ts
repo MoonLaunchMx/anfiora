@@ -51,34 +51,32 @@ export async function POST(req: NextRequest) {
   // Un correo revocado antes se reactiva sobre su misma fila (unique
   // workspace_id, email). El disparador guard_workspace_members prohibe
   // desligar user_id una vez puesto, asi que nunca se manda user_id: null.
-  // Si la fila revocada ya tenia cuenta ligada, se reactiva de un jalon como
-  // 'active'; si nunca la tuvo, vuelve a 'pending' con el token nuevo.
+  //
+  // SIEMPRE vuelve a 'pending' con token nuevo, aunque esa cuenta ya haya
+  // aceptado antes. Reactivar de un jalon era el estandar de las SaaS grandes,
+  // pero ellas AVISAN por correo y Anfiora todavia no manda ninguno: la persona
+  // se encontraba con acceso nuevo sin que nadie se lo dijera. Mientras no haya
+  // correo, el enlace es el unico aviso que existe.
   const revocada = (miembros ?? []).find(m => m.email.toLowerCase() === miembro.email && m.status === 'revoked')
   const escritura = revocada
     ? admin.from('workspace_members').update(
-        revocada.user_id
-          ? { rol: miembro.rol, kit_habitual: miembro.kit_habitual, invited_by: miembro.invited_by, status: 'active', accepted_at: new Date().toISOString() }
-          : { rol: miembro.rol, kit_habitual: miembro.kit_habitual, invited_by: miembro.invited_by, status: 'pending', invite_token: token, accepted_at: null },
+        { rol: miembro.rol, kit_habitual: miembro.kit_habitual, invited_by: miembro.invited_by, status: 'pending', invite_token: token, accepted_at: null },
       ).eq('id', revocada.id).select('id').single()
     : admin.from('workspace_members').insert(miembro).select('id').single()
   const { data: fila, error } = await escritura
   if (error || !fila) return NextResponse.json({ error: 'No se pudo crear la invitación: ' + (error?.message ?? '') }, { status: 500 })
 
   if (colaboradores.length > 0) {
-    // Si se reactivo una fila con cuenta ya ligada, sus bodas nacen ya
-    // aceptadas: no tiene sentido pedirle que acepte un invite que su cuenta
-    // ya paso antes. `filasDeAlta` se queda pura; el ajuste va aqui.
-    const userIdReactivado = revocada?.user_id ?? null
-    const filasColaborador = userIdReactivado
-      ? colaboradores.map(c => ({ ...c, status: 'active' as const, user_id: userIdReactivado, accepted_at: new Date().toISOString() }))
-      : colaboradores
+    // Sus eventos tambien nacen pendientes, como el miembro: se activan todos
+    // juntos cuando acepta el enlace. Antes se activaban solos si la cuenta ya
+    // existia, y la persona no se enteraba de que habia recuperado el acceso.
 
     // Filas viejas del mismo correo en esas bodas se reemplazan.
     const { error: errDel } = await admin.from('event_collaborators').delete()
       .in('event_id', colaboradores.map(c => c.event_id)).eq('email', miembro.email).neq('status', 'active')
       .or('tipo.is.null,tipo.neq.cliente')
     if (errDel) return NextResponse.json({ error: 'No se pudo preparar la invitación: ' + errDel.message }, { status: 500 })
-    const { error: errC } = await admin.from('event_collaborators').insert(filasColaborador)
+    const { error: errC } = await admin.from('event_collaborators').insert(colaboradores)
     if (errC) return NextResponse.json({ error: 'La persona quedó invitada pero sus bodas no: ' + errC.message }, { status: 500 })
   }
 
