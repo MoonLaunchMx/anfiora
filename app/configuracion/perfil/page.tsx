@@ -352,23 +352,16 @@ export default function PerfilPage() {
         <div className="flex flex-col gap-1">
           <p className="text-sm font-semibold text-[#1D1E20]">Tu foto</p>
           <p className="text-[11.5px] text-[#999]">Si no subes una, se usan tus iniciales. JPG, PNG o WEBP hasta 4 MB.</p>
-          <div className="mt-1.5 flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => inputFoto.current?.click()}
-              disabled={subiendoFoto}
-              className="rounded-lg border border-[#e8e8e8] px-3.5 py-1.5 text-[13px] font-semibold text-[#1D1E20] transition hover:border-[#48C9B0] disabled:cursor-not-allowed disabled:text-[#bbb]"
-            >
-              {subiendoFoto ? 'Subiendo' : avatar ? 'Cambiar' : 'Subir foto'}
-            </button>
+          {/* Subir y cambiar ya se hacen desde la foto: aqui solo queda quitar. */}
+          <div className="mt-1 flex flex-wrap gap-2">
             {avatar && (
               <button
                 type="button"
                 onClick={handleQuitarFoto}
                 disabled={subiendoFoto}
-                className="rounded-lg px-3 py-1.5 text-[13px] font-semibold text-[#666] transition hover:text-[#cc3333] disabled:cursor-not-allowed disabled:text-[#bbb]"
+                className="rounded-lg px-2 py-1 text-[12.5px] font-medium text-[#888] transition hover:text-[#cc3333] disabled:cursor-not-allowed disabled:text-[#bbb]"
               >
-                Quitar
+                Quitar foto
               </button>
             )}
           </div>

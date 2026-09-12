@@ -129,12 +129,12 @@ function LogoWorkspace({ activo, onCambio }: { activo: WorkspaceResumen; onCambi
         onClick={() => input.current?.click()}
         disabled={subiendo}
         title={activo.logoUrl ? 'Cambiar el logo' : 'Subir el logo de tu empresa'}
-        className="group relative flex h-11 w-11 items-center justify-center overflow-hidden rounded-[10px] bg-[#1D1E20] text-[15px] font-semibold text-white transition hover:opacity-90"
+        className="group relative flex h-[72px] w-[72px] items-center justify-center overflow-hidden rounded-xl bg-[#1D1E20] text-[22px] font-semibold text-white transition hover:opacity-90"
       >
         {activo.logoUrl
           ? <img src={activo.logoUrl} alt={activo.name} className="h-full w-full object-cover" />
           : iniciales(activo.name)}
-        <span className="absolute inset-0 hidden items-center justify-center bg-black/45 text-[10px] font-semibold text-white group-hover:flex">
+        <span className="absolute inset-0 hidden items-center justify-center bg-black/45 text-[11px] font-semibold text-white group-hover:flex">
           {subiendo ? '' : 'Cambiar'}
         </span>
       </button>

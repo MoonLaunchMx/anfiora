@@ -7,11 +7,9 @@ import { useConfirm } from '@/app/components/ui/ConfirmModal'
 import { PermisosEditor } from '@/app/events/[id]/configuracion/PermisosEditor'
 import { eventosParaRepartir, hoyISO } from '@/lib/workspace/eventos'
 import type { PermisosEvento } from '@/lib/permisos/catalogo'
-import { aplicarKit, permisosDeRol } from '@/lib/permisos/resolver'
 import { resumenPermisos } from '@/lib/permisos/resumen'
 import { deleteJson, patchJson } from '@/lib/workspace/cliente'
 import { enlaceWhatsApp, mensajeEquipo } from '@/lib/workspace/compartir'
-import { kitDesde } from '@/lib/workspace/invitacion'
 import { ROL_LABEL, type Miembro, type RolInvitable, type WorkspaceResumen } from '@/lib/workspace/tipos'
 
 interface Props {
@@ -37,7 +35,6 @@ export function FichaMiembroModal({ open, onClose, workspace, miembro, onHecho }
   const [accion, setAccion] = useState<'guardar' | 'quitar' | null>(null)
   const [copiado, setCopiado] = useState(false)
   const ocupado = accion !== null
-  const kit = kitDesde(miembro.bodas)
   // Mismo criterio que el alta, pero NUNCA se esconde un evento donde la
   // persona ya tiene acceso: desaparecerlo la dejaria sin manera de quitarselo.
   const yaTiene = new Set(miembro.bodas.filter(b => b.status !== 'revoked').map(b => b.eventId))
@@ -48,10 +45,7 @@ export function FichaMiembroModal({ open, onClose, workspace, miembro, onHecho }
     setBodas(prev => {
       const n = { ...prev }
       if (n[eventId]) delete n[eventId]
-      else {
-        const boda = workspace.bodas.find(b => b.id === eventId)!
-        n[eventId] = aplicarKit(Object.keys(kit).length ? kit : permisosDeRol('editor'), boda.features)
-      }
+      else n[eventId] = {}
       return n
     })
     setPorElegir(prev => {
