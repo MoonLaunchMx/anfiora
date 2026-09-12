@@ -4,6 +4,7 @@ import {
   rangoContratado, calificaciones,
 } from './expediente'
 import type { EventoCrudo, PagoCrudo, PartidaCruda, ReviewCruda, VinculoCrudo } from './expediente'
+import type { ColumnaDirectorioKey } from './columnas-directorio'
 
 export type ProveedorCrudo = {
   id: string
@@ -38,6 +39,9 @@ export type FilaDirectorio = {
   tasa: number | null
   ahorro: number | null
   ahorroN: number
+  // La suma de los ahorros por evento, sin promediar: es lo que deja sacar el
+  // promedio de toda la cuenta sin promediar promedios.
+  ahorroSuma: number
   planner: number | null
   cliente: number | null
   rango: { min: number; max: number } | null
@@ -100,6 +104,7 @@ export function armarDirectorio(datos: {
       tasa: tasa.porcentaje,
       ahorro: ahorro.promedio,
       ahorroN: ahorro.n,
+      ahorroSuma: filas.reduce((s, f) => s + (f.ahorro ?? 0), 0),
       planner: calif.planner,
       cliente: calif.cliente,
       rango: rangoContratado(filas),
@@ -149,14 +154,14 @@ export function aplicarFiltrosDirectorio(
   })
 }
 
-export type ColumnaDirectorio =
-  | 'nombre' | 'categoria' | 'eventos' | 'tasa' | 'ahorro'
-  | 'rango' | 'planner' | 'cliente' | 'ultima'
+// Ordenar y mostrar hablan del mismo vocabulario: la clave de una columna es la
+// misma en el menu, en el encabezado y aqui.
+export type ColumnaDirectorio = ColumnaDirectorioKey
 
 // La primera vez que se pica una columna, el orden util no siempre es de mayor
 // a menor: los nombres se leen de la A a la Z y en el ahorro lo bueno es lo
 // mas negativo.
-const PRIMER_ORDEN_ASCENDENTE: ColumnaDirectorio[] = ['nombre', 'categoria', 'ahorro']
+const PRIMER_ORDEN_ASCENDENTE: ColumnaDirectorio[] = ['proveedor', 'categoria', 'ahorro']
 
 export function ordenInicial(columna: ColumnaDirectorio): boolean {
   return PRIMER_ORDEN_ASCENDENTE.includes(columna)
@@ -166,10 +171,10 @@ type Clave = { texto: string | null; numero: number | null }
 
 function claveDe(fila: FilaDirectorio, columna: ColumnaDirectorio, nombrePorId: (id: string | null) => string): Clave {
   switch (columna) {
-    case 'nombre':    return { texto: normalizar(fila.nombre), numero: null }
+    case 'proveedor': return { texto: normalizar(fila.nombre), numero: null }
     case 'categoria': return { texto: fila.categoriaId ? normalizar(nombrePorId(fila.categoriaId)) : null, numero: null }
     case 'eventos':   return { texto: null, numero: fila.eventos > 0 ? fila.eventos : null }
-    case 'tasa':      return { texto: null, numero: fila.tasa }
+    case 'cierre':    return { texto: null, numero: fila.tasa }
     case 'ahorro':    return { texto: null, numero: fila.ahorro }
     case 'rango':     return { texto: null, numero: fila.rango ? fila.rango.max : null }
     case 'planner':   return { texto: null, numero: fila.planner }
@@ -216,6 +221,41 @@ export function resumenDirectorio(filas: FilaDirectorio[]): {
     conEvento,
     sinEvento: filas.length - conEvento,
     contratados: filas.filter(f => f.contratados > 0).length,
+  }
+}
+
+export type EstadisticasDirectorio = {
+  total: number
+  sinEvento: number
+  conEvento: number
+  contratados: number
+  tasa: number | null
+  tasaContratados: number
+  tasaCotizados: number
+  ahorro: number | null
+  ahorroN: number
+}
+
+// Las mismas cuatro cifras que el expediente muestra de un proveedor, pero de
+// toda la cuenta, para que un numero signifique lo mismo en las dos pantallas.
+// La tasa se saca de los totales, no promediando las tasas de cada proveedor:
+// un proveedor con una sola cotizacion pesaria igual que uno con diez.
+export function estadisticasDirectorio(filas: FilaDirectorio[]): EstadisticasDirectorio {
+  const resumen = resumenDirectorio(filas)
+  const tasaContratados = filas.reduce((s, f) => s + f.contratados, 0)
+  const tasaCotizados = filas.reduce((s, f) => s + f.cotizados, 0)
+  const ahorroN = filas.reduce((s, f) => s + f.ahorroN, 0)
+  const ahorroSuma = filas.reduce((s, f) => s + f.ahorroSuma, 0)
+  return {
+    total: resumen.total,
+    sinEvento: resumen.sinEvento,
+    conEvento: resumen.conEvento,
+    contratados: resumen.contratados,
+    tasa: tasaCotizados > 0 ? Math.round((tasaContratados / tasaCotizados) * 100) : null,
+    tasaContratados,
+    tasaCotizados,
+    ahorro: ahorroN > 0 ? Math.round(ahorroSuma / ahorroN) : null,
+    ahorroN,
   }
 }
 

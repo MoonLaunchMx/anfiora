@@ -9,6 +9,7 @@ import {
   ordenarDirectorio,
   ordenInicial,
   resumenDirectorio,
+  estadisticasDirectorio,
   ciudadesDe,
   categoriasDe,
 } from './directorio'
@@ -161,14 +162,14 @@ describe('filtros', () => {
 describe('ordenarDirectorio', () => {
   const nombreCat = (id: string | null) => (id === 'c-audio' ? 'Audio y Video' : id === 'c-imagen' ? 'Imagen' : '')
 
-  it('por nombre de la A a la Z', () => {
-    expect(ordenarDirectorio(filas, 'nombre', true).map(f => f.nombre))
+  it('por proveedor de la A a la Z', () => {
+    expect(ordenarDirectorio(filas, 'proveedor', true).map(f => f.nombre))
       .toEqual(['Floreria Cenicienta', 'Lente Norte', 'Sonido Delta'])
   })
 
   it('manda al final lo que no tiene dato, en los dos sentidos, desempatando por nombre', () => {
-    expect(ordenarDirectorio(filas, 'tasa', false).map(f => f.id)).toEqual(['p-foto', 'p-flor', 'p-audio'])
-    expect(ordenarDirectorio(filas, 'tasa', true).map(f => f.id)).toEqual(['p-foto', 'p-flor', 'p-audio'])
+    expect(ordenarDirectorio(filas, 'cierre', false).map(f => f.id)).toEqual(['p-foto', 'p-flor', 'p-audio'])
+    expect(ordenarDirectorio(filas, 'cierre', true).map(f => f.id)).toEqual(['p-foto', 'p-flor', 'p-audio'])
   })
 
   it('los que nunca han estado en un evento van hasta abajo, alfabeticos', () => {
@@ -196,16 +197,45 @@ describe('ordenarDirectorio', () => {
 
   it('no muta la lista que recibe', () => {
     const antes = filas.map(f => f.id)
-    ordenarDirectorio(filas, 'nombre', true)
+    ordenarDirectorio(filas, 'proveedor', true)
     expect(filas.map(f => f.id)).toEqual(antes)
   })
 
   it('el primer clic ordena de menor a mayor solo donde es util', () => {
-    expect(ordenInicial('nombre')).toBe(true)
+    expect(ordenInicial('proveedor')).toBe(true)
     expect(ordenInicial('categoria')).toBe(true)
     expect(ordenInicial('ahorro')).toBe(true)
     expect(ordenInicial('eventos')).toBe(false)
     expect(ordenInicial('ultima')).toBe(false)
+  })
+})
+
+describe('estadisticasDirectorio', () => {
+  it('la tasa de la cuenta sale de los totales, no del promedio de las tasas', () => {
+    const e = estadisticasDirectorio(filas)
+    expect(e.tasaContratados).toBe(2)
+    expect(e.tasaCotizados).toBe(3)
+    expect(e.tasa).toBe(67)
+  })
+
+  it('el ahorro de la cuenta promedia todos los contratos, no los promedios', () => {
+    const e = estadisticasDirectorio(filas)
+    expect(e.ahorroN).toBe(2)
+    expect(e.ahorro).toBe(-10)
+  })
+
+  it('un proveedor con una sola cotizacion no pesa igual que uno con varias', () => {
+    const muchas: FilaDirectorio = { ...porId('p-foto'), id: 'm', contratados: 1, cotizados: 9, tasa: 11 }
+    const una: FilaDirectorio = { ...porId('p-audio'), id: 'u', contratados: 1, cotizados: 1, tasa: 100 }
+    // Promediar 11% y 100% daria 56%; lo correcto es 2 de 10.
+    expect(estadisticasDirectorio([muchas, una]).tasa).toBe(20)
+  })
+
+  it('sin datos dice null, nunca cero', () => {
+    const e = estadisticasDirectorio([porId('p-flor')])
+    expect(e.tasa).toBeNull()
+    expect(e.ahorro).toBeNull()
+    expect(e.total).toBe(1)
   })
 })
 
