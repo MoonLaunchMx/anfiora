@@ -3,6 +3,9 @@ import { useState } from 'react'
 import { Check, Copy } from 'lucide-react'
 import { FaWhatsapp } from 'react-icons/fa'
 import { Modal } from '@/app/components/ui/Modal'
+import { PermisosEditor } from '@/app/events/[id]/configuracion/PermisosEditor'
+import type { PermisosEvento } from '@/lib/permisos/catalogo'
+import { aplicarKit, permisosDeRol } from '@/lib/permisos/resolver'
 import { postJson } from '@/lib/workspace/cliente'
 import { enlaceWhatsApp, mensajeCliente } from '@/lib/workspace/compartir'
 import type { WorkspaceResumen } from '@/lib/workspace/tipos'
@@ -18,17 +21,29 @@ interface Props {
 export function InvitarClienteModal({ open, onClose, workspace, bodaFija, onHecho }: Props) {
   const [email, setEmail] = useState('')
   const [eventId, setEventId] = useState(bodaFija ?? workspace.bodas[0]?.id ?? '')
-  const nombreBoda = workspace.bodas.find(b => b.id === eventId)?.name ?? ''
+  const boda = workspace.bodas.find(b => b.id === eventId)
+  const nombreBoda = boda?.name ?? ''
+  // Un cliente merece el mismo detalle que el equipo: entra a un solo evento,
+  // pero ahi decide el planner que ve de cada herramienta.
   const [punto, setPunto] = useState<'ver' | 'editar'>('ver')
+  const [permisos, setPermisos] = useState<PermisosEvento | null>(null)
+  const [detalle, setDetalle] = useState(false)
   const [error, setError] = useState('')
   const [guardando, setGuardando] = useState(false)
   const [token, setToken] = useState<string | null>(null)
   const [copiado, setCopiado] = useState(false)
 
+  const permisosActuales = permisos
+    ?? (boda ? aplicarKit(permisosDeRol(punto === 'editar' ? 'editor' : 'viewer'), boda.features) : {})
+
   const guardar = async () => {
     setGuardando(true); setError('')
     try {
-      const r = await postJson('/api/workspace/clientes', { workspaceId: workspace.id, eventId, email: email.trim(), puntoDePartida: punto })
+      const r = await postJson('/api/workspace/clientes', {
+        workspaceId: workspace.id, eventId, email: email.trim(),
+        puntoDePartida: punto,
+        ...(permisos ? { permisos } : {}),
+      })
       setToken(r.inviteToken)
       onHecho({ inviteToken: r.inviteToken })
     } catch (e) {
@@ -40,7 +55,7 @@ export function InvitarClienteModal({ open, onClose, workspace, bodaFija, onHech
   const inputCls = 'mt-1 w-full rounded-lg border border-[#d0d0d0] bg-white px-3 py-2.5 text-sm text-[#1D1E20] outline-none focus:border-[#48C9B0]'
 
   return (
-    <Modal open={open} onClose={onClose} size="md">
+    <Modal open={open} onClose={onClose} size={detalle && !token ? 'lg' : 'md'}>
       <Modal.Header title={token ? 'Invitación lista' : 'Invitar cliente'} subtitle="Los anfitriones, sus papás, quien sea de ese evento. Entra solo ahí y no ocupa asiento." />
       <Modal.Body>
         {token ? (
@@ -74,15 +89,31 @@ export function InvitarClienteModal({ open, onClose, workspace, bodaFija, onHech
               <p className="text-xs font-semibold text-[#666]">Punto de partida</p>
               <div className="mt-1 grid grid-cols-2 gap-1.5">
                 {([['ver', 'Solo lectura', 'Ve todo, no toca nada'], ['editar', 'Puede editar', 'Agrega y corrige, no borra']] as const).map(([v, l, d]) => (
-                  <button key={v} type="button" onClick={() => setPunto(v)}
+                  <button key={v} type="button" onClick={() => { setPunto(v); setPermisos(null) }}
                     className={'rounded-lg border px-3 py-2.5 text-left transition ' + (punto === v ? 'border-[#48C9B0] bg-[#f0fdfb]' : 'border-[#e0e0e0] bg-white hover:border-[#48C9B0]')}>
                     <span className="block text-[12px] font-semibold text-[#1D1E20]">{l}</span>
                     <span className="block text-[11px] text-[#888]">{d}</span>
                   </button>
                 ))}
               </div>
-              <p className="mt-1.5 text-[11px] text-[#aaa]">Después le ajustas herramienta por herramienta desde la pestaña Equipo del evento.</p>
+              <button
+                type="button"
+                onClick={() => setDetalle(d => !d)}
+                className="mt-2 text-[12px] font-semibold text-[#1a9e88] transition hover:text-[#48C9B0]"
+              >
+                {detalle ? 'Ocultar el detalle' : 'Ajustar herramienta por herramienta'}
+              </button>
             </div>
+            {detalle && boda && (
+              <div className="border-t border-[#e8e8e8] pt-3">
+                <PermisosEditor
+                  permisos={permisosActuales}
+                  features={boda.features}
+                  onChange={setPermisos}
+                />
+              </div>
+            )}
+
             {error && <p className="text-xs text-[#cc3333]">{error}</p>}
           </div>
         )}

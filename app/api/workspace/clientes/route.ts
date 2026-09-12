@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { aplicarKit, permisosDeRol } from '@/lib/permisos/resolver'
+import { aplicarKit, normalizarPermisos, permisosDeRol } from '@/lib/permisos/resolver'
+import { MODULOS } from '@/lib/permisos/catalogo'
 import { normalizarCorreo, validarCliente } from '@/lib/workspace/invitacion'
 import { bodasDelWorkspace, esAdministrador, rolEnWorkspace, usuarioDeRequest } from '@/lib/workspace/servidor'
 
@@ -8,7 +9,7 @@ export async function POST(req: NextRequest) {
   if (!s) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   const { user, admin } = s
 
-  let body: { workspaceId?: string; eventId?: string; email?: string; puntoDePartida?: 'ver' | 'editar' }
+  let body: { workspaceId?: string; eventId?: string; email?: string; puntoDePartida?: 'ver' | 'editar'; permisos?: unknown }
   try { body = await req.json() } catch { return NextResponse.json({ error: 'Cuerpo inválido' }, { status: 400 }) }
   const { workspaceId, eventId, email } = body
   const punto = body.puntoDePartida === 'editar' ? 'editor' : 'viewer'
@@ -31,9 +32,15 @@ export async function POST(req: NextRequest) {
   const v = validarCliente({ email, eventId, colaboradores: colaboradores ?? [], miembros: miembros ?? [] })
   if (!v.ok) return NextResponse.json({ error: v.error }, { status: 400 })
 
+  // Si vienen permisos elegidos a mano, mandan esos; si no, se usa el punto de
+  // partida. El rol legado () se deriva de lo que de verdad puede hacer.
+  const elegidos = body.permisos !== undefined ? normalizarPermisos(body.permisos) : null
+  const permisos = aplicarKit(elegidos ?? permisosDeRol(punto), boda.features)
+  const rolLegado = MODULOS.some(k => permisos[k] === 'editar' || permisos[k] === 'total') ? 'editor' : 'viewer'
+
   const { data: fila, error } = await admin.from('event_collaborators').insert({
     event_id: eventId, email: normalizarCorreo(email), invited_by: user.id, status: 'pending',
-    tipo: 'cliente', role: punto, permisos: aplicarKit(permisosDeRol(punto), boda.features),
+    tipo: 'cliente', role: rolLegado, permisos,
   }).select('id, invite_token').single()
   if (error || !fila) return NextResponse.json({ error: 'No se pudo crear la invitación: ' + (error?.message ?? '') }, { status: 500 })
 
