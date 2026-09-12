@@ -244,9 +244,8 @@ describe('estadisticasDirectorio', () => {
     expect(e.categorias).toBe(2)
   })
 
-  it('el rango junta el minimo y el maximo de todos', () => {
-    expect(estadisticasDirectorio(filas).rango).toEqual({ min: 38000, max: 58000 })
-    expect(estadisticasDirectorio([porId('p-audio')]).rango).toBeNull()
+  it('no resume la inversion: juntar una banda con un banquete no da una cifra', () => {
+    expect(estadisticasDirectorio(filas)).not.toHaveProperty('rango')
   })
 
   it('promedia las estrellas de los que si tienen, sin contar a los demas como cero', () => {

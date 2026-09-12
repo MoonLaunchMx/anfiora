@@ -103,7 +103,7 @@ const PIE_SUB = 'block text-[11px] font-medium text-[#999]'
 // Lo que va debajo de cada columna. Cuentas y dinero se suman; porcentajes y
 // estrellas se promedian, igual que el pie del expediente. Lo que no se puede
 // resumir se queda en blanco en vez de inventar un numero.
-function pie(key: ColumnaDirectorioKey, t: EstadisticasDirectorio, filtrando: boolean, moneda: FilaDirectorio['moneda']) {
+function pie(key: ColumnaDirectorioKey, t: EstadisticasDirectorio, filtrando: boolean) {
   switch (key) {
     case 'proveedor':
       return (
@@ -133,10 +133,10 @@ function pie(key: ColumnaDirectorioKey, t: EstadisticasDirectorio, filtrando: bo
             <span className={PIE_SUB}>{t.ahorroN} {t.ahorroN === 1 ? 'contrato' : 'contratos'}</span>
           </>
         : null
+    // Sin total ni promedio a proposito: juntar lo que cuesta una banda con lo
+    // que cuesta un banquete no da una cifra, da ruido.
     case 'rango':
-      return t.rango
-        ? <><span className="tabular-nums">{formatCurrency(t.rango.min, moneda)} – {formatCurrency(t.rango.max, moneda)}</span><span className={PIE_SUB}>de todos</span></>
-        : null
+      return null
     case 'planner':
       return t.planner != null
         ? <><span className="tabular-nums">{t.planner.toFixed(1)}</span><span className={PIE_SUB}>promedio</span></>
@@ -153,7 +153,6 @@ function pie(key: ColumnaDirectorioKey, t: EstadisticasDirectorio, filtrando: bo
 export function TablaDirectorio({ filas, columnas, orden, ascendente, filtrando, nombreCategoria, onOrdenar, onAbrir }: Props) {
   const cols = COLUMNAS_DIRECTORIO.filter(c => columnas.has(c.key))
   const totales = estadisticasDirectorio(filas)
-  const moneda = filas[0]?.moneda ?? 'MXN'
 
   return (
     <table className="w-full table-fixed border-collapse">
@@ -196,7 +195,7 @@ export function TablaDirectorio({ filas, columnas, orden, ascendente, filtrando,
         <tr>
           {cols.map(col => (
             <td key={col.key} className={`${TF} ${col.derecha ? 'text-right' : ''}`}>
-              {pie(col.key, totales, filtrando, moneda)}
+              {pie(col.key, totales, filtrando)}
             </td>
           ))}
         </tr>
