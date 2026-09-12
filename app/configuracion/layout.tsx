@@ -275,7 +275,7 @@ function Eslogan({ activo, onCambio }: { activo: WorkspaceResumen; onCambio: () 
             autoFocus
             maxLength={90}
             placeholder="Bodas que se sienten tuyas"
-            className="w-[340px] max-w-full rounded-lg border border-[#e8e8e8] px-2.5 py-1 text-[13px] text-[#1D1E20] outline-none placeholder:text-[#bbb] focus:border-[#48C9B0]"
+            className="w-full max-w-[520px] rounded-lg border border-[#e8e8e8] px-2.5 py-1 text-[13px] text-[#1D1E20] outline-none placeholder:text-[#bbb] focus:border-[#48C9B0] sm:w-[460px]"
           />
           <button
             onClick={guardar}
@@ -310,7 +310,7 @@ function Eslogan({ activo, onCambio }: { activo: WorkspaceResumen; onCambio: () 
       title="Cambiar el eslogan"
       className="group flex w-fit items-center gap-1.5 text-left"
     >
-      <span className="max-w-[46ch] text-[13px] italic leading-snug text-[#8a8a85]">{activo.tagline}</span>
+      <span className="max-w-[38ch] text-[13px] italic leading-snug text-[#8a8a85] sm:max-w-[70ch]">{activo.tagline}</span>
       <Pencil size={12} className="shrink-0 text-[#c4c4c4] opacity-0 transition group-hover:opacity-100" />
     </button>
   )
@@ -477,10 +477,7 @@ function Cascara({ children }: { children: ReactNode }) {
                   <div className="flex items-center gap-3.5">
                     <LogoWorkspace activo={activo} onCambio={recargar} />
                     <div className="flex flex-col gap-1">
-                      <div className="flex items-center gap-2">
-                        <NombreWorkspace activo={activo} onCambio={recargar} />
-                        <span className="rounded-full bg-[#e1f5ee] px-2 py-0.5 text-[11px] font-semibold text-[#04342C]">{etiquetaPlan(activo.plan)}</span>
-                      </div>
+                      <NombreWorkspace activo={activo} onCambio={recargar} />
                       <Eslogan activo={activo} onCambio={recargar} />
                     </div>
                   </div>

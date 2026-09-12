@@ -4,7 +4,8 @@ import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { Aviso } from '@/app/components/ui/Aviso'
-import { Lock, Eye, EyeOff, CheckCircle, AlertCircle, ChevronDown } from 'lucide-react'
+import { Modal } from '@/app/components/ui/Modal'
+import { Lock, Eye, EyeOff, ChevronDown } from 'lucide-react'
 import { ROLES, getRole, Role } from '@/lib/roles'
 import PhoneInput from '@/app/components/ui/PhoneInput'
 import { borrarImagenAnterior, subirImagen } from '@/lib/workspace/subir'
@@ -75,6 +76,10 @@ export default function PerfilPage() {
   const [savingPass, setSavingPass]     = useState(false)
   const [passMsg, setPassMsg]           = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [enviandoRecuperar, setEnviandoRecuperar] = useState(false)
+  // El enlace de recuperar solo se ofrece DESPUES de que la contraseña actual
+  // fallo: antes es ruido para quien si se la sabe.
+  const [falloActual, setFalloActual] = useState(false)
+  const [confirmarRecuperar, setConfirmarRecuperar] = useState(false)
 
   const [avatar, setAvatar]         = useState<string | null>(null)
   const [subiendoFoto, setSubiendo] = useState(false)
@@ -198,6 +203,7 @@ export default function PerfilPage() {
     setShowPasswordForm(false)
     setCurrentPass(''); setNewPass(''); setConfirmPass('')
     setPassMsg(null)
+    setFalloActual(false)
   }
 
   // La salida cuando no recuerda la actual: el mismo correo de recuperacion de
@@ -206,6 +212,7 @@ export default function PerfilPage() {
   const recuperarPass = async () => {
     setEnviandoRecuperar(true)
     setPassMsg(null)
+    setConfirmarRecuperar(false)
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: `${window.location.origin}/auth/reset`,
     })
@@ -238,6 +245,7 @@ export default function PerfilPage() {
 
     if (signInError) {
       setPassMsg({ type: 'error', text: 'La contraseña actual es incorrecta' })
+      setFalloActual(true)
       setSavingPass(false)
       return
     }
@@ -321,13 +329,26 @@ export default function PerfilPage() {
       {roleMsg && <Aviso tono={roleMsg.type === 'success' ? 'exito' : 'error'} mensaje={roleMsg.text} />}
 
       <div className="flex max-w-[900px] flex-wrap items-center gap-4">
-        {avatar
-          ? <img src={avatar} alt="Tu foto" className="h-16 w-16 shrink-0 rounded-full object-cover" />
-          : (
-            <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-[#e1f5ee] text-lg font-semibold text-[#04342C]">
-              {inicialesDe(name || email)}
-            </span>
-          )}
+        {/* Mismo gesto que el logo del workspace: el cuadro ES el control, y al
+            pasar el mouse dice que se puede cambiar. */}
+        <button
+          type="button"
+          onClick={() => inputFoto.current?.click()}
+          disabled={subiendoFoto}
+          title={avatar ? 'Cambiar tu foto' : 'Subir tu foto'}
+          className="group relative h-16 w-16 shrink-0 overflow-hidden rounded-full"
+        >
+          {avatar
+            ? <img src={avatar} alt="Tu foto" className="h-full w-full object-cover" />
+            : (
+              <span className="flex h-full w-full items-center justify-center bg-[#e1f5ee] text-lg font-semibold text-[#04342C]">
+                {inicialesDe(name || email)}
+              </span>
+            )}
+          <span className="absolute inset-0 hidden items-center justify-center bg-black/45 text-[10px] font-semibold text-white group-hover:flex">
+            {subiendoFoto ? 'Subiendo' : 'Cambiar'}
+          </span>
+        </button>
         <div className="flex flex-col gap-1">
           <p className="text-sm font-semibold text-[#1D1E20]">Tu foto</p>
           <p className="text-[11.5px] text-[#999]">Si no subes una, se usan tus iniciales. JPG, PNG o WEBP hasta 4 MB.</p>
@@ -446,18 +467,48 @@ export default function PerfilPage() {
             </button>
           </div>
 
-          {/* Si no recuerda la actual, aqui se queda sin salida: el enlace de
-              recuperar vive en la pantalla de entrar, y a esta ya entro. */}
-          <button
-            type="button"
-            onClick={recuperarPass}
-            disabled={enviandoRecuperar}
-            className="mt-3 text-[12.5px] font-medium text-[#1a9e88] transition hover:text-[#48C9B0] disabled:text-[#bbb]"
-          >
-            {enviandoRecuperar ? 'Enviando el correo' : '¿No recuerdas tu contraseña actual?'}
-          </button>
+          {/* Solo aparece cuando la actual fallo. Ofrecerlo antes es ruido para
+              quien si se la sabe. */}
+          {falloActual && (
+            <button
+              type="button"
+              onClick={() => setConfirmarRecuperar(true)}
+              className="mt-3 text-[12.5px] font-medium text-[#1a9e88] transition hover:text-[#48C9B0]"
+            >
+              ¿No recuerdas tu contraseña actual?
+            </button>
+          )}
         </div>
       )}
+
+      {/* Mandar un correo es una accion que sale de la app: se confirma antes,
+          y se dice a que direccion va. */}
+      <Modal open={confirmarRecuperar} onClose={() => setConfirmarRecuperar(false)} size="sm">
+        <Modal.Header
+          title="Recuperar tu contraseña"
+          subtitle="Te mandamos un enlace para ponerte una nueva."
+        />
+        <Modal.Body>
+          <p className="text-[13.5px] leading-relaxed text-[#666]">
+            El correo va a <span className="font-semibold text-[#1D1E20]">{email}</span>. El enlace sirve una vez y caduca en una hora.
+          </p>
+        </Modal.Body>
+        <Modal.Footer>
+          <button
+            onClick={() => setConfirmarRecuperar(false)}
+            className="ml-auto rounded-lg border border-[#e0e0e0] px-4 py-2 text-sm text-[#888] transition hover:bg-[#f5f5f5]"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={recuperarPass}
+            disabled={enviandoRecuperar}
+            className="rounded-lg bg-[#48C9B0] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#3ab89f] disabled:opacity-60"
+          >
+            {enviandoRecuperar ? 'Enviando' : 'Enviar el correo'}
+          </button>
+        </Modal.Footer>
+      </Modal>
 
       <div className="flex max-w-[900px] flex-col gap-2.5 pt-2">
         <p className="text-[11px] font-semibold uppercase tracking-wide text-[#999]">Más opciones</p>
