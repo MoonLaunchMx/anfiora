@@ -234,6 +234,17 @@ export type EstadisticasDirectorio = {
   tasaCotizados: number
   ahorro: number | null
   ahorroN: number
+  categorias: number
+  eventos: number
+  rango: { min: number; max: number } | null
+  planner: number | null
+  cliente: number | null
+}
+
+function promedioDe(valores: (number | null)[]): number | null {
+  const v = valores.filter((x): x is number => x != null)
+  if (v.length === 0) return null
+  return Math.round((v.reduce((s, x) => s + x, 0) / v.length) * 10) / 10
 }
 
 // Las mismas cuatro cifras que el expediente muestra de un proveedor, pero de
@@ -246,6 +257,7 @@ export function estadisticasDirectorio(filas: FilaDirectorio[]): EstadisticasDir
   const tasaCotizados = filas.reduce((s, f) => s + f.cotizados, 0)
   const ahorroN = filas.reduce((s, f) => s + f.ahorroN, 0)
   const ahorroSuma = filas.reduce((s, f) => s + f.ahorroSuma, 0)
+  const montos = filas.map(f => f.rango).filter((r): r is { min: number; max: number } => r != null)
   return {
     total: resumen.total,
     sinEvento: resumen.sinEvento,
@@ -256,6 +268,13 @@ export function estadisticasDirectorio(filas: FilaDirectorio[]): EstadisticasDir
     tasaCotizados,
     ahorro: ahorroN > 0 ? Math.round(ahorroSuma / ahorroN) : null,
     ahorroN,
+    categorias: new Set(filas.map(f => f.categoriaId).filter(Boolean)).size,
+    eventos: filas.reduce((s, f) => s + f.eventos, 0),
+    rango: montos.length > 0
+      ? { min: Math.min(...montos.map(m => m.min)), max: Math.max(...montos.map(m => m.max)) }
+      : null,
+    planner: promedioDe(filas.map(f => f.planner)),
+    cliente: promedioDe(filas.map(f => f.cliente)),
   }
 }
 

@@ -353,28 +353,23 @@ export default function DirectorioPage() {
               </div>
             ) : (
               <>
-                <div className="hidden max-h-[calc(100dvh-330px)] min-h-[220px] overflow-y-auto lg:block">
+                <div className="hidden max-h-[calc(100dvh-300px)] min-h-[220px] overflow-y-auto lg:block">
                   <TablaDirectorio
                     filas={visibles}
                     columnas={columnas}
                     orden={orden}
                     ascendente={ascendente}
+                    filtrando={filtrando}
                     nombreCategoria={nombreCategoria}
                     onOrdenar={ordenarPor}
                     onAbrir={abrir}
                   />
                 </div>
                 <div className="lg:hidden">
-                  <ListaDirectorio filas={visibles} nombreCategoria={nombreCategoria} onAbrir={abrir} />
+                  <ListaDirectorio filas={visibles} filtrando={filtrando} nombreCategoria={nombreCategoria} onAbrir={abrir} />
                 </div>
               </>
             )}
-            <div className="border-t-2 border-[#e0e0e0] bg-[#f8f8f8] px-4 py-3 text-xs font-semibold text-[#999]">
-              <span className="text-[10.5px] uppercase tracking-[.09em] text-[#666]">Tu Rolodex</span>
-              <span className="ml-2">
-                {stats.total} {stats.total === 1 ? 'proveedor' : 'proveedores'} · {stats.conEvento} en algún evento · {stats.contratados} {stats.contratados === 1 ? 'contratado' : 'contratados'} alguna vez
-              </span>
-            </div>
           </div>
         </>
       )}

@@ -237,6 +237,33 @@ describe('estadisticasDirectorio', () => {
     expect(e.ahorro).toBeNull()
     expect(e.total).toBe(1)
   })
+
+  it('suma los eventos de la columna y cuenta las categorias distintas', () => {
+    const e = estadisticasDirectorio(filas)
+    expect(e.eventos).toBe(4)
+    expect(e.categorias).toBe(2)
+  })
+
+  it('el rango junta el minimo y el maximo de todos', () => {
+    expect(estadisticasDirectorio(filas).rango).toEqual({ min: 38000, max: 58000 })
+    expect(estadisticasDirectorio([porId('p-audio')]).rango).toBeNull()
+  })
+
+  it('promedia las estrellas de los que si tienen, sin contar a los demas como cero', () => {
+    const e = estadisticasDirectorio(filas)
+    expect(e.planner).toBe(4)
+    expect(e.cliente).toBe(5)
+  })
+
+  it('las cifras se calculan sobre las filas que recibe, para que el pie siga al filtro', () => {
+    const f = filtrosDirectorioVacios()
+    f.categoria.add('c-audio')
+    const e = estadisticasDirectorio(aplicarFiltrosDirectorio(filas, f, ''))
+    expect(e.total).toBe(1)
+    expect(e.eventos).toBe(1)
+    expect(e.tasa).toBeNull()
+    expect(e.planner).toBeNull()
+  })
 })
 
 describe('resumen y listas de filtro', () => {

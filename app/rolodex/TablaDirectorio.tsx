@@ -7,13 +7,15 @@ import { EstatusProveedor } from '@/app/events/[id]/proveedores/EstatusProveedor
 import { mesYAno, iniciales } from '@/lib/rolodex/expediente'
 import { COLUMNAS_DIRECTORIO } from '@/lib/rolodex/columnas-directorio'
 import type { ColumnaDirectorioKey } from '@/lib/rolodex/columnas-directorio'
-import type { FilaDirectorio } from '@/lib/rolodex/directorio'
+import { estadisticasDirectorio } from '@/lib/rolodex/directorio'
+import type { EstadisticasDirectorio, FilaDirectorio } from '@/lib/rolodex/directorio'
 
 type Props = {
   filas: FilaDirectorio[]
   columnas: Set<ColumnaDirectorioKey>
   orden: ColumnaDirectorioKey
   ascendente: boolean
+  filtrando: boolean
   nombreCategoria: (id: string | null) => string
   onOrdenar: (columna: ColumnaDirectorioKey) => void
   onAbrir: (fila: FilaDirectorio) => void
@@ -95,8 +97,63 @@ function celda(key: ColumnaDirectorioKey, f: FilaDirectorio, nombreCategoria: (i
   }
 }
 
-export function TablaDirectorio({ filas, columnas, orden, ascendente, nombreCategoria, onOrdenar, onAbrir }: Props) {
+const TF = 'border-t-2 border-[#e0e0e0] bg-[#f8f8f8] px-3.5 py-3 text-sm font-bold align-middle whitespace-nowrap overflow-hidden text-ellipsis'
+const PIE_SUB = 'block text-[11px] font-medium text-[#999]'
+
+// Lo que va debajo de cada columna. Cuentas y dinero se suman; porcentajes y
+// estrellas se promedian, igual que el pie del expediente. Lo que no se puede
+// resumir se queda en blanco en vez de inventar un numero.
+function pie(key: ColumnaDirectorioKey, t: EstadisticasDirectorio, filtrando: boolean, moneda: FilaDirectorio['moneda']) {
+  switch (key) {
+    case 'proveedor':
+      return (
+        <>
+          <span className="text-[10.5px] uppercase tracking-[.09em] text-[#666]">
+            {filtrando ? 'Total de lo filtrado' : 'Totales'}
+          </span>
+          <span className={PIE_SUB}>
+            {t.total} {t.total === 1 ? 'proveedor' : 'proveedores'} · {t.contratados} {t.contratados === 1 ? 'contratado' : 'contratados'}
+          </span>
+        </>
+      )
+    case 'categoria':
+      return t.categorias > 0
+        ? <span className="text-[12.5px] font-semibold text-[#666]">{t.categorias} {t.categorias === 1 ? 'categoría' : 'categorías'}</span>
+        : null
+    case 'eventos':
+      return <><span className="tabular-nums">{t.eventos}</span><span className={PIE_SUB}>en total</span></>
+    case 'cierre':
+      return t.tasa != null
+        ? <><span className="tabular-nums">{t.tasa}%</span><span className={PIE_SUB}>{t.tasaContratados} de {t.tasaCotizados}</span></>
+        : null
+    case 'ahorro':
+      return t.ahorro != null
+        ? <>
+            <span className={`tabular-nums ${t.ahorro <= 0 ? 'text-[#1D9E75]' : 'text-[#A63B27]'}`}>{t.ahorro > 0 ? '+' : ''}{t.ahorro}%</span>
+            <span className={PIE_SUB}>{t.ahorroN} {t.ahorroN === 1 ? 'contrato' : 'contratos'}</span>
+          </>
+        : null
+    case 'rango':
+      return t.rango
+        ? <><span className="tabular-nums">{formatCurrency(t.rango.min, moneda)} – {formatCurrency(t.rango.max, moneda)}</span><span className={PIE_SUB}>de todos</span></>
+        : null
+    case 'planner':
+      return t.planner != null
+        ? <><span className="tabular-nums">{t.planner.toFixed(1)}</span><span className={PIE_SUB}>promedio</span></>
+        : null
+    case 'cliente':
+      return t.cliente != null
+        ? <><span className="tabular-nums">{t.cliente.toFixed(1)}</span><span className={PIE_SUB}>promedio</span></>
+        : null
+    case 'ultima':
+      return null
+  }
+}
+
+export function TablaDirectorio({ filas, columnas, orden, ascendente, filtrando, nombreCategoria, onOrdenar, onAbrir }: Props) {
   const cols = COLUMNAS_DIRECTORIO.filter(c => columnas.has(c.key))
+  const totales = estadisticasDirectorio(filas)
+  const moneda = filas[0]?.moneda ?? 'MXN'
 
   return (
     <table className="w-full table-fixed border-collapse">
@@ -135,11 +192,21 @@ export function TablaDirectorio({ filas, columnas, orden, ascendente, nombreCate
           </tr>
         ))}
       </tbody>
+      <tfoot className="sticky bottom-0 z-10">
+        <tr>
+          {cols.map(col => (
+            <td key={col.key} className={`${TF} ${col.derecha ? 'text-right' : ''}`}>
+              {pie(col.key, totales, filtrando, moneda)}
+            </td>
+          ))}
+        </tr>
+      </tfoot>
     </table>
   )
 }
 
-export function ListaDirectorio({ filas, nombreCategoria, onAbrir }: Pick<Props, 'filas' | 'nombreCategoria' | 'onAbrir'>) {
+export function ListaDirectorio({ filas, filtrando, nombreCategoria, onAbrir }: Pick<Props, 'filas' | 'filtrando' | 'nombreCategoria' | 'onAbrir'>) {
+  const t = estadisticasDirectorio(filas)
   return (
     <div>
       {filas.map(f => (
@@ -179,6 +246,21 @@ export function ListaDirectorio({ filas, nombreCategoria, onAbrir }: Pick<Props,
           </div>
         </button>
       ))}
+
+      <div className="flex flex-col gap-1.5 border-t-2 border-[#e0e0e0] bg-[#f8f8f8] px-4 py-3">
+        <span className="text-[10.5px] font-bold uppercase tracking-[.09em] text-[#666]">
+          {filtrando ? 'Total de lo filtrado' : 'Totales'} · {t.total} {t.total === 1 ? 'proveedor' : 'proveedores'} · {t.contratados} {t.contratados === 1 ? 'contratado' : 'contratados'}
+        </span>
+        <div className="grid grid-cols-3 gap-2">
+          <Celda etiqueta="Eventos" nota="en total"><span className="tabular-nums">{t.eventos}</span></Celda>
+          <Celda etiqueta="Cierre" nota={t.tasa != null ? `${t.tasaContratados} de ${t.tasaCotizados}` : null}>
+            {t.tasa != null ? <span className="tabular-nums">{t.tasa}%</span> : <Guion />}
+          </Celda>
+          <Celda etiqueta="Planner" nota={t.planner != null ? 'promedio' : null}>
+            {t.planner != null ? <span className="tabular-nums">{t.planner.toFixed(1)}</span> : <Guion />}
+          </Celda>
+        </div>
+      </div>
     </div>
   )
 }
