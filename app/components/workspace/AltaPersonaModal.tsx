@@ -183,6 +183,7 @@ export function AltaPersonaModal({ open, onClose, workspace, bodaFija, onHecho }
                   <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="nombre@correo.com" autoFocus
                     className="mt-1 w-full rounded-lg border border-[#d0d0d0] bg-white px-3 py-2.5 text-sm text-[#1D1E20] outline-none focus:border-[#48C9B0]" />
                 </label>
+                {!bodaFija && (
                 <div>
                   <p className="text-xs font-semibold text-[#666]">Rol en el workspace</p>
                   <div className="mt-1 grid grid-cols-2 gap-1.5">
@@ -195,6 +196,7 @@ export function AltaPersonaModal({ open, onClose, workspace, bodaFija, onHecho }
                     ))}
                   </div>
                 </div>
+                )}
                 <div className={'rounded-lg px-3 py-2.5 text-[13px] ' + (permiso.costoNuevoAsiento > 0 ? 'border border-[#f0dfae] bg-[#fffbf0] text-[#7a5a14]' : 'border border-[#a0e0c0] bg-[#f0fff6] text-[#2a7a50]')}>
                   {permiso.costoNuevoAsiento > 0
                     ? <><strong>Ocupa un asiento nuevo.</strong> Tu plan {PLANES[workspace.plan].nombre} incluye {PLANES[workspace.plan].asientosIncluidos} y ya usas {ocupados}, contando el tuyo. Se suma <strong>+${permiso.costoNuevoAsiento} / mes</strong>.</>

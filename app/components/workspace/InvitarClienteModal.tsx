@@ -80,11 +80,17 @@ export function InvitarClienteModal({ open, onClose, workspace, bodaFija, onHech
             <label className="text-xs font-semibold text-[#666]">Correo
               <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="nombre@correo.com" autoFocus className={inputCls} />
             </label>
-            <label className="text-xs font-semibold text-[#666]">Boda
-              <select value={eventId} onChange={e => setEventId(e.target.value)} disabled={!!bodaFija} className={inputCls}>
-                {workspace.bodas.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-              </select>
-            </label>
+            {bodaFija ? (
+              <p className="text-[13px] text-[#666]">
+                Entra solo a <span className="font-semibold text-[#1D1E20]">{nombreBoda}</span>.
+              </p>
+            ) : (
+              <label className="text-xs font-semibold text-[#666]">Evento
+                <select value={eventId} onChange={e => setEventId(e.target.value)} className={inputCls}>
+                  {workspace.bodas.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                </select>
+              </label>
+            )}
             <div>
               <p className="text-xs font-semibold text-[#666]">Punto de partida</p>
               <div className="mt-1 grid grid-cols-2 gap-1.5">
