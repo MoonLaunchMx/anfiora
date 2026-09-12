@@ -5,7 +5,7 @@ import { FaWhatsapp } from 'react-icons/fa'
 import { Modal } from '@/app/components/ui/Modal'
 import { PermisosEditor } from '@/app/events/[id]/configuracion/PermisosEditor'
 import type { PermisosEvento } from '@/lib/permisos/catalogo'
-import { aplicarKit, permisosDeRol } from '@/lib/permisos/resolver'
+import { aplicarKit } from '@/lib/permisos/resolver'
 import { contarAsientos, puedeInvitar } from '@/lib/workspace/asientos'
 import { enlaceWhatsApp, mensajeEquipo } from '@/lib/workspace/compartir'
 import { eventoTerminado, eventosParaRepartir, hoyISO } from '@/lib/workspace/eventos'
@@ -77,7 +77,8 @@ export function AltaPersonaModal({ open, onClose, workspace, bodaFija, onHecho }
     })
   }, [yaTiene])
 
-  // Kit: lo que ese correo ya tiene en otros eventos; si nada, "Puede editar".
+  // Kit: lo que ese correo ya tiene en otros eventos. Si no tiene nada, queda
+  // vacio y el evento arranca en Ocultar: se elige lo que de verdad necesita.
   const kit = useMemo(() => {
     const m = workspace.miembros.find(x => x.email.toLowerCase() === email.trim().toLowerCase())
     return m ? kitDesde(m.bodas) : {}
@@ -86,8 +87,7 @@ export function AltaPersonaModal({ open, onClose, workspace, bodaFija, onHecho }
   const permisosDe = (eventId: string): PermisosEvento => {
     if (permisos[eventId]) return permisos[eventId]
     const boda = workspace.bodas.find(b => b.id === eventId)!
-    const base = Object.keys(kit).length ? kit : permisosDeRol('editor')
-    return aplicarKit(base, boda.features)
+    return aplicarKit(kit, boda.features)
   }
 
   const siguiente = () => {
@@ -197,8 +197,8 @@ export function AltaPersonaModal({ open, onClose, workspace, bodaFija, onHecho }
                 </div>
                 <div className={'rounded-lg px-3 py-2.5 text-[13px] ' + (permiso.costoNuevoAsiento > 0 ? 'border border-[#f0dfae] bg-[#fffbf0] text-[#7a5a14]' : 'border border-[#a0e0c0] bg-[#f0fff6] text-[#2a7a50]')}>
                   {permiso.costoNuevoAsiento > 0
-                    ? <><strong>Ocupa un asiento nuevo.</strong> Tu plan incluye {PLANES[workspace.plan].asientosIncluidos} y ya usas {ocupados}. Se suma <strong>+${permiso.costoNuevoAsiento} / mes</strong>.</>
-                    : <><strong>Usa un asiento incluido</strong> en tu plan {PLANES[workspace.plan].nombre}.</>}
+                    ? <><strong>Ocupa un asiento nuevo.</strong> Tu plan {PLANES[workspace.plan].nombre} incluye {PLANES[workspace.plan].asientosIncluidos} y ya usas {ocupados}, contando el tuyo. Se suma <strong>+${permiso.costoNuevoAsiento} / mes</strong>.</>
+                    : <><strong>Usa un asiento incluido</strong> en tu plan {PLANES[workspace.plan].nombre}: de {PLANES[workspace.plan].asientosIncluidos} ya usas {ocupados}, contando el tuyo.</>}
                 </div>
               </>
             )}
@@ -231,8 +231,8 @@ export function AltaPersonaModal({ open, onClose, workspace, bodaFija, onHecho }
                       const on = elegidas.has(b.id)
                       const paso = b.event_date ? b.event_date < hoyISO() : false
                       return (
-                        <label key={b.id} className={'flex cursor-pointer items-center gap-3 rounded-lg border px-3 py-2.5 ' + (on ? 'border-[#48C9B0] bg-[#f0fdfb]' : 'border-[#e0e0e0] bg-white')}>
-                          <input type="checkbox" checked={on} onChange={() => setElegidas(prev => { const n = new Set(prev); if (n.has(b.id)) n.delete(b.id); else n.add(b.id); return n })} className="accent-[#48C9B0]" />
+                        <label key={b.id} className={'flex cursor-pointer select-none items-center gap-3 rounded-lg border px-3 py-3 transition ' + (on ? 'border-[#48C9B0] bg-[#f0fdfb]' : 'border-[#e0e0e0] bg-white hover:border-[#c9c9c9] hover:bg-[#fafaf9]')}>
+                          <input type="checkbox" checked={on} onChange={() => setElegidas(prev => { const n = new Set(prev); if (n.has(b.id)) n.delete(b.id); else n.add(b.id); return n })} className="h-[18px] w-[18px] shrink-0 accent-[#48C9B0]" />
                           <span className="min-w-0 flex-1">
                             <span className="block truncate text-sm font-medium text-[#1D1E20]">{b.name}</span>
                             <span className="block text-[11px] text-[#999]">

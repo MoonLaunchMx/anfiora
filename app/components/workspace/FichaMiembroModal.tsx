@@ -152,8 +152,9 @@ export function FichaMiembroModal({ open, onClose, workspace, miembro, onHecho }
                         : 'border-[#e0e0e0]'
                       )}
                     >
-                      <div className="flex items-center gap-3 px-3 py-2.5">
-                        <input type="checkbox" checked={on} onChange={() => alternar(b.id)} className="accent-[#48C9B0]" />
+                      <div className="flex items-center gap-3 py-1 pl-3 pr-3">
+                        <label className="flex min-w-0 flex-1 cursor-pointer select-none items-center gap-3 py-2">
+                        <input type="checkbox" checked={on} onChange={() => alternar(b.id)} className="h-[18px] w-[18px] shrink-0 accent-[#48C9B0]" />
                         <span className="min-w-0 flex-1">
                           <span className="block truncate text-sm font-semibold text-[#1D1E20]">{b.name}</span>
                           {on && (
@@ -162,6 +163,7 @@ export function FichaMiembroModal({ open, onClose, workspace, miembro, onHecho }
                             </span>
                           )}
                         </span>
+                        </label>
                         {on && (
                           <button
                             type="button"
