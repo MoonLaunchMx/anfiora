@@ -191,7 +191,7 @@ export default function DirectorioPage() {
   ]
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-3">
 
       {estado.filas.length === 0 ? (
         <>
@@ -353,7 +353,7 @@ export default function DirectorioPage() {
               </div>
             ) : (
               <>
-                <div className="hidden max-h-[calc(100dvh-300px)] min-h-[220px] overflow-y-auto lg:block">
+                <div className="hidden max-h-[calc(100dvh-244px)] min-h-[220px] overflow-y-auto lg:block">
                   <TablaDirectorio
                     filas={visibles}
                     columnas={columnas}

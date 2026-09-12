@@ -11,6 +11,11 @@ export type ColumnaDirectorioKey =
 
 export const COLUMNA_DIRECTORIO_SIEMPRE: ColumnaDirectorioKey = 'proveedor'
 
+// El orden importa y no es alfabetico: quien es (proveedor, categoria), cuanto
+// lo has usado (eventos, cierre), cuanto cuesta (ahorro, inversion), que tan
+// bueno es (planner y cliente, JUNTAS: son la misma pregunta contestada por dos
+// personas) y al final cuando fue la ultima vez. Prender una columna nunca se
+// mete entre las dos calificaciones ni empuja a "Ultima vez" de su lugar.
 export const COLUMNAS_DIRECTORIO: {
   key: ColumnaDirectorioKey
   label: string
@@ -21,11 +26,11 @@ export const COLUMNAS_DIRECTORIO: {
   { key: 'categoria', label: 'Categoría',  peso: 15 },
   { key: 'eventos',   label: 'Eventos',    peso: 10, derecha: true },
   { key: 'cierre',    label: 'Cierre',     peso: 11, derecha: true },
-  { key: 'planner',   label: 'Planner',    peso: 17 },
-  { key: 'ultima',    label: 'Última vez', peso: 21 },
   { key: 'ahorro',    label: 'Ahorro',     peso: 11, derecha: true },
-  { key: 'cliente',   label: 'Cliente',    peso: 17 },
   { key: 'rango',     label: 'Inversión',  peso: 19, derecha: true },
+  { key: 'planner',   label: 'Planner',    peso: 17 },
+  { key: 'cliente',   label: 'Cliente',    peso: 17 },
+  { key: 'ultima',    label: 'Última vez', peso: 21 },
 ]
 
 // Seis y no nueve: mas columnas abruman y aprietan la letra. Las otras tres

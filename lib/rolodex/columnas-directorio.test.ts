@@ -33,6 +33,35 @@ describe('columnasDirectorioPorDefecto', () => {
   })
 })
 
+// El orden del catalogo es el orden en que se pintan las columnas: prender una
+// no puede meterse entre las dos calificaciones ni mover a "Ultima vez".
+describe('orden del catalogo', () => {
+  const claves = COLUMNAS_DIRECTORIO.map(c => c.key)
+
+  it('el proveedor abre y la ultima vez cierra', () => {
+    expect(claves[0]).toBe('proveedor')
+    expect(claves[claves.length - 1]).toBe('ultima')
+  })
+
+  it('planner y cliente van pegadas', () => {
+    expect(claves.indexOf('cliente') - claves.indexOf('planner')).toBe(1)
+  })
+
+  it('prender cualquier columna deja a la ultima vez al final', () => {
+    for (const extra of ['ahorro', 'cliente', 'rango'] as const) {
+      const prendidas = new Set([...columnasDirectorioPorDefecto(), extra])
+      const pintadas = COLUMNAS_DIRECTORIO.filter(c => prendidas.has(c.key)).map(c => c.key)
+      expect(pintadas[pintadas.length - 1]).toBe('ultima')
+    }
+  })
+
+  it('con las dos calificaciones prendidas quedan una junto a la otra', () => {
+    const prendidas = new Set([...columnasDirectorioPorDefecto(), 'cliente' as const])
+    const pintadas = COLUMNAS_DIRECTORIO.filter(c => prendidas.has(c.key)).map(c => c.key)
+    expect(pintadas.indexOf('cliente') - pintadas.indexOf('planner')).toBe(1)
+  })
+})
+
 describe('columnasDirectorioDesdeJSON', () => {
   it('acepta una lista de claves validas', () => {
     expect([...columnasDirectorioDesdeJSON(['proveedor', 'ahorro'])!]).toEqual(['proveedor', 'ahorro'])
