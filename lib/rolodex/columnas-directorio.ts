@@ -6,7 +6,7 @@
 // 100%, asi que al prender o apagar columnas el navegador reparte el espacio
 // entre las que quedan. Por eso nunca hay scroll horizontal.
 export type ColumnaDirectorioKey =
-  | 'proveedor' | 'categoria' | 'eventos' | 'cierre' | 'planner'
+  | 'proveedor' | 'categoria' | 'activo' | 'eventos' | 'cierre' | 'planner'
   | 'ultima' | 'ahorro' | 'cliente' | 'rango'
 
 export const COLUMNA_DIRECTORIO_SIEMPRE: ColumnaDirectorioKey = 'proveedor'
@@ -22,8 +22,9 @@ export const COLUMNAS_DIRECTORIO: {
   peso: number
   derecha?: boolean
 }[] = [
-  { key: 'proveedor', label: 'Proveedor',  peso: 26 },
-  { key: 'categoria', label: 'Categoría',  peso: 15 },
+  { key: 'proveedor', label: 'Proveedor',  peso: 25 },
+  { key: 'categoria', label: 'Categoría',  peso: 14 },
+  { key: 'activo',    label: 'Activo',     peso: 10 },
   { key: 'eventos',   label: 'Eventos',    peso: 10, derecha: true },
   { key: 'cierre',    label: 'Cierre',     peso: 11, derecha: true },
   { key: 'ahorro',    label: 'Ahorro',     peso: 11, derecha: true },
@@ -33,10 +34,10 @@ export const COLUMNAS_DIRECTORIO: {
   { key: 'ultima',    label: 'Última vez', peso: 21 },
 ]
 
-// Seis y no nueve: mas columnas abruman y aprietan la letra. Las otras tres
+// Siete y no diez: mas columnas abruman y aprietan la letra. Las otras tres
 // estan a un clic en el menu de columnas.
 const VISIBLES_POR_DEFECTO: ColumnaDirectorioKey[] = [
-  'proveedor', 'categoria', 'eventos', 'cierre', 'planner', 'ultima',
+  'proveedor', 'categoria', 'activo', 'eventos', 'cierre', 'planner', 'ultima',
 ]
 
 export function columnasDirectorioPorDefecto(): Set<ColumnaDirectorioKey> {

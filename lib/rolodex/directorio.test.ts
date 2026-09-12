@@ -104,6 +104,31 @@ describe('armarDirectorio', () => {
     expect(porId('p-audio').ultimaVez?.estatus).toBe('nuevo')
   })
 
+  it('esta activo si sigue vivo en algun evento', () => {
+    expect(porId('p-foto').activo).toBe(true)
+    expect(porId('p-audio').activo).toBe(true)
+  })
+
+  it('sin ningun evento no esta activo', () => {
+    expect(porId('p-flor').activo).toBe(false)
+  })
+
+  it('solo descartado tampoco es estar activo', () => {
+    const soloDescartado = armarDirectorio({
+      proveedores: [proveedores[1]],
+      vinculos: [{ id: 'v-x', supplier_id: 'p-audio', event_id: 'e-ana', status: 'descartado', quoted_amount: null }],
+      eventos, partidas, pagos, reviews: [], hoy: HOY,
+    })
+    expect(soloDescartado[0].activo).toBe(false)
+    expect(soloDescartado[0].eventos).toBe(1)
+  })
+
+  it('estar activo no es lo mismo que tener eventos por venir', () => {
+    // Solo estuvo en una boda que ya paso, pero la relacion nunca se descarto.
+    expect(porId('p-audio').activos).toBe(0)
+    expect(porId('p-audio').activo).toBe(true)
+  })
+
   it('las resenas de un proveedor no se le cuentan a otro', () => {
     expect(porId('p-audio').planner).toBeNull()
     expect(porId('p-flor').cliente).toBeNull()
@@ -242,6 +267,11 @@ describe('estadisticasDirectorio', () => {
     const e = estadisticasDirectorio(filas)
     expect(e.eventos).toBe(4)
     expect(e.categorias).toBe(2)
+  })
+
+  it('cuenta cuantos siguen activos', () => {
+    expect(estadisticasDirectorio(filas).activos).toBe(2)
+    expect(estadisticasDirectorio([porId('p-flor')]).activos).toBe(0)
   })
 
   it('no resume la inversion: juntar una banda con un banquete no da una cifra', () => {

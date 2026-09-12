@@ -7,10 +7,10 @@ import {
 } from './columnas-directorio'
 
 describe('columnasDirectorioPorDefecto', () => {
-  it('arranca con seis, para no abrumar', () => {
+  it('arranca con siete, para no abrumar', () => {
     const d = columnasDirectorioPorDefecto()
-    expect(d.size).toBe(6)
-    expect([...d]).toEqual(['proveedor', 'categoria', 'eventos', 'cierre', 'planner', 'ultima'])
+    expect(d.size).toBe(7)
+    expect([...d]).toEqual(['proveedor', 'categoria', 'activo', 'eventos', 'cierre', 'planner', 'ultima'])
   })
 
   it('las otras tres existen en el catalogo, apagadas', () => {

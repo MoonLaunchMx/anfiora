@@ -64,9 +64,16 @@ function celda(key: ColumnaDirectorioKey, f: FilaDirectorio, nombreCategoria: (i
       return f.categoriaId
         ? <span className="inline-block max-w-full overflow-hidden text-ellipsis whitespace-nowrap rounded-full border border-[#e8e8e8] bg-[#f2f2f2] px-2.5 py-[3px] align-middle text-[11px] font-bold uppercase tracking-[.04em] text-[#666]">{nombreCategoria(f.categoriaId)}</span>
         : <Guion />
+    case 'activo':
+      return (
+        <span className={`inline-flex items-center gap-1.5 text-[13px] font-semibold ${f.activo ? 'text-[#1D9E75]' : 'text-[#999]'}`}>
+          <span className={`h-[7px] w-[7px] shrink-0 rounded-full ${f.activo ? 'bg-[#1D9E75]' : 'bg-[#c4c4c4]'}`} />
+          {f.activo ? 'Activo' : 'No activo'}
+        </span>
+      )
     case 'eventos':
       return f.eventos > 0
-        ? <><Fuerte>{f.eventos}</Fuerte><span className={SUB}>{f.activos > 0 ? `${f.activos} ${f.activos === 1 ? 'activo' : 'activos'}` : 'ninguno activo'}</span></>
+        ? <><Fuerte>{f.eventos}</Fuerte><span className={SUB}>{f.activos > 0 ? `${f.activos} por venir` : 'ya pasaron'}</span></>
         : <span className="text-[11.5px] text-[#c4c4c4]">Ninguno</span>
     case 'cierre':
       return f.tasa != null
@@ -120,6 +127,8 @@ function pie(key: ColumnaDirectorioKey, t: EstadisticasDirectorio, filtrando: bo
       return t.categorias > 0
         ? <span className="text-[12.5px] font-semibold text-[#666]">{t.categorias} {t.categorias === 1 ? 'categoría' : 'categorías'}</span>
         : null
+    case 'activo':
+      return <><span className="tabular-nums text-[#1D9E75]">{t.activos}</span><span className={PIE_SUB}>{t.activos === 1 ? 'activo' : 'activos'}</span></>
     case 'eventos':
       return <><span className="tabular-nums">{t.eventos}</span><span className={PIE_SUB}>en total</span></>
     case 'cierre':
@@ -220,7 +229,10 @@ export function ListaDirectorio({ filas, filtrando, nombreCategoria, onAbrir }: 
               {iniciales(f.nombre)}
             </span>
             <span className="min-w-0 flex-1">
-              <span className="block truncate text-[14.5px] font-bold">{f.nombre}</span>
+              <span className="flex items-center gap-1.5">
+                <span className={`h-[7px] w-[7px] shrink-0 rounded-full ${f.activo ? 'bg-[#1D9E75]' : 'bg-[#c4c4c4]'}`} title={f.activo ? 'Activo' : 'No activo'} />
+                <span className="truncate text-[14.5px] font-bold">{f.nombre}</span>
+              </span>
               <span className="block truncate text-xs text-[#999]">
                 {[f.categoriaId ? nombreCategoria(f.categoriaId) : null, f.ciudad].filter(Boolean).join(' · ') || '—'}
               </span>
@@ -233,7 +245,7 @@ export function ListaDirectorio({ filas, filtrando, nombreCategoria, onAbrir }: 
             )}
           </div>
           <div className="grid w-full grid-cols-3 gap-2 pl-[46px]">
-            <Celda etiqueta="Eventos" nota={f.eventos > 0 ? (f.activos > 0 ? `${f.activos} ${f.activos === 1 ? 'activo' : 'activos'}` : 'ninguno activo') : 'sin eventos'}>
+            <Celda etiqueta="Eventos" nota={f.eventos > 0 ? (f.activos > 0 ? `${f.activos} por venir` : 'ya pasaron') : 'sin eventos'}>
               {f.eventos > 0 ? <span className="tabular-nums">{f.eventos}</span> : <Guion />}
             </Celda>
             <Celda etiqueta="Cierre" nota={f.tasa != null ? `${f.contratados} de ${f.cotizados}` : null}>
@@ -248,7 +260,7 @@ export function ListaDirectorio({ filas, filtrando, nombreCategoria, onAbrir }: 
 
       <div className="flex flex-col gap-1.5 border-t-2 border-[#e0e0e0] bg-[#f8f8f8] px-4 py-3">
         <span className="text-[10.5px] font-bold uppercase tracking-[.09em] text-[#666]">
-          {filtrando ? 'Total de lo filtrado' : 'Totales'} · {t.total} {t.total === 1 ? 'proveedor' : 'proveedores'} · {t.contratados} {t.contratados === 1 ? 'contratado' : 'contratados'}
+          {filtrando ? 'Total de lo filtrado' : 'Totales'} · {t.total} {t.total === 1 ? 'proveedor' : 'proveedores'} · {t.activos} {t.activos === 1 ? 'activo' : 'activos'} · {t.contratados} {t.contratados === 1 ? 'contratado' : 'contratados'}
         </span>
         <div className="grid grid-cols-3 gap-2">
           <Celda etiqueta="Eventos" nota="en total"><span className="tabular-nums">{t.eventos}</span></Celda>

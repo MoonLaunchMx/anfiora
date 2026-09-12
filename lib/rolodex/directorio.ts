@@ -34,6 +34,11 @@ export type FilaDirectorio = {
   tags: string[]
   eventos: number
   activos: number
+  // Si la relacion sigue viva: esta en algun evento como nuevo, cotizado o
+  // contratado. Un proveedor que solo aparece descartado, o que no esta en
+  // ningun evento, no lo esta. Es distinto de `activos`, que cuenta eventos
+  // que todavia no pasan.
+  activo: boolean
   contratados: number
   cotizados: number
   tasa: number | null
@@ -99,6 +104,7 @@ export function armarDirectorio(datos: {
       tags: p.tags ?? [],
       eventos: filas.length,
       activos: activos.length,
+      activo: vinculos.some(v => v.status !== 'descartado'),
       contratados: tasa.contratados,
       cotizados: tasa.cotizados,
       tasa: tasa.porcentaje,
@@ -173,6 +179,7 @@ function claveDe(fila: FilaDirectorio, columna: ColumnaDirectorio, nombrePorId: 
   switch (columna) {
     case 'proveedor': return { texto: normalizar(fila.nombre), numero: null }
     case 'categoria': return { texto: fila.categoriaId ? normalizar(nombrePorId(fila.categoriaId)) : null, numero: null }
+    case 'activo':    return { texto: null, numero: fila.activo ? 1 : 0 }
     case 'eventos':   return { texto: null, numero: fila.eventos > 0 ? fila.eventos : null }
     case 'cierre':    return { texto: null, numero: fila.tasa }
     case 'ahorro':    return { texto: null, numero: fila.ahorro }
@@ -236,6 +243,7 @@ export type EstadisticasDirectorio = {
   ahorroN: number
   categorias: number
   eventos: number
+  activos: number
   planner: number | null
   cliente: number | null
 }
@@ -268,6 +276,7 @@ export function estadisticasDirectorio(filas: FilaDirectorio[]): EstadisticasDir
     ahorroN,
     categorias: new Set(filas.map(f => f.categoriaId).filter(Boolean)).size,
     eventos: filas.reduce((s, f) => s + f.eventos, 0),
+    activos: filas.filter(f => f.activo).length,
     planner: promedioDe(filas.map(f => f.planner)),
     cliente: promedioDe(filas.map(f => f.cliente)),
   }
