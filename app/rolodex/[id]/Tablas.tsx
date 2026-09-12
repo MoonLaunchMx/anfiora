@@ -50,9 +50,9 @@ function textoVacio(carpeta: Carpeta) {
     : 'Todavía no hay eventos que ya hayan pasado con este proveedor.'
 }
 
-const TH = 'px-3.5 py-2.5 text-left text-[10px] font-bold uppercase tracking-[.09em] text-[#999]'
-const TD = 'px-3.5 py-2.5 text-[12.5px] align-middle whitespace-nowrap'
-const TF = 'px-3.5 py-2.5 text-[12.5px] font-bold border-t-2 border-[#e0e0e0] bg-[#f8f8f8]'
+const TH = 'px-3.5 py-3 text-left text-[11px] font-bold uppercase tracking-[.09em] text-[#999]'
+const TD = 'px-3.5 py-3.5 text-sm align-middle whitespace-nowrap'
+const TF = 'px-3.5 py-3 text-sm font-bold border-t-2 border-[#e0e0e0] bg-[#f8f8f8]'
 
 export function TablaExpediente({ filas, carpeta, hoy, moneda, onAbrir }: Props) {
   if (filas.length === 0) {
@@ -96,14 +96,14 @@ export function TablaExpediente({ filas, carpeta, hoy, moneda, onAbrir }: Props)
             >
               <td className={TD}>
                 <span className="block font-bold tabular-nums">{fechaLarga(f.fecha) || <Guion />}</span>
-                <span className="block text-[10.5px] text-[#999]">{etiquetaRelativa(f.fecha, f.fechaFin, hoy)}</span>
+                <span className="block text-[11.5px] text-[#999]">{etiquetaRelativa(f.fecha, f.fechaFin, hoy)}</span>
               </td>
               <td className={TD}>
                 <span className="inline-flex items-center gap-1.5 font-bold">
                   {f.nombre}
                   <ArrowUpRight size={11} className="text-[#c4c4c4] opacity-0 transition group-hover:opacity-100" />
                 </span>
-                {f.lugar && <span className="block text-[10.5px] text-[#999]">{f.lugar}</span>}
+                {f.lugar && <span className="block text-[11.5px] text-[#999]">{f.lugar}</span>}
               </td>
               <td className={TD}><EstatusProveedor estado={f.estatus} /></td>
               <td className={`${TD} text-right`}>
@@ -117,13 +117,13 @@ export function TablaExpediente({ filas, carpeta, hoy, moneda, onAbrir }: Props)
                     {f.contratado == null ? <Guion /> : (
                       <>
                         <span className="tabular-nums">{formatCurrency(f.pagado, f.moneda)}</span>
-                        {f.porcentajePagado != null && <span className="block text-[10.5px] text-[#999]">{f.porcentajePagado}%</span>}
+                        {f.porcentajePagado != null && <span className="block text-[11.5px] text-[#999]">{f.porcentajePagado}%</span>}
                       </>
                     )}
                   </td>
                   <td className={`${TD} text-right`}>
                     <Dinero monto={f.porPagar} moneda={f.moneda} fuerte />
-                    {f.porPagar === 0 && <span className="block text-[10.5px] font-semibold text-[#1D9E75]">liquidado</span>}
+                    {f.porPagar === 0 && <span className="block text-[11.5px] font-semibold text-[#1D9E75]">liquidado</span>}
                   </td>
                 </>
               ) : (
@@ -140,8 +140,8 @@ export function TablaExpediente({ filas, carpeta, hoy, moneda, onAbrir }: Props)
         <tfoot>
           <tr>
             <td className={TF} colSpan={3}>
-              <span className="text-[10px] uppercase tracking-[.09em] text-[#666]">Balance consolidado</span>
-              <span className="ml-2 text-[11px] font-semibold text-[#999]">
+              <span className="text-[10.5px] uppercase tracking-[.09em] text-[#666]">Balance consolidado</span>
+              <span className="ml-2 text-[12px] font-semibold text-[#999]">
                 {t.eventos} {t.eventos === 1 ? 'evento' : 'eventos'} · {activos ? `${t.contratados} ${t.contratados === 1 ? 'contratado' : 'contratados'}` : `se quedó ${t.contratados} de ${t.eventos}`}
               </span>
             </td>
@@ -158,7 +158,7 @@ export function TablaExpediente({ filas, carpeta, hoy, moneda, onAbrir }: Props)
                 <td className={TF}></td>
                 <td className={`${TF} tabular-nums`}>{t.planner != null ? t.planner.toFixed(1) : ''}</td>
                 <td className={`${TF} tabular-nums`}>{t.cliente != null ? t.cliente.toFixed(1) : ''}</td>
-                <td className={`${TF} text-center text-[10px] text-[#999]`}>{moneda}</td>
+                <td className={`${TF} text-center text-[10.5px] text-[#999]`}>{moneda}</td>
               </>
             )}
           </tr>
@@ -171,9 +171,9 @@ export function TablaExpediente({ filas, carpeta, hoy, moneda, onAbrir }: Props)
 function Celda({ etiqueta, children, nota, notaColor }: { etiqueta: string; children: React.ReactNode; nota?: string | null; notaColor?: string }) {
   return (
     <div className="flex flex-col">
-      <span className="text-[9.5px] font-bold uppercase tracking-[.08em] text-[#999]">{etiqueta}</span>
-      <span className="text-[13px] font-bold tabular-nums">{children}</span>
-      {nota && <span className={`text-[10px] ${notaColor ?? 'text-[#999]'}`}>{nota}</span>}
+      <span className="text-[10px] font-bold uppercase tracking-[.07em] text-[#999]">{etiqueta}</span>
+      <span className="text-[14.5px] font-bold tabular-nums">{children}</span>
+      {nota && <span className={`text-[11px] ${notaColor ?? 'text-[#999]'}`}>{nota}</span>}
     </div>
   )
 }
@@ -199,8 +199,8 @@ export function FilasExpediente({ filas, carpeta, hoy, moneda, onAbrir }: Props)
           >
             <div className="flex w-full items-start gap-2">
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-[13px] font-bold">{f.nombre}</span>
-                <span className="block text-[10.5px] text-[#999]">{subtitulo}</span>
+                <span className="block truncate text-[14.5px] font-bold">{f.nombre}</span>
+                <span className="block text-[11.5px] text-[#999]">{subtitulo}</span>
               </span>
               <EstatusProveedor estado={f.estatus} chico />
             </div>
@@ -232,7 +232,7 @@ export function FilasExpediente({ filas, carpeta, hoy, moneda, onAbrir }: Props)
               )}
             </div>
             {!activos && (f.porQue || f.comentario) && (
-              <p className="text-[12px] text-[#666]">
+              <p className="text-[13px] text-[#666]">
                 {f.porQue && <><span className="text-[#999]">Por qué</span> {f.porQue}</>}
                 {f.porQue && f.comentario && <span className="text-[#999]"> · </span>}
                 {f.comentario && <span className="text-[#1D1E20]">«{f.comentario}»</span>}
@@ -243,7 +243,7 @@ export function FilasExpediente({ filas, carpeta, hoy, moneda, onAbrir }: Props)
       })}
 
       <div className="flex flex-col gap-1.5 border-t-2 border-[#e0e0e0] bg-[#f8f8f8] px-4 py-3">
-        <span className="text-[10px] font-bold uppercase tracking-[.09em] text-[#666]">
+        <span className="text-[10.5px] font-bold uppercase tracking-[.09em] text-[#666]">
           Balance · {t.eventos} {t.eventos === 1 ? 'evento' : 'eventos'} · {activos ? `${t.contratados} ${t.contratados === 1 ? 'contratado' : 'contratados'}` : `se quedó ${t.contratados} de ${t.eventos}`}
         </span>
         <div className="grid grid-cols-3 gap-2">

@@ -15,7 +15,7 @@ export default function RolodexLayout({ children }: { children: React.ReactNode 
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-[90vw] py-6 sm:py-8">
+      <main className="mx-auto w-full max-w-[90vw] pb-4 pt-5 sm:pb-5 sm:pt-6">
         {children}
       </main>
     </div>
