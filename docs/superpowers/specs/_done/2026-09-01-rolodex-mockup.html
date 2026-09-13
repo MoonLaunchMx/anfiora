@@ -1,0 +1,1782 @@
+<!DOCTYPE html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Rolodex - Brainstorming Anfiora</title>
+  <style>
+    /*
+     * BRAINSTORM COMPANION FRAME TEMPLATE
+     *
+     * This template provides a consistent frame with:
+     * - OS-aware light/dark theming
+     * - Header branding and connection status
+     * - Scrollable main content area
+     * - CSS helpers for common UI patterns
+     *
+     * Content is injected via placeholder comment in #frame-content.
+     */
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; overflow: hidden; }
+
+    /* ===== THEME VARIABLES ===== */
+    :root {
+      --bg-primary: #f5f5f7;
+      --bg-secondary: #ffffff;
+      --bg-tertiary: #e5e5e7;
+      --border: #d1d1d6;
+      --text-primary: #1d1d1f;
+      --text-secondary: #86868b;
+      --text-tertiary: #aeaeb2;
+      --accent: #0071e3;
+      --accent-hover: #0077ed;
+      --success: #34c759;
+      --warning: #ff9f0a;
+      --error: #ff3b30;
+      --selected-bg: #e8f4fd;
+      --selected-border: #0071e3;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg-primary: #1d1d1f;
+        --bg-secondary: #2d2d2f;
+        --bg-tertiary: #3d3d3f;
+        --border: #424245;
+        --text-primary: #f5f5f7;
+        --text-secondary: #86868b;
+        --text-tertiary: #636366;
+        --accent: #0a84ff;
+        --accent-hover: #409cff;
+        --selected-bg: rgba(10, 132, 255, 0.15);
+        --selected-border: #0a84ff;
+      }
+    }
+
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      display: flex;
+      flex-direction: column;
+      line-height: 1.5;
+    }
+
+    /* ===== FRAME STRUCTURE ===== */
+    .brand { display: flex; align-items: center; min-width: 0; overflow: hidden; color: var(--text-secondary); line-height: 1; }
+    .brand a { color: inherit; text-decoration: none; display: flex; align-items: center; gap: 0.5rem; min-width: 0; max-width: 100%; line-height: 1; }
+    .brand-copy { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1; transform: translateY(-1px); }
+    .brand-logo { display: block; height: 1em; width: auto; max-width: 180px; flex-shrink: 0; filter: invert(1); }
+    @media (prefers-color-scheme: dark) {
+      .brand-logo { filter: none; }
+    }
+    .status { font-size: 0.7rem; color: var(--status-color, var(--success)); display: flex; align-items: center; gap: 0.4rem; justify-self: end; white-space: nowrap; line-height: 1; }
+    .status::before { content: ''; width: 6px; height: 6px; background: var(--status-color, var(--success)); border-radius: 50%; }
+
+    .main { flex: 1; overflow-y: auto; }
+    #frame-content { padding: 2rem; min-height: 100%; }
+
+    .header {
+      background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border);
+      padding: 0.5rem 1.5rem;
+      flex-shrink: 0;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 1rem;
+      min-height: 42px;
+    }
+    .header .brand { justify-self: start; width: 100%; font-size: 0.75rem; line-height: 1; }
+    .header .status { grid-column: 2; line-height: 1; }
+    .header span {
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+    }
+    .header .selected-text {
+      color: var(--accent);
+      font-weight: 500;
+    }
+
+    /* ===== TYPOGRAPHY ===== */
+    h2 { font-size: 1.5rem; font-weight: 600; margin-bottom: 0.5rem; }
+    h3 { font-size: 1.1rem; font-weight: 600; margin-bottom: 0.25rem; }
+    .subtitle { color: var(--text-secondary); margin-bottom: 1.5rem; }
+    .section { margin-bottom: 2rem; }
+    .label { font-size: 0.7rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem; }
+
+    /* ===== OPTIONS (for A/B/C choices) ===== */
+    .options { display: flex; flex-direction: column; gap: 0.75rem; }
+    .option {
+      background: var(--bg-secondary);
+      border: 2px solid var(--border);
+      border-radius: 12px;
+      padding: 1rem 1.25rem;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      display: flex;
+      align-items: flex-start;
+      gap: 1rem;
+    }
+    .option:hover { border-color: var(--accent); }
+    .option.selected { background: var(--selected-bg); border-color: var(--selected-border); }
+    .option .letter {
+      background: var(--bg-tertiary);
+      color: var(--text-secondary);
+      width: 1.75rem; height: 1.75rem;
+      border-radius: 6px;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 600; font-size: 0.85rem; flex-shrink: 0;
+    }
+    .option.selected .letter { background: var(--accent); color: white; }
+    .option .content { flex: 1; }
+    .option .content h3 { font-size: 0.95rem; margin-bottom: 0.15rem; }
+    .option .content p { color: var(--text-secondary); font-size: 0.85rem; margin: 0; }
+
+    /* ===== CARDS (for showing designs/mockups) ===== */
+    .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; }
+    .card {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .card:hover { border-color: var(--accent); transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+    .card.selected { border-color: var(--selected-border); border-width: 2px; }
+    .card-image { background: var(--bg-tertiary); aspect-ratio: 16/10; display: flex; align-items: center; justify-content: center; }
+    .card-body { padding: 1rem; }
+    .card-body h3 { margin-bottom: 0.25rem; }
+    .card-body p { color: var(--text-secondary); font-size: 0.85rem; }
+
+    /* ===== MOCKUP CONTAINER ===== */
+    .mockup {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      margin-bottom: 1.5rem;
+    }
+    .mockup-header {
+      background: var(--bg-tertiary);
+      padding: 0.5rem 1rem;
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+      border-bottom: 1px solid var(--border);
+    }
+    .mockup-body { padding: 1.5rem; }
+
+    /* ===== SPLIT VIEW (side-by-side comparison) ===== */
+    .split { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+    @media (max-width: 700px) { .split { grid-template-columns: 1fr; } }
+
+    /* ===== PROS/CONS ===== */
+    .pros-cons { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin: 1rem 0; }
+    .pros, .cons { background: var(--bg-secondary); border-radius: 8px; padding: 1rem; }
+    .pros h4 { color: var(--success); font-size: 0.85rem; margin-bottom: 0.5rem; }
+    .cons h4 { color: var(--error); font-size: 0.85rem; margin-bottom: 0.5rem; }
+    .pros ul, .cons ul { margin-left: 1.25rem; font-size: 0.85rem; color: var(--text-secondary); }
+    .pros li, .cons li { margin-bottom: 0.25rem; }
+
+    /* ===== PLACEHOLDER (for mockup areas) ===== */
+    .placeholder {
+      background: var(--bg-tertiary);
+      border: 2px dashed var(--border);
+      border-radius: 8px;
+      padding: 2rem;
+      text-align: center;
+      color: var(--text-tertiary);
+    }
+
+    /* ===== INLINE MOCKUP ELEMENTS ===== */
+    .mock-nav { background: var(--accent); color: white; padding: 0.75rem 1rem; display: flex; gap: 1.5rem; font-size: 0.9rem; }
+    .mock-sidebar { background: var(--bg-tertiary); padding: 1rem; min-width: 180px; }
+    .mock-content { padding: 1.5rem; flex: 1; }
+    .mock-button { background: var(--accent); color: white; border: none; padding: 0.5rem 1rem; border-radius: 6px; font-size: 0.85rem; }
+    .mock-input { background: var(--bg-primary); border: 1px solid var(--border); border-radius: 6px; padding: 0.5rem; width: 100%; }
+  </style>
+<style>html,body{height:auto;overflow:auto}body{padding:2rem 1.25rem;max-width:1100px;margin:0 auto}hr.sep{border:none;border-top:2px dashed var(--border);margin:4rem 0}</style>
+<script>function toggleSelect(el){el.classList.toggle("selected")}</script>
+</head><body>
+<style>
+  .anf-wrap { max-width: 980px; }
+  .anf-block { background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 14px; padding: 1.4rem 1.5rem; margin-bottom: 1.6rem; }
+  .anf-h { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.09em; color: var(--text-secondary); font-weight: 700; margin-bottom: 0.15rem; }
+  .anf-t { font-size: 1.02rem; font-weight: 650; color: var(--text-primary); margin: 0 0 1.1rem; }
+  .anf-note { font-size: 0.82rem; color: var(--text-secondary); line-height: 1.55; margin-top: 1rem; }
+  .anf-teal { color: #2f9d88; font-weight: 600; }
+
+  .lvl-tag { display:inline-block; font-size: 0.63rem; letter-spacing:0.07em; text-transform: uppercase; font-weight:700; padding: 0.25rem 0.6rem; border-radius: 999px; margin-bottom: 0.7rem; }
+  .lvl-acct { background: rgba(72,201,176,0.16); color: #2f9d88; }
+  .lvl-evt  { background: var(--bg-tertiary); color: var(--text-secondary); }
+
+  .ficha { border: 2px solid #48C9B0; border-radius: 12px; padding: 0.9rem 1rem; background: rgba(72,201,176,0.06); max-width: 340px; }
+  .ficha-name { font-weight: 700; font-size: 0.95rem; color: var(--text-primary); }
+  .ficha-meta { font-size: 0.78rem; color: var(--text-secondary); margin-top: 0.25rem; line-height: 1.5; }
+
+  .stem { height: 26px; border-left: 2px dashed #48C9B0; margin-left: 40px; }
+  .rail { border-top: 2px dashed #48C9B0; margin: 0 60px; position: relative; height: 0; }
+  .drops { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.9rem; }
+  .drop-stem { height: 18px; border-left: 2px dashed #48C9B0; margin: 0 auto; width: 0; }
+
+  .boda { border: 1px solid var(--border); border-radius: 11px; padding: 0.8rem 0.85rem; background: var(--bg-primary); }
+  .boda-name { font-size: 0.8rem; font-weight: 700; color: var(--text-primary); margin-bottom: 0.5rem; }
+  .boda-row { font-size: 0.73rem; color: var(--text-secondary); display: flex; justify-content: space-between; gap: 0.5rem; padding: 0.16rem 0; }
+  .boda-row b { color: var(--text-primary); font-weight: 600; }
+  .chip { display:inline-block; font-size:0.63rem; font-weight:700; padding: 0.18rem 0.5rem; border-radius: 5px; }
+  .c-ok { background: rgba(52,199,89,0.16); color: #2a8a45; }
+  .c-mid{ background: rgba(0,113,227,0.14); color: #0071e3; }
+  .c-no { background: rgba(255,59,48,0.13); color: #d33; }
+
+  .perm { display: grid; grid-template-columns: 1fr auto; gap: 0.1rem 1rem; }
+  .perm-row { display: contents; }
+  .perm-row > div { padding: 0.62rem 0; border-bottom: 1px solid var(--border); font-size: 0.87rem; }
+  .perm-who b { color: var(--text-primary); }
+  .perm-who span { color: var(--text-secondary); font-size: 0.8rem; }
+  .yes { color: #2a8a45; font-weight: 700; }
+  .no  { color: var(--text-tertiary); font-weight: 700; }
+
+  .cmp { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+  .cmp-box { border-radius: 11px; padding: 0.95rem 1rem; border: 1px solid var(--border); }
+  .cmp-bad  { border-color: rgba(255,59,48,0.4); background: rgba(255,59,48,0.05); }
+  .cmp-good { border-color: #48C9B0; background: rgba(72,201,176,0.07); }
+  .cmp-tag { font-size: 0.63rem; font-weight: 800; letter-spacing: 0.07em; text-transform: uppercase; margin-bottom: 0.55rem; }
+  .cmp-bad .cmp-tag { color: #d33; }
+  .cmp-good .cmp-tag { color: #2f9d88; }
+  .cmp-box p { font-size: 0.83rem; line-height: 1.6; color: var(--text-secondary); margin: 0 0 0.5rem; }
+  .cmp-box p b { color: var(--text-primary); }
+
+  .warn { border-left: 3px solid var(--warning); background: rgba(255,159,10,0.08); padding: 0.75rem 0.9rem; border-radius: 0 8px 8px 0; font-size: 0.83rem; line-height: 1.6; color: var(--text-secondary); margin-top: 1rem; }
+  .warn b { color: var(--text-primary); }
+
+  @media (max-width: 760px) {
+    .drops { grid-template-columns: 1fr; }
+    .cmp { grid-template-columns: 1fr; }
+    .rail { display: none; }
+  }
+</style>
+
+<div class="anf-wrap">
+  <h2>El cimiento del Rolodex</h2>
+  <p class="subtitle">Tu regla — lo ve el dueño del evento y quien tenga invitación de admin — dibujada completa. Tres piezas. Revísalas y me dices si alguna te suena mal.</p>
+
+  <div class="anf-block">
+    <div class="anf-h">Pieza 1</div>
+    <p class="anf-t">Una sola ficha, prestada a muchas bodas</p>
+
+    <span class="lvl-tag lvl-acct">Tu directorio · vive en tu cuenta, no en una boda</span>
+    <div class="ficha">
+      <div class="ficha-name">Flores Aurora</div>
+      <div class="ficha-meta">
+        Florista · Querétaro, QRO<br>
+        WhatsApp +52 442 118 4420 · @floresaurora<br>
+        Nota: entregar antes de las 8am, no trabajan domingo
+      </div>
+    </div>
+
+    <div class="stem"></div>
+    <div class="rail"></div>
+    <div class="drops" style="margin-top:0">
+      <div><div class="drop-stem"></div>
+        <div class="boda">
+          <div class="boda-name">Boda García · mar 2026</div>
+          <div class="boda-row"><span>Estatus</span><span class="chip c-ok">Contratado</span></div>
+          <div class="boda-row"><span>Contrato</span><b>$45,000</b></div>
+          <div class="boda-row"><span>Pagado</span><b>$45,000</b></div>
+          <div class="boda-row"><span>Reseña</span><b>5 de 5</b></div>
+        </div>
+      </div>
+      <div><div class="drop-stem"></div>
+        <div class="boda">
+          <div class="boda-name">Boda Luna · jun 2026</div>
+          <div class="boda-row"><span>Estatus</span><span class="chip c-mid">Cotizado</span></div>
+          <div class="boda-row"><span>Cotización</span><b>$52,000</b></div>
+          <div class="boda-row"><span>Pagado</span><b>—</b></div>
+          <div class="boda-row"><span>Reseña</span><b>—</b></div>
+        </div>
+      </div>
+      <div><div class="drop-stem"></div>
+        <div class="boda">
+          <div class="boda-name">Boda Ruiz · sep 2026</div>
+          <div class="boda-row"><span>Estatus</span><span class="chip c-no">Descartado</span></div>
+          <div class="boda-row"><span>Cotización</span><b>$61,000</b></div>
+          <div class="boda-row"><span>Pagado</span><b>—</b></div>
+          <div class="boda-row"><span>Reseña</span><b>2 de 5</b></div>
+        </div>
+      </div>
+    </div>
+
+    <p class="anf-note">
+      El contacto se captura <b class="anf-teal">una sola vez</b>. Cada boda le cuelga lo suyo: estatus, cotización, contrato, pagos y reseña.
+      Eso es lo que hoy no existe — hoy cada boda crea un florista nuevo desde cero, y por eso nunca puedes ver esta fila completa.
+      Aquí, de un vistazo: te subió $16,000 en seis meses y la última vez no la contrataste.
+    </p>
+  </div>
+
+  <div class="anf-block">
+    <div class="anf-h">Pieza 2</div>
+    <p class="anf-t">Quién ve tu directorio completo</p>
+
+    <div class="perm">
+      <div class="perm-row">
+        <div class="perm-who"><b>Dueño del evento</b><br><span>Tú, el planner que creó la boda</span></div>
+        <div style="text-align:right" class="yes">SÍ</div>
+      </div>
+      <div class="perm-row">
+        <div class="perm-who"><b>Admin invitado</b><br><span>Tu coordinadora, tu socia</span></div>
+        <div style="text-align:right" class="yes">SÍ</div>
+      </div>
+      <div class="perm-row">
+        <div class="perm-who"><b>Editor</b><br><span>Alguien que ayuda con la lista de invitados</span></div>
+        <div style="text-align:right" class="no">NO</div>
+      </div>
+      <div class="perm-row">
+        <div class="perm-who"><b>Viewer</b><br><span>La novia, la mamá, el venue</span></div>
+        <div style="text-align:right" class="no">NO</div>
+      </div>
+    </div>
+
+    <div class="warn">
+      <b>Lo único que le agregaría:</b> hoy “admin de esta boda” se lee como <i>puede manejar este evento e invitar gente</i>.
+      Con este cambio también significa <i>ve todos mis proveedores, de todas mis bodas, con precios y reseñas</i>.
+      Está bien que lo haga — pero no en silencio. Una línea en la pantalla de invitación y queda honesto.
+    </div>
+
+    <p class="anf-note">
+      Bonus del mismo cambio: hoy la página de Proveedores <b>no tiene ningún candado</b> — un viewer entra y da de alta proveedores.
+      Esto lo cierra de paso.
+    </p>
+  </div>
+
+  <div class="anf-block">
+    <div class="anf-h">Pieza 3</div>
+    <p class="anf-t">De quién es la ficha que captura un colaborador</p>
+
+    <div class="cmp">
+      <div class="cmp-box cmp-bad">
+        <div class="cmp-tag">Hoy — está roto</div>
+        <p>Sofía (admin) da de alta al florista en la boda de <b>Ana</b>.</p>
+        <p>La ficha se marca con el usuario de <b>Sofía</b>, porque el sistema guarda a quien hizo clic.</p>
+        <p>Resultado: el florista queda en el directorio de Sofía. <b>Ana nunca lo ve</b>, ni siquiera en su propia boda.</p>
+      </div>
+      <div class="cmp-box cmp-good">
+        <div class="cmp-tag">Propuesta</div>
+        <p>La ficha pertenece al <b>dueño del evento</b>, no a quien la teclea.</p>
+        <p>Sofía alimenta el directorio de Ana mientras trabaja en su boda.</p>
+        <p>Si Sofía se va mañana, <b>el directorio de Ana se queda completo</b>. Nada se pierde.</p>
+      </div>
+    </div>
+
+    <p class="anf-note">
+      Tus datos dicen que esto <b class="anf-teal">todavía no explota</b>: cero fichas con dueño equivocado, cero duplicados.
+      Vamos a construir sobre limpio — no hay que migrar nada. Pero está vivo hoy, y la semana que viene entran planners con equipo.
+    </p>
+  </div>
+
+  <h3 style="margin-top:2rem">¿Firmamos este cimiento?</h3>
+  <div class="options">
+    <div class="option" data-choice="ok" onclick="toggleSelect(this)">
+      <div class="letter">A</div>
+      <div class="content">
+        <h3>Las tres piezas están bien</h3>
+        <p>Seguimos al diseño de las pantallas: dónde vive el directorio y cómo se jala un proveedor a una boda.</p>
+      </div>
+    </div>
+    <div class="option" data-choice="permisos" onclick="toggleSelect(this)">
+      <div class="letter">B</div>
+      <div class="content">
+        <h3>Cambiaría quién lo ve (pieza 2)</h3>
+        <p>El corte owner + admin no me late; el editor debería ver, o el admin no debería.</p>
+      </div>
+    </div>
+    <div class="option" data-choice="propiedad" onclick="toggleSelect(this)">
+      <div class="letter">C</div>
+      <div class="content">
+        <h3>Cambiaría de quién es la ficha (pieza 3)</h3>
+        <p>No me convence que la ficha sea del dueño del evento.</p>
+      </div>
+    </div>
+    <div class="option" data-choice="duda" onclick="toggleSelect(this)">
+      <div class="letter">D</div>
+      <div class="content">
+        <h3>Tengo una duda antes de firmar</h3>
+        <p>Te la escribo en la terminal.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<hr class="sep">
+<style>
+  .w { max-width: 1040px; }
+  .sec { margin-bottom: 2.6rem; }
+  .sec-n { display:inline-block; font-size:0.62rem; font-weight:800; letter-spacing:0.1em; text-transform:uppercase; color:#2f9d88; background:rgba(72,201,176,0.14); padding:0.25rem 0.6rem; border-radius:999px; margin-bottom:0.5rem; }
+  .sec-t { font-size:1.1rem; font-weight:680; color:var(--text-primary); margin:0 0 0.35rem; }
+  .sec-d { font-size:0.85rem; color:var(--text-secondary); line-height:1.6; margin:0 0 1rem; max-width:74ch; }
+
+  /* wireframe shell */
+  .wf { border:1px solid var(--border); border-radius:12px; overflow:hidden; background:var(--bg-secondary); }
+  .wf-top { background:var(--bg-tertiary); padding:0.45rem 0.8rem; font-size:0.68rem; font-weight:700; color:var(--text-secondary); letter-spacing:0.04em; display:flex; justify-content:space-between; align-items:center; }
+  .wf-b { padding:1rem; }
+
+  .row { display:flex; gap:0.6rem; align-items:center; }
+  .between { justify-content:space-between; }
+  .wrap { flex-wrap:wrap; }
+  .grow { flex:1; min-width:0; }
+
+  .inp { border:1px solid var(--border); border-radius:7px; padding:0.5rem 0.7rem; font-size:0.78rem; color:var(--text-tertiary); background:var(--bg-primary); }
+  .btn { border-radius:7px; padding:0.45rem 0.8rem; font-size:0.72rem; font-weight:700; border:1px solid var(--border); color:var(--text-secondary); background:var(--bg-primary); white-space:nowrap; }
+  .btn-p { background:#48C9B0; color:#fff; border-color:#48C9B0; }
+  .btn-d { background:#1D1E20; color:#fff; border-color:#1D1E20; }
+
+  .pill { display:inline-block; font-size:0.6rem; font-weight:700; padding:0.16rem 0.45rem; border-radius:5px; background:var(--bg-tertiary); color:var(--text-secondary); }
+  .p-ok { background:rgba(52,199,89,0.16); color:#2a8a45; }
+  .p-mid{ background:rgba(0,113,227,0.14); color:#0071e3; }
+  .p-no { background:rgba(255,59,48,0.13); color:#d33; }
+  .p-tl { background:rgba(72,201,176,0.16); color:#2f9d88; }
+
+  .lbl { font-size:0.58rem; font-weight:800; letter-spacing:0.09em; text-transform:uppercase; color:var(--text-tertiary); margin-bottom:0.3rem; }
+
+  .card { border:1px solid var(--border); border-radius:9px; padding:0.7rem 0.8rem; background:var(--bg-primary); }
+  .g3 { display:grid; grid-template-columns:repeat(3,1fr); gap:0.7rem; }
+  .g2 { display:grid; grid-template-columns:1fr 1fr; gap:0.7rem; }
+
+  .nm { font-size:0.84rem; font-weight:700; color:var(--text-primary); }
+  .sm { font-size:0.72rem; color:var(--text-secondary); line-height:1.5; }
+  .xs { font-size:0.66rem; color:var(--text-tertiary); }
+
+  table.t { width:100%; border-collapse:collapse; font-size:0.72rem; }
+  table.t th { text-align:left; font-size:0.58rem; text-transform:uppercase; letter-spacing:0.07em; color:var(--text-tertiary); padding:0.4rem 0.5rem; border-bottom:1px solid var(--border); font-weight:800; }
+  table.t td { padding:0.55rem 0.5rem; border-bottom:1px solid var(--border); color:var(--text-secondary); }
+  table.t td b { color:var(--text-primary); font-weight:650; }
+
+  .zone { border-radius:9px; padding:0.8rem; }
+  .z-glob { background:rgba(72,201,176,0.07); border:1.5px solid #48C9B0; }
+  .z-evt  { background:var(--bg-primary); border:1.5px solid var(--border); }
+  .z-tag { font-size:0.58rem; font-weight:800; letter-spacing:0.08em; text-transform:uppercase; margin-bottom:0.55rem; display:flex; align-items:center; gap:0.4rem; }
+  .z-glob .z-tag { color:#2f9d88; }
+  .z-evt .z-tag  { color:var(--text-secondary); }
+
+  .bad { border-left:3px solid var(--error); background:rgba(255,59,48,0.06); padding:0.7rem 0.85rem; border-radius:0 8px 8px 0; font-size:0.8rem; line-height:1.6; color:var(--text-secondary); }
+  .bad b { color:var(--text-primary); }
+  .good{ border-left:3px solid #48C9B0; background:rgba(72,201,176,0.07); padding:0.7rem 0.85rem; border-radius:0 8px 8px 0; font-size:0.8rem; line-height:1.6; color:var(--text-secondary); }
+  .good b { color:var(--text-primary); }
+
+  .strike { text-decoration:line-through; opacity:0.5; }
+  .arrow { text-align:center; color:#48C9B0; font-size:1.1rem; margin:0.5rem 0; }
+
+  @media (max-width:800px){ .g3,.g2 { grid-template-columns:1fr; } }
+</style>
+
+<div class="w">
+  <h2>Todas las vistas del Rolodex</h2>
+  <p class="subtitle">Primero el diagnóstico de por qué hoy confunde, luego las cinco pantallas. Esto son wireframes: importa el acomodo, no los colores.</p>
+
+  <!-- ============ DIAGNOSTICO ============ -->
+  <div class="sec">
+    <span class="sec-n">El diagnóstico</span>
+    <p class="sec-t">Por qué hoy el alta y el cotizar se sienten distintos</p>
+    <p class="sec-d">No es que estén mal diseñados por separado. Es que <b>ninguna de las dos te dice qué es del proveedor para siempre y qué es solo de esta boda</b>. Todo se ve igual, todo se guarda con un botón, y por dentro va a dos lugares distintos.</p>
+
+    <div class="g2">
+      <div class="wf">
+        <div class="wf-top">HOY · Nuevo proveedor</div>
+        <div class="wf-b">
+          <div class="sm" style="margin-bottom:0.6rem">Te pide, en este orden:</div>
+          <div style="display:flex;flex-direction:column;gap:0.4rem">
+            <div class="card"><span class="pill p-tl">del proveedor</span> &nbsp;Nombre</div>
+            <div class="card"><span class="pill p-tl">del proveedor</span> &nbsp;Categoría</div>
+            <div class="card" style="border-color:var(--error)"><span class="pill p-no">de esta boda</span> &nbsp;Concepto del presupuesto</div>
+            <div class="card"><span class="pill p-tl">del proveedor</span> &nbsp;WhatsApp · Instagram · Facebook</div>
+          </div>
+          <div class="bad" style="margin-top:0.8rem">
+            Estás capturando <b>un contacto</b> y a la mitad te pregunta <b>a qué partida del presupuesto va</b>. Todavía no sabes si lo vas a contratar. Y no te pide cotización — para eso hay que salir y volver a entrar.
+          </div>
+        </div>
+      </div>
+
+      <div class="wf">
+        <div class="wf-top">HOY · Detalle del proveedor</div>
+        <div class="wf-b">
+          <div class="sm" style="margin-bottom:0.6rem">Ocho secciones seguidas, sin separación:</div>
+          <div style="display:flex;flex-direction:column;gap:0.3rem">
+            <div class="card"><span class="pill p-no">de esta boda</span> &nbsp;Estado</div>
+            <div class="card"><span class="pill p-tl">del proveedor</span> &nbsp;Identidad</div>
+            <div class="card"><span class="pill p-tl">del proveedor</span> &nbsp;Contacto</div>
+            <div class="card"><span class="pill p-no">de esta boda</span> &nbsp;Presupuesto asignado</div>
+            <div class="card"><span class="pill p-no">de esta boda</span> &nbsp;Comercial</div>
+            <div class="card"><span class="pill p-no">de esta boda</span> &nbsp;Pagos</div>
+            <div class="card"><span class="pill p-no">de esta boda</span> &nbsp;“Notas del proveedor”</div>
+            <div class="card"><span class="pill p-no">de esta boda</span> &nbsp;Review</div>
+          </div>
+          <div class="bad" style="margin-top:0.8rem">
+            Van intercaladas. Y <b>“Notas del proveedor” miente</b>: guarda notas de esta boda, no del proveedor. Peor: al elegir un concepto de presupuesto, <b>le escribe encima a tu ficha global</b>.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="good" style="margin-top:1rem">
+      <b>La regla que arregla todo:</b> separar por naturaleza, no por tema. Dos zonas visibles en toda la app — <b>“Este proveedor”</b> (verde, siempre, en cualquier boda) y <b>“En esta boda”</b> (gris, solo aquí). Así se ven las cinco pantallas de abajo.
+    </div>
+  </div>
+
+  <!-- ============ VISTA 1 ============ -->
+  <div class="sec">
+    <span class="sec-n">Vista 1 · nueva</span>
+    <p class="sec-t">Mi directorio</p>
+    <p class="sec-d">Vive fuera de las bodas, en tu menú principal junto a Dashboard. Es tu agenda profesional. Aquí entras cuando le vas a armar la terna a un cliente.</p>
+
+    <div class="wf">
+      <div class="wf-top"><span>anfiora.com / proveedores</span><span>Mi directorio</span></div>
+      <div class="wf-b">
+        <div class="row wrap between" style="margin-bottom:0.9rem">
+          <div class="inp grow" style="min-width:200px">Buscar por nombre, ciudad o etiqueta…</div>
+          <div class="row wrap">
+            <span class="btn btn-d">Categoría ▾</span>
+            <span class="btn btn-d">Ciudad ▾</span>
+            <span class="btn btn-d">Etiqueta ▾</span>
+            <span class="btn btn-p">+ Nuevo proveedor</span>
+          </div>
+        </div>
+
+        <table class="t">
+          <thead><tr><th>Proveedor</th><th>Categoría</th><th>Dónde</th><th>Bodas</th><th>Rango</th><th>Tu calificación</th><th>Última vez</th></tr></thead>
+          <tbody>
+            <tr><td><b>Flores Aurora</b><br><span class="xs">@floresaurora</span></td><td>Decoración</td><td>Querétaro</td><td><b>3</b></td><td><b>$45k – $61k</b></td><td><b>4.0</b> de 5</td><td>sep 2026 <span class="pill p-no">Descartado</span></td></tr>
+            <tr><td><b>Banquetes La Hacienda</b><br><span class="xs">Lic. Marín · 442 118 90 21</span></td><td>Banquete</td><td>Querétaro</td><td><b>6</b></td><td><b>$180k – $310k</b></td><td><b>4.7</b> de 5</td><td>ago 2026 <span class="pill p-ok">Contratado</span></td></tr>
+            <tr><td><b>DJ Ultra Mix</b></td><td>Entretenimiento</td><td>CDMX</td><td><b>2</b></td><td><b>$28k</b></td><td><b>2.5</b> de 5</td><td>may 2026 <span class="pill p-ok">Contratado</span></td></tr>
+            <tr><td><b>Foto Lienzo</b><br><span class="xs">sin usar todavía</span></td><td>Imagen</td><td>San Miguel</td><td>—</td><td>—</td><td>—</td><td><span class="xs">Capturado en expo, jul 2026</span></td></tr>
+          </tbody>
+        </table>
+
+        <div class="sm" style="margin-top:0.8rem">Vista de tabla en escritorio · tarjetas en celular, igual que el resto de la app.</div>
+      </div>
+    </div>
+
+    <div class="good" style="margin-top:0.8rem">
+      Las columnas <b>Bodas · Rango · Tu calificación</b> son el corazón del rolodex. Hoy son imposibles de calcular porque cada boda crea un proveedor nuevo. Y la última fila muestra algo que hoy no puedes hacer: <b>capturar a alguien sin tener boda</b>.
+    </div>
+  </div>
+
+  <!-- ============ VISTA 2 ============ -->
+  <div class="sec">
+    <span class="sec-n">Vista 2 · nueva</span>
+    <p class="sec-t">Expediente del proveedor</p>
+    <p class="sec-d">Se abre al hacer clic en cualquier fila. Es el único lugar donde se edita la ficha del proveedor — por eso ninguna boda puede volver a escribirle encima.</p>
+
+    <div class="wf">
+      <div class="wf-top"><span>Expediente</span><span>Flores Aurora</span></div>
+      <div class="wf-b">
+        <div class="row between wrap" style="margin-bottom:1rem">
+          <div>
+            <div class="nm" style="font-size:1rem">Flores Aurora</div>
+            <div class="sm">Decoración · Querétaro, QRO &nbsp; <span class="pill">económico</span> <span class="pill">viaja</span> <span class="pill">+ etiqueta</span></div>
+          </div>
+          <div class="row"><span class="btn">Archivar</span><span class="btn btn-p">Agregar a una boda</span></div>
+        </div>
+
+        <div class="g2">
+          <div class="zone z-glob">
+            <div class="z-tag">● Este proveedor — igual en todas tus bodas</div>
+            <div class="lbl">Contacto</div>
+            <div class="sm" style="margin-bottom:0.6rem">Lupita Aguilar · +52 442 118 4420<br>@floresaurora · floresaurora.mx</div>
+            <div class="lbl">Cobertura</div>
+            <div class="sm" style="margin-bottom:0.6rem">Querétaro · viaja hasta 150 km</div>
+            <div class="lbl">Notas generales</div>
+            <div class="sm">Entregar antes de las 8am. No trabajan domingo. Pide 50% de anticipo.</div>
+          </div>
+
+          <div class="zone z-evt">
+            <div class="z-tag">○ Tu historia con ella</div>
+            <table class="t">
+              <thead><tr><th>Boda</th><th>Estatus</th><th>Cotizó</th><th>Contrató</th><th>Tu reseña</th></tr></thead>
+              <tbody>
+                <tr><td><b>García</b><br><span class="xs">mar 2026</span></td><td><span class="pill p-ok">Contratado</span></td><td>$45,000</td><td><b>$45,000</b></td><td><b>5</b></td></tr>
+                <tr><td><b>Luna</b><br><span class="xs">jun 2026</span></td><td><span class="pill p-mid">Cotizado</span></td><td>$52,000</td><td>—</td><td>—</td></tr>
+                <tr><td><b>Ruiz</b><br><span class="xs">sep 2026</span></td><td><span class="pill p-no">Descartado</span></td><td>$61,000</td><td>—</td><td><b>2</b><br><span class="xs">“tardó 3 semanas”</span></td></tr>
+              </tbody>
+            </table>
+            <div class="xs" style="margin-top:0.6rem">Cada reseña dice quién la escribió — importa cuando tu coordinadora también las escribe.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ VISTA 3 ============ -->
+  <div class="sec">
+    <span class="sec-n">Vista 3 · reemplaza el alta de hoy</span>
+    <p class="sec-t">Agregar proveedor a esta boda</p>
+    <p class="sec-d">Un solo campo. Escribes el nombre y el sistema busca en tu directorio <b>antes</b> de dejarte crear nada. Esta es la pieza que hace que exista un rolodex en vez de fichas sueltas.</p>
+
+    <div class="g2">
+      <div class="wf">
+        <div class="wf-top">Paso 1 · siempre</div>
+        <div class="wf-b">
+          <div class="lbl">¿A quién agregas?</div>
+          <div class="inp" style="border-color:#48C9B0;color:var(--text-primary);margin-bottom:0.7rem">Flores Au|</div>
+          <div class="lbl">Ya en tu directorio</div>
+          <div class="card" style="border-color:#48C9B0;margin-bottom:0.4rem">
+            <div class="nm">Flores Aurora</div>
+            <div class="sm">Decoración · Querétaro · la usaste en 3 bodas · 4.0 de 5</div>
+          </div>
+          <div class="card" style="margin-bottom:0.7rem">
+            <div class="nm">Flores Aurora Eventos</div>
+            <div class="sm">Decoración · CDMX · sin usar</div>
+          </div>
+          <div class="card" style="border-style:dashed">
+            <div class="sm">Ninguna es &nbsp;→&nbsp; <b style="color:#2f9d88">Crear “Flores Au” como proveedor nuevo</b></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="wf">
+        <div class="wf-top">Paso 2 · según lo que elegiste</div>
+        <div class="wf-b">
+          <div class="zone z-glob" style="margin-bottom:0.7rem">
+            <div class="z-tag">● Si es nuevo — lo mínimo del proveedor</div>
+            <div class="sm">Nombre · Categoría · un contacto (WhatsApp, IG o Facebook)</div>
+            <div class="xs" style="margin-top:0.4rem">Ciudad, correo, sitio y notas se completan después en el expediente. Nadie captura eso con el cliente enfrente.</div>
+          </div>
+          <div class="zone z-evt">
+            <div class="z-tag">○ Siempre — lo de esta boda</div>
+            <div class="sm">Concepto del presupuesto <span class="xs">(opcional)</span></div>
+            <div class="sm">Cotización <span class="xs">(opcional, si ya la tienes)</span></div>
+            <div class="xs" style="margin-top:0.4rem">Entra como <b>Nuevo</b>. Nada más.</div>
+          </div>
+          <div class="row" style="margin-top:0.8rem;justify-content:flex-end"><span class="btn">Cancelar</span><span class="btn btn-p">Agregar a la boda</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="good" style="margin-top:0.8rem">
+      <b>Lo que cambia respecto a hoy:</b> el concepto del presupuesto deja de ser obligatorio de pensar al capturar, y sí puedes meter la cotización de una vez si ya la traes. Si el proveedor ya existía, no vuelves a teclear su WhatsApp nunca más.
+    </div>
+  </div>
+
+  <!-- ============ VISTA 4 ============ -->
+  <div class="sec">
+    <span class="sec-n">Vista 4 · la que ya tienes, casi igual</span>
+    <p class="sec-t">Proveedores de esta boda</p>
+    <p class="sec-d">Tus tres vistas (tarjetas, lista, kanban) se quedan como están. Solo cambian dos cosas.</p>
+
+    <div class="wf">
+      <div class="wf-top"><span>Boda García / Proveedores</span><span>Tarjetas · Lista · Kanban</span></div>
+      <div class="wf-b">
+        <div class="row between wrap" style="margin-bottom:0.9rem">
+          <div class="inp grow" style="min-width:180px">Buscar…</div>
+          <div class="row"><span class="btn btn-d">Categoría ▾</span><span class="btn btn-p">+ Agregar proveedor</span></div>
+        </div>
+        <div class="g3">
+          <div class="card">
+            <div class="row between"><span class="xs">DECORACIÓN</span><span class="pill p-ok">Contratado</span></div>
+            <div class="nm" style="margin-top:0.3rem">Flores Aurora</div>
+            <div class="pill p-tl" style="margin:0.35rem 0">De tu directorio · 3ª vez</div>
+            <div class="sm">Contrato $45,000 · meta $50,000</div>
+            <div class="xs" style="color:#2a8a45">Ahorro de $5,000</div>
+          </div>
+          <div class="card">
+            <div class="row between"><span class="xs">BANQUETE</span><span class="pill p-mid">Cotizado</span></div>
+            <div class="nm" style="margin-top:0.3rem">Banquetes La Hacienda</div>
+            <div class="pill p-tl" style="margin:0.35rem 0">De tu directorio · 6ª vez</div>
+            <div class="sm">Cotizó $310,000 · meta $280,000</div>
+            <div class="xs" style="color:#d33">Excede el presupuesto</div>
+          </div>
+          <div class="card">
+            <div class="row between"><span class="xs">IMAGEN</span><span class="pill">Nuevo</span></div>
+            <div class="nm" style="margin-top:0.3rem">Foto Lienzo</div>
+            <div class="pill" style="margin:0.35rem 0">Primera vez</div>
+            <div class="sm">Sin cotización</div>
+          </div>
+        </div>
+        <div class="sm" style="margin-top:0.9rem">
+          <b>Cambio 1:</b> el chip “de tu directorio · 3ª vez” — te dice de golpe con quién ya tienes historia.<br>
+          <b>Cambio 2:</b> el botón abre la Vista 3, no el formulario de hoy.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ VISTA 5 ============ -->
+  <div class="sec">
+    <span class="sec-n">Vista 5 · el rediseño que pediste</span>
+    <p class="sec-t">El proveedor dentro de esta boda</p>
+    <p class="sec-d">Aquí es donde hoy te pierdes cotizando. Las ocho secciones intercaladas se vuelven una franja de identidad arriba (solo lectura) y un cuerpo que es puro “esta boda”.</p>
+
+    <div class="wf">
+      <div class="wf-top"><span>Boda García · Flores Aurora</span><span>Cotizando</span></div>
+      <div class="wf-b">
+
+        <div class="zone z-glob" style="margin-bottom:1rem">
+          <div class="row between wrap">
+            <div>
+              <div class="z-tag">● Este proveedor</div>
+              <div class="nm">Flores Aurora</div>
+              <div class="sm">Decoración · Querétaro · +52 442 118 4420 · @floresaurora</div>
+              <div class="xs" style="margin-top:0.25rem">La usaste 3 veces · tu calificación 4.0 de 5</div>
+            </div>
+            <div class="row"><span class="btn">WhatsApp</span><span class="btn">Instagram</span><span class="btn">Ver expediente</span></div>
+          </div>
+          <div class="xs" style="margin-top:0.6rem;border-top:1px dashed #48C9B0;padding-top:0.5rem">
+            Solo lectura. Para corregir su teléfono o categoría se va al expediente — <b>así ninguna boda le escribe encima a tu directorio</b>.
+          </div>
+        </div>
+
+        <div class="zone z-evt">
+          <div class="z-tag">○ En esta boda</div>
+
+          <div class="lbl">Estado</div>
+          <div class="row wrap" style="margin-bottom:0.9rem">
+            <span class="btn">Nuevo</span><span class="btn btn-p">Cotizado</span><span class="btn">Contratado</span><span class="btn">Descartado</span>
+          </div>
+
+          <div class="g2" style="margin-bottom:0.9rem">
+            <div>
+              <div class="lbl">Dinero</div>
+              <div class="card">
+                <div class="row between" style="margin-bottom:0.4rem"><span class="sm">Cotizó</span><b class="nm">$52,000</b></div>
+                <div class="row between" style="margin-bottom:0.4rem"><span class="sm">Contrato</span><span class="xs">— aún no</span></div>
+                <div class="row between" style="border-top:1px solid var(--border);padding-top:0.4rem"><span class="sm">Concepto</span><span class="sm">Flores ceremonia · meta $50,000</span></div>
+                <div class="xs" style="color:#d33;margin-top:0.3rem">Excede la meta por $2,000</div>
+              </div>
+            </div>
+            <div>
+              <div class="lbl">Pagos</div>
+              <div class="card">
+                <div class="sm" style="color:var(--text-tertiary)">Sin pagos todavía</div>
+                <div class="xs" style="margin-top:0.5rem">Se habilita al contratar</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="lbl">Notas de esta boda</div>
+          <div class="inp" style="margin-bottom:0.9rem">Cotizó con 40 centros de mesa. Pidió confirmar antes del 15 de mayo…</div>
+
+          <div class="lbl">Tu reseña <span style="text-transform:none;letter-spacing:0;font-weight:600">— se pide sola al contratar o descartar</span></div>
+          <div class="card"><span class="sm" style="color:var(--text-tertiary)">Aparece cuando cierres este trato</span></div>
+        </div>
+
+        <div class="row" style="margin-top:1rem;justify-content:flex-end"><span class="btn">Quitar de esta boda</span><span class="btn btn-p">Guardar</span></div>
+      </div>
+    </div>
+
+    <div class="good" style="margin-top:0.8rem">
+      Cuando estás cotizando, <b>lo primero y más grande es el dinero contra la meta</b>. Identidad y contacto se reducen a una franja que no estorba. Pagos y reseña se apagan hasta que tengan sentido, en vez de estar ahí vacíos confundiendo.
+    </div>
+  </div>
+
+  <!-- ============ OPCIONES ============ -->
+  <h3 style="margin-top:2.4rem">¿Qué ajustamos?</h3>
+  <p class="subtitle">Puedes marcar varias.</p>
+  <div class="options" data-multiselect>
+    <div class="option" data-choice="ok" onclick="toggleSelect(this)">
+      <div class="letter">A</div>
+      <div class="content"><h3>Las cinco vistas están bien</h3><p>Escribe el spec así.</p></div>
+    </div>
+    <div class="option" data-choice="v1" onclick="toggleSelect(this)">
+      <div class="letter">B</div>
+      <div class="content"><h3>Cambiaría Mi directorio (Vista 1)</h3><p>Columnas, filtros o cómo se ve la lista.</p></div>
+    </div>
+    <div class="option" data-choice="v2" onclick="toggleSelect(this)">
+      <div class="letter">C</div>
+      <div class="content"><h3>Cambiaría el Expediente (Vista 2)</h3><p>Qué información va, cómo se acomoda la historia.</p></div>
+    </div>
+    <div class="option" data-choice="v3" onclick="toggleSelect(this)">
+      <div class="letter">D</div>
+      <div class="content"><h3>Cambiaría el Agregar (Vista 3)</h3><p>Los pasos, qué se pide y qué se deja para después.</p></div>
+    </div>
+    <div class="option" data-choice="v5" onclick="toggleSelect(this)">
+      <div class="letter">E</div>
+      <div class="content"><h3>Cambiaría el proveedor en la boda (Vista 5)</h3><p>El acomodo de estado, dinero, pagos y reseña.</p></div>
+    </div>
+  </div>
+</div>
+
+<hr class="sep">
+<style>
+  .w { max-width: 1000px; }
+  .sec { margin-bottom: 2.4rem; }
+  .sec-n { display:inline-block; font-size:0.62rem; font-weight:800; letter-spacing:0.1em; text-transform:uppercase; color:#2f9d88; background:rgba(72,201,176,0.14); padding:0.25rem 0.6rem; border-radius:999px; margin-bottom:0.5rem; }
+  .sec-t { font-size:1.1rem; font-weight:680; color:var(--text-primary); margin:0 0 0.35rem; }
+  .sec-d { font-size:0.85rem; color:var(--text-secondary); line-height:1.6; margin:0 0 1.1rem; max-width:76ch; }
+
+  .tier { border-radius:10px; padding:0.9rem 1rem; margin-bottom:0.7rem; border:1px solid var(--border); background:var(--bg-secondary); }
+  .tier-must { border:1.5px solid #48C9B0; background:rgba(72,201,176,0.06); }
+  .tier-h { display:flex; align-items:baseline; gap:0.6rem; margin-bottom:0.55rem; flex-wrap:wrap; }
+  .tier-h b { font-size:0.9rem; color:var(--text-primary); }
+  .tier-h span { font-size:0.74rem; color:var(--text-secondary); }
+  .fields { display:flex; flex-wrap:wrap; gap:0.4rem; }
+  .f { font-size:0.73rem; padding:0.3rem 0.6rem; border-radius:6px; background:var(--bg-tertiary); color:var(--text-secondary); }
+  .f-must { background:#48C9B0; color:#fff; font-weight:650; }
+  .f-auto { background:rgba(0,113,227,0.13); color:#0071e3; }
+  .tier-note { font-size:0.75rem; color:var(--text-tertiary); margin-top:0.55rem; line-height:1.55; }
+
+  .prob { display:grid; grid-template-columns:repeat(2,1fr); gap:0.6rem; margin-bottom:1.1rem; }
+  .prob div { border:1px dashed var(--border); border-radius:8px; padding:0.6rem 0.75rem; font-size:0.76rem; color:var(--text-secondary); }
+  .prob b { color:var(--text-primary); display:block; font-size:0.8rem; margin-bottom:0.15rem; }
+
+  .opt { border:1px solid var(--border); border-radius:11px; overflow:hidden; margin-bottom:0.9rem; background:var(--bg-secondary); }
+  .opt-rec { border:2px solid #48C9B0; }
+  .opt-top { padding:0.7rem 0.95rem; background:var(--bg-tertiary); display:flex; justify-content:space-between; align-items:center; gap:0.6rem; flex-wrap:wrap; }
+  .opt-rec .opt-top { background:rgba(72,201,176,0.13); }
+  .opt-top b { font-size:0.9rem; color:var(--text-primary); }
+  .rec-tag { font-size:0.6rem; font-weight:800; letter-spacing:0.08em; text-transform:uppercase; color:#fff; background:#48C9B0; padding:0.2rem 0.5rem; border-radius:5px; }
+  .opt-b { padding:0.95rem; }
+  .mock { border:1px solid var(--border); border-radius:8px; padding:0.75rem 0.85rem; background:var(--bg-primary); }
+  .lbl { font-size:0.57rem; font-weight:800; letter-spacing:0.09em; text-transform:uppercase; color:var(--text-tertiary); margin-bottom:0.28rem; }
+  .inp { border:1px solid var(--border); border-radius:6px; padding:0.42rem 0.6rem; font-size:0.78rem; background:var(--bg-secondary); color:var(--text-primary); }
+  .inp-g { border-color:#48C9B0; }
+  .rowf { display:flex; gap:0.5rem; align-items:flex-end; flex-wrap:wrap; }
+  .sm { font-size:0.76rem; color:var(--text-secondary); line-height:1.6; }
+  .xs { font-size:0.68rem; color:var(--text-tertiary); line-height:1.5; }
+  .pc { display:flex; gap:0.7rem; margin-top:0.7rem; flex-wrap:wrap; }
+  .pc div { flex:1; min-width:180px; font-size:0.74rem; line-height:1.55; }
+  .pc .ok { color:#2a8a45; } .pc .no { color:#d33; }
+  .pc b { display:block; font-size:0.62rem; text-transform:uppercase; letter-spacing:0.07em; margin-bottom:0.25rem; }
+
+  .seg { display:flex; gap:0.3rem; flex-wrap:wrap; }
+  .seg span { font-size:0.7rem; padding:0.32rem 0.62rem; border-radius:6px; border:1px solid var(--border); color:var(--text-secondary); background:var(--bg-secondary); }
+  .seg .on { background:#48C9B0; color:#fff; border-color:#48C9B0; font-weight:650; }
+
+  .star { border-left:3px solid #48C9B0; background:rgba(72,201,176,0.08); padding:0.8rem 0.95rem; border-radius:0 9px 9px 0; font-size:0.82rem; line-height:1.62; color:var(--text-secondary); margin-top:1rem; }
+  .star b { color:var(--text-primary); }
+
+  @media (max-width:800px){ .prob { grid-template-columns:1fr; } }
+</style>
+
+<div class="w">
+  <h2>Qué datos pedimos</h2>
+  <p class="subtitle">Dos preguntas: qué lleva la ficha del proveedor, y cómo capturamos una cotización cuando cada quien cobra distinto.</p>
+
+  <!-- ===== A: LA FICHA ===== -->
+  <div class="sec">
+    <span class="sec-n">Pregunta A</span>
+    <p class="sec-t">Los campos de la ficha</p>
+    <p class="sec-d">La regla que yo aplicaría: <b>obligatorio solo lo que hace imposible usar la ficha si falta</b>. Todo lo demás se llena con el uso o cuando al planner le da la gana.</p>
+
+    <div class="tier tier-must">
+      <div class="tier-h"><b>Obligatorio</b> <span>— sin esto la ficha no sirve para nada</span></div>
+      <div class="fields">
+        <span class="f f-must">Nombre</span>
+        <span class="f f-must">Categoría</span>
+        <span class="f f-must">Un contacto: WhatsApp o Instagram o correo</span>
+      </div>
+      <div class="tier-note">Tres campos. Es lo que hoy ya pides, menos el concepto de presupuesto. Un planner en una expo captura esto en 20 segundos con el proveedor enfrente.</div>
+    </div>
+
+    <div class="tier">
+      <div class="tier-h"><b>Se llena solo</b> <span>— el sistema lo calcula, nadie lo teclea</span></div>
+      <div class="fields">
+        <span class="f f-auto">Bodas donde lo has usado</span>
+        <span class="f f-auto">Rango de precio histórico</span>
+        <span class="f f-auto">Tu calificación promedio</span>
+        <span class="f f-auto">Última vez y en qué acabó</span>
+      </div>
+      <div class="tier-note">Esto es lo que convierte una lista de contactos en un rolodex. Cero trabajo para el usuario.</div>
+    </div>
+
+    <div class="tier">
+      <div class="tier-h"><b>Opcional, se completa después</b> <span>— en el expediente, sin prisa</span></div>
+      <div class="fields">
+        <span class="f">Persona de contacto</span>
+        <span class="f">Teléfono adicional</span>
+        <span class="f">Correo</span>
+        <span class="f">Sitio web</span>
+        <span class="f">Facebook</span>
+        <span class="f">Ciudad y estado</span>
+        <span class="f">Hasta dónde viaja</span>
+        <span class="f">Etiquetas libres</span>
+        <span class="f">Notas generales</span>
+      </div>
+      <div class="tier-note">Todos estos <b>ya existen en tu tabla</b> y nadie los llena porque no hay dónde. Solo les falta pantalla.</div>
+    </div>
+  </div>
+
+  <!-- ===== B: LA COTIZACION ===== -->
+  <div class="sec">
+    <span class="sec-n">Pregunta B — la buena</span>
+    <p class="sec-t">Cómo capturamos una cotización si cada quien cobra distinto</p>
+    <p class="sec-d">El problema que planteaste, con ejemplos reales:</p>
+
+    <div class="prob">
+      <div><b>Meseros</b>10 meseros × $800 la jornada, + $150 la hora extra</div>
+      <div><b>Florería</b>40 centros de mesa × $1,200 · o un paquete cerrado</div>
+      <div><b>Banquete</b>180 personas × $850 el plato</div>
+      <div><b>DJ</b>$28,000 el evento, 6 horas incluidas</div>
+    </div>
+
+    <p class="sec-d">Tres formas de resolverlo. La diferencia es cuánto le pides al planner a cambio de cuánto puede hacer el sistema por él.</p>
+
+    <!-- OPCION 1 -->
+    <div class="opt">
+      <div class="opt-top"><b>Opción 1 — Solo el total</b><span class="sm">Lo que hay hoy</span></div>
+      <div class="opt-b">
+        <div class="mock" style="max-width:280px">
+          <div class="lbl">Cotización</div>
+          <div class="inp">$52,000</div>
+        </div>
+        <div class="pc">
+          <div class="ok"><b>A favor</b>Imposible de equivocar. Cero fricción. Es lo único que el presupuesto realmente necesita.</div>
+          <div class="no"><b>En contra</b>En seis meses no te acuerdas cómo llegó a ese número. No puedes comparar dos cotizaciones que no cobran igual.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- OPCION 2 -->
+    <div class="opt opt-rec">
+      <div class="opt-top"><b>Opción 2 — Total, y opcionalmente “cómo cobra”</b><span class="rec-tag">Mi recomendación</span></div>
+      <div class="opt-b">
+        <div class="mock">
+          <div class="lbl">¿Cómo cobra? <span style="text-transform:none;letter-spacing:0;font-weight:600;color:var(--text-tertiary)">— opcional</span></div>
+          <div class="seg" style="margin-bottom:0.7rem">
+            <span class="on">Por evento</span><span>Por persona</span><span>Por hora</span><span>Por pieza</span>
+          </div>
+          <div class="rowf">
+            <div><div class="lbl">Cantidad</div><div class="inp" style="width:90px">40</div></div>
+            <div style="padding-bottom:0.5rem;color:var(--text-tertiary)">×</div>
+            <div><div class="lbl">Precio unitario</div><div class="inp" style="width:120px">$1,200</div></div>
+            <div style="padding-bottom:0.5rem;color:var(--text-tertiary)">=</div>
+            <div><div class="lbl">Total</div><div class="inp inp-g" style="width:130px;font-weight:700">$48,000</div></div>
+          </div>
+          <div class="xs" style="margin-top:0.6rem">Si no eliges nada, escribes el total a mano y ya. La app nunca te obliga a desglosar.</div>
+        </div>
+        <div class="pc">
+          <div class="ok"><b>A favor</b>Cuatro formas cubren casi todo lo de una boda. El total se calcula solo. Sigues pudiendo poner un número pelón cuando no aplique.</div>
+          <div class="no"><b>En contra</b>Un campo más en pantalla. Los cobros raros (paquete + horas extra + kilometraje) no caben completos — van a la nota.</div>
+        </div>
+        <div class="star">
+          <b>El regalo escondido:</b> si marcas <b>“por persona”</b>, la app conoce cuántos invitados tiene la boda. Cuando la lista pasa de 180 a 210, te avisa: <b>“tu banquete subió $25,500 — nadie te lo dijo”</b>. Eso ningún Excel te lo hace, y es el tipo de cosa que hace que un planner no se quiera cambiar.
+        </div>
+      </div>
+    </div>
+
+    <!-- OPCION 3 -->
+    <div class="opt">
+      <div class="opt-top"><b>Opción 3 — Desglose por líneas, como factura</b><span class="sm">Lo que hace Odoo</span></div>
+      <div class="opt-b">
+        <div class="mock">
+          <div class="rowf" style="margin-bottom:0.4rem"><div class="inp grow" style="flex:2">Centros de mesa</div><div class="inp" style="width:60px">40</div><div class="inp" style="width:90px">$1,200</div><div class="inp" style="width:100px">$48,000</div></div>
+          <div class="rowf" style="margin-bottom:0.4rem"><div class="inp grow" style="flex:2">Arco de ceremonia</div><div class="inp" style="width:60px">1</div><div class="inp" style="width:90px">$4,000</div><div class="inp" style="width:100px">$4,000</div></div>
+          <div class="xs">+ agregar línea &nbsp;·&nbsp; Total $52,000</div>
+        </div>
+        <div class="pc">
+          <div class="ok"><b>A favor</b>Cabe cualquier forma de cobrar. Es el camino natural si algún día mandas cotizaciones al cliente desde Anfiora.</div>
+          <div class="no"><b>En contra</b>Es una feature completa, no un campo. Y el planner acaba tecleando la cotización del proveedor a mano — trabajo que no estaba haciendo antes. Aquí es donde se te va el fin de semana.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="star">
+      <b>Por qué la 2 y no la 3:</b> la 3 te convierte en un cotizador, y tú no estás vendiendo un cotizador — estás vendiendo <b>memoria</b>. El planner ya tiene la cotización en PDF en su correo; lo que no tiene es saber qué le cobraron la vez pasada. La 2 le da eso con un campo opcional, y deja la puerta abierta a la 3 el día que la pidan.
+    </div>
+  </div>
+
+  <h3 style="margin-top:2.2rem">¿Cómo capturamos la cotización?</h3>
+  <div class="options">
+    <div class="option" data-choice="c2" onclick="toggleSelect(this)">
+      <div class="letter">A</div>
+      <div class="content"><h3>Opción 2 — total + “cómo cobra” opcional</h3><p>Con la alerta de “por persona” cuando cambian los invitados.</p></div>
+    </div>
+    <div class="option" data-choice="c1" onclick="toggleSelect(this)">
+      <div class="letter">B</div>
+      <div class="content"><h3>Opción 1 — solo el total</h3><p>Lo más simple posible. Nada nuevo en pantalla.</p></div>
+    </div>
+    <div class="option" data-choice="c3" onclick="toggleSelect(this)">
+      <div class="letter">C</div>
+      <div class="content"><h3>Opción 3 — desglose por líneas</h3><p>Aunque sea más trabajo y se coma el fin de semana.</p></div>
+    </div>
+    <div class="option" data-choice="c2s" onclick="toggleSelect(this)">
+      <div class="letter">D</div>
+      <div class="content"><h3>La 2, pero sin la alerta por persona</h3><p>Me gusta el desglose, la alerta la vemos después.</p></div>
+    </div>
+  </div>
+
+  <h3 style="margin-top:2rem">¿Y los campos de la ficha?</h3>
+  <div class="options">
+    <div class="option" data-choice="f-ok" onclick="toggleSelect(this)">
+      <div class="letter">E</div>
+      <div class="content"><h3>Los tres obligatorios están bien</h3><p>Nombre, categoría y un contacto. El resto opcional.</p></div>
+    </div>
+    <div class="option" data-choice="f-mas" onclick="toggleSelect(this)">
+      <div class="letter">F</div>
+      <div class="content"><h3>Faltan campos que yo sí pediría</h3><p>Te digo cuáles en la terminal.</p></div>
+    </div>
+  </div>
+</div>
+
+<hr class="sep">
+<style>
+  .w { max-width:1040px; }
+  .sec { margin-bottom:2.3rem; }
+  .sec-n { display:inline-block; font-size:0.62rem; font-weight:800; letter-spacing:0.1em; text-transform:uppercase; color:#2f9d88; background:rgba(72,201,176,0.14); padding:0.25rem 0.6rem; border-radius:999px; margin-bottom:0.5rem; }
+  .sec-t { font-size:1.08rem; font-weight:680; color:var(--text-primary); margin:0 0 0.35rem; }
+  .sec-d { font-size:0.85rem; color:var(--text-secondary); line-height:1.6; margin:0 0 1rem; max-width:76ch; }
+
+  .m { border:1px solid var(--border); border-radius:14px; overflow:hidden; background:var(--bg-secondary); box-shadow:0 2px 10px rgba(0,0,0,0.05); }
+  .m-strip { background:rgba(72,201,176,0.08); border-bottom:1px solid rgba(72,201,176,0.35); padding:0.8rem 1rem; }
+  .m-b { padding:1rem; }
+  .m-f { border-top:1px solid var(--border); padding:0.7rem 1rem; display:flex; justify-content:space-between; align-items:center; gap:0.5rem; flex-wrap:wrap; background:var(--bg-primary); }
+
+  .nm { font-size:0.95rem; font-weight:700; color:var(--text-primary); }
+  .sm { font-size:0.76rem; color:var(--text-secondary); line-height:1.55; }
+  .xs { font-size:0.67rem; color:var(--text-tertiary); line-height:1.5; }
+  .lbl { font-size:0.57rem; font-weight:800; letter-spacing:0.09em; text-transform:uppercase; color:var(--text-tertiary); margin-bottom:0.3rem; }
+
+  .btn { border-radius:7px; padding:0.42rem 0.75rem; font-size:0.71rem; font-weight:700; border:1px solid var(--border); color:var(--text-secondary); background:var(--bg-secondary); white-space:nowrap; }
+  .btn-p { background:#48C9B0; color:#fff; border-color:#48C9B0; }
+  .btn-q { background:transparent; border-color:transparent; color:var(--text-tertiary); }
+  .row { display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap; }
+  .between { justify-content:space-between; }
+
+  /* pipeline */
+  .pipe { display:flex; align-items:stretch; gap:0; border:1px solid var(--border); border-radius:9px; overflow:hidden; margin-bottom:1rem; }
+  .pipe div { flex:1; text-align:center; padding:0.5rem 0.3rem; font-size:0.71rem; font-weight:700; color:var(--text-tertiary); background:var(--bg-primary); border-right:1px solid var(--border); }
+  .pipe div:last-child { border-right:none; }
+  .pipe .done { background:rgba(72,201,176,0.14); color:#2f9d88; }
+  .pipe .now  { background:#48C9B0; color:#fff; }
+
+  /* money rail */
+  .rail { display:flex; gap:0; border:1px solid var(--border); border-radius:9px; overflow:hidden; }
+  .rail > div { flex:1; padding:0.65rem 0.7rem; border-right:1px solid var(--border); }
+  .rail > div:last-child { border-right:none; }
+  .rail .amt { font-size:0.98rem; font-weight:750; color:var(--text-primary); margin-top:0.15rem; }
+  .rail .dim { color:var(--text-tertiary); font-weight:600; font-size:0.85rem; }
+  .rail .over { color:#d33; }
+  .rail .under{ color:#2a8a45; }
+
+  .file { border:1px dashed var(--border); border-radius:8px; padding:0.6rem 0.75rem; display:flex; justify-content:space-between; align-items:center; gap:0.5rem; font-size:0.75rem; color:var(--text-secondary); }
+  .file-has { border-style:solid; border-color:#48C9B0; background:rgba(72,201,176,0.06); }
+
+  .inp { border:1px solid var(--border); border-radius:7px; padding:0.45rem 0.65rem; font-size:0.78rem; background:var(--bg-primary); color:var(--text-tertiary); }
+
+  .g2 { display:grid; grid-template-columns:1fr 1fr; gap:0.8rem; }
+  .g3 { display:grid; grid-template-columns:repeat(3,1fr); gap:0.8rem; }
+
+  .fold { border:1px solid var(--border); border-radius:8px; padding:0.5rem 0.75rem; font-size:0.74rem; color:var(--text-tertiary); display:flex; justify-content:space-between; align-items:center; background:var(--bg-primary); }
+
+  .cmt { border-left:3px solid #48C9B0; background:rgba(72,201,176,0.07); padding:0.7rem 0.9rem; border-radius:0 8px 8px 0; font-size:0.8rem; line-height:1.6; color:var(--text-secondary); margin-top:0.8rem; }
+  .cmt b { color:var(--text-primary); }
+  .warn { border-left:3px solid var(--warning); background:rgba(255,159,10,0.08); padding:0.7rem 0.9rem; border-radius:0 8px 8px 0; font-size:0.8rem; line-height:1.6; color:var(--text-secondary); margin-top:0.8rem; }
+  .warn b { color:var(--text-primary); }
+
+  .phone { max-width:270px; border:8px solid var(--text-primary); border-radius:26px; overflow:hidden; background:var(--bg-secondary); }
+  .phone .m-b { padding:0.75rem; }
+
+  @media (max-width:820px){ .g2,.g3 { grid-template-columns:1fr; } }
+</style>
+
+<div class="w">
+  <h2>El proveedor dentro de la boda, rediseñado</h2>
+  <p class="subtitle">La idea que mata el abrumamiento: <b>el modal cambia según dónde está el trato</b>. No enseña ocho secciones siempre — enseña lo que toca ahora.</p>
+
+  <!-- COMUN -->
+  <div class="sec">
+    <span class="sec-n">Lo que nunca cambia</span>
+    <p class="sec-t">Franja de identidad + dónde vas</p>
+    <p class="sec-d">Arriba, siempre igual, sin importar el estado. La identidad es solo lectura — se corrige en el expediente, y por eso la boda ya no puede escribirle encima a tu Rolodex.</p>
+
+    <div class="m">
+      <div class="m-strip">
+        <div class="row between">
+          <div>
+            <div class="nm">Flores Aurora</div>
+            <div class="sm">Decoración · Querétaro · la usaste 3 veces · 4.0 de 5</div>
+          </div>
+          <div class="row"><span class="btn">WhatsApp</span><span class="btn">Instagram</span><span class="btn btn-q">Ver expediente ›</span></div>
+        </div>
+      </div>
+      <div class="m-b">
+        <div class="pipe">
+          <div class="done">Nuevo</div><div class="now">Cotizado</div><div>Contratado</div>
+        </div>
+        <div class="xs">Un clic avanza el trato. “Descartado” vive en el menú de abajo, no ocupa un paso del camino feliz.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ESTADO 1 -->
+  <div class="sec">
+    <span class="sec-n">Estado 1</span>
+    <p class="sec-t">Nuevo — casi vacío a propósito</p>
+    <p class="sec-d">Acabas de meter al proveedor. No hay nada que decidir todavía. Hoy aquí verías ocho secciones vacías.</p>
+
+    <div class="m" style="max-width:560px">
+      <div class="m-strip"><div class="nm">Foto Lienzo</div><div class="sm">Imagen · San Miguel · primera vez</div></div>
+      <div class="m-b">
+        <div class="pipe"><div class="now">Nuevo</div><div>Cotizado</div><div>Contratado</div></div>
+        <div class="lbl">A qué concepto del presupuesto</div>
+        <div class="inp" style="margin-bottom:0.9rem">Fotografía — meta $60,000 &nbsp;▾</div>
+        <div class="lbl">Notas de esta boda</div>
+        <div class="inp" style="margin-bottom:0.9rem">Los novios lo vieron en Instagram…</div>
+        <div class="row"><span class="btn btn-p">Ya me cotizó →</span><span class="btn">Descartar</span></div>
+      </div>
+    </div>
+    <div class="cmt">Tres cosas en pantalla en vez de ocho. Pagos, contrato, archivos y reseña <b>ni existen todavía</b> — no están apagados ni en gris, simplemente no aparecen.</div>
+  </div>
+
+  <!-- ESTADO 2 -->
+  <div class="sec">
+    <span class="sec-n">Estado 2 · el que más te duele</span>
+    <p class="sec-t">Cotizado — el dinero es el héroe</p>
+    <p class="sec-d">Aquí es donde te perdías. Los tres montos que pediste, en una sola tira y en el orden en que piensas: <b>cuánto tenía presupuestado → cuánto me cotizó → cuánto contraté</b>.</p>
+
+    <div class="g2" style="align-items:start">
+      <div class="m">
+        <div class="m-strip"><div class="nm">Flores Aurora</div><div class="sm">Decoración · 4.0 de 5 · la última vez te cobró $61,000</div></div>
+        <div class="m-b">
+          <div class="pipe"><div class="done">Nuevo</div><div class="now">Cotizado</div><div>Contratado</div></div>
+
+          <div class="lbl">Flores ceremonia</div>
+          <div class="rail" style="margin-bottom:0.85rem">
+            <div><div class="xs">Presupuestado</div><div class="amt dim">$50,000</div></div>
+            <div><div class="xs">Cotizó</div><div class="amt over">$52,000</div><div class="xs" style="color:#d33">+$2,000</div></div>
+            <div><div class="xs">Contratado</div><div class="amt dim">—</div></div>
+          </div>
+
+          <div class="lbl">Cotización que te mandó</div>
+          <div class="file file-has" style="margin-bottom:0.85rem">
+            <span>cotizacion-flores-aurora.pdf</span><span class="row"><span class="btn btn-q">Ver</span><span class="btn btn-q">Quitar</span></span>
+          </div>
+
+          <div class="lbl">Notas de esta boda</div>
+          <div class="inp" style="margin-bottom:0.85rem">Incluye 40 centros. Confirmar antes del 15 de mayo.</div>
+
+          <div class="fold">Pagos y reseña <span>aparecen al contratar</span></div>
+        </div>
+        <div class="m-f">
+          <span class="btn btn-q">Descartar</span>
+          <span class="row"><span class="btn">Guardar</span><span class="btn btn-p">Contratar →</span></span>
+        </div>
+      </div>
+
+      <div>
+        <div class="lbl" style="margin-bottom:0.5rem">Lo mismo en celular</div>
+        <div class="phone">
+          <div class="m-strip" style="padding:0.6rem 0.75rem"><div class="nm" style="font-size:0.85rem">Flores Aurora</div><div class="xs">Decoración · 4.0 de 5</div></div>
+          <div class="m-b">
+            <div class="pipe" style="margin-bottom:0.7rem"><div class="done" style="font-size:0.62rem">Nuevo</div><div class="now" style="font-size:0.62rem">Cotizado</div><div style="font-size:0.62rem">Contratado</div></div>
+            <div class="rail" style="flex-direction:column;margin-bottom:0.7rem">
+              <div style="border-right:none;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:baseline"><span class="xs">Presupuestado</span><span class="amt dim" style="font-size:0.85rem">$50,000</span></div>
+              <div style="border-right:none;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:baseline"><span class="xs">Cotizó</span><span class="amt over" style="font-size:0.85rem">$52,000</span></div>
+              <div style="border-right:none;display:flex;justify-content:space-between;align-items:baseline"><span class="xs">Contratado</span><span class="amt dim" style="font-size:0.85rem">—</span></div>
+            </div>
+            <div class="file file-has" style="font-size:0.66rem;margin-bottom:0.7rem"><span>cotizacion.pdf</span><span class="btn btn-q" style="font-size:0.62rem">Ver</span></div>
+            <div class="btn btn-p" style="display:block;text-align:center">Contratar</div>
+          </div>
+        </div>
+        <div class="warn">
+          En celular la tira de montos se apila y <b>el botón que avanza el trato queda al alcance del pulgar</b>. Lo digo porque el dashboard v2 se atoró justo aquí — el escritorio quedó bien y el móvil abrumaba.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ESTADO 3 -->
+  <div class="sec">
+    <span class="sec-n">Estado 3</span>
+    <p class="sec-t">Contratado — ahora sí aparecen los pagos</p>
+    <p class="sec-d">Solo al contratar se abren pagos y archivos. Y aquí es donde vive el comprobante por pago que decidimos construir de una vez.</p>
+
+    <div class="m" style="max-width:620px">
+      <div class="m-strip"><div class="nm">Banquetes La Hacienda</div><div class="sm">Banquete · la usaste 6 veces · 4.7 de 5</div></div>
+      <div class="m-b">
+        <div class="pipe"><div class="done">Nuevo</div><div class="done">Cotizado</div><div class="now">Contratado</div></div>
+
+        <div class="lbl">Banquete principal</div>
+        <div class="rail" style="margin-bottom:0.85rem">
+          <div><div class="xs">Presupuestado</div><div class="amt dim">$280,000</div></div>
+          <div><div class="xs">Cotizó</div><div class="amt dim">$310,000</div></div>
+          <div><div class="xs">Contratado</div><div class="amt under">$295,000</div><div class="xs" style="color:#2a8a45">negociaste $15,000</div></div>
+        </div>
+
+        <div class="g2" style="margin-bottom:0.85rem">
+          <div>
+            <div class="lbl">Archivos</div>
+            <div class="file file-has" style="margin-bottom:0.35rem"><span>cotizacion-aceptada.pdf</span><span class="btn btn-q">Ver</span></div>
+            <div class="file"><span>+ Adjuntar contrato</span></div>
+          </div>
+          <div>
+            <div class="lbl">Pagos · $147,500 de $295,000</div>
+            <div class="file file-has" style="margin-bottom:0.35rem"><span>15 mar · $147,500 · transferencia</span><span class="btn btn-q">comprobante</span></div>
+            <div class="file"><span>+ Registrar pago</span></div>
+          </div>
+        </div>
+
+        <div class="lbl">Notas de esta boda</div>
+        <div class="inp">Menú degustación el 2 de febrero. Capitán: Ramiro.</div>
+      </div>
+      <div class="m-f">
+        <span class="btn btn-q">Quitar de esta boda</span>
+        <span class="row"><span class="btn">Guardar</span><span class="btn btn-p">Cerrar y calificar</span></span>
+      </div>
+    </div>
+
+    <div class="cmt">
+      <b>La reseña sigue saliendo sola</b> al cerrar el trato, como ya la tienes hecha — no la toco, funciona. Solo se le agrega quién la escribió, para cuando tu coordinadora también califique.
+    </div>
+  </div>
+
+  <div class="cmt" style="margin-top:2rem">
+    <b>Resumen de por qué esto no abruma:</b> nunca hay más de cuatro bloques en pantalla. Lo que no aplica todavía no está en gris ni bloqueado — <b>no existe</b>. Y la única decisión visible siempre es la misma: el botón verde que avanza el trato al siguiente paso.
+  </div>
+
+  <h3 style="margin-top:2.2rem">¿Va así?</h3>
+  <div class="options" data-multiselect>
+    <div class="option" data-choice="ok" onclick="toggleSelect(this)">
+      <div class="letter">A</div>
+      <div class="content"><h3>Va, escribe el spec</h3><p>Ya tenemos todo lo que necesito ver.</p></div>
+    </div>
+    <div class="option" data-choice="pipe" onclick="toggleSelect(this)">
+      <div class="letter">B</div>
+      <div class="content"><h3>El camino Nuevo → Cotizado → Contratado no me late</h3><p>Cambiaría los pasos o cómo se avanza.</p></div>
+    </div>
+    <div class="option" data-choice="rail" onclick="toggleSelect(this)">
+      <div class="letter">C</div>
+      <div class="content"><h3>Cambiaría la tira de los tres montos</h3><p>El orden, lo que muestra o cómo marca las diferencias.</p></div>
+    </div>
+    <div class="option" data-choice="mob" onclick="toggleSelect(this)">
+      <div class="letter">D</div>
+      <div class="content"><h3>Quiero ver más el celular</h3><p>Dibújame los tres estados en móvil antes de decidir.</p></div>
+    </div>
+  </div>
+</div>
+
+<hr class="sep">
+<style>
+  .w2 { max-width:1040px; }
+  .s2 { margin-bottom:2.3rem; }
+  .n2 { display:inline-block; font-size:0.62rem; font-weight:800; letter-spacing:0.1em; text-transform:uppercase; color:#2f9d88; background:rgba(72,201,176,0.14); padding:0.25rem 0.6rem; border-radius:999px; margin-bottom:0.5rem; }
+  .t2 { font-size:1.08rem; font-weight:680; color:var(--text-primary); margin:0 0 0.35rem; }
+  .d2 { font-size:0.85rem; color:var(--text-secondary); line-height:1.6; margin:0 0 1rem; max-width:76ch; }
+
+  .m2 { border:1px solid var(--border); border-radius:14px; overflow:hidden; background:var(--bg-secondary); }
+  .m2-strip { background:rgba(72,201,176,0.08); border-bottom:1px solid rgba(72,201,176,0.35); padding:0.8rem 1rem; }
+  .m2-b { padding:1rem; }
+  .m2-f { border-top:1px solid var(--border); padding:0.7rem 1rem; display:flex; justify-content:space-between; gap:0.5rem; flex-wrap:wrap; background:var(--bg-primary); }
+
+  .nm2 { font-size:0.95rem; font-weight:700; color:var(--text-primary); }
+  .sm2 { font-size:0.76rem; color:var(--text-secondary); line-height:1.55; }
+  .xs2 { font-size:0.67rem; color:var(--text-tertiary); line-height:1.5; }
+  .lb2 { font-size:0.57rem; font-weight:800; letter-spacing:0.09em; text-transform:uppercase; color:var(--text-tertiary); margin-bottom:0.32rem; }
+  .b2 { border-radius:7px; padding:0.42rem 0.75rem; font-size:0.71rem; font-weight:700; border:1px solid var(--border); color:var(--text-secondary); background:var(--bg-secondary); white-space:nowrap; }
+  .b2-p { background:#48C9B0; color:#fff; border-color:#48C9B0; }
+  .b2-q { background:transparent; border-color:transparent; color:var(--text-tertiary); }
+  .r2 { display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap; }
+
+  /* pipeline con dos finales */
+  .pipe2 { display:flex; align-items:center; gap:0.4rem; margin-bottom:1rem; flex-wrap:wrap; }
+  .st { padding:0.48rem 0.85rem; border-radius:8px; font-size:0.73rem; font-weight:700; border:1px solid var(--border); color:var(--text-tertiary); background:var(--bg-primary); }
+  .st.done { background:rgba(72,201,176,0.14); color:#2f9d88; border-color:rgba(72,201,176,0.45); }
+  .st.win  { background:#48C9B0; color:#fff; border-color:#48C9B0; }
+  .st.lose { background:#d33; color:#fff; border-color:#d33; }
+  .ar { color:var(--text-tertiary); font-size:0.85rem; }
+  .fork { display:flex; flex-direction:column; gap:0.3rem; }
+
+  .reason { display:flex; flex-wrap:wrap; gap:0.4rem; }
+  .reason span { font-size:0.74rem; padding:0.42rem 0.7rem; border-radius:7px; border:1px solid var(--border); color:var(--text-secondary); background:var(--bg-primary); }
+  .reason .on { background:#1D1E20; color:#fff; border-color:#1D1E20; font-weight:650; }
+
+  .inp2 { border:1px solid var(--border); border-radius:7px; padding:0.45rem 0.65rem; font-size:0.78rem; background:var(--bg-primary); color:var(--text-tertiary); }
+
+  table.t2 { width:100%; border-collapse:collapse; font-size:0.73rem; }
+  table.t2 th { text-align:left; font-size:0.57rem; text-transform:uppercase; letter-spacing:0.07em; color:var(--text-tertiary); padding:0.42rem 0.5rem; border-bottom:1px solid var(--border); font-weight:800; }
+  table.t2 td { padding:0.55rem 0.5rem; border-bottom:1px solid var(--border); color:var(--text-secondary); }
+  table.t2 td b { color:var(--text-primary); font-weight:650; }
+  .win-n { color:#2a8a45; font-weight:750; }
+  .lose-n{ color:#d33; font-weight:750; }
+
+  .k2 { border-left:3px solid #48C9B0; background:rgba(72,201,176,0.07); padding:0.72rem 0.9rem; border-radius:0 8px 8px 0; font-size:0.81rem; line-height:1.6; color:var(--text-secondary); margin-top:0.85rem; }
+  .k2 b { color:var(--text-primary); }
+  .bad2 { border-left:3px solid var(--error); background:rgba(255,59,48,0.06); padding:0.72rem 0.9rem; border-radius:0 8px 8px 0; font-size:0.81rem; line-height:1.6; color:var(--text-secondary); }
+  .bad2 b { color:var(--text-primary); }
+  .g2b { display:grid; grid-template-columns:1fr 1fr; gap:0.9rem; align-items:start; }
+  @media (max-width:820px){ .g2b { grid-template-columns:1fr; } }
+</style>
+
+<div class="w2">
+  <h2>Descartado, como resultado de primera clase</h2>
+  <p class="subtitle">Tenías razón: perder también es información. Y al revisarlo encontré que hoy la reseña de descartar está mal planteada.</p>
+
+  <!-- EL HALLAZGO -->
+  <div class="s2">
+    <span class="n2">Lo que está mal hoy</span>
+    <p class="t2">Se te pide calificar a alguien con quien nunca trabajaste</p>
+    <div class="bad2">
+      El modal de reseña es <b>idéntico</b> al contratar y al descartar: mismo título <i>“¿Cómo fue el proceso?”</i>, mismas estrellas, mismo “¿qué tal el trato?”.
+      Si descartaste a un florista porque se pasó $20,000 del presupuesto, <b>¿cuántas estrellas le pones?</b> Nadie contesta eso bien — por eso ese dato hoy no sirve.
+    </div>
+    <div class="k2">
+      <b>El arreglo:</b> contratar pide <b>calificación</b> (ya trabajaste con él, sabes cómo te fue). Descartar pide <b>motivo</b> (no trabajaste con él, pero sabes por qué no).
+    </div>
+  </div>
+
+  <!-- PIPELINE CON DOS FINALES -->
+  <div class="s2">
+    <span class="n2">Cambio 1</span>
+    <p class="t2">Dos finales visibles, no un botón escondido</p>
+    <p class="d2">Descartado deja de vivir en el menú de abajo y se vuelve un final del camino, al mismo nivel que contratado.</p>
+    <div class="pipe2">
+      <span class="st done">Nuevo</span><span class="ar">→</span>
+      <span class="st done">Cotizado</span><span class="ar">→</span>
+      <span class="fork"><span class="st win">Contratado</span><span class="st">Descartado</span></span>
+    </div>
+    <div class="xs2">Desde “Cotizado” se puede ir a cualquiera de los dos. Y de “Descartado” se puede regresar — pasa seguido: el proveedor baja el precio.</div>
+  </div>
+
+  <!-- EL MODAL DE DESCARTE -->
+  <div class="s2">
+    <span class="n2">Cambio 2</span>
+    <p class="t2">Al descartar: motivo, no estrellas</p>
+
+    <div class="g2b">
+      <div class="m2">
+        <div class="m2-strip"><div class="nm2">Flores Aurora</div><div class="sm2">Cotizó $52,000 · meta era $50,000</div></div>
+        <div class="m2-b">
+          <div class="lb2">¿Por qué no se quedó?</div>
+          <div class="reason" style="margin-bottom:0.9rem">
+            <span class="on">Precio</span><span>Sin disponibilidad</span><span>Al cliente no le gustó</span><span>Nunca contestó</span><span>Elegimos a otro</span><span>Otro</span>
+          </div>
+          <div class="lb2">Detalle <span style="text-transform:none;letter-spacing:0;font-weight:600">— opcional</span></div>
+          <div class="inp2" style="margin-bottom:0.9rem">No quiso bajar de $52,000 aunque le insistí dos veces.</div>
+          <div class="lb2">¿Cómo te contestó? <span style="text-transform:none;letter-spacing:0;font-weight:600">— opcional</span></div>
+          <div class="reason"><span>Lentísimo</span><span class="on">Normal</span><span>Bueno</span><span>Rápidos</span></div>
+        </div>
+        <div class="m2-f"><span class="b2 b2-q">Ahora no</span><span class="b2 b2-p">Guardar</span></div>
+      </div>
+
+      <div>
+        <div class="k2" style="margin-top:0">
+          <b>Un solo campo nuevo</b> en la base: el motivo. Las estrellas y el “¿qué tal el trato?” siguen existiendo tal cual — solo dejan de aparecer cuando no aplican.
+        </div>
+        <div class="k2">
+          <b>“Nunca contestó” es el motivo más valioso de la lista.</b> Es el único que no depende del cliente ni del presupuesto: es culpa del proveedor, y se repite. Ese es el que te va a limpiar el Rolodex solo.
+        </div>
+        <div class="k2">
+          <b>Se puede saltar.</b> Igual que hoy — un planner con prisa cierra y ya. Nunca bloqueamos por pedir datos.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- EL ROLODEX -->
+  <div class="s2">
+    <span class="n2">Cambio 3 · el pago de todo esto</span>
+    <p class="t2">En el Rolodex: cuántas ganó, cuántas perdió y por qué</p>
+    <p class="d2">Aquí es donde tu idea se vuelve el dato más útil de la pantalla. No es “tiene 4 estrellas”, es <b>“lo cotizo mucho y casi nunca se queda, siempre por precio”</b>.</p>
+
+    <table class="t2">
+      <thead><tr><th>Proveedor</th><th>Cotizado</th><th>Contratado</th><th>Descartado</th><th>Por qué lo descartas</th><th>Tu calificación</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><b>Flores Aurora</b><br><span class="xs2">Decoración · Querétaro</span></td>
+          <td><b>8</b> veces</td><td class="win-n">3</td><td class="lose-n">5</td>
+          <td><b>4 por precio</b><br><span class="xs2">1 por disponibilidad</span></td><td><b>4.0</b></td>
+        </tr>
+        <tr>
+          <td><b>DJ Ultra Mix</b><br><span class="xs2">Entretenimiento · CDMX</span></td>
+          <td><b>6</b> veces</td><td class="win-n">1</td><td class="lose-n">5</td>
+          <td><b>5 nunca contestó</b></td><td><b>2.5</b></td>
+        </tr>
+        <tr>
+          <td><b>Banquetes La Hacienda</b><br><span class="xs2">Banquete · Querétaro</span></td>
+          <td><b>7</b> veces</td><td class="win-n">6</td><td class="lose-n">1</td>
+          <td><span class="xs2">1 al cliente no le gustó</span></td><td><b>4.7</b></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="k2">
+      Lee las tres filas y ve lo que te están diciendo sin que nadie las explique:<br>
+      <b>Flores Aurora</b> es buena pero cara — sirve para bodas con presupuesto holgado, no la ofrezcas en las apretadas.<br>
+      <b>DJ Ultra Mix</b> te está haciendo perder el tiempo: lo cotizas y no contesta. <b>Sácalo del Rolodex.</b><br>
+      <b>La Hacienda</b> es tu caballo: 6 de 7. Esa es la que propones primero.
+    </div>
+    <div class="k2">
+      Y todo esto <b>se llena solo</b>. El planner nunca teclea un solo número de esta tabla — sale de los tratos que ya va cerrando boda por boda.
+    </div>
+  </div>
+
+  <h3 style="margin-top:2.2rem">¿Así queda?</h3>
+  <div class="options" data-multiselect>
+    <div class="option" data-choice="ok" onclick="toggleSelect(this)">
+      <div class="letter">A</div>
+      <div class="content"><h3>Así queda — escribe el spec</h3><p>Los tres cambios van.</p></div>
+    </div>
+    <div class="option" data-choice="motivos" onclick="toggleSelect(this)">
+      <div class="letter">B</div>
+      <div class="content"><h3>Cambiaría la lista de motivos</h3><p>Sobra o falta alguno de los seis.</p></div>
+    </div>
+    <div class="option" data-choice="tabla" onclick="toggleSelect(this)">
+      <div class="letter">C</div>
+      <div class="content"><h3>Cambiaría las columnas del Rolodex</h3><p>El acomodo de cotizado / contratado / descartado.</p></div>
+    </div>
+  </div>
+</div>
+
+<hr class="sep">
+<style>
+  .w3 { max-width:1040px; }
+  .s3 { margin-bottom:2.3rem; }
+  .n3 { display:inline-block; font-size:0.62rem; font-weight:800; letter-spacing:0.1em; text-transform:uppercase; color:#2f9d88; background:rgba(72,201,176,0.14); padding:0.25rem 0.6rem; border-radius:999px; margin-bottom:0.5rem; }
+  .t3 { font-size:1.08rem; font-weight:680; color:var(--text-primary); margin:0 0 0.35rem; }
+  .d3 { font-size:0.85rem; color:var(--text-secondary); line-height:1.6; margin:0 0 1rem; max-width:76ch; }
+
+  .m3 { border:1px solid var(--border); border-radius:12px; background:var(--bg-secondary); overflow:hidden; }
+  .m3-h { padding:0.7rem 0.9rem; border-bottom:1px solid var(--border); background:var(--bg-primary); }
+  .m3-h b { font-size:0.85rem; color:var(--text-primary); }
+  .m3-h div { font-size:0.7rem; color:var(--text-tertiary); }
+  .m3-b { padding:0.9rem; }
+
+  .lb3 { font-size:0.57rem; font-weight:800; letter-spacing:0.09em; text-transform:uppercase; color:var(--text-tertiary); margin-bottom:0.32rem; }
+  .sm3 { font-size:0.76rem; color:var(--text-secondary); line-height:1.55; }
+  .xs3 { font-size:0.67rem; color:var(--text-tertiary); line-height:1.5; }
+  .inp3 { border:1px solid var(--border); border-radius:7px; padding:0.45rem 0.65rem; font-size:0.77rem; background:var(--bg-primary); color:var(--text-tertiary); }
+  .chips { display:flex; flex-wrap:wrap; gap:0.35rem; }
+  .chips span { font-size:0.72rem; padding:0.36rem 0.62rem; border-radius:7px; border:1px solid var(--border); color:var(--text-secondary); background:var(--bg-primary); }
+  .chips .on { background:#1D1E20; color:#fff; border-color:#1D1E20; font-weight:650; }
+  .stars { font-size:1.25rem; letter-spacing:0.15rem; color:#f0a92e; }
+  .stars .off { color:var(--border); }
+  .faces { display:flex; gap:0.4rem; }
+  .faces div { flex:1; text-align:center; border:1px solid var(--border); border-radius:8px; padding:0.5rem 0.2rem; font-size:0.68rem; color:var(--text-tertiary); }
+
+  .kill { position:relative; opacity:0.55; }
+  .kill::after { content:''; position:absolute; inset:0; background:repeating-linear-gradient(45deg,transparent,transparent 6px,rgba(255,59,48,0.12) 6px,rgba(255,59,48,0.12) 12px); border-radius:8px; pointer-events:none; }
+  .kill-tag { display:inline-block; font-size:0.6rem; font-weight:800; color:#d33; background:rgba(255,59,48,0.12); padding:0.16rem 0.42rem; border-radius:5px; margin-left:0.4rem; }
+
+  .time { display:flex; gap:0; align-items:stretch; border:1px solid var(--border); border-radius:10px; overflow:hidden; margin-bottom:0.9rem; }
+  .time > div { flex:1; padding:0.75rem 0.8rem; border-right:1px solid var(--border); }
+  .time > div:last-child { border-right:none; }
+  .time .when { font-size:0.6rem; font-weight:800; letter-spacing:0.07em; text-transform:uppercase; color:var(--text-tertiary); margin-bottom:0.3rem; }
+  .time .q { font-size:0.8rem; color:var(--text-primary); font-weight:640; margin-bottom:0.25rem; }
+  .time .a { font-size:0.7rem; color:var(--text-secondary); line-height:1.5; }
+  .time .miss { background:rgba(255,59,48,0.07); }
+  .time .miss .when { color:#d33; }
+
+  .mod { border:1px solid var(--border); border-radius:12px; overflow:hidden; margin-bottom:0.9rem; background:var(--bg-secondary); }
+  .mod-rec { border:2px solid #48C9B0; }
+  .mod-t { padding:0.7rem 0.95rem; background:var(--bg-tertiary); display:flex; justify-content:space-between; align-items:center; gap:0.5rem; flex-wrap:wrap; }
+  .mod-rec .mod-t { background:rgba(72,201,176,0.13); }
+  .mod-t b { font-size:0.88rem; color:var(--text-primary); }
+  .rec { font-size:0.6rem; font-weight:800; letter-spacing:0.08em; text-transform:uppercase; color:#fff; background:#48C9B0; padding:0.2rem 0.5rem; border-radius:5px; }
+  .mod-b { padding:0.9rem; }
+  .g3b { display:grid; grid-template-columns:repeat(3,1fr); gap:0.7rem; }
+  .pc3 { display:flex; gap:0.8rem; margin-top:0.8rem; flex-wrap:wrap; }
+  .pc3 div { flex:1; min-width:190px; font-size:0.74rem; line-height:1.55; }
+  .pc3 b { display:block; font-size:0.61rem; text-transform:uppercase; letter-spacing:0.07em; margin-bottom:0.22rem; }
+  .pc3 .ok { color:#2a8a45; } .pc3 .no { color:#d33; }
+
+  .k3 { border-left:3px solid #48C9B0; background:rgba(72,201,176,0.07); padding:0.72rem 0.9rem; border-radius:0 8px 8px 0; font-size:0.81rem; line-height:1.6; color:var(--text-secondary); margin-top:0.85rem; }
+  .k3 b { color:var(--text-primary); }
+  .bad3 { border-left:3px solid var(--error); background:rgba(255,59,48,0.06); padding:0.72rem 0.9rem; border-radius:0 8px 8px 0; font-size:0.81rem; line-height:1.6; color:var(--text-secondary); }
+  .bad3 b { color:var(--text-primary); }
+
+  @media (max-width:820px){ .g3b { grid-template-columns:1fr; } .time { flex-direction:column; } .time > div { border-right:none; border-bottom:1px solid var(--border); } }
+</style>
+
+<div class="w3">
+  <h2>El modelo de reseña, simplificado</h2>
+  <p class="subtitle">Lo que hay hoy, el hoyo que encontré, y tres formas de resolverlo.</p>
+
+  <!-- HOY -->
+  <div class="s3">
+    <span class="n3">Hoy</span>
+    <p class="t3">Cuatro preguntas de golpe — y dos son la misma</p>
+    <div class="m3" style="max-width:460px">
+      <div class="m3-h"><b>¿Cómo fue el proceso?</b><div>Tu experiencia cotizando con Flores Aurora</div></div>
+      <div class="m3-b">
+        <div class="lb3">Calificación</div>
+        <div class="stars" style="margin-bottom:0.85rem">★★★★<span class="off">★</span></div>
+        <div class="lb3">¿Qué tal el trato? <span class="kill-tag">la misma pregunta</span></div>
+        <div class="faces kill" style="margin-bottom:0.85rem"><div>No</div><div>Normal</div><div>Love</div></div>
+        <div class="lb3">¿Qué tan rápido contestaba?</div>
+        <div class="chips" style="margin-bottom:0.85rem"><span>Lentísimo</span><span class="on">Normal</span><span>Bueno</span><span>Rápidos</span></div>
+        <div class="lb3">Comentario</div>
+        <div class="inp3" style="min-height:3rem">¿Cómo fue tu experiencia? Lo bueno, lo malo…</div>
+      </div>
+    </div>
+    <div class="k3">
+      <b>Las estrellas y las caritas preguntan lo mismo:</b> ¿te gustó? Una de las dos sobra, y las caritas son la que menos sirve — no se puede promediar “Love” a través de seis bodas para poner un número en el Rolodex.
+    </div>
+  </div>
+
+  <!-- EL HOYO -->
+  <div class="s3">
+    <span class="n3">El hoyo</span>
+    <p class="t3">La reseña que importa nunca se pide</p>
+    <div class="bad3" style="margin-bottom:1rem">
+      El modal se dispara <b>cuando cambias el estado a Contratado</b> — o sea, <b>al firmar</b>, meses antes de la boda.
+      Por eso el subtítulo dice “tu experiencia <i>cotizando</i>”: es honesto. Estás calificando cómo fue <b>negociar</b>.
+      <b>Cómo cumplió el día del evento no se pregunta nunca</b>, porque para entonces el estado ya no cambia y ningún modal aparece.
+    </div>
+
+    <div class="time">
+      <div>
+        <div class="when">Al descartar</div>
+        <div class="q">¿Por qué no se quedó?</div>
+        <div class="a">Sabes el motivo. No sabes su calidad — nunca trabajaste con él.</div>
+      </div>
+      <div>
+        <div class="when">Al contratar</div>
+        <div class="q">¿Qué tal fue negociar?</div>
+        <div class="a">Sabes si contesta rápido y si fue fácil tratar con él. <b>Todavía no sabes si cumple.</b></div>
+      </div>
+      <div class="miss">
+        <div class="when">Después de la boda · no existe</div>
+        <div class="q">¿Cumplió?</div>
+        <div class="a">Aquí está todo lo que un planner quiere recordar: si llegó a tiempo, si entregó lo prometido, si lo volvería a contratar.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODELOS -->
+  <div class="s3">
+    <span class="n3">Tres formas de resolverlo</span>
+    <p class="t3">¿Cuál construimos?</p>
+
+    <!-- A -->
+    <div class="mod">
+      <div class="mod-t"><b>Modelo A — solo limpiar</b><span class="sm3">Lo mínimo</span></div>
+      <div class="mod-b">
+        <div class="sm3">Quitar las caritas. Al contratar quedan estrellas + velocidad + nota. Al descartar, motivo + velocidad + nota. El disparador no se toca.</div>
+        <div class="pc3">
+          <div class="ok"><b>A favor</b>Media hora de trabajo. El modal deja de sentirse repetido.</div>
+          <div class="no"><b>En contra</b>Las estrellas siguen midiendo la negociación, no el servicio. El dato del Rolodex sigue siendo flojo.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- B -->
+    <div class="mod mod-rec">
+      <div class="mod-t"><b>Modelo B — cada momento pregunta lo que sí sabe</b><span class="rec">Mi recomendación</span></div>
+      <div class="mod-b">
+        <div class="g3b">
+          <div class="m3">
+            <div class="m3-h"><b>Al descartar</b><div>No trabajaste con él</div></div>
+            <div class="m3-b">
+              <div class="lb3">¿Por qué no se quedó?</div>
+              <div class="chips" style="margin-bottom:0.7rem"><span class="on">Precio</span><span>Disponibilidad</span><span>Al cliente no le gustó</span><span>Nunca contestó</span><span>Otro</span></div>
+              <div class="lb3">Nota <span style="text-transform:none;letter-spacing:0;font-weight:600">opcional</span></div>
+              <div class="inp3"></div>
+              <div class="xs3" style="margin-top:0.5rem">Sin estrellas.</div>
+            </div>
+          </div>
+
+          <div class="m3">
+            <div class="m3-h"><b>Al contratar</b><div>Negociaste, no lo has visto trabajar</div></div>
+            <div class="m3-b">
+              <div class="lb3">¿Qué tan rápido contesta?</div>
+              <div class="chips" style="margin-bottom:0.7rem"><span>Lentísimo</span><span class="on">Normal</span><span>Bueno</span><span>Rápidos</span></div>
+              <div class="lb3">Nota <span style="text-transform:none;letter-spacing:0;font-weight:600">opcional</span></div>
+              <div class="inp3"></div>
+              <div class="xs3" style="margin-top:0.5rem">Sin estrellas — todavía no las puedes contestar.</div>
+            </div>
+          </div>
+
+          <div class="m3" style="border-color:#48C9B0">
+            <div class="m3-h" style="background:rgba(72,201,176,0.1)"><b>Después de la boda</b><div>Ahora sí sabes</div></div>
+            <div class="m3-b">
+              <div class="lb3">¿Cómo te fue con Flores Aurora?</div>
+              <div class="stars" style="margin-bottom:0.7rem">★★★★<span class="off">★</span></div>
+              <div class="lb3">Nota <span style="text-transform:none;letter-spacing:0;font-weight:600">opcional</span></div>
+              <div class="inp3">Llegó tarde pero el montaje quedó precioso.</div>
+              <div class="xs3" style="margin-top:0.5rem"><b style="color:#2f9d88">Esta es la reseña real</b>, la que alimenta el Rolodex.</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="k3">
+          <b>Cómo se dispara la tercera sin inventar nada raro:</b> cuando el planner entra a una boda cuya fecha ya pasó y tiene proveedores contratados sin calificar, aparece un aviso ligero — <i>“esta boda ya pasó, ¿cómo te fue con tus 4 proveedores?”</i> — con estrellas de un toque, los cuatro en una sola pantalla. No necesita correo, ni cron, ni notificación.
+        </div>
+        <div class="pc3">
+          <div class="ok"><b>A favor</b>Cada pregunta se hace cuando tiene respuesta. Menos campos por pantalla que hoy. Y por fin capturas lo único que un planner quiere recordar de un proveedor.</div>
+          <div class="no"><b>En contra</b>Hay que construir la pantalla de “boda pasada”. Es chica, pero es trabajo nuevo — súmale unas horas al fin de semana.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- C -->
+    <div class="mod">
+      <div class="mod-t"><b>Modelo C — dos calificaciones separadas</b><span class="sm3">Lo más completo</span></div>
+      <div class="mod-b">
+        <div class="sm3">Una calificación para el proceso de venta y otra para el cumplimiento. En el Rolodex se ven las dos: <i>“fácil de tratar 5 · cumplió 3”</i>.</div>
+        <div class="pc3">
+          <div class="ok"><b>A favor</b>Distingue al proveedor encantador que no cumple, del gruñón que entrega perfecto. Eso existe y es útil.</div>
+          <div class="no"><b>En contra</b>Dos columnas más y un Rolodex con dos números que el planner tiene que interpretar. Es precisión que nadie pidió todavía.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="k3">
+      <b>Por qué la B:</b> es la única que reduce campos <i>y</i> mejora el dato al mismo tiempo. La A limpia pero deja el hoyo. La C llena el hoyo pero agrega complejidad que ningún planner te ha pedido.
+      Y la B deja la puerta abierta a la C: si algún día quieres separar los dos números, ya tienes el momento de “después de la boda” construido.
+    </div>
+  </div>
+
+  <h3 style="margin-top:2.2rem">¿Cuál va?</h3>
+  <div class="options">
+    <div class="option" data-choice="B" onclick="toggleSelect(this)">
+      <div class="letter">A</div>
+      <div class="content"><h3>Modelo B — cada momento pregunta lo que sabe</h3><p>Con la pantalla de “boda pasada” para la reseña real.</p></div>
+    </div>
+    <div class="option" data-choice="A" onclick="toggleSelect(this)">
+      <div class="letter">B</div>
+      <div class="content"><h3>Modelo A — solo limpiar</h3><p>Quitar caritas y ya. El fin de semana no da para más.</p></div>
+    </div>
+    <div class="option" data-choice="C" onclick="toggleSelect(this)">
+      <div class="letter">C</div>
+      <div class="content"><h3>Modelo C — dos calificaciones</h3><p>Proceso y cumplimiento por separado.</p></div>
+    </div>
+    <div class="option" data-choice="Bsin" onclick="toggleSelect(this)">
+      <div class="letter">D</div>
+      <div class="content"><h3>La B, pero sin la pantalla de boda pasada</h3><p>Me gusta el modelo; el disparador lo vemos en otro chat.</p></div>
+    </div>
+  </div>
+</div>
+
+<hr class="sep">
+<style>
+  .w4 { max-width:1040px; }
+  .s4 { margin-bottom:2.2rem; }
+  .n4 { display:inline-block; font-size:0.62rem; font-weight:800; letter-spacing:0.1em; text-transform:uppercase; color:#2f9d88; background:rgba(72,201,176,0.14); padding:0.25rem 0.6rem; border-radius:999px; margin-bottom:0.5rem; }
+  .t4 { font-size:1.08rem; font-weight:680; color:var(--text-primary); margin:0 0 0.35rem; }
+  .d4 { font-size:0.85rem; color:var(--text-secondary); line-height:1.6; margin:0 0 1rem; max-width:76ch; }
+
+  .m4 { border:1px solid var(--border); border-radius:12px; background:var(--bg-secondary); overflow:hidden; }
+  .m4-h { padding:0.7rem 0.9rem; border-bottom:1px solid var(--border); background:var(--bg-primary); }
+  .m4-h b { font-size:0.86rem; color:var(--text-primary); }
+  .m4-h div { font-size:0.69rem; color:var(--text-tertiary); }
+  .m4-b { padding:0.9rem; }
+  .m4-f { border-top:1px solid var(--border); padding:0.6rem 0.9rem; display:flex; justify-content:flex-end; gap:0.4rem; background:var(--bg-primary); }
+
+  .lb4 { font-size:0.57rem; font-weight:800; letter-spacing:0.09em; text-transform:uppercase; color:var(--text-tertiary); margin-bottom:0.32rem; }
+  .sm4 { font-size:0.76rem; color:var(--text-secondary); line-height:1.55; }
+  .xs4 { font-size:0.67rem; color:var(--text-tertiary); line-height:1.5; }
+  .inp4 { border:1px solid var(--border); border-radius:7px; padding:0.45rem 0.65rem; font-size:0.77rem; background:var(--bg-primary); color:var(--text-tertiary); }
+  .ch { display:flex; flex-wrap:wrap; gap:0.35rem; }
+  .ch span { font-size:0.72rem; padding:0.36rem 0.62rem; border-radius:7px; border:1px solid var(--border); color:var(--text-secondary); background:var(--bg-primary); }
+  .ch .on { background:#1D1E20; color:#fff; border-color:#1D1E20; font-weight:650; }
+  .b4 { border-radius:7px; padding:0.42rem 0.8rem; font-size:0.71rem; font-weight:700; border:1px solid var(--border); color:var(--text-secondary); background:var(--bg-secondary); }
+  .b4-p { background:#48C9B0; color:#fff; border-color:#48C9B0; }
+
+  .g4 { display:grid; grid-template-columns:1fr 1fr; gap:1rem; align-items:start; }
+  .k4 { border-left:3px solid #48C9B0; background:rgba(72,201,176,0.07); padding:0.72rem 0.9rem; border-radius:0 8px 8px 0; font-size:0.81rem; line-height:1.6; color:var(--text-secondary); margin-top:0.8rem; }
+  .k4 b { color:var(--text-primary); }
+
+  .stat { display:flex; gap:0.7rem; flex-wrap:wrap; margin-top:0.3rem; }
+  .stat div { flex:1; min-width:150px; border:1px solid var(--border); border-radius:10px; padding:0.75rem 0.85rem; background:var(--bg-secondary); }
+  .stat .big { font-size:1.35rem; font-weight:750; color:#2f9d88; line-height:1.15; }
+  .stat .cap { font-size:0.68rem; color:var(--text-secondary); line-height:1.45; margin-top:0.2rem; }
+
+  table.t4 { width:100%; border-collapse:collapse; font-size:0.73rem; margin-top:0.3rem; }
+  table.t4 th { text-align:left; font-size:0.56rem; text-transform:uppercase; letter-spacing:0.07em; color:var(--text-tertiary); padding:0.42rem 0.5rem; border-bottom:1px solid var(--border); font-weight:800; }
+  table.t4 td { padding:0.55rem 0.5rem; border-bottom:1px solid var(--border); color:var(--text-secondary); }
+  table.t4 td b { color:var(--text-primary); font-weight:650; }
+
+  @media (max-width:820px){ .g4 { grid-template-columns:1fr; } }
+</style>
+
+<div class="w4">
+  <h2>“Al contratar”, con las preguntas que sí valen</h2>
+  <p class="subtitle">Sigue siendo de tres toques — cambian las preguntas, no la cantidad.</p>
+
+  <div class="s4">
+    <div class="g4">
+      <div class="m4">
+        <div class="m4-h"><b>Contrataste a Flores Aurora</b><div>Boda García · $45,000 · cotizó $52,000</div></div>
+        <div class="m4-b">
+          <div class="lb4">¿Quién lo eligió?</div>
+          <div class="ch" style="margin-bottom:0.9rem">
+            <span class="on">Yo lo propuse</span><span>El cliente lo trajo</span><span>El venue lo pidió</span><span>Me lo recomendaron</span>
+          </div>
+
+          <div class="lb4">¿Por qué se quedó?</div>
+          <div class="ch" style="margin-bottom:0.9rem">
+            <span>Precio</span><span>Disponibilidad</span><span class="on">Al cliente le encantó</span><span>Ya lo conocía</span><span>Otro</span>
+          </div>
+
+          <div class="lb4">Nota <span style="text-transform:none;letter-spacing:0;font-weight:600">— opcional</span></div>
+          <div class="inp4">Bajó $7,000 a cambio de quitarle el arco.</div>
+
+          <div class="k4" style="margin-top:0.9rem">
+            <b>Sin estrellas y sin velocidad.</b> Las estrellas no las puedes contestar todavía; la velocidad se pregunta después de la boda, cuando la contestas con el trato completo en la cabeza.
+          </div>
+        </div>
+        <div class="m4-f"><span class="b4">Ahora no</span><span class="b4 b4-p">Guardar</span></div>
+      </div>
+
+      <div>
+        <div class="lb4">Lo que estas dos preguntas te regalan</div>
+
+        <div class="stat">
+          <div><div class="big">80%</div><div class="cap">de los proveedores que <b>tú propusiste</b> se contrataron</div></div>
+          <div><div class="big">−8%</div><div class="cap">lo que <b>negocias en promedio</b> — sale solo de cotizado menos contratado</div></div>
+        </div>
+
+        <div class="k4">
+          <b>La tasa de acierto es tuya, no del proveedor.</b> Ningún planner tiene ese número hoy, y es material de venta: <i>“de lo que propongo, ocho de cada diez se quedan”</i>.
+        </div>
+
+        <div class="k4">
+          <b>Y te protege.</b> El día que el DJ que trajo la novia llegue tarde, está escrito quién lo eligió — y se escribió el día de la firma, no cuando ya hubo pleito.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="s4">
+    <span class="n4">En el Rolodex</span>
+    <p class="t4">Cómo se lee todo junto</p>
+    <p class="d4">Con ganar y perder simétricos, cada fila cuenta una historia sin que nadie la explique.</p>
+
+    <table class="t4">
+      <thead><tr><th>Proveedor</th><th>Gana</th><th>Pierde</th><th>Por qué gana</th><th>Por qué pierde</th><th>Quién lo trae</th><th>Negocias</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><b>Flores Aurora</b></td><td>3</td><td>5</td>
+          <td>al cliente le encanta</td><td>precio</td><td><b>yo</b></td><td>−8%</td>
+        </tr>
+        <tr>
+          <td><b>DJ Ultra Mix</b></td><td>1</td><td>5</td>
+          <td>precio</td><td>nunca contestó</td><td><b>el cliente</b></td><td>0%</td>
+        </tr>
+        <tr>
+          <td><b>Banquetes La Hacienda</b></td><td>6</td><td>1</td>
+          <td>ya lo conocía</td><td>—</td><td><b>yo</b></td><td>−12%</td>
+        </tr>
+        <tr>
+          <td><b>Audio Estelar</b></td><td>4</td><td>0</td>
+          <td>el venue lo pidió</td><td>—</td><td><b>el venue</b></td><td>0%</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="k4">
+      <b>Flores Aurora:</b> le encanta al cliente pero pierde por cara. Ofrécela cuando haya presupuesto.<br>
+      <b>DJ Ultra Mix:</b> lo trae el cliente, gana por barato y nunca contesta. <b>No es tu proveedor, es el problema del cliente</b> — y ahora está escrito.<br>
+      <b>La Hacienda:</b> 6 de 7 y le bajas 12%. Ese es tu caballo.<br>
+      <b>Audio Estelar:</b> 4 de 4 pero <b>siempre lo impone el venue</b>. No lo confundas con un acierto tuyo.
+    </div>
+  </div>
+
+  <h3 style="margin-top:2rem">¿Va así?</h3>
+  <div class="options">
+    <div class="option" data-choice="ok" onclick="toggleSelect(this)">
+      <div class="letter">A</div>
+      <div class="content"><h3>Va — quién lo eligió + por qué se quedó</h3><p>Y la velocidad se va a la reseña post-boda.</p></div>
+    </div>
+    <div class="option" data-choice="solo1" onclick="toggleSelect(this)">
+      <div class="letter">B</div>
+      <div class="content"><h3>Solo “quién lo eligió”</h3><p>Un toque y ya. El “por qué se quedó” me parece de más.</p></div>
+    </div>
+    <div class="option" data-choice="vel" onclick="toggleSelect(this)">
+      <div class="letter">C</div>
+      <div class="content"><h3>Las dos, pero deja la velocidad aquí</h3><p>Aunque sean cuatro campos.</p></div>
+    </div>
+    <div class="option" data-choice="otra" onclick="toggleSelect(this)">
+      <div class="letter">D</div>
+      <div class="content"><h3>Se me ocurre otra pregunta</h3><p>Te la digo en la terminal.</p></div>
+    </div>
+  </div>
+</div>
+
+<hr class="sep">
+</body></html>

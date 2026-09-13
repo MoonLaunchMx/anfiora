@@ -1,0 +1,577 @@
+<title>Recorridos de accesos</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@300..900&family=Josefin+Sans:wght@600;700&display=swap">
+<style>
+:root{
+  --ground:#faf8f4; --panel:#ffffff; --panel-2:#f5f2ec; --panel-3:#efebe2;
+  --line:#e6e1d6; --line-soft:#efebe3;
+  --ink:#16150f; --ink-2:#6d6759; --ink-3:#9c9585; --ink-4:#c4bdad;
+  --gold:#b0842c; --gold-fill:#d4a853; --gold-wash:#fbf5e6;
+  --teal:#1f8a76; --teal-fill:#48c9b0; --teal-wash:#eaf8f4;
+  --bad:#b5352f; --bad-wash:#fdf0ee;
+  --shadow:0 1px 2px rgba(22,21,15,.05), 0 8px 24px -18px rgba(22,21,15,.35);
+  --font:'Figtree',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --brand:'Josefin Sans','Figtree',sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --ground:#121110; --panel:#1b1a18; --panel-2:#232120; --panel-3:#2b2927;
+    --line:#33302c; --line-soft:#282624;
+    --ink:#f2efe8; --ink-2:#a8a294; --ink-3:#767061; --ink-4:#4d4842;
+    --gold:#e0b464; --gold-fill:#d4a853; --gold-wash:#2b2317;
+    --teal:#5fd8c0; --teal-fill:#48c9b0; --teal-wash:#132a26;
+    --bad:#e0736c; --bad-wash:#2c1b1a;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 30px -20px rgba(0,0,0,.9);
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#121110; --panel:#1b1a18; --panel-2:#232120; --panel-3:#2b2927;
+  --line:#33302c; --line-soft:#282624;
+  --ink:#f2efe8; --ink-2:#a8a294; --ink-3:#767061; --ink-4:#4d4842;
+  --gold:#e0b464; --gold-fill:#d4a853; --gold-wash:#2b2317;
+  --teal:#5fd8c0; --teal-fill:#48c9b0; --teal-wash:#132a26;
+  --bad:#e0736c; --bad-wash:#2c1b1a;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 30px -20px rgba(0,0,0,.9);
+}
+
+*{box-sizing:border-box}
+body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--font);font-size:15px;line-height:1.6;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1080px;margin:0 auto;padding:44px 22px 100px}
+
+h1,h2,h3,h4{margin:0;text-wrap:balance;letter-spacing:-.015em}
+h1{font-size:clamp(29px,4.2vw,42px);line-height:1.13;font-weight:600}
+h2{font-size:clamp(20px,2.5vw,25px);font-weight:600;line-height:1.28}
+h3{font-size:16px;font-weight:600}
+p{margin:0}
+.eyebrow{font-family:var(--brand);font-size:11px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--gold)}
+.lede{font-size:17px;color:var(--ink-2);max-width:62ch}
+.muted{color:var(--ink-2)}
+.dim{color:var(--ink-3)}
+.small{font-size:13.5px}
+.tiny{font-size:12px}
+strong{font-weight:600;color:var(--ink)}
+em{font-style:italic}
+.w66{max-width:66ch}
+
+header.top{display:flex;flex-direction:column;gap:14px;padding-bottom:30px;border-bottom:1px solid var(--line)}
+.meta{display:flex;flex-wrap:wrap;gap:8px 20px;font-size:12.5px;color:var(--ink-3)}
+
+section{padding-top:56px;display:flex;flex-direction:column;gap:16px}
+.sec-head{display:flex;align-items:baseline;gap:13px;flex-wrap:wrap}
+.sec-n{
+  font-family:var(--brand);font-size:12px;font-weight:700;letter-spacing:.1em;
+  color:var(--gold);border:1px solid var(--gold-fill);background:var(--gold-wash);
+  border-radius:5px;padding:2px 9px;flex:none
+}
+.note{border-left:2px solid var(--gold-fill);padding:2px 0 2px 16px;color:var(--ink-2);font-size:14.5px;max-width:66ch}
+.cap{font-size:12.5px;color:var(--ink-3);max-width:76ch}
+
+/* ---------- pasos ---------- */
+.pasos{display:flex;flex-direction:column;gap:22px}
+.paso{display:flex;gap:15px;align-items:flex-start}
+.paso-n{
+  flex:none;width:25px;height:25px;border-radius:50%;display:grid;place-items:center;
+  font-size:12px;font-weight:700;background:var(--panel-2);color:var(--ink-2);
+  border:1px solid var(--line);margin-top:2px
+}
+.paso-b{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:10px}
+.paso-t{font-size:15px;font-weight:600}
+.paso-d{font-size:13.5px;color:var(--ink-2);max-width:70ch}
+
+/* ---------- ventana ---------- */
+.win{background:var(--panel);border:1px solid var(--line);border-radius:9px;box-shadow:var(--shadow);overflow:hidden}
+.win-bar{display:flex;align-items:center;gap:9px;padding:9px 13px;background:var(--panel-2);border-bottom:1px solid var(--line)}
+.dots{display:flex;gap:4px;flex:none}
+.dots i{width:7px;height:7px;border-radius:50%;background:var(--line);display:block}
+.crumb{font-size:12px;color:var(--ink-2)}
+.crumb b{color:var(--ink);font-weight:600}
+.win-b{padding:14px}
+
+/* ---------- app: nav + contenido ---------- */
+.app{display:grid;grid-template-columns:158px 1fr;min-height:0}
+.app > .nav{border-right:1px solid var(--line);background:var(--panel-2);padding:11px 9px;display:flex;flex-direction:column;gap:2px}
+.app > .body{padding:14px}
+@media (max-width:620px){ .app{grid-template-columns:1fr} .app > .nav{border-right:0;border-bottom:1px solid var(--line)} }
+.nav-h{font-size:10px;letter-spacing:.11em;text-transform:uppercase;color:var(--ink-3);font-weight:700;padding:7px 8px 3px}
+.nav i{
+  display:flex;align-items:center;gap:8px;font-style:normal;font-size:13px;
+  padding:6px 9px;border-radius:6px;color:var(--ink-2)
+}
+.nav i.on{background:var(--panel);color:var(--ink);font-weight:600;box-shadow:0 1px 2px rgba(22,21,15,.06)}
+.nav i.sub{padding-left:20px;font-size:12.5px}
+.nav i b{width:5px;height:5px;border-radius:50%;background:var(--ink-4);flex:none}
+.nav i.on b{background:var(--gold-fill)}
+
+/* ---------- barra de herramientas ---------- */
+.bar{display:flex;align-items:center;gap:7px;flex-wrap:wrap;padding-bottom:11px;margin-bottom:11px;border-bottom:1px solid var(--line-soft)}
+.srch{flex:1 1 130px;min-width:110px;height:27px;border:1px solid var(--line);border-radius:6px;background:var(--panel-2);display:flex;align-items:center;padding:0 9px;font-size:12px;color:var(--ink-3)}
+.b{font-size:12px;font-weight:600;border-radius:6px;padding:5px 11px;border:1px solid var(--line);background:var(--panel);color:var(--ink-2);white-space:nowrap}
+.b.pri{background:var(--teal-fill);border-color:var(--teal-fill);color:#08312a}
+.b.dan{border-color:var(--bad);color:var(--bad);background:var(--bad-wash)}
+.b.gold{background:var(--gold-fill);border-color:var(--gold-fill);color:#3a2a08}
+
+/* ---------- filas ---------- */
+.rows{display:flex;flex-direction:column}
+.r{display:flex;align-items:center;gap:10px;padding:8px 2px;border-bottom:1px solid var(--line-soft);font-size:13px}
+.rows .r:last-child{border-bottom:0}
+.r .chk{width:13px;height:13px;border:1.5px solid var(--line);border-radius:3px;flex:none}
+.r .nm{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.r .tag{font-size:11px;color:var(--ink-3);white-space:nowrap}
+.r .act{display:flex;gap:6px;flex:none;color:var(--ink-3);font-size:11px}
+.r .act u{text-decoration:none;border:1px solid var(--line);border-radius:4px;padding:2px 6px}
+.r .act u.dan{border-color:var(--bad);color:var(--bad)}
+.hdr{font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-3);font-weight:700;padding-bottom:6px;border-bottom:1px solid var(--line)}
+
+/* ---------- comparativas ---------- */
+.duo{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.trio{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+@media (max-width:820px){.trio{grid-template-columns:1fr}}
+@media (max-width:700px){.duo{grid-template-columns:1fr}}
+.col-t{font-size:11px;letter-spacing:.09em;text-transform:uppercase;font-weight:700;color:var(--ink-3);margin-bottom:7px;display:flex;align-items:center;gap:7px}
+.col-t s{text-decoration:none;font-size:10px;border-radius:999px;padding:1px 7px;border:1px solid var(--line);color:var(--ink-2);background:var(--panel-2);letter-spacing:.02em;text-transform:none;font-weight:600}
+.col-t s.teal{background:var(--teal-wash);border-color:var(--teal-fill);color:var(--teal)}
+.col-t s.gold{background:var(--gold-wash);border-color:var(--gold-fill);color:var(--gold)}
+
+/* ---------- anotacion ---------- */
+.ann{
+  display:flex;gap:9px;align-items:flex-start;margin-top:9px;
+  font-size:12.5px;color:var(--ink-2);background:var(--gold-wash);
+  border:1px solid var(--gold-fill);border-radius:7px;padding:9px 12px
+}
+.ann b{color:var(--gold);flex:none;font-weight:700}
+.ann.teal{background:var(--teal-wash);border-color:var(--teal-fill)}
+.ann.teal b{color:var(--teal)}
+.ann.bad{background:var(--bad-wash);border-color:var(--bad)}
+.ann.bad b{color:var(--bad)}
+
+/* ---------- correo / vacio ---------- */
+.mail{border:1px solid var(--line);border-radius:8px;background:var(--panel);padding:16px 18px;display:flex;flex-direction:column;gap:9px;max-width:440px}
+.mail .from{font-size:11px;color:var(--ink-3);letter-spacing:.04em}
+.mail h4{font-size:15px}
+.mail p{font-size:13px;color:var(--ink-2)}
+.empty{display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center;padding:34px 18px;color:var(--ink-3)}
+.empty .ic{width:34px;height:34px;border-radius:8px;border:1.5px dashed var(--line);display:grid;place-items:center;color:var(--ink-4);font-size:15px}
+.empty h4{font-size:14.5px;color:var(--ink)}
+.empty p{font-size:13px;max-width:40ch}
+
+/* ---------- palomitas ---------- */
+.tool-row{display:flex;align-items:center;gap:8px;padding:6px 9px;border:1px solid var(--line-soft);border-radius:7px;background:var(--panel);font-size:13px;color:var(--ink-2)}
+.tool-row + .tool-row{margin-top:5px}
+.tool-row.on{border-color:var(--teal-fill);background:var(--teal-wash);color:var(--ink)}
+.tool-row.tot{border-color:var(--gold-fill);background:var(--gold-wash);color:var(--ink)}
+.tool-row.off{border-style:dashed;opacity:.6}
+.bx{width:15px;height:15px;border-radius:4px;border:1.5px solid var(--line);flex:none;background:var(--panel)}
+.tool-row.on .bx{background:var(--teal-fill);border-color:var(--teal-fill)}
+.tool-row.tot .bx{background:var(--gold-fill);border-color:var(--gold-fill)}
+.tool-row .lv{margin-left:auto;display:inline-flex;border:1px solid var(--line);border-radius:5px;overflow:hidden;flex:none;background:var(--panel)}
+.tool-row .lv u{text-decoration:none;font-size:10.5px;font-weight:600;padding:3px 7px;color:var(--ink-3)}
+.tool-row .lv u + u{border-left:1px solid var(--line)}
+.tool-row.on .lv u.a{background:var(--teal-fill);color:#08312a}
+.tool-row.tot .lv u.a{background:var(--gold-fill);color:#3a2a08}
+.tool-row .off-t{margin-left:auto;font-size:10.5px;color:var(--ink-3)}
+
+footer{margin-top:64px;padding-top:22px;border-top:1px solid var(--line);color:var(--ink-3);font-size:12.5px;display:flex;flex-wrap:wrap;gap:6px 18px}
+@media (max-width:640px){.wrap{padding:30px 16px 70px}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+
+<div class="wrap">
+
+<header class="top">
+  <p class="eyebrow">Anfiora &middot; Accesos &middot; Documento 3 de 3</p>
+  <h1>Cómo se siente, paso a paso</h1>
+  <p class="lede">Los siete recorridos del sistema de accesos, pantalla por pantalla. El primer documento explicó el modelo; éste enseña qué ve y qué toca cada persona, desde que la das de alta hasta que alguien borra algo y hay que regresarlo.</p>
+  <div class="meta">
+    <span>4 de septiembre, 2026</span>
+    <span>Wireframe para revisión &mdash; ninguna pantalla está construida</span>
+    <span>Se aprueba antes de codear el Tramo 2</span>
+  </div>
+</header>
+
+<!-- ============ 1 ============ -->
+<section>
+  <div class="sec-head"><span class="sec-n">Recorrido 1</span><h2>Dar de alta a alguien en el despacho</h2></div>
+  <p class="muted w66">Contratas a Sofía. No existe en Anfiora. Este recorrido pasa una sola vez por persona, y no vuelve a repetirse aunque trabaje en sesenta bodas.</p>
+
+  <div class="pasos">
+    <div class="paso">
+      <span class="paso-n">1</span>
+      <div class="paso-b">
+        <p class="paso-t">Abres Equipo, en tu cuenta &mdash; no dentro de una boda</p>
+        <p class="paso-d">Vive junto a Perfil, fuera de cualquier evento. Es la lista de quién existe en tu despacho.</p>
+        <div class="win">
+          <div class="win-bar"><span class="dots"><i></i><i></i><i></i></span><span class="crumb">Mi cuenta &rsaquo; <b>Equipo</b></span></div>
+          <div class="win-b">
+            <div class="bar">
+              <span class="srch">Buscar persona</span>
+              <span class="b">Invitar cliente</span>
+              <span class="b pri">Agregar persona</span>
+            </div>
+            <div class="rows">
+              <div class="r"><span class="nm">Diego Garza</span><span class="tag">Dueño principal &middot; todas las bodas</span></div>
+              <div class="r"><span class="nm">Daniela Ponce</span><span class="tag">Administradora &middot; todas las bodas</span></div>
+              <div class="r"><span class="nm">Juan Mendoza</span><span class="tag">Colaborador &middot; 4 bodas</span></div>
+              <div class="r"><span class="nm">Regina Ortiz</span><span class="tag">Colaboradora &middot; 2 bodas</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="paso">
+      <span class="paso-n">2</span>
+      <div class="paso-b">
+        <p class="paso-t">Quién es, y qué es en la cuenta</p>
+        <p class="paso-d">Dos campos y ya. Si la haces <strong>Administradora</strong>, el recorrido termina aquí: entra a todas las bodas por definición y no hay nada que repartirle.</p>
+        <div class="win">
+          <div class="win-bar"><span class="dots"><i></i><i></i><i></i></span><span class="crumb"><b>Agregar persona</b> &middot; paso 1 de 3</span></div>
+          <div class="win-b">
+            <div class="rows">
+              <div class="r"><span class="tag" style="width:88px">Correo</span><span class="nm">sofia@anfiora.com</span></div>
+              <div class="r"><span class="tag" style="width:88px">En la cuenta</span><span class="nm">Colaboradora</span><span class="tag">trabaja donde la metas</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="paso">
+      <span class="paso-n">3</span>
+      <div class="paso-b">
+        <p class="paso-t">¿En qué bodas va a trabajar?</p>
+        <p class="paso-d">Esto va <strong>antes</strong> de los permisos, y no al revés. Un permiso no significa nada fuera de una boda: preguntarte "¿qué puede hacer?" sin saber dónde es pedirte que configures en el vacío.</p>
+        <div class="win">
+          <div class="win-bar"><span class="dots"><i></i><i></i><i></i></span><span class="crumb"><b>Agregar persona</b> &middot; paso 2 de 3</span></div>
+          <div class="win-b">
+            <div class="bar"><span class="srch">Buscar boda</span><span class="b">Solo activas</span></div>
+            <div class="tool-row on"><span class="bx"></span>Cruz &ndash; Alonso<span class="off-t">14 dic 2026</span></div>
+            <div class="tool-row on"><span class="bx"></span>Robles &ndash; Iturbe<span class="off-t">7 feb 2027</span></div>
+            <div class="tool-row"><span class="bx"></span>Peña &ndash; Salas<span class="off-t">21 mar 2027</span></div>
+            <div class="tool-row"><span class="bx"></span>Vega &ndash; Moreno<span class="off-t">9 may 2027</span></div>
+            <div class="ann teal"><b>2 seleccionadas</b><span>Puedes dejarlo en cero y asignarle bodas después. Entra a su cuenta y no ve ninguna &mdash; el recorrido 7 enseña cómo se le explica eso.</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="paso">
+      <span class="paso-n">4</span>
+      <div class="paso-b">
+        <p class="paso-t">Ahora sí: qué puede hacer en esas dos bodas</p>
+        <p class="paso-d">Lo que marques aquí se aplica a las dos que escogiste, y se guarda como su punto de partida para las bodas que le asignes después. Si en una necesita algo distinto, se ajusta desde esa boda &mdash; recorrido 2.</p>
+        <div class="win">
+          <div class="win-bar"><span class="dots"><i></i><i></i><i></i></span><span class="crumb"><b>Agregar persona</b> &middot; paso 3 de 3</span></div>
+          <div class="win-b">
+            <p class="col-t">Sofía, en Cruz &ndash; Alonso y Robles &ndash; Iturbe</p>
+            <div class="tool-row on"><span class="bx"></span>Invitados<span class="lv"><u>Ver</u><u class="a">Editar</u><u>Total</u></span></div>
+            <div class="tool-row tot"><span class="bx"></span>Mesas y check-in<span class="lv"><u>Ver</u><u>Editar</u><u class="a">Total</u></span></div>
+            <div class="tool-row on"><span class="bx"></span>Timeline<span class="lv"><u class="a">Ver</u><u>Editar</u><u>Total</u></span></div>
+            <div class="tool-row"><span class="bx"></span>Presupuesto<span class="lv"><u>Ver</u><u>Editar</u><u>Total</u></span></div>
+            <div class="tool-row off"><span class="bx"></span>Playlist<span class="off-t">apagada en Cruz &ndash; Alonso</span></div>
+            <div class="ann"><b>Ojo con las apagadas</b><span>Playlist está prendida en una boda y apagada en la otra. Se la das igual: donde está apagada, simplemente no le aparece &mdash; a ella ni a nadie.</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="paso">
+      <span class="paso-n">5</span>
+      <div class="paso-b">
+        <p class="paso-t">Le llega el correo y entra directo a trabajar</p>
+        <p class="paso-d">Sus dos bodas ya están ahí. No hay una segunda invitación por boda, ni nada que aceptar dos veces.</p>
+        <div class="duo">
+          <div>
+            <p class="col-t">Lo que le llega</p>
+            <div class="mail">
+              <p class="from">Anfiora &middot; para sofia@anfiora.com</p>
+              <h4>Diego te agregó a su despacho</h4>
+              <p>Crea tu contraseña. Te asignó dos bodas: Cruz &ndash; Alonso y Robles &ndash; Iturbe.</p>
+              <p><span class="b pri">Aceptar invitación</span></p>
+            </div>
+          </div>
+          <div>
+            <p class="col-t">Lo que ve al entrar</p>
+            <div class="win">
+              <div class="win-bar"><span class="dots"><i></i><i></i><i></i></span><span class="crumb"><b>Mis bodas</b></span></div>
+              <div class="win-b"><div class="rows">
+                <div class="r"><span class="nm">Cruz &ndash; Alonso</span><span class="tag">14 dic 2026</span></div>
+                <div class="r"><span class="nm">Robles &ndash; Iturbe</span><span class="tag">7 feb 2027</span></div>
+              </div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="note">El orden importa y por eso cambió: <strong>persona &rarr; bodas &rarr; permisos</strong>. Configurar permisos antes de saber en qué bodas trabaja es configurar en abstracto, y nadie sabe contestar eso bien.</div>
+</section>
+
+<!-- ============ 2 ============ -->
+<section>
+  <div class="sec-head"><span class="sec-n">Recorrido 2</span><h2>Asignarle una boda más adelante</h2></div>
+  <p class="muted w66">Sofía ya existe y ya trabaja dos bodas. Entra una tercera y quieres meterla. Éste es el camino corto, y se hace desde la boda, no desde la cuenta.</p>
+  <div class="ann"><b>Solo tú y Daniela</b><span>Esta pantalla vive dentro de <strong>Configuración</strong>, y Configuración es de dueños y administradores. Ningún colaborador la ve, ni siquiera para mirar.</span></div>
+
+  <div class="pasos">
+    <div class="paso">
+      <span class="paso-n">1</span>
+      <div class="paso-b">
+        <p class="paso-t">Dentro de la boda, en Configuración &rsaquo; Equipo, la invitas</p>
+        <p class="paso-d">Aparece la lista de quién ya trabaja esta boda. Los dueños y administradores no salen aquí: entran a todas por definición, y ponerlos sería ruido que no puedes cambiar.</p>
+        <div class="win">
+          <div class="win-bar"><span class="dots"><i></i><i></i><i></i></span><span class="crumb">Cruz &ndash; Alonso &rsaquo; Configuración &rsaquo; <b>Equipo</b></span></div>
+          <div class="win-b">
+            <div class="bar"><span class="srch" style="flex:1">Quién trabaja esta boda</span><span class="b pri">Invitar a la boda</span></div>
+            <div class="rows">
+              <div class="r"><span class="nm">Juan Mendoza</span><span class="tag">5 herramientas &middot; borra en 2</span></div>
+              <div class="r"><span class="nm">Maria Fernanda Cruz</span><span class="tag">Cliente &middot; 7 herramientas &middot; no borra</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="paso">
+      <span class="paso-n">2</span>
+      <div class="paso-b">
+        <p class="paso-t">Viene precargado con lo que ya tiene en sus otras bodas</p>
+        <p class="paso-d">No arrancas de cero: la app propone lo mismo que Sofía hace en las bodas donde ya trabaja, y tú corriges la excepción. Esta boda no usa Playlist, así que sale en gris y no se puede dar.</p>
+        <div class="win">
+          <div class="win-bar"><span class="dots"><i></i><i></i><i></i></span><span class="crumb"><b>Sofía Márquez en Cruz &ndash; Alonso</b></span></div>
+          <div class="win-b">
+            <div class="tool-row on"><span class="bx"></span>Invitados<span class="lv"><u>Ver</u><u class="a">Editar</u><u>Total</u></span></div>
+            <div class="tool-row tot"><span class="bx"></span>Mesas y check-in<span class="lv"><u>Ver</u><u>Editar</u><u class="a">Total</u></span></div>
+            <div class="tool-row"><span class="bx"></span>Presupuesto<span class="lv"><u>Ver</u><u>Editar</u><u>Total</u></span></div>
+            <div class="tool-row off"><span class="bx"></span>Playlist<span class="off-t">apagada en esta boda</span></div>
+            <div class="ann"><b>Dorado</b><span>Significa que puede borrar. Es el único color que hay que aprenderse: si lo ves, esa persona puede desaparecer cosas ahí.</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="paso">
+      <span class="paso-n">3</span>
+      <div class="paso-b">
+        <p class="paso-t">La boda le aparece a Sofía. Sin avisos, sin aceptar nada.</p>
+        <p class="paso-d">Ya está adentro del despacho, así que no hay segunda invitación. La boda simplemente aparece en su lista la próxima vez que entre.</p>
+      </div>
+    </div>
+  </div>
+  <div class="note">Si le quitas todas las palomitas, la boda desaparece de su lista. <strong>No hay un botón de "sacar de la boda"</strong>: el acceso es la suma de las herramientas. Una sola cosa que entender en vez de dos que se contradicen.</div>
+</section>
+
+<!-- ============ 3 ============ -->
+<section>
+  <div class="sec-head"><span class="sec-n">Recorrido 3</span><h2>La novia quiere capturar sus pagos</h2></div>
+  <p class="muted w66">Es el caso que mató el modelo anterior, y el que hay que poder resolver en un clic sin efectos colaterales.</p>
+
+  <div class="duo">
+    <div>
+      <p class="col-t">Antes <s>solo mira el dinero</s></p>
+      <div class="win"><div class="win-b">
+        <div class="tool-row tot"><span class="bx"></span>Mesas y check-in<span class="lv"><u>Ver</u><u>Editar</u><u class="a">Total</u></span></div>
+        <div class="tool-row on"><span class="bx"></span>Presupuesto<span class="lv"><u class="a">Ver</u><u>Editar</u><u>Total</u></span></div>
+        <div class="tool-row on"><span class="bx"></span>Pagos<span class="lv"><u class="a">Ver</u><u>Editar</u><u>Total</u></span></div>
+      </div></div>
+    </div>
+    <div>
+      <p class="col-t">Después <s class="teal">captura sus pagos</s></p>
+      <div class="win"><div class="win-b">
+        <div class="tool-row tot"><span class="bx"></span>Mesas y check-in<span class="lv"><u>Ver</u><u>Editar</u><u class="a">Total</u></span></div>
+        <div class="tool-row on"><span class="bx"></span>Presupuesto<span class="lv"><u class="a">Ver</u><u>Editar</u><u>Total</u></span></div>
+        <div class="tool-row on"><span class="bx"></span>Pagos<span class="lv"><u>Ver</u><u class="a">Editar</u><u>Total</u></span></div>
+      </div></div>
+    </div>
+  </div>
+  <div class="ann teal"><b>Un clic</b><span>Pagos pasó de Ver a Editar. Nada más se movió: sigue sin poder borrar un pago, sigue solo mirando el presupuesto, y sus mesas siguen igual. Eso es lo que el modelo de roles no podía hacer.</span></div>
+</section>
+
+<!-- ============ 4 ============ -->
+<section>
+  <div class="sec-head"><span class="sec-n">Recorrido 4</span><h2>El menú no es igual para todos</h2></div>
+  <p class="muted w66">La herramienta que no te toca <strong>no aparece</strong>. No sale en gris, no sale con candadito. No existe.</p>
+
+  <div class="trio">
+    <div>
+      <p class="col-t">Diego <s class="gold">dueño</s></p>
+      <div class="win"><div class="app"><div class="nav">
+        <i class="on"><b></b>Invitados</i><i><b></b>Invitación</i><i><b></b>Mensajes</i><i><b></b>Mesas</i><i><b></b>Timeline</i>
+        <span class="nav-h">Finanzas</span><i class="sub"><b></b>Presupuesto</i><i class="sub"><b></b>Proveedores</i><i class="sub"><b></b>Pagos</i>
+        <span class="nav-h">Recuerdos</span><i class="sub"><b></b>Álbum</i>
+        <i><b></b>Dress code</i><i><b></b>Configuración</i>
+      </div><div class="body"><p class="tiny dim">Todo. Y la única que puede tocar Configuración.</p></div></div></div>
+    </div>
+    <div>
+      <p class="col-t">Juan <s>coordinador</s></p>
+      <div class="win"><div class="app"><div class="nav">
+        <i class="on"><b></b>Invitados</i><i><b></b>Invitación</i><i><b></b>Mesas</i><i><b></b>Timeline</i><i><b></b>Dress code</i>
+      </div><div class="body"><p class="tiny dim">Ni Finanzas, ni Mensajes, ni Recuerdos, ni Configuración. Para él, no existen.</p></div></div></div>
+    </div>
+    <div>
+      <p class="col-t">Regina <s>finanzas</s></p>
+      <div class="win"><div class="app"><div class="nav">
+        <i><b></b>Timeline</i>
+        <span class="nav-h">Finanzas</span><i class="sub on"><b></b>Presupuesto</i><i class="sub"><b></b>Proveedores</i><i class="sub"><b></b>Pagos</i>
+      </div><div class="body"><p class="tiny dim">Ni siquiera ve la lista de invitados. Tú decidiste eso.</p></div></div></div>
+    </div>
+  </div>
+  <div class="ann"><b>Regla</b><span>Un grupo del menú aparece solo si tienes al menos una de sus herramientas. Regina ve "Finanzas" con sus tres; si solo tuviera Pagos, vería el grupo con una sola.</span></div>
+  <div class="ann teal"><b>Configuración</b><span>Solo le aparece a Diego. Es de dueños y administradores, y ahí adentro viven <strong>Equipo</strong> y <strong>Actividad</strong> &mdash; o sea, repartir accesos y leer la bitácora tampoco están al alcance de un colaborador, por más herramientas que tenga.</span></div>
+</section>
+
+<!-- ============ 5 ============ -->
+<section>
+  <div class="sec-head"><span class="sec-n">Recorrido 5</span><h2>La misma pantalla, en los tres niveles</h2></div>
+  <p class="muted w66">Aquí es donde el sistema se siente o se rompe. Es la lista de invitados, idéntica, vista por tres personas distintas.</p>
+
+  <div class="trio">
+    <div>
+      <p class="col-t">Ver</p>
+      <div class="win"><div class="win-b">
+        <div class="bar"><span class="srch">Buscar</span><span class="b">Filtros</span><span class="b">Exportar</span></div>
+        <div class="rows">
+          <div class="r"><span class="nm">Familia Treviño</span><span class="tag">4</span></div>
+          <div class="r"><span class="nm">Ana y Luis Pérez</span><span class="tag">2</span></div>
+          <div class="r"><span class="nm">Tío Beto</span><span class="tag">1</span></div>
+        </div>
+      </div></div>
+      <div class="ann teal"><b>Sí</b><span>Buscar, filtrar y exportar. Explorar no es tocar.</span></div>
+    </div>
+    <div>
+      <p class="col-t">Editar</p>
+      <div class="win"><div class="win-b">
+        <div class="bar"><span class="srch">Buscar</span><span class="b">Filtros</span><span class="b">Importar</span><span class="b pri">Agregar</span></div>
+        <div class="rows">
+          <div class="r"><span class="nm">Familia Treviño</span><span class="tag">4</span><span class="act"><u>Editar</u></span></div>
+          <div class="r"><span class="nm">Ana y Luis Pérez</span><span class="tag">2</span><span class="act"><u>Editar</u></span></div>
+          <div class="r"><span class="nm">Tío Beto</span><span class="tag">1</span><span class="act"><u>Editar</u></span></div>
+        </div>
+      </div></div>
+      <div class="ann"><b>No</b><span>No hay bote de basura en ninguna fila, ni selección múltiple. Agrega y corrige; no destruye.</span></div>
+    </div>
+    <div>
+      <p class="col-t">Total</p>
+      <div class="win"><div class="win-b">
+        <div class="bar"><span class="srch">Buscar</span><span class="b">Filtros</span><span class="b">Importar</span><span class="b pri">Agregar</span></div>
+        <div class="rows">
+          <div class="r"><span class="chk"></span><span class="nm">Familia Treviño</span><span class="tag">4</span><span class="act"><u>Editar</u><u class="dan">Borrar</u></span></div>
+          <div class="r"><span class="chk"></span><span class="nm">Ana y Luis Pérez</span><span class="tag">2</span><span class="act"><u>Editar</u><u class="dan">Borrar</u></span></div>
+          <div class="r"><span class="chk"></span><span class="nm">Tío Beto</span><span class="tag">1</span><span class="act"><u>Editar</u><u class="dan">Borrar</u></span></div>
+        </div>
+      </div></div>
+      <div class="ann bad"><b>Firmado</b><span>Cada borrado queda con quién, cuándo y la fila completa. Recorrido 6.</span></div>
+    </div>
+  </div>
+  <div class="note"><strong>La regla dura, y no tiene excepciones:</strong> si no puedes usar un control, no se dibuja. No se dibuja deshabilitado, ni en gris, ni con un candado. Un botón apagado es una promesa rota en pantalla, y hoy la app está llena de ellos.</div>
+</section>
+
+<!-- ============ 6 ============ -->
+<section>
+  <div class="sec-head"><span class="sec-n">Recorrido 6</span><h2>Se borró algo. Quién fue, y cómo regresarlo.</h2></div>
+  <div class="ann"><b>Quién entra</b><span>Actividad vive dentro de <strong>Configuración</strong>, así que la ven <strong>solo dueños y administradores</strong> &mdash; y por lo tanto solo ellos restauran. Un colaborador no ve la bitácora ni de su propia boda.</span></div>
+
+  <div class="pasos">
+    <div class="paso">
+      <span class="paso-n">1</span>
+      <div class="paso-b">
+        <p class="paso-t">Configuración &rsaquo; Actividad, dentro de la boda</p>
+        <div class="win">
+          <div class="win-bar"><span class="dots"><i></i><i></i><i></i></span><span class="crumb">Cruz &ndash; Alonso &rsaquo; Configuración &rsaquo; <b>Actividad</b></span></div>
+          <div class="win-b">
+            <div class="bar"><span class="srch">Buscar</span><span class="b">Solo borrados</span><span class="b">Por persona</span></div>
+            <div class="rows">
+              <div class="r"><span class="tag" style="width:74px">Hoy 14:32</span><span class="nm"><strong>Juan</strong> eliminó a "Familia Treviño" y sus 3 acompañantes</span><span class="act"><u>Restaurar</u></span></div>
+              <div class="r"><span class="tag" style="width:74px">Hoy 11:07</span><span class="nm"><strong>Regina</strong> cambió "Banquete" de $180,000 a $210,000</span></div>
+              <div class="r"><span class="tag" style="width:74px">Ayer 19:44</span><span class="nm"><strong>Maria Fernanda</strong> movió a "Tío Beto" de la Mesa 3 a la 7</span></div>
+              <div class="r"><span class="tag" style="width:74px">Ayer 09:12</span><span class="nm"><strong>Diego</strong> le dio a Regina acceso Total a Presupuesto</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="paso">
+      <span class="paso-n">2</span>
+      <div class="paso-b">
+        <p class="paso-t">Restaurar regresa la fila completa, con sus acompañantes</p>
+        <p class="paso-d">El registro no guarda "borró un invitado": guarda el invitado entero antes de irse. Por eso se puede regresar. Y si el borrado se llevó cosas en cadena, regresan juntas.</p>
+        <div class="ann teal"><b>Sin papelera</b><span>No hay una sección de basura aparte que revisar. La bitácora <em>es</em> la papelera, y además dice quién lo hizo.</span></div>
+      </div>
+    </div>
+    <div class="paso">
+      <span class="paso-n">3</span>
+      <div class="paso-b">
+        <p class="paso-t">Y en tu perfil, lo mismo pero de las doce bodas</p>
+        <p class="paso-d">Para ver de un jalón todo lo que se borró en el despacho esta semana, sin entrar boda por boda. Es la pantalla que quieres el día que algo se sienta raro.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 7 ============ -->
+<section>
+  <div class="sec-head"><span class="sec-n">Recorrido 7</span><h2>Los bordes &mdash; que es donde se siente si está bien hecho</h2></div>
+  <p class="muted w66">Los estados vacíos y los errores son la mitad de la experiencia de un sistema de permisos, y son los que siempre se dejan al final.</p>
+
+  <div class="duo">
+    <div>
+      <p class="col-t">Entra por URL a algo que no le toca</p>
+      <div class="win">
+        <div class="win-bar"><span class="dots"><i></i><i></i><i></i></span><span class="crumb">/events/cruz-alonso/<b>pagos</b></span></div>
+        <div class="win-b"><div class="empty">
+          <span class="ic">&mdash;</span>
+          <h4>No tienes acceso a Pagos en esta boda</h4>
+          <p>Si crees que deberías, pídeselo a Diego o a Daniela.</p>
+          <p><span class="b">Volver a Invitados</span></p>
+        </div></div>
+      </div>
+      <div class="ann"><b>Dice quién</b><span>Nombra a las personas que sí pueden dárselo. Un "no tienes permiso" sin salida es un callejón.</span></div>
+    </div>
+    <div>
+      <p class="col-t">Le quitaste todo mientras estaba adentro</p>
+      <div class="win">
+        <div class="win-bar"><span class="dots"><i></i><i></i><i></i></span><span class="crumb"><b>Mis bodas</b></span></div>
+        <div class="win-b"><div class="empty">
+          <span class="ic">&mdash;</span>
+          <h4>Ya no tienes acceso a Cruz &ndash; Alonso</h4>
+          <p>Tus otras bodas siguen aquí.</p>
+        </div></div>
+      </div>
+      <div class="ann"><b>No la deja colgada</b><span>Se la lleva a su lista con una frase, en vez de dejarla en una pantalla que dejó de cargar.</span></div>
+    </div>
+  </div>
+
+  <div class="note">Un tercer borde que no se dibuja pero hay que construir: <strong>si intenta guardar algo justo cuando le quitaron el permiso</strong>, la base lo rechaza y la pantalla se lo dice. Hoy la app aplica el cambio en pantalla antes de que la base conteste &mdash; de ahí viene el "se vio guardado y no se guardó" que ya te tocó vivir.</div>
+</section>
+
+<!-- ============ cierre ============ -->
+<section>
+  <div class="sec-head"><span class="sec-n">Qué sigue</span><h2>Lo que hay que decidir antes de codear</h2></div>
+  <p class="muted w66">El Tramo 2 construye la pantalla del recorrido 2 y aplica los recorridos 4 y 5 a un solo módulo, el Timeline. Estas son las decisiones que ese trabajo necesita cerradas:</p>
+  <p class="col-t" style="margin-top:6px">Ya cerrado</p>
+  <div class="pasos">
+    <div class="paso"><span class="paso-n" style="background:var(--teal-wash);border-color:var(--teal-fill);color:var(--teal)">&#10003;</span><div class="paso-b">
+      <p class="paso-t">Configuración es de dueños y administradores. Nadie más.</p>
+      <p class="paso-d">Ningún colaborador la ve, ni siquiera para mirar. Y como <strong>Equipo</strong> y <strong>Actividad</strong> viven dentro de Configuración, se cierran las tres cosas de un golpe: quién reparte accesos, quién lee la bitácora y quién puede restaurar lo borrado. Una sola regla en vez de tres.</p>
+    </div></div>
+  </div>
+
+  <p class="col-t" style="margin-top:22px">Falta una</p>
+  <div class="pasos">
+    <div class="paso"><span class="paso-n">A</span><div class="paso-b">
+      <p class="paso-t">Juan no tiene acceso a Presupuesto. ¿Qué ve en su menú?</p>
+      <p class="paso-d"><strong>Como está dibujado hoy:</strong> Presupuesto simplemente no aparece. Su menú tiene cinco entradas y ya. Nunca se entera de que la herramienta existe.</p>
+      <p class="paso-d"><strong>La alternativa:</strong> Presupuesto aparece en gris, y si le pica sale "no tienes acceso a esto, pídeselo a Diego".</p>
+      <p class="paso-d">Lo que se gana con cada una: <em>esconder</em> deja un menú limpio, corto, sin ruido &mdash; pero Juan nunca va a pedirte acceso a algo que no sabe que existe. <em>Mostrar en gris</em> le enseña de qué es capaz Anfiora y de dónde salen las peticiones &mdash; pero le llena el menú de cosas que no puede abrir, y eso a los tres días cansa.</p>
+      <p class="paso-d">Mi voto: <strong>esconder</strong>. Un menú donde la mitad no sirve deja de leerse como menú. Y si Juan necesita algo, lo pide porque le hace falta para trabajar, no porque lo vio en gris.</p>
+    </div></div>
+  </div>
+</section>
+
+<footer>
+  <span>Anfiora &middot; accesos, documento 3</span>
+  <span>4-sep-2026</span>
+  <span>Wireframe para revisión</span>
+</footer>
+
+</div>
