@@ -27,9 +27,7 @@ export async function rolEnWorkspace(admin: SupabaseClient, workspaceId: string,
   return (data?.rol as RolWorkspace) ?? null
 }
 
-export function esAdministrador(rol: RolWorkspace | null): boolean {
-  return rol === 'dueno' || rol === 'admin'
-}
+export { esAdministrador } from './activo'
 
 export async function bodasDelWorkspace(admin: SupabaseClient, workspaceId: string): Promise<BodaDelWorkspace[]> {
   const { data: eventos } = await admin
