@@ -2,7 +2,7 @@
 
 import Image from 'next/image'
 import Link from 'next/link'
-import { CURRENT_LEGAL_VERSION, LEGAL_EFFECTIVE_DATE, LEGAL_RESPONSABLE, LEGAL_DOMICILIO, LEGAL_EMAIL_PRIVACIDAD } from '@/lib/legal'
+import { CURRENT_LEGAL_VERSION, LEGAL_EFFECTIVE_DATE, LEGAL_RESPONSABLE, LEGAL_DOMICILIO, LEGAL_EMAIL } from '@/lib/legal'
 import LegalLinks from '@/app/components/LegalLinks'
 
 export default function PrivacidadPage() {
@@ -57,7 +57,7 @@ export default function PrivacidadPage() {
             </p>
             <p className="mt-2">
               Para cualquier asunto relacionado con el tratamiento de sus datos personales, puede
-              contactarnos en: <strong>{LEGAL_EMAIL_PRIVACIDAD}</strong>
+              contactarnos en: <strong>{LEGAL_EMAIL}</strong>
             </p>
           </section>
 
@@ -118,7 +118,7 @@ export default function PrivacidadPage() {
             </ul>
             <p className="mt-3">
               Si desea que sus datos no sean tratados para las finalidades secundarias, puede
-              manifestarlo enviando un correo a <strong>privacidad@anfiora.com</strong>.
+              manifestarlo enviando un correo a <strong>{LEGAL_EMAIL}</strong>.
             </p>
           </section>
 
@@ -191,7 +191,7 @@ export default function PrivacidadPage() {
             <p className="mb-3">
               Usted tiene derecho a Acceder, Rectificar, Cancelar u Oponerse al tratamiento
               de sus datos personales. Para ejercer cualquiera de estos derechos, envíe una
-              solicitud a <strong>privacidad@anfiora.com</strong> indicando:
+              solicitud a <strong>{LEGAL_EMAIL}</strong> indicando:
             </p>
             <ul className="list-disc list-inside space-y-1">
               <li>Nombre completo y correo electrónico de su cuenta</li>

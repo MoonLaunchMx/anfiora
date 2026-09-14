@@ -2,7 +2,7 @@
 
 import Image from 'next/image'
 import Link from 'next/link'
-import { CURRENT_LEGAL_VERSION, LEGAL_EFFECTIVE_DATE, LEGAL_JURISDICCION, LEGAL_EMAIL_LEGAL } from '@/lib/legal'
+import { CURRENT_LEGAL_VERSION, LEGAL_EFFECTIVE_DATE, LEGAL_JURISDICCION, LEGAL_EMAIL } from '@/lib/legal'
 import LegalLinks from '@/app/components/LegalLinks'
 
 export default function TerminosPage() {
@@ -94,7 +94,7 @@ export default function TerminosPage() {
             contrario.
           </Sec>
           <Sec n="14" t="Contacto">
-            Para cualquier asunto relacionado con estos Términos, escríbanos a {LEGAL_EMAIL_LEGAL}.
+            Para cualquier asunto relacionado con estos Términos, escríbanos a {LEGAL_EMAIL}.
           </Sec>
         </div>
 

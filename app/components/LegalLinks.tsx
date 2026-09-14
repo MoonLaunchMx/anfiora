@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { LEGAL_EMAIL_PRIVACIDAD } from '@/lib/legal'
+import { LEGAL_EMAIL } from '@/lib/legal'
 
 type Props = {
   tono?: 'claro' | 'oscuro'
@@ -26,7 +26,7 @@ export default function LegalLinks({ tono = 'claro', idioma = 'es', contacto = f
       <Link href="/privacidad" className={enlace} {...destino}>{t.privacidad}</Link>
       <Link href="/terminos" className={enlace} {...destino}>{t.terminos}</Link>
       <Link href="/eliminar-datos" className={enlace} {...destino}>{t.eliminar}</Link>
-      {contacto && <a href={`mailto:${LEGAL_EMAIL_PRIVACIDAD}`} className={enlace}>{t.contacto}</a>}
+      {contacto && <a href={`mailto:${LEGAL_EMAIL}`} className={enlace}>{t.contacto}</a>}
     </nav>
   )
 }

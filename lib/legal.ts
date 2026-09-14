@@ -8,8 +8,8 @@ export const LEGAL_DOCUMENT = 'terms_privacy'
 // La LFPDPPP exige identidad y domicilio del responsable en el aviso: se pueden cambiar, no quitar.
 // El domicilio es para oir y recibir notificaciones, no tiene que ser particular.
 export const LEGAL_RESPONSABLE = 'Diego Garza Rodríguez'
-export const LEGAL_DOMICILIO = 'Monterrey, Nuevo León, México'
-export const LEGAL_JURISDICCION = 'Monterrey, Nuevo León'
+export const LEGAL_DOMICILIO = 'Ciudad de México, C.P. 06760, México'
+export const LEGAL_JURISDICCION = 'la Ciudad de México'
 
-export const LEGAL_EMAIL_PRIVACIDAD = 'privacidad@anfiora.com'
-export const LEGAL_EMAIL_LEGAL = 'legal@anfiora.com'
+// Un solo buzon para todo lo legal: ARCO, eliminacion, terminos y contacto.
+export const LEGAL_EMAIL = 'privacidad@anfiora.com'

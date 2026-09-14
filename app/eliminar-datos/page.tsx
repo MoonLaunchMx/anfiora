@@ -2,7 +2,7 @@
 
 import Image from 'next/image'
 import Link from 'next/link'
-import { CURRENT_LEGAL_VERSION, LEGAL_EFFECTIVE_DATE, LEGAL_RESPONSABLE, LEGAL_DOMICILIO } from '@/lib/legal'
+import { CURRENT_LEGAL_VERSION, LEGAL_EFFECTIVE_DATE, LEGAL_RESPONSABLE, LEGAL_DOMICILIO, LEGAL_EMAIL } from '@/lib/legal'
 import LegalLinks from '@/app/components/LegalLinks'
 
 export default function EliminarDatosPage() {
@@ -96,7 +96,7 @@ export default function EliminarDatosPage() {
             </h2>
             <p className="mb-3">
               Envíe una solicitud por correo electrónico a{' '}
-              <strong>privacidad@anfiora.com</strong> con el asunto{' '}
+              <strong>{LEGAL_EMAIL}</strong> con el asunto{' '}
               <strong>&ldquo;Eliminación de datos&rdquo;</strong> e incluya:
             </p>
             <ul className="list-disc list-inside space-y-1 mb-3">
