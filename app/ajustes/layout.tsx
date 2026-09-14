@@ -12,7 +12,7 @@ export default function AjustesLayout({ children }: { children: React.ReactNode 
             <Image src="/images/Logo-010526newest.svg" alt="Anfiora" width={110} height={45} priority className="h-8 w-auto object-contain" />
           </Link>
           <Link
-            href="/perfil"
+            href="/configuracion/perfil"
             className="flex items-center gap-1.5 text-xs text-[#888] transition hover:text-[#48C9B0]"
           >
             <ArrowLeft size={14} />

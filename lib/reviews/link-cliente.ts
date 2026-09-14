@@ -55,6 +55,12 @@ export function estadoDelLink({ hoy, ultimoDiaEvento, token, expiresAt }: {
   return { estado: 'enviada', vence, diasRestantes }
 }
 
+// Al enviar, el link se cierra poniendo el vencimiento en ayer: vencida es
+// "menor que hoy", asi que hoy mismo ya no abre. Reactivar suma desde hoy.
+export function venceAlCerrar(hoy: string): string {
+  return sumarDias(hoy, -1)
+}
+
 // Suma sobre lo que siga vivo: si el plazo ya paso, desde hoy.
 export function extenderVencimiento({ hoy, venceActual, dias }: {
   hoy: string

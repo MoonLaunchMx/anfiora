@@ -160,6 +160,26 @@ export default function ProveedoresPage() {
     supabase.auth.getUser().then(({ data }) => setUserId(data.user?.id ?? null))
   }, [])
 
+  // Al volver del expediente (/rolodex/[id]) se reabre la misma ficha: el
+  // enlace de vuelta trae ?proveedor=<event_supplier_id>. Se lee una sola vez
+  // y se limpia de la URL para que recargar no la vuelva a abrir.
+  const reabrioFichaRef = useRef(false)
+  useEffect(() => {
+    if (loading || reabrioFichaRef.current) return
+    reabrioFichaRef.current = true
+    const params = new URLSearchParams(window.location.search)
+    const id = params.get('proveedor')
+    if (!id) return
+    const item = items.find(i => i.id === id)
+    if (item) {
+      if (viewMode === 'fichero') setEnfocar(item)
+      else setSelectedItem(item)
+    }
+    params.delete('proveedor')
+    const resto = params.toString()
+    window.history.replaceState(null, '', window.location.pathname + (resto ? `?${resto}` : ''))
+  }, [loading, items, viewMode])
+
   useEffect(() => {
     const alClicarFuera = (e: MouseEvent) => {
       if (colMenuRef.current && !colMenuRef.current.contains(e.target as Node)) setShowColMenu(false)

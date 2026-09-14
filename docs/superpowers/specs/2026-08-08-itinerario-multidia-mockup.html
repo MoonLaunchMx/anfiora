@@ -1,0 +1,931 @@
+<title>Anfiora · Itinerario de varios días</title>
+
+<style>
+:root{
+  --bg:#ffffff;
+  --surface:#f8f8f8;
+  --surface-alt:#f2f2f2;
+  --border:#e8e8e8;
+  --border-strong:#dcdcdc;
+  --text:#0a0a0a;
+  --text-sec:#666666;
+  --text-muted:#999999;
+  --text-dim:#bbbbbb;
+  --accent:#d4a853;
+  --accent-bg:#fffbf0;
+  --accent-border:#f0e2c0;
+  --teal:#48C9B0;
+  --teal-ink:#0F6E56;
+  --shadow:0 1px 2px rgba(10,10,10,.04), 0 8px 24px rgba(10,10,10,.05);
+  --note-bg:#fbfaf7;
+  --error-bg:#fff0f0;
+  --error-border:#ffc0c0;
+  --error-text:#cc3333;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#121212;
+    --surface:#181818;
+    --surface-alt:#1e1e1e;
+    --border:#2b2b2b;
+    --border-strong:#3a3a3a;
+    --text:#f2f1ee;
+    --text-sec:#a3a09a;
+    --text-muted:#807d78;
+    --text-dim:#5e5b57;
+    --accent:#dcb469;
+    --accent-bg:#231d10;
+    --accent-border:#453a22;
+    --teal:#4fd6bc;
+    --teal-ink:#7fe3cf;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
+    --note-bg:#1a1917;
+    --error-bg:#2a1414;
+    --error-border:#5a2a2a;
+    --error-text:#f08a8a;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#121212;
+  --surface:#181818;
+  --surface-alt:#1e1e1e;
+  --border:#2b2b2b;
+  --border-strong:#3a3a3a;
+  --text:#f2f1ee;
+  --text-sec:#a3a09a;
+  --text-muted:#807d78;
+  --text-dim:#5e5b57;
+  --accent:#dcb469;
+  --accent-bg:#231d10;
+  --accent-border:#453a22;
+  --teal:#4fd6bc;
+  --teal-ink:#7fe3cf;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
+  --note-bg:#1a1917;
+  --error-bg:#2a1414;
+  --error-border:#5a2a2a;
+  --error-text:#f08a8a;
+}
+
+*{box-sizing:border-box}
+body{
+  margin:0;
+  background:var(--bg);
+  color:var(--text);
+  font-family:"General Sans",ui-sans-serif,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  font-size:15px;
+  line-height:1.55;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:860px;margin:0 auto;padding:56px 20px 96px;display:flex;flex-direction:column;gap:56px}
+
+.eyebrow{
+  font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--accent);font-weight:600;margin:0;
+}
+h1{font-size:34px;line-height:1.15;letter-spacing:-.02em;margin:10px 0 0;text-wrap:balance;font-weight:600}
+.lede{margin:14px 0 0;color:var(--text-sec);max-width:62ch}
+
+.scene{display:flex;flex-direction:column;gap:14px}
+.scene-head{display:flex;flex-direction:column;gap:4px}
+.scene-num{
+  font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--text-muted);font-weight:600;
+}
+h2{font-size:20px;margin:0;letter-spacing:-.01em;font-weight:600;text-wrap:balance}
+.scene-note{margin:0;color:var(--text-sec);font-size:14px;max-width:62ch}
+
+/* ---- marco de app ---- */
+.frame{
+  border:1px solid var(--border);
+  border-radius:14px;
+  background:var(--bg);
+  box-shadow:var(--shadow);
+  overflow:hidden;
+}
+.frame-bar{
+  display:flex;align-items:center;gap:8px;
+  padding:10px 14px;border-bottom:1px solid var(--border);
+  background:var(--surface);
+}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--border-strong)}
+.frame-title{font-size:12px;color:var(--text-muted);margin-left:6px}
+.frame-body{padding:18px}
+
+/* ---- header de la pagina ---- */
+.page-head{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.page-title{font-size:19px;font-weight:600;margin:0;letter-spacing:-.01em}
+.page-sub{font-size:12.5px;color:var(--text-muted);margin:2px 0 0}
+.actions{display:flex;gap:8px;align-items:center}
+.btn{
+  display:inline-flex;align-items:center;gap:6px;
+  border-radius:9px;padding:8px 14px;font-size:13px;font-weight:600;
+  border:1px solid transparent;cursor:default;
+}
+.btn-teal{background:var(--teal);color:#04302a}
+.btn-ghost{border-color:var(--border-strong);color:var(--text-sec);background:var(--bg)}
+
+/* ---- toggle secciones ---- */
+.tabs{display:inline-flex;background:var(--surface-alt);border-radius:10px;padding:3px;gap:2px;margin-top:16px}
+.tab{padding:6px 14px;border-radius:8px;font-size:13px;color:var(--text-sec);font-weight:500}
+.tab.on{background:var(--bg);color:var(--text);box-shadow:0 1px 2px rgba(0,0,0,.06);font-weight:600}
+
+/* ---- escenario con scroll ---- */
+.stage{
+  margin-top:14px;max-height:436px;overflow-y:auto;position:relative;
+  border-top:1px solid var(--border);
+  scrollbar-width:thin;
+}
+.daysec{position:relative}
+
+/* ---- la linea del dia: crece al entrar ---- */
+.dayline{
+  position:sticky;top:0;z-index:2;background:var(--bg);
+  height:56px;display:flex;align-items:center;gap:11px;
+  border-bottom:1px solid transparent;
+  transition:border-color .34s ease;
+}
+.dayline .n{display:flex;align-items:baseline;gap:8px;white-space:nowrap}
+.dayline .dow{
+  font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:600;
+  color:var(--text-muted);
+  transition:font-size .42s cubic-bezier(.22,.9,.28,1), color .34s ease, letter-spacing .42s ease;
+}
+.dayline .num{
+  font-size:13px;font-weight:600;letter-spacing:-.01em;font-variant-numeric:tabular-nums;
+  color:var(--text-sec);
+  transition:font-size .42s cubic-bezier(.22,.9,.28,1), color .34s ease;
+}
+.dayline .rule{height:1px;background:var(--border);flex:1;min-width:12px}
+.dayline .count{font-size:11px;color:var(--text-dim);white-space:nowrap;transition:color .34s ease}
+
+.daysec.on .dayline{border-bottom-color:var(--border)}
+.daysec.on .dayline .dow{font-size:14px;color:var(--accent);letter-spacing:.17em}
+.daysec.on .dayline .num{font-size:25px;color:var(--accent)}
+.daysec.on .dayline .count{color:var(--text-sec)}
+
+@media (prefers-reduced-motion: reduce){
+  .dayline,.dayline .dow,.dayline .num,.dayline .count{transition:none}
+}
+
+/* ---- momentos ---- */
+.moments{display:flex;flex-direction:column;padding-bottom:4px}
+.moment{
+  display:grid;grid-template-columns:74px 1fr auto;gap:14px;align-items:start;
+  padding:13px 4px;border-top:1px solid var(--border);
+}
+.moment:first-child{border-top:0}
+.time{font-variant-numeric:tabular-nums;font-size:13.5px;font-weight:600;letter-spacing:-.01em;padding-top:1px}
+.time span{display:block;font-size:11.5px;color:var(--text-dim);font-weight:500}
+.m-title{font-size:14.5px;font-weight:500;margin:0}
+.m-sub{font-size:12.5px;color:var(--text-muted);margin:2px 0 0;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.m-right{display:flex;align-items:center;gap:10px;padding-top:2px}
+.chip{
+  font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;font-weight:600;
+  border-radius:5px;padding:2.5px 7px;border:1px solid;
+}
+.c-ceremonia{color:#c49a3a;background:#fffbf0;border-color:#f0e2c0}
+.c-social{color:#0F6E56;background:#f0fdfb;border-color:#c8ede7}
+.c-cena{color:#b8860b;background:#fdf6e3;border-color:#f0e0b0}
+.c-fiesta{color:#8b5ca8;background:#f9f2fc;border-color:#e8d5f0}
+.c-montaje{color:#666;background:#f2f2f2;border-color:#e0e0e0}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]) .c-ceremonia{color:#e0bd72;background:#241d0e;border-color:#453820}
+  :root:not([data-theme="light"]) .c-social{color:#5fd4bb;background:#0e2420;border-color:#1e463d}
+  :root:not([data-theme="light"]) .c-cena{color:#dcb45c;background:#241f10;border-color:#453c1e}
+  :root:not([data-theme="light"]) .c-fiesta{color:#c295dd;background:#211729;border-color:#3d2c4a}
+  :root:not([data-theme="light"]) .c-montaje{color:#9c9891;background:#1e1e1e;border-color:#2f2f2f}
+}
+:root[data-theme="dark"] .c-ceremonia{color:#e0bd72;background:#241d0e;border-color:#453820}
+:root[data-theme="dark"] .c-social{color:#5fd4bb;background:#0e2420;border-color:#1e463d}
+:root[data-theme="dark"] .c-cena{color:#dcb45c;background:#241f10;border-color:#453c1e}
+:root[data-theme="dark"] .c-fiesta{color:#c295dd;background:#211729;border-color:#3d2c4a}
+:root[data-theme="dark"] .c-montaje{color:#9c9891;background:#1e1e1e;border-color:#2f2f2f}
+
+.eye{color:var(--text-dim)}
+.eye.on{color:var(--accent)}
+svg{display:block}
+
+/* ---- dia huerfano ---- */
+.dayline.dead .dow,.dayline.dead .num{color:var(--error-text)}
+.dayline.dead .rule{background:var(--error-border)}
+.orphan{
+  border:1px solid var(--error-border);background:var(--error-bg);border-radius:11px;
+  padding:12px 14px;display:flex;gap:14px;align-items:center;justify-content:space-between;
+  flex-wrap:wrap;margin:2px 0 6px;
+}
+.orphan p{margin:0;font-size:13px;color:var(--error-text);max-width:52ch}
+.orphan .btn-del{
+  border:1px solid var(--error-border);background:var(--bg);color:var(--error-text);
+  border-radius:9px;padding:7px 13px;font-size:12.5px;font-weight:600;white-space:nowrap;
+  display:inline-flex;align-items:center;gap:6px;
+}
+.faded{opacity:.5}
+
+/* ---- tabla de plantillas ---- */
+.tpl{display:flex;flex-direction:column;gap:0}
+.tpl-cat{
+  font-size:11px;letter-spacing:.14em;text-transform:uppercase;font-weight:600;
+  color:var(--accent);margin:26px 0 10px;
+}
+.tpl-cat:first-child{margin-top:0}
+.tpl-row{
+  display:grid;grid-template-columns:150px 1fr;gap:16px;align-items:start;
+  padding:12px 0;border-top:1px solid var(--border);
+}
+@media(max-width:620px){.tpl-row{grid-template-columns:1fr;gap:7px}}
+.tpl-row .ev{font-size:14px;font-weight:600;letter-spacing:-.01em}
+.tpl-row .ev em{display:block;font-style:normal;font-size:11.5px;color:var(--text-dim);font-weight:400;margin-top:1px}
+.tpl-row .days{display:flex;flex-wrap:wrap;gap:6px}
+.dchip{
+  font-size:12px;padding:4px 10px;border-radius:999px;
+  border:1px solid var(--border-strong);color:var(--text-sec);background:var(--surface);
+}
+.dchip.key{background:var(--accent-bg);border-color:var(--accent-border);color:var(--accent);font-weight:600}
+.tplcard{border:1px solid var(--border);border-radius:12px;overflow:hidden;background:var(--bg)}
+.tplcard-h{padding:11px 15px;border-bottom:1px solid var(--border);background:var(--surface)}
+.tplcard-h .n{font-size:13.5px;font-weight:600;letter-spacing:-.01em;margin:0}
+.tplcard-h .k{font-size:11px;color:var(--text-muted);margin:1px 0 0}
+.tplcard-b{padding:13px 15px}
+.tplcards{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:16px}
+@media(max-width:720px){.tplcards{grid-template-columns:1fr}}
+.off{color:var(--text-dim);font-size:11px;margin-left:6px}
+
+/* ---- modal de autogenerar ---- */
+.modals{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
+@media(max-width:720px){.modals{grid-template-columns:1fr}}
+.modal{
+  border:1px solid var(--border);border-radius:16px;background:var(--bg);
+  box-shadow:var(--shadow);overflow:hidden;
+}
+.modal-h{padding:15px 18px 13px;border-bottom:1px solid var(--border)}
+.modal-h .t{font-size:15.5px;font-weight:600;margin:0;letter-spacing:-.01em}
+.modal-h .sub{font-size:12px;color:var(--text-muted);margin:2px 0 0}
+.steps{display:flex;align-items:center;gap:8px;margin-top:9px}
+.steps .bar{height:3px;border-radius:2px;background:var(--border);flex:1}
+.steps .bar.done{background:var(--accent)}
+.steps .k{font-size:11px;color:var(--text-muted);font-weight:600;white-space:nowrap;font-variant-numeric:tabular-nums}
+.modal-b{padding:16px 18px;display:flex;flex-direction:column;gap:16px}
+.whichday{
+  display:flex;align-items:baseline;gap:8px;
+  padding-bottom:13px;border-bottom:1px solid var(--border);
+}
+.whichday .dow{font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:600;color:var(--accent)}
+.whichday .num{font-size:22px;font-weight:600;letter-spacing:-.015em;font-variant-numeric:tabular-nums}
+.field{display:flex;flex-direction:column;gap:8px}
+.field .lbl{font-size:12.5px;font-weight:600;color:var(--text-sec)}
+.field .hint{font-size:11.5px;color:var(--text-dim);margin:-3px 0 0}
+.chips{display:flex;flex-wrap:wrap;gap:7px}
+.pick{
+  font-size:12.5px;padding:6px 12px;border-radius:999px;
+  border:1px solid var(--border-strong);color:var(--text-sec);background:var(--bg);
+}
+.pick.on{background:var(--accent-bg);border-color:var(--accent);color:var(--accent);font-weight:600}
+.inp{
+  border:1px solid var(--border-strong);border-radius:10px;background:var(--surface);
+  padding:9px 11px;font-size:13px;color:var(--text);
+}
+.inp.ghost{color:var(--text-dim)}
+.anchor{display:flex;gap:7px;align-items:center}
+.anchor .inp{flex:1;min-width:0}
+.anchor .tm{width:82px;flex:0 0 auto;text-align:center;font-variant-numeric:tabular-nums}
+.anchor .x{color:var(--text-dim);flex:0 0 auto;padding:0 2px}
+.addrow{
+  display:flex;align-items:center;justify-content:center;gap:6px;
+  border:1px dashed var(--accent-border);border-radius:10px;background:var(--accent-bg);
+  padding:8px;font-size:12.5px;font-weight:600;color:var(--accent);
+}
+.modal-f{display:flex;gap:9px;padding:13px 18px;border-top:1px solid var(--border);background:var(--surface)}
+.modal-f .btn{flex:1;justify-content:center}
+.modal-f .btn.wide{flex:2}
+.caption{font-size:12.5px;color:var(--text-muted);margin:9px 0 0;text-align:center}
+
+/* ---- telefono / invitacion ---- */
+.phone{
+  max-width:330px;border:1px solid var(--border-strong);border-radius:26px;
+  background:var(--bg);padding:12px;box-shadow:var(--shadow);
+}
+.phone-inner{border-radius:16px;background:var(--surface);padding:22px 18px}
+.inv-h{
+  text-align:center;font-size:11px;letter-spacing:.22em;text-transform:uppercase;
+  color:var(--accent);font-weight:600;margin:0 0 3px;
+}
+.inv-t{text-align:center;font-size:19px;margin:0 0 20px;font-weight:600;letter-spacing:-.01em}
+.inv-day{
+  display:flex;align-items:center;gap:9px;margin:20px 0 10px;
+}
+.inv-day:first-of-type{margin-top:0}
+.inv-day .n{font-size:12px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;white-space:nowrap}
+.inv-day .rule{height:1px;background:var(--border-strong);flex:1}
+.inv-m{display:grid;grid-template-columns:52px 1fr;gap:10px;padding:7px 0}
+.inv-m .t{font-size:12.5px;font-weight:600;font-variant-numeric:tabular-nums;color:var(--text-sec)}
+.inv-m .b{font-size:13.5px;line-height:1.35}
+.inv-m .b em{display:block;font-style:normal;font-size:11.5px;color:var(--text-muted);margin-top:1px}
+
+/* ---- comparativa madrugada ---- */
+.pair{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:640px){.pair{grid-template-columns:1fr}}
+.opt{border:1px solid var(--border);border-radius:12px;overflow:hidden;background:var(--bg)}
+.opt-h{padding:11px 14px;border-bottom:1px solid var(--border);background:var(--surface)}
+.opt-h .k{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--text-muted);font-weight:600}
+.opt-h .n{font-size:14px;font-weight:600;margin-top:1px;letter-spacing:-.01em}
+.opt-b{padding:14px}
+.opt-b .why{font-size:12.5px;color:var(--text-sec);margin:12px 0 0;padding-top:11px;border-top:1px solid var(--border)}
+.mini{display:grid;grid-template-columns:56px 1fr;gap:8px;padding:5px 0;font-size:13px}
+.mini .t{font-variant-numeric:tabular-nums;font-weight:600;color:var(--text-sec);font-size:12.5px}
+.mini-day{
+  font-size:11px;letter-spacing:.1em;text-transform:uppercase;font-weight:600;
+  color:var(--text-muted);margin:12px 0 4px;
+}
+.mini-day:first-child{margin-top:0}
+.tag{
+  display:inline-block;font-size:10px;letter-spacing:.06em;text-transform:uppercase;font-weight:600;
+  color:var(--accent);border:1px solid var(--accent-border);background:var(--accent-bg);
+  border-radius:4px;padding:1px 5px;margin-left:6px;vertical-align:1px;
+}
+
+/* ---- pendientes ---- */
+.asks{border:1px solid var(--border);border-radius:12px;background:var(--note-bg);padding:20px 22px}
+.asks h3{margin:0 0 4px;font-size:15px;font-weight:600}
+.asks ol{margin:12px 0 0;padding-left:20px;display:flex;flex-direction:column;gap:11px}
+.asks li{color:var(--text-sec);font-size:14px}
+.asks li b{color:var(--text);font-weight:600}
+.rule-h{height:1px;background:var(--border);border:0;margin:0}
+footer{color:var(--text-dim);font-size:12.5px;text-align:center}
+</style>
+
+<div class="wrap">
+
+  <header>
+    <p class="eyebrow">Anfiora · mockup para revisión</p>
+    <h1>Itinerario cuando el evento dura varios días</h1>
+    <p class="lede">Un día se acaba a las 12:00 am, como en Google Calendar. Cada momento carga su fecha real, y las fechas salen solas del rango que ya capturas en Configuración. Si el evento es de un día, nada de esto aparece.</p>
+  </header>
+
+  <hr class="rule-h">
+
+  <!-- ESCENA 1 -->
+  <section class="scene">
+    <div class="scene-head">
+      <p class="scene-num">Pantalla 1 · el planner</p>
+      <h2>La fecha crece en la línea del día</h2>
+      <p class="scene-note">Los días salen del rango del evento: del 12 al 14 de septiembre son tres, ni más ni menos. Es una sola lista de corrido, sin filtros ni pestañas: la línea del día se queda pegada arriba y <b>su fecha crece</b> mientras estás dentro de ese día, y se encoge en cuanto pasas al siguiente.</p>
+      <p class="scene-note" style="color:var(--text-dim);font-size:13px">Scrollea dentro del recuadro para verlo.</p>
+    </div>
+
+    <div class="frame">
+      <div class="frame-bar"><i class="dot"></i><i class="dot"></i><i class="dot"></i><span class="frame-title">Boda Ana &amp; Luis · Timeline</span></div>
+      <div class="frame-body">
+
+        <div class="page-head">
+          <div>
+            <p class="page-title">Timeline</p>
+            <p class="page-sub">12 – 14 de septiembre, 2026 · Hacienda San Gabriel</p>
+          </div>
+          <div class="actions">
+            <span class="btn btn-ghost">Vista invitado</span>
+            <span class="btn btn-teal">Nuevo momento</span>
+          </div>
+        </div>
+
+        <div class="tabs"><span class="tab">Tareas</span><span class="tab on">Itinerario</span></div>
+
+        <div class="stage" id="stage">
+
+        <section class="daysec on">
+        <div class="dayline"><span class="n"><span class="dow">Viernes</span><span class="num">12 sep</span></span><i class="rule"></i><span class="count">3 momentos · 2 visibles</span></div>
+        <div class="moments">
+          <div class="moment">
+            <div class="time">16:00<span>2 h</span></div>
+            <div>
+              <p class="m-title">Llegada de invitados foráneos</p>
+              <p class="m-sub"><span class="chip c-montaje">Montaje</span> Lobby del hotel</p>
+            </div>
+            <div class="m-right">
+              <svg class="eye" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M3 3l18 18"/><path d="M10.6 10.6a2 2 0 002.8 2.8"/><path d="M9.4 5.2A9.7 9.7 0 0112 5c5 0 9 5 9 7a12 12 0 01-2.3 2.9M6.2 6.7C3.9 8.2 3 10.4 3 12c0 2 4 7 9 7a9.4 9.4 0 004-.9"/></svg>
+            </div>
+          </div>
+          <div class="moment">
+            <div class="time">19:00<span>1 h 30 min</span></div>
+            <div>
+              <p class="m-title">Rompehielos</p>
+              <p class="m-sub"><span class="chip c-social">Social</span> Terraza del hotel</p>
+            </div>
+            <div class="m-right">
+              <svg class="eye on" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="2.8"/></svg>
+            </div>
+          </div>
+          <div class="moment">
+            <div class="time">21:00<span>2 h</span></div>
+            <div>
+              <p class="m-title">Cena casual</p>
+              <p class="m-sub"><span class="chip c-cena">Cena</span> Restaurante El Patio</p>
+            </div>
+            <div class="m-right">
+              <svg class="eye on" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="2.8"/></svg>
+            </div>
+          </div>
+        </div>
+        </section>
+
+        <section class="daysec">
+        <div class="dayline"><span class="n"><span class="dow">Sábado</span><span class="num">13 sep</span></span><i class="rule"></i><span class="count">5 momentos · 4 visibles</span></div>
+        <div class="moments">
+          <div class="moment">
+            <div class="time">09:00<span>3 h</span></div>
+            <div>
+              <p class="m-title">Montaje del jardín</p>
+              <p class="m-sub"><span class="chip c-montaje">Montaje</span> Jardín principal · Flores Bernal</p>
+            </div>
+            <div class="m-right">
+              <svg class="eye" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M3 3l18 18"/><path d="M10.6 10.6a2 2 0 002.8 2.8"/><path d="M9.4 5.2A9.7 9.7 0 0112 5c5 0 9 5 9 7a12 12 0 01-2.3 2.9M6.2 6.7C3.9 8.2 3 10.4 3 12c0 2 4 7 9 7a9.4 9.4 0 004-.9"/></svg>
+            </div>
+          </div>
+          <div class="moment">
+            <div class="time">17:30<span>45 min</span></div>
+            <div>
+              <p class="m-title">Ceremonia religiosa</p>
+              <p class="m-sub"><span class="chip c-ceremonia">Ceremonia</span> Capilla</p>
+            </div>
+            <div class="m-right">
+              <svg class="eye on" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="2.8"/></svg>
+            </div>
+          </div>
+          <div class="moment">
+            <div class="time">18:30<span>1 h 30 min</span></div>
+            <div>
+              <p class="m-title">Cóctel de bienvenida</p>
+              <p class="m-sub"><span class="chip c-social">Social</span> Terraza</p>
+            </div>
+            <div class="m-right">
+              <svg class="eye on" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="2.8"/></svg>
+            </div>
+          </div>
+          <div class="moment">
+            <div class="time">20:30<span>2 h</span></div>
+            <div>
+              <p class="m-title">Cena</p>
+              <p class="m-sub"><span class="chip c-cena">Cena</span> Salón · Banquetes Roma</p>
+            </div>
+            <div class="m-right">
+              <svg class="eye on" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="2.8"/></svg>
+            </div>
+          </div>
+          <div class="moment">
+            <div class="time">23:00<span>hasta cierre</span></div>
+            <div>
+              <p class="m-title">Fiesta</p>
+              <p class="m-sub"><span class="chip c-fiesta">Fiesta</span> Salón · DJ Marra</p>
+            </div>
+            <div class="m-right">
+              <svg class="eye on" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="2.8"/></svg>
+            </div>
+          </div>
+        </div>
+        </section>
+
+        <section class="daysec">
+        <div class="dayline"><span class="n"><span class="dow">Domingo</span><span class="num">14 sep</span></span><i class="rule"></i><span class="count">2 momentos · 2 visibles</span></div>
+        <div class="moments">
+          <div class="moment">
+            <div class="time">12:00<span>3 h</span></div>
+            <div>
+              <p class="m-title">Tornaboda</p>
+              <p class="m-sub"><span class="chip c-social">Social</span> Alberca</p>
+            </div>
+            <div class="m-right">
+              <svg class="eye on" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="2.8"/></svg>
+            </div>
+          </div>
+          <div class="moment">
+            <div class="time">16:00<span>1 h</span></div>
+            <div>
+              <p class="m-title">Despedida</p>
+              <p class="m-sub"><span class="chip c-social">Social</span> Lobby</p>
+            </div>
+            <div class="m-right">
+              <svg class="eye on" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="2.8"/></svg>
+            </div>
+          </div>
+        </div>
+        </section>
+
+        <div style="height:210px"></div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ESCENA 2: MODAL IA -->
+  <section class="scene">
+    <div class="scene-head">
+      <p class="scene-num">Pantalla 2 · armar un día</p>
+      <h2>Plantillas, no IA</h2>
+      <p class="scene-note">Le dices qué pasa ese día y a qué hora empieza. Nada más. La propuesta aparece <b>al instante</b>, sin esperar ni gastar tokens, y la ves completa antes de aceptarla. Se arma un día a la vez, parado en el día que quieres.</p>
+    </div>
+
+    <div class="modals">
+
+      <!-- paso 1: elegir -->
+      <div class="modal">
+        <div class="modal-h">
+          <p class="t">Armar el día</p>
+          <p class="sub">Dos datos y listo</p>
+        </div>
+        <div class="modal-b">
+          <div class="whichday"><span class="dow">Sábado</span><span class="num">13 sep</span></div>
+
+          <div class="field">
+            <span class="lbl">¿Qué pasa este día?</span>
+            <div class="chips">
+              <span class="pick">Montaje</span>
+              <span class="pick">Ensayo</span>
+              <span class="pick">Rompehielos</span>
+              <span class="pick on">Día principal</span>
+              <span class="pick">Tornaboda</span>
+              <span class="pick">Despedida</span>
+            </div>
+          </div>
+
+          <div class="field">
+            <span class="lbl">¿A qué hora empieza?</span>
+            <div class="anchor"><div class="inp">Ceremonia</div><div class="inp tm">17:30</div></div>
+            <p class="hint">Todo lo demás se acomoda solo a partir de esa hora.</p>
+          </div>
+        </div>
+        <div class="modal-f">
+          <span class="btn btn-ghost">Cancelar</span>
+          <span class="btn btn-teal wide">Ver propuesta</span>
+        </div>
+      </div>
+
+      <!-- paso 2: previsualizacion -->
+      <div class="modal">
+        <div class="modal-h">
+          <p class="t">Así quedaría tu sábado</p>
+          <p class="sub">Día principal · empieza 17:30</p>
+        </div>
+        <div class="modal-b">
+          <div style="display:flex;flex-direction:column">
+            <div class="mini"><span class="t">17:00</span><span>Llegada de invitados</span></div>
+            <div class="mini"><span class="t">17:30</span><span>Ceremonia</span></div>
+            <div class="mini"><span class="t">18:15</span><span>Sesión de fotos</span></div>
+            <div class="mini"><span class="t">18:30</span><span>Cóctel</span></div>
+            <div class="mini"><span class="t">20:30</span><span>Cena</span></div>
+            <div class="mini"><span class="t">21:45</span><span>Primer baile</span></div>
+            <div class="mini"><span class="t">22:00</span><span>Vals</span></div>
+            <div class="mini"><span class="t">22:30</span><span>Abre la pista</span></div>
+            <div class="mini"><span class="t">01:00</span><span>Tornafiesta</span></div>
+            <div class="mini"><span class="t">03:00</span><span>Cierre <span class="tag">domingo</span></span></div>
+          </div>
+          <p class="hint" style="margin-top:2px">Se agregan como borrador: mueve, edita o borra lo que no aplique. El cierre cae en domingo porque pasa de las 12 am.</p>
+        </div>
+        <div class="modal-f">
+          <span class="btn btn-ghost">Cambiar</span>
+          <span class="btn btn-teal wide">Agregar 10 momentos</span>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="scene-head" style="margin-top:14px">
+      <p class="scene-note">La plantilla es sólo una tabla: para <b>Día principal</b> de boda, ceremonia + 45 min es el cóctel, cóctel + 2 h es la cena, y así. Igualito al seed de partidas que ya tiene Presupuesto. Cada tipo de día trae la suya, con sus fases y con el ojo del invitado ya puesto donde va — el montaje nace oculto, la ceremonia nace visible.</p>
+      <p class="scene-note">Y ojo con el último renglón de la propuesta: el cierre de las 03:00 aparece marcado como <b>domingo</b>, porque el día se acaba a las 12 am. Ahí es donde se nota la decisión de la Pantalla 4.</p>
+    </div>
+  </section>
+
+  <!-- ESCENA 3: DIA HUERFANO -->
+  <section class="scene">
+    <div class="scene-head">
+      <p class="scene-num">Pantalla 3 · acortaste el evento</p>
+      <h2>El día que se quedó sin evento</h2>
+      <p class="scene-note">Cambiaste el rango en Configuración de tres días a dos, pero el domingo ya tenía momentos. No te bloqueo ni te los borro a tus espaldas: el día sigue ahí, en rojo, hasta que tú decidas. Si lo dejas así, no se rompe nada — simplemente ya no aparece en la invitación.</p>
+    </div>
+
+    <div class="frame">
+      <div class="frame-bar"><i class="dot"></i><i class="dot"></i><i class="dot"></i><span class="frame-title">Boda Ana &amp; Luis · Timeline</span></div>
+      <div class="frame-body">
+        <div class="dayline" style="position:static">
+          <span class="n"><span class="dow">Sábado</span><span class="num">13 sep</span></span><i class="rule"></i>
+          <span class="count">5 momentos · 4 visibles</span>
+        </div>
+        <div class="moments faded">
+          <div class="moment">
+            <div class="time">20:30<span>2 h</span></div>
+            <div><p class="m-title">Cena</p><p class="m-sub"><span class="chip c-cena">Cena</span> Salón</p></div>
+            <div class="m-right"></div>
+          </div>
+        </div>
+
+        <div class="dayline dead" style="position:static;margin-top:14px">
+          <span class="n"><span class="dow">Domingo</span><span class="num">14 sep</span></span><i class="rule"></i>
+          <span class="count" style="color:var(--error-text)">fuera del rango</span>
+        </div>
+        <div class="orphan">
+          <p>Este día ya no está dentro de las fechas del evento. Sus 2 momentos no se muestran a los invitados.</p>
+          <span class="btn-del">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>
+            Eliminar el día
+          </span>
+        </div>
+        <div class="moments">
+          <div class="moment">
+            <div class="time">12:00<span>3 h</span></div>
+            <div><p class="m-title">Tornaboda</p><p class="m-sub"><span class="chip c-social">Social</span> Alberca</p></div>
+            <div class="m-right"></div>
+          </div>
+          <div class="moment">
+            <div class="time">16:00<span>1 h</span></div>
+            <div><p class="m-title">Despedida</p><p class="m-sub"><span class="chip c-social">Social</span> Lobby</p></div>
+            <div class="m-right"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ESCENA 4 -->
+  <section class="scene">
+    <div class="scene-head">
+      <p class="scene-num">Pantalla 4 · el invitado</p>
+      <h2>La invitación separa los días sola</h2>
+      <p class="scene-note">El invitado ve los tres días con su nombre y su fecha, y dentro de cada uno sólo los momentos a los que le prendiste el ojo. El montaje de las 9 am no aparece: ése es tuyo.</p>
+    </div>
+
+    <div class="phone">
+      <div class="phone-inner">
+        <p class="inv-h">Itinerario</p>
+        <p class="inv-t">Ana &amp; Luis</p>
+
+        <div class="inv-day"><span class="n">Viernes 12</span><i class="rule"></i></div>
+        <div class="inv-m"><span class="t">20:00</span><span class="b">Rompehielos<em>Terraza del hotel</em></span></div>
+        <div class="inv-m"><span class="t">21:30</span><span class="b">Cena informal<em>Restaurante El Patio</em></span></div>
+
+        <div class="inv-day"><span class="n">Sábado 13</span><i class="rule"></i></div>
+        <div class="inv-m"><span class="t">17:30</span><span class="b">Ceremonia religiosa<em>Capilla</em></span></div>
+        <div class="inv-m"><span class="t">18:30</span><span class="b">Cóctel de bienvenida<em>Terraza</em></span></div>
+        <div class="inv-m"><span class="t">20:30</span><span class="b">Cena<em>Salón</em></span></div>
+        <div class="inv-m"><span class="t">23:00</span><span class="b">Fiesta<em>Salón</em></span></div>
+
+        <div class="inv-day"><span class="n">Domingo 14</span><i class="rule"></i></div>
+        <div class="inv-m"><span class="t">12:00</span><span class="b">Tornaboda<em>Alberca</em></span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ESCENA 3 -->
+  <section class="scene">
+    <div class="scene-head">
+      <p class="scene-num">Pantalla 5 · decidido</p>
+      <h2>La fiesta que termina a las 2 de la mañana</h2>
+      <p class="scene-note">El día se acaba a las 12 am y punto: el último baile de las 02:30 cae en el día siguiente, igual que en Google Calendar. Se va el truco que hoy tiene la app de pegar los momentos de antes de las 6 am al día anterior.</p>
+    </div>
+
+    <div class="pair">
+      <div class="opt">
+        <div class="opt-h">
+          <p class="k" style="color:var(--accent)">Opción A · elegida</p>
+          <p class="n">La fecha manda, sin excepciones</p>
+        </div>
+        <div class="opt-b">
+          <p class="mini-day">Sábado 13</p>
+          <div class="mini"><span class="t">20:30</span><span>Cena</span></div>
+          <div class="mini"><span class="t">23:00</span><span>Fiesta</span></div>
+          <p class="mini-day">Domingo 14</p>
+          <div class="mini"><span class="t">02:30</span><span>Último baile</span></div>
+          <div class="mini"><span class="t">03:00</span><span>Tornafiesta</span></div>
+          <p class="why">Igualito a Google Calendar. Pero al invitado le aparece un “Domingo 14” que en su cabeza sigue siendo la noche del sábado.</p>
+        </div>
+      </div>
+
+      <div class="opt">
+        <div class="opt-h">
+          <p class="k">Opción B · descartada</p>
+          <p class="n">La madrugada cierra la noche</p>
+        </div>
+        <div class="opt-b">
+          <p class="mini-day">Sábado 13</p>
+          <div class="mini"><span class="t">20:30</span><span>Cena</span></div>
+          <div class="mini"><span class="t">23:00</span><span>Fiesta</span></div>
+          <div class="mini"><span class="t">02:30</span><span>Último baile <span class="tag">madrugada</span></span></div>
+          <div class="mini"><span class="t">03:00</span><span>Tornafiesta <span class="tag">madrugada</span></span></div>
+          <p class="why">La fecha real se guarda igual (domingo), pero se muestra pegada al sábado con la etiqueta. Es como habla un planner; cuesta una regla extra.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PENDIENTES -->
+  <hr class="rule-h">
+
+  <!-- PLANTILLAS -->
+  <section class="scene">
+    <div class="scene-head">
+      <p class="scene-num">Referencia · las plantillas</p>
+      <h2>Ocho tipos de día para diecisiete tipos de evento</h2>
+      <p class="scene-note">No hay una plantilla por evento: hay ocho <b>tipos de día</b> que se repiten en todos, y cada tipo de evento sólo enseña los suyos, <b>con el nombre que usaría un planner de ese evento</b>. El mismo día se llama Rompehielos en una boda y Bienvenida en un retiro. Lo que sí cambia de contenido es el día principal — no es lo mismo el de una boda que el de un congreso.</p>
+    </div>
+
+    <div class="tpl">
+      <div class="tpl-row" style="border-top:0">
+        <div class="ev">Montaje<em>Nunca visible</em></div>
+        <div class="days"><span class="dchip">Llegada de proveedores, flores, audio, pruebas. Nace todo oculto: es tu día, no el del invitado.</span></div>
+      </div>
+      <div class="tpl-row">
+        <div class="ev">Ensayo<em>Casi todo oculto</em></div>
+        <div class="days"><span class="dchip">Ensayo de la ceremonia y cena de ensayo. Sólo la cena se muestra, y sólo a quien va.</span></div>
+      </div>
+      <div class="tpl-row">
+        <div class="ev">Rompehielos<em>Visible · en boda</em></div>
+        <div class="days"><span class="dchip">La noche en que las dos familias se conocen: informal, sin protocolo. Fuera de boda este día se llama <b>Bienvenida</b> — llegada de foráneos, check-in, recepción — y trae la misma plantilla con otro nombre.</span></div>
+      </div>
+      <div class="tpl-row">
+        <div class="ev">Día principal<em>Visible</em></div>
+        <div class="days"><span class="dchip">El del momento cumbre. Es el único cuyo contenido cambia de verdad entre tipos de evento.</span></div>
+      </div>
+      <div class="tpl-row">
+        <div class="ev">Sesiones<em>Visible</em></div>
+        <div class="days"><span class="dchip">Día de programa: bloques, coffee breaks, comida, talleres. Corporativo e impacto.</span></div>
+      </div>
+      <div class="tpl-row">
+        <div class="ev">Noche<em>Visible</em></div>
+        <div class="days"><span class="dchip">Cuando la cena de gala, la fogata o la fiesta van en día aparte del principal.</span></div>
+      </div>
+      <div class="tpl-row">
+        <div class="ev">Día siguiente<em>Visible</em></div>
+        <div class="days"><span class="dchip">Tornaboda en boda, tornafiesta en XV y fiesta. Brunch, alberca, resaca digna.</span></div>
+      </div>
+      <div class="tpl-row">
+        <div class="ev">Despedida<em>Visible</em></div>
+        <div class="days"><span class="dchip">Check-out, última comida, traslados. Cierra el evento sin dejarlo colgado.</span></div>
+      </div>
+    </div>
+
+    <div class="scene-head" style="margin-top:30px">
+      <h2 style="font-size:17px">Qué días ofrece cada evento</h2>
+      <p class="scene-note">En dorado, el día que trae plantilla propia de contenido.</p>
+    </div>
+
+    <div class="tpl">
+      <p class="tpl-cat">Social</p>
+      <div class="tpl-row" style="border-top:0">
+        <div class="ev">Boda</div>
+        <div class="days"><span class="dchip">Montaje</span><span class="dchip">Ensayo</span><span class="dchip key">Rompehielos</span><span class="dchip key">Día principal</span><span class="dchip">Tornaboda</span><span class="dchip">Despedida</span></div>
+      </div>
+      <div class="tpl-row">
+        <div class="ev">XV años</div>
+        <div class="days"><span class="dchip">Montaje</span><span class="dchip">Ensayo</span><span class="dchip key">Día principal</span><span class="dchip">Tornafiesta</span></div>
+      </div>
+      <div class="tpl-row">
+        <div class="ev">Cumpleaños</div>
+        <div class="days"><span class="dchip">Montaje</span><span class="dchip key">Día principal</span><span class="dchip">Tornafiesta</span></div>
+      </div>
+      <div class="tpl-row">
+        <div class="ev">Graduación</div>
+        <div class="days"><span class="dchip">Montaje</span><span class="dchip key">Día principal</span><span class="dchip">Noche</span></div>
+      </div>
+      <div class="tpl-row">
+        <div class="ev">Bautizo</div>
+        <div class="days"><span class="dchip">Montaje</span><span class="dchip key">Día principal</span></div>
+      </div>
+      <div class="tpl-row">
+        <div class="ev">Fiesta</div>
+        <div class="days"><span class="dchip">Montaje</span><span class="dchip key">Día principal</span><span class="dchip">Tornafiesta</span></div>
+      </div>
+      <div class="tpl-row">
+        <div class="ev">Despedida<em>casi siempre de varios días</em></div>
+        <div class="days"><span class="dchip">Bienvenida</span><span class="dchip key">Día principal</span><span class="dchip">Noche</span><span class="dchip">Despedida</span></div>
+      </div>
+      <div class="tpl-row">
+        <div class="ev">Otro</div>
+        <div class="days"><span class="dchip">Montaje</span><span class="dchip key">Día principal</span><span class="dchip">Despedida</span></div>
+      </div>
+
+      <p class="tpl-cat">Corporativo</p>
+      <div class="tpl-row" style="border-top:0">
+        <div class="ev">Conferencia</div>
+        <div class="days"><span class="dchip">Montaje</span><span class="dchip key">Sesiones</span><span class="dchip">Noche</span><span class="dchip">Despedida</span></div>
+      </div>
+      <div class="tpl-row">
+        <div class="ev">Capacitación</div>
+        <div class="days"><span class="dchip">Montaje</span><span class="dchip key">Sesiones</span><span class="dchip">Despedida</span></div>
+      </div>
+      <div class="tpl-row">
+        <div class="ev">Team Building</div>
+        <div class="days"><span class="dchip">Bienvenida</span><span class="dchip key">Sesiones</span><span class="dchip">Noche</span><span class="dchip">Despedida</span></div>
+      </div>
+      <div class="tpl-row">
+        <div class="ev">Lanzamiento</div>
+        <div class="days"><span class="dchip">Montaje</span><span class="dchip">Ensayo</span><span class="dchip key">Día principal</span></div>
+      </div>
+      <div class="tpl-row">
+        <div class="ev">Asamblea</div>
+        <div class="days"><span class="dchip">Montaje</span><span class="dchip key">Sesiones</span></div>
+      </div>
+
+      <p class="tpl-cat">Impacto</p>
+      <div class="tpl-row" style="border-top:0">
+        <div class="ev">Retiro</div>
+        <div class="days"><span class="dchip">Bienvenida</span><span class="dchip key">Sesiones</span><span class="dchip">Noche</span><span class="dchip">Despedida</span></div>
+      </div>
+      <div class="tpl-row">
+        <div class="ev">Congreso</div>
+        <div class="days"><span class="dchip">Montaje</span><span class="dchip key">Sesiones</span><span class="dchip">Noche</span><span class="dchip">Despedida</span></div>
+      </div>
+      <div class="tpl-row">
+        <div class="ev">Campamento</div>
+        <div class="days"><span class="dchip">Bienvenida</span><span class="dchip key">Sesiones</span><span class="dchip">Noche</span><span class="dchip">Despedida</span></div>
+      </div>
+      <div class="tpl-row">
+        <div class="ev">Caridad</div>
+        <div class="days"><span class="dchip">Montaje</span><span class="dchip key">Día principal</span></div>
+      </div>
+    </div>
+
+    <div class="scene-head" style="margin-top:30px">
+      <h2 style="font-size:17px">Cómo se ve una plantilla por dentro</h2>
+      <p class="scene-note">El día principal de la boda ya lo viste en la Pantalla 2. Estos son otros dos, para que veas que el mecanismo es el mismo: una hora ancla y una tabla de desfases.</p>
+    </div>
+
+    <div class="tplcards">
+      <div class="tplcard">
+        <div class="tplcard-h">
+          <p class="n">Boda · Rompehielos</p>
+          <p class="k">Ancla: la hora del rompehielos</p>
+        </div>
+        <div class="tplcard-b">
+          <div class="mini"><span class="t">17:00</span><span>Montaje<span class="off">oculto</span></span></div>
+          <div class="mini"><span class="t">19:00</span><span>Llegada de foráneos</span></div>
+          <div class="mini"><span class="t">20:00</span><span>Rompehielos</span></div>
+          <div class="mini"><span class="t">21:30</span><span>Cena informal</span></div>
+          <div class="mini"><span class="t">01:00</span><span>Cierre<span class="off">oculto</span></span></div>
+        </div>
+      </div>
+
+      <div class="tplcard">
+        <div class="tplcard-h">
+          <p class="n">Congreso · Sesiones</p>
+          <p class="k">Ancla: la apertura</p>
+        </div>
+        <div class="tplcard-b">
+          <div class="mini"><span class="t">07:30</span><span>Montaje y pruebas<span class="off">oculto</span></span></div>
+          <div class="mini"><span class="t">08:30</span><span>Registro</span></div>
+          <div class="mini"><span class="t">09:00</span><span>Apertura</span></div>
+          <div class="mini"><span class="t">09:30</span><span>Keynote</span></div>
+          <div class="mini"><span class="t">11:00</span><span>Coffee break</span></div>
+          <div class="mini"><span class="t">11:30</span><span>Panel</span></div>
+          <div class="mini"><span class="t">13:30</span><span>Comida</span></div>
+          <div class="mini"><span class="t">15:00</span><span>Talleres</span></div>
+          <div class="mini"><span class="t">17:00</span><span>Cierre del día</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="rule-h">
+
+  <section class="asks">
+    <h3>Cerrado</h3>
+    <ol>
+      <li>Días = fechas reales del rango. El día acaba a las 12 am, sin trucos.</li>
+      <li>La invitación agrupa por día, respetando el ojo de cada momento.</li>
+      <li>Se va la IA del itinerario. El botón se queda, por dentro son plantillas.</li>
+      <li>Los itinerarios que ya existen se adaptan: todos sus momentos a la fecha de inicio.</li>
+      <li>Acortar el rango no se bloquea. El día huérfano se marca en rojo con botón para eliminarlo.</li>
+    </ol>
+    <h3 style="margin-top:22px">Lo único que falta</h3>
+    <ol>
+      <li>Que revises la lista de arriba: qué tipos de día ofrece cada evento y qué trae cada plantilla.</li>
+      <li><b>Cuánto de esto va en la primera tanda.</b> Las 17 plantillas de día principal son mucho trabajo de contenido. Propongo arrancar con las de <b>boda</b> completas y una genérica por categoría para lo demás, e ir llenando según pidan.</li>
+    </ol>
+  </section>
+
+  <footer>Mockup, no código. Nada de esto está construido todavía.</footer>
+
+</div>
+
+<script>
+(function () {
+  const stage = document.getElementById('stage');
+  if (!stage) return;
+  const secs = Array.from(stage.querySelectorAll('.daysec'));
+  if (!secs.length) return;
+
+  let queued = false;
+  function sync() {
+    queued = false;
+    const top = stage.getBoundingClientRect().top;
+    let idx = 0;
+    secs.forEach((s, i) => { if (s.getBoundingClientRect().top <= top + 2) idx = i; });
+    secs.forEach((s, i) => s.classList.toggle('on', i === idx));
+  }
+
+  stage.addEventListener('scroll', () => {
+    if (queued) return;
+    queued = true;
+    requestAnimationFrame(sync);
+  }, { passive: true });
+
+  sync();
+})();
+</script>

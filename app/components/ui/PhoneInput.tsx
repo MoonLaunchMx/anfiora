@@ -1,15 +1,18 @@
 'use client'
 
-import { useState, useEffect, useRef, useSyncExternalStore } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef, useSyncExternalStore } from 'react'
 import { createPortal } from 'react-dom'
 import { ChevronDown, Search, X } from 'lucide-react'
 import {
   COUNTRIES,
   DEFAULT_COUNTRY,
+  componerTelefono,
   toE164,
   formatAsYouType,
   detectCountry,
-  isValidPhone,
+  ladaEscrita,
+  paisDeNumero,
+  posicionDelCaret,
   nationalNumber,
   dialCode,
   sinAcentos,
@@ -48,6 +51,12 @@ type PhoneInputProps = {
   disabled?: boolean
   className?: string
   compact?: boolean
+  // Para superficies PUBLICAS. El campo exige un numero marcable con la misma vara
+  // que usa el servidor (toE164), se pinta de rojo y no entrega valor hasta que lo
+  // sea. En la app del planner no se usa: ahi Anfiora no opina si un numero existe.
+  // Sin esto el invitado veia el campo normal, el servidor lo rechazaba, y se
+  // quedaba sin saber que arreglar.
+  estricto?: boolean
 }
 
 export default function PhoneInput({
@@ -58,6 +67,7 @@ export default function PhoneInput({
   disabled,
   className = '',
   compact,
+  estricto,
 }: PhoneInputProps) {
   // py-2 en ambos casos: con el input a text-base (16px), iguala el alto de los
   // campos hermanos de los modales (px-3 py-2 text-base) que usan PhoneInput.
@@ -65,6 +75,9 @@ export default function PhoneInput({
   const txt = compact ? 'text-[13px]' : 'text-sm'
   const [country, setCountry] = useState<CountryCode>(defaultCountry)
   const [text, setText] = useState('')
+  // El aviso espera a que salga del campo. Marcarle error en el primer digito, con
+  // el numero a medio escribir, es regañar a alguien que todavia no termina.
+  const [tocado, setTocado] = useState(false)
   const [open, setOpen] = useState(false)
   const [filter, setFilter] = useState('')
   const [layout, setLayout] = useState<DropdownLayout>({
@@ -75,6 +88,9 @@ export default function PhoneInput({
   })
   const containerRef = useRef<HTMLDivElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+  // Donde dejar el cursor despues de que React re-escriba el campo formateado.
+  const caretRef = useRef<number | null>(null)
   // Guarda el ultimo valor E.164 conocido (recibido por props o emitido por nosotros)
   // para no volver a derivar country/text cuando el padre solo nos regresa lo que ya emitimos.
   const lastSyncedRef = useRef<string | null>(null)
@@ -89,9 +105,14 @@ export default function PhoneInput({
       setCountry(defaultCountry)
       return
     }
-    const detected = detectCountry(value) ?? defaultCountry
-    setCountry(detected)
-    setText(formatAsYouType(value, detected))
+    // El texto lleva SOLO la parte nacional: la lada ya vive en el boton de al
+    // lado. Ponerla en los dos lados la ensenaba dos veces, y como queda al
+    // principio del texto obligaba a borrar el numero entero para llegar a ella.
+    // Si la lada no corresponde a ningun pais conocido se deja el numero completo,
+    // que es la unica forma de no perderla.
+    const pais = paisDeNumero(value)
+    setCountry(pais ?? defaultCountry)
+    setText(pais ? formatAsYouType(nationalNumber(value), pais) : formatAsYouType(value, defaultCountry))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value])
 
@@ -198,20 +219,65 @@ export default function PhoneInput({
     }
   }, [open, layout.mode])
 
+  // En estricto se usa LA MISMA vara que el servidor, para que no exista un numero
+  // que el campo da por bueno y el servidor rechaza.
+  const revisar = (raw: string, c: CountryCode) => (estricto ? toE164(raw, c) : componerTelefono(raw, c))
+
   const emit = (raw: string, targetCountry: CountryCode) => {
-    const next = raw.trim() ? (toE164(raw, targetCountry) ?? '') : ''
+    // Vaciar el campo si vacia el dato, pero un numero que todavia no se puede
+    // componer NO borra el que ya habia: se conserva el anterior.
+    if (!raw.trim()) {
+      lastSyncedRef.current = ''
+      onChange('')
+      return
+    }
+    const next = revisar(raw, targetCountry)
+    if (next === null) {
+      // En estricto el padre TIENE que enterarse de que aun no hay numero usable,
+      // para poder frenar el envio. En la app no aplica: no hay servidor que
+      // contradiga al campo, y borrar lo anterior seria peor.
+      if (!estricto) return
+      lastSyncedRef.current = ''
+      onChange('')
+      return
+    }
     lastSyncedRef.current = next
     onChange(next)
   }
 
   const handleTextChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const raw = e.target.value
-    const detected = raw ? detectCountry(raw) : null
-    const nextCountry = detected ?? country
+    const caret = e.target.selectionStart ?? raw.length
+    const digitosAntes = raw.slice(0, caret).replace(/\D/g, '').length
+
+    // Si el texto trae la lada escrita, se MUDA al boton en vez de quedarse dentro
+    // del campo. Tenerla en los dos lados la ensena dos veces, y como queda al
+    // principio obliga a borrar el numero entero para llegar a ella.
+    const pais = raw ? paisDeNumero(raw) : null
+    const lada = pais ? ladaEscrita(raw) : null
+    const digitos = raw.replace(/\D/g, '')
+    const ladaDigitos = lada ? lada.slice(1) : ''
+    const mudarLada = !!lada && digitos.startsWith(ladaDigitos) && digitos.length > ladaDigitos.length
+
+    const nextCountry = pais ?? (raw ? detectCountry(raw) : null) ?? country
+    const base = mudarLada ? digitos.slice(ladaDigitos.length) : raw
+    const nextText = base ? formatAsYouType(base, nextCountry) : ''
+
     if (nextCountry !== country) setCountry(nextCountry)
-    setText(raw ? formatAsYouType(raw, nextCountry) : '')
-    emit(raw, nextCountry)
+    setText(nextText)
+    caretRef.current = posicionDelCaret(nextText, digitosAntes - (mudarLada ? ladaDigitos.length : 0))
+    emit(base, nextCountry)
   }
+
+  // Se corre DESPUES de pintar y antes de que el navegador dibuje, para que el
+  // cursor no se vea brincar al final.
+  useLayoutEffect(() => {
+    if (caretRef.current === null) return
+    const pos = caretRef.current
+    caretRef.current = null
+    const el = inputRef.current
+    if (el && document.activeElement === el) el.setSelectionRange(pos, pos)
+  })
 
   const handleSelectCountry = (iso: CountryCode) => {
     setCountry(iso)
@@ -223,7 +289,15 @@ export default function PhoneInput({
   }
 
   const current = COUNTRIES.find(c => c.iso === country)
-  const showError = text.trim() !== '' && !isValidPhone(text, country)
+  // El boton muestra la lada que el numero trae escrita; solo cuando no trae
+  // ninguna manda la del pais seleccionado. Nunca una tercera inventada: decir
+  // +52 sobre un numero que empieza con +1 es lo que volvia loco al planner.
+  const ladaMostrada = ladaEscrita(text) ?? current?.dial ?? dialCode(country)
+  // Rojo solo cuando el numero no cabe en E.164, que es la misma vara con la que
+  // se guarda. Si ese prefijo existe o no en el mundo, Anfiora no opina: eso lo
+  // sabra el planner cuando marque o cuando WhatsApp no entregue.
+  // Ya que aviso una vez, se re-evalua en vivo: el rojo se va solo en cuanto lo corrige.
+  const showError = tocado && text.trim() !== '' && revisar(text, country) === null
 
   // Sin acentos y sin el "+" de la lada: quien escribe "España" o "+34" tiene que
   // encontrar su pais, no una lista vacia.
@@ -294,20 +368,30 @@ export default function PhoneInput({
               : 'border-[#e8e8e8] text-[#1D1E20] hover:bg-[#f8f8f8]'
           }`}
         >
-          <span>{current?.dial ?? dialCode(country)}</span>
+          <span>{ladaMostrada}</span>
           <ChevronDown size={12} className="text-[#999]" />
         </button>
 
         <input
+          ref={inputRef}
           type="tel"
           inputMode="tel"
           disabled={disabled}
           value={text}
           onChange={handleTextChange}
+          onBlur={() => setTocado(true)}
           placeholder={placeholder}
           className={`min-w-0 flex-1 rounded-r-lg bg-transparent px-3 ${padY} text-base text-[#1D1E20] outline-none placeholder:text-[#c0c0c0] disabled:cursor-not-allowed disabled:text-[#ccc]`}
         />
       </div>
+
+      {/* Solo en superficies publicas: el invitado no tiene a quien preguntarle, asi
+          que el problema se dice antes de que apriete el boton, no despues. */}
+      {estricto && showError && (
+        <p role="alert" className="mt-1.5 text-xs leading-snug text-[#cc3333]">
+          Revisa tu número o cambia la lada
+        </p>
+      )}
 
       {open && mounted && createPortal(
         layout.mode === 'sheet' ? (

@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
+import { normalizarPlan } from '@/lib/workspace/planes'
 
 const ADMIN_EMAIL = 'diego.garza@moonlaunch.mx'
 
@@ -19,12 +20,13 @@ export async function GET(req: NextRequest) {
   }
 
   // Datos de las tablas (solo lectura)
-  const [usersRes, eventsRes, guestsRes, partyRes, termsRes] = await Promise.all([
+  const [usersRes, eventsRes, guestsRes, partyRes, termsRes, wsRes] = await Promise.all([
     supabaseAdmin.from('users').select('id, email, full_name, plan, created_at, role, event_focus, acquisition_source, utm_source, utm_medium, utm_campaign, utm_content, referrer_domain, device_type, acquired_at').order('created_at', { ascending: false }),
     supabaseAdmin.from('events').select('id, user_id, name, created_at'),
     supabaseAdmin.from('guests').select('id, event_id, rsvp_status'),
     supabaseAdmin.from('party_members').select('id, event_id'),
     supabaseAdmin.from('terms_acceptances').select('user_id, version, accepted_at, ip_address').order('accepted_at', { ascending: false }),
+    supabaseAdmin.from('workspaces').select('primary_owner_id, plan'),
   ])
 
   // Consentimientos por usuario (ya vienen ordenados por fecha desc)
@@ -52,10 +54,20 @@ export async function GET(req: NextRequest) {
     page++
   }
 
+  // Si el SQL del Tramo 5 no ha corrido, la columna plan no existe y wsRes.error
+  // viene lleno: se cae a users.plan sin ruido.
+  const planPorDueno = new Map<string, string>()
+  if (!wsRes.error) {
+    for (const w of (wsRes.data ?? []) as { primary_owner_id: string; plan: string | null }[]) {
+      planPorDueno.set(w.primary_owner_id, normalizarPlan(w.plan))
+    }
+  }
+
   const users = (usersRes.data || []).map(u => {
     const history = termsByUser[u.id] || []
     return {
       ...u,
+      plan:              planPorDueno.get(u.id) ?? normalizarPlan(u.plan),
       last_sign_in:      authByUserId[u.id]?.last_sign_in_at ?? null,
       banned:            authByUserId[u.id]?.banned ?? false,
       terms_version:     history[0]?.version ?? null,

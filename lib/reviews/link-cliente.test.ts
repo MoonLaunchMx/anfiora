@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   DIAS_PLAZO_CLIENTE, sumarDias, diasEntre, venceDefault, estadoDelLink,
-  extenderVencimiento, textoAviso, urlOpinion, mensajeWhatsApp,
+  extenderVencimiento, venceAlCerrar, textoAviso, urlOpinion, mensajeWhatsApp,
   tonoDelAviso, CLASES_TONO,
 } from './link-cliente'
 
@@ -79,6 +79,22 @@ describe('textoAviso: una linea', () => {
   })
   it('vencida', () => {
     expect(textoAviso({ estado: 'vencida', vence: '2026-07-26', diasRestantes: -3 }, 3, 8)).toBe('Venció el 26 jul · 3 de 8')
+  })
+})
+
+describe('venceAlCerrar', () => {
+  it('cierra el link poniendo el vencimiento en ayer', () => {
+    expect(venceAlCerrar('2026-09-11')).toBe('2026-09-10')
+  })
+  it('cruza de mes y de anio', () => {
+    expect(venceAlCerrar('2026-03-01')).toBe('2026-02-28')
+    expect(venceAlCerrar('2027-01-01')).toBe('2026-12-31')
+  })
+  it('lo cerrado queda vencido ese mismo dia y reactivar suma desde hoy', () => {
+    const hoy = '2026-09-11'
+    const vence = venceAlCerrar(hoy)
+    expect(estadoDelLink({ hoy, ultimoDiaEvento: '2026-09-01', token: 'x', expiresAt: vence }).estado).toBe('vencida')
+    expect(extenderVencimiento({ hoy, venceActual: vence, dias: 7 })).toBe('2026-09-18')
   })
 })
 

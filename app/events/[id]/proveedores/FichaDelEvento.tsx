@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
-import { Check, ChevronDown, Eye, Globe, Mail, Paperclip, Pencil, Trash2, X } from 'lucide-react'
+import { Check, ChevronDown, ChevronRight, Eye, Globe, Mail, Paperclip, Pencil, Trash2, X } from 'lucide-react'
 import { FaWhatsapp } from 'react-icons/fa'
 import { FiFacebook, FiInstagram } from 'react-icons/fi'
 import { supabase } from '@/lib/supabase'
@@ -257,6 +257,19 @@ export default function FichaDelEvento({
     supabase.auth.getUser().then(({ data }) => setUserId(data.user?.id ?? null))
   }, [])
 
+  // En cuantos eventos de la cuenta esta este proveedor. Con dos o mas se
+  // ofrece el expediente; con uno no hay nada alla que no este ya aqui.
+  const [vecesEnRolodex, setVecesEnRolodex] = useState<number | null>(null)
+  useEffect(() => {
+    let vigente = true
+    setVecesEnRolodex(null)
+    supabase
+      .from('event_suppliers').select('id', { count: 'exact', head: true })
+      .eq('supplier_id', item.supplier_id)
+      .then(({ count }) => { if (vigente) setVecesEnRolodex(count ?? null) })
+    return () => { vigente = false }
+  }, [item.supplier_id])
+
   useEffect(() => {
     let vigente = true
     supabase.from('events').select('name, user_id').eq('id', item.event_id).single()
@@ -483,6 +496,14 @@ export default function FichaDelEvento({
               {[categoria, s.subcategory, s.city].filter(Boolean).join(' · ')}
             </p>
             <Estrellas score={scores.desempeno} tamano={12} className="shrink-0" />
+            {vecesEnRolodex != null && vecesEnRolodex >= 2 && (
+              <a
+                href={`/rolodex/${s.id}?desde=${encodeURIComponent(`/events/${item.event_id}/proveedores?proveedor=${item.id}`)}`}
+                className="inline-flex shrink-0 items-center gap-0.5 text-[11.5px] font-bold text-[#1a9e88] hover:underline"
+              >
+                Ver sus {vecesEnRolodex} eventos <ChevronRight size={12} />
+              </a>
+            )}
           </div>
 
 

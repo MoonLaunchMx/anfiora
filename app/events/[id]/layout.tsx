@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { useParams, usePathname, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { Users, Images, Music2, Settings, LayoutGrid, PanelLeftClose, PanelLeftOpen, CalendarDays, House, User, LogOut, Wallet, Briefcase, Heart, MessageCircle, Receipt, Gift, UtensilsCrossed, Shirt, Palette, MailOpen, MessageSquarePlus } from 'lucide-react'
+import { Users, Images, Music2, Settings, LayoutGrid, PanelLeftClose, PanelLeftOpen, CalendarDays, House, User, LogOut, Wallet, Briefcase, Heart, MessageCircle, Receipt, Gift, UtensilsCrossed, Shirt, Palette, MailOpen, MessageSquarePlus, Building2 } from 'lucide-react'
 import { LEGACY_FEATURES, type FeatureKey } from '@/lib/features'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Event, formatEventDate } from '@/lib/types'
@@ -12,6 +12,7 @@ import { SalidaGuardProvider, useSalidaGuard } from './SalidaGuardProvider'
 import { filtrarPorPermiso, moduloDeRutaNav, primeraRutaVisible } from '@/lib/permisos/rutas'
 import { SinAcceso } from '@/app/components/ui/SinAcceso'
 import { Cargando } from '@/app/components/ui/Cargando'
+import { misWorkspacesAdministrados } from '@/lib/workspace/cliente'
 
 const EVENT_TYPE_LABELS: Record<string, string> = {
   boda:        'Boda',
@@ -313,6 +314,7 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
   const [userName, setUserName]       = useState('')
   const [userEmail, setUserEmail]     = useState('')
   const [avatarOpen, setAvatarOpen]   = useState(false)
+  const [administra, setAdministra]   = useState(false)
 
   const navScrollRef = useRef<HTMLDivElement>(null)
   const avatarRef    = useRef<HTMLDivElement>(null)
@@ -373,6 +375,7 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
         const meta = session.user.user_metadata
         setUserName(meta?.full_name || '')
         setUserEmail(session.user.email || '')
+        misWorkspacesAdministrados().then(ws => setAdministra(ws.length > 0))
       }
     })
     return () => subscription.unsubscribe()
@@ -458,8 +461,17 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
         <p className="truncate text-xs font-semibold text-[#1D1E20]">{userName || 'Mi cuenta'}</p>
         <p className="truncate text-[11px] text-[#aaa]">{userEmail}</p>
       </div>
+      {administra && (
+        <button
+          onClick={() => { setAvatarOpen(false); irA('/configuracion/equipo') }}
+          className="flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-xs text-[#555] transition hover:bg-[#f8f8f8]"
+        >
+          <Building2 size={14} className="text-[#aaa]" />
+          Mi workspace
+        </button>
+      )}
       <button
-        onClick={() => { setAvatarOpen(false); irA('/perfil') }}
+        onClick={() => { setAvatarOpen(false); irA('/configuracion/perfil') }}
         className="flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-xs text-[#555] transition hover:bg-[#f8f8f8]"
       >
         <User size={14} className="text-[#aaa]" />
@@ -563,8 +575,17 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
                 <p className="truncate text-xs font-semibold text-[#1D1E20]">{userName || 'Mi cuenta'}</p>
                 <p className="truncate text-[11px] text-[#aaa]">{userEmail}</p>
               </div>
+              {administra && (
+                <button
+                  onClick={() => { setAvatarOpen(false); irA('/configuracion/equipo') }}
+                  className="flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-xs text-[#555] transition hover:bg-[#f8f8f8]"
+                >
+                  <Building2 size={14} className="text-[#aaa]" />
+                  Mi workspace
+                </button>
+              )}
               <button
-                onClick={() => { setAvatarOpen(false); irA('/perfil') }}
+                onClick={() => { setAvatarOpen(false); irA('/configuracion/perfil') }}
                 className="flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-xs text-[#555] transition hover:bg-[#f8f8f8]"
               >
                 <User size={14} className="text-[#aaa]" />

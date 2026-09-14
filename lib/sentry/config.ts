@@ -10,6 +10,15 @@ export type SentryEnv = {
   appVersion?: string | undefined;
 };
 
+// Errores que no salen de nuestro codigo: extensiones del navegador y el
+// toolbar de comentarios que Vercel inyecta en los previews (_next-live).
+export const SENTRY_DENY_URLS: RegExp[] = [
+  /^chrome-extension:\/\//i,
+  /^moz-extension:\/\//i,
+  /extensions\//i,
+  /\/_next-live\//i,
+];
+
 export function isSentryEnabled(env: SentryEnv): boolean {
   return env.nodeEnv === "production" && Boolean(env.dsn);
 }

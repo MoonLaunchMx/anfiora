@@ -2,11 +2,11 @@
 // MANANA (Stripe): reescribir SOLO el cuerpo de getBillingRows leyendo de Stripe.
 // La UI consume BillingRow / BillingSummary y no se entera del origen.
 
-export const PLAN_PRICES: Record<string, number> = {
-  free: 0,
-  pro: 1990,
-  agency: 3990,
-}
+import { PLANES, PLAN_IDS } from '@/lib/workspace/planes'
+
+export const PLAN_PRICES: Record<string, number> = Object.fromEntries(
+  PLAN_IDS.map(id => [id, PLANES[id].precio]),
+)
 
 export type BillingStatus = 'active' | 'past_due' | 'canceled'
 

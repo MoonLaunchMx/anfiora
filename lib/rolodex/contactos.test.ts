@@ -45,8 +45,15 @@ describe('contactosDe', () => {
     expect(wa).toEqual({ tipo: 'whatsapp', href: 'https://wa.me/525512345678' })
   })
 
-  it('un telefono invalido no ofrece boton de whatsapp', () => {
-    expect(contactosDe({ ...VACIO, phone: '123', phone_country_code: '+52' })).toEqual([])
+  // Antes un numero corto no ofrecia boton. Ahora si: quien dice si el numero
+  // existe es WhatsApp al abrirlo, no Anfiora al guardarlo.
+  it('un telefono corto igual ofrece boton de whatsapp', () => {
+    expect(contactosDe({ ...VACIO, phone: '123', phone_country_code: '+52' }))
+      .toEqual([{ tipo: 'whatsapp', href: 'https://wa.me/52123' }])
+  })
+
+  it('un telefono sin digitos no ofrece boton de whatsapp', () => {
+    expect(contactosDe({ ...VACIO, phone: 'pendiente', phone_country_code: '+52' })).toEqual([])
   })
 
   it('mailto con el correo tal cual', () => {
