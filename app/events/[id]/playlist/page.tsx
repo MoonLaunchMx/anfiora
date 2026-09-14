@@ -34,6 +34,7 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { Cargando } from '@/app/components/ui/Cargando'
+import { urlSpotifySegura } from '@/lib/playlist/publica'
 
 interface Song {
   id: string
@@ -124,6 +125,7 @@ function SongRow({
   const songDuration = formatSongDuration(song.duration_ms)
   const initial = getInitial(song.guest_name)
   const isHost = !!song.is_host_pick
+  const spotifyUrl = urlSpotifySegura(song.spotify_url)
 
   // Helper para evitar que el drag se active desde botones/inputs
   const stopDragPropagation = (e: React.PointerEvent) => e.stopPropagation()
@@ -207,10 +209,10 @@ function SongRow({
           >
             {song.notes ? <MessageSquareText size={17} /> : <Plus size={18} />}
           </button>}
-          {song.spotify_url && (
+          {spotifyUrl && (
             <button
               onPointerDown={stopDragPropagation}
-              onClick={() => window.open(song.spotify_url!, '_blank')}
+              onClick={() => window.open(spotifyUrl, '_blank', 'noopener,noreferrer')}
               className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg text-[#bbb] transition hover:bg-[#f5f5f5] hover:text-[#1DB954]"
               title="Abrir en Spotify"
             >
