@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import PhoneInput from '@/app/components/ui/PhoneInput'
+import AvisoPrivacidadLinea from '@/app/components/AvisoPrivacidadLinea'
 import { localeCountry, DEFAULT_COUNTRY, type CountryCode } from '@/lib/phone'
 import { montoAPagar } from '@/lib/puerta'
 import { formatCurrency, type Currency } from '@/lib/types'
@@ -150,6 +151,8 @@ export default function RegistroForm({ token, maxCompanions, botonClassName, tic
       >
         {sending ? (hasPrice ? 'Apartando...' : 'Registrando...') : (hasPrice ? 'Apartar mi lugar' : 'Confirmar mi lugar')}
       </button>
+
+      <AvisoPrivacidadLinea accion="registrarte" />
     </form>
   )
 }
