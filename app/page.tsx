@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import AuthModal from '@/app/components/auth/AuthModal'
+import LegalLinks from '@/app/components/LegalLinks'
 
 const SATOSHI = { fontFamily: 'Satoshi, sans-serif' }
 
@@ -83,7 +84,7 @@ const translations = {
       sub: 'Sin tarjeta de crédito. Listo en menos de 2 minutos.',
       btn: 'Crear mi primer evento gratis',
     },
-    footer: { copy: '© 2025 Anfiora · Hecho en México 🇲🇽', links: ['Privacidad', 'Términos', 'Contacto'] },
+    footer: { copy: '© 2026 Anfiora · Hecho en México 🇲🇽' },
     mockup: {
       tab: 'app.anfiora.mx · Boda García & López',
       event: 'Boda García & López',
@@ -174,7 +175,7 @@ const translations = {
       sub: 'No credit card required. Ready in under 2 minutes.',
       btn: 'Create my first event free',
     },
-    footer: { copy: '© 2025 Anfiora · Made in Mexico 🇲🇽', links: ['Privacy', 'Terms', 'Contact'] },
+    footer: { copy: '© 2026 Anfiora · Made in Mexico 🇲🇽' },
     mockup: {
       tab: 'app.anfiora.mx · García & López Wedding',
       event: 'García & López Wedding',
@@ -600,13 +601,9 @@ export default function LandingPage() {
 
         {/* FOOTER */}
         <footer className="border-t border-white/10 bg-[#1D1E20] px-5 py-4">
-          <div className="mx-auto flex max-w-6xl items-center justify-between gap-4">
+          <div className="mx-auto flex max-w-6xl flex-col items-center gap-3 sm:flex-row sm:justify-between sm:gap-4">
             <img src="/images/isotipoylogo.svg" alt="Anfiora" className="h-6 shrink-0 brightness-0 invert" />
-            <div className="flex shrink-0 gap-5">
-              {t.footer.links.map(link => (
-                <a key={link} href="#" className="whitespace-nowrap text-[10px] text-white/30 no-underline">{link}</a>
-              ))}
-            </div>
+            <LegalLinks tono="oscuro" idioma={lang} contacto />
             <p className="shrink-0 whitespace-nowrap text-[10px] text-white/20">{t.footer.copy}</p>
           </div>
         </footer>

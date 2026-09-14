@@ -8,6 +8,7 @@ import { Modal } from '@/app/components/ui/Modal'
 import { Lock, Eye, EyeOff, ChevronDown, X } from 'lucide-react'
 import { ROLES, getRole, Role } from '@/lib/roles'
 import PhoneInput from '@/app/components/ui/PhoneInput'
+import LegalLinks from '@/app/components/LegalLinks'
 import { borrarImagenAnterior, subirImagen } from '@/lib/workspace/subir'
 import { usuarioActual } from '@/lib/workspace/sesion'
 
@@ -521,6 +522,14 @@ export default function PerfilPage() {
             >
               Enviar
             </button>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-[#e8e8e8] px-4 py-3.5">
+            <span>
+              <span className="block text-sm font-semibold text-[#1D1E20]">Privacidad y términos</span>
+              <span className="block text-[11.5px] text-[#999]">Cómo cuidamos tus datos y los de tus invitados</span>
+            </span>
+            <LegalLinks nuevaPestana className="justify-start" />
           </div>
 
           <div className="flex items-center justify-between gap-4 border-t border-[#e8e8e8] px-4 py-3.5">

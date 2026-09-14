@@ -2,7 +2,8 @@
 
 import Image from 'next/image'
 import Link from 'next/link'
-import { CURRENT_LEGAL_VERSION, LEGAL_EFFECTIVE_DATE } from '@/lib/legal'
+import { CURRENT_LEGAL_VERSION, LEGAL_EFFECTIVE_DATE, LEGAL_RESPONSABLE, LEGAL_DOMICILIO, LEGAL_EMAIL } from '@/lib/legal'
+import LegalLinks from '@/app/components/LegalLinks'
 
 export default function EliminarDatosPage() {
   const fechaActualizacion = LEGAL_EFFECTIVE_DATE
@@ -49,8 +50,8 @@ export default function EliminarDatosPage() {
             <p>
               Esta página explica cómo solicitar la eliminación de sus datos personales tratados
               por Anfiora, la plataforma de gestión de eventos disponible en{' '}
-              <strong>www.anfiora.com</strong>. El responsable del tratamiento es Diego Garza
-              Rodríguez, con domicilio en Monterrey, Nuevo León, México.
+              <strong>www.anfiora.com</strong>. El responsable del tratamiento es {LEGAL_RESPONSABLE},
+              con domicilio para oír y recibir notificaciones en {LEGAL_DOMICILIO}.
             </p>
           </section>
 
@@ -95,7 +96,7 @@ export default function EliminarDatosPage() {
             </h2>
             <p className="mb-3">
               Envíe una solicitud por correo electrónico a{' '}
-              <strong>privacidad@anfiora.com</strong> con el asunto{' '}
+              <strong>{LEGAL_EMAIL}</strong> con el asunto{' '}
               <strong>&ldquo;Eliminación de datos&rdquo;</strong> e incluya:
             </p>
             <ul className="list-disc list-inside space-y-1 mb-3">
@@ -144,10 +145,7 @@ export default function EliminarDatosPage() {
           style={{ borderTop: '1px solid var(--border)', color: 'var(--text-muted)' }}
         >
           <span>© 2026 Anfiora. Todos los derechos reservados.</span>
-          <div className="flex gap-4">
-            <Link href="/privacidad" style={{ color: '#48C9B0' }}>Aviso de Privacidad</Link>
-            <Link href="/terminos" style={{ color: 'var(--text-muted)' }}>Términos y Condiciones</Link>
-          </div>
+          <LegalLinks contacto />
         </div>
 
       </main>

@@ -5,6 +5,8 @@ import { useParams } from 'next/navigation'
 import { Gift, Coins, Mail, ExternalLink, Check, Heart, Copy, Landmark, MapPin } from 'lucide-react'
 import { GiftRegistryItem, RegistryPaymentMethod, RegistryExternalLink, normalizePaymentMethods, formatShippingAddress, PHONE_COUNTRY_CODES, GIFT_CATEGORIES } from '@/lib/types'
 import { Modal } from '@/app/components/ui/Modal'
+import LegalLinks from '@/app/components/LegalLinks'
+import AvisoPrivacidadLinea from '@/app/components/AvisoPrivacidadLinea'
 
 type Aggregates = Record<string, { count: number; sum: number; buyers: number }>
 type ReserveMode = 'buy' | 'contribute'
@@ -302,6 +304,7 @@ export default function MesaPublicaPage() {
       <footer className="border-t border-[#eee4d6] bg-[#F5EFE3] py-6 text-center">
         <p className="text-base font-bold tracking-wide text-[#1D1E20]" style={josefin}>Anfiora</p>
         <p className="mt-1 text-[11px] text-[#aaa]">Tu mesa de regalos</p>
+        <LegalLinks nuevaPestana className="mt-3 px-4" />
       </footer>
 
       {active && (
@@ -625,6 +628,8 @@ function ReserveModal({
               </div>
 
               {error && <p className="text-xs text-[#cc3333]">{error}</p>}
+
+              <AvisoPrivacidadLinea accion="confirmar" />
             </div>
           </Modal.Body>
 

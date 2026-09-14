@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { notFound } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import AuthModal from '@/app/components/auth/AuthModal'
+import LegalLinks from '@/app/components/LegalLinks'
 import { SEGMENTS, SegmentConfig } from './config'
 
 type Lang = 'es' | 'en'
@@ -423,14 +424,10 @@ export default function SegmentClient({ config }: { config: SegmentConfig }) {
 
         {/* FOOTER */}
         <footer className="border-t border-white/10 bg-[#1D1E20] px-5 py-4">
-          <div className="mx-auto flex max-w-6xl items-center justify-between gap-4">
+          <div className="mx-auto flex max-w-6xl flex-col items-center gap-3 sm:flex-row sm:justify-between sm:gap-4">
             <img src="/images/isotipoylogo.svg" alt="Anfiora" className="h-6 shrink-0 brightness-0 invert" />
-            <div className="flex shrink-0 gap-5">
-              {['Privacidad', 'Términos', 'Contacto'].map(link => (
-                <a key={link} href="#" className="whitespace-nowrap text-[10px] text-white/30 no-underline">{link}</a>
-              ))}
-            </div>
-            <p className="shrink-0 whitespace-nowrap text-[10px] text-white/20">© 2025 Anfiora · Hecho en México</p>
+            <LegalLinks tono="oscuro" contacto />
+            <p className="shrink-0 whitespace-nowrap text-[10px] text-white/20">© 2026 Anfiora · Hecho en México</p>
           </div>
         </footer>
 

@@ -7,6 +7,7 @@ import EscalaCinco from '@/app/components/ui/EscalaCinco'
 import { anclasDe, EJES_DESEMPENO, NOMBRE_EJE, ANCLAS_RECOMENDACION_CLIENTE } from '@/lib/reviews/ejes'
 import type { Eje } from '@/lib/reviews/ejes'
 import { MAX_COMENTARIOS } from '@/lib/types'
+import LegalLinks from '@/app/components/LegalLinks'
 
 type Proveedor = { id: string; nombre: string; categoria: string }
 type Guardada = Partial<Record<Eje, number | null>> & {
@@ -82,6 +83,7 @@ function Cascara({ children }: { children: React.ReactNode }) {
       <div className="mx-auto w-full max-w-md px-5 pb-16 pt-8">
         <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-[#aaa]" style={josefin}>Anfiora</p>
         {children}
+        <LegalLinks nuevaPestana className="mt-12" />
       </div>
     </div>
   )
@@ -401,6 +403,8 @@ export default function OpinionPublicaPage() {
             )
           })}
         </ul>
+
+        <LegalLinks nuevaPestana className="mt-8" />
       </div>
 
       <footer className="fixed inset-x-0 bottom-0 z-20 border-t border-[#eee] bg-white/95 backdrop-blur">

@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { Music, Heart, Check } from 'lucide-react'
 import { resolveMaxSongs } from '@/lib/types'
+import LegalLinks from '@/app/components/LegalLinks'
 
 interface Event {
   id: string
@@ -560,6 +561,7 @@ export default function PlaylistPublicPage() {
         <footer className="mt-auto border-t border-[#eee4d6] bg-[#F5EFE3] py-6 text-center">
           <p className="text-base font-bold tracking-wide text-[#1D1E20]" style={josefin}>Anfiora</p>
           <p className="mt-1 text-[11px] text-[#aaa]">La playlist de tu evento</p>
+          <LegalLinks nuevaPestana className="mt-3 px-4" />
         </footer>
       </div>
     </div>
