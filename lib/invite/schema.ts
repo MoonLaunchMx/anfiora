@@ -63,6 +63,28 @@ const VideoContent = z.object({
   url: z.string().default(''),
   caption: z.string().default(''),
 })
+const RecoLinkSchema = z.object({
+  url: z.string().default(''),
+  titulo: z.string().default(''),
+  sitio: z.string().default(''),
+  imagen: z.string().default(''),
+  nota: z.string().default(''),
+})
+const RecoGrupoSchema = z.object({
+  id: z.string(),
+  nombre: z.string().default(''),
+  links: z.array(RecoLinkSchema).default([]),
+})
+// Los apartados nacen con id fijo: renombrar uno no le pierde sus links.
+const RecomendacionesContent = z.object({
+  titulo: z.string().default('Recomendaciones'),
+  descripcion: z.string().default(''),
+  grupos: z.array(RecoGrupoSchema).default(() => [
+    { id: 'hospedaje', nombre: 'Hospedaje', links: [] },
+    { id: 'lugares', nombre: 'Qué conocer', links: [] },
+    { id: 'vuelos', nombre: 'Vuelos', links: [] },
+  ]),
+})
 const AudioContent = z.object({
   url: z.string().default(''),
   drive_url: z.string().default(''),
@@ -86,6 +108,7 @@ export const CONTENT_BY_TYPE = {
   galeria: GaleriaContent,
   video: VideoContent,
   audio: AudioContent,
+  recomendaciones: RecomendacionesContent,
 } as const
 
 export type SectionType = keyof typeof CONTENT_BY_TYPE
@@ -107,6 +130,7 @@ export const SectionSchema = z.discriminatedUnion('type', [
   z.object({ id: z.string(), type: z.literal('galeria'),    content: GaleriaContent }),
   z.object({ id: z.string(), type: z.literal('video'),      content: VideoContent }),
   z.object({ id: z.string(), type: z.literal('audio'),      content: AudioContent }),
+  z.object({ id: z.string(), type: z.literal('recomendaciones'), content: RecomendacionesContent }),
 ])
 
 const RegistryPaymentMethodSchema = z.object({

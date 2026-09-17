@@ -7,6 +7,7 @@ import {
   SlidersHorizontal, Sparkles, Settings2, UtensilsCrossed,
   LayoutGrid, Images, Music2, Download, ListMusic,
   CalendarDays, CalendarPlus, Eye, Moon,
+  Hotel, NotebookPen, ImagePlus, EyeOff,
 } from 'lucide-react'
 import { CURRENT_VERSION, changelog, Release } from '@/lib/changelog'
 import { Modal } from '@/app/components/ui/Modal'
@@ -17,6 +18,7 @@ const ICON_MAP: Record<string, LucideIcon> = {
   LayoutList, User, Building2, AlertTriangle, Bell, Clock, Gift, Link2, Coins, Landmark, Heart,
   SlidersHorizontal, Sparkles, Settings2, UtensilsCrossed, Music2, Download, ListMusic,
   CalendarDays, CalendarPlus, Eye, Moon,
+  Hotel, NotebookPen, ImagePlus, EyeOff,
 }
 
 function HerramientasMockup() {
