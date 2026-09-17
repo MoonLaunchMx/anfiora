@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { planDeRestauracion, TABLA_POR_ENTIDAD, esConflictoDeLlave, tandasPorTabla, arrastrados, insercionDeFila, seleccionarParaRestaurar, type Insercion } from './restaurar'
+import { planDeRestauracion, anclarAlEvento, padresPorConfirmar, soloConPadresDelEvento, soltarAsignadosAjenos, TABLA_POR_ENTIDAD, esConflictoDeLlave, tandasPorTabla, arrastrados, insercionDeFila, seleccionarParaRestaurar, type Insercion } from './restaurar'
 import { ACCIONES_BORRADO, entidadDeAccion } from './vocabulario'
 import type { FilaAudit, Movimiento, Restauracion } from './tipos'
 
@@ -254,5 +254,87 @@ describe('seleccionarParaRestaurar', () => {
     ]
     expect(seleccionarParaRestaurar(filas, ['p1', 'g1'], NADIE).map(f => f.entity_type))
       .toEqual(['guest', 'party_member'])
+  })
+})
+
+function ins(tabla: string, fila: Record<string, unknown>): Insercion {
+  return { tabla, fila, entityId: fila.id as string, accionRestauracion: 'x.restored' }
+}
+
+describe('anclarAlEvento', () => {
+  it('fuerza el event_id del evento que se esta restaurando', () => {
+    const [r] = anclarAlEvento([ins('guests', { id: 'g1', event_id: 'OTRO' })], 'ev1')
+    expect(r.fila.event_id).toBe('ev1')
+  })
+
+  it('no le pone event_id a una tabla que no lo tiene', () => {
+    const [r] = anclarAlEvento([ins('supplier_payments', { id: 'p1', event_supplier_id: 'es1' })], 'ev1')
+    expect('event_id' in r.fila).toBe(false)
+  })
+
+  it('tira la fila cuyo id no es la entidad que se marca como restaurada', () => {
+    const falsa = { ...ins('guests', { id: 'g-ajeno', event_id: 'ev1' }), entityId: 'g1' }
+    expect(anclarAlEvento([falsa], 'ev1')).toEqual([])
+  })
+})
+
+describe('padresPorConfirmar', () => {
+  it('pide confirmar solo los padres que no vienen en el mismo plan', () => {
+    const plan = [
+      ins('guests', { id: 'g1' }),
+      ins('party_members', { id: 'pm1', guest_id: 'g1' }),
+      ins('party_members', { id: 'pm2', guest_id: 'g2' }),
+      ins('supplier_payments', { id: 'p1', event_supplier_id: null }),
+    ]
+    const r = padresPorConfirmar(plan)
+    expect([...r.keys()]).toEqual(['guests'])
+    expect([...r.get('guests')!]).toEqual(['g2'])
+  })
+})
+
+describe('soloConPadresDelEvento', () => {
+  it('deja pasar hijos de padres confirmados o del mismo plan, y sin padre', () => {
+    const plan = [
+      ins('guests', { id: 'g1' }),
+      ins('party_members', { id: 'pm1', guest_id: 'g1' }),
+      ins('party_members', { id: 'pm2', guest_id: 'g2' }),
+      ins('event_budgets', { id: 'b1', event_supplier_id: null }),
+    ]
+    const r = soloConPadresDelEvento(plan, new Map([['guests', new Set(['g2'])]]))
+    expect(r.map(i => i.entityId)).toEqual(['g1', 'pm1', 'pm2', 'b1'])
+  })
+
+  it('tira el pago que apunta a un proveedor de otro evento', () => {
+    const plan = [ins('supplier_payments', { id: 'p1', event_supplier_id: 'es-ajeno' })]
+    expect(soloConPadresDelEvento(plan, new Map())).toEqual([])
+  })
+
+  it('tira una llave que no es texto', () => {
+    const plan = [ins('party_members', { id: 'pm1', guest_id: 123 })]
+    expect(soloConPadresDelEvento(plan, new Map([['guests', new Set(['123'])]]))).toEqual([])
+  })
+})
+
+describe('llaves que salen del evento', () => {
+  it('tira el proveedor del evento que apunta al catalogo de otra cuenta', () => {
+    const plan = [ins('event_suppliers', { id: 'es1', supplier_id: 's-ajeno' })]
+    expect(padresPorConfirmar(plan).get('suppliers')).toEqual(new Set(['s-ajeno']))
+    expect(soloConPadresDelEvento(plan, new Map([['suppliers', new Set(['s-mio'])]]))).toEqual([])
+  })
+
+  it('tira la partida con categoria ajena aunque su proveedor sea del evento', () => {
+    const plan = [ins('event_budgets', { id: 'b1', event_supplier_id: 'es1', category_id: 'c-ajena' })]
+    const confirmados = new Map([['event_suppliers', new Set(['es1'])], ['categories', new Set<string>()]])
+    expect(soloConPadresDelEvento(plan, confirmados)).toEqual([])
+  })
+
+  it('suelta la asignacion a alguien que no es del evento y conserva la tarea', () => {
+    const plan = [
+      ins('event_timeline_tasks', { id: 't1', assigned_to_user_id: 'u-ajeno' }),
+      ins('event_timeline_tasks', { id: 't2', assigned_to_user_id: 'u1' }),
+      ins('event_timeline_tasks', { id: 't3', assigned_to_user_id: null }),
+    ]
+    const r = soltarAsignadosAjenos(plan, new Set(['u1']))
+    expect(r.map(i => i.fila.assigned_to_user_id)).toEqual([null, 'u1', null])
   })
 })
