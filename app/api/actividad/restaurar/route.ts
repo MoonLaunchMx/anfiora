@@ -2,7 +2,8 @@ import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { mapaDeRestauraciones } from '@/lib/actividad/agrupar'
 import {
-  arrastrados, insercionDeFila, seleccionarParaRestaurar, tandasPorTabla,
+  anclarAlEvento, arrastrados, insercionDeFila, PADRES_DEL_CATALOGO, padresPorConfirmar,
+  seleccionarParaRestaurar, soloConPadresDelEvento, soltarAsignadosAjenos, tandasPorTabla,
   type Insercion,
 } from '@/lib/actividad/restaurar'
 import { entidadDeAccion, moduloDeEntidad } from '@/lib/actividad/vocabulario'
@@ -72,10 +73,35 @@ export async function POST(req: NextRequest) {
   const plan = [...base, ...extra.map(insercionDeFila).filter((i): i is Insercion => i !== null)]
   const fuentes = [...elegidas, ...extra]
 
-  const hechas: Insercion[] = []
-  let fallo: string | null = null
+  // Service role no respeta RLS: lo que se escribe tiene que quedar dentro de
+  // ESTE evento, colgado de padres de este evento.
+  const anclado = anclarAlEvento(plan, eventId)
+  const confirmados = new Map<string, Set<string>>()
+  for (const [tablaPadre, ids] of padresPorConfirmar(anclado)) {
+    const delCatalogo = PADRES_DEL_CATALOGO.has(tablaPadre)
+    if (delCatalogo && !evento?.user_id) { confirmados.set(tablaPadre, new Set()); continue }
+    const { data, error } = await admin
+      .from(tablaPadre).select('id')
+      .eq(delCatalogo ? 'user_id' : 'event_id', delCatalogo ? evento!.user_id : eventId)
+      .in('id', [...ids])
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    confirmados.set(tablaPadre, new Set((data ?? []).map(r => r.id as string)))
+  }
 
-  for (const tanda of tandasPorTabla(plan)) {
+  const { data: equipo, error: errEquipo } = await admin
+    .from('event_collaborators').select('user_id').eq('event_id', eventId).eq('status', 'active')
+  if (errEquipo) return NextResponse.json({ error: errEquipo.message }, { status: 500 })
+  const miembros = new Set([evento?.user_id, ...(equipo ?? []).map(c => c.user_id)]
+    .filter((id): id is string => typeof id === 'string'))
+
+  const seguro = soltarAsignadosAjenos(soloConPadresDelEvento(anclado, confirmados), miembros)
+
+  const hechas: Insercion[] = []
+  let fallo: string | null = seguro.length < plan.length
+    ? 'Algunos registros no pertenecen a este evento y no se restauraron.'
+    : null
+
+  for (const tanda of tandasPorTabla(seguro)) {
     const { error } = await admin
       .from(tanda[0].tabla)
       .upsert(tanda.map(i => i.fila), { onConflict: 'id', ignoreDuplicates: true })
