@@ -479,6 +479,40 @@ function RecomendacionesField({
   )
 }
 
+function OpcionesFila({
+  label, value, options, onChange, hint,
+}: {
+  label: string
+  value: string
+  options: { value: string; label: string }[]
+  onChange: (v: string) => void
+  hint?: string
+}) {
+  return (
+    <div>
+      <label className="mb-1.5 block text-xs font-medium text-[#555]">{label}</label>
+      <div className="flex flex-wrap gap-1.5">
+        {options.map(o => (
+          <button
+            key={o.value}
+            type="button"
+            aria-pressed={o.value === value}
+            onClick={() => onChange(o.value)}
+            className={`rounded-full border px-3 py-1.5 text-xs transition ${
+              o.value === value
+                ? 'border-[#48C9B0] bg-[#f0fdfb] font-medium text-[#1D1E20]'
+                : 'border-[#e0e0e0] bg-white text-[#666] hover:border-[#c8c8c8]'
+            }`}
+          >
+            {o.label}
+          </button>
+        ))}
+      </div>
+      {hint && <p className="mt-1.5 text-[11px] text-[#999]">{hint}</p>}
+    </div>
+  )
+}
+
 function FieldRow({ children }: { children: ReactNode }) {
   return <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">{children}</div>
 }
@@ -698,6 +732,25 @@ export default function SectionForm({
             <TextField label="Título" value={section.content.titulo} onChange={v => onPatch({ titulo: v })} placeholder="Nombre de los anfitriones" />
           </FieldRow>
           <TextAreaField label="Subtítulo" value={section.content.subtitulo} onChange={v => onPatch({ subtitulo: v })} placeholder="Una frase corta de bienvenida" />
+          <OpcionesFila
+            label="Cómo se muestra la fecha"
+            value={section.content.fecha_modo}
+            onChange={v => onPatch({ fecha_modo: v })}
+            options={[
+              { value: 'auto', label: 'Todos los días' },
+              { value: 'inicio', label: 'Solo el primer día' },
+              { value: 'libre', label: 'La escribo yo' },
+            ]}
+            hint="Un evento de varios días se ve como “9 al 11 de octubre de 2026”."
+          />
+          {section.content.fecha_modo === 'libre' && (
+            <TextField label="Texto de la fecha" value={section.content.fecha_texto} onChange={v => onPatch({ fecha_texto: v })} placeholder="Fin de semana del 9 al 11 de octubre" />
+          )}
+          <MoreOptions>
+            <ToggleField label="Mostrar la fecha" value={section.content.mostrar_fecha} onChange={v => onPatch({ mostrar_fecha: v })} />
+            <ToggleField label="Mostrar la hora" value={section.content.mostrar_hora} onChange={v => onPatch({ mostrar_hora: v })} />
+            <ToggleField label="Mostrar el lugar" value={section.content.mostrar_lugar} onChange={v => onPatch({ mostrar_lugar: v })} />
+          </MoreOptions>
         </div>
       )
     case 'saludo':

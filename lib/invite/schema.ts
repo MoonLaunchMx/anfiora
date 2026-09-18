@@ -5,6 +5,13 @@ const PortadaContent = z.object({
   kicker: z.string().default(''),
   titulo: z.string().default(''),
   subtitulo: z.string().default(''),
+  // Todo se muestra por defecto; el anfitrion apaga lo que no quiera.
+  mostrar_fecha: z.boolean().default(true),
+  mostrar_hora: z.boolean().default(true),
+  mostrar_lugar: z.boolean().default(true),
+  // 'auto' usa el rango del evento; 'inicio' solo el primer dia; 'libre' el texto del anfitrion.
+  fecha_modo: z.enum(['auto', 'inicio', 'libre']).default('auto'),
+  fecha_texto: z.string().default(''),
 })
 const SaludoContent = z.object({
   titulo: z.string().default('Hola'),
