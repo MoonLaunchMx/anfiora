@@ -1,18 +1,11 @@
 import { describe, it, expect } from 'vitest'
 import {
   normalizarUrl, sitioDeUrl, tituloDeRespaldo, nuevoLink,
-  gruposVisibles, mostrarEtiquetas,
-  agregarLink, actualizarLink, quitarLink, moverLink,
-  agregarApartado, quitarApartado, renombrarApartado,
-  MAX_APARTADOS, MAX_LINKS_POR_APARTADO,
-  type RecoGrupo,
+  agregarLink, actualizarLink, quitarLink, moverLink, bloquesDesdeGrupos,
+  MAX_LINKS_POR_BLOQUE,
 } from './recomendaciones'
 
-const grupo = (id: string, n: number): RecoGrupo => ({
-  id,
-  nombre: id,
-  links: Array.from({ length: n }, (_, i) => nuevoLink(`https://sitio${i}.com/`)),
-})
+const links = (n: number) => Array.from({ length: n }, (_, i) => nuevoLink(`https://sitio${i}.com/`))
 
 describe('normalizarUrl', () => {
   it('completa el esquema cuando el planner pega el dominio pelado', () => {
@@ -42,64 +35,49 @@ describe('sitio y titulo de respaldo', () => {
     expect(tituloDeRespaldo('no-es-url')).toBe('Enlace')
   })
   it('nuevoLink deja titulo y sitio listos aunque falle la vista previa', () => {
-    expect(nuevoLink('https://www.aeromexico.com/vuelos')).toEqual({
-      url: 'https://www.aeromexico.com/vuelos', titulo: 'Aeromexico', sitio: 'aeromexico.com', imagen: '', nota: '',
+    expect(nuevoLink('https://www.ado.com.mx/rutas')).toEqual({
+      url: 'https://www.ado.com.mx/rutas', titulo: 'Ado', sitio: 'ado.com.mx', imagen: '', nota: '',
     })
   })
 })
 
-describe('que se muestra en la invitacion', () => {
-  it('un apartado sin links no se muestra', () => {
-    const grupos = [grupo('hospedaje', 2), grupo('lugares', 0), grupo('vuelos', 1)]
-    expect(gruposVisibles(grupos).map(g => g.id)).toEqual(['hospedaje', 'vuelos'])
+describe('editar los links del bloque', () => {
+  it('agrega al final', () => {
+    const next = agregarLink(links(1), nuevoLink('https://aeromexico.com/'))
+    expect(next.map(l => l.sitio)).toEqual(['sitio0.com', 'aeromexico.com'])
   })
-  it('con un solo apartado con links no se pintan las etiquetas', () => {
-    expect(mostrarEtiquetas([grupo('vuelos', 2), grupo('lugares', 0)])).toBe(false)
-    expect(mostrarEtiquetas([grupo('vuelos', 2), grupo('lugares', 1)])).toBe(true)
-  })
-  it('sin links no hay nada visible', () => {
-    expect(gruposVisibles([grupo('a', 0)])).toEqual([])
-    expect(mostrarEtiquetas([grupo('a', 0)])).toBe(false)
-  })
-})
-
-describe('editar links', () => {
-  it('agrega al final del apartado correcto', () => {
-    const grupos = [grupo('hospedaje', 1), grupo('vuelos', 0)]
-    const next = agregarLink(grupos, 'vuelos', nuevoLink('https://aeromexico.com/'))
-    expect(next[1].links.map(l => l.sitio)).toEqual(['aeromexico.com'])
-    expect(next[0].links).toHaveLength(1)
-  })
-  it('no pasa del tope de links por apartado', () => {
-    const lleno = [grupo('hospedaje', MAX_LINKS_POR_APARTADO)]
-    const next = agregarLink(lleno, 'hospedaje', nuevoLink('https://otro.com/'))
-    expect(next[0].links).toHaveLength(MAX_LINKS_POR_APARTADO)
+  it('no pasa del tope de links por bloque', () => {
+    const next = agregarLink(links(MAX_LINKS_POR_BLOQUE), nuevoLink('https://otro.com/'))
+    expect(next).toHaveLength(MAX_LINKS_POR_BLOQUE)
   })
   it('actualiza titulo, foto y nota de un link', () => {
-    const next = actualizarLink([grupo('hospedaje', 2)], 'hospedaje', 1, { titulo: 'Casa Lecanda', nota: 'Centro' })
-    expect(next[0].links[1].titulo).toBe('Casa Lecanda')
-    expect(next[0].links[1].nota).toBe('Centro')
-    expect(next[0].links[0].titulo).toBe('Sitio0')
+    const next = actualizarLink(links(2), 1, { titulo: 'Casa Lecanda', nota: 'Centro' })
+    expect(next[1].titulo).toBe('Casa Lecanda')
+    expect(next[1].nota).toBe('Centro')
+    expect(next[0].titulo).toBe('Sitio0')
   })
-  it('quita y mueve sin tocar los demas apartados', () => {
-    const grupos = [grupo('hospedaje', 3), grupo('vuelos', 2)]
-    expect(quitarLink(grupos, 'hospedaje', 1)[0].links.map(l => l.sitio)).toEqual(['sitio0.com', 'sitio2.com'])
-    expect(moverLink(grupos, 'hospedaje', 0, 1)[0].links.map(l => l.sitio)).toEqual(['sitio1.com', 'sitio0.com', 'sitio2.com'])
-    expect(moverLink(grupos, 'hospedaje', 0, -1)[0].links.map(l => l.sitio)).toEqual(['sitio0.com', 'sitio1.com', 'sitio2.com'])
-    expect(moverLink(grupos, 'hospedaje', 2, 1)[0].links).toHaveLength(3)
-    expect(quitarLink(grupos, 'hospedaje', 1)[1].links).toHaveLength(2)
+  it('quita por posicion', () => {
+    expect(quitarLink(links(3), 1).map(l => l.sitio)).toEqual(['sitio0.com', 'sitio2.com'])
+  })
+  it('mueve arriba y abajo, y se queda quieto en los extremos', () => {
+    expect(moverLink(links(3), 0, 1).map(l => l.sitio)).toEqual(['sitio1.com', 'sitio0.com', 'sitio2.com'])
+    expect(moverLink(links(3), 0, -1).map(l => l.sitio)).toEqual(['sitio0.com', 'sitio1.com', 'sitio2.com'])
+    expect(moverLink(links(3), 2, 1).map(l => l.sitio)).toEqual(['sitio0.com', 'sitio1.com', 'sitio2.com'])
   })
 })
 
-describe('editar apartados', () => {
-  it('agrega, renombra y quita', () => {
-    const grupos = agregarApartado([grupo('hospedaje', 1)], 'g2', 'Transporte')
-    expect(grupos.map(g => g.nombre)).toEqual(['hospedaje', 'Transporte'])
-    expect(renombrarApartado(grupos, 'g2', 'Traslados')[1].nombre).toBe('Traslados')
-    expect(quitarApartado(grupos, 'hospedaje').map(g => g.id)).toEqual(['g2'])
+describe('migracion de los apartados viejos', () => {
+  it('cada apartado con links se vuelve un bloque con su nombre', () => {
+    const grupos = [
+      { id: 'hospedaje', nombre: 'Hospedaje', links: links(2) },
+      { id: 'lugares', nombre: 'Qué conocer', links: [] },
+      { id: 'vuelos', nombre: 'Vuelos', links: links(1) },
+    ]
+    expect(bloquesDesdeGrupos(grupos).map(b => [b.titulo, b.links.length])).toEqual([['Hospedaje', 2], ['Vuelos', 1]])
   })
-  it('no pasa del tope de apartados', () => {
-    const llenos = Array.from({ length: MAX_APARTADOS }, (_, i) => grupo(`g${i}`, 0))
-    expect(agregarApartado(llenos, 'extra')).toHaveLength(MAX_APARTADOS)
+  it('sin apartados con links no genera bloques', () => {
+    expect(bloquesDesdeGrupos([{ id: 'a', nombre: 'A', links: [] }])).toEqual([])
+    expect(bloquesDesdeGrupos(undefined)).toEqual([])
+    expect(bloquesDesdeGrupos('roto')).toEqual([])
   })
 })

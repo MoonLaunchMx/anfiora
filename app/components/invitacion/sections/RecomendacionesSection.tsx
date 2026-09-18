@@ -4,7 +4,7 @@ import type { Section } from '@/lib/invite/schema'
 import type { InviteCtx } from '../types'
 import { ArrowUpRight } from 'lucide-react'
 import SectionShell from '../SectionShell'
-import { gruposVisibles, mostrarEtiquetas, tituloDeRespaldo, type RecoLink } from '@/lib/invite/recomendaciones'
+import { tituloDeRespaldo, type RecoLink } from '@/lib/invite/recomendaciones'
 
 type Content = Extract<Section, { type: 'recomendaciones' }>['content']
 
@@ -59,9 +59,7 @@ function LinkRow({ link }: { link: RecoLink }) {
 }
 
 export default function RecomendacionesSection({ content, ctx }: { content: Content; ctx: InviteCtx }) {
-  const visibles = gruposVisibles(content.grupos)
-
-  if (visibles.length === 0) {
+  if (content.links.length === 0) {
     if (ctx.mode !== 'preview') return null
     return (
       <SectionShell variant="band" className="text-center">
@@ -75,38 +73,24 @@ export default function RecomendacionesSection({ content, ctx }: { content: Cont
     )
   }
 
-  const conEtiquetas = mostrarEtiquetas(content.grupos)
-
   return (
     <SectionShell variant="band">
-      <h2
-        className="px-2 text-center text-xl font-semibold lg:text-2xl"
-        style={{ color: 'var(--inv-texto-titulo)', fontFamily: 'var(--inv-font-titulo)' }}
-      >
-        {content.titulo}
-      </h2>
+      {content.titulo.trim() && (
+        <h2
+          className="px-2 text-center text-xl font-semibold lg:text-2xl"
+          style={{ color: 'var(--inv-texto-titulo)', fontFamily: 'var(--inv-font-titulo)' }}
+        >
+          {content.titulo}
+        </h2>
+      )}
       {content.descripcion.trim() && (
         <p className="mx-auto mt-3 max-w-md text-center text-sm leading-relaxed opacity-70" style={{ color: 'var(--inv-texto)' }}>
           {content.descripcion}
         </p>
       )}
 
-      <div className="mx-auto mt-6 flex max-w-md flex-col gap-5">
-        {visibles.map(grupo => (
-          <div key={grupo.id}>
-            {conEtiquetas && grupo.nombre.trim() && (
-              <div className="mb-3 flex items-center gap-3">
-                <span className="text-xs font-semibold uppercase tracking-[0.14em]" style={{ color: 'var(--inv-acento)' }}>
-                  {grupo.nombre}
-                </span>
-                <span className="h-px flex-1 bg-[#e8e8e8]" />
-              </div>
-            )}
-            <div className="flex flex-col gap-2">
-              {grupo.links.map((link, i) => <LinkRow key={`${link.url}-${i}`} link={link} />)}
-            </div>
-          </div>
-        ))}
+      <div className="mx-auto mt-6 flex max-w-md flex-col gap-2">
+        {content.links.map((link, i) => <LinkRow key={`${link.url}-${i}`} link={link} />)}
       </div>
     </SectionShell>
   )

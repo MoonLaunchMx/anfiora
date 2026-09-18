@@ -1,5 +1,9 @@
-export const MAX_APARTADOS = 6
-export const MAX_LINKS_POR_APARTADO = 10
+export const MAX_LINKS_POR_BLOQUE = 12
+
+// Atajos para no escribir: el planner igual puede poner el nombre que quiera.
+export const NOMBRES_SUGERIDOS = [
+  'Hospedaje', 'Vuelos', 'Transporte', 'Renta de autos', 'Autobuses', 'Restaurantes', 'Qué conocer', 'Tours',
+]
 
 export type RecoLink = {
   url: string
@@ -7,12 +11,6 @@ export type RecoLink = {
   sitio: string
   imagen: string
   nota: string
-}
-
-export type RecoGrupo = {
-  id: string
-  nombre: string
-  links: RecoLink[]
 }
 
 export function normalizarUrl(raw: string): string | null {
@@ -41,59 +39,38 @@ export function nuevoLink(url: string): RecoLink {
   return { url, titulo: tituloDeRespaldo(url), sitio: sitioDeUrl(url), imagen: '', nota: '' }
 }
 
-export function gruposVisibles(grupos: RecoGrupo[]): RecoGrupo[] {
-  return grupos.filter(g => g.links.length > 0)
+export function agregarLink(links: RecoLink[], link: RecoLink): RecoLink[] {
+  return links.length >= MAX_LINKS_POR_BLOQUE ? links : [...links, link]
 }
 
-// Con un solo apartado con links su etiqueta no aporta nada: el titulo del
-// bloque ya dice de que va la seccion.
-export function mostrarEtiquetas(grupos: RecoGrupo[]): boolean {
-  return gruposVisibles(grupos).length > 1
+export function actualizarLink(links: RecoLink[], index: number, patch: Partial<RecoLink>): RecoLink[] {
+  return links.map((l, i) => (i === index ? { ...l, ...patch } : l))
 }
 
-function mapGrupo(grupos: RecoGrupo[], grupoId: string, fn: (g: RecoGrupo) => RecoGrupo): RecoGrupo[] {
-  return grupos.map(g => (g.id === grupoId ? fn(g) : g))
+export function quitarLink(links: RecoLink[], index: number): RecoLink[] {
+  return links.filter((_, i) => i !== index)
 }
 
-export function agregarLink(grupos: RecoGrupo[], grupoId: string, link: RecoLink): RecoGrupo[] {
-  return mapGrupo(grupos, grupoId, g =>
-    g.links.length >= MAX_LINKS_POR_APARTADO ? g : { ...g, links: [...g.links, link] },
-  )
+export function moverLink(links: RecoLink[], index: number, dir: -1 | 1): RecoLink[] {
+  const target = index + dir
+  if (index < 0 || index >= links.length) return links
+  if (target < 0 || target >= links.length) return links
+  const next = [...links]
+  ;[next[index], next[target]] = [next[target], next[index]]
+  return next
 }
 
-export function actualizarLink(
-  grupos: RecoGrupo[], grupoId: string, index: number, patch: Partial<RecoLink>,
-): RecoGrupo[] {
-  return mapGrupo(grupos, grupoId, g => ({
-    ...g,
-    links: g.links.map((l, i) => (i === index ? { ...l, ...patch } : l)),
-  }))
-}
+// La version anterior guardaba apartados dentro de un solo bloque. Cada
+// apartado con links se convierte en su propio bloque, con su nombre de titulo.
+type BloqueLegacy = { nombre?: unknown; links?: unknown }
 
-export function quitarLink(grupos: RecoGrupo[], grupoId: string, index: number): RecoGrupo[] {
-  return mapGrupo(grupos, grupoId, g => ({ ...g, links: g.links.filter((_, i) => i !== index) }))
-}
-
-export function moverLink(grupos: RecoGrupo[], grupoId: string, index: number, dir: -1 | 1): RecoGrupo[] {
-  return mapGrupo(grupos, grupoId, g => {
-    const target = index + dir
-    if (index < 0 || index >= g.links.length) return g
-    if (target < 0 || target >= g.links.length) return g
-    const links = [...g.links]
-    ;[links[index], links[target]] = [links[target], links[index]]
-    return { ...g, links }
-  })
-}
-
-export function agregarApartado(grupos: RecoGrupo[], id: string, nombre = ''): RecoGrupo[] {
-  if (grupos.length >= MAX_APARTADOS) return grupos
-  return [...grupos, { id, nombre, links: [] }]
-}
-
-export function quitarApartado(grupos: RecoGrupo[], grupoId: string): RecoGrupo[] {
-  return grupos.filter(g => g.id !== grupoId)
-}
-
-export function renombrarApartado(grupos: RecoGrupo[], grupoId: string, nombre: string): RecoGrupo[] {
-  return mapGrupo(grupos, grupoId, g => ({ ...g, nombre }))
+export function bloquesDesdeGrupos(grupos: unknown): { titulo: string; links: RecoLink[] }[] {
+  if (!Array.isArray(grupos)) return []
+  return grupos
+    .map(g => {
+      const grupo = (g ?? {}) as BloqueLegacy
+      const links = Array.isArray(grupo.links) ? (grupo.links as RecoLink[]) : []
+      return { titulo: typeof grupo.nombre === 'string' ? grupo.nombre : '', links }
+    })
+    .filter(b => b.links.length > 0)
 }

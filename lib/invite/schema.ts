@@ -70,20 +70,12 @@ const RecoLinkSchema = z.object({
   imagen: z.string().default(''),
   nota: z.string().default(''),
 })
-const RecoGrupoSchema = z.object({
-  id: z.string(),
-  nombre: z.string().default(''),
-  links: z.array(RecoLinkSchema).default([]),
-})
-// Los apartados nacen con id fijo: renombrar uno no le pierde sus links.
+// El bloque se agrega las veces que haga falta: uno por tema, con el nombre
+// que le ponga el planner (Hospedaje, Renta de autos, Autobuses...).
 const RecomendacionesContent = z.object({
-  titulo: z.string().default('Recomendaciones'),
+  titulo: z.string().default(''),
   descripcion: z.string().default(''),
-  grupos: z.array(RecoGrupoSchema).default(() => [
-    { id: 'hospedaje', nombre: 'Hospedaje', links: [] },
-    { id: 'lugares', nombre: 'Qué conocer', links: [] },
-    { id: 'vuelos', nombre: 'Vuelos', links: [] },
-  ]),
+  links: z.array(RecoLinkSchema).default([]),
 })
 const AudioContent = z.object({
   url: z.string().default(''),

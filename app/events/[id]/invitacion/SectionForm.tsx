@@ -6,8 +6,7 @@ import { Upload, X, CheckCircle2, Mic, Square, ChevronDown, ChevronUp, ChevronLe
 import {
   normalizarUrl, sitioDeUrl, tituloDeRespaldo, nuevoLink,
   agregarLink, actualizarLink, quitarLink, moverLink,
-  agregarApartado, quitarApartado, renombrarApartado,
-  MAX_APARTADOS, MAX_LINKS_POR_APARTADO, type RecoGrupo,
+  MAX_LINKS_POR_BLOQUE, NOMBRES_SUGERIDOS, type RecoLink,
 } from '@/lib/invite/recomendaciones'
 import type { Section } from '@/lib/invite/schema'
 import { parseVideoUrl } from '@/lib/invite/video'
@@ -296,19 +295,17 @@ function RecomendacionesField({
   content: Extract<Section, { type: 'recomendaciones' }>['content']
   onPatch: (patch: Record<string, unknown>) => void
 }) {
-  const grupos = content.grupos as RecoGrupo[]
-  const gruposRef = useRef(grupos)
-  gruposRef.current = grupos
-  const [borrador, setBorrador] = useState<Record<string, string>>({})
+  const links = content.links as RecoLink[]
+  const linksRef = useRef(links)
+  linksRef.current = links
+  const [borrador, setBorrador] = useState('')
   const [estado, setEstado] = useState<Record<string, 'cargando' | 'sin_preview'>>({})
-  const [abierto, setAbierto] = useState<string | null>(null)
+  const [abierto, setAbierto] = useState<number | null>(null)
   const [error, setError] = useState('')
-
-  const patchGrupos = (next: RecoGrupo[]) => onPatch({ grupos: next })
 
   // La vista previa se guarda al editar: el invitado abre la invitacion sin
   // esperar a que ningun sitio responda.
-  const leerPreview = async (grupoId: string, url: string) => {
+  const leerPreview = async (url: string) => {
     setEstado(e => ({ ...e, [url]: 'cargando' }))
     let data: { ok?: boolean; title?: string | null; image?: string | null; store?: string | null } = {}
     try {
@@ -324,188 +321,160 @@ function RecomendacionesField({
     })
     if (!sirvio) return
     onPatch({
-      grupos: gruposRef.current.map(g => g.id !== grupoId ? g : {
-        ...g,
-        links: g.links.map(l => l.url !== url ? l : {
-          ...l,
-          titulo: data.title?.trim() || l.titulo,
-          imagen: data.image || l.imagen,
-          sitio: l.sitio || data.store || '',
-        }),
+      links: linksRef.current.map(l => l.url !== url ? l : {
+        ...l,
+        titulo: data.title?.trim() || l.titulo,
+        imagen: data.image || l.imagen,
+        sitio: l.sitio || data.store || '',
       }),
     })
   }
 
-  const agregar = (grupoId: string) => {
+  const agregar = () => {
     setError('')
-    const url = normalizarUrl(borrador[grupoId] || '')
+    const url = normalizarUrl(borrador)
     if (!url) { setError('Revisa el enlace: pega la direccion completa del sitio.'); return }
-    const grupo = grupos.find(g => g.id === grupoId)
-    if (grupo && grupo.links.length >= MAX_LINKS_POR_APARTADO) {
-      setError(`Maximo ${MAX_LINKS_POR_APARTADO} links por apartado.`)
+    if (links.length >= MAX_LINKS_POR_BLOQUE) {
+      setError(`Maximo ${MAX_LINKS_POR_BLOQUE} links por bloque. Agrega otro bloque de recomendaciones.`)
       return
     }
-    patchGrupos(agregarLink(grupos, grupoId, nuevoLink(url)))
-    setBorrador(b => ({ ...b, [grupoId]: '' }))
-    leerPreview(grupoId, url)
+    onPatch({ links: agregarLink(links, nuevoLink(url)) })
+    setBorrador('')
+    leerPreview(url)
   }
 
   return (
     <div className="flex flex-col gap-3">
-      <FieldRow>
-        <TextField label="Título" value={content.titulo} onChange={v => onPatch({ titulo: v })} placeholder="Recomendaciones" />
-        <TextField label="Texto opcional" value={content.descripcion} onChange={v => onPatch({ descripcion: v })} placeholder="Lo que te puede servir para tu viaje" />
-      </FieldRow>
+      <TextField label="Título del bloque" value={content.titulo} onChange={v => onPatch({ titulo: v })} placeholder="Hospedaje" />
 
-      {grupos.map(grupo => (
-        <div key={grupo.id} className="rounded-xl border border-[#e8e8e8] bg-white p-3">
-          <div className="mb-2 flex items-center gap-2">
-            <input
-              type="text"
-              value={grupo.nombre}
-              onChange={e => patchGrupos(renombrarApartado(grupos, grupo.id, e.target.value))}
-              placeholder="Nombre del apartado"
-              aria-label="Nombre del apartado"
-              className="min-w-0 flex-1 border-b border-transparent bg-transparent py-1 text-sm font-semibold text-[#1D1E20] outline-none transition focus:border-[#48C9B0]"
-            />
+      {!content.titulo.trim() && (
+        <div className="flex flex-wrap gap-1.5">
+          {NOMBRES_SUGERIDOS.map(nombre => (
             <button
+              key={nombre}
               type="button"
-              onClick={() => patchGrupos(quitarApartado(grupos, grupo.id))}
-              className="flex h-7 w-7 items-center justify-center rounded-lg text-[#bbb] transition hover:bg-[#fff0f0] hover:text-[#cc3333]"
-              title="Quitar apartado"
+              onClick={() => onPatch({ titulo: nombre })}
+              className="rounded-full border border-[#e0e0e0] bg-white px-2.5 py-1 text-xs text-[#555] transition hover:border-[#48C9B0] hover:text-[#1D1E20]"
             >
-              <Trash2 size={14} />
+              {nombre}
             </button>
-          </div>
-
-          {grupo.links.length === 0 && (
-            <p className="mb-2 text-[11px] text-[#999]">Sin links. Este apartado no se muestra en la invitación.</p>
-          )}
-
-          {grupo.links.map((link, i) => {
-            const key = `${grupo.id}-${i}-${link.url}`
-            const cargando = estado[link.url] === 'cargando'
-            const sinPreview = estado[link.url] === 'sin_preview'
-            return (
-              <div key={key} className="flex gap-2.5 border-b border-[#f2f2f2] py-2.5 last:border-b-0">
-                {link.imagen ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={link.imagen} alt="" loading="lazy" className="h-12 w-12 shrink-0 rounded-md object-cover" />
-                ) : (
-                  <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md border border-dashed border-[#ddd] bg-[#fafafa] text-[#bbb]">
-                    <ImageIcon size={15} />
-                  </span>
-                )}
-
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-[#1D1E20]">{link.titulo || tituloDeRespaldo(link.url)}</p>
-                  <p className="truncate text-[11px] text-[#999]">{link.sitio || link.url}</p>
-                  {link.nota.trim() && abierto !== key && <p className="mt-0.5 text-[11px] text-[#555]">{link.nota}</p>}
-                  {cargando && (
-                    <p className="mt-1 flex items-center gap-1.5 text-[11px] text-[#999]">
-                      <Loader2 size={12} className="animate-spin" /> Leyendo el link...
-                    </p>
-                  )}
-                  {sinPreview && (
-                    <p className="mt-1 flex items-center gap-1.5 text-[11px] text-[#b8912f]">
-                      <AlertCircle size={12} /> Sin vista previa. Ponle título y foto.
-                    </p>
-                  )}
-
-                  {abierto === key && (
-                    <div className="mt-2 flex flex-col gap-2 rounded-lg border border-[#eee] bg-[#fafafa] p-2.5">
-                      <TextField label="Título" value={link.titulo} onChange={v => patchGrupos(actualizarLink(grupos, grupo.id, i, { titulo: v }))} placeholder="Nombre del lugar" />
-                      <TextField label="Nota opcional" value={link.nota} onChange={v => patchGrupos(actualizarLink(grupos, grupo.id, i, { nota: v }))} placeholder="Menciona el evento para tarifa preferencial" />
-                      <TextField label="Enlace" value={link.url} onChange={v => patchGrupos(actualizarLink(grupos, grupo.id, i, { url: v, sitio: sitioDeUrl(v) }))} placeholder="https://" />
-                      <ImageUploadButton onUploaded={u => patchGrupos(actualizarLink(grupos, grupo.id, i, { imagen: u }))} />
-                      {link.imagen && (
-                        <button
-                          type="button"
-                          onClick={() => patchGrupos(actualizarLink(grupos, grupo.id, i, { imagen: '' }))}
-                          className="self-start text-[11px] font-medium text-[#888] transition hover:text-[#cc3333]"
-                        >
-                          Quitar foto
-                        </button>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                <div className="flex shrink-0 flex-col items-center">
-                  <button
-                    type="button"
-                    onClick={() => setAbierto(a => (a === key ? null : key))}
-                    className="flex h-7 w-7 items-center justify-center rounded-lg text-[#aaa] transition hover:bg-[#f5f5f5] hover:text-[#555]"
-                    title={abierto === key ? 'Listo' : 'Editar'}
-                  >
-                    <Pencil size={14} />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => patchGrupos(quitarLink(grupos, grupo.id, i))}
-                    className="flex h-7 w-7 items-center justify-center rounded-lg text-[#bbb] transition hover:bg-[#fff0f0] hover:text-[#cc3333]"
-                    title="Quitar link"
-                  >
-                    <Trash2 size={14} />
-                  </button>
-                  <div className="flex">
-                    <button
-                      type="button"
-                      disabled={i === 0}
-                      onClick={() => patchGrupos(moverLink(grupos, grupo.id, i, -1))}
-                      className="flex h-6 w-6 items-center justify-center rounded-md text-[#bbb] transition hover:bg-[#f5f5f5] hover:text-[#555] disabled:opacity-30"
-                      aria-label="Subir link"
-                    >
-                      <ChevronUp size={14} />
-                    </button>
-                    <button
-                      type="button"
-                      disabled={i === grupo.links.length - 1}
-                      onClick={() => patchGrupos(moverLink(grupos, grupo.id, i, 1))}
-                      className="flex h-6 w-6 items-center justify-center rounded-md text-[#bbb] transition hover:bg-[#f5f5f5] hover:text-[#555] disabled:opacity-30"
-                      aria-label="Bajar link"
-                    >
-                      <ChevronDown size={14} />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )
-          })}
-
-          <div className="mt-2 flex gap-2">
-            <input
-              type="url"
-              inputMode="url"
-              value={borrador[grupo.id] || ''}
-              onChange={e => setBorrador(b => ({ ...b, [grupo.id]: e.target.value }))}
-              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); agregar(grupo.id) } }}
-              placeholder="Pega un link"
-              aria-label="Pega un link"
-              className="min-w-0 flex-1 rounded-lg border border-[#d0d0d0] bg-white px-3 py-2 text-sm text-[#1D1E20] outline-none transition focus:border-[#48C9B0]"
-            />
-            <button
-              type="button"
-              onClick={() => agregar(grupo.id)}
-              className="shrink-0 rounded-lg bg-[#48C9B0] px-3.5 py-2 text-sm font-medium text-white transition hover:bg-[#3fb8a0]"
-            >
-              Agregar
-            </button>
-          </div>
+          ))}
         </div>
-      ))}
+      )}
 
-      {error && <p className="text-[11px] text-[#cc3333]">{error}</p>}
+      <TextField label="Texto opcional" value={content.descripcion} onChange={v => onPatch({ descripcion: v })} placeholder="Tenemos tarifa preferencial en estos lugares" />
 
-      {grupos.length < MAX_APARTADOS && (
+      {links.map((link, i) => {
+        const cargando = estado[link.url] === 'cargando'
+        const sinPreview = estado[link.url] === 'sin_preview'
+        return (
+          <div key={`${i}-${link.url}`} className="flex gap-2.5 border-b border-[#f2f2f2] pb-2.5 last:border-b-0">
+            {link.imagen ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={link.imagen} alt="" loading="lazy" className="h-12 w-12 shrink-0 rounded-md object-cover" />
+            ) : (
+              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md border border-dashed border-[#ddd] bg-[#fafafa] text-[#bbb]">
+                <ImageIcon size={15} />
+              </span>
+            )}
+
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-medium text-[#1D1E20]">{link.titulo || tituloDeRespaldo(link.url)}</p>
+              <p className="truncate text-[11px] text-[#999]">{link.sitio || link.url}</p>
+              {link.nota.trim() && abierto !== i && <p className="mt-0.5 text-[11px] text-[#555]">{link.nota}</p>}
+              {cargando && (
+                <p className="mt-1 flex items-center gap-1.5 text-[11px] text-[#999]">
+                  <Loader2 size={12} className="animate-spin" /> Leyendo el link...
+                </p>
+              )}
+              {sinPreview && (
+                <p className="mt-1 flex items-center gap-1.5 text-[11px] text-[#b8912f]">
+                  <AlertCircle size={12} /> Sin vista previa. Ponle título y foto.
+                </p>
+              )}
+
+              {abierto === i && (
+                <div className="mt-2 flex flex-col gap-2 rounded-lg border border-[#eee] bg-[#fafafa] p-2.5">
+                  <TextField label="Título" value={link.titulo} onChange={v => onPatch({ links: actualizarLink(links, i, { titulo: v }) })} placeholder="Nombre del lugar" />
+                  <TextField label="Nota opcional" value={link.nota} onChange={v => onPatch({ links: actualizarLink(links, i, { nota: v }) })} placeholder="Menciona el evento para tarifa preferencial" />
+                  <TextField label="Enlace" value={link.url} onChange={v => onPatch({ links: actualizarLink(links, i, { url: v, sitio: sitioDeUrl(v) }) })} placeholder="https://" />
+                  <ImageUploadButton onUploaded={u => onPatch({ links: actualizarLink(links, i, { imagen: u }) })} />
+                  {link.imagen && (
+                    <button
+                      type="button"
+                      onClick={() => onPatch({ links: actualizarLink(links, i, { imagen: '' }) })}
+                      className="self-start text-[11px] font-medium text-[#888] transition hover:text-[#cc3333]"
+                    >
+                      Quitar foto
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="flex shrink-0 flex-col items-center">
+              <button
+                type="button"
+                onClick={() => setAbierto(a => (a === i ? null : i))}
+                className="flex h-7 w-7 items-center justify-center rounded-lg text-[#aaa] transition hover:bg-[#f5f5f5] hover:text-[#555]"
+                title={abierto === i ? 'Listo' : 'Editar'}
+              >
+                <Pencil size={14} />
+              </button>
+              <button
+                type="button"
+                onClick={() => { setAbierto(null); onPatch({ links: quitarLink(links, i) }) }}
+                className="flex h-7 w-7 items-center justify-center rounded-lg text-[#bbb] transition hover:bg-[#fff0f0] hover:text-[#cc3333]"
+                title="Quitar link"
+              >
+                <Trash2 size={14} />
+              </button>
+              <div className="flex">
+                <button
+                  type="button"
+                  disabled={i === 0}
+                  onClick={() => { setAbierto(null); onPatch({ links: moverLink(links, i, -1) }) }}
+                  className="flex h-6 w-6 items-center justify-center rounded-md text-[#bbb] transition hover:bg-[#f5f5f5] hover:text-[#555] disabled:opacity-30"
+                  aria-label="Subir link"
+                >
+                  <ChevronUp size={14} />
+                </button>
+                <button
+                  type="button"
+                  disabled={i === links.length - 1}
+                  onClick={() => { setAbierto(null); onPatch({ links: moverLink(links, i, 1) }) }}
+                  className="flex h-6 w-6 items-center justify-center rounded-md text-[#bbb] transition hover:bg-[#f5f5f5] hover:text-[#555] disabled:opacity-30"
+                  aria-label="Bajar link"
+                >
+                  <ChevronDown size={14} />
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      })}
+
+      <div className="flex gap-2">
+        <input
+          type="url"
+          inputMode="url"
+          value={borrador}
+          onChange={e => setBorrador(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); agregar() } }}
+          placeholder="Pega un link"
+          aria-label="Pega un link"
+          className="min-w-0 flex-1 rounded-lg border border-[#d0d0d0] bg-white px-3 py-2 text-sm text-[#1D1E20] outline-none transition focus:border-[#48C9B0]"
+        />
         <button
           type="button"
-          onClick={() => patchGrupos(agregarApartado(grupos, `g${Date.now().toString(36)}`, 'Nuevo apartado'))}
-          className="self-start text-xs font-medium text-[#48C9B0] transition hover:text-[#3fb8a0]"
+          onClick={agregar}
+          className="shrink-0 rounded-lg bg-[#48C9B0] px-3.5 py-2 text-sm font-medium text-white transition hover:bg-[#3fb8a0]"
         >
-          + Agregar apartado
+          Agregar
         </button>
-      )}
+      </div>
+
+      {error && <p className="text-[11px] text-[#cc3333]">{error}</p>}
     </div>
   )
 }
