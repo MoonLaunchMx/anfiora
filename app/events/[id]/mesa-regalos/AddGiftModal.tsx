@@ -5,6 +5,7 @@ import { ExternalLink, Coins, Mail, Check } from 'lucide-react'
 import { GiftType, GiftRegistryItem, GIFT_CATEGORIES } from '@/lib/types'
 import { Modal } from '@/app/components/ui/Modal'
 import { usePermiso } from '@/lib/event-access-context'
+import { bearer } from '@/lib/workspace/cliente'
 
 export { GIFT_CATEGORIES }
 
@@ -89,7 +90,11 @@ export default function AddGiftModal({ isOpen, onClose, onSubmit, initial }: Pro
     setFetching(true)
     const t = setTimeout(async () => {
       try {
-        const res = await fetch(`/api/link-preview?url=${encodeURIComponent(url)}`, { signal: ctrl.signal })
+        const headers = await bearer()
+        const res = await fetch(`/api/link-preview?url=${encodeURIComponent(url)}`, {
+          signal: ctrl.signal,
+          headers: headers ?? undefined,
+        })
         const data = await res.json()
         if (data?.ok) {
           if (data.title && !title.trim())   setTitle(data.title)

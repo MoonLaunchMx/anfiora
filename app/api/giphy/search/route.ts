@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { usuarioDeRequest } from '@/lib/workspace/servidor'
 
 type GiphyImage = { url?: string }
 type GiphyGif = { id: string; images?: Record<string, GiphyImage> }
 
+// Pide sesion: la llave de Giphy es nuestra y la cuota tambien. La unica
+// pantalla que la llama es el editor de invitacion, con el planner dentro.
 export async function GET(req: NextRequest) {
+  if (!(await usuarioDeRequest(req))) {
+    return NextResponse.json({ error: 'No autorizado', results: [] }, { status: 401 })
+  }
   const q = req.nextUrl.searchParams.get('q')?.trim()
   const key = process.env.GIPHY_API_KEY
   if (!key) return NextResponse.json({ error: 'no_key', results: [] })

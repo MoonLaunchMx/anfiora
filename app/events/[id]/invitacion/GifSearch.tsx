@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { bearer } from '@/lib/workspace/cliente'
 
 type GifResult = { id: string; preview: string; url: string }
 
@@ -30,8 +31,10 @@ export default function GifSearch({ onSelect }: { onSelect: (url: string) => voi
 
     const timer = setTimeout(async () => {
       try {
+        const headers = await bearer()
         const res = await fetch(`/api/giphy/search?q=${encodeURIComponent(q)}`, {
           signal: controller.signal,
+          headers: headers ?? undefined,
         })
         const data = (await res.json()) as { results?: GifResult[]; error?: string }
         setNoKey(data.error === 'no_key')
