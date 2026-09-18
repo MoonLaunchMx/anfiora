@@ -165,7 +165,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
 
   return NextResponse.json({
     event: {
-      name: event.name, event_type: event.event_type, event_date: event.event_date, event_time: event.event_time,
+      name: event.name, event_type: event.event_type, event_date: event.event_date,
+      event_end_date: event.event_end_date, event_time: event.event_time,
       venue: event.venue, address: event.address, host_name: event.host_name, host_name_2: event.host_name_2,
     },
     guest: guest

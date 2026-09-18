@@ -2,6 +2,7 @@ import { CONTENT_BY_TYPE, SectionSchema, MetaSchema } from './schema'
 import type { InviteDoc, InviteMeta, Section, SectionType } from './schema'
 import { ThemeSchema, DEFAULT_THEME, type Theme } from './theme'
 import { getVibe } from './vibes'
+import { bloquesDesdeGrupos } from './recomendaciones'
 
 const DEFAULT_ORDER: SectionType[] = [
   'portada', 'saludo', 'detalles', 'itinerario', 'dress_code', 'rsvp', 'playlist', 'mesa', 'cierre',
@@ -20,6 +21,21 @@ function migrateEngancheSections(sections: Section[], makeId: () => string): Sec
     }
   }
   return out
+}
+
+// La primera version guardaba apartados dentro de un solo bloque de
+// recomendaciones. Cada apartado con links pasa a ser su propio bloque.
+function migrateRecomendacionesGrupos(raw: unknown, makeId: () => string): Section[] | null {
+  if (!raw || typeof raw !== 'object') return null
+  const s = raw as { type?: unknown; content?: { grupos?: unknown } }
+  if (s.type !== 'recomendaciones') return null
+  const grupos = s.content?.grupos
+  if (!Array.isArray(grupos)) return null
+  return bloquesDesdeGrupos(grupos).map(b => ({
+    id: makeId(),
+    type: 'recomendaciones' as const,
+    content: { titulo: b.titulo, descripcion: '', links: b.links },
+  }))
 }
 
 export function emptySection(type: SectionType, id: string): Section {
@@ -42,6 +58,14 @@ export function resolveDoc(raw: unknown, makeId: () => string): InviteDoc {
   const seen = new Set<string>()
   const parsedSections: Section[] = []
   for (const s of rawSections) {
+    const migrados = migrateRecomendacionesGrupos(s, makeId)
+    if (migrados) {
+      for (const m of migrados) {
+        const remigrado = SectionSchema.safeParse(m)
+        if (remigrado.success) parsedSections.push(remigrado.data)
+      }
+      continue
+    }
     const parsed = SectionSchema.safeParse(s)
     if (!parsed.success) continue
     if (seen.has(parsed.data.id)) continue

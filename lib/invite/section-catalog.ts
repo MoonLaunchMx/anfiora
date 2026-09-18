@@ -18,6 +18,7 @@ export const SECTION_TYPE_CATEGORY: Record<SectionType, SectionCategoryKey> = {
   saludo: 'texto',
   detalles: 'texto',
   texto: 'texto',
+  recomendaciones: 'texto',
   cierre: 'texto',
   media: 'visuales',
   galeria: 'visuales',

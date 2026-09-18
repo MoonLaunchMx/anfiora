@@ -12,7 +12,7 @@ export type InviteCompanion = { id?: string; name: string; rsvp_status: string; 
 
 export type InviteCtx = {
   event: {
-    name: string; event_type: string | null; event_date: string | null; event_time: string | null
+    name: string; event_type: string | null; event_date: string | null; event_end_date: string | null; event_time: string | null
     venue: string | null; address: string | null; host_name: string | null; host_name_2: string | null
   }
   // null en modo compartida: la puerta publica se pinta sin invitado, porque

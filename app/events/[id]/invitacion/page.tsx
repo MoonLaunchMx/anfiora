@@ -35,6 +35,7 @@ type EventInfo = {
   name: string
   event_type: string | null
   event_date: string | null
+  event_end_date: string | null
   event_time: string | null
   venue: string | null
   address: string | null
