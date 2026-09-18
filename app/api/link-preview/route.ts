@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { usuarioDeRequest } from '@/lib/workspace/servidor'
 
 // Lee metadatos (Open Graph / JSON-LD / slug) de un link de tienda para
 // auto-rellenar un regalo. Server-side porque el browser no puede por CORS.
@@ -157,7 +158,13 @@ function imageFromMarkup(html: string): string | null {
   return null
 }
 
+// Pide sesion: sin esto cualquiera usa nuestro servidor como proxy para leer
+// paginas ajenas. La unica pantalla que la llama es la mesa de regalos del
+// planner. Las defensas contra hosts internos se quedan como estaban.
 export async function GET(request: NextRequest) {
+  if (!(await usuarioDeRequest(request))) {
+    return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  }
   const raw = request.nextUrl.searchParams.get('url')
   if (!raw) return NextResponse.json({ error: 'Falta url' }, { status: 400 })
 
