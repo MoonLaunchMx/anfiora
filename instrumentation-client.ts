@@ -1,5 +1,5 @@
 import * as Sentry from "@sentry/nextjs";
-import { sentryInitOptions, SENTRY_DENY_URLS } from "@/lib/sentry/config";
+import { limpiarRastros, sentryInitOptions, SENTRY_DENY_URLS } from "@/lib/sentry/config";
 import { CURRENT_VERSION } from "@/lib/changelog";
 import { zonaDesdePath } from "@/lib/observabilidad/zona";
 
@@ -33,6 +33,9 @@ Sentry.init({
     /Lock was stolen by another request/i,
   ],
   denyUrls: SENTRY_DENY_URLS,
+  // Ojo: este beforeSend REEMPLAZA al de sentryInitOptions, por eso llama a
+  // limpiarRastros a mano. Sin esa llamada, los tokens de las pantallas
+  // publicas se irian a Sentry dentro de la URL.
   beforeSend(event) {
     event.tags = event.tags ?? {};
     if (!event.tags.zona) {
@@ -41,7 +44,7 @@ Sentry.init({
           ? zonaDesdePath(window.location.pathname)
           : "general";
     }
-    return event;
+    return limpiarRastros(event);
   },
 });
 
