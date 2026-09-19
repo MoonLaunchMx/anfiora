@@ -10,11 +10,18 @@
 // Spotify o de una tienda, su navegador le entrega a ese sitio la direccion
 // completa, token incluido.
 export const ENCABEZADOS_SEGURIDAD: Record<string, string> = {
-  'Referrer-Policy': 'same-origin',
+  // strict-origin-when-cross-origin y no same-origin: hacia afuera manda solo
+  // "https://www.anfiora.com", nunca la ruta, asi que el token no sale. Mandar
+  // el dominio (y no nada) es lo que esperan los CDN de las tiendas cuando la
+  // mesa de regalos dibuja la foto del producto.
+  'Referrer-Policy': 'strict-origin-when-cross-origin',
   'X-Content-Type-Options': 'nosniff',
   'X-Frame-Options': 'SAMEORIGIN',
   'Content-Security-Policy': "frame-ancestors 'self'",
-  'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), payment=()',
+  // microphone=(self) a proposito: la invitacion graba un mensaje de voz
+  // (getUserMedia en SectionForm). Camara, ubicacion y pagos no los usa nadie.
+  // display-capture no se toca: el widget de feedback graba la pantalla.
+  'Permissions-Policy': 'camera=(), microphone=(self), geolocation=(), payment=()',
   'Strict-Transport-Security': 'max-age=63072000; includeSubDomains; preload',
 }
 
