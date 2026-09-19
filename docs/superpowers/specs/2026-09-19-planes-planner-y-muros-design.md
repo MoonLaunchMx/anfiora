@@ -21,6 +21,7 @@ No entra el cobro. Nadie paga el 26 de septiembre: quien topa con una pared pide
 - La escalera de precios del anfitrión (Esencial, Pro, Gran Anfitrión, Sin Límites). Queda decidida y guardada; se conecta cuando entre Stripe.
 - El marketplace de proveedores.
 - El modo solo lectura botón por botón en las ~50 superficies del evento.
+- **La página pública de precios.** Verificado el 19 de septiembre: no existe en `main`, solo en la rama vieja del paywall. No hay nada que recortar a planners hoy; cuando se construya, nace solo con los planes de planner. Para el 26 los tres precios se ven dentro del aviso.
 
 ## Los dos caminos del producto
 
