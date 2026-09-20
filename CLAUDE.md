@@ -616,9 +616,9 @@ Dos caminos de cliente, decididos el 17-sep-2026:
 | Free | $0 | 1 | 1 a la vez | 50 |
 | Pro | $490/mes | 1 | sin limite | sin limite |
 | Studio | $990/mes | 3 | sin limite | sin limite |
-| Agency | $1,990/mes | 3 | sin limite | sin limite |
+| Agency | $1,990/mes (provisional) | 5 | sin limite | sin limite |
 
-Asiento extra: **$290/mes**. Agency suma marca propia, que **todavia no existe en codigo**.
+Asiento extra: **$290/mes**. Agency suma marca propia, que **todavia no existe en codigo**: por eso su precio es provisional y se define cuando exista. Lo que Agency vende es la marca, no la cantidad de gente.
 
 - Catalogo unico: `lib/workspace/planes.ts`. Ningun componente pregunta por el nombre del plan.
 - El plan vive en `workspaces.plan`; `users.plan` queda como respaldo (`planDelWorkspace` en `lib/workspace/servidor.ts`).

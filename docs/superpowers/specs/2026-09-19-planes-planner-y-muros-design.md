@@ -39,7 +39,7 @@ Hasta que exista, los dos ven la misma cuenta gratis y la misma pared. La difere
 | **Free** | $0 | 1 (solo él) | 1 activo a la vez | 50 por evento | No |
 | **Pro** | $490/mes | 1 (solo él) | Sin límite | Sin límite | No |
 | **Studio** | $990/mes | 3 | Sin límite | Sin límite | No |
-| **Agency** | $1,990/mes | 3 + extras | Sin límite | Sin límite | Sí, cuando exista |
+| **Agency** | $1,990/mes, provisional | 5 | Sin límite | Sin límite | Sí, cuando exista |
 
 Precios en pesos mexicanos. Asiento extra: $290 al mes.
 
@@ -47,7 +47,7 @@ Precios en pesos mexicanos. Asiento extra: $290 al mes.
 
 **El renombre cambia el significado de un valor que ya existe en la base.** Hasta hoy `pro` quería decir $990 con tres asientos; de aquí en adelante quiere decir $490 con uno. Antes de correr el SQL hay que ver quién está en `pro`: la cuenta que tenga equipo pasa a `studio`, o se queda sin asientos de un día para otro. `studio` deja de ser un alias de `pro` y pasa a ser un plan de verdad.
 
-**Agency entra al catálogo aunque su marca propia no exista todavía.** El plan se puede asignar y cobrar; la personalización llega después. Se dice tal cual en `/admin` para que Diego no venda algo que no está.
+**Agency entra al catálogo con su precio marcado como provisional.** Lo que se vende en Agency es la marca propia, no la cantidad de gente, y la marca propia todavía no existe en el código. Así que el precio se define cuando exista: hoy queda en $1,990 para poder asignarlo y no dejar el plan sin número. Lo que sí queda firme es el nombre y los cinco asientos. Se dice tal cual en `/admin` para que Diego no venda algo que no está.
 
 ### Partner fundador
 
