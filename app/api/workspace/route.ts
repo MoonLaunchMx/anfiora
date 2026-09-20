@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { normalizarPermisos } from '@/lib/permisos/resolver'
 import { bodasDelWorkspace, esAdministrador, planDelWorkspace, rolEnWorkspace, usuarioDeRequest } from '@/lib/workspace/servidor'
+import { elegirActivo } from '@/lib/workspace/activo'
+import { reportError } from '@/lib/observabilidad/report'
 import type { AccesoSuelto, Cliente, Miembro, RolWorkspace, WorkspaceListado, WorkspaceResumen } from '@/lib/workspace/tipos'
 
 export async function GET(req: NextRequest) {
@@ -14,7 +16,21 @@ export async function GET(req: NextRequest) {
   const filas = (mem ?? []) as { workspace_id: string; rol: RolWorkspace; es_dueno_principal: boolean }[]
   if (filas.length === 0) return NextResponse.json({ workspaces: [], activo: null })
 
-  const { data: wss } = await admin.from('workspaces').select('*').in('id', filas.map(f => f.workspace_id))
+  const ids = filas.map(f => f.workspace_id)
+  // Un tropiezo de red aqui dejaba el mapa vacio y el workspace del dueno
+  // desaparecia sin que nadie se enterara. Se reintenta una vez, y si vuelve a
+  // fallar se dice; nunca se sigue como si la consulta hubiera ido bien.
+  let wss = null
+  let errWs = null
+  for (let intento = 0; intento < 2; intento++) {
+    const r = await admin.from('workspaces').select('*').in('id', ids)
+    if (!r.error) { wss = r.data; errWs = null; break }
+    errWs = r.error
+  }
+  if (errWs) {
+    reportError(errWs, { zona: 'api-workspace' })
+    return NextResponse.json({ error: 'No se pudo cargar tu workspace. Vuelve a intentar.' }, { status: 503 })
+  }
   const porId = new Map((wss ?? []).map(w => [w.id as string, w as Record<string, unknown>]))
   const workspaces: WorkspaceListado[] = await Promise.all(
     filas
@@ -25,14 +41,21 @@ export async function GET(req: NextRequest) {
       })),
   )
 
-  const pedido = req.nextUrl.searchParams.get('id')
-  const propio = filas.find(f => f.es_dueno_principal)?.workspace_id
-  const activoId = pedido ?? propio ?? workspaces[0]?.id
-  const mia = filas.find(f => f.workspace_id === activoId)
-  if (!activoId || !mia || !esAdministrador(mia.rol)) {
+  // Que falte la fila no es falta de permisos: al dueno no se le dice que no
+  // administra lo suyo, y el hueco queda registrado en vez de reventar.
+  const ausente = () => {
+    reportError(new Error('workspace sin fila en la tabla workspaces'), { zona: 'api-workspace' })
+    return NextResponse.json({ error: 'No se pudo cargar tu workspace. Vuelve a intentar.' }, { status: 503 })
+  }
+
+  const eleccion = elegirActivo(filas, new Set(porId.keys()), req.nextUrl.searchParams.get('id'))
+  if (!eleccion.ok) {
+    if (eleccion.razon === 'workspace-ausente') return ausente()
     return NextResponse.json({ error: 'No administras ese workspace' }, { status: 403 })
   }
-  const ws = porId.get(activoId)!
+  const { activoId, mia } = eleccion
+  const ws = porId.get(activoId)
+  if (!ws) return ausente()
 
   const [bodas, { data: miembrosRaw }] = await Promise.all([
     bodasDelWorkspace(admin, activoId),

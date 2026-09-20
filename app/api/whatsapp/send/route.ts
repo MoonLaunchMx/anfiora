@@ -1,30 +1,47 @@
 // app/api/whatsapp/send/route.ts
+//
+// Manda un WhatsApp desde el numero de Anfiora. Sin candado era un cañon
+// abierto: cualquiera en internet podia mandar mensajes con nuestro numero,
+// a cualquier telefono, y ademas ensuciar la conversacion de un evento.
+//
+// Ahora pide sesion con acceso a ESE evento y el telefono no viene del
+// cuerpo: se saca del invitado, que tiene que ser de ese mismo evento.
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { verifyEventAccess } from '@/lib/omnichannel/access'
 
 export async function POST(request: NextRequest) {
-  let body: { guestId: string; eventId: string; phone: string; message: string }
+  let body: { guestId: string; eventId: string; message: string }
   try {
     body = await request.json()
   } catch {
     return NextResponse.json({ error: 'Body inválido' }, { status: 400 })
   }
 
-  const { guestId, eventId, phone, message } = body
-  if (!guestId || !eventId || !phone || !message?.trim()) {
+  const { guestId, eventId, message } = body
+  if (!guestId || !eventId || !message?.trim()) {
     return NextResponse.json({ error: 'Faltan campos requeridos' }, { status: 400 })
   }
+
+  const acceso = await verifyEventAccess(request.headers.get('authorization'), eventId)
+  if (!acceso) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
   const supabaseAdmin = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
+  const { data: invitado } = await supabaseAdmin
+    .from('guests').select('id, phone').eq('id', guestId).eq('event_id', eventId).maybeSingle()
+  if (!invitado?.phone) {
+    return NextResponse.json({ error: 'Ese invitado no es de este evento o no tiene teléfono' }, { status: 404 })
+  }
+
   // ── Enviar vía Twilio ────────────────────────────────────────────────────
   const accountSid  = process.env.TWILIO_ACCOUNT_SID!
   const authToken   = process.env.TWILIO_AUTH_TOKEN!
   const from        = process.env.TWILIO_WHATSAPP_FROM!
-  const to          = phone.startsWith('whatsapp:') ? phone : `whatsapp:${phone}`
+  const to          = invitado.phone.startsWith('whatsapp:') ? invitado.phone : `whatsapp:${invitado.phone}`
 
   const url         = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`
   const credentials = Buffer.from(`${accountSid}:${authToken}`).toString('base64')

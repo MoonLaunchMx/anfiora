@@ -2,7 +2,12 @@
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { useParams } from 'next/navigation'
-import { Upload, X, CheckCircle2, Mic, Square, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Upload, X, CheckCircle2, Mic, Square, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Trash2, Pencil, Loader2, AlertCircle, Image as ImageIcon } from 'lucide-react'
+import {
+  normalizarUrl, sitioDeUrl, tituloDeRespaldo, nuevoLink,
+  agregarLink, actualizarLink, quitarLink, moverLink,
+  MAX_LINKS_POR_BLOQUE, NOMBRES_SUGERIDOS, type RecoLink,
+} from '@/lib/invite/recomendaciones'
 import type { Section } from '@/lib/invite/schema'
 import { parseVideoUrl } from '@/lib/invite/video'
 import { parseDriveUrl } from '@/lib/invite/drive'
@@ -284,6 +289,230 @@ function useVoiceRecorder(eventId: string, onUploaded: (url: string) => void) {
   return { phase, seconds, localUrl, uploading, error, supported, start, stop, regrabar, confirm }
 }
 
+function RecomendacionesField({
+  content, onPatch,
+}: {
+  content: Extract<Section, { type: 'recomendaciones' }>['content']
+  onPatch: (patch: Record<string, unknown>) => void
+}) {
+  const links = content.links as RecoLink[]
+  const linksRef = useRef(links)
+  linksRef.current = links
+  const [borrador, setBorrador] = useState('')
+  const [estado, setEstado] = useState<Record<string, 'cargando' | 'sin_preview'>>({})
+  const [abierto, setAbierto] = useState<number | null>(null)
+  const [error, setError] = useState('')
+
+  // La vista previa se guarda al editar: el invitado abre la invitacion sin
+  // esperar a que ningun sitio responda.
+  const leerPreview = async (url: string) => {
+    setEstado(e => ({ ...e, [url]: 'cargando' }))
+    let data: { ok?: boolean; title?: string | null; image?: string | null; store?: string | null } = {}
+    try {
+      const res = await fetch(`/api/link-preview?url=${encodeURIComponent(url)}`)
+      data = await res.json()
+    } catch { /* sin conexion */ }
+    const sirvio = !!(data?.ok && (data.title || data.image))
+    setEstado(e => {
+      const next = { ...e }
+      if (sirvio) delete next[url]
+      else next[url] = 'sin_preview'
+      return next
+    })
+    if (!sirvio) return
+    onPatch({
+      links: linksRef.current.map(l => l.url !== url ? l : {
+        ...l,
+        titulo: data.title?.trim() || l.titulo,
+        imagen: data.image || l.imagen,
+        sitio: l.sitio || data.store || '',
+      }),
+    })
+  }
+
+  const agregar = () => {
+    setError('')
+    const url = normalizarUrl(borrador)
+    if (!url) { setError('Revisa el enlace: pega la direccion completa del sitio.'); return }
+    if (links.length >= MAX_LINKS_POR_BLOQUE) {
+      setError(`Maximo ${MAX_LINKS_POR_BLOQUE} links por bloque. Agrega otro bloque de recomendaciones.`)
+      return
+    }
+    onPatch({ links: agregarLink(links, nuevoLink(url)) })
+    setBorrador('')
+    leerPreview(url)
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      <TextField label="Título del bloque" value={content.titulo} onChange={v => onPatch({ titulo: v })} placeholder="Hospedaje" />
+
+      {!content.titulo.trim() && (
+        <div className="flex flex-wrap gap-1.5">
+          {NOMBRES_SUGERIDOS.map(nombre => (
+            <button
+              key={nombre}
+              type="button"
+              onClick={() => onPatch({ titulo: nombre })}
+              className="rounded-full border border-[#e0e0e0] bg-white px-2.5 py-1 text-xs text-[#555] transition hover:border-[#48C9B0] hover:text-[#1D1E20]"
+            >
+              {nombre}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <TextField label="Texto opcional" value={content.descripcion} onChange={v => onPatch({ descripcion: v })} placeholder="Tenemos tarifa preferencial en estos lugares" />
+
+      {links.map((link, i) => {
+        const cargando = estado[link.url] === 'cargando'
+        const sinPreview = estado[link.url] === 'sin_preview'
+        return (
+          <div key={`${i}-${link.url}`} className="flex gap-2.5 border-b border-[#f2f2f2] pb-2.5 last:border-b-0">
+            {link.imagen ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={link.imagen} alt="" loading="lazy" className="h-12 w-12 shrink-0 rounded-md object-cover" />
+            ) : (
+              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md border border-dashed border-[#ddd] bg-[#fafafa] text-[#bbb]">
+                <ImageIcon size={15} />
+              </span>
+            )}
+
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-medium text-[#1D1E20]">{link.titulo || tituloDeRespaldo(link.url)}</p>
+              <p className="truncate text-[11px] text-[#999]">{link.sitio || link.url}</p>
+              {link.nota.trim() && abierto !== i && <p className="mt-0.5 text-[11px] text-[#555]">{link.nota}</p>}
+              {cargando && (
+                <p className="mt-1 flex items-center gap-1.5 text-[11px] text-[#999]">
+                  <Loader2 size={12} className="animate-spin" /> Leyendo el link...
+                </p>
+              )}
+              {sinPreview && (
+                <p className="mt-1 flex items-center gap-1.5 text-[11px] text-[#b8912f]">
+                  <AlertCircle size={12} /> Sin vista previa. Ponle título y foto.
+                </p>
+              )}
+
+              {abierto === i && (
+                <div className="mt-2 flex flex-col gap-2 rounded-lg border border-[#eee] bg-[#fafafa] p-2.5">
+                  <TextField label="Título" value={link.titulo} onChange={v => onPatch({ links: actualizarLink(links, i, { titulo: v }) })} placeholder="Nombre del lugar" />
+                  <TextField label="Nota opcional" value={link.nota} onChange={v => onPatch({ links: actualizarLink(links, i, { nota: v }) })} placeholder="Menciona el evento para tarifa preferencial" />
+                  <TextField label="Enlace" value={link.url} onChange={v => onPatch({ links: actualizarLink(links, i, { url: v, sitio: sitioDeUrl(v) }) })} placeholder="https://" />
+                  <ImageUploadButton onUploaded={u => onPatch({ links: actualizarLink(links, i, { imagen: u }) })} />
+                  {link.imagen && (
+                    <button
+                      type="button"
+                      onClick={() => onPatch({ links: actualizarLink(links, i, { imagen: '' }) })}
+                      className="self-start text-[11px] font-medium text-[#888] transition hover:text-[#cc3333]"
+                    >
+                      Quitar foto
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="flex shrink-0 flex-col items-center">
+              <button
+                type="button"
+                onClick={() => setAbierto(a => (a === i ? null : i))}
+                className="flex h-7 w-7 items-center justify-center rounded-lg text-[#aaa] transition hover:bg-[#f5f5f5] hover:text-[#555]"
+                title={abierto === i ? 'Listo' : 'Editar'}
+              >
+                <Pencil size={14} />
+              </button>
+              <button
+                type="button"
+                onClick={() => { setAbierto(null); onPatch({ links: quitarLink(links, i) }) }}
+                className="flex h-7 w-7 items-center justify-center rounded-lg text-[#bbb] transition hover:bg-[#fff0f0] hover:text-[#cc3333]"
+                title="Quitar link"
+              >
+                <Trash2 size={14} />
+              </button>
+              <div className="flex">
+                <button
+                  type="button"
+                  disabled={i === 0}
+                  onClick={() => { setAbierto(null); onPatch({ links: moverLink(links, i, -1) }) }}
+                  className="flex h-6 w-6 items-center justify-center rounded-md text-[#bbb] transition hover:bg-[#f5f5f5] hover:text-[#555] disabled:opacity-30"
+                  aria-label="Subir link"
+                >
+                  <ChevronUp size={14} />
+                </button>
+                <button
+                  type="button"
+                  disabled={i === links.length - 1}
+                  onClick={() => { setAbierto(null); onPatch({ links: moverLink(links, i, 1) }) }}
+                  className="flex h-6 w-6 items-center justify-center rounded-md text-[#bbb] transition hover:bg-[#f5f5f5] hover:text-[#555] disabled:opacity-30"
+                  aria-label="Bajar link"
+                >
+                  <ChevronDown size={14} />
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      })}
+
+      <div className="flex gap-2">
+        <input
+          type="url"
+          inputMode="url"
+          value={borrador}
+          onChange={e => setBorrador(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); agregar() } }}
+          placeholder="Pega un link"
+          aria-label="Pega un link"
+          className="min-w-0 flex-1 rounded-lg border border-[#d0d0d0] bg-white px-3 py-2 text-sm text-[#1D1E20] outline-none transition focus:border-[#48C9B0]"
+        />
+        <button
+          type="button"
+          onClick={agregar}
+          className="shrink-0 rounded-lg bg-[#48C9B0] px-3.5 py-2 text-sm font-medium text-white transition hover:bg-[#3fb8a0]"
+        >
+          Agregar
+        </button>
+      </div>
+
+      {error && <p className="text-[11px] text-[#cc3333]">{error}</p>}
+    </div>
+  )
+}
+
+function OpcionesFila({
+  label, value, options, onChange, hint,
+}: {
+  label: string
+  value: string
+  options: { value: string; label: string }[]
+  onChange: (v: string) => void
+  hint?: string
+}) {
+  return (
+    <div>
+      <label className="mb-1.5 block text-xs font-medium text-[#555]">{label}</label>
+      <div className="flex flex-wrap gap-1.5">
+        {options.map(o => (
+          <button
+            key={o.value}
+            type="button"
+            aria-pressed={o.value === value}
+            onClick={() => onChange(o.value)}
+            className={`rounded-full border px-3 py-1.5 text-xs transition ${
+              o.value === value
+                ? 'border-[#48C9B0] bg-[#f0fdfb] font-medium text-[#1D1E20]'
+                : 'border-[#e0e0e0] bg-white text-[#666] hover:border-[#c8c8c8]'
+            }`}
+          >
+            {o.label}
+          </button>
+        ))}
+      </div>
+      {hint && <p className="mt-1.5 text-[11px] text-[#999]">{hint}</p>}
+    </div>
+  )
+}
+
 function FieldRow({ children }: { children: ReactNode }) {
   return <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">{children}</div>
 }
@@ -503,6 +732,25 @@ export default function SectionForm({
             <TextField label="Título" value={section.content.titulo} onChange={v => onPatch({ titulo: v })} placeholder="Nombre de los anfitriones" />
           </FieldRow>
           <TextAreaField label="Subtítulo" value={section.content.subtitulo} onChange={v => onPatch({ subtitulo: v })} placeholder="Una frase corta de bienvenida" />
+          <OpcionesFila
+            label="Cómo se muestra la fecha"
+            value={section.content.fecha_modo}
+            onChange={v => onPatch({ fecha_modo: v })}
+            options={[
+              { value: 'auto', label: 'Todos los días' },
+              { value: 'inicio', label: 'Solo el primer día' },
+              { value: 'libre', label: 'La escribo yo' },
+            ]}
+            hint="Un evento de varios días se ve como “9 al 11 de octubre de 2026”."
+          />
+          {section.content.fecha_modo === 'libre' && (
+            <TextField label="Texto de la fecha" value={section.content.fecha_texto} onChange={v => onPatch({ fecha_texto: v })} placeholder="Fin de semana del 9 al 11 de octubre" />
+          )}
+          <MoreOptions>
+            <ToggleField label="Mostrar la fecha" value={section.content.mostrar_fecha} onChange={v => onPatch({ mostrar_fecha: v })} />
+            <ToggleField label="Mostrar la hora" value={section.content.mostrar_hora} onChange={v => onPatch({ mostrar_hora: v })} />
+            <ToggleField label="Mostrar el lugar" value={section.content.mostrar_lugar} onChange={v => onPatch({ mostrar_lugar: v })} />
+          </MoreOptions>
         </div>
       )
     case 'saludo':
@@ -659,6 +907,8 @@ export default function SectionForm({
         </div>
       )
     }
+    case 'recomendaciones':
+      return <RecomendacionesField content={section.content} onPatch={onPatch} />
     case 'audio': {
       const drive = parseDriveUrl(section.content.drive_url)
       const hasDriveUrl = section.content.drive_url.trim().length > 0

@@ -61,8 +61,6 @@ Uses **Next.js App Router** exclusively. Most page components are `'use client'`
 - `/api/webhook/whatsapp` — POST endpoint for Twilio WhatsApp incoming messages
 - `/api/whatsapp/send` — POST send WhatsApp message via Twilio
 - `/api/spotify/search` — GET Spotify song search (Client Credentials)
-- `/api/webhook/test` — POST simulate WhatsApp messages (dev only)
-- `/api/debug` — GET check env vars (dev only)
 - `/api/admin/users` — GET admin metrics for all users
 - `/api/admin/delete-user` — DELETE user (admin only)
 
@@ -360,8 +358,6 @@ app/
 ├── playlist/[token]/page.tsx           → pagina publica para invitados (sin login)
 ├── api/
 │   ├── webhook/whatsapp/route.ts       → Twilio incoming messages → Claude Haiku → Supabase
-│   ├── webhook/test/route.ts           → simula mensajes WhatsApp (solo dev)
-│   ├── debug/route.ts                  → verifica env vars (solo dev)
 │   ├── spotify/search/route.ts
 │   ├── whatsapp/send/route.ts          → envia mensaje WhatsApp via Twilio
 │   └── admin/

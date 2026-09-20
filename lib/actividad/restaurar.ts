@@ -115,6 +115,88 @@ export function arrastrados(
   return out
 }
 
+// La bitacora es de ESTE evento, pero old_value es un JSON que alguien pudo
+// haber escrito a mano (hasta el 17-sep cualquier miembro insertaba filas).
+// Restaurar corre con service role: sin esto, un "borrado" inventado metia
+// filas en el evento de otra cuenta. Se ancla cada fila al evento y su id al
+// de la entidad que se esta marcando como restaurada.
+export function anclarAlEvento(plan: Insercion[], eventId: string): Insercion[] {
+  return plan
+    .filter(ins => ins.fila.id === ins.entityId)
+    .map(ins => TABLAS_SIN_EVENT_ID.has(ins.tabla)
+      ? ins
+      : { ...ins, fila: { ...ins.fila, event_id: eventId } })
+}
+
+// Columna -> tabla a la que apunta, sacado de las llaves foraneas de
+// produccion (17-sep). El padre tiene que ser de este evento, o del catalogo
+// del dueno del evento, o venir en la misma restauracion.
+export const LLAVES_A_PADRES: Record<string, Record<string, string>> = {
+  party_members:           { guest_id: 'guests' },
+  song_recommendations:    { guest_id: 'guests' },
+  event_timeline_tasks:    { event_supplier_id: 'event_suppliers' },
+  event_itinerary_moments: { event_supplier_id: 'event_suppliers' },
+  supplier_payments:       { event_supplier_id: 'event_suppliers' },
+  event_budgets:           { event_supplier_id: 'event_suppliers', category_id: 'categories' },
+  event_suppliers:         { supplier_id: 'suppliers' },
+}
+
+// Con que columna se confirma que el padre es de aca. El catalogo (proveedores
+// y categorias) cuelga de events.user_id, igual que lo crea la app.
+export const PADRES_DEL_CATALOGO = new Set(['suppliers', 'categories'])
+
+export const TABLAS_SIN_EVENT_ID = new Set(['supplier_payments'])
+
+// Una tarea asignada a alguien que no es del evento no se tira: se queda sin
+// asignar. Tirarla por eso perderia la tarea entera.
+export function soltarAsignadosAjenos(plan: Insercion[], miembros: Set<string>): Insercion[] {
+  return plan.map(ins => {
+    const asignado = ins.fila.assigned_to_user_id
+    if (ins.tabla !== 'event_timeline_tasks' || asignado === null || asignado === undefined) return ins
+    if (typeof asignado === 'string' && miembros.has(asignado)) return ins
+    return { ...ins, fila: { ...ins.fila, assigned_to_user_id: null } }
+  })
+}
+
+// Que ids de padre hay que ir a confirmar a la base: los que no vienen ya en
+// el mismo plan.
+export function padresPorConfirmar(plan: Insercion[]): Map<string, Set<string>> {
+  const enPlan = new Set(plan.map(i => `${i.tabla}:${i.entityId}`))
+  const out = new Map<string, Set<string>>()
+  for (const ins of plan) {
+    for (const [col, tablaPadre] of Object.entries(LLAVES_A_PADRES[ins.tabla] ?? {})) {
+      const id = ins.fila[col]
+      if (typeof id !== 'string' || enPlan.has(`${tablaPadre}:${id}`)) continue
+      const set = out.get(tablaPadre) ?? new Set<string>()
+      set.add(id)
+      out.set(tablaPadre, set)
+    }
+  }
+  return out
+}
+
+// Se queda solo lo que cuelga de padres de este evento. Si se cae un padre,
+// se caen sus hijos del mismo plan: el plan viene padre-primero.
+export function soloConPadresDelEvento(
+  plan: Insercion[],
+  confirmados: Map<string, Set<string>>,
+): Insercion[] {
+  const aceptadas = new Set<string>()
+  const out: Insercion[] = []
+  for (const ins of plan) {
+    const ok = Object.entries(LLAVES_A_PADRES[ins.tabla] ?? {}).every(([col, tablaPadre]) => {
+      const id = ins.fila[col]
+      if (id === null || id === undefined) return true
+      if (typeof id !== 'string') return false
+      return aceptadas.has(`${tablaPadre}:${id}`) || (confirmados.get(tablaPadre)?.has(id) ?? false)
+    })
+    if (!ok) continue
+    aceptadas.add(`${ins.tabla}:${ins.entityId}`)
+    out.push(ins)
+  }
+  return out
+}
+
 // 23505 = unique_violation. Restaurar dos veces lo mismo choca contra la
 // llave primaria, y eso no es un error que reportar: es "ya estaba".
 export function esConflictoDeLlave(error: { code?: string } | null): boolean {

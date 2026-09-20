@@ -1,4 +1,4 @@
-export const CURRENT_VERSION = '2026-08-10'
+export const CURRENT_VERSION = '2026-09-17'
 
 export type Release = {
   version: string
@@ -10,6 +10,19 @@ export type Release = {
 }
 
 export const changelog: Release[] = [
+  {
+    version: '2026-09-17',
+    date: '17 de septiembre, 2026',
+    title: 'Recomendaciones en la invitación',
+    subtitle: 'Hoteles, lugares y vuelos con la vista previa del link, directo en la invitación.',
+    features: [
+      { icon: 'Link2',       text: 'Pega el link de un hotel, un lugar o un vuelo y el título, la foto y el sitio se llenan solos' },
+      { icon: 'Hotel',       text: 'Agrega los bloques que quieras y nómbralos como quieras: Hospedaje, Renta de autos, Autobuses, Restaurantes' },
+      { icon: 'NotebookPen', text: 'Una nota por link para el código de tarifa preferencial o el "reserva con anticipación"' },
+      { icon: 'ImagePlus',   text: 'Si el sitio no da vista previa, le pones título y subes la foto a mano' },
+      { icon: 'EyeOff',      text: 'Un apartado sin links no se muestra: si solo pones vuelos, solo se ven vuelos' },
+    ],
+  },
   {
     version: '2026-08-10',
     date: '10 de agosto, 2026',

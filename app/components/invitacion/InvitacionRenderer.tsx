@@ -18,6 +18,7 @@ import MediaSection from './sections/MediaSection'
 import GaleriaSection from './sections/GaleriaSection'
 import VideoSection from './sections/VideoSection'
 import AudioSection from './sections/AudioSection'
+import RecomendacionesSection from './sections/RecomendacionesSection'
 
 export default function InvitacionRenderer({ doc, ctx }: { doc: InviteDoc; ctx: InviteCtx }) {
   const portadaSection = doc.sections.find(s => s.type === 'portada')
@@ -44,6 +45,7 @@ export default function InvitacionRenderer({ doc, ctx }: { doc: InviteDoc; ctx: 
             case 'galeria':    return <GaleriaSection    key={s.id} content={s.content} ctx={ctx} estilo={doc.theme.carrusel.estilo} />
             case 'video':      return <VideoSection      key={s.id} content={s.content} ctx={ctx} />
             case 'audio':      return <AudioSection      key={s.id} content={s.content} ctx={ctx} />
+            case 'recomendaciones': return <RecomendacionesSection key={s.id} content={s.content} ctx={ctx} />
             case 'cierre':     return <CierreSection     key={s.id} content={s.content} ctx={ctx} portadaTitulo={portadaTitulo} />
             default:           return <div key={(s as any).id} className="px-6 py-3 text-center text-xs text-[#bbb]">Sección no disponible</div>
           }

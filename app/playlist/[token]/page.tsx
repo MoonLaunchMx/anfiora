@@ -2,13 +2,12 @@
 
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { useParams } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
 import { Music, Heart, Check } from 'lucide-react'
 import { resolveMaxSongs } from '@/lib/types'
 import LegalLinks from '@/app/components/LegalLinks'
+import { cancionesDelInvitado } from '@/lib/playlist/publica'
 
 interface Event {
-  id: string
   name: string
   event_date: string | null
   venue: string | null
@@ -100,82 +99,55 @@ export default function PlaylistPublicPage() {
     return () => document.removeEventListener('mousedown', handler)
   }, [])
 
-  const countMySongs = async (eventId: string, name: string): Promise<number> => {
-    const { count } = await supabase
-      .from('song_recommendations')
-      .select('*', { count: 'exact', head: true })
-      .eq('event_id', eventId)
-      .eq('guest_name', name)
-      .eq('is_host_pick', false)
-    return count || 0
-  }
+  const apiUrl = `/api/playlist/${encodeURIComponent(String(token))}`
 
   const loadData = async () => {
-    const { data: settingsData } = await supabase
-      .from('event_settings')
-      .select('event_id, playlist_categories, playlist_max_songs')
-      .eq('playlist_token', token)
-      .single()
-
-    if (!settingsData) { setNotFound(true); setLoading(false); return }
-
-    const limit = resolveMaxSongs(settingsData.playlist_max_songs)
-    setMaxSongs(limit)
-
-    const { data: eventData } = await supabase
-      .from('events')
-      .select('id, name, event_date, venue, host_name, host_name_2')
-      .eq('id', settingsData.event_id)
-      .single()
-
-    if (!eventData) { setNotFound(true); setLoading(false); return }
-
-    setEvent(eventData)
-    setCategories(Array.isArray(settingsData.playlist_categories) ? settingsData.playlist_categories : [])
-
-    const { data: songsData } = await supabase
-      .from('song_recommendations')
-      .select('id, guest_name, song_title, artist, spotify_url, category, created_at, thumbnail, preview_url, is_host_pick')
-      .eq('event_id', eventData.id)
-      .order('created_at', { ascending: true })
-
-    setSongs(songsData || [])
-
-    const storageKey = STORAGE_KEY_PREFIX + token
-    const stored = localStorage.getItem(storageKey)
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored)
-        if (parsed.name && parsed.eventId === eventData.id) {
-          setGuestName(parsed.name)
-          setNameConfirmed(true)
-          const dbCount = await countMySongs(eventData.id, parsed.name)
-          setMyCount(dbCount)
-          if (Number.isFinite(limit) && dbCount >= limit) setDone(true)
-        }
-      } catch {}
+    let data: { evento: Event; categorias: string[]; maxSongs: number | null; canciones: Song[] }
+    try {
+      const res = await fetch(apiUrl)
+      if (!res.ok) { setNotFound(true); setLoading(false); return }
+      data = await res.json()
+    } catch {
+      setNotFound(true); setLoading(false); return
     }
+
+    const limit = resolveMaxSongs(data.maxSongs)
+    setMaxSongs(limit)
+    setEvent(data.evento)
+    setCategories(data.categorias)
+    setSongs(data.canciones)
+
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY_PREFIX + token)
+      const parsed = stored ? JSON.parse(stored) : null
+      if (parsed?.name) {
+        setGuestName(parsed.name)
+        setNameConfirmed(true)
+        const mias = cancionesDelInvitado(data.canciones, parsed.name)
+        setMyCount(mias)
+        if (Number.isFinite(limit) && mias >= limit) setDone(true)
+      }
+    } catch {}
 
     setLoading(false)
   }
 
-  const handleConfirmName = async () => {
+  const handleConfirmName = () => {
     const trimmed = guestName.trim()
     if (!trimmed) { setNameError('¿Cómo te llaman?'); return }
     setNameError('')
 
-    const dbCount = await countMySongs(event!.id, trimmed)
-    setMyCount(dbCount)
-    if (Number.isFinite(maxSongs) && dbCount >= maxSongs) {
+    const mias = cancionesDelInvitado(songs, trimmed)
+    setMyCount(mias)
+    if (Number.isFinite(maxSongs) && mias >= maxSongs) {
       setDone(true)
       setNameConfirmed(true)
       return
     }
 
-    localStorage.setItem(STORAGE_KEY_PREFIX + token, JSON.stringify({
-      name: trimmed,
-      eventId: event!.id,
-    }))
+    try {
+      localStorage.setItem(STORAGE_KEY_PREFIX + token, JSON.stringify({ name: trimmed }))
+    } catch {}
     setNameConfirmed(true)
   }
 
@@ -211,42 +183,38 @@ export default function PlaylistPublicPage() {
     if (!selectedTrack) { setSubmitError('Busca y selecciona una canción primero'); return }
     if (Number.isFinite(maxSongs) && myCount >= maxSongs) return
 
-    const dbCount = await countMySongs(event!.id, guestName.trim())
-    if (Number.isFinite(maxSongs) && dbCount >= maxSongs) {
-      setDone(true)
-      setMyCount(dbCount)
-      return
-    }
-
     setSubmitting(true)
     setSubmitError('')
 
-    const { error } = await supabase.from('song_recommendations').insert({
-      event_id: event!.id,
-      guest_name: guestName.trim(),
-      song_title: selectedTrack.title,
-      artist: selectedTrack.artist,
-      category: category || null,
-      spotify_url: selectedTrack.spotify_url,
-      thumbnail: selectedTrack.thumbnail,
-      preview_url: selectedTrack.preview_url,
-      duration_ms: selectedTrack.duration_ms,
-    })
+    let cancion: Song | null = null
+    try {
+      const res = await fetch(apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          guest_name: guestName.trim(),
+          song_title: selectedTrack.title,
+          artist: selectedTrack.artist,
+          category: category || null,
+          spotify_url: selectedTrack.spotify_url,
+          thumbnail: selectedTrack.thumbnail,
+          preview_url: selectedTrack.preview_url,
+          duration_ms: selectedTrack.duration_ms,
+        }),
+      })
+      if (res.status === 409) {
+        setMyCount(maxSongs)
+        setDone(true)
+        setSubmitting(false)
+        return
+      }
+      if (res.ok) cancion = (await res.json()).cancion
+    } catch {}
 
-    if (error) { setSubmitError('Algo salió mal, intenta de nuevo'); setSubmitting(false); return }
+    if (!cancion) { setSubmitError('Algo salió mal, intenta de nuevo'); setSubmitting(false); return }
 
-    setSongs(prev => [...prev, {
-      id: crypto.randomUUID(),
-      guest_name: guestName.trim(),
-      song_title: selectedTrack.title,
-      artist: selectedTrack.artist,
-      category: category || null,
-      spotify_url: selectedTrack.spotify_url,
-      created_at: new Date().toISOString(),
-      thumbnail: selectedTrack.thumbnail,
-      preview_url: selectedTrack.preview_url,
-      is_host_pick: false,
-    }])
+    const nueva = cancion
+    setSongs(prev => [...prev, nueva])
 
     const newCount = myCount + 1
     setMyCount(newCount)

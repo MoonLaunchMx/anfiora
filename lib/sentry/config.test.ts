@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isSentryEnabled, sentryInitOptions, SENTRY_DENY_URLS } from "./config";
+import { isSentryEnabled, limpiarRastros, sentryInitOptions, SENTRY_DENY_URLS } from "./config";
 
 const esAjena = (url: string) => SENTRY_DENY_URLS.some((re) => re.test(url));
 
@@ -42,6 +42,7 @@ describe("sentryInitOptions", () => {
       sendDefaultPii: false,
       tracesSampleRate: 0.1,
       initialScope: { tags: { app_version: "unknown" } },
+      beforeSend: limpiarRastros,
     });
   });
 
@@ -53,6 +54,7 @@ describe("sentryInitOptions", () => {
       sendDefaultPii: false,
       tracesSampleRate: 0.1,
       initialScope: { tags: { app_version: "unknown" } },
+      beforeSend: limpiarRastros,
     });
   });
 
@@ -66,6 +68,7 @@ describe("sentryInitOptions", () => {
       sendDefaultPii: false,
       tracesSampleRate: 0.1,
       initialScope: { tags: { app_version: "unknown" } },
+      beforeSend: limpiarRastros,
     });
   });
 
@@ -74,5 +77,34 @@ describe("sentryInitOptions", () => {
       sentryInitOptions({ nodeEnv: "production", dsn: "d", appVersion: "2026-06-15" })
         .initialScope.tags.app_version
     ).toBe("2026-06-15");
+  });
+});
+
+describe("limpiarRastros", () => {
+  it("tapa el token de la direccion y del Referer", () => {
+    const evento = limpiarRastros({
+      request: {
+        url: "https://www.anfiora.com/playlist/abc123",
+        headers: { Referer: "https://www.anfiora.com/mesa/xyz789" },
+      },
+    });
+    expect(evento.request?.url).toBe("https://www.anfiora.com/playlist/[token]");
+    expect(evento.request?.headers?.Referer).toBe("https://www.anfiora.com/mesa/[token]");
+  });
+
+  it("tapa el token en las migas de navegacion", () => {
+    const evento = limpiarRastros({
+      breadcrumbs: [
+        { data: { from: "/opinion/abc123", to: "/invite/xyz789" } },
+        { data: { url: "https://www.anfiora.com/dashboard" } },
+        {},
+      ],
+    });
+    expect(evento.breadcrumbs?.[0].data).toEqual({ from: "/opinion/[token]", to: "/invite/[token]" });
+    expect(evento.breadcrumbs?.[1].data?.url).toBe("https://www.anfiora.com/dashboard");
+  });
+
+  it("no revienta con un evento vacio", () => {
+    expect(limpiarRastros({})).toEqual({});
   });
 });
