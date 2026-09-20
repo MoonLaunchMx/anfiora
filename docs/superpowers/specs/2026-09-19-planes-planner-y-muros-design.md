@@ -211,7 +211,17 @@ Ninguna de las cinco piezas borra datos. El archivo trae su verificación y su b
 ## Qué pasa con quien ya está adentro
 
 - **Nadie pierde nada.** Los candados actúan sobre lo que entra, no sobre lo que ya entró. Quien hoy tiene tres eventos vigentes sigue con sus tres, y quien tiene ochenta invitados los sigue viendo y usando.
-- **Patty pasa a Pro** antes del deploy, desde `/admin`, para que no vea ninguna pared.
+- **Patty lleva el sello de partner fundador**, no un plan de paga. Se lo gano.
+- **Cuatro cuentas se suben a Pro a mano antes del deploy**, porque ya trabajan eventos de mas de 50 personas que todavia no ocurren. Se regresan a Free cuando pase su evento:
+
+| Cuenta | Evento | Fecha | Personas hoy |
+|---|---|---|---|
+| mauriciolopez940@gmail.com | Jess y Mau | 3 de octubre | 213 |
+| ambrozzia.eventos@gmail.com | Lilia & Efrain | 10 de octubre | 75 |
+| aechevarria128@gmail.com | Jenni & Leo | 24 de octubre | 151 |
+| fernando.slo771@gmail.com | Ana y Fer | 12 de diciembre | 141 |
+
+Las otras cuentas que hoy pasan de 50 (Eduardo Blum, Lorena Trevino, Maruca) ya tienen su evento cumplido: no van a agregar invitados. Si alguna reclama, se sube ese dia. **Esto evita complicar la regla:** la pared sigue siendo por cuenta, simple de explicar y de programar, y las excepciones se atienden a mano, que a esta escala cuesta menos.
 - **Diego queda sin tope** por el sello de partner o por la lista de correos del equipo, para poder seguir probando con sus ocho eventos.
 
 ## Pruebas
