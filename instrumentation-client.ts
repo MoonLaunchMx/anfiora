@@ -1,5 +1,6 @@
 import * as Sentry from "@sentry/nextjs";
 import { limpiarRastros, sentryInitOptions, SENTRY_DENY_URLS } from "@/lib/sentry/config";
+import { esOrigenExterno } from "@/lib/sentry/origen-externo";
 import { CURRENT_VERSION } from "@/lib/changelog";
 import { zonaDesdePath } from "@/lib/observabilidad/zona";
 
@@ -43,6 +44,13 @@ Sentry.init({
         typeof window !== "undefined"
           ? zonaDesdePath(window.location.pathname)
           : "general";
+    }
+    // Lo que rompio no fue nuestro codigo sino algo inyectado en la pestana
+    // (WebView de Instagram/Facebook, extensiones). Baja a "info" para que
+    // salga en azul y no dispare alertas. Filtro de Sentry: !origen:externo
+    if (esOrigenExterno(event)) {
+      event.tags.origen = "externo";
+      event.level = "info";
     }
     return limpiarRastros(event);
   },
