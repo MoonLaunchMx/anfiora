@@ -37,13 +37,15 @@ Hasta que exista, los dos ven la misma cuenta gratis y la misma pared. La difere
 | Plan | Precio | Asientos | Eventos | Invitados | Marca propia |
 |---|---|---|---|---|---|
 | **Free** | $0 | 1 (solo él) | 1 activo a la vez | 50 por evento | No |
-| **Solo** | $490/mes | 1 (solo él) | Sin límite | Sin límite | No |
-| **Pro** | $990/mes | 3 | Sin límite | Sin límite | No |
+| **Pro** | $490/mes | 1 (solo él) | Sin límite | Sin límite | No |
+| **Studio** | $990/mes | 3 | Sin límite | Sin límite | No |
 | **Agency** | $1,990/mes | 3 + extras | Sin límite | Sin límite | Sí, cuando exista |
 
 Precios en pesos mexicanos. Asiento extra: $290 al mes.
 
-**Solo es Pro sin equipo.** Tiene todo, Rolodex incluido; lo único que no tiene es a quién sentar junto a él. Esa es la única diferencia entre los dos, y es la que se explica en una línea al vender.
+**Pro es Studio sin equipo.** Tiene todo, Rolodex incluido; lo único que no tiene es a quién sentar junto a él. Esa es la única diferencia entre los dos, y es la que se explica en una línea al vender.
+
+**El renombre cambia el significado de un valor que ya existe en la base.** Hasta hoy `pro` quería decir $990 con tres asientos; de aquí en adelante quiere decir $490 con uno. Antes de correr el SQL hay que ver quién está en `pro`: la cuenta que tenga equipo pasa a `studio`, o se queda sin asientos de un día para otro. `studio` deja de ser un alias de `pro` y pasa a ser un plan de verdad.
 
 **Agency entra al catálogo aunque su marca propia no exista todavía.** El plan se puede asignar y cobrar; la personalización llega después. Se dice tal cual en `/admin` para que Diego no venda algo que no está.
 
@@ -105,7 +107,7 @@ Se cierra en los tres lugares por los que hoy se puede entrar, porque cerrar sol
 
 | Superficie | Qué muestra |
 |---|---|
-| Su workspace | Chip junto al nombre: Free, Solo, Pro, Agency o Partner fundador |
+| Su workspace | Chip junto al nombre: Free, Pro, Studio, Agency o Partner fundador |
 | Su perfil | Lo mismo, con el trato completo escrito cuando es partner |
 | `/admin` | Columna con el plan de cada cuenta y el sello, para ver de dónde viene el dinero |
 
@@ -175,10 +177,10 @@ Cuando una cuenta trae el sello, no tiene tope de eventos ni de invitados, sin i
 
 | Archivo | Cambio |
 |---|---|
-| `lib/workspace/planes.ts` | Entra `solo` a los planes. Precios nuevos: Solo $490, Pro $990, Agency $1,990. Campo nuevo de invitados por evento (50 en Free, sin límite en los de paga) |
-| `lib/workspace/asientos.ts` | `Solo` no puede invitar equipo, igual que Free, pero por otra razón: su plan es de una persona |
-| `lib/billing.ts` | Conocer `solo` o el ingreso reportado en `/admin` se va a cero al reasignar planes |
-| `lib/admin/change-plan.ts`, `app/admin/UsuariosTab.tsx` | Selector con los cuatro valores y el sello de partner |
+| `lib/workspace/planes.ts` | Entra `studio` como plan real. Precios nuevos: Pro $490, Studio $990, Agency $1,990. `pro` cambia de significado. Campo nuevo de invitados por evento (50 en Free, sin límite en los de paga) |
+| `lib/workspace/asientos.ts` | `Pro` no puede invitar equipo, igual que Free, pero por otra razón: su plan es de una persona |
+| `lib/billing.ts` | Conocer `studio` y el precio nuevo de `pro`, o el ingreso reportado en `/admin` se va a cero al reasignar planes |
+| `lib/admin/change-plan.ts`, `app/admin/UsuariosTab.tsx` | Selector con los cuatro valores (free, pro, studio, agency) y el sello de partner |
 | `app/api/admin/update-plan/route.ts` | Escribir también el sello |
 | `lib/types.ts` | `EventStatus` a dos valores |
 | `lib/capacity.ts`, `lib/entitlements.ts` | Portados de la rama de agosto, reescritos sobre `planes.ts` |
@@ -228,5 +230,5 @@ Lo que toca base de datos y pantallas se prueba a mano en el recorrido de siempr
 
 - **La pared de invitados es nueva y toca la pantalla más usada del producto.** Es lo que más puede salir mal del paquete. Se prueba en preview con datos reales antes de ir a producción.
 - **Un trigger mal puesto bloquea a alguien vivo.** Los dos triggers solo actúan sobre lo que entra y exigen sesión presente, así que ningún flujo automático se cae. Se verifica en preview con la cuenta de Diego, que es la más cargada.
-- **Agregar `solo` a los planes rompe el ingreso de `/admin`** si el catálogo de precios se queda con los ids viejos. Va en el mismo cambio, no después.
+- **Agregar `studio` y cambiarle el precio a `pro` rompe el ingreso de `/admin`** si el catálogo de precios se queda con los ids viejos. Va en el mismo cambio, no después.
 - **La fecha.** Son ocho días y el paquete trae dos paredes, el sello, los planes y la regla del cliente. Si algo tiene que caerse para llegar al 26, lo primero que se cae es el chip de plan en las pantallas de configuración: es lo único que no cambia comportamiento.
