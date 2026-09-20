@@ -11,6 +11,7 @@ export type SentryAlert = {
   severity?: string;
   impact?: string;
   zona?: string;
+  origen?: string;
 };
 
 // Sentry firma el webhook con HMAC-SHA256 (hex) del cuerpo crudo usando el
@@ -79,6 +80,7 @@ export function parseSentryWebhook(body: unknown): SentryAlert | null {
     severity: tagValue(node, "severity"),
     impact: tagValue(node, "impact"),
     zona: tagValue(node, "zona"),
+    origen: tagValue(node, "origen"),
   };
 }
 
@@ -97,6 +99,12 @@ export function severidadDesdeAlerta(a: SentryAlert): {
   etiqueta: string;
   silent: boolean;
 } {
+  // No lo rompio Anfiora: lo rompio codigo inyectado en la pestana (WebView de
+  // Instagram, extensiones). Va antes que todo lo demas porque gana sobre
+  // cualquier nivel: sin este corte, un evento ajeno suena en rojo.
+  if (a.origen === "externo") {
+    return { emoji: "🔵", etiqueta: "Ajeno a Anfiora", silent: true };
+  }
   if (a.impact === "pantalla-rota" || a.level === "fatal") {
     return { emoji: "🔴🚨", etiqueta: "PANTALLA EN BLANCO", silent: false };
   }
