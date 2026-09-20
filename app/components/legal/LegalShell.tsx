@@ -21,7 +21,7 @@ function Inline({ texto }: { texto: string }) {
 
 function Bloque({ bloque }: { bloque: BloqueLegal }) {
   if (bloque.tipo === 'parrafo') {
-    return <p className="mb-2.5 max-w-[68ch] last:mb-0"><Inline texto={bloque.texto} /></p>
+    return <p className="mb-2.5 last:mb-0"><Inline texto={bloque.texto} /></p>
   }
   if (bloque.tipo === 'subtitulo') {
     return <p className="mt-4 mb-1.5 text-[13.5px] font-semibold text-[var(--text)] first:mt-0">{bloque.texto}</p>
@@ -91,12 +91,10 @@ export default function LegalShell({ doc }: { doc: DocumentoLegal }) {
         <Link href="/">
           <Image src="/images/isotipoylogo.svg" alt="Anfiora" width={110} height={32} priority className="h-[22px] w-auto sm:h-[26px]" />
         </Link>
-        <span className="h-[18px] w-px bg-[var(--border)]" />
-        <span className="text-[15px] font-semibold text-[var(--text-sec)]">Legal</span>
         <Link href="/" className="ml-auto text-[13px] text-[var(--text-sec)] hover:text-[var(--text)]">Volver al inicio</Link>
       </header>
 
-      <div className="mx-auto grid max-w-[1060px] grid-cols-1 gap-0 px-[18px] pt-[18px] lg:grid-cols-[220px_minmax(0,1fr)] lg:gap-16 lg:px-10 lg:pt-10">
+      <div className="grid w-full grid-cols-1 gap-0 px-[18px] pt-[18px] lg:grid-cols-[260px_minmax(0,1fr)] lg:gap-14 lg:px-10 lg:pt-10 xl:px-16">
         <aside className="sticky top-7 hidden self-start lg:flex lg:flex-col lg:gap-[26px]">
           <div>
             <h2 className="mb-2 text-[11px] uppercase tracking-[0.09em] text-[var(--text-muted)]">Documentos</h2>
@@ -135,7 +133,7 @@ export default function LegalShell({ doc }: { doc: DocumentoLegal }) {
           </div>
         </aside>
 
-        <main className="min-w-0 max-w-[700px]">
+        <main className="min-w-0">
           <nav aria-label="Documentos legales" className="mb-[18px] flex gap-0.5 overflow-x-auto rounded-[10px] bg-[var(--surface-alt)] p-[3px] lg:hidden">
             {DOCUMENTOS_LEGALES.map(d => (
               <Link
@@ -152,7 +150,6 @@ export default function LegalShell({ doc }: { doc: DocumentoLegal }) {
           </nav>
 
           <div className="flex flex-col gap-3 pb-4 lg:border-b lg:border-[var(--border)] lg:pb-7">
-            <p className="text-[11px] uppercase tracking-[0.09em] text-[var(--text-muted)]">Legal</p>
             <h1 className="text-pretty text-[30px] font-bold leading-[1.05] tracking-[-0.025em] lg:text-[38px]">{doc.titulo}</h1>
             <p className="text-pretty text-[15.5px] font-medium leading-[1.4] text-[var(--text-sec)] lg:text-[17px]">{doc.entrada}</p>
             <p className="text-[12.5px] tabular-nums text-[var(--text-muted)]">{meta}</p>
