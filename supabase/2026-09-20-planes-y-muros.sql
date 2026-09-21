@@ -374,6 +374,30 @@ BEGIN
   IF faltan IS NOT NULL THEN
     RAISE EXCEPTION 'ABORTA: estos eventos ya tienen mas de un cliente vivo: %. Revocar los de mas antes de correr', faltan;
   END IF;
+
+  -- 10. Propiedad. Reemplazar una funcion, revocarle permisos u otorgarselos
+  --     exige ser su dueno (o miembro del rol dueno). Si alguna de las que ya
+  --     existen la creo otro rol, el archivo abortaria a media corrida con un
+  --     error de propiedad. Mejor saberlo aqui.
+  SELECT string_agg(p.proname || ' (dueno: ' || pg_get_userbyid(p.proowner) || ')', ', ') INTO faltan
+    FROM pg_proc p
+   WHERE p.pronamespace = 'public'::regnamespace
+     AND p.proname IN ('limite_eventos_de_plan','limite_invitados_de_plan','plan_y_sello_de',
+                       'plan_y_sello_de_cuenta','plan_y_sello_del_evento','limite_invitados_del_evento',
+                       'personas_del_evento','eventos_vigentes_de','evento_editable',
+                       'get_account_capacity','plan_del_evento','guard_workspace_sello',
+                       'events_gate_cupo','invitados_gate_cupo','guard_cliente_sin_total',
+                       'bloquea_evento_archivado','bloquea_pago_archivado')
+     AND NOT pg_has_role(current_user, p.proowner, 'USAGE');
+  IF faltan IS NOT NULL THEN
+    RAISE EXCEPTION 'ABORTA: % no te pertenecen y no las podrias reemplazar ni cambiarles permisos. Correr este archivo con el rol dueno', faltan;
+  END IF;
+
+  -- AVISO, no candado: ALTER TABLE workspaces y los CREATE TRIGGER de los
+  -- BLOQUES 1 a 6 tambien piden ser dueno de esas tablas. En Supabase el editor
+  -- de SQL corre como `postgres`, que las creo todas, asi que no se comprueba
+  -- aqui; si alguna vez este archivo se corre con otro rol, es lo primero que
+  -- fallaria.
 END $$;
 
 
@@ -584,6 +608,16 @@ END $$;
 -- evento (events.user_id), no quien esta guardando; el plan sale del workspace
 -- del evento, igual que en el muro de invitados.
 --
+-- LAS DOS MITADES NO SE MIDEN EN EL MISMO SITIO, y hay que saberlo: el LIMITE
+-- sale del workspace donde entra el evento, pero el CONTEO (eventos_vigentes_de)
+-- es por dueno y atraviesa todos sus workspaces. Un dueno con cinco eventos
+-- vigentes en un workspace de paga que cree el sexto en su workspace gratuito
+-- se lo topan: el limite que aplica es el del workspace gratuito, 1, y ya lleva
+-- cinco contados. Hoy es improbable (hace falta ser dueno de eventos en dos
+-- workspaces a la vez) y el remedio del usuario es crear el evento dentro del
+-- workspace de paga. Contar por workspace en vez de por dueno seria otro
+-- diseno: el spec dice que el lugar lo paga el dueno.
+--
 -- A PROPOSITO NO TIENE ESCAPE PARA EL SERVICE ROLE, a diferencia de los otros
 -- dos disparadores de este archivo: los eventos no los crea ni los reactiva
 -- ningun canal de entrada — hoy no hay una sola escritura a events desde el
@@ -684,10 +718,13 @@ $$;
 -- otro con un UPDATE de guests.event_id no pasa por aqui. Ninguna pantalla lo
 -- hace; se alcanza solo desde la consola.
 --
--- COSTO: cuenta una vez por fila que entra. Con indice por event_id en guests
--- y party_members es trivial; sin el, una importacion grande se vuelve
--- cuadratica. El BLOQUE 0-A (B9) dice si estan. Si falta alguno, se crea FUERA
--- de esta transaccion (CONCURRENTLY no corre dentro de una):
+-- COSTO: cuenta una vez por fila que entra, y ademas el BLOQUE 6 le cuelga a
+-- estas dos tablas un SEGUNDO disparador por fila (trg_guests_archivado y
+-- trg_party_members_archivado, que miran si el evento sigue editable). O sea
+-- dos consultas por fila insertada, no una. Con indice por event_id en guests
+-- y party_members las dos son triviales; sin el, la del cupo vuelve cuadratica
+-- una importacion grande. El BLOQUE 0-A (B9) dice si estan. Si falta alguno,
+-- se crea FUERA de esta transaccion (CONCURRENTLY no corre dentro de una):
 --   CREATE INDEX CONCURRENTLY IF NOT EXISTS guests_event_id_idx
 --     ON public.guests (event_id);
 --   CREATE INDEX CONCURRENTLY IF NOT EXISTS party_members_event_id_idx
@@ -732,10 +769,20 @@ CREATE TRIGGER trg_party_members_gate_cupo
 -- de la sentencia y una importacion de 300 entraria completa en una cuenta
 -- free.
 --
--- Como se prueba, en el editor de Supabase, sobre un EVENTO VACIO de una
--- cuenta FREE de prueba. El editor corre sin auth.uid() y el disparador se
--- salta a proposito, asi que hay que fingir la sesion con set_config; todo va
--- dentro de una transaccion que se deshace al final y no deja rastro:
+-- Como se prueba, en el editor de Supabase. LAS DOS CONDICIONES DEL EVENTO NO
+-- SON ADORNO — sin ellas el resultado no dice nada:
+--   a) El evento tiene que estar REALMENTE VACIO. Comprobalo, no lo supongas:
+--        SELECT public.personas_del_evento('<UUID DEL EVENTO>');  -- debe dar 0
+--      Con 45 personas dentro, el error saldria en la fila 6 y no probaria que
+--      el disparador ve las filas de su propia sentencia.
+--   b) Su tope tiene que existir, o sea plan gratuito y sin sello:
+--        SELECT * FROM public.plan_y_sello_del_evento('<UUID DEL EVENTO>');
+--        SELECT public.limite_invitados_del_evento('<UUID DEL EVENTO>'); -- 50
+--      Si sale NULL (plan de paga o sello), las 60 entran y eso es lo correcto:
+--      no habrias probado nada.
+-- El editor corre sin auth.uid() y el disparador se salta a proposito, asi que
+-- hay que fingir la sesion con set_config; todo va dentro de una transaccion
+-- que se deshace al final y no deja rastro:
 --
 --   BEGIN;
 --   SELECT set_config('request.jwt.claims',
@@ -763,7 +810,7 @@ CREATE TRIGGER trg_party_members_gate_cupo
 
 
 -- ============================================================================
--- BLOQUE 4 — LA FUNCION QUE LA INTERFAZ CONSULTA, Y LOS PERMISOS
+-- BLOQUE 4 — LA FUNCION QUE LA INTERFAZ CONSULTA
 -- ============================================================================
 -- plan_del_evento ya existia (2026-09-08-workspace-cimiento.sql) y devolvia
 -- solo el plan del workspace del evento, con 'free' por omision.
@@ -798,70 +845,13 @@ BEGIN
   RETURN coalesce(v_plan, 'free');
 END $$;
 
--- ---------------------------------------------------------------------------
--- PERMISOS DE EJECUCION — LEER ANTES DE TOCAR
--- ---------------------------------------------------------------------------
--- En Postgres toda funcion nace ejecutable por PUBLIC, y Supabase ademas tiene
--- default privileges que se la otorgan a anon y authenticated. Como Supabase
--- publica cada funcion de `public` como endpoint, una funcion nueva sin cerrar
--- es una puerta abierta: personas_del_evento, plan_y_sello_de_cuenta,
--- eventos_vigentes_de, limite_invitados_del_evento y evento_editable
--- contestarian de cualquier evento o cuenta a quien no tiene ni sesion, que es
--- justo el hueco que acaba de cerrar la auditoria de seguridad.
--- Por eso se cierran TODAS, y luego se abre solo lo que la app llama.
-REVOKE EXECUTE ON FUNCTION
-  public.limite_eventos_de_plan(text, text),
-  public.limite_invitados_de_plan(text, text),
-  public.plan_y_sello_de(uuid, uuid),
-  public.plan_y_sello_de_cuenta(uuid),
-  public.plan_y_sello_del_evento(uuid),
-  public.limite_invitados_del_evento(uuid),
-  public.personas_del_evento(uuid),
-  public.eventos_vigentes_de(uuid),
-  public.evento_editable(uuid),
-  public.get_account_capacity(uuid),
-  public.plan_del_evento(uuid)
-FROM PUBLIC, anon, authenticated;
-
--- Las funciones de disparador no se llaman por RPC (Postgres solo revisa el
--- permiso al CREAR el disparador, no al dispararlo), pero se cierran igual.
-REVOKE EXECUTE ON FUNCTION
-  public.guard_workspace_sello(),
-  public.events_gate_cupo(),
-  public.invitados_gate_cupo(),
-  public.guard_cliente_sin_total(),
-  public.bloquea_evento_archivado(),
-  public.bloquea_pago_archivado()
-FROM PUBLIC, anon, authenticated;
-
--- Lo unico que se vuelve a abrir, y por que:
---
--- docs/superpowers/plans/sql/2026-09-14-seguridad-1a-cerrar-ya.sql le quito a
--- `authenticated` el permiso de ejecutar get_account_capacity y
--- plan_del_evento, con razon: eran SECURITY DEFINER que recibian el id de
--- cualquiera y contestaban sin preguntar quien llamaba.
---
--- El codigo que se acaba de desplegar las NECESITA desde el navegador:
--- NewEventModal y configuracion llaman get_account_capacity para avisar antes
--- de intentar, y el contador de invitados llama plan_del_evento. Sin estos dos
--- GRANT las dos pantallas siguen funcionando, pero pierden el aviso previo: el
--- usuario se entera hasta que el disparador lo rechaza.
---
--- Por eso se vuelven a otorgar, pero YA NO son las mismas funciones: las dos
--- traen adentro la pregunta que les faltaba (¿eres tu?, ¿eres del evento?,
--- ¿lo administras?) y contestan vacio a quien no. El hueco que cerro la
--- auditoria sigue cerrado; lo que vuelve es el uso legitimo.
---
--- Si prefieres no reabrirlos: estos dos GRANT se pueden saltar sin tocar nada
--- mas. Los muros no dependen de ellos.
-GRANT EXECUTE ON FUNCTION public.get_account_capacity(uuid) TO authenticated, service_role;
-GRANT EXECUTE ON FUNCTION public.plan_del_evento(uuid)      TO authenticated, service_role;
-
--- plan_y_sello_del_evento NO se le da a authenticated: hoy no la llama nadie
--- desde el navegador, y abierta dejaria leer el plan y el sello de cualquier
--- evento por la puerta de al lado. Cuando la interfaz la use, se le pone la
--- misma pregunta de adentro que trae plan_del_evento y entonces se otorga.
-GRANT EXECUTE ON FUNCTION public.plan_y_sello_del_evento(uuid) TO service_role;
+-- LOS PERMISOS DE EJECUCION NO VAN AQUI: van al final, despues del BLOQUE 6.
+-- REVOKE EXECUTE ON FUNCTION no tiene IF EXISTS, y cuatro de las diecisiete
+-- funciones nacen hasta los BLOQUES 5 y 6 (guard_cliente_sin_total,
+-- evento_editable, bloquea_evento_archivado, bloquea_pago_archivado):
+-- revocarlas aqui abortaria la transaccion entera con "la funcion no existe".
+-- Se cierran cuando las diecisiete ya existen. Nada de los BLOQUES 5, 6 y 7
+-- depende de esos permisos.
 
 
 -- ============================================================================
@@ -1003,6 +993,76 @@ DROP TRIGGER IF EXISTS trg_supplier_payments_archivado ON public.supplier_paymen
 CREATE TRIGGER trg_supplier_payments_archivado
   BEFORE INSERT OR UPDATE OR DELETE ON public.supplier_payments
   FOR EACH ROW EXECUTE FUNCTION public.bloquea_pago_archivado();
+
+
+-- ============================================================================
+-- PERMISOS DE EJECUCION — LEER ANTES DE TOCAR
+-- ============================================================================
+-- Va AQUI, al final, y no junto a cada funcion: REVOKE EXECUTE ON FUNCTION no
+-- tiene IF EXISTS, asi que todas las que nombra tienen que existir ya. En este
+-- punto existen las diecisiete.
+--
+-- En Postgres toda funcion nace ejecutable por PUBLIC, y Supabase ademas tiene
+-- default privileges que se la otorgan a anon y authenticated. Como Supabase
+-- publica cada funcion de `public` como endpoint, una funcion nueva sin cerrar
+-- es una puerta abierta: personas_del_evento, plan_y_sello_de_cuenta,
+-- eventos_vigentes_de, limite_invitados_del_evento y evento_editable
+-- contestarian de cualquier evento o cuenta a quien no tiene ni sesion, que es
+-- justo el hueco que acaba de cerrar la auditoria de seguridad.
+-- Por eso se cierran TODAS, y luego se abre solo lo que la app llama.
+REVOKE EXECUTE ON FUNCTION
+  public.limite_eventos_de_plan(text, text),
+  public.limite_invitados_de_plan(text, text),
+  public.plan_y_sello_de(uuid, uuid),
+  public.plan_y_sello_de_cuenta(uuid),
+  public.plan_y_sello_del_evento(uuid),
+  public.limite_invitados_del_evento(uuid),
+  public.personas_del_evento(uuid),
+  public.eventos_vigentes_de(uuid),
+  public.evento_editable(uuid),
+  public.get_account_capacity(uuid),
+  public.plan_del_evento(uuid)
+FROM PUBLIC, anon, authenticated;
+
+-- Las funciones de disparador no se llaman por RPC (Postgres solo revisa el
+-- permiso al CREAR el disparador, no al dispararlo), pero se cierran igual.
+REVOKE EXECUTE ON FUNCTION
+  public.guard_workspace_sello(),
+  public.events_gate_cupo(),
+  public.invitados_gate_cupo(),
+  public.guard_cliente_sin_total(),
+  public.bloquea_evento_archivado(),
+  public.bloquea_pago_archivado()
+FROM PUBLIC, anon, authenticated;
+
+-- Lo unico que se vuelve a abrir, y por que:
+--
+-- docs/superpowers/plans/sql/2026-09-14-seguridad-1a-cerrar-ya.sql le quito a
+-- `authenticated` el permiso de ejecutar get_account_capacity y
+-- plan_del_evento, con razon: eran SECURITY DEFINER que recibian el id de
+-- cualquiera y contestaban sin preguntar quien llamaba.
+--
+-- El codigo que se acaba de desplegar las NECESITA desde el navegador:
+-- NewEventModal y configuracion llaman get_account_capacity para avisar antes
+-- de intentar, y el contador de invitados llama plan_del_evento. Sin estos dos
+-- GRANT las dos pantallas siguen funcionando, pero pierden el aviso previo: el
+-- usuario se entera hasta que el disparador lo rechaza.
+--
+-- Por eso se vuelven a otorgar, pero YA NO son las mismas funciones: las dos
+-- traen adentro la pregunta que les faltaba (¿eres tu?, ¿eres del evento?,
+-- ¿lo administras?) y contestan vacio a quien no. El hueco que cerro la
+-- auditoria sigue cerrado; lo que vuelve es el uso legitimo.
+--
+-- Si prefieres no reabrirlos: estos dos GRANT se pueden saltar sin tocar nada
+-- mas. Los muros no dependen de ellos.
+GRANT EXECUTE ON FUNCTION public.get_account_capacity(uuid) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.plan_del_evento(uuid)      TO authenticated, service_role;
+
+-- plan_y_sello_del_evento NO se le da a authenticated: hoy no la llama nadie
+-- desde el navegador, y abierta dejaria leer el plan y el sello de cualquier
+-- evento por la puerta de al lado. Cuando la interfaz la use, se le pone la
+-- misma pregunta de adentro que trae plan_del_evento y entonces se otorga.
+GRANT EXECUTE ON FUNCTION public.plan_y_sello_del_evento(uuid) TO service_role;
 
 
 -- ============================================================================
@@ -1159,18 +1219,44 @@ SELECT 'V11 clientes que todavia traen algun total',
 --   FROM PUBLIC, anon, authenticated;
 -- REVOKE EXECUTE ON FUNCTION public.plan_y_sello_del_evento(uuid) FROM service_role;
 --
--- -- Las funciones nuevas quedan inertes sin sus disparadores; si estorban:
--- DROP FUNCTION IF EXISTS public.plan_y_sello_del_evento(uuid);
--- DROP FUNCTION IF EXISTS public.plan_y_sello_de_cuenta(uuid);
--- DROP FUNCTION IF EXISTS public.plan_y_sello_de(uuid, uuid);
+-- COMMIT;
+--
+-- HASTA AQUI LA REVERSA NORMAL. Con esto los muros desaparecen y las funciones
+-- se quedan puestas, inertes: no estorban, no cuestan y las dos que la app
+-- llama (get_account_capacity y plan_del_evento) siguen contestando bien.
+--
+-- ---------------------------------------------------------------------------
+-- BORRAR ADEMAS LAS FUNCIONES: SOLO SI SABES ESTO
+-- ---------------------------------------------------------------------------
+-- get_account_capacity y plan_del_evento se quedan con el cuerpo NUEVO, y ese
+-- cuerpo llama a cinco de las funciones de abajo:
+--     get_account_capacity -> plan_y_sello_de_cuenta -> plan_y_sello_de
+--                             limite_eventos_de_plan, eventos_vigentes_de
+--     plan_del_evento      -> plan_y_sello_del_evento -> plan_y_sello_de
+-- Borrarlas deja esas DOS LLAMADAS DE LA APP TIRANDO ERROR (el cuerpo es
+-- plpgsql: no se queja al borrar, se queja al ejecutar). Hay dos caminos
+-- limpios:
+--   A. No borrar esas cinco. Es lo recomendado: son inertes.
+--   B. Restaurar primero los cuerpos viejos desde git
+--      (git show <commit>^:supabase/2026-08-19-muro-eventos.sql) y despues
+--      borrarlas. Ojo: el cuerpo viejo de get_account_capacity trae el catalogo
+--      de agosto, con planes que ya no existen.
+--
+-- Las que se pueden borrar sin romper nada una vez tirados sus disparadores:
 -- DROP FUNCTION IF EXISTS public.limite_invitados_del_evento(uuid);
--- DROP FUNCTION IF EXISTS public.limite_eventos_de_plan(text, text);
 -- DROP FUNCTION IF EXISTS public.limite_invitados_de_plan(text, text);
 -- DROP FUNCTION IF EXISTS public.personas_del_evento(uuid);
--- DROP FUNCTION IF EXISTS public.eventos_vigentes_de(uuid);
+-- DROP FUNCTION IF EXISTS public.evento_editable(uuid);
 -- DROP FUNCTION IF EXISTS public.events_gate_cupo();
 -- DROP FUNCTION IF EXISTS public.invitados_gate_cupo();
 -- DROP FUNCTION IF EXISTS public.guard_workspace_sello();
 -- DROP FUNCTION IF EXISTS public.guard_cliente_sin_total();
+-- DROP FUNCTION IF EXISTS public.bloquea_evento_archivado();
+-- DROP FUNCTION IF EXISTS public.bloquea_pago_archivado();
 --
--- COMMIT;
+-- Y estas cinco SOLO por el camino B:
+-- DROP FUNCTION IF EXISTS public.plan_y_sello_del_evento(uuid);
+-- DROP FUNCTION IF EXISTS public.plan_y_sello_de_cuenta(uuid);
+-- DROP FUNCTION IF EXISTS public.plan_y_sello_de(uuid, uuid);
+-- DROP FUNCTION IF EXISTS public.limite_eventos_de_plan(text, text);
+-- DROP FUNCTION IF EXISTS public.eventos_vigentes_de(uuid);
