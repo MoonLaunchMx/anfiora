@@ -16,6 +16,34 @@ export interface DatosSolicitud {
   mensaje: string
 }
 
+// Telegram rechaza mensajes de mas de 4096 caracteres. La suma de estos topes
+// mas las etiquetas fijas de armarMensajeSolicitud queda muy por debajo, asi
+// que un campo largo nunca tumba el envio de los demas.
+export const LIMITES_CAMPO = {
+  nombre: 120,
+  email: 180,
+  telefono: 40,
+  tipoDeCuenta: 40,
+  planActual: 40,
+  eventosAlAno: 60,
+  tipoDeEventos: 150,
+  tamanoDeEquipo: 60,
+  contactoPreferido: 60,
+  ciudad: 120,
+  mensaje: 1500,
+} as const
+
+export type CampoLibre = keyof typeof LIMITES_CAMPO
+
+// Recorta sin partir la marca a la mitad, y avisa que se corto: sin esto el
+// destinatario cree que la persona escribio justo lo que le llego.
+export function acotarCampo(valor: unknown, campo: CampoLibre): string {
+  const texto = typeof valor === 'string' ? valor.trim() : ''
+  const max = LIMITES_CAMPO[campo]
+  if (texto.length <= max) return texto
+  return texto.slice(0, max).trim() + ' (cortado)'
+}
+
 export function armarMensajeSolicitud(d: DatosSolicitud): string {
   return [
     'SOLICITUD DE ACCESO',

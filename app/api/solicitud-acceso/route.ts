@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
-import { armarMensajeSolicitud, type DatosSolicitud } from '@/lib/solicitud/mensaje'
+import { acotarCampo, armarMensajeSolicitud, type DatosSolicitud } from '@/lib/solicitud/mensaje'
 
 export const runtime = 'nodejs'
 
@@ -20,10 +20,6 @@ async function postToTelegram(url: string, body: BodyInit, headers?: HeadersInit
   }
   console.error('[solicitud-acceso] telegram fetch error (2 intentos):', lastErr)
   return null
-}
-
-function comoTexto(v: unknown): string {
-  return typeof v === 'string' ? v.trim() : ''
 }
 
 function comoNumero(v: unknown): number {
@@ -58,9 +54,9 @@ export async function POST(req: NextRequest) {
   }
 
   const motivo = body.motivo === 'eventos' || body.motivo === 'invitados' ? body.motivo : null
-  const email = comoTexto(body.email)
-  const nombre = comoTexto(body.nombre)
-  const telefono = comoTexto(body.telefono)
+  const email = acotarCampo(body.email, 'email')
+  const nombre = acotarCampo(body.nombre, 'nombre')
+  const telefono = acotarCampo(body.telefono, 'telefono')
   if (!motivo || !email || !nombre || !telefono) {
     return NextResponse.json({ ok: false, error: 'faltan datos' }, { status: 400 })
   }
@@ -69,18 +65,18 @@ export async function POST(req: NextRequest) {
     nombre,
     email,
     telefono,
-    tipoDeCuenta: comoTexto(body.tipoDeCuenta) || 'planner',
-    planActual: comoTexto(body.planActual) || 'free',
+    tipoDeCuenta: acotarCampo(body.tipoDeCuenta, 'tipoDeCuenta') || 'planner',
+    planActual: acotarCampo(body.planActual, 'planActual') || 'free',
     sello: body.sello === 'fundador' ? 'fundador' : null,
     eventosVigentes: comoNumero(body.eventosVigentes),
     personasEnEvento: comoNumero(body.personasEnEvento),
     motivo,
-    eventosAlAno: comoTexto(body.eventosAlAno),
-    tipoDeEventos: comoTexto(body.tipoDeEventos),
-    tamanoDeEquipo: comoTexto(body.tamanoDeEquipo),
-    contactoPreferido: comoTexto(body.contactoPreferido),
-    ciudad: comoTexto(body.ciudad),
-    mensaje: comoTexto(body.mensaje),
+    eventosAlAno: acotarCampo(body.eventosAlAno, 'eventosAlAno'),
+    tipoDeEventos: acotarCampo(body.tipoDeEventos, 'tipoDeEventos'),
+    tamanoDeEquipo: acotarCampo(body.tamanoDeEquipo, 'tamanoDeEquipo'),
+    contactoPreferido: acotarCampo(body.contactoPreferido, 'contactoPreferido'),
+    ciudad: acotarCampo(body.ciudad, 'ciudad'),
+    mensaje: acotarCampo(body.mensaje, 'mensaje'),
   }
 
   const text = armarMensajeSolicitud(datos)

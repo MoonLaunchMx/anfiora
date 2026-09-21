@@ -37,66 +37,77 @@ async function cargarContexto(motivo: 'eventos' | 'invitados', limite: number): 
   nombre: string
   telefono: string
 }> {
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { contexto: null, nombre: '', telefono: '' }
+  const vacio = { contexto: null, nombre: '', telefono: '' }
+  try {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return vacio
 
-  const { data: perfil } = await supabase
-    .from('users')
-    .select('full_name, phone, role')
-    .eq('id', user.id)
-    .maybeSingle()
-  const fila = perfil as { full_name?: string | null; phone?: string | null; role?: string | null } | null
+    const { data: perfil } = await supabase
+      .from('users')
+      .select('full_name, phone, role')
+      .eq('id', user.id)
+      .maybeSingle()
+    const fila = perfil as { full_name?: string | null; phone?: string | null; role?: string | null } | null
 
-  const { data: mem } = await supabase
-    .from('workspace_members')
-    .select('workspace_id')
-    .eq('user_id', user.id).eq('status', 'active').eq('rol', 'dueno')
-    .maybeSingle()
-  const workspaceId = (mem as { workspace_id?: string } | null)?.workspace_id ?? null
+    // dueno o admin: los dos administran el workspace y pueden toparse con el
+    // muro. Igual que lib/workspace/cliente.ts, nunca solo dueno.
+    const { data: mem } = await supabase
+      .from('workspace_members')
+      .select('workspace_id')
+      .eq('user_id', user.id).eq('status', 'active').in('rol', ['dueno', 'admin'])
+      .limit(1)
+      .maybeSingle()
+    const workspaceId = (mem as { workspace_id?: string } | null)?.workspace_id ?? null
 
-  let planActual = 'free'
-  let sello: Sello = null
-  if (workspaceId) {
-    const conSello = await supabase.from('workspaces').select('plan, sello').eq('id', workspaceId).maybeSingle()
-    if (!conSello.error && conSello.data) {
-      const ws = conSello.data as { plan?: string; sello?: string }
-      planActual = normalizarPlan(ws.plan)
-      sello = normalizarSello(ws.sello)
-    } else {
-      // La columna sello puede no existir todavia en este ambiente: se pide
-      // el plan solo, sin dejar que ese hueco tumbe la carga del contexto.
-      const soloPlan = await supabase.from('workspaces').select('plan').eq('id', workspaceId).maybeSingle()
-      if (!soloPlan.error && soloPlan.data) planActual = normalizarPlan((soloPlan.data as { plan?: string }).plan)
+    let planActual = 'free'
+    let sello: Sello = null
+    if (workspaceId) {
+      const conSello = await supabase.from('workspaces').select('plan, sello').eq('id', workspaceId).maybeSingle()
+      if (!conSello.error && conSello.data) {
+        const ws = conSello.data as { plan?: string; sello?: string }
+        planActual = normalizarPlan(ws.plan)
+        sello = normalizarSello(ws.sello)
+      } else {
+        // La columna sello puede no existir todavia en este ambiente: se pide
+        // el plan solo, sin dejar que ese hueco tumbe la carga del contexto.
+        const soloPlan = await supabase.from('workspaces').select('plan').eq('id', workspaceId).maybeSingle()
+        if (!soloPlan.error && soloPlan.data) planActual = normalizarPlan((soloPlan.data as { plan?: string }).plan)
+      }
     }
-  }
 
-  let eventosVigentes = 0
-  let personasEnEvento = 0
-  if (workspaceId) {
-    const { data: eventos } = await supabase
-      .from('events')
-      .select('event_status, total_guests')
-      .eq('workspace_id', workspaceId)
-    const activos = (eventos ?? []).filter(e => e.event_status === 'active') as { total_guests?: number | null }[]
-    eventosVigentes = activos.length
-    personasEnEvento = activos.reduce((sum, e) => sum + (Number(e.total_guests) || 0), 0)
-  }
-  // Sin datos de eventos (RLS o error de red), el numero que topo es el mejor
-  // sustituto: es exactamente el que disparo este aviso.
-  if (eventosVigentes === 0 && motivo === 'eventos') eventosVigentes = limite
-  if (personasEnEvento === 0 && motivo === 'invitados') personasEnEvento = limite
+    let eventosVigentes = 0
+    let personasEnEvento = 0
+    if (workspaceId) {
+      const { data: eventos } = await supabase
+        .from('events')
+        .select('event_status, total_guests')
+        .eq('workspace_id', workspaceId)
+      const activos = (eventos ?? []).filter(e => e.event_status === 'active') as { total_guests?: number | null }[]
+      eventosVigentes = activos.length
+      personasEnEvento = activos.reduce((sum, e) => sum + (Number(e.total_guests) || 0), 0)
+    }
+    // Sin datos de eventos (RLS o error de red), el numero que topo es el mejor
+    // sustituto: es exactamente el que disparo este aviso.
+    if (eventosVigentes === 0 && motivo === 'eventos') eventosVigentes = limite
+    if (personasEnEvento === 0 && motivo === 'invitados') personasEnEvento = limite
 
-  return {
-    contexto: {
-      email: user.email ?? '',
-      tipoDeCuenta: fila?.role || 'planner',
-      planActual,
-      sello,
-      eventosVigentes,
-      personasEnEvento,
-    },
-    nombre: fila?.full_name ?? '',
-    telefono: fila?.phone ?? '',
+    return {
+      contexto: {
+        email: user.email ?? '',
+        tipoDeCuenta: fila?.role || 'planner',
+        planActual,
+        sello,
+        eventosVigentes,
+        personasEnEvento,
+      },
+      nombre: fila?.full_name ?? '',
+      telefono: fila?.phone ?? '',
+    }
+  } catch (e) {
+    // El aviso y el formulario tienen que servir aunque el contexto no cargue:
+    // se degrada a los defaults, nunca se queda una promesa sin atrapar.
+    console.error('[MuroModal] no se pudo cargar el contexto', e)
+    return vacio
   }
 }
 
