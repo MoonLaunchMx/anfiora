@@ -2,7 +2,7 @@
 // MANANA (Stripe): reescribir SOLO el cuerpo de getBillingRows leyendo de Stripe.
 // La UI consume BillingRow / BillingSummary y no se entera del origen.
 
-import { PLANES, PLAN_IDS } from '@/lib/workspace/planes'
+import { PLANES, PLAN_IDS, normalizarPlan, type PlanId } from '@/lib/workspace/planes'
 
 export const PLAN_PRICES: Record<string, number> = Object.fromEntries(
   PLAN_IDS.map(id => [id, PLANES[id].precio]),
@@ -36,7 +36,7 @@ export interface BillingSummary {
   arr: number
   payingCustomers: number
   avgTicket: number
-  byPlan: { pro: number; agency: number; free: number }
+  byPlan: Record<PlanId, number>
 }
 
 export function isPaidPlan(plan: string): boolean {
@@ -66,15 +66,15 @@ export function getBillingRows(users: BillingUserInput[]): BillingRow[] {
 export function getBillingSummary(rows: BillingRow[]): BillingSummary {
   const mrr = rows.reduce((sum, r) => sum + r.mrrContributed, 0)
   const payingCustomers = rows.length
+
+  const byPlan = Object.fromEntries(PLAN_IDS.map(id => [id, 0])) as Record<PlanId, number>
+  for (const r of rows) byPlan[normalizarPlan(r.plan)] += 1
+
   return {
     mrr,
     arr: mrr * 12,
     payingCustomers,
     avgTicket: payingCustomers ? Math.round(mrr / payingCustomers) : 0,
-    byPlan: {
-      pro:    rows.filter(r => r.plan === 'pro').length,
-      agency: rows.filter(r => r.plan === 'agency').length,
-      free:   0,
-    },
+    byPlan,
   }
 }

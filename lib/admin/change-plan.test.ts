@@ -31,6 +31,11 @@ describe('checkPlanChange', () => {
     expect(r.ok).toBe(false)
     expect(r.error).toBe('El usuario ya tiene ese plan.')
   })
+
+  it('acepta studio y rechaza los ids viejos', () => {
+    expect(checkPlanChange({ target, newPlan: 'studio' }).ok).toBe(true)
+    expect(checkPlanChange({ target, newPlan: 'solo' }).ok).toBe(false)
+  })
 })
 
 // Este es el bug real: RLS filtra la fila ajena, el UPDATE afecta cero filas y

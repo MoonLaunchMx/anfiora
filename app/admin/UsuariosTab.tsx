@@ -5,6 +5,7 @@ import { ChevronDown, ChevronUp, Mail, Ban, Trash2, CheckCircle } from 'lucide-r
 import { AdminUser, GlobalStats } from './lib/types'
 import { formatDate, formatDateTime, timeAgo, PLAN_STYLES } from './lib/format'
 import { CURRENT_LEGAL_VERSION } from '@/lib/legal'
+import { PLAN_IDS, PLANES } from '@/lib/workspace/planes'
 import DeleteUserModal from './DeleteUserModal'
 
 interface Props {
@@ -189,9 +190,11 @@ export default function UsuariosTab({ users, stats, actionLoading, onChangePlan,
                     <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                       <select value={u.plan} onChange={e => onChangePlan(u.id, e.target.value)}
                         className="rounded-lg border border-[#e0e0e0] px-2 py-1 text-xs text-[#555] outline-none hover:border-[#48C9B0]">
-                        <option value="free">free</option>
-                        <option value="pro">pro</option>
-                        <option value="agency">agency</option>
+                        {PLAN_IDS.map(id => (
+                          <option key={id} value={id}>
+                            {PLANES[id].nombre}{id === 'agency' ? ' (marca propia: próximamente)' : ''}
+                          </option>
+                        ))}
                       </select>
                     </td>
                     <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
@@ -333,9 +336,11 @@ export default function UsuariosTab({ users, stats, actionLoading, onChangePlan,
                   <div className="flex items-center gap-2">
                     <select value={u.plan} onChange={e => onChangePlan(u.id, e.target.value)} onClick={e => e.stopPropagation()}
                       className="rounded-lg border border-[#e0e0e0] px-2 py-1 text-xs text-[#555] outline-none">
-                      <option value="free">free</option>
-                      <option value="pro">pro</option>
-                      <option value="agency">agency</option>
+                      {PLAN_IDS.map(id => (
+                        <option key={id} value={id}>
+                          {PLANES[id].nombre}{id === 'agency' ? ' (marca propia: próximamente)' : ''}
+                        </option>
+                      ))}
                     </select>
                     <button onClick={() => { window.location.href = 'mailto:' + u.email }} className="rounded-lg border border-[#e0e0e0] p-1.5 text-[#888]"><Mail size={14} /></button>
                     {u.banned ? (
