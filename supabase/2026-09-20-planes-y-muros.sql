@@ -25,10 +25,16 @@
 --     proximo guardado.
 --
 -- COMO SE CORRE:
---   1. El BLOQUE 0-A solo, primero. Es de solo lectura, no cambia nada, y dice
---      el tamano exacto del cambio. Leerlo antes de seguir, y GUARDAR su
---      resultado: trae la lista de eventos que el BLOQUE 7 migra, que es lo
---      unico que permite deshacer esa migracion evento por evento.
+--   0. El renglon B11 del BLOQUE 0-A (cuentas Pro con mas de un asiento
+--      ocupado) se corre ANTES DE DESPLEGAR el codigo, no junto con el resto
+--      de este archivo: con el catalogo nuevo Pro es de un solo asiento, y esa
+--      cuenta pierde el boton de invitar desde el momento del deploy, no
+--      desde que corre este SQL. Es de solo lectura, se puede correr suelto.
+--   1. El BLOQUE 0-A completo, primero (ya con el deploy arriba). Es de solo
+--      lectura, no cambia nada, y dice el tamano exacto del cambio. Leerlo
+--      antes de seguir, y GUARDAR su resultado: trae la lista de eventos que
+--      el BLOQUE 7 migra, que es lo unico que permite deshacer esa migracion
+--      evento por evento.
 --   2. Todo lo demas de un jalon, desde BEGIN hasta COMMIT: es UNA SOLA
 --      TRANSACCION. Si un candado del BLOQUE 0-B falla, aborta SIN CAMBIAR
 --      NADA. Es re-corrible completo.
@@ -218,13 +224,32 @@ SELECT jsonb_pretty(jsonb_build_object(
     (SELECT coalesce(jsonb_object_agg(f, existe), '{}'::jsonb) FROM (
        SELECT f, EXISTS (SELECT 1 FROM pg_proc p
                           WHERE p.pronamespace = 'public'::regnamespace AND p.proname = f) AS existe
-         FROM unnest(ARRAY['is_event_member','es_admin_de','plan_del_evento','asegurar_workspace']) AS f) y)
+         FROM unnest(ARRAY['is_event_member','es_admin_de','plan_del_evento','asegurar_workspace']) AS f) y),
+
+  -- CORRER ESTE RENGLON ANTES DE DESPLEGAR, no junto con el resto del bloque:
+  -- con el catalogo nuevo Pro es de un solo asiento (asientosIncluidos: 1 en
+  -- lib/workspace/planes.ts). Estas cuentas pierden el boton de invitar desde
+  -- el momento del deploy del codigo, sin esperar a que este SQL corra.
+  -- Asiento ocupado = igual que contarAsientos en lib/workspace/asientos.ts:
+  -- un miembro en status pending o active.
+  'B11_cuentas_pro_con_mas_de_un_asiento_ocupado_CORRER_ANTES_DEL_DEPLOY',
+    (SELECT coalesce(jsonb_agg(jsonb_build_object(
+              'workspace', w.name, 'dueno', u.email, 'asientos_ocupados', m.n
+            ) ORDER BY m.n DESC), '[]'::jsonb)
+       FROM workspaces w
+       JOIN users u ON u.id = w.primary_owner_id
+       JOIN (SELECT workspace_id, count(*) AS n FROM workspace_members
+              WHERE status IN ('pending','active') GROUP BY workspace_id) m ON m.workspace_id = w.id
+      WHERE lower(coalesce(w.plan, u.plan, 'free')) = 'pro' AND m.n > 1)
 
 )) AS radiografia;
 -- Lo esperado: A1 a A7 en 'ninguno' / '[]' (si no, el archivo aborta y dice
 -- que arreglar), A2 'text'. B1 y B2 se miran a ojo: si hay un CHECK de plan
 -- con otro nombre, hay que tirarlo por su nombre. B4 se guarda. B8 deberia
 -- decir 'ninguna'; si no, esa tabla entra al BLOQUE 6 o se declara como hueco.
+-- B11 se corre ANTES del deploy (ver el punto 0 de COMO SE CORRE, arriba):
+-- cada cuenta que salga ahi pierde el boton de invitar en cuanto el codigo
+-- suba, y Diego decide si le sube el plan antes de que alguien lo note.
 
 
 -- ============================================================================
