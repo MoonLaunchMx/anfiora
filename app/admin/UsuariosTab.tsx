@@ -110,7 +110,7 @@ export default function UsuariosTab({ users, stats, actionLoading, onChangePlan,
             className="flex-1 rounded-lg border border-[#e0e0e0] px-3 py-1.5 text-sm text-[#1D1E20] outline-none focus:border-[#48C9B0] min-w-[180px]"
           />
           <div className="flex gap-2">
-            {['all', 'free', 'pro', 'agency'].map(p => (
+            {['all', ...PLAN_IDS].map(p => (
               <button key={p} onClick={() => setPlanFilter(p)}
                 className={'rounded-lg px-3 py-1.5 text-xs font-medium transition ' + (planFilter === p ? 'bg-[#48C9B0] text-white' : 'border border-[#e0e0e0] text-[#555] hover:bg-[#f5f5f5]')}>
                 {p === 'all' ? 'Todos' : p.charAt(0).toUpperCase() + p.slice(1)}

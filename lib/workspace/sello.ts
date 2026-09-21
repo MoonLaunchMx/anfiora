@@ -15,13 +15,13 @@ export function hayLugarDeFundador(ocupados: number): boolean {
 
 export function limiteEventos(plan: string | null | undefined, sello: unknown): number | null {
   if (normalizarSello(sello)) return null
-  // Mismo numero que en supabase/migrations/
+  // Mismo numero que en supabase/2026-09-20-planes-y-muros.sql
   return PLANES[normalizarPlan(plan)].eventosActivos
 }
 
 export function limiteInvitados(plan: string | null | undefined, sello: unknown): number | null {
   if (normalizarSello(sello)) return null
-  // Mismo numero que en supabase/migrations/
+  // Mismo numero que en supabase/2026-09-20-planes-y-muros.sql
   return PLANES[normalizarPlan(plan)].invitadosPorEvento
 }
 

@@ -7,17 +7,6 @@ export function lugaresLibres(personas: number, limite: number | null): number |
   return Math.max(0, limite - personas)
 }
 
-export function cuantasCaben(
-  porAgregar: number,
-  personas: number,
-  limite: number | null,
-): { caben: number; sobran: number } {
-  const libres = lugaresLibres(personas, limite)
-  if (libres === null) return { caben: porAgregar, sobran: 0 }
-  const caben = Math.min(porAgregar, libres)
-  return { caben, sobran: porAgregar - caben }
-}
-
 // Una edicion que borra acompanantes y agrega otros en la misma operacion
 // nunca se mide con lugaresLibres/cuantasCaben: esas cuentan cupo NUEVO
 // contra el total de ANTES, y una cuenta que ya paso el tope siempre tiene
