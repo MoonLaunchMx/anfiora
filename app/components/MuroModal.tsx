@@ -11,9 +11,21 @@ import { esEventoVigente, hoyISO } from '@/lib/workspace/eventos'
 import { PAISES, CIUDADES_MEXICO, CODIGO_PAIS_DEFAULT, nombrePais } from '@/lib/ubicaciones'
 import type { DatosSolicitud } from '@/lib/solicitud/mensaje'
 
+// Cada muro es UNA cosa que la persona acabo de intentar, no un catalogo de
+// planes. Este tipo enumera los ocho caminos reales del producto (el noveno,
+// el estado vacio de Equipo, no es un modal: solo reusa este mismo formulario
+// via AltaPersonaModal -> caso "equipo-invitar").
+export type MuroCaso =
+  | 'crear-evento'
+  | 'reactivar-evento'
+  | 'mover-fecha'
+  | 'invitados-tope'
+  | 'import-vacio'
+  | 'equipo-invitar'
+
 interface MuroModalProps {
   open: boolean
-  motivo: 'eventos' | 'invitados' | 'equipo'
+  caso: MuroCaso
   limite: number
   onClose: () => void
   // El evento que disparo el aviso de invitados: solo con esto se puede
@@ -21,6 +33,9 @@ interface MuroModalProps {
   // eventId no se fabrica un numero, se manda null y el reporte dice
   // "no disponible".
   eventId?: string
+  // Solo para "import-vacio": cuantas personas traia el archivo que no cupo
+  // ninguna. El resto de los casos no lo usa.
+  personasEnArchivo?: number
 }
 
 type Paso = 'aviso' | 'formulario' | 'enviado'
@@ -31,33 +46,79 @@ const OPCIONES_TIPO_EVENTO = [
   'Bodas', 'XV años', 'Bautizos', 'Cumpleaños', 'Corporativos', 'Graduaciones', 'Baby shower', 'Otro',
 ] as const
 
-// Sin precios: al toparse con un limite el precio asusta y no ayuda, se habla
-// de eso cuando Anfiora escribe. Cada plan dice solo que resuelve. La version
-// corta es para el aviso de invitados, donde ya hay numero grande y barra y el
-// espacio es mas chico.
-const DESCRIPCION_PLAN: Record<'pro' | 'studio', { larga: string; corta: string }> = {
-  pro: {
-    larga: 'Todos los eventos que quieras, sin tope de invitados. Para quien trabaja solo.',
-    corta: 'Invitados sin tope, en todos tus eventos.',
-  },
-  studio: {
-    larga: 'Todo lo de Pro y además tu equipo adentro, con permisos por persona.',
-    corta: 'Lo mismo, y además tu equipo adentro.',
-  },
+interface CasoConfig {
+  // El grupo es lo que ya sabe el backend (DatosSolicitud.motivo) y decide si
+  // se cargan personas del evento: no se toca ese contrato, solo se agrupan
+  // los ocho caminos en los tres baldes de siempre.
+  grupo: 'eventos' | 'invitados' | 'equipo'
+  titulo: (ctx: { limite: number; personasEnArchivo?: number }) => string
+  subtitulo: (ctx: { limite: number }) => string
+  // Un solo plan por muro: el que desbloquea justo lo que se intento hacer.
+  // Agency nunca aparece aqui, solo en el catalogo de planes.
+  plan: { id: 'pro' | 'studio'; descripcion: string }
+  // Linea tenue debajo del plan. null = ninguna.
+  notaTenue: string | null
+  botonSecundario: string
+  mostrarBarra: boolean
 }
 
-// Agency todavia no se puede vender: su precio es provisional y no tiene
-// marca propia. Sale de este aviso, no del catalogo de planes.
-function planesAviso(motivo: 'eventos' | 'invitados' | 'equipo'): { id: 'pro' | 'studio'; nombre: string; descripcion: string; destacado: boolean }[] {
-  // El motivo equipo destaca Studio: es el plan que trae equipo. Los demas
-  // destacan Pro, el plan de entrada.
-  const destacadoId: 'pro' | 'studio' = motivo === 'equipo' ? 'studio' : 'pro'
-  return (['pro', 'studio'] as const).map(id => ({
-    id,
-    nombre: PLANES[id].nombre,
-    descripcion: motivo === 'invitados' ? DESCRIPCION_PLAN[id].corta : DESCRIPCION_PLAN[id].larga,
-    destacado: id === destacadoId,
-  }))
+// Unico lugar con el texto de cada muro: agregar un caso nuevo es agregar una
+// entrada aqui, no tocar los archivos que abren el modal.
+const CASOS: Record<MuroCaso, CasoConfig> = {
+  'crear-evento': {
+    grupo: 'eventos',
+    titulo: () => 'Necesitas un plan para llevar otro evento',
+    subtitulo: () => 'Tu cuenta gratis lleva un evento a la vez. El tuyo sigue intacto.',
+    plan: { id: 'pro', descripcion: 'Todos los eventos que quieras, sin tope de invitados.' },
+    notaTenue: 'Pides acceso y te escribimos para activarlo.',
+    botonSecundario: 'Ahora no',
+    mostrarBarra: false,
+  },
+  'reactivar-evento': {
+    grupo: 'eventos',
+    titulo: () => 'Para reactivarlo necesitas un plan',
+    subtitulo: () => 'Tu cuenta gratis lleva un evento a la vez, y ya tienes uno activo.',
+    plan: { id: 'pro', descripcion: 'Todos los eventos que quieras, sin tope de invitados.' },
+    notaTenue: 'También puedes archivar el otro y reactivar este.',
+    botonSecundario: 'Ahora no',
+    mostrarBarra: false,
+  },
+  'mover-fecha': {
+    grupo: 'eventos',
+    titulo: () => 'Con esa fecha vuelve a contar como activo',
+    subtitulo: () => 'Y tu cuenta gratis lleva un evento a la vez. No guardamos el cambio.',
+    plan: { id: 'pro', descripcion: 'Todos los eventos que quieras, sin tope de invitados.' },
+    notaTenue: 'Pides acceso y te escribimos para activarlo.',
+    botonSecundario: 'Ahora no',
+    mostrarBarra: false,
+  },
+  'invitados-tope': {
+    grupo: 'invitados',
+    titulo: ({ limite }) => `Tu lista llegó a ${limite} persona${limite === 1 ? '' : 's'}`,
+    subtitulo: () => 'Es el tope de la cuenta gratis. Nadie de los que ya tienes se pierde.',
+    plan: { id: 'pro', descripcion: 'Invitados sin tope, en todos tus eventos.' },
+    notaTenue: 'Pides acceso y te escribimos para activarlo.',
+    botonSecundario: 'Ahora no',
+    mostrarBarra: true,
+  },
+  'import-vacio': {
+    grupo: 'invitados',
+    titulo: ({ personasEnArchivo }) => `Ninguno de estos ${personasEnArchivo ?? 0} cabe todavía`,
+    subtitulo: ({ limite }) => `Tu lista ya está en su tope de ${limite} personas.`,
+    plan: { id: 'pro', descripcion: 'Invitados sin tope, en todos tus eventos.' },
+    notaTenue: null,
+    botonSecundario: 'Cancelar',
+    mostrarBarra: true,
+  },
+  'equipo-invitar': {
+    grupo: 'equipo',
+    titulo: () => 'Necesitas Studio para trabajar en equipo',
+    subtitulo: () => 'Tu cuenta gratis es de una persona.',
+    plan: { id: 'studio', descripcion: 'Tu equipo adentro, con permisos por persona, y eventos e invitados sin tope.' },
+    notaTenue: 'A tus clientes sí puedes invitarlos, desde cada evento.',
+    botonSecundario: 'Ahora no',
+    mostrarBarra: false,
+  },
 }
 
 interface Contexto {
@@ -77,7 +138,7 @@ interface Resultado {
 const inputCls =
   'mt-1 w-full rounded-lg border border-[#d0d0d0] bg-white px-3 py-2 text-sm text-[#1D1E20] outline-none focus:border-[#48C9B0]'
 
-async function cargarContexto(motivo: 'eventos' | 'invitados' | 'equipo', eventId: string | undefined): Promise<{
+async function cargarContexto(caso: MuroCaso, eventId: string | undefined): Promise<{
   contexto: Contexto | null
   nombre: string
   telefono: string
@@ -141,7 +202,7 @@ async function cargarContexto(motivo: 'eventos' | 'invitados' | 'equipo', eventI
     // aviso de invitados: total_guests cuenta filas, no personas, y sumar
     // todos los eventos del workspace no responde "cuantas personas tiene
     // ESE evento".
-    if (motivo === 'invitados' && eventId) {
+    if (CASOS[caso].grupo === 'invitados' && eventId) {
       const [rGuests, rMembers] = await Promise.all([
         supabase.from('guests').select('id', { count: 'exact', head: true }).eq('event_id', eventId),
         supabase.from('party_members').select('id', { count: 'exact', head: true }).eq('event_id', eventId),
@@ -226,7 +287,8 @@ function CampoTipoEvento({ value, onChange }: { value: string[]; onChange: (next
   )
 }
 
-export function MuroModal({ open, motivo, limite, onClose, eventId }: MuroModalProps) {
+export function MuroModal({ open, caso, limite, onClose, eventId, personasEnArchivo }: MuroModalProps) {
+  const casoCfg = CASOS[caso]
   const [paso, setPaso] = useState<Paso>('aviso')
   const [contexto, setContexto] = useState<Contexto | null>(null)
 
@@ -261,7 +323,7 @@ export function MuroModal({ open, motivo, limite, onClose, eventId }: MuroModalP
     setResultado(null)
 
     let vivo = true
-    void cargarContexto(motivo, eventId).then(r => {
+    void cargarContexto(caso, eventId).then(r => {
       if (!vivo) return
       setContexto(r.contexto)
       setNombre(r.nombre)
@@ -269,18 +331,10 @@ export function MuroModal({ open, motivo, limite, onClose, eventId }: MuroModalP
       setEmail(r.contexto?.email ?? '')
     })
     return () => { vivo = false }
-  }, [open, motivo, eventId])
+  }, [open, caso, eventId])
 
-  const tituloAviso = motivo === 'eventos'
-    ? 'Necesitas un plan para llevar otro evento'
-    : motivo === 'equipo'
-    ? 'Necesitas un plan para trabajar en equipo'
-    : `Tu lista llegó a ${limite} persona${limite === 1 ? '' : 's'}`
-  const subtituloAviso = motivo === 'eventos'
-    ? 'Tu cuenta gratis lleva un evento a la vez. El tuyo sigue intacto.'
-    : motivo === 'equipo'
-    ? 'Tu cuenta gratis es de una persona. Tus clientes sí puedes invitarlos, desde cada evento.'
-    : 'Es el tope de la cuenta gratis. Nadie de los que ya tienes se pierde.'
+  const tituloAviso = casoCfg.titulo({ limite, personasEnArchivo })
+  const subtituloAviso = casoCfg.subtitulo({ limite })
 
   const personasParaBarra = Math.min(contexto?.personasEnEvento ?? limite, limite)
   const pctBarra = limite > 0 ? Math.min(100, (personasParaBarra / limite) * 100) : 100
@@ -297,7 +351,7 @@ export function MuroModal({ open, motivo, limite, onClose, eventId }: MuroModalP
     'Activamos tu plan y sigues donde te quedaste.',
   ]
 
-  const avisoFinal = motivo === 'invitados'
+  const avisoFinal = casoCfg.grupo === 'invitados'
     ? `Mientras tanto tu evento y tus ${limite} invitados siguen ahí. No se pierde nada.`
     : 'Mientras tanto tu evento sigue ahí. No se pierde nada.'
 
@@ -319,7 +373,7 @@ export function MuroModal({ open, motivo, limite, onClose, eventId }: MuroModalP
         sello: contexto?.sello ?? null,
         eventosVigentes: contexto?.eventosVigentes ?? null,
         personasEnEvento: contexto?.personasEnEvento ?? null,
-        motivo,
+        motivo: casoCfg.grupo,
         eventosAlAno: eventosAlAno.trim(),
         tipoDeEventos: tiposDeEventos.join(', '),
         tamanoDeEquipo: tamanoDeEquipo.trim(),
@@ -356,7 +410,7 @@ export function MuroModal({ open, motivo, limite, onClose, eventId }: MuroModalP
           <div className="flex flex-col gap-4">
             <p className="text-sm text-[#666]">{subtituloAviso}</p>
 
-            {motivo === 'invitados' && (
+            {casoCfg.mostrarBarra && (
               <div className="flex flex-col gap-1.5">
                 <div className="flex items-baseline gap-1.5">
                   <span className="text-3xl font-bold text-[#1D1E20]">{personasParaBarra}</span>
@@ -368,19 +422,14 @@ export function MuroModal({ open, motivo, limite, onClose, eventId }: MuroModalP
               </div>
             )}
 
-            <div className="flex flex-col gap-2">
-              {planesAviso(motivo).map(plan => (
-                <div
-                  key={plan.id}
-                  className={`rounded-lg border px-3 py-2.5 ${plan.destacado ? 'border-[#48C9B0] bg-[#f0fdfb]' : 'border-[#e8e8e8] bg-[#f8f8f8]'}`}
-                >
-                  <span className="text-sm font-semibold text-[#1D1E20]">{plan.nombre}</span>
-                  <p className="mt-0.5 text-xs text-[#666]">{plan.descripcion}</p>
-                </div>
-              ))}
+            <div className="rounded-lg border border-[#48C9B0] bg-[#f0fdfb] px-3 py-2.5">
+              <span className="text-sm font-semibold text-[#1D1E20]">{PLANES[casoCfg.plan.id].nombre}</span>
+              <p className="mt-0.5 text-xs text-[#666]">{casoCfg.plan.descripcion}</p>
             </div>
 
-            <p className="text-[11px] leading-snug text-[#999]">Todavía no cobramos en línea: pides acceso y te escribimos para activarlo.</p>
+            {casoCfg.notaTenue && (
+              <p className="text-[11px] leading-snug text-[#999]">{casoCfg.notaTenue}</p>
+            )}
           </div>
         )}
 
@@ -482,7 +531,7 @@ export function MuroModal({ open, motivo, limite, onClose, eventId }: MuroModalP
               onClick={onClose}
               className="rounded-lg border border-[#e0e0e0] px-4 py-2 text-sm text-[#888] transition hover:bg-[#f5f5f5]"
             >
-              Ahora no
+              {casoCfg.botonSecundario}
             </button>
             <button
               type="button"
