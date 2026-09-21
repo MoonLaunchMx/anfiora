@@ -11,7 +11,7 @@ import BudgetItemRow from './BudgetItemRow'
 import HealthBar from '@/app/components/ui/HealthBar'
 
 type EventSupplierWithName = EventSupplier & {
-  supplier: Pick<Supplier, 'id' | 'name' | 'category'>
+  supplier: Pick<Supplier, 'id' | 'name' | 'category_id'>
 }
 
 type Props = {
@@ -21,17 +21,21 @@ type Props = {
   contractedByItem: Record<string, number>
   paidByItem: Record<string, number>
   eventSuppliersById: Record<string, EventSupplierWithName>
-  availableSuppliersForCategory: EventSupplierWithName[]
+  availableSuppliers: EventSupplierWithName[]
   onOpenAddModal: (category: string) => void
-  onUpdateItem: (id: string, updates: { subcategory?: string; budget_amount?: number; event_supplier_id?: string | null }) => void
+  onUpdateItem: (id: string, updates: { subcategory?: string; budget_amount?: number; event_supplier_id?: string | null; contract_amount?: number | null }) => void
   onDeleteItem: (id: string) => void
   onOpenSupplier: (supplier: EventSupplierWithName) => void
+  puedeEditar: boolean
+  puedeBorrar: boolean
+  puedeAgregar?: boolean
 }
 
 export default function BudgetCategoryRow({
   category, items, currency, contractedByItem, paidByItem,
-  eventSuppliersById, availableSuppliersForCategory,
+  eventSuppliersById, availableSuppliers,
   onOpenAddModal, onUpdateItem, onDeleteItem, onOpenSupplier,
+  puedeEditar, puedeBorrar, puedeAgregar = true,
 }: Props) {
   const [expanded, setExpanded] = useState(true)
 
@@ -94,14 +98,17 @@ export default function BudgetCategoryRow({
               <BudgetItemRow
                 key={item.id}
                 item={item}
+                categoryName={category}
                 currency={currency}
                 contractedAmount={contractedByItem[item.id] || 0}
                 paidAmount={paidByItem[item.id] || 0}
-                availableSuppliers={availableSuppliersForCategory}
+                availableSuppliers={availableSuppliers}
                 linkedSupplier={linked}
                 onUpdate={onUpdateItem}
                 onDelete={onDeleteItem}
                 onOpenSupplier={onOpenSupplier}
+                puedeEditar={puedeEditar}
+                puedeBorrar={puedeBorrar}
               />
             )
           })}
@@ -112,15 +119,17 @@ export default function BudgetCategoryRow({
             </div>
           )}
 
-          <div className="border-t border-[#f5f5f5] bg-[#fafafa] px-4 py-2">
-            <button
-              onClick={() => onOpenAddModal(category)}
-              className="flex items-center gap-1.5 text-xs font-medium text-[#48C9B0] transition hover:text-[#3aa896]"
-            >
-              <Plus size={14} />
-              Agregar concepto
-            </button>
-          </div>
+          {puedeEditar && puedeAgregar && (
+            <div className="border-t border-[#f5f5f5] bg-[#fafafa] px-4 py-2">
+              <button
+                onClick={() => onOpenAddModal(category)}
+                className="flex items-center gap-1.5 text-xs font-medium text-[#48C9B0] transition hover:text-[#3aa896]"
+              >
+                <Plus size={14} />
+                Agregar concepto
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>

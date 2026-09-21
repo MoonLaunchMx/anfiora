@@ -1,29 +1,46 @@
 'use client'
 
 import { useEffect, useState, useRef } from 'react'
+import { repartirEntrePartidas } from '@/lib/presupuesto/derivados'
 import { useParams } from 'next/navigation'
-import { Search, FileSpreadsheet, FileText, Plus, Upload, X, AlertTriangle, Check, ChevronDown, Sparkles, SlidersHorizontal } from 'lucide-react'
+import { Search, FileSpreadsheet, FileText, Plus, Upload, X, AlertTriangle, Check, ChevronDown, Sparkles, SlidersHorizontal, ArrowRight, Minus } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { supabase } from '@/lib/supabase'
 import {
-  Event, EventBudget, BudgetCategory, BUDGET_CATEGORIES, BUDGET_CATEGORY_LABELS,
-  Currency, EventSupplier, Supplier,
+  Event, EventBudget, EventBudgetInsert, Currency, EventSupplier, Supplier, SupplierStatus,
 } from '@/lib/types'
-import { getEventCategories, categoryLabel } from './lib/categories'
+import { categoryLabel } from './lib/categories'
+import {
+  leerMonto, planearImport, resumenImport, mensajeImportado,
+  decidirRenombre, fechaDelArchivo, avisoArchivoViejo, FilaPlan, PartidaExistente,
+} from '@/lib/presupuesto/import'
+import { interpretarEscritura } from '@/lib/invite/persistencia'
 import { BudgetCategoriesModal } from './BudgetCategoriesModal'
 import { ImportStepsModal } from '@/app/components/ui/ImportStepsModal'
+import { useConfirm } from '@/app/components/ui/ConfirmModal'
+import { useGuardarCambioDeEstado } from '@/lib/rolodex/usar-bloqueo-retroceso'
 import BudgetMetricsCards from '@/app/components/ui/BudgetMetricsCards'
 import StatsCollapse, { useStatsToggle, StatsToggleButton } from '@/app/components/ui/StatsCollapse'
 import BudgetCategoryRow from './BudgetCategoryRow'
 import BudgetItemModal from './BudgetItemModal'
 import { buildBudgetItems, BudgetTier } from './lib/templates'
 import { exportToExcel, exportToPDF, downloadImportTemplate } from './lib/exports'
-import SupplierDetailModal from '../proveedores/SupplierDetailModal'
-import SupplierReviewModal from '../proveedores/SupplierReviewModal'
+import FichaModal from '../proveedores/FichaModal'
+import ReviewContratacionModal from '../proveedores/ReviewContratacionModal'
+import ReviewDescarteModal from '../proveedores/ReviewDescarteModal'
+import PartidasModal from '../proveedores/PartidasModal'
 import { Modal } from '@/app/components/ui/Modal'
+import { Categoria, cargarCategorias, buscarPorNombre, nombrePorId, crearCategoria } from '@/lib/rolodex/categorias-store'
+import { mismaCategoria } from '@/lib/rolodex/categorias'
+import {
+  SECCION_SIN_CATEGORIA, agruparPorSeccion, seccionesDelPresupuesto,
+  quitarDeSeleccion, tienePartidasEnEvento,
+} from '@/lib/rolodex/secciones-presupuesto'
+import { usePermiso } from '@/lib/event-access-context'
+import { Puede } from '@/lib/permisos/Puede'
 
 type EventSupplierWithName = EventSupplier & {
-  supplier: Pick<Supplier, 'id' | 'name' | 'category'>
+  supplier: Pick<Supplier, 'id' | 'name' | 'category_id'>
 }
 
 type SupplierPaymentRow = {
@@ -32,16 +49,11 @@ type SupplierPaymentRow = {
   amount: number
 }
 
-type ImportRow = {
-  category: string
-  subcategory: string
-  budget_amount: number
-  isDuplicate: boolean
-}
-
 export default function PresupuestoPage() {
   const { id } = useParams()
   const eventId = id as string
+  const permiso = usePermiso('presupuesto')
+  const permisoProv = usePermiso('proveedores')
 
   const [event, setEvent]                   = useState<Event | null>(null)
   const [budgets, setBudgets]               = useState<EventBudget[]>([])
@@ -59,26 +71,82 @@ export default function PresupuestoPage() {
   const [modalCategory, setModalCategory] = useState<string | null>(null)
 
   const [importModalOpen, setImportModalOpen] = useState(false)
-  const [importRows, setImportRows]           = useState<ImportRow[]>([])
+  const [importPlan, setImportPlan]           = useState<FilaPlan[]>([])
   const [importError, setImportError]         = useState('')
+  const [importSuccess, setImportSuccess]     = useState('')
+  const [avisoArchivo, setAvisoArchivo]       = useState('')
   const [importing, setImporting]             = useState(false)
-  const [importMode, setImportMode]           = useState<'todos' | 'nuevos'>('nuevos')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const [selectedSupplier, setSelectedSupplier] = useState<EventSupplierWithName | null>(null)
   const [reviewSupplier, setReviewSupplier]     = useState<EventSupplierWithName | null>(null)
+  const [partidasSupplier, setPartidasSupplier] = useState<EventSupplierWithName | null>(null)
+  const [userId, setUserId]                     = useState<string | null>(null)
+
+  const cambiarEstadoProveedor = async (itemId: string, nuevo: SupplierStatus) => {
+    const previo = eventSuppliers.find(es => es.id === itemId)
+    if (!previo) return
+    const detenido = await bloqueaCambioDeEstado(
+      itemId, nuevo, previo,
+      destino => cambiarEstadoProveedor(itemId, destino),
+    )
+    if (detenido) return
+    setEventSuppliers(prev => prev.map(es => es.id === itemId ? { ...es, status: nuevo } : es))
+    setSelectedSupplier(prev => prev && prev.id === itemId ? { ...prev, status: nuevo } : prev)
+
+    // Sin .select() un UPDATE filtrado por RLS no da error: devuelve cero filas.
+    // La pantalla se quedaria con el estado nuevo y, peor, se guardaria una review
+    // de una transicion que nunca ocurrio. Mismo cuidado que en FichaDelEvento.
+    const { data: guardado, error } = await supabase
+      .from('event_suppliers').update({ status: nuevo }).eq('id', itemId).select().maybeSingle()
+    if (error || !guardado) {
+      console.error('Error actualizando status:', error?.message ?? error, error)
+      loadAll()
+      return
+    }
+
+    // Contratar y ligar son el mismo acto: primero en que partidas va y con
+    // cuanto, y al cerrar eso, la review. Descartar va directo a la review.
+    if (nuevo === 'contratado') { setSelectedSupplier(null); setPartidasSupplier({ ...previo, status: nuevo }); return }
+    if (nuevo === 'descartado') await ofrecerReview({ ...previo, status: nuevo })
+  }
+
+  // Una sola vez por proveedor y por tipo de review.
+  const ofrecerReview = async (es: EventSupplierWithName) => {
+    const reviewType = es.status === 'contratado' ? 'contratacion' : 'descarte'
+    const { count, error: reviewError } = await supabase
+      .from('supplier_reviews')
+      .select('id', { count: 'exact', head: true })
+      .eq('event_supplier_id', es.id)
+      .eq('review_type', reviewType)
+    if (reviewError) {
+      console.error('Error verificando si ya existe review:', reviewError.message ?? reviewError, reviewError)
+    } else if (!count) {
+      setSelectedSupplier(null)
+      setReviewSupplier(es)
+    }
+  }
 
   const [storedCategories, setStoredCategories]   = useState<string[] | null>(null)
+  const [categorias, setCategorias]               = useState<Categoria[]>([])
+  const [duenoCatalogo, setDuenoCatalogo]         = useState<string | null>(null)
   const [showCategoriesModal, setShowCategoriesModal] = useState(false)
+  const [categoryDeleteError, setCategoryDeleteError] = useState('')
   const [addingCategory, setAddingCategory]       = useState(false)
   const [newCategoryName, setNewCategoryName]     = useState('')
 
   const statsToggle = useStatsToggle(eventId, 'presupuesto')
+  const askConfirm  = useConfirm()
+  const bloqueaCambioDeEstado = useGuardarCambioDeEstado()
 
   useEffect(() => {
     if (!eventId) return
     loadAll()
   }, [eventId])
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => setUserId(data.user?.id ?? null))
+  }, [])
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -95,7 +163,7 @@ export default function PresupuestoPage() {
       const [eventRes, budgetsRes, suppliersRes] = await Promise.all([
         supabase.from('events').select('*').eq('id', eventId).single(),
         supabase.from('event_budgets').select('*').eq('event_id', eventId).order('created_at', { ascending: true }),
-        supabase.from('event_suppliers').select('*, supplier:suppliers(id, name, category)').eq('event_id', eventId),
+        supabase.from('event_suppliers').select('*, supplier:suppliers(id, name, category_id)').eq('event_id', eventId),
       ])
 
       if (eventRes.data) setEvent(eventRes.data as Event)
@@ -119,6 +187,14 @@ export default function PresupuestoPage() {
       const { data: settingsRow } = await supabase
         .from('event_settings').select('budget_categories').eq('event_id', eventId).single()
       setStoredCategories((settingsRow?.budget_categories as string[] | null) ?? null)
+
+      // Las categorias son del despacho, no de quien mira: se cargan siempre
+      // con el dueno del evento. Si se cargaran con la sesion, un colaborador
+      // recibiria cero categorias, ninguna partida encajaria en su seccion y
+      // la pantalla saldria vacia aunque las filas si hubieran llegado.
+      const dueno = (eventRes.data as Event | null)?.user_id ?? null
+      setDuenoCatalogo(dueno)
+      setCategorias(dueno ? await cargarCategorias(dueno) : [])
     } catch (err: any) {
       console.error('Error cargando presupuesto:', err?.message ?? err, err)
     } finally {
@@ -134,42 +210,27 @@ export default function PresupuestoPage() {
   const eventSuppliersById: Record<string, EventSupplierWithName> = {}
   eventSuppliers.forEach(es => { eventSuppliersById[es.id] = es })
 
-  const categories = getEventCategories(storedCategories, event?.event_type ?? null, event?.event_category ?? null, budgets)
+  // La fuente de las secciones es la tabla `categories` del despacho. NO
+  // restaurar aqui una lista fija de texto: se quedaria ciega a las categorias
+  // que el planner crea desde Proveedores y duplicaria secciones por acentos.
+  const seccionesCatalogo = seccionesDelPresupuesto(categorias, storedCategories, budgets)
 
-  const availableSuppliersByCategory: Record<string, EventSupplierWithName[]> = {}
-  categories.forEach(cat => { availableSuppliersByCategory[cat] = [] })
-  eventSuppliers.forEach(es => {
-    if (!es.supplier) return
-    if (es.status !== 'contratado') return
-    const cat = es.supplier.category
-    if (cat && availableSuppliersByCategory[cat]) {
-      availableSuppliersByCategory[cat].push(es)
-    }
-  })
+  const proveedoresContratados = eventSuppliers.filter(es => es.supplier && es.status === 'contratado')
 
-  const contractedByItem: Record<string, number> = {}
-  const paidByItem: Record<string, number>       = {}
-  budgets.forEach(b => {
-    if (b.event_supplier_id) {
-      const supplier = eventSuppliersById[b.event_supplier_id]
-      contractedByItem[b.id] = Number(supplier?.contract_amount || 0)
-      paidByItem[b.id]       = paidByEventSupplier[b.event_supplier_id] || 0
-    } else {
-      contractedByItem[b.id] = 0
-      paidByItem[b.id]       = 0
-    }
-  })
+  const { contractedByItem, paidByItem } = repartirEntrePartidas(budgets, paidByEventSupplier)
 
   const filteredBudgets = search.trim()
     ? budgets.filter(b => {
         const q = search.toLowerCase()
-        return b.subcategory.toLowerCase().includes(q) || categoryLabel(b.category).toLowerCase().includes(q)
+        const nombre = b.category_id ? nombrePorId(categorias, b.category_id) : ''
+        return b.subcategory.toLowerCase().includes(q) || nombre.toLowerCase().includes(q)
       })
     : budgets
 
-  const itemsByCategory: Record<string, EventBudget[]> = {}
-  categories.forEach(cat => { itemsByCategory[cat] = [] })
-  filteredBudgets.forEach(b => { (itemsByCategory[b.category] ||= []).push(b) })
+  // El cajon de rescate solo se agrega si alguna partida se quedaria sin
+  // seccion: una partida invisible es un monto que el planner deja de ver.
+  const { secciones: categories, porSeccion: itemsByCategory } =
+    agruparPorSeccion<EventBudget>(filteredBudgets, seccionesCatalogo, categorias)
 
   const totalBudget     = budgets.reduce((sum, b) => sum + b.budget_amount, 0)
   const totalContracted = budgets.reduce((sum, b) => sum + (contractedByItem[b.id] || 0), 0)
@@ -185,16 +246,11 @@ export default function PresupuestoPage() {
     setModalOpen(true)
   }
 
-  const LABEL_TO_CATEGORY: Record<string, BudgetCategory> = {}
-  BUDGET_CATEGORIES.forEach(cat => {
-    LABEL_TO_CATEGORY[BUDGET_CATEGORY_LABELS[cat].toLowerCase()] = cat
-    LABEL_TO_CATEGORY[cat.toLowerCase()] = cat
-  })
-
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
     setImportError('')
+    setImportSuccess('')
 
     const reader = new FileReader()
     reader.onload = (ev) => {
@@ -202,11 +258,15 @@ export default function PresupuestoPage() {
         const data = new Uint8Array(ev.target?.result as ArrayBuffer)
         const wb   = XLSX.read(data, { type: 'array' })
 
-        // Buscar entre TODAS las hojas la que tenga la fila de encabezados (Categoria)
+        // Buscar entre TODAS las hojas la que tenga la fila de encabezados (Categoria).
+        // Se guardan todas las filas porque el sello de fecha puede vivir en otra hoja.
         let raw: any[] = []
         let headerIdx = -1
+        const todasLasFilas: any[][] = []
         for (const sheetName of wb.SheetNames) {
           const sheetRows = XLSX.utils.sheet_to_json<any>(wb.Sheets[sheetName], { header: 1 })
+          todasLasFilas.push(...sheetRows)
+          if (headerIdx !== -1) continue
           for (let i = 0; i < sheetRows.length; i++) {
             const row = (sheetRows[i] || []).map((c: any) => String(c || '').toLowerCase())
             if (row.includes('categoria') || row.includes('categoría')) {
@@ -215,7 +275,6 @@ export default function PresupuestoPage() {
               break
             }
           }
-          if (headerIdx !== -1) break
         }
 
         if (headerIdx === -1) {
@@ -233,34 +292,40 @@ export default function PresupuestoPage() {
           return
         }
 
-        const parsed: ImportRow[] = []
-        const existingKeys = new Set(
-          budgets.map(b => `${b.category}||${b.subcategory.toLowerCase().trim()}`)
-        )
-
+        const filas = []
         for (let i = headerIdx + 1; i < raw.length; i++) {
           const row = raw[i]
           if (!row || row.length === 0) continue
 
-          const catRaw = String(row[catIdx] || '').trim()
-          const conRaw = String(row[conIdx] || '').trim()
-          const amtRaw = amtIdx >= 0 ? Number(row[amtIdx]) || 0 : 0
+          const catRaw = String(row[catIdx] ?? '').trim()
+          const conRaw = String(row[conIdx] ?? '').trim()
 
           if (!catRaw || !conRaw) continue
           if (conRaw.toLowerCase().startsWith('ejemplo:')) continue
 
-          const category = LABEL_TO_CATEGORY[catRaw.toLowerCase()] ?? catRaw
-
-          const isDuplicate = existingKeys.has(`${category}||${conRaw.toLowerCase()}`)
-          parsed.push({ category, subcategory: conRaw, budget_amount: amtRaw, isDuplicate })
+          filas.push({
+            categoria: catRaw,
+            concepto:  conRaw,
+            monto:     amtIdx >= 0 ? leerMonto(row[amtIdx]) : null,
+          })
         }
 
-        if (parsed.length === 0) {
+        const partidasExistentes: PartidaExistente[] = budgets.map(b => ({
+          id:            b.id,
+          category:      b.category_id ? nombrePorId(categorias, b.category_id) : '',
+          subcategory:   b.subcategory,
+          budget_amount: b.budget_amount,
+        }))
+        const plan = planearImport(filas, partidasExistentes, seccionesCatalogo)
+
+        if (plan.length === 0) {
           setImportError('No se encontraron conceptos válidos en el archivo.')
           return
         }
 
-        setImportRows(parsed)
+        const bajan = resumenImport(plan).bajan > 0
+        setAvisoArchivo(avisoArchivoViejo(fechaDelArchivo(todasLasFilas), new Date(), bajan) ?? '')
+        setImportPlan(plan)
         setImportModalOpen(true)
       } catch (err: any) {
         setImportError('Error leyendo el archivo. Asegúrate de que sea un .xlsx válido.')
@@ -271,55 +336,77 @@ export default function PresupuestoPage() {
     e.target.value = ''
   }
 
+  const decidirFila = (indice: number, esElMismo: boolean) => {
+    setImportPlan(prev => prev.map((f, i) => i === indice ? decidirRenombre(f, esElMismo) : f))
+  }
+
   const handleImport = async () => {
+    if (!permiso.editar) return
     setImporting(true)
+    setImportError('')
+    setImportSuccess('')
     try {
-      const news = importRows.filter(r => !r.isDuplicate)
-      const dups = importMode === 'todos' ? importRows.filter(r => r.isDuplicate) : []
+      const nuevos = importPlan.filter(f => f.accion === 'agregar')
+      const cambios = importPlan.filter(f => f.accion === 'actualizar')
 
-      if (news.length === 0 && dups.length === 0) { setImportModalOpen(false); return }
+      if (nuevos.length === 0 && cambios.length === 0) { setImportModalOpen(false); return }
 
-      if (news.length > 0) {
+      if (nuevos.length > 0) {
         const { error } = await supabase
           .from('event_budgets')
-          .insert(news.map(r => ({
+          .insert(nuevos.map(f => ({
             event_id:          eventId,
-            category:          r.category,
-            subcategory:       r.subcategory,
-            budget_amount:     r.budget_amount,
+            category_id:       buscarPorNombre(categorias, f.categoria)?.id ?? null,
+            subcategory:       f.concepto,
+            budget_amount:     f.montoNuevo,
             event_supplier_id: null,
             notes:             null,
           })))
         if (error) throw error
       }
 
-      // Modo "todos": actualizar el monto de los conceptos que ya existen (no re-insertar)
-      for (const r of dups) {
-        const { error } = await supabase
+      // Se actualiza por id: el texto ya no se vuelve a comparar contra la base.
+      // Y se piden las filas con .select() porque un UPDATE filtrado por RLS
+      // devuelve cero filas SIN error (ver lib/invite/persistencia.ts).
+      let actualizados = 0
+      for (const f of cambios) {
+        const res = await supabase
           .from('event_budgets')
-          .update({ budget_amount: r.budget_amount })
-          .eq('event_id', eventId).eq('category', r.category).eq('subcategory', r.subcategory)
-        if (error) throw error
+          .update({ budget_amount: f.montoNuevo })
+          .eq('id', f.partidaId!)
+          .select('id')
+
+        const resultado = interpretarEscritura(res)
+        if (!resultado.ok) throw new Error(resultado.motivo)
+        actualizados++
       }
 
       setImportModalOpen(false)
-      setImportRows([])
+      setImportPlan([])
+      setImportSuccess(mensajeImportado(nuevos.length, actualizados))
       await loadAll()
     } catch (err: any) {
       console.error('Error importando:', err?.message ?? err)
-      alert(`Error importando: ${err?.message ?? 'Intenta de nuevo'}`)
+      setImportModalOpen(false)
+      setImportPlan([])
+      setImportError(err?.message ?? 'No se pudo terminar la importación. Revisa tu presupuesto e inténtalo de nuevo.')
+      // La importacion pudo quedar a medias: se recarga para que la pantalla
+      // muestre lo que de verdad quedo guardado.
+      await loadAll()
     } finally {
       setImporting(false)
     }
   }
 
   const handleModalSubmit = async (data: {
-    category: string
+    category_id: string | null
     subcategory: string
     budget_amount: number
     event_supplier_id: string | null
+    contract_amount: number | null
     notes: string | null
   }) => {
+    if (!permiso.editar) return
     try {
       const { data: inserted, error } = await supabase
         .from('event_budgets')
@@ -345,55 +432,83 @@ export default function PresupuestoPage() {
 
   const handleUpdateItem = async (
     itemId: string,
-    updates: { subcategory?: string; budget_amount?: number; event_supplier_id?: string | null },
+    updates: { subcategory?: string; budget_amount?: number; event_supplier_id?: string | null; contract_amount?: number | null },
   ) => {
+    if (!permiso.editar) return
     setBudgets(prev => prev.map(b => b.id === itemId ? { ...b, ...updates } : b))
     const { error } = await supabase.from('event_budgets').update(updates).eq('id', itemId)
     if (error) { console.error('Error actualizando concepto:', error?.message ?? error, error); loadAll() }
   }
 
   const handleDeleteItem = async (itemId: string) => {
+    if (!permiso.borrar) return
     const item = budgets.find(b => b.id === itemId)
-    const confirmText = item?.subcategory ? `¿Borrar el concepto "${item.subcategory}"?` : '¿Borrar este concepto?'
-    if (!confirm(confirmText)) return
+    const ok = await askConfirm({
+      title: item?.subcategory ? `¿Eliminar el concepto "${item.subcategory}"?` : '¿Eliminar este concepto?',
+      message: item?.event_supplier_id
+        ? 'Se pierde el monto estimado. El proveedor vinculado sigue en el evento.'
+        : 'Se pierde el monto estimado de esta partida.',
+    })
+    if (!ok) return
     setBudgets(prev => prev.filter(b => b.id !== itemId))
     const { error } = await supabase.from('event_budgets').delete().eq('id', itemId)
     if (error) { console.error('Error borrando concepto:', error?.message ?? error, error); loadAll() }
   }
 
   const persistCategories = async (next: string[]) => {
+    if (!permiso.editar) return
     setStoredCategories(next)
     await supabase.from('event_settings').update({ budget_categories: next }).eq('event_id', eventId)
   }
 
   const addCategory = async (raw: string) => {
+    if (!permiso.editar) return
     const name = raw.trim()
     if (!name) return
-    if (categories.some(c => c.toLowerCase() === name.toLowerCase())) return
-    await persistCategories([...categories, name])
+    if (seccionesCatalogo.some(c => mismaCategoria(c, name))) return
+    if (!duenoCatalogo) return
+    const { categoria } = await crearCategoria(duenoCatalogo, name, categorias)
+    if (!categoria) return
+    // Entra al estado local para que la seccion aparezca sin recargar.
+    setCategorias(prev => prev.some(c => c.id === categoria.id) ? prev : [...prev, categoria])
+    await persistCategories([...seccionesCatalogo, categoria.name])
     setNewCategoryName(''); setAddingCategory(false)
   }
 
-  const renameCategory = async (oldName: string, raw: string) => {
-    const name = raw.trim()
-    if (!name || name === oldName) return
-    await persistCategories(categories.map(c => c === oldName ? name : c))
-    await supabase.from('event_budgets').update({ category: name }).eq('event_id', eventId).eq('category', oldName)
-    loadAll()
-  }
+  // Quitar una categoria aqui SOLO la oculta en ESTA boda: nunca toca el
+  // catalogo del despacho. Archivar el catalogo completo es una decision de
+  // cuenta -- vive en Ajustes › Categorías, para dueño y administradores -- no
+  // algo que un editor pueda hacer sin querer desde una sola boda.
+  const quitarCategoria = async (name: string) => {
+    if (!permiso.editar) return
+    setCategoryDeleteError('')
 
-  const deleteCategory = async (name: string) => {
-    const count = (itemsByCategory[name] || []).length
-    if (count > 0) {
-      if (!confirm(`"${categoryLabel(name)}" tiene ${count} concepto(s). Se moveran a "Otro". Continuar?`)) return
-      const next = categories.filter(c => c !== name)
-      if (!next.includes('Otro')) next.push('Otro')
-      await persistCategories(next)
-      await supabase.from('event_budgets').update({ category: 'Otro' }).eq('event_id', eventId).eq('category', name)
-      loadAll()
-    } else {
-      await persistCategories(categories.filter(c => c !== name))
+    const categoria = buscarPorNombre(categorias, name)
+    if (!categoria) {
+      setCategoryDeleteError('Esa categoría ya no está en tu catálogo.')
+      return
     }
+
+    if (tienePartidasEnEvento(budgets, categoria.id)) {
+      const count = (itemsByCategory[name] || []).length
+      await askConfirm({
+        title: `No se puede quitar "${categoryLabel(name)}"`,
+        message: `${categoryLabel(name)} tiene ${count === 1 ? '1 partida' : `${count} partidas`} en este evento. Para quitarla, primero mueve esas partidas a otra categoría. La categoría sigue disponible en tu catálogo.`,
+        confirmLabel: 'Entendido',
+        soloAviso: true,
+      })
+      return
+    }
+
+    const ok = await askConfirm({
+      title: `¿Quitar "${categoryLabel(name)}" de este evento?`,
+      message: 'Deja de mostrarse en este evento. Sigue disponible en tu catálogo y en los demás.',
+      confirmLabel: 'Quitar de este evento',
+      tone: 'default',
+    })
+    if (!ok) return
+
+    await persistCategories(quitarDeSeleccion(categorias, storedCategories, name))
   }
 
   const reorderCategories = (next: string[]) => persistCategories(next)
@@ -417,14 +532,37 @@ export default function PresupuestoPage() {
   }
 
   const generateWith = async (tier: BudgetTier) => {
+    if (!permiso.editar) return
     setGenerating(true)
-    const existing = new Set(budgets.map(b => `${b.category}|${b.subcategory}`.toLowerCase()))
+    const existing = new Set(budgets.map(b => {
+      const nombre = b.category_id ? nombrePorId(categorias, b.category_id) : ''
+      return `${nombre}|${b.subcategory}`.toLowerCase()
+    }))
     const rows = buildBudgetItems(eventId, event?.event_type ?? null, event?.event_category ?? null, tier, existing)
-    if (rows.length > 0) await supabase.from('event_budgets').insert(rows)
+
+    // Las categorias sugeridas de la plantilla entran al catalogo del despacho
+    // antes de insertar las partidas. Si se saltaran la tabla, las partidas
+    // quedarian sin category_id y caerian todas al cajon de rescate.
+    let catalogo = categorias
     const genCats = Array.from(new Set(rows.map(r => r.category as string)))
-    const merged = [...categories]
-    genCats.forEach(c => { if (!merged.some(x => x.toLowerCase() === c.toLowerCase())) merged.push(c) })
-    if (merged.length !== categories.length) await persistCategories(merged)
+    if (duenoCatalogo) {
+      for (const nombre of genCats) {
+        if (buscarPorNombre(catalogo, nombre)) continue
+        const { categoria } = await crearCategoria(duenoCatalogo, nombre, catalogo)
+        if (categoria) catalogo = [...catalogo, categoria]
+      }
+      if (catalogo !== categorias) setCategorias(catalogo)
+    }
+
+    const rowsConId: EventBudgetInsert[] = rows.map(({ category, ...rest }) => ({
+      ...rest,
+      category_id: buscarPorNombre(catalogo, category)?.id ?? null,
+    }))
+    if (rowsConId.length > 0) await supabase.from('event_budgets').insert(rowsConId)
+
+    const merged = [...seccionesCatalogo]
+    genCats.forEach(c => { if (!merged.some(x => mismaCategoria(x, c))) merged.push(c) })
+    if (merged.length !== seccionesCatalogo.length) await persistCategories(merged)
     setShowTierModal(false)
     await loadAll()
     setGenerating(false)
@@ -441,8 +579,20 @@ export default function PresupuestoPage() {
   }
 
   const currency: Currency = event.currency || 'MXN'
-  const duplicateCount = importRows.filter(r => r.isDuplicate).length
-  const newCount       = importRows.filter(r => !r.isDuplicate).length
+  const conteoImport   = resumenImport(importPlan)
+  const porEscribir    = conteoImport.agregar + conteoImport.actualizar
+  const pesos          = (n: number) => `$${Math.abs(n).toLocaleString('es-MX')}`
+  const titularImport  = (() => {
+    const partes: string[] = []
+    if (conteoImport.agregar > 0) {
+      partes.push(`agregar ${conteoImport.agregar} concepto${conteoImport.agregar !== 1 ? 's' : ''}`)
+    }
+    if (conteoImport.actualizar > 0) {
+      partes.push(`cambiar ${conteoImport.actualizar} monto${conteoImport.actualizar !== 1 ? 's' : ''}`)
+    }
+    if (partes.length === 0) return 'Con este archivo no cambia nada de tu presupuesto.'
+    return `Vas a ${partes.join(' y ')}.`
+  })()
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -494,12 +644,14 @@ export default function PresupuestoPage() {
             onChange={handleFileChange}
           />
 
-          <button
-            onClick={() => setShowImportHelp(true)}
-            className="hidden items-center gap-1.5 rounded-lg border border-[#e0e0e0] bg-white px-3 py-1.5 text-xs font-medium text-[#555] transition hover:border-[#48C9B0] hover:text-[#48C9B0] sm:flex"
-          >
-            <Upload size={14} /><span className="hidden sm:inline">Importar</span>
-          </button>
+          <Puede modulo="presupuesto" accion="editar">
+            <button
+              onClick={() => setShowImportHelp(true)}
+              className="flex items-center gap-1.5 rounded-lg border border-[#e0e0e0] bg-white px-3 py-1.5 text-xs font-medium text-[#555] transition hover:border-[#48C9B0] hover:text-[#48C9B0]"
+            >
+              <Upload size={14} /><span className="hidden sm:inline">Importar</span>
+            </button>
+          </Puede>
 
           <div className="relative hidden sm:block" data-budget-menu>
             <button
@@ -517,26 +669,32 @@ export default function PresupuestoPage() {
             )}
           </div>
 
-          <button onClick={() => setShowCategoriesModal(true)}
-            className="flex items-center gap-1.5 rounded-lg border border-[#e0e0e0] bg-white px-3 py-1.5 text-xs font-medium text-[#555] transition hover:border-[#48C9B0] hover:text-[#48C9B0]">
-            <SlidersHorizontal size={14} /><span className="hidden sm:inline">Categorías</span>
-          </button>
+          <Puede modulo="presupuesto" accion="editar">
+            <button onClick={() => setShowCategoriesModal(true)}
+              className="flex items-center gap-1.5 rounded-lg border border-[#e0e0e0] bg-white px-3 py-1.5 text-xs font-medium text-[#555] transition hover:border-[#48C9B0] hover:text-[#48C9B0]">
+              <SlidersHorizontal size={14} /><span className="hidden sm:inline">Categorías</span>
+            </button>
+          </Puede>
 
-          <button
-            onClick={handleGenerateClick}
-            disabled={generating}
-            className="hidden items-center gap-1.5 rounded-lg border border-[#48C9B0] bg-[#f0fdfb] px-3 py-1.5 text-xs font-semibold text-[#1a9e88] transition hover:bg-[#e0faf5] disabled:opacity-50 sm:flex"
-          >
-            <Sparkles size={14} />{generating ? 'Generando...' : 'Generar presupuesto'}
-          </button>
+          <Puede modulo="presupuesto" accion="editar">
+            <button
+              onClick={handleGenerateClick}
+              disabled={generating}
+              className="hidden items-center gap-1.5 rounded-lg border border-[#48C9B0] bg-[#f0fdfb] px-3 py-1.5 text-xs font-semibold text-[#1a9e88] transition hover:bg-[#e0faf5] disabled:opacity-50 sm:flex"
+            >
+              <Sparkles size={14} />{generating ? 'Generando...' : 'Generar presupuesto'}
+            </button>
+          </Puede>
 
-          <button
-            onClick={openAddModalGeneric}
-            className="flex items-center gap-1.5 rounded-lg bg-[#48C9B0] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#3aa896]"
-          >
-            <Plus size={14} />
-            <span className="hidden sm:inline">Nuevo concepto</span>
-          </button>
+          <Puede modulo="presupuesto" accion="editar">
+            <button
+              onClick={openAddModalGeneric}
+              className="flex items-center gap-1.5 rounded-lg bg-[#48C9B0] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#3aa896]"
+            >
+              <Plus size={14} />
+              <span className="hidden sm:inline">Nuevo concepto</span>
+            </button>
+          </Puede>
         </div>
       </div>
 
@@ -553,14 +711,31 @@ export default function PresupuestoPage() {
           </div>
         )}
 
-        {budgets.length === 0 && !search.trim() && (
-          <div className="mb-4 rounded-xl border border-dashed border-[#cfe9e2] bg-[#f0fdfb] px-5 py-6 text-center">
-            <p className="text-sm font-semibold text-[#1D1E20]">Tu presupuesto está vacío</p>
-            <p className="mt-1 text-xs text-[#888]">Genera un presupuesto sugerido según tu tipo de evento y ajústalo a tu gusto.</p>
-            <button onClick={handleGenerateClick} disabled={generating} className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-[#48C9B0] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#3ab89f] disabled:opacity-50">
-              <Sparkles size={15} />{generating ? 'Generando...' : 'Generar presupuesto sugerido'}
+        {importSuccess && (
+          <div className="mb-4 flex items-center gap-2 rounded-lg border border-[#a0e0c0] bg-[#f0fff6] px-3 py-2">
+            <Check size={14} className="shrink-0 text-[#2a7a50]" />
+            <p className="text-xs text-[#2a7a50]">{importSuccess}</p>
+            <button onClick={() => setImportSuccess('')} className="ml-auto text-[#8ccdb0] hover:text-[#2a7a50]">
+              <X size={14} />
             </button>
           </div>
+        )}
+
+        {budgets.length === 0 && !search.trim() && (
+          permiso.editar ? (
+            <div className="mb-4 rounded-xl border border-dashed border-[#cfe9e2] bg-[#f0fdfb] px-5 py-6 text-center">
+              <p className="text-sm font-semibold text-[#1D1E20]">Tu presupuesto está vacío</p>
+              <p className="mt-1 text-xs text-[#888]">Genera un presupuesto sugerido según tu tipo de evento y ajústalo a tu gusto.</p>
+              <button onClick={handleGenerateClick} disabled={generating} className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-[#48C9B0] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#3ab89f] disabled:opacity-50">
+                <Sparkles size={15} />{generating ? 'Generando...' : 'Generar presupuesto sugerido'}
+              </button>
+            </div>
+          ) : (
+            <div className="mb-4 rounded-xl border border-dashed border-[#e0e0e0] bg-[#fafafa] px-5 py-6 text-center">
+              <p className="text-sm font-semibold text-[#1D1E20]">Todavía no hay conceptos en el presupuesto</p>
+              <p className="mt-1 text-xs text-[#888]">Cuando se agreguen, los verás aquí.</p>
+            </div>
+          )
         )}
 
         <div className="space-y-3">
@@ -576,16 +751,19 @@ export default function PresupuestoPage() {
                 contractedByItem={contractedByItem}
                 paidByItem={paidByItem}
                 eventSuppliersById={eventSuppliersById}
-                availableSuppliersForCategory={availableSuppliersByCategory[category] || []}
+                availableSuppliers={proveedoresContratados}
                 onOpenAddModal={openAddModalForCategory}
                 onUpdateItem={handleUpdateItem}
                 onDeleteItem={handleDeleteItem}
                 onOpenSupplier={setSelectedSupplier}
+                puedeEditar={permiso.editar}
+                puedeBorrar={permiso.borrar}
+                puedeAgregar={category !== SECCION_SIN_CATEGORIA}
               />
             )
           })}
 
-          {!search.trim() && (addingCategory ? (
+          {!search.trim() && permiso.editar && (addingCategory ? (
             <div className="flex items-center gap-2 px-1 py-2">
               <input autoFocus value={newCategoryName} onChange={e => setNewCategoryName(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter') addCategory(newCategoryName); if (e.key === 'Escape') { setAddingCategory(false); setNewCategoryName('') } }}
@@ -601,7 +779,7 @@ export default function PresupuestoPage() {
         </div>
       </div>
 
-      {showTierModal && (
+      {showTierModal && permiso.editar && (
         <Modal open onClose={() => { if (!generating) setShowTierModal(false) }} size="md">
           <Modal.Header
             title="Generar presupuesto de boda"
@@ -631,22 +809,24 @@ export default function PresupuestoPage() {
 
       {showCategoriesModal && (
         <BudgetCategoriesModal
-          categories={categories}
-          itemCountByCategory={Object.fromEntries(categories.map(c => [c, (itemsByCategory[c] || []).length]))}
+          categories={seccionesCatalogo}
+          itemCountByCategory={Object.fromEntries(seccionesCatalogo.map(c => [c, (itemsByCategory[c] || []).length]))}
           onAdd={addCategory}
-          onRename={renameCategory}
-          onDelete={deleteCategory}
+          onQuitar={quitarCategoria}
           onReorder={reorderCategories}
-          onClose={() => setShowCategoriesModal(false)}
+          error={categoryDeleteError}
+          puedeQuitar={permiso.editar}
+          onClose={() => { setShowCategoriesModal(false); setCategoryDeleteError('') }}
         />
       )}
 
       {/* ── MODAL DE CONCEPTO ── */}
       <BudgetItemModal
-        isOpen={modalOpen}
+        isOpen={modalOpen && permiso.editar}
         onClose={() => setModalOpen(false)}
         currency={currency}
-        categories={categories}
+        categories={seccionesCatalogo}
+        categorias={categorias}
         initialCategory={modalCategory}
         eventSuppliers={eventSuppliers}
         onSubmit={handleModalSubmit}
@@ -654,84 +834,146 @@ export default function PresupuestoPage() {
 
       {/* ── MODAL AYUDA IMPORTAR (2 pasos, componente compartido) ── */}
       <ImportStepsModal
-        open={showImportHelp}
+        open={showImportHelp && permiso.editar}
         onClose={() => setShowImportHelp(false)}
         title="Importar presupuesto"
         subtitle="Trae tu presupuesto desde Excel en dos pasos."
         step1Desc="Viene con las categorías de tu evento y conceptos sugeridos. Llena los montos en Excel."
         downloadLabel="Descargar plantilla"
-        onDownload={() => downloadImportTemplate({ categories, eventType: event?.event_type ?? null, eventCategory: event?.event_category ?? null })}
+        onDownload={() => downloadImportTemplate({ categories: seccionesCatalogo, eventType: event?.event_type ?? null, eventCategory: event?.event_category ?? null })}
         step2Desc="Selecciona el Excel que llenaste (.xlsx). Verás una vista previa antes de guardar."
         selectLabel="Seleccionar archivo"
         onSelectFile={() => { setShowImportHelp(false); fileInputRef.current?.click() }}
       />
 
       {/* ── MODAL DE IMPORT ── */}
-      <Modal open={importModalOpen} onClose={() => setImportModalOpen(false)} size="lg">
+      <Modal open={importModalOpen && permiso.editar} onClose={() => setImportModalOpen(false)} size="lg">
         <Modal.Header
           title="Importar presupuesto"
-          subtitle={`${importRows.length} concepto${importRows.length !== 1 ? 's' : ''} encontrado${importRows.length !== 1 ? 's' : ''}${duplicateCount > 0 ? ` · ${duplicateCount} duplicado${duplicateCount !== 1 ? 's' : ''}` : ''}`}
+          subtitle={`${importPlan.length} concepto${importPlan.length !== 1 ? 's' : ''} en el archivo`}
         />
         <Modal.Body>
-          {duplicateCount > 0 && (
-            <div className="-mx-5 -mt-4 mb-4 border-b border-[#f0f0f0] bg-amber-50 px-5 py-3">
-              <p className="mb-2 text-xs font-semibold text-amber-700">
-                {duplicateCount} concepto{duplicateCount !== 1 ? 's' : ''} ya existe{duplicateCount === 1 ? '' : 'n'} en tu presupuesto
-              </p>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setImportMode('nuevos')}
-                  className={`flex-1 rounded-lg border px-3 py-2 text-xs font-medium transition ${
-                    importMode === 'nuevos'
-                      ? 'border-[#1D1E20] bg-[#1D1E20] text-white'
-                      : 'border-[#e0e0e0] bg-white text-[#555] hover:border-[#1D1E20]'
-                  }`}
-                >
-                  Solo importar nuevos ({newCount})
-                </button>
-                <button
-                  onClick={() => setImportMode('todos')}
-                  className={`flex-1 rounded-lg border px-3 py-2 text-xs font-medium transition ${
-                    importMode === 'todos'
-                      ? 'border-[#1D1E20] bg-[#1D1E20] text-white'
-                      : 'border-[#e0e0e0] bg-white text-[#555] hover:border-[#1D1E20]'
-                  }`}
-                >
-                  Importar todos ({importRows.length})
-                </button>
+          <div className="-mx-5 -mt-4 mb-4 space-y-2 border-b border-[#f0f0f0] bg-[#fafafa] px-5 py-3">
+            {avisoArchivo && (
+              <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+                <AlertTriangle size={14} className="mt-px shrink-0 text-amber-500" />
+                <p className="text-xs text-amber-800">{avisoArchivo}</p>
               </div>
-            </div>
-          )}
+            )}
+
+            <p className="text-xs font-medium text-[#1D1E20]">{titularImport}</p>
+
+            {(conteoImport.bajan > 0 || conteoImport.suben > 0) && (
+              <p className="text-xs text-[#666]">
+                {conteoImport.bajan > 0 && (
+                  <span className="font-semibold text-amber-700">
+                    {conteoImport.bajan} baja{conteoImport.bajan !== 1 ? 'n' : ''} (−{pesos(conteoImport.totalBaja)})
+                  </span>
+                )}
+                {conteoImport.bajan > 0 && conteoImport.suben > 0 && <span className="text-[#ccc]"> · </span>}
+                {conteoImport.suben > 0 && (
+                  <span>{conteoImport.suben} sube{conteoImport.suben !== 1 ? 'n' : ''} (+{pesos(conteoImport.totalSube)})</span>
+                )}
+              </p>
+            )}
+
+            {conteoImport.porRevisar > 0 && (
+              <p className="text-xs text-amber-800">
+                {conteoImport.porRevisar} concepto{conteoImport.porRevisar !== 1 ? 's se parecen' : ' se parece'} a algo que ya tienes. Revísalo{conteoImport.porRevisar !== 1 ? 's' : ''} abajo antes de guardar.
+              </p>
+            )}
+
+          </div>
 
           <div className="space-y-1">
-            {importRows.map((row, idx) => {
-              const skip = importMode === 'nuevos' && row.isDuplicate
+            {importPlan.map((fila, idx) => {
+              const omitida  = fila.accion === 'sin_cambios'
+              const monto    = (n: number) => n > 0 ? `$${n.toLocaleString('es-MX')}` : '—'
+
+              if (fila.candidato) {
+                const esElMismo = fila.partidaId !== null
+                return (
+                  <div key={idx} className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+                    <div className="flex items-center gap-3 text-xs">
+                      <AlertTriangle size={13} className="shrink-0 text-amber-500" />
+                      <span className="w-28 shrink-0 truncate text-[#888]">{categoryLabel(fila.categoria)}</span>
+                      <span className="flex-1 truncate font-medium text-[#1D1E20]">{fila.concepto}</span>
+                      {esElMismo && fila.accion === 'actualizar' ? (
+                        <span className="flex shrink-0 items-center gap-1.5 tabular-nums">
+                          <span className="text-[#bbb] line-through">{monto(fila.montoActual ?? 0)}</span>
+                          <ArrowRight size={11} className="text-[#ccc]" />
+                          <span className="font-semibold text-[#1D1E20]">{monto(fila.montoNuevo)}</span>
+                        </span>
+                      ) : (
+                        <span className="shrink-0 tabular-nums text-[#888]">{monto(fila.montoNuevo)}</span>
+                      )}
+                    </div>
+                    <div className="mt-2 flex flex-wrap items-center gap-2 pl-6">
+                      <span className="text-[11px] text-amber-800">
+                        ¿Es el mismo que <strong className="font-semibold">{fila.candidato.concepto}</strong>?
+                      </span>
+                      <button
+                        onClick={() => decidirFila(idx, true)}
+                        className={`rounded-full border px-2.5 py-1 text-[11px] font-medium transition ${
+                          esElMismo
+                            ? 'border-[#1D1E20] bg-[#1D1E20] text-white'
+                            : 'border-amber-300 bg-white text-amber-800 hover:border-[#1D1E20]'
+                        }`}
+                      >
+                        Es el mismo
+                      </button>
+                      <button
+                        onClick={() => decidirFila(idx, false)}
+                        className={`rounded-full border px-2.5 py-1 text-[11px] font-medium transition ${
+                          !esElMismo
+                            ? 'border-[#1D1E20] bg-[#1D1E20] text-white'
+                            : 'border-amber-300 bg-white text-amber-800 hover:border-[#1D1E20]'
+                        }`}
+                      >
+                        Es otro concepto
+                      </button>
+                    </div>
+                  </div>
+                )
+              }
+
               return (
                 <div
                   key={idx}
                   className={`flex items-center gap-3 rounded-lg px-3 py-2 text-xs ${
-                    skip ? 'opacity-40' : 'bg-[#fafafa]'
+                    omitida ? 'opacity-40' : 'bg-[#fafafa]'
                   }`}
                 >
                   <div className="shrink-0">
-                    {row.isDuplicate ? (
-                      <span title="Duplicado" className="text-amber-500">
-                        <AlertTriangle size={13} />
-                      </span>
-                    ) : (
-                      <Check size={13} className="text-[#48C9B0]" />
-                    )}
+                    {fila.accion === 'agregar'
+                      ? <Check size={13} className="text-[#48C9B0]" />
+                      : fila.accion === 'actualizar'
+                        ? <ArrowRight size={13} className="text-[#48C9B0]" />
+                        : <Minus size={13} className="text-[#bbb]" />}
                   </div>
-                  <span className="w-28 shrink-0 text-[#888]">
-                    {categoryLabel(row.category)}
+                  <span className="w-28 shrink-0 truncate text-[#888]">
+                    {categoryLabel(fila.categoria)}
                   </span>
-                  <span className="flex-1 font-medium text-[#1D1E20]">{row.subcategory}</span>
-                  <span className="shrink-0 tabular-nums text-[#888]">
-                    {row.budget_amount > 0 ? `$${row.budget_amount.toLocaleString('es-MX')}` : '—'}
-                  </span>
-                  {row.isDuplicate && (
-                    <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
-                      duplicado
+                  <span className="flex-1 truncate font-medium text-[#1D1E20]">{fila.concepto}</span>
+
+                  {fila.accion === 'actualizar' ? (
+                    <span className="flex shrink-0 items-center gap-1.5 tabular-nums">
+                      <span className="text-[#bbb] line-through">{monto(fila.montoActual ?? 0)}</span>
+                      <ArrowRight size={11} className="text-[#ccc]" />
+                      <span className="font-semibold text-[#1D1E20]">{monto(fila.montoNuevo)}</span>
+                    </span>
+                  ) : (
+                    <span className="shrink-0 tabular-nums text-[#888]">{monto(fila.montoNuevo)}</span>
+                  )}
+
+                  {fila.accion === 'sin_cambios' && (
+                    <span className="shrink-0 rounded-full bg-[#f0f0f0] px-2 py-0.5 text-[10px] font-semibold text-[#888]">
+                      sin cambios
+                    </span>
+                  )}
+                  {fila.accion === 'agregar' && (
+                    <span className="shrink-0 rounded-full bg-[#e8f8f4] px-2 py-0.5 text-[10px] font-semibold text-[#1a9e88]">
+                      nuevo
                     </span>
                   )}
                 </div>
@@ -749,51 +991,80 @@ export default function PresupuestoPage() {
           </button>
           <button
             onClick={handleImport}
-            disabled={importing || (importMode === 'nuevos' && newCount === 0)}
+            disabled={importing || porEscribir === 0}
             className="rounded-lg bg-[#48C9B0] px-4 py-2 text-xs font-semibold text-white hover:bg-[#3aa896] disabled:opacity-50"
           >
             {importing
               ? 'Importando...'
-              : `Importar ${importMode === 'nuevos' ? newCount : importRows.length} concepto${(importMode === 'nuevos' ? newCount : importRows.length) !== 1 ? 's' : ''}`
+              : porEscribir === 0
+                ? 'Nada que cambiar'
+                : `Guardar ${porEscribir} cambio${porEscribir !== 1 ? 's' : ''}`
             }
           </button>
         </Modal.Footer>
       </Modal>
 
       {/* ── SUPPLIER DETAIL DESDE PRESUPUESTO ── */}
-      {selectedSupplier && (
-        <SupplierDetailModal
+      {selectedSupplier && permisoProv.ver && (
+        <FichaModal
           item={selectedSupplier as any}
-          eventId={eventId}
-          currency={currency}
           budgets={budgets}
+          currency={currency}
+          categorias={categorias}
+          conteoPagosInicial={payments.filter(p => p.event_supplier_id === selectedSupplier.id).length}
           onClose={() => setSelectedSupplier(null)}
+          onElegirPartidas={it => { setSelectedSupplier(null); setPartidasSupplier(it as unknown as EventSupplierWithName) }}
+          onStatusChange={cambiarEstadoProveedor}
           onSaved={updated => {
-            setEventSuppliers(prev => prev.map(es => es.id === updated.id ? { ...es, ...updated } : es))
-            setSelectedSupplier(null)
+            setEventSuppliers(prev => prev.map(es => es.id === updated.id ? { ...es, ...updated } as EventSupplierWithName : es))
+            setSelectedSupplier(prev => prev && prev.id === updated.id ? { ...prev, ...updated } as EventSupplierWithName : prev)
           }}
-          onDeleted={deletedId => {
+          onQuitada={deletedId => {
             setEventSuppliers(prev => prev.filter(es => es.id !== deletedId))
             setSelectedSupplier(null)
-          }}
-          onReviewNeeded={item => {
-            setSelectedSupplier(null)
-            setReviewSupplier(item as any)
           }}
         />
       )}
 
-      {reviewSupplier && (
-        <SupplierReviewModal
-          eventSupplierId={reviewSupplier.id}
-          supplierName={reviewSupplier.supplier.name}
-          initialRating={(reviewSupplier as any).rating ?? null}
-          initialReview={(reviewSupplier as any).review_text ?? null}
-          initialMood={(reviewSupplier as any).mood ?? null}
-          initialSpeed={(reviewSupplier as any).response_speed ?? null}
-          onSaved={() => { setReviewSupplier(null); loadAll() }}
-          onSkip={() => setReviewSupplier(null)}
+      {partidasSupplier && permisoProv.editar && (
+        <PartidasModal
+          item={partidasSupplier}
+          budgets={budgets}
+          categorias={categorias}
+          currency={currency}
+          nombreDeProveedor={id => eventSuppliersById[id]?.supplier?.name ?? 'otro proveedor'}
+          etiquetaGuardar={partidasSupplier.status === 'contratado' ? 'Contratar' : 'Guardar'}
+          onClose={() => { const es = partidasSupplier; setPartidasSupplier(null); if (es.status === 'contratado') ofrecerReview(es) }}
+          onGuardado={nuevos => { setBudgets(nuevos); const es = partidasSupplier; setPartidasSupplier(null); if (es.status === 'contratado') ofrecerReview(es) }}
         />
+      )}
+
+      {reviewSupplier && permisoProv.editar && userId && duenoCatalogo && (
+        reviewSupplier.status === 'contratado' ? (
+          <ReviewContratacionModal
+            eventSupplierId={reviewSupplier.id}
+            supplierId={reviewSupplier.supplier_id}
+            eventId={eventId}
+            duenoId={duenoCatalogo}
+            createdBy={userId}
+            supplierName={reviewSupplier.supplier.name}
+            eventName={event?.name ?? ''}
+            onSaved={() => { setReviewSupplier(null); loadAll() }}
+            onSkip={() => setReviewSupplier(null)}
+          />
+        ) : (
+          <ReviewDescarteModal
+            eventSupplierId={reviewSupplier.id}
+            supplierId={reviewSupplier.supplier_id}
+            eventId={eventId}
+            duenoId={duenoCatalogo}
+            createdBy={userId}
+            supplierName={reviewSupplier.supplier.name}
+            eventName={event?.name ?? ''}
+            onSaved={() => { setReviewSupplier(null); loadAll() }}
+            onSkip={() => setReviewSupplier(null)}
+          />
+        )
       )}
     </div>
   )

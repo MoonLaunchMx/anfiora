@@ -138,6 +138,12 @@ export type EventSettings = {
   requires_approval?: boolean | null
   shared_token?: string | null
   max_companions?: number | null
+  // Link publico para que el cliente califique a los proveedores contratados.
+  // Vencimiento null = 14 dias despues del ultimo dia del evento (ver
+  // lib/reviews/link-cliente.ts); solo un admin lo mueve.
+  review_token?: string | null
+  review_expires_at?: string | null
+  review_event_supplier_ids?: string[] | null
   created_at: string
   updated_at: string
 }
@@ -296,7 +302,7 @@ export type GiftReservation = {
 // ─── COLLABORATORS ───────────────────────────────────────────────────────────
 
 export type CollaboratorRole = 'admin' | 'editor' | 'viewer'
-export type CollaboratorStatus = 'pending' | 'accepted' | 'revoked'
+export type CollaboratorStatus = 'pending' | 'active' | 'revoked'
 
 export type EventCollaborator = {
   id: string
@@ -515,10 +521,13 @@ export function budgetCategoryLabel(name: string): string {
 export type EventBudget = {
   id: string
   event_id: string
-  category: string
+  category_id?: string | null
   subcategory: string
   budget_amount: number
   event_supplier_id: string | null
+  // Lo contratado por ESTA partida con su proveedor. El contratado del
+  // proveedor es la suma de sus partidas (lib/presupuesto/derivados.ts).
+  contract_amount?: number | null
   notes: string | null
   created_at: string
 }
@@ -527,7 +536,7 @@ export type EventBudgetInsert = Omit<EventBudget, 'id' | 'created_at'>
 export type EventBudgetUpdate = Partial<Omit<EventBudget, 'id' | 'event_id' | 'created_at'>>
 
 export type BudgetCategoryWithItems = {
-  category: BudgetCategory
+  category: string
   items: EventBudget[]
   total_budget: number
   total_contracted: number
@@ -542,7 +551,7 @@ export type Supplier = {
   id: string
   user_id: string
   name: string
-  category: BudgetCategory
+  category_id: string | null
   subcategory: string | null
   contact_name: string | null
   phone: string | null
@@ -556,6 +565,10 @@ export type Supplier = {
   state_region: string | null
   service_radius_km: number | null
   general_notes: string | null
+  // Las dos llegaron con el cimiento de datos del Rolodex y llevaban desde
+  // entonces sin pantalla que las leyera ni las escribiera.
+  tags: string[] | null
+  archived_at: string | null
   created_at: string
 }
 
@@ -587,6 +600,8 @@ export const SUPPLIER_STATUS_COLORS: Record<SupplierStatus, string> = {
   descartado: 'bg-red-100 text-red-600',
 }
 
+// Heredado: reemplazado por supplier_reviews (lib/reviews). Se conserva porque
+// lo usa la migracion de datos viejos en docs/superpowers/plans/sql/2026-09-06-migrar-resenas-viejas.sql.
 export const SUPPLIER_MOODS = ['no', 'normal', 'love'] as const
 export type SupplierMood = typeof SUPPLIER_MOODS[number]
 
@@ -608,6 +623,8 @@ export const SUPPLIER_MOOD_COLORS: Record<SupplierMood, string> = {
   love:   'text-[#48C9B0]',
 }
 
+// Heredado: reemplazado por supplier_reviews (lib/reviews). Se conserva porque
+// lo usa la migracion de datos viejos en docs/superpowers/plans/sql/2026-09-06-migrar-resenas-viejas.sql.
 export const RESPONSE_SPEEDS = ['lentisimo', 'normal', 'bueno', 'rapidos'] as const
 export type ResponseSpeed = typeof RESPONSE_SPEEDS[number]
 
@@ -625,21 +642,30 @@ export const RESPONSE_SPEED_COLORS: Record<ResponseSpeed, string> = {
   rapidos:   'bg-emerald-100 text-emerald-700',
 }
 
+// Los archivos privados del bucket event-docs. Se guarda la ruta y nunca la
+// URL: la URL se firma al momento del clic y caduca. 'borrado' saca el renglon
+// de la vista sin tocar el objeto, que no se borra jamas.
+export type ArchivoAdjunto = {
+  path: string
+  nombre: string
+  tipo: string
+  bytes: number
+  subido: string
+  por: string | null
+  borrado: string | null
+}
+
 export type EventSupplier = {
   id: string
   event_id: string
   supplier_id: string
   status: SupplierStatus
-  mood: SupplierMood | null
-  response_speed: ResponseSpeed | null
   quoted_amount: number | null
-  contract_amount: number | null
-  rating: number | null
-  review_text: string | null
+  // Lo contratado ya no vive aqui: es la suma de event_budgets.contract_amount
+  // de sus partidas (contratadoDelProveedor). Las columnas viejas
+  // contract_amount y event_budget_id se borran con el SQL del paso 2.
   event_notes: string | null
-  external_files_url: string | null
-  has_pro_files: boolean
-  event_budget_id: string | null
+  quote_files: ArchivoAdjunto[]
   created_at: string
 }
 
@@ -655,6 +681,83 @@ export type EventSupplierWithDetails = EventSupplier & {
   payments: SupplierPayment[]
   total_paid?: number
   payment_progress?: number
+}
+
+export const REVIEW_TYPES = ['contratacion', 'descarte', 'post_evento'] as const
+export type ReviewType = typeof REVIEW_TYPES[number]
+
+export const REVIEW_AUTORES = ['planner', 'cliente'] as const
+export type ReviewAutor = typeof REVIEW_AUTORES[number]
+
+export const MOTIVOS_DESCARTE = [
+  'precio',
+  'disponibilidad',
+  'comunicacion',
+  'calidad',
+  'estilo',
+  'cliente_eligio_otro',
+  'no_respondio',
+] as const
+export type MotivoDescarte = typeof MOTIVOS_DESCARTE[number]
+
+export const MOTIVO_DESCARTE_LABEL: Record<MotivoDescarte, string> = {
+  precio:              'Precio fuera de presupuesto',
+  disponibilidad:      'No disponible en la fecha',
+  comunicacion:        'Comunicación lenta o poco clara',
+  calidad:             'Propuesta o calidad insuficiente',
+  estilo:              'No encajaba con el estilo del evento',
+  cliente_eligio_otro: 'El cliente eligió a otro',
+  no_respondio:        'Se retiró o no respondió',
+}
+
+export const RAZONES_SELECCION = [
+  'precio',
+  'relacion_calidad_precio',
+  'calidad',
+  'disponibilidad',
+  'comunicacion',
+  'recomendacion',
+  'estilo',
+  'decision_cliente',
+] as const
+export type RazonSeleccion = typeof RAZONES_SELECCION[number]
+
+export const RAZON_SELECCION_LABEL: Record<RazonSeleccion, string> = {
+  precio:                  'Mejor precio',
+  relacion_calidad_precio: 'Mejor relación calidad/precio',
+  calidad:                 'Mejor calidad o portafolio',
+  disponibilidad:          'Disponibilidad en la fecha',
+  comunicacion:            'Mejor comunicación',
+  recomendacion:           'Recomendación o relación previa',
+  estilo:                  'Encajaba con el estilo del evento',
+  decision_cliente:        'Decisión del cliente',
+}
+
+export const MAX_RAZONES_SELECCION = 2
+export const MAX_COMENTARIOS = 500
+
+export interface SupplierReview {
+  id: string
+  user_id: string
+  supplier_id: string
+  event_id: string
+  event_supplier_id: string
+  review_type: ReviewType
+  autor: ReviewAutor
+  precio_valor: number | null
+  calidad: number | null
+  comunicacion: number | null
+  servicio_trato: number | null
+  manejo_imprevistos: number | null
+  razones_seleccion: RazonSeleccion[] | null
+  motivo_descarte: MotivoDescarte | null
+  recontratacion: number | null
+  cobros_extra: boolean | null
+  monto_cobros_extra: number | null
+  comentarios: string | null
+  created_by: string | null
+  created_at: string
+  updated_at: string
 }
 
 // ─── FINANZAS — SUPPLIER PAYMENTS ────────────────────────────────────────────
@@ -707,8 +810,12 @@ export type SupplierPayment = {
   amount: number
   payment_date: string
   payment_method: PaymentMethod | null
-  paid_by: PaidBy | null
+  // Ya no es un enum: texto libre por evento. PAID_BY_LABELS se conserva
+  // solo para traducir las claves heredadas (novia, papas_novio, etc.) a su
+  // etiqueta donde se muestren — ver lib/pagos/quien-pago.ts.
+  paid_by: string | null
   reference: string | null
+  receipt_files: ArchivoAdjunto[]
   created_at: string
 }
 
@@ -728,7 +835,7 @@ export type BudgetSummary = {
 }
 
 export type CategoryBudgetStatus = {
-  category: BudgetCategory
+  category: string
   budget: number
   contracted: number
   paid: number
@@ -763,6 +870,7 @@ export interface ItineraryMoment {
   event_id: string
   title: string
   start_time: string            // 'HH:MM' o 'HH:MM:SS'
+  moment_date: string           // 'YYYY-MM-DD'
   duration_min: number | null   // null = "hasta cierre"
   location: string | null
   phase: ItineraryPhase
@@ -779,6 +887,12 @@ export interface GuestItineraryItem {
   start_time: string
   title: string
   location: string | null
+}
+
+export interface GuestItineraryDay {
+  date: string                  // 'YYYY-MM-DD'
+  label: string                 // 'Sábado 13'
+  items: GuestItineraryItem[]
 }
 
 export type PushType = 'guest_replies' | 'task_reminders' | 'payment_due'

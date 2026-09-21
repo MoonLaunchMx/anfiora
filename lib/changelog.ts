@@ -1,4 +1,4 @@
-export const CURRENT_VERSION = '2026-06-15'
+export const CURRENT_VERSION = '2026-09-17'
 
 export type Release = {
   version: string
@@ -10,6 +10,32 @@ export type Release = {
 }
 
 export const changelog: Release[] = [
+  {
+    version: '2026-09-17',
+    date: '17 de septiembre, 2026',
+    title: 'Recomendaciones en la invitación',
+    subtitle: 'Hoteles, lugares y vuelos con la vista previa del link, directo en la invitación.',
+    features: [
+      { icon: 'Link2',       text: 'Pega el link de un hotel, un lugar o un vuelo y el título, la foto y el sitio se llenan solos' },
+      { icon: 'Hotel',       text: 'Agrega los bloques que quieras y nómbralos como quieras: Hospedaje, Renta de autos, Autobuses, Restaurantes' },
+      { icon: 'NotebookPen', text: 'Una nota por link para el código de tarifa preferencial o el "reserva con anticipación"' },
+      { icon: 'ImagePlus',   text: 'Si el sitio no da vista previa, le pones título y subes la foto a mano' },
+      { icon: 'EyeOff',      text: 'Un apartado sin links no se muestra: si solo pones vuelos, solo se ven vuelos' },
+    ],
+  },
+  {
+    version: '2026-08-10',
+    date: '10 de agosto, 2026',
+    title: 'Itinerario de varios días',
+    subtitle: 'Planea cada día de tu evento por separado y tus invitados lo ven agrupado por día.',
+    features: [
+      { icon: 'CalendarDays', text: 'Si tu evento dura varios días, el itinerario se organiza por día — rompehielos el viernes, boda el sábado, tornaboda el domingo' },
+      { icon: 'CalendarPlus', text: 'Arma cada día con plantillas: eliges qué pasa ese día y a qué hora empieza, y todo lo demás se acomoda solo' },
+      { icon: 'Eye',          text: 'La invitación muestra el itinerario agrupado por día, solo con los momentos visibles' },
+      { icon: 'Moon',         text: 'Lo que pasa de medianoche cae en el día que le toca — la tornafiesta de la 1 am ya no se pierde' },
+      { icon: 'AlertTriangle', text: 'Si acortas las fechas del evento, los días que quedan fuera se marcan y puedes eliminarlos con un clic' },
+    ],
+  },
   {
     version: '2026-06-15',
     date: '15 de junio, 2026',

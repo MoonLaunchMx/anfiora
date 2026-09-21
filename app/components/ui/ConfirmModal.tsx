@@ -10,6 +10,9 @@ type ConfirmOptions = {
   confirmLabel?: string
   cancelLabel?: string
   tone?: ConfirmTone
+  // Para un aviso sin decision real -- "esto no se puede hacer, y ya" -- un
+  // segundo boton "Cancelar" implicaria que hay algo que deshacer.
+  soloAviso?: boolean
 }
 
 type PendingConfirm = ConfirmOptions & { resolve: (value: boolean) => void }
@@ -67,9 +70,11 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
             <h3 className="text-base font-bold text-[#1D1E20]">{pending.title}</h3>
             {pending.message != null && <div className="mt-1.5 text-xs text-[#666]">{pending.message}</div>}
             <div className="mt-5 flex gap-2.5">
-              <button type="button" onClick={() => close(false)} className="flex-1 rounded-lg border border-[#e0e0e0] py-2.5 text-sm text-[#888] transition hover:bg-[#f8f8f8]">
-                {pending.cancelLabel ?? 'Cancelar'}
-              </button>
+              {!pending.soloAviso && (
+                <button type="button" onClick={() => close(false)} className="flex-1 rounded-lg border border-[#e0e0e0] py-2.5 text-sm text-[#888] transition hover:bg-[#f8f8f8]">
+                  {pending.cancelLabel ?? 'Cancelar'}
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => close(true)}

@@ -11,6 +11,8 @@ describe("zonaDesdePath", () => {
     expect(zonaDesdePath("/events/1")).toBe("planner");
     expect(zonaDesdePath("/dashboard")).toBe("planner");
     expect(zonaDesdePath("/perfil")).toBe("planner");
+    expect(zonaDesdePath("/configuracion/perfil")).toBe("planner");
+    expect(zonaDesdePath("/cuenta/equipo")).toBe("planner");
     expect(zonaDesdePath("/admin")).toBe("planner");
   });
   it("cae a general en lo desconocido o vacio", () => {

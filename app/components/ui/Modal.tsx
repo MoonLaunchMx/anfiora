@@ -258,11 +258,15 @@ export function Modal({
 function Header({
   title,
   subtitle,
+  right,
   onClose,
   children,
 }: {
   title: string
   subtitle?: string
+  // Columna propia a la derecha del titulo (antes del boton de cerrar): para
+  // un dato vivo, como cuantos elementos llevas seleccionados.
+  right?: React.ReactNode
   onClose?: () => void
   children?: React.ReactNode
 }) {
@@ -271,12 +275,13 @@ function Header({
   return (
     <div className="flex shrink-0 items-start justify-between gap-4 border-b border-[#f0f0f0] px-5 py-4">
       <div className="min-w-0 flex-1">
-        <h2 id={ctx.titleId} className="truncate text-base font-bold text-[#1D1E20]">
+        <h2 id={ctx.titleId} className="text-balance text-base font-bold text-[#1D1E20]">
           {title}
         </h2>
         {subtitle && <p className="mt-0.5 text-xs text-[#888]">{subtitle}</p>}
         {children}
       </div>
+      {right && <div className="shrink-0">{right}</div>}
       <button
         type="button"
         onClick={close}
@@ -291,7 +296,7 @@ function Header({
 
 function Body({ children, className = '' }: { children: React.ReactNode; className?: string }) {
   useModalCtx('Modal.Body')
-  return <div className={`min-h-0 flex-1 overflow-y-auto px-5 py-4 ${className}`}>{children}</div>
+  return <div className={`anf-barra-fina min-h-0 flex-1 overflow-y-auto px-5 py-4 ${className}`}>{children}</div>
 }
 
 function Footer({ children }: { children: React.ReactNode }) {

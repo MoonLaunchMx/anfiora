@@ -5,6 +5,13 @@ const PortadaContent = z.object({
   kicker: z.string().default(''),
   titulo: z.string().default(''),
   subtitulo: z.string().default(''),
+  // Todo se muestra por defecto; el anfitrion apaga lo que no quiera.
+  mostrar_fecha: z.boolean().default(true),
+  mostrar_hora: z.boolean().default(true),
+  mostrar_lugar: z.boolean().default(true),
+  // 'auto' usa el rango del evento; 'inicio' solo el primer dia; 'libre' el texto del anfitrion.
+  fecha_modo: z.enum(['auto', 'inicio', 'libre']).default('auto'),
+  fecha_texto: z.string().default(''),
 })
 const SaludoContent = z.object({
   titulo: z.string().default('Hola'),
@@ -63,6 +70,20 @@ const VideoContent = z.object({
   url: z.string().default(''),
   caption: z.string().default(''),
 })
+const RecoLinkSchema = z.object({
+  url: z.string().default(''),
+  titulo: z.string().default(''),
+  sitio: z.string().default(''),
+  imagen: z.string().default(''),
+  nota: z.string().default(''),
+})
+// El bloque se agrega las veces que haga falta: uno por tema, con el nombre
+// que le ponga el planner (Hospedaje, Renta de autos, Autobuses...).
+const RecomendacionesContent = z.object({
+  titulo: z.string().default(''),
+  descripcion: z.string().default(''),
+  links: z.array(RecoLinkSchema).default([]),
+})
 const AudioContent = z.object({
   url: z.string().default(''),
   drive_url: z.string().default(''),
@@ -86,6 +107,7 @@ export const CONTENT_BY_TYPE = {
   galeria: GaleriaContent,
   video: VideoContent,
   audio: AudioContent,
+  recomendaciones: RecomendacionesContent,
 } as const
 
 export type SectionType = keyof typeof CONTENT_BY_TYPE
@@ -107,6 +129,7 @@ export const SectionSchema = z.discriminatedUnion('type', [
   z.object({ id: z.string(), type: z.literal('galeria'),    content: GaleriaContent }),
   z.object({ id: z.string(), type: z.literal('video'),      content: VideoContent }),
   z.object({ id: z.string(), type: z.literal('audio'),      content: AudioContent }),
+  z.object({ id: z.string(), type: z.literal('recomendaciones'), content: RecomendacionesContent }),
 ])
 
 const RegistryPaymentMethodSchema = z.object({

@@ -971,3 +971,60 @@ body {
   .inv-anim-layer { display: none !important; }
   .inv-anim-overlay { animation: inv-anim-fade-out 0.4s ease 2.4s forwards; }
 }
+
+/* ── Espera del sistema ──────────────────────────────────────────────────────
+   Animacion unica de carga para toda la app. Vive aqui, no en el componente,
+   para que <Cargando> sea el unico lugar donde se dibuja una espera y no
+   volvamos a tener una distinta en cada pantalla. */
+
+@keyframes anf-pulso {
+  0%, 60%, 100% { opacity: .28; transform: translateY(0); }
+  30%           { opacity: 1;   transform: translateY(-4px); }
+}
+
+.anf-pulso { animation: anf-pulso 1.15s ease-in-out infinite; }
+
+@keyframes anf-respira {
+  0%, 100% { opacity: .82; transform: scale(1); }
+  50%      { opacity: 1;   transform: scale(1.035); }
+}
+
+/* El isotipo respira mientras esperamos. Cuando exista la animacion propia del
+   logo, se reemplaza SOLO esta regla: el hueco ya esta reservado. */
+.anf-respira { animation: anf-respira 2.6s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .anf-pulso   { animation: none; opacity: .55; }
+  .anf-respira { animation: none; opacity: 1; }
+}
+
+/* ── Barras de scroll ─────────────────────────────────────────────────────
+   Dos casos distintos, a proposito.
+
+   .anf-sin-barra: filas que se arrastran de lado y donde la barra es puro
+   estorbo, como una tira de pestanas. Se esconde la barra, NUNCA el scroll:
+   el contenido se sigue pudiendo arrastrar, con dedo o con rueda.
+
+   .anf-barra-fina: contenedores donde la barra es informacion -- avisa que
+   hay mas abajo -- pero la del sistema se ve tosca. Se adelgaza y se pinta
+   con los grises de la app en vez de los del sistema operativo.          */
+
+.anf-sin-barra {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.anf-sin-barra::-webkit-scrollbar { display: none; }
+
+.anf-barra-fina {
+  scrollbar-width: thin;
+  scrollbar-color: #d6d4cf transparent;
+}
+.anf-barra-fina::-webkit-scrollbar { width: 8px; height: 8px; }
+.anf-barra-fina::-webkit-scrollbar-track { background: transparent; }
+.anf-barra-fina::-webkit-scrollbar-thumb {
+  background: #d6d4cf;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  border-radius: 999px;
+}
+.anf-barra-fina::-webkit-scrollbar-thumb:hover { background: #bdbab4; background-clip: padding-box; }

@@ -3,7 +3,8 @@ import type { Section } from '@/lib/invite/schema'
 import type { InviteCtx } from '../types'
 import type { LucideIcon } from 'lucide-react'
 import { Calendar, Clock, MapPin, Navigation } from 'lucide-react'
-import { formatFecha, formatHora } from '../format'
+import { formatHora } from '../format'
+import { formatFechaEvento, detallesSoloLugar } from '@/lib/invite/fechas'
 import { buildMapsUrl } from '@/lib/invite/maps'
 import SectionShell from '../SectionShell'
 
@@ -12,14 +13,16 @@ type Content = Extract<Section, { type: 'detalles' }>['content']
 type Row = { icon: LucideIcon; label: string; value: string; cap?: boolean }
 
 export default function DetallesSection({ content, ctx }: { content: Content; ctx: InviteCtx }) {
-  const fecha = formatFecha(ctx.event.event_date)
-  const { venue, address, event_time } = ctx.event
+  const { venue, address, event_time, event_date, event_end_date } = ctx.event
+  const momentos = ctx.itinerary.reduce((n, dia) => n + dia.items.length, 0)
+  const soloLugar = detallesSoloLugar(event_date, event_end_date, momentos)
+  const fecha = formatFechaEvento(event_date, event_end_date)
   const hora = formatHora(event_time)
   const mapsUrl = content.mostrar_mapa ? buildMapsUrl(content.maps_url, address) : null
 
   const rows: Row[] = []
-  if (fecha) rows.push({ icon: Calendar, label: 'Fecha', value: fecha, cap: true })
-  if (hora) rows.push({ icon: Clock, label: 'Hora', value: hora })
+  if (!soloLugar && fecha) rows.push({ icon: Calendar, label: 'Fecha', value: fecha, cap: true })
+  if (!soloLugar && hora) rows.push({ icon: Clock, label: 'Hora', value: hora })
   if (venue) rows.push({ icon: MapPin, label: 'Lugar', value: venue })
   if (address) rows.push({ icon: Navigation, label: 'Dirección', value: address })
 
@@ -28,7 +31,7 @@ export default function DetallesSection({ content, ctx }: { content: Content; ct
   return (
     <SectionShell variant="band" className="text-center">
       <h2 className="px-2 text-xl font-semibold lg:text-2xl" style={{ color: 'var(--inv-texto-titulo)', fontFamily: 'var(--inv-font-titulo)' }}>
-        {content.titulo}
+        {soloLugar && content.titulo.trim() === 'Los detalles' ? 'Cómo llegar' : content.titulo}
       </h2>
 
       <div className="mx-auto mt-8 flex max-w-md flex-col gap-2.5 text-left">

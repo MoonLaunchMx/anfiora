@@ -8,6 +8,10 @@ import { Guest } from '@/lib/types'
 import { Plus, Trash2, ChevronDown, ChevronUp, X, List, Map as MapIcon, Printer, Search, LayoutGrid, ArrowLeft, LayoutPanelLeft, RotateCw } from 'lucide-react'
 import StatsCollapse, { StatsToggleButton, useStatsToggle } from '@/app/components/ui/StatsCollapse'
 import { Modal } from '@/app/components/ui/Modal'
+import { useConfirm } from '@/app/components/ui/ConfirmModal'
+import { usePermiso } from '@/lib/event-access-context'
+import { Puede } from '@/lib/permisos/Puede'
+import { Cargando } from '@/app/components/ui/Cargando'
 
 // ─── CONSTANTES ───────────────────────────────
 const STATUS_COLORS: Record<string, { bg: string; border: string; text: string; label: string }> = {
@@ -457,10 +461,11 @@ function ContextMenu({ menu, onColor, onDuplicate, onDelete, onClose }: {
 }
 
 // ─── MODAL DETALLE MESA ───────────────────────
-function TableDetailModal({ table, getOccupied, onClose, onAssign, onRemoveGuest, onEditTable, onDeleteTable }: {
+function TableDetailModal({ table, getOccupied, onClose, onAssign, onRemoveGuest, onEditTable, onDeleteTable, puedeEditar, puedeBorrar }: {
   table: TableRecord; getOccupied:(t:TableRecord)=>number; onClose:()=>void
   onAssign:(id:string,cap:number)=>void; onRemoveGuest:(seatId:string,name:string)=>void
   onEditTable:(t:TableRecord)=>void; onDeleteTable:(t:TableRecord)=>void
+  puedeEditar:boolean; puedeBorrar:boolean
 }) {
   const occ=getOccupied(table); const avail=table.capacity-occ; const full=avail===0
   return (
@@ -476,7 +481,7 @@ function TableDetailModal({ table, getOccupied, onClose, onAssign, onRemoveGuest
               <div key={seat.id} className="rounded-xl border px-3 py-2.5" style={{background:st.bg,borderColor:st.border}}>
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex min-w-0 items-center gap-2"><span className="truncate text-sm font-semibold" style={{color:st.text}}>{g.name}</span>{g.party_size>1&&<span className="text-xs font-semibold" style={{color:st.text}}>+{g.party_size-1}</span>}</div>
-                  <div className="flex items-center gap-2"><span className="text-xs font-semibold" style={{color:st.text}}>{st.label}</span><button onClick={()=>onRemoveGuest(seat.id,g.name)} className="opacity-40 hover:opacity-100" style={{color:st.text}}><X width={12} height={12}/></button></div>
+                  <div className="flex items-center gap-2"><span className="text-xs font-semibold" style={{color:st.text}}>{st.label}</span>{puedeEditar&&<button onClick={()=>onRemoveGuest(seat.id,g.name)} className="opacity-40 hover:opacity-100" style={{color:st.text}}><X width={12} height={12}/></button>}</div>
                 </div>
                 {g.party_members.length>0&&<div className="mt-1.5 flex flex-col gap-1 border-t pt-1.5" style={{borderColor:st.border}}>{g.party_members.map(m=><div key={m.id} className="flex items-center justify-between"><div className="flex items-center gap-1.5"><div className="h-3 w-[2px] rounded-full opacity-30" style={{background:st.text}}/><span className="text-xs" style={{color:st.text}}>{m.name||'Acompañante'}</span></div><span className="text-[11px]" style={{color:STATUS_COLORS[m.rsvp_status].text}}>{STATUS_COLORS[m.rsvp_status].label}</span></div>)}</div>}
               </div>
@@ -485,26 +490,29 @@ function TableDetailModal({ table, getOccupied, onClose, onAssign, onRemoveGuest
         )}
       </Modal.Body>
       <Modal.Footer>
-        <button onClick={()=>{onDeleteTable(table);onClose()}} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[#ffe0e0] bg-[#fff5f5] text-[#cc3333] hover:bg-[#ffe8e8]"><Trash2 width={14} height={14}/></button>
-        <button onClick={()=>{onEditTable(table);onClose()}} className="flex-1 rounded-lg border border-[#e0e0e0] py-2 text-sm text-[#666] hover:border-[#48C9B0] hover:text-[#48C9B0]">Editar mesa</button>
-        {!full&&<button onClick={()=>{onAssign(table.id,table.capacity);onClose()}} className="flex-1 rounded-lg bg-[#48C9B0] py-2 text-sm font-semibold text-white hover:bg-[#3ab89f]">+ Asignar</button>}
+        {puedeBorrar&&<button onClick={()=>{onDeleteTable(table);onClose()}} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[#ffe0e0] bg-[#fff5f5] text-[#cc3333] hover:bg-[#ffe8e8]"><Trash2 width={14} height={14}/></button>}
+        {puedeEditar&&<button onClick={()=>{onEditTable(table);onClose()}} className="flex-1 rounded-lg border border-[#e0e0e0] py-2 text-sm text-[#666] hover:border-[#48C9B0] hover:text-[#48C9B0]">Editar mesa</button>}
+        {!full&&puedeEditar&&<button onClick={()=>{onAssign(table.id,table.capacity);onClose()}} className="flex-1 rounded-lg bg-[#48C9B0] py-2 text-sm font-semibold text-white hover:bg-[#3ab89f]">+ Asignar</button>}
       </Modal.Footer>
     </Modal>
   )
 }
 
 // ─── CANVAS FULLSCREEN ────────────────────────
-function CanvasFullscreen({ tables, getOccupied, onBack, onTableClick, onPositionSave, onRotationSave, onOpenCreate,
+function CanvasFullscreen({ tables, getOccupied, onBack, onTableClick, onPositionSave, onRotationSave, onOpenCreate, puedeEditar,
   decos, setDecos, decoRotations, setDecoRotations, tableColors, setTableColors, decoColors, setDecoColors
 }: {
   tables: TableRecord[]; getOccupied:(t:TableRecord)=>number; onBack:()=>void
   onTableClick:(t:TableRecord)=>void; onPositionSave:(id:string,x:number,y:number)=>void
   onRotationSave:(id:string,rotation:number)=>void; onOpenCreate:()=>void
+  puedeEditar: boolean
   decos: DecoItem[]; setDecos: React.Dispatch<React.SetStateAction<DecoItem[]>>
   decoRotations: Record<string,number>; setDecoRotations: React.Dispatch<React.SetStateAction<Record<string,number>>>
   tableColors: Record<string,string>; setTableColors: React.Dispatch<React.SetStateAction<Record<string,string>>>
   decoColors: Record<string,string>; setDecoColors: React.Dispatch<React.SetStateAction<Record<string,string>>>
 }) {
+  const puedeEditarRef = useRef(puedeEditar)
+  puedeEditarRef.current = puedeEditar
   const [positions,  setPositions]  = useState<Record<string,{x:number;y:number}>>({})
   const [rotations,  setRotations]  = useState<Record<string,number>>({})
   const [selectedId, setSelectedId] = useState<string|null>(null)
@@ -611,11 +619,12 @@ function CanvasFullscreen({ tables, getOccupied, onBack, onTableClick, onPositio
     e.preventDefault(); e.stopPropagation()
     const pos=isDeco?(decosRef.current.find(d=>d.id===id)||{x:0,y:0}):(posRef.current[id]||{x:0,y:0})
     dragRef.current={id,isDeco,startMX:e.clientX,startMY:e.clientY,startX:pos.x,startY:pos.y,hasMoved:false}
-    document.body.style.cursor='grabbing'
+    if(puedeEditar)document.body.style.cursor='grabbing'
     if(isDeco){setActiveDeco(id)}else{setActiveId(id);setSelectedId(id)}
   }
 
   const startResize=(e:React.MouseEvent,id:string,corner:string)=>{
+    if(!puedeEditar)return
     e.preventDefault(); e.stopPropagation()
     const d=decosRef.current.find(x=>x.id===id); if(!d)return
     resizeRef.current={id,corner,startMX:e.clientX,startMY:e.clientY,origX:d.x,origY:d.y,origW:d.w,origH:d.h}
@@ -623,6 +632,7 @@ function CanvasFullscreen({ tables, getOccupied, onBack, onTableClick, onPositio
   }
 
   const startRotate=(e:React.MouseEvent,id:string,isDeco:boolean)=>{
+    if(!puedeEditar)return
     e.preventDefault(); e.stopPropagation()
     let cx:number, cy:number, startRot:number
     if(isDeco){
@@ -678,6 +688,7 @@ function CanvasFullscreen({ tables, getOccupied, onBack, onTableClick, onPositio
     if(!dragRef.current)return
     const{id,isDeco,startMX,startMY,startX,startY}=dragRef.current
     const dx=(e.clientX-startMX)/zoom; const dy=(e.clientY-startMY)/zoom
+    if(!puedeEditarRef.current)return
     if(Math.sqrt(dx*dx+dy*dy)>4)dragRef.current.hasMoved=true
     const nx=Math.max(0,startX+dx); const ny=Math.max(0,startY+dy)
     if(isDeco)setDecos(p=>p.map(d=>d.id===id?{...d,x:nx,y:ny}:d))
@@ -758,6 +769,7 @@ function CanvasFullscreen({ tables, getOccupied, onBack, onTableClick, onPositio
     const{id,isDeco,startTX,startTY,startX,startY}=touchRef.current
     const dx=(t.clientX-startTX)/zoom
     const dy=(t.clientY-startTY)/zoom
+    if(!puedeEditarRef.current)return
     if(Math.sqrt(dx*dx+dy*dy)>6){
       touchRef.current.hasMoved=true
       if(touchRef.current.longPressTimer){clearTimeout(touchRef.current.longPressTimer);touchRef.current.longPressTimer=null}
@@ -893,9 +905,9 @@ function CanvasFullscreen({ tables, getOccupied, onBack, onTableClick, onPositio
             <span className="flex w-12 items-center justify-center border-x border-[#e0e0e0] text-xs text-[#888]">{Math.round(zoom*100)}%</span>
             <button onClick={()=>setZoom(z=>Math.max(0.3,z-0.1))} className="px-2.5 py-1.5 text-xs font-bold text-[#666] hover:bg-[#f5f5f5]">−</button>
           </div>
-          <button onClick={onOpenCreate} className="flex items-center gap-1.5 rounded-lg bg-[#48C9B0] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#3ab89f]">
+          {puedeEditar&&<button onClick={onOpenCreate} className="flex items-center gap-1.5 rounded-lg bg-[#48C9B0] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#3ab89f]">
             <Plus width={13} height={13}/>Nueva mesa
-          </button>
+          </button>}
         </div>
       </div>
 
@@ -958,13 +970,13 @@ function CanvasFullscreen({ tables, getOccupied, onBack, onTableClick, onPositio
 
             return(
               <div key={table.id} data-canvas-item="true"
-                style={{position:'absolute',left:pos.x,top:pos.y,userSelect:'none',cursor:'grab',touchAction:'none'}}
+                style={{position:'absolute',left:pos.x,top:pos.y,userSelect:'none',cursor:puedeEditar?'grab':'pointer',touchAction:'none'}}
                 onMouseDown={e=>startDrag(e,table.id,false)}
                 onMouseEnter={()=>handleTableEnter(table.id)}
                 onMouseLeave={()=>handleTableLeave(table.id)}
                 onContextMenu={e=>openContextMenu(e,table.id,'table')}
                 onTouchStart={e=>startTouchDrag(e,table.id,false)}>
-                {isActive&&(
+                {isActive&&puedeEditar&&(
                   <div data-canvas-item="true"
                     onMouseDown={e=>startRotate(e,table.id,false)}
                     onMouseEnter={()=>handleTableEnter(table.id)}
@@ -1030,9 +1042,9 @@ function CanvasFullscreen({ tables, getOccupied, onBack, onTableClick, onPositio
             )}
           </div>
         )}
-        <button onClick={onOpenCreate} className="ml-auto flex shrink-0 items-center gap-1.5 rounded-lg bg-[#48C9B0] px-3 py-1.5 text-xs font-semibold text-white">
+        {puedeEditar&&<button onClick={onOpenCreate} className="ml-auto flex shrink-0 items-center gap-1.5 rounded-lg bg-[#48C9B0] px-3 py-1.5 text-xs font-semibold text-white">
           <Plus width={13} height={13}/>Nueva mesa
-        </button>
+        </button>}
       </div>
 
       {/* Eliminar elemento deco activo — solo mobile */}
@@ -1061,13 +1073,13 @@ function TagSelector({ availableTags, selectedTags, onChange }: { availableTags:
   )
 }
 
-function MembersEditor({ value, onChange }: { value:EditMember[]; onChange:(v:EditMember[])=>void }) {
+function MembersEditor({ value, onChange, puedeEditar = true }: { value:EditMember[]; onChange:(v:EditMember[])=>void; puedeEditar?:boolean }) {
   const MAX=15
   return(
     <div>
       <div className="mb-2 flex items-center justify-between">
         <label className="text-xs font-medium text-[#555]">Acompañantes <span className="font-normal text-[#ccc]">(máx. {MAX})</span></label>
-        {value.length<MAX&&<button type="button" onClick={()=>onChange([...value,{name:'',phone:'',rsvp_status:'pending'}])} className="text-xs font-semibold text-[#48C9B0] hover:underline">+ Agregar</button>}
+        {puedeEditar&&value.length<MAX&&<button type="button" onClick={()=>onChange([...value,{name:'',phone:'',rsvp_status:'pending'}])} className="text-xs font-semibold text-[#48C9B0] hover:underline">+ Agregar</button>}
       </div>
       {!value.length&&<p className="text-xs text-[#bbb]">Sin acompañantes.</p>}
       <div className="flex flex-col gap-2">
@@ -1080,7 +1092,7 @@ function MembersEditor({ value, onChange }: { value:EditMember[]; onChange:(v:Ed
               <select value={m.rsvp_status} onChange={e=>onChange(value.map((x,j)=>j===i?{...x,rsvp_status:e.target.value as EditMember['rsvp_status']}:x))} className="w-full cursor-pointer rounded-lg border border-[#e0e0e0] bg-[#f8f8f8] px-3 py-2 text-base text-[#1D1E20] outline-none">
                 <option value="pending">Pendiente</option><option value="confirmed">Confirmado</option><option value="declined">Declinó</option>
               </select>
-              <button type="button" onClick={()=>onChange(value.filter((_,j)=>j!==i))} className="w-full rounded-lg border border-[#ffe0e0] bg-[#fff5f5] py-1.5 text-xs font-semibold text-[#cc3333] hover:bg-[#ffe8e8]">Eliminar acompañante</button>
+              {puedeEditar&&<button type="button" onClick={()=>onChange(value.filter((_,j)=>j!==i))} className="w-full rounded-lg border border-[#ffe0e0] bg-[#fff5f5] py-1.5 text-xs font-semibold text-[#cc3333] hover:bg-[#ffe8e8]">Eliminar acompañante</button>}
             </div>
           </div>
         ))}
@@ -1215,6 +1227,9 @@ function MesasPageInner() {
 
   // Toggle de estadísticas en mobile (persiste por evento en localStorage)
   const { visible: statsVisible, toggle: toggleStats } = useStatsToggle(eventId as string, 'tables')
+  const askConfirm = useConfirm()
+  const permiso = usePermiso('mesas')
+  const permisoInvitados = usePermiso('invitados')
 
   const [tables,setTables]=useState<TableRecord[]>([])
   const [guests,setGuests]=useState<GuestFull[]>([])
@@ -1241,7 +1256,8 @@ function MesasPageInner() {
   const [bSaving,setBSaving]=useState(false)
   const [bError,setBError]=useState('')
 
-  const [canvasDetail,setCanvasDetail]=useState<TableRecord|null>(null)
+  const [canvasDetailId,setCanvasDetailId]=useState<string|null>(null)
+  const canvasDetail = canvasDetailId ? (tables.find(t=>t.id===canvasDetailId) ?? null) : null
   const [assignModal,setAssignModal]=useState<{tableId:string;tableCapacity:number}|null>(null)
   const [assignSearch,setAssignSearch]=useState('')
   const [moveModal,setMoveModal]=useState<MoveModal|null>(null)
@@ -1342,6 +1358,7 @@ function MesasPageInner() {
 
   // ─── FIX: handleEditSave con validacion de capacidad ─────────────────────
   const handleEditSave = async () => {
+    if (!permisoInvitados.editar) return
     if (!editGuest) return
     if (!eName) { setEError('El nombre es obligatorio'); return }
 
@@ -1423,12 +1440,17 @@ function MesasPageInner() {
     setESaving(false)
   }
 
-  const toggleCheckin=async(gId:string,cur:boolean)=>{await supabase.from('guests').update({checked_in:!cur}).eq('id',gId);setTables(p=>p.map(t=>({...t,seats:t.seats.map(s=>s.guest?.id!==gId?s:{...s,guest:{...s.guest!,checked_in:!cur}})})))}
-  const toggleMemberCheckin=async(mId:string,gId:string,cur:boolean)=>{await supabase.from('party_members').update({checked_in:!cur}).eq('id',mId);setTables(p=>p.map(t=>({...t,seats:t.seats.map(s=>{if(s.guest?.id!==gId)return s;return{...s,guest:{...s.guest!,party_members:s.guest!.party_members.map(m=>m.id===mId?{...m,checked_in:!cur}:m)}}})})))}
+  const toggleCheckin=async(gId:string,cur:boolean)=>{
+    if (!permiso.editar) return
+    await supabase.from('guests').update({checked_in:!cur}).eq('id',gId);setTables(p=>p.map(t=>({...t,seats:t.seats.map(s=>s.guest?.id!==gId?s:{...s,guest:{...s.guest!,checked_in:!cur}})})))}
+  const toggleMemberCheckin=async(mId:string,gId:string,cur:boolean)=>{
+    if (!permiso.editar) return
+    await supabase.from('party_members').update({checked_in:!cur}).eq('id',mId);setTables(p=>p.map(t=>({...t,seats:t.seats.map(s=>{if(s.guest?.id!==gId)return s;return{...s,guest:{...s.guest!,party_members:s.guest!.party_members.map(m=>m.id===mId?{...m,checked_in:!cur}:m)}}})})))}
 
   const openCreate=()=>{setEditTable(null);setMNum(String(nextNum()));setMName('');setMCap('8');setMShape('round');setMError('');setShowModal(true)}
   const openEditTable=(t:TableRecord)=>{setEditTable(t);setMNum(String(t.number));setMName(t.name||'');setMCap(String(t.capacity));setMShape(t.shape);setMError('');setShowModal(true)}
   const handleSaveTable=async()=>{
+    if (!permiso.editar) return
     const num=parseInt(mNum);if(!mNum||isNaN(num)||num<1){setMError('Número obligatorio');return}
     const cap=parseInt(mCap);if(!cap||cap<1||cap>100){setMError('Capacidad entre 1 y 100');return}
     if(tables.find(t=>t.number===num&&t.id!==editTable?.id)){setMError(`Mesa ${num} ya existe`);return}
@@ -1437,10 +1459,22 @@ function MesasPageInner() {
     else await supabase.from('tables').insert({event_id:eventId,number:num,name:mName||null,capacity:cap,shape:mShape,rotation:0})
     await loadTables();setShowModal(false);setMSaving(false)
   }
-  const handleDeleteTable=async(t:TableRecord)=>{if(!confirm(`¿Eliminar Mesa ${t.number}${t.name?' — '+t.name:''}?`))return;await supabase.from('tables').delete().eq('id',t.id);setTables(p=>p.filter(x=>x.id!==t.id))}
+  const handleDeleteTable=async(t:TableRecord)=>{
+    if (!permiso.borrar) return
+    const sentados=getOccupied(t)
+    const ok=await askConfirm({
+      title:`¿Eliminar la Mesa ${t.number}${t.name?' — '+t.name:''}?`,
+      message:sentados>0
+        ?`${sentados===1?'La persona sentada ahí vuelve':`Las ${sentados} personas sentadas ahí vuelven`} a la lista sin mesa. Nadie se borra del evento.`
+        :'La mesa está vacía, no afecta a ningún invitado.',
+    })
+    if(!ok)return
+    await supabase.from('tables').delete().eq('id',t.id);setTables(p=>p.filter(x=>x.id!==t.id))
+  }
 
   const previewNums=(count:number)=>{const u=new Set(tables.map(t=>t.number));const r:number[]=[];let n=1;while(r.length<count){if(!u.has(n))r.push(n);n++};return r}
   const handleBulk=async()=>{
+    if (!permiso.editar) return
     const c=parseInt(bCount),cap=parseInt(bCap)
     if(!c||c<1||c>50){setBError('Entre 1 y 50');return}if(!cap||cap<1||cap>100){setBError('Cap. entre 1 y 100');return}
     setBSaving(true);setBError('')
@@ -1449,6 +1483,7 @@ function MesasPageInner() {
   }
 
   const doAssign=async(tableId:string,cap:number,guest:GuestFull)=>{
+    if (!permiso.editar) return
     const t=tables.find(x=>x.id===tableId)!;const occ=getOccupied(t);const need=1+guest.party_members.length
     if(need>cap-occ){alert(`Sin espacio. "${guest.name}" necesita ${need} asiento(s), solo hay ${cap-occ} libre(s).`);return}
     const next=(t.seats.map(s=>s.seat_number).sort((a,b)=>b-a)[0]||0)+1
@@ -1462,6 +1497,7 @@ function MesasPageInner() {
     doAssign(tableId,cap,g)
   }
   const handleMove=async()=>{
+    if (!permiso.editar) return
     if(!moveModal)return;setMoveSaving(true)
     const{guest,fromSeatId,toTableId,toTableCapacity}=moveModal
     const t=tables.find(x=>x.id===toTableId)!;const need=1+guest.party_members.length
@@ -1471,12 +1507,23 @@ function MesasPageInner() {
     await supabase.from('table_seats').insert({table_id:toTableId,event_id:eventId,seat_number:next,guest_id:guest.id,party_size:need})
     await loadTables();setMoveModal(null);setMoveSaving(false)
   }
-  const removeGuest=async(seatId:string,name:string)=>{if(!confirm(`¿Quitar a ${name}?`))return;await supabase.from('table_seats').delete().eq('id',seatId);await loadTables()}
+  const removeGuest=async(seatId:string,name:string)=>{
+    if (!permiso.editar) return
+    const ok=await askConfirm({
+      title:`¿Quitar a ${name} de esta mesa?`,
+      message:'Vuelve a la lista de invitados sin mesa. No se borra del evento.',
+      confirmLabel:'Quitar',
+    })
+    if(!ok)return
+    await supabase.from('table_seats').delete().eq('id',seatId);await loadTables()
+  }
   const handlePosSave=async(id:string,x:number,y:number)=>{
+    if (!permiso.editar) return
     await supabase.from('tables').update({position_x:x,position_y:y}).eq('id',id)
     setTables(p=>p.map(t=>t.id===id?{...t,position_x:x,position_y:y}:t))
   }
   const handleRotSave=async(id:string,rotation:number)=>{
+    if (!permiso.editar) return
     await supabase.from('tables').update({rotation}).eq('id',id)
     setTables(p=>p.map(t=>t.id===id?{...t,rotation}:t))
   }
@@ -1496,19 +1543,19 @@ function MesasPageInner() {
 
   const TagChips=({tags}:{tags:string[]})=>(<>{tags.length===0?<span className="text-[11px] text-[#ddd]">—</span>:tags.map(tag=>{const i=eventTags.indexOf(tag);const c=TAG_COLORS[i>=0?i%TAG_COLORS.length:0];return<span key={tag} className="rounded-full border px-1.5 py-0.5 text-[9px] font-medium" style={{background:c.bg,borderColor:c.border,color:c.text}}>{tag}</span>})}</>)
 
-  if(loading)return(<div className="flex h-full items-center justify-center"><div className="flex flex-col items-center gap-3"><div className="h-8 w-8 animate-spin rounded-full border-2 border-[#e8e8e8] border-t-[#48C9B0]"/><p className="text-sm text-[#999]">Cargando mesas...</p></div></div>)
+  if (loading) return <Cargando mensaje="Cargando las mesas" />
 
   // ── CANVAS ──
   if(canvasMode)return(
     <>
-      <CanvasFullscreen tables={tables} getOccupied={getOccupied} onBack={()=>setCanvasMode(false)} onTableClick={t=>setCanvasDetail(t)} onPositionSave={handlePosSave} onRotationSave={handleRotSave} onOpenCreate={openCreate}
+      <CanvasFullscreen tables={tables} getOccupied={getOccupied} onBack={()=>setCanvasMode(false)} onTableClick={t=>setCanvasDetailId(t.id)} onPositionSave={handlePosSave} onRotationSave={handleRotSave} onOpenCreate={openCreate} puedeEditar={permiso.editar}
         decos={canvasDecos} setDecos={setCanvasDecos}
         decoRotations={canvasDecoRots} setDecoRotations={setCanvasDecoRots}
         tableColors={canvasTableColors} setTableColors={setCanvasTableColors}
         decoColors={canvasDecoColors} setDecoColors={setCanvasDecoColors}
       />
-      {canvasDetail&&<TableDetailModal table={canvasDetail} getOccupied={getOccupied} onClose={()=>setCanvasDetail(null)} onAssign={(id,cap)=>{setAssignModal({tableId:id,tableCapacity:cap});setAssignSearch('')}} onRemoveGuest={removeGuest} onEditTable={openEditTable} onDeleteTable={handleDeleteTable}/>}
-      <ModalMesa visible={showModal} editTable={editTable} mNum={mNum} setMNum={setMNum} mName={mName} setMName={setMName} mCap={mCap} setMCap={setMCap} mShape={mShape} setMShape={setMShape} mError={mError} mSaving={mSaving} onSave={handleSaveTable} onClose={()=>setShowModal(false)} inp={inp}/>
+      {canvasDetail&&<TableDetailModal table={canvasDetail} getOccupied={getOccupied} onClose={()=>setCanvasDetailId(null)} onAssign={(id,cap)=>{setAssignModal({tableId:id,tableCapacity:cap});setAssignSearch('')}} onRemoveGuest={removeGuest} onEditTable={openEditTable} onDeleteTable={handleDeleteTable} puedeEditar={permiso.editar} puedeBorrar={permiso.borrar}/>}
+      <ModalMesa visible={showModal && permiso.editar} editTable={editTable} mNum={mNum} setMNum={setMNum} mName={mName} setMName={setMName} mCap={mCap} setMCap={setMCap} mShape={mShape} setMShape={setMShape} mError={mError} mSaving={mSaving} onSave={handleSaveTable} onClose={()=>setShowModal(false)} inp={inp}/>
       <ModalAsignar tables={tables} guests={guests} assignModal={assignModal} assignSearch={assignSearch} setAssignSearch={setAssignSearch} assignRef={assignRef} gSeatMap={gSeatMap} getOccupied={getOccupied} handleSelectGuest={handleSelectGuest} onClose={()=>{setAssignModal(null);setAssignSearch('')}}/>
       <ModalMover moveModal={moveModal} tables={tables} moveSaving={moveSaving} onConfirm={handleMove} onClose={()=>setMoveModal(null)}/>
     </>
@@ -1551,8 +1598,12 @@ function MesasPageInner() {
           <div className="relative flex-1 sm:max-w-xs"><Search width={13} height={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#bbb]"/><input type="text" value={listSearch} onChange={e=>setListSearch(e.target.value)} placeholder="Buscar invitado..." className="w-full rounded-lg border border-[#e0e0e0] bg-[#f8f8f8] py-1.5 pl-8 pr-3 text-xs text-[#1D1E20] outline-none focus:border-[#48C9B0]"/></div>
           <div className="ml-auto flex items-center gap-2">
             {tables.length>0&&<button onClick={handlePrint} className="hidden items-center gap-1.5 rounded-lg border border-[#e0e0e0] px-3 py-1.5 text-xs text-[#666] hover:border-[#48C9B0] hover:text-[#48C9B0] sm:flex"><Printer width={13} height={13}/>Imprimir lista</button>}
-            <button onClick={()=>setShowBulk(true)} className="flex items-center gap-1.5 rounded-lg border border-[#e0e0e0] px-3 py-1.5 text-xs font-medium text-[#666] hover:border-[#48C9B0] hover:text-[#48C9B0]"><Plus width={13} height={13}/><span className="hidden sm:inline">Agregar en</span> bulk</button>
-            <button onClick={openCreate} className="flex items-center gap-1.5 rounded-lg bg-[#48C9B0] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#3ab89f] sm:px-4 sm:text-sm"><Plus width={14} height={14}/>Nueva mesa</button>
+            <Puede modulo="mesas" accion="editar">
+              <button onClick={()=>setShowBulk(true)} className="flex items-center gap-1.5 rounded-lg border border-[#e0e0e0] px-3 py-1.5 text-xs font-medium text-[#666] hover:border-[#48C9B0] hover:text-[#48C9B0]"><Plus width={13} height={13}/><span className="hidden sm:inline">Agregar en</span> bulk</button>
+            </Puede>
+            <Puede modulo="mesas" accion="editar">
+              <button onClick={openCreate} className="flex items-center gap-1.5 rounded-lg bg-[#48C9B0] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#3ab89f] sm:px-4 sm:text-sm"><Plus width={14} height={14}/>Nueva mesa</button>
+            </Puede>
           </div>
         </div>
       </div>
@@ -1560,7 +1611,7 @@ function MesasPageInner() {
       {/* Lista */}
       <div style={{flex:1,overflowY:'auto'}} className="px-4 pb-6 pt-3 sm:px-6 lg:px-10">
         {tables.length===0?(
-          <div className="mt-5 rounded-xl border border-dashed border-[#e0e0e0] px-6 py-14 text-center"><p className="text-sm text-[#888]">Sin mesas aún</p><p className="mt-1 text-xs text-[#bbb]">Crea tu primera mesa para empezar</p><div className="mt-4 flex items-center justify-center gap-2"><button onClick={()=>setShowBulk(true)} className="rounded-lg border border-[#e0e0e0] px-4 py-2.5 text-sm text-[#666] hover:border-[#48C9B0] hover:text-[#48C9B0]">Agregar en bulk</button><button onClick={openCreate} className="rounded-lg bg-[#48C9B0] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#3ab89f]">+ Nueva mesa</button></div></div>
+          <div className="mt-5 rounded-xl border border-dashed border-[#e0e0e0] px-6 py-14 text-center"><p className="text-sm text-[#888]">Sin mesas aún</p><p className="mt-1 text-xs text-[#bbb]">Crea tu primera mesa para empezar</p><div className="mt-4 flex items-center justify-center gap-2">{permiso.editar&&<button onClick={()=>setShowBulk(true)} className="rounded-lg border border-[#e0e0e0] px-4 py-2.5 text-sm text-[#666] hover:border-[#48C9B0] hover:text-[#48C9B0]">Agregar en bulk</button>}{permiso.editar&&<button onClick={openCreate} className="rounded-lg bg-[#48C9B0] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#3ab89f]">+ Nueva mesa</button>}</div></div>
         ):(
           <>
             {/* Desktop */}
@@ -1586,7 +1637,7 @@ function MesasPageInner() {
                       <div/>
                       <div className="flex items-center justify-end gap-1">
                         <button onClick={()=>setExpanded(p=>{const n=new Set(p);n.has(table.id)?n.delete(table.id):n.add(table.id);return n})} className="flex h-7 w-7 items-center justify-center rounded-lg border border-[#e0e0e0] text-[#888] hover:border-[#48C9B0] hover:text-[#48C9B0]">{open?<ChevronUp width={12} height={12}/>:<ChevronDown width={12} height={12}/>}</button>
-                        <button onClick={()=>handleDeleteTable(table)} className="flex h-7 w-7 items-center justify-center rounded-lg border border-[#ffe0e0] bg-[#fff5f5] text-[#cc3333] hover:bg-[#ffe8e8]"><Trash2 width={12} height={12}/></button>
+                        {permiso.borrar&&<button onClick={()=>handleDeleteTable(table)} className="flex h-7 w-7 items-center justify-center rounded-lg border border-[#ffe0e0] bg-[#fff5f5] text-[#cc3333] hover:bg-[#ffe8e8]"><Trash2 width={12} height={12}/></button>}
                       </div>
                     </div>
                     {open&&<>
@@ -1599,8 +1650,8 @@ function MesasPageInner() {
                             <div className="flex flex-wrap gap-1"><TagChips tags={g.tags}/></div>
                             <div className="truncate text-[11px] text-[#aaa]">{g.notes||<span className="text-[#ddd]">—</span>}</div>
                             <div/>
-                            <div className="flex justify-center"><button onClick={()=>toggleCheckin(g.id,g.checked_in)} className={`flex h-5 w-5 items-center justify-center rounded border-2 transition ${g.checked_in?'border-[#48C9B0] bg-[#48C9B0]':'border-[#d0d0d0] bg-white hover:border-[#48C9B0]'}`}>{g.checked_in&&<svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M1.5 5l2.5 2.5 4.5-4.5" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>}</button></div>
-                            <div className="flex justify-end"><button onClick={()=>removeGuest(seat.id,g.name)} className="flex h-6 w-6 items-center justify-center rounded text-[#ccc] hover:text-[#cc3333]"><X width={11} height={11}/></button></div>
+                            <div className="flex justify-center">{!permiso.editar?<span className={`flex h-5 w-5 items-center justify-center rounded border-2 ${g.checked_in?'border-[#48C9B0] bg-[#48C9B0]':'border-[#d0d0d0] bg-white'}`}>{g.checked_in&&<svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M1.5 5l2.5 2.5 4.5-4.5" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>}</span>:<button onClick={()=>toggleCheckin(g.id,g.checked_in)} className={`flex h-5 w-5 items-center justify-center rounded border-2 transition ${g.checked_in?'border-[#48C9B0] bg-[#48C9B0]':'border-[#d0d0d0] bg-white hover:border-[#48C9B0]'}`}>{g.checked_in&&<svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M1.5 5l2.5 2.5 4.5-4.5" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>}</button>}</div>
+                            <div className="flex justify-end">{permiso.editar&&<button onClick={()=>removeGuest(seat.id,g.name)} className="flex h-6 w-6 items-center justify-center rounded text-[#ccc] hover:text-[#cc3333]"><X width={11} height={11}/></button>}</div>
                           </div>
                           {g.party_members.map(m=>(
                             <div key={m.id} className={`grid items-center border-b border-[#f5f5f5] px-4 py-1.5 ${bg}`} style={{gridTemplateColumns:cols}}>
@@ -1608,13 +1659,13 @@ function MesasPageInner() {
                               <div className="flex items-center pl-3"><span className="text-[11px] text-[#888]">{m.name||'Acompañante'}</span></div>
                               <div><span className="rounded-full border px-2 py-0.5 text-[9px] font-semibold" style={{background:STATUS_COLORS[m.rsvp_status].bg,borderColor:STATUS_COLORS[m.rsvp_status].border,color:STATUS_COLORS[m.rsvp_status].text}}>{STATUS_COLORS[m.rsvp_status].label.slice(0,4)}.</span></div>
                               <div/><div/><div/>
-                              <div className="flex justify-center"><button onClick={()=>toggleMemberCheckin(m.id,g.id,m.checked_in)} className={`flex h-5 w-5 items-center justify-center rounded border-2 transition ${m.checked_in?'border-[#48C9B0] bg-[#48C9B0]':'border-[#d0d0d0] bg-white hover:border-[#48C9B0]'}`}>{m.checked_in&&<svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M1.5 5l2.5 2.5 4.5-4.5" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>}</button></div>
+                              <div className="flex justify-center">{!permiso.editar?<span className={`flex h-5 w-5 items-center justify-center rounded border-2 ${m.checked_in?'border-[#48C9B0] bg-[#48C9B0]':'border-[#d0d0d0] bg-white'}`}>{m.checked_in&&<svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M1.5 5l2.5 2.5 4.5-4.5" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>}</span>:<button onClick={()=>toggleMemberCheckin(m.id,g.id,m.checked_in)} className={`flex h-5 w-5 items-center justify-center rounded border-2 transition ${m.checked_in?'border-[#48C9B0] bg-[#48C9B0]':'border-[#d0d0d0] bg-white hover:border-[#48C9B0]'}`}>{m.checked_in&&<svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M1.5 5l2.5 2.5 4.5-4.5" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>}</button>}</div>
                               <div/>
                             </div>
                           ))}
                         </div>
                       )})}
-                      {avail>0&&<div className={`border-b border-[#f0f0f0] px-4 py-2 ${bg}`}><button onClick={()=>{setAssignModal({tableId:table.id,tableCapacity:table.capacity});setAssignSearch('')}} className="flex items-center gap-1.5 text-xs text-[#48C9B0] hover:underline"><Plus width={11} height={11}/>Asignar invitado ({avail} libre{avail!==1?'s':''})</button></div>}
+                      {avail>0&&permiso.editar&&<div className={`border-b border-[#f0f0f0] px-4 py-2 ${bg}`}><button onClick={()=>{setAssignModal({tableId:table.id,tableCapacity:table.capacity});setAssignSearch('')}} className="flex items-center gap-1.5 text-xs text-[#48C9B0] hover:underline"><Plus width={11} height={11}/>Asignar invitado ({avail} libre{avail!==1?'s':''})</button></div>}
                       {over&&<div className={`border-b border-[#f0f0f0] px-4 py-2 ${bg}`}><span className="text-xs font-medium text-[#cc3333]">Sobrecupo: {occ} de {table.capacity} asientos ({occ-table.capacity} de más)</span></div>}
                     </>}
                   </div>
@@ -1630,13 +1681,13 @@ function MesasPageInner() {
                   <div key={table.id} className="rounded-xl border border-[#e8e8e8] bg-white">
                     <div className="flex items-center gap-3 px-4 py-3">
                       <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#f8f8f8] text-xs font-semibold text-[#888]">{SHAPE_LABELS[table.shape as TableShape]?.slice(0,3)||'?'}</div>
-                      <div className="min-w-0 flex-1 cursor-pointer" onClick={()=>openEditTable(table)}>
+                      <div className="min-w-0 flex-1 cursor-pointer" onClick={()=>permiso.editar?openEditTable(table):setExpanded(p=>{const nn=new Set(p);nn.has(table.id)?nn.delete(table.id):nn.add(table.id);return nn})}>
                         <div className="flex items-center gap-2"><span className="rounded bg-[#f0f0f0] px-1.5 py-0.5 text-xs font-bold text-[#555]">#{table.number}</span><span className="text-sm font-bold text-[#1D1E20]">{table.name||`Mesa ${table.number}`}</span>{over?<span className="rounded-full border border-[#ffc0c0] bg-[#fff0f0] px-1.5 py-0.5 text-[9px] font-semibold text-[#cc3333]">Sobrecupo</span>:full&&<span className="rounded-full border border-[#a0e0c0] bg-[#f0fff6] px-1.5 py-0.5 text-[9px] font-semibold text-[#2a7a50]">Llena</span>}</div>
                         <div className="mt-1 flex items-center gap-2"><span className="text-xs" style={{color:over?'#cc3333':'#888'}}>{occ}/{table.capacity}</span><div className="h-1.5 w-20 overflow-hidden rounded-full bg-[#e8e8e8]"><div className="h-full rounded-full" style={{width:`${Math.min((occ/table.capacity)*100,100)}%`,background:over?'#cc3333':full?'#48C9B0':'#a0e0c0'}}/></div><span className="text-[11px]" style={{color:over?'#cc3333':'#bbb'}}>{over?`+${occ-table.capacity} sobrecupo`:`${avail} libres`}</span></div>
                       </div>
                       <div className="flex shrink-0 items-center gap-1">
                         <button onClick={()=>setExpanded(p=>{const n=new Set(p);n.has(table.id)?n.delete(table.id):n.add(table.id);return n})} className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#e0e0e0] text-[#888]">{open?<ChevronUp width={14} height={14}/>:<ChevronDown width={14} height={14}/>}</button>
-                        <button onClick={()=>handleDeleteTable(table)} className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#ffe0e0] bg-[#fff5f5] text-[#cc3333]"><Trash2 width={13} height={13}/></button>
+                        {permiso.borrar&&<button onClick={()=>handleDeleteTable(table)} className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#ffe0e0] bg-[#fff5f5] text-[#cc3333]"><Trash2 width={13} height={13}/></button>}
                       </div>
                     </div>
                     {open&&<div className="border-t border-[#f0f0f0] px-3 py-2">
@@ -1645,13 +1696,13 @@ function MesasPageInner() {
                           <div key={seat.id} className="rounded-xl border px-3 py-2.5" style={{background:st!.bg,borderColor:st!.border}}>
                             <div className="flex items-start justify-between gap-2">
                               <button className="flex min-w-0 items-center gap-1.5" onClick={()=>openEditGuest(g)}><span className="truncate text-sm font-semibold hover:underline" style={{color:st!.text}}>{g.name}</span>{g.party_size>1&&<span className="shrink-0 text-sm font-semibold" style={{color:st!.text}}>+{g.party_size-1}</span>}</button>
-                              <div className="flex shrink-0 items-center gap-1.5"><span className="text-xs font-semibold" style={{color:st!.text}}>{st!.label}</span><button onClick={()=>removeGuest(seat.id,g.name)} style={{color:st!.text,opacity:0.4}}><X width={12} height={12}/></button></div>
+                              <div className="flex shrink-0 items-center gap-1.5"><span className="text-xs font-semibold" style={{color:st!.text}}>{st!.label}</span>{permiso.editar&&<button onClick={()=>removeGuest(seat.id,g.name)} style={{color:st!.text,opacity:0.4}}><X width={12} height={12}/></button>}</div>
                             </div>
                             {g.party_members.length>0&&<div className="mt-1.5 flex flex-col gap-1 border-t pt-1.5" style={{borderColor:st!.border}}>{g.party_members.map(m=><div key={m.id} className="flex items-center justify-between"><div className="flex items-center gap-1.5"><div className="h-3 w-[2px] shrink-0 rounded-full opacity-30" style={{background:st!.text}}/><span className="text-xs" style={{color:st!.text}}>{m.name||'Acompañante'}</span></div><span className="text-[11px]" style={{color:STATUS_COLORS[m.rsvp_status].text}}>{STATUS_COLORS[m.rsvp_status].label}</span></div>)}</div>}
                           </div>
                         )})}
                       </div>
-                      {avail>0&&<button onClick={()=>{setAssignModal({tableId:table.id,tableCapacity:table.capacity});setAssignSearch('')}} className="mt-2 flex w-full items-center gap-2 rounded-xl border border-dashed border-[#e0e0e0] px-3 py-2 hover:border-[#48C9B0] hover:bg-[#f0fdfb]"><Plus width={12} height={12} className="text-[#48C9B0]"/><span className="text-xs text-[#aaa]">Asignar invitado ({avail} libres)</span></button>}
+                      {avail>0&&permiso.editar&&<button onClick={()=>{setAssignModal({tableId:table.id,tableCapacity:table.capacity});setAssignSearch('')}} className="mt-2 flex w-full items-center gap-2 rounded-xl border border-dashed border-[#e0e0e0] px-3 py-2 hover:border-[#48C9B0] hover:bg-[#f0fdfb]"><Plus width={12} height={12} className="text-[#48C9B0]"/><span className="text-xs text-[#aaa]">Asignar invitado ({avail} libres)</span></button>}
                       {over&&<p className="mt-2 text-xs font-medium text-[#cc3333]">Sobrecupo: {occ} de {table.capacity} asientos</p>}
                     </div>}
                   </div>
@@ -1665,7 +1716,7 @@ function MesasPageInner() {
       {/* Modal editar invitado */}
       {editGuest&&(
         <Modal open onClose={()=>setEditGuest(null)} size="md">
-          <Modal.Header title="Editar invitado" />
+          <Modal.Header title={permisoInvitados.editar ? 'Editar invitado' : 'Detalle del invitado'} />
           <Modal.Body>
             {/* Aviso de mesa asignada */}
             {gSeatMap.get(editGuest.id)&&(()=>{
@@ -1682,19 +1733,21 @@ function MesasPageInner() {
                 </div>
               )
             })()}
+            <fieldset disabled={!permisoInvitados.editar} className="m-0 min-w-0 border-0 p-0">
             <div className="flex flex-col gap-4">
               <div><label className="mb-1.5 block text-xs font-medium text-[#555]">Nombre *</label><input type="text" value={eName} onChange={e=>setEName(e.target.value)} className={EDIT_GUEST_INPUT_CLASS}/></div>
               <div><label className="mb-1.5 block text-xs font-medium text-[#555]">WhatsApp</label><input type="tel" value={ePhone} onChange={e=>setEPhone(e.target.value)} placeholder="+52 81 1234 5678" className={EDIT_GUEST_INPUT_CLASS}/></div>
               <div><label className="mb-1.5 block text-xs font-medium text-[#555]">Email</label><input type="email" value={eEmail} onChange={e=>setEEmail(e.target.value)} className={EDIT_GUEST_INPUT_CLASS}/></div>
               <div><label className="mb-1.5 block text-xs font-medium text-[#555]">Notas</label><textarea value={eNotes} onChange={e=>setENotes(e.target.value)} rows={2} className={`${EDIT_GUEST_INPUT_CLASS} resize-y`}/></div>
               {eventTags.length>0&&<div><label className="mb-1.5 block text-xs font-medium text-[#555]">Tags</label><TagSelector availableTags={eventTags} selectedTags={eTags} onChange={setETags}/></div>}
-              <div className="border-t border-[#f0f0f0] pt-4"><MembersEditor value={eMembers} onChange={setEMembers}/></div>
+              <div className="border-t border-[#f0f0f0] pt-4"><MembersEditor value={eMembers} onChange={setEMembers} puedeEditar={permisoInvitados.editar}/></div>
             </div>
+            </fieldset>
             {eError&&<div className="mt-3 rounded-lg border border-[#ffc0c0] bg-[#fff0f0] p-2.5 text-xs text-[#cc3333]">{eError}</div>}
           </Modal.Body>
           <Modal.Footer>
-            <button onClick={()=>setEditGuest(null)} className="flex-1 rounded-lg border border-[#e0e0e0] py-3 text-sm text-[#888]">Cancelar</button>
-            <button onClick={handleEditSave} disabled={eSaving} className="flex-[2] rounded-lg bg-[#48C9B0] py-3 text-sm font-semibold text-white disabled:opacity-60">{eSaving?'Guardando…':'Guardar cambios'}</button>
+            <button onClick={()=>setEditGuest(null)} className="flex-1 rounded-lg border border-[#e0e0e0] py-3 text-sm text-[#888]">{permisoInvitados.editar?'Cancelar':'Cerrar'}</button>
+            {permisoInvitados.editar&&(<button onClick={handleEditSave} disabled={eSaving} className="flex-[2] rounded-lg bg-[#48C9B0] py-3 text-sm font-semibold text-white disabled:opacity-60">{eSaving?'Guardando…':'Guardar cambios'}</button>)}
           </Modal.Footer>
         </Modal>
       )}

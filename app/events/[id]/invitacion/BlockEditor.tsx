@@ -35,6 +35,7 @@ const TYPE_LABELS: Record<SectionType, string> = {
   playlist: 'Playlist',
   mesa: 'Mesa de regalos',
   texto: 'Texto libre',
+  recomendaciones: 'Recomendaciones',
   cierre: 'Cierre',
   media: 'Imagen o GIF',
   galeria: 'Carrusel de fotos',
@@ -45,6 +46,11 @@ const TYPE_LABELS: Record<SectionType, string> = {
 const SINGLETON_TYPES = new Set<SectionType>(['dress_code', 'itinerario', 'playlist', 'mesa', 'rsvp'])
 // 'enganche' se separo en playlist + mesa; se conserva para no romper docs viejos pero no se ofrece agregarlo.
 const HIDDEN_TYPES = new Set<SectionType>(['enganche'])
+
+function sectionLabel(section: Section): string {
+  if (section.type === 'recomendaciones' && section.content.titulo.trim()) return section.content.titulo
+  return TYPE_LABELS[section.type]
+}
 
 function SortableSectionRow({
   section, mobile, expanded, onOpen, onRemove, onPatch,
@@ -82,7 +88,7 @@ function SortableSectionRow({
         >
           <GripVertical size={16} />
         </button>
-        <span className="min-w-0 flex-1 truncate text-sm font-medium text-[#1D1E20]">{TYPE_LABELS[section.type]}</span>
+        <span className="min-w-0 flex-1 truncate text-sm font-medium text-[#1D1E20]">{sectionLabel(section)}</span>
         {!mobile && (
           <ChevronDown size={16} className={`shrink-0 text-[#aaa] transition-transform ${expanded ? 'rotate-180' : ''}`} />
         )}

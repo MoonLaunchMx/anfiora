@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
-import { useParams } from 'next/navigation'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { useParams, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { EventStatus } from '@/lib/types'
 import { getTemplatePack } from '@/lib/message-templates'
@@ -10,9 +10,21 @@ import TimePicker from '@/app/components/ui/TimePicker'
 import PhoneInput from '@/app/components/ui/PhoneInput'
 
 import { TabToggle, type TabItem } from '@/app/components/ui/TabToggle'
+import { useConfirm } from '@/app/components/ui/ConfirmModal'
 import { useEventAccess } from '@/lib/event-access-context'
-import { FEATURES, ALWAYS_ON_FEATURES, getDefaultFeatures, type FeatureKey } from '@/lib/features'
-import { Copy, Check, UserPlus, X, Shield, Pencil, Eye, Settings2, MessageCircle, Users, Smartphone, Gem, Crown, Cake, GraduationCap, Sun, PartyPopper, Wine, CalendarDays, Presentation, Monitor, UsersRound, Rocket, Building2, Tent, Mic, Flame, HeartHandshake, type LucideIcon } from 'lucide-react'
+import { FEATURES, ALWAYS_ON_FEATURES, type FeatureKey } from '@/lib/features'
+import { logAction } from '@/lib/audit'
+import { PermisosEditor } from './PermisosEditor'
+import { normalizarPermisos, resumir } from '@/lib/permisos/resolver'
+import type { PermisosEvento } from '@/lib/permisos/catalogo'
+import { Modal } from '@/app/components/ui/Modal'
+import { AltaPersonaModal } from '@/app/components/workspace/AltaPersonaModal'
+import { InvitarClienteModal } from '@/app/components/workspace/InvitarClienteModal'
+import { fetchWorkspace } from '@/lib/workspace/cliente'
+import type { WorkspaceResumen } from '@/lib/workspace/tipos'
+import { Copy, Check, UserPlus, X, Lock, Activity, Settings, Settings2, MessageCircle, Users, Smartphone, Gem, Crown, Cake, GraduationCap, Sun, PartyPopper, Wine, CalendarDays, Presentation, Monitor, UsersRound, Rocket, Building2, Tent, Mic, Flame, HeartHandshake, type LucideIcon } from 'lucide-react'
+import { Cargando } from '@/app/components/ui/Cargando'
+import ActividadTab from './ActividadTab'
 
 // ─── Constantes ──────────────────────────────────────────────────────────────
 
@@ -91,16 +103,11 @@ const STATUS_OPTIONS: { status: EventStatus; label: string; dot: string }[] = [
   { status: 'cancelled', label: 'Cancelado', dot: 'bg-red-400' },
 ]
 
-const ROLES = [
-  { value: 'admin',  label: 'Admin',  description: 'Edita e invita colaboradores', icon: Shield },
-  { value: 'editor', label: 'Editor', description: 'Edita invitados y mesas',      icon: Pencil },
-  { value: 'viewer', label: 'Viewer', description: 'Solo lectura',                 icon: Eye },
-]
-
 const TABS: TabItem[] = [
   { key: 'evento',   label: 'Evento',   icon: Settings2 },
   { key: 'whatsapp', label: 'WhatsApp', icon: MessageCircle },
   { key: 'equipo',   label: 'Equipo',   icon: Users },
+  { key: 'actividad', label: 'Actividad', icon: Activity },
 ]
 
 // ─── Tipos ───────────────────────────────────────────────────────────────────
@@ -114,6 +121,8 @@ interface Collaborator {
   invited_at: string
   accepted_at: string | null
   user_id: string | null
+  permisos: PermisosEvento | null
+  tipo: 'equipo' | 'cliente' | null
 }
 
 // ─── TemplateInput ───────────────────────────────────────────────────────────
@@ -235,14 +244,18 @@ function TemplateInput({
 
 export default function ConfiguracionPage() {
   const { id } = useParams()
-  const { features, updateFeatures, canAdmin } = useEventAccess()
+  const { features, updateFeatures, canAdmin, isLoading } = useEventAccess()
   const [featureSaving, setFeatureSaving] = useState<FeatureKey | null>(null)
 
   const [loading, setLoading]   = useState(true)
   const [saving, setSaving]     = useState(false)
   const [saved, setSaved]       = useState(false)
   const [error, setError]       = useState('')
-  const [activeTab, setActiveTab] = useState('evento')
+  const searchParams = useSearchParams()
+  const [activeTab, setActiveTab] = useState(() => {
+    const pedida = searchParams.get('tab')
+    return TABS.some(t => t.key === pedida) ? pedida! : 'evento'
+  })
   const [showTypeSelector, setShowTypeSelector] = useState(false)
   const [typeCategory, setTypeCategory] = useState('social')
   const autoSaveTimeoutRef      = useRef<NodeJS.Timeout | null>(null)
@@ -271,6 +284,8 @@ export default function ConfiguracionPage() {
 
   // Acceso
 
+  const askConfirm = useConfirm()
+
   // Datos de event_settings
   const [settingsId, setSettingsId]           = useState<string | null>(null)
   const [templates, setTemplates]             = useState<string[]>(Array(10).fill(''))
@@ -284,12 +299,15 @@ export default function ConfiguracionPage() {
 
   // Colaboradores
   const [collaborators, setCollaborators] = useState<Collaborator[]>([])
-  const [inviteEmail, setInviteEmail]     = useState('')
-  const [inviteRole, setInviteRole]       = useState<'admin' | 'editor' | 'viewer'>('editor')
-  const [inviting, setInviting]           = useState(false)
-  const [inviteError, setInviteError]     = useState('')
   const [copiedToken, setCopiedToken]     = useState<string | null>(null)
   const [revoking, setRevoking]           = useState<string | null>(null)
+  const [editandoPermisos, setEditandoPermisos] = useState<string | null>(null)
+  const [borrador, setBorrador]           = useState<PermisosEvento>({})
+  const [guardando, setGuardando]         = useState(false)
+
+  // Equipo: se invita desde el workspace, no desde esta boda
+  const [workspace, setWorkspace] = useState<WorkspaceResumen | null>(null)
+  const [modalEquipo, setModalEquipo] = useState<'persona' | 'cliente' | null>(null)
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -319,6 +337,16 @@ export default function ConfiguracionPage() {
   const templatesArePristine = (forType: string) =>
     templates.every((t, i) => !t?.trim() || t === (getTemplatePack(forType)[i]?.body ?? ''))
 
+  const recargarColaboradores = useCallback(async () => {
+    const { data } = await supabase
+      .from('event_collaborators')
+      .select('*')
+      .eq('event_id', id)
+      .neq('status', 'revoked')
+      .order('invited_at', { ascending: true })
+    if (data) setCollaborators(data as Collaborator[])
+  }, [id])
+
   const loadEvent = async () => {
     const [{ data: eventData }, { data: settingsData }, { data: collabData }] = await Promise.all([
       supabase.from('events').select('*').eq('id', id).single(),
@@ -346,6 +374,17 @@ export default function ConfiguracionPage() {
       setPlannerName(eventData.planner_name || '')
       setPlannerPhone(eventData.planner_phone || '')
       setPlannerEmail(eventData.planner_email || '')
+
+      // El equipo se administra desde el workspace de la boda. Si el evento
+      // no tiene workspace_id (caso raro, movido a mano) o el usuario no lo
+      // administra (403), los botones de la pestana Equipo quedan deshabilitados.
+      if (eventData.workspace_id) {
+        fetchWorkspace(eventData.workspace_id)
+          .then(r => setWorkspace(r.activo))
+          .catch(() => setWorkspace(null))
+      } else {
+        setWorkspace(null)
+      }
     }
 
     if (settingsData) {
@@ -475,8 +514,13 @@ export default function ConfiguracionPage() {
     scheduleAutoSave()
   }
 
-  const handleDeleteTemplate = (i: number) => {
-    if (!confirm('Eliminar esta plantilla?')) return
+  const handleDeleteTemplate = async (i: number) => {
+    const nombre = templateNames[i]?.trim() || DEFAULT_NAMES[i]
+    const ok = await askConfirm({
+      title: `¿Eliminar la plantilla "${nombre}"?`,
+      message: 'Dejará de aparecer en el menú de WhatsApp de tu lista de invitados.',
+    })
+    if (!ok) return
     const newTemplates = templates.filter((_, idx) => idx !== i)
     while (newTemplates.length < 10) newTemplates.push('')
     const newNames = templateNames.filter((_, idx) => idx !== i)
@@ -496,24 +540,6 @@ export default function ConfiguracionPage() {
     window.open('https://maps.google.com?q=' + encodeURIComponent(address), '_blank', 'noopener,noreferrer')
   }
 
-  const handleInvite = async () => {
-    const email = inviteEmail.trim().toLowerCase()
-    if (!email) { setInviteError('Ingresa un email'); return }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { setInviteError('Email invalido'); return }
-    if (collaborators.find(c => c.email === email)) { setInviteError('Este email ya tiene acceso'); return }
-    setInviting(true); setInviteError('')
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) { setInviteError('Sesion expirada'); setInviting(false); return }
-    const { data, error: err } = await supabase
-      .from('event_collaborators')
-      .insert({ event_id: id, invited_by: user.id, email, role: inviteRole, status: 'pending' })
-      .select().single()
-    if (err) { setInviteError('Error al crear invitacion'); setInviting(false); return }
-    setCollaborators(prev => [...prev, data as Collaborator])
-    setInviteEmail('')
-    setInviting(false)
-  }
-
   const handleCopyLink = async (token: string) => {
     const link = `${window.location.origin}/invite/${token}`
     await navigator.clipboard.writeText(link)
@@ -522,7 +548,16 @@ export default function ConfiguracionPage() {
   }
 
   const handleRevoke = async (collaboratorId: string) => {
-    if (!confirm('Revocar acceso a este colaborador?')) return
+    const colaborador = collaborators.find(c => c.id === collaboratorId)
+    const yaEntro = !!colaborador?.accepted_at
+    const ok = await askConfirm({
+      title: colaborador ? `¿Quitar el acceso de ${colaborador.email}?` : '¿Quitar el acceso a este colaborador?',
+      message: yaEntro
+        ? 'Dejará de ver este evento. Puedes volver a invitarlo cuando quieras.'
+        : 'Su invitación dejará de funcionar. Puedes volver a invitarlo cuando quieras.',
+      confirmLabel: 'Quitar acceso',
+    })
+    if (!ok) return
     setRevoking(collaboratorId)
     const { error: err } = await supabase
       .from('event_collaborators')
@@ -530,6 +565,34 @@ export default function ConfiguracionPage() {
       .eq('id', collaboratorId)
     if (!err) setCollaborators(prev => prev.filter(c => c.id !== collaboratorId))
     setRevoking(null)
+  }
+
+  const guardarPermisos = async (colaboradorId: string) => {
+    setGuardando(true)
+    const { data, error: err } = await supabase
+      .from('event_collaborators')
+      .update({ permisos: borrador })
+      .eq('id', colaboradorId)
+      .select('id')
+
+    setGuardando(false)
+    if (err || !data || data.length === 0) {
+      alert('No se pudieron guardar los permisos. Vuelve a intentar.')
+      return
+    }
+
+    setCollaborators(prev =>
+      prev.map(c => (c.id === colaboradorId ? { ...c, permisos: borrador } : c)),
+    )
+    setEditandoPermisos(null)
+    logAction({
+      eventId: id as string,
+      action: 'collaborator.permissions_updated',
+      entityType: 'collaborator',
+      entityId: colaboradorId,
+      entityLabel: collaborators.find(c => c.id === colaboradorId)?.email ?? '',
+      newValue: borrador,
+    })
   }
 
   const eventDays = eventDate && eventEndDate
@@ -543,7 +606,24 @@ export default function ConfiguracionPage() {
   // Labels dinámicos según tipo
   const hostLabel = isBoda ? 'Novia' : eventType === 'xv' ? 'Festejada' : eventType === 'graduacion' ? 'Graduado/a' : eventType === 'bautizo' ? 'Bautizado/a' : 'Festejado/a'
 
-  if (loading) return <div className="p-8 text-sm text-[#666]">Cargando...</div>
+  if (loading) return <Cargando />
+
+  // Configuracion no es un modulo, asi que la guarda del layout no la cubre:
+  // el nav la escondia pero escribir la URL entraba igual, incluida la pestana
+  // de Equipo. Exigir !isLoading o todos verian el mensaje mientras carga.
+  if (!isLoading && !canAdmin) {
+    return (
+      <div className="flex flex-1 items-center justify-center overflow-y-auto p-6">
+        <div className="max-w-sm text-center">
+          <Lock size={28} className="mx-auto mb-3 text-[#ddd]" />
+          <h2 className="mb-1 text-base font-semibold text-[#1D1E20]">Configuración</h2>
+          <p className="text-sm text-[#888]">
+            Solo el dueño de la boda y sus administradores entran aquí.
+          </p>
+        </div>
+      </div>
+    )
+  }
 
   const badgeStyle      = STATUS_STYLES[eventStatus]
   const dropdownOptions = STATUS_OPTIONS.filter(o => o.status !== eventStatus)
@@ -593,7 +673,7 @@ export default function ConfiguracionPage() {
 
           {/* Derecha: guardar */}
           <div className="flex justify-end">
-            {activeTab !== 'equipo' && (
+            {!['equipo', 'actividad'].includes(activeTab) && (
               <button
                 onClick={() => handleSave(false)}
                 disabled={saving}
@@ -631,7 +711,7 @@ export default function ConfiguracionPage() {
               )}
             </div>
           </div>
-          {activeTab !== 'equipo' && (
+          {!['equipo', 'actividad'].includes(activeTab) && (
             <button
               onClick={() => handleSave(false)}
               disabled={saving}
@@ -897,7 +977,6 @@ export default function ConfiguracionPage() {
                     {FEATURES.map(f => {
                       const Icon = f.icon
                       const on = features[f.key]
-                      const recommended = getDefaultFeatures(eventType)[f.key]
                       return (
                         <button
                           key={f.key}
@@ -913,14 +992,7 @@ export default function ConfiguracionPage() {
                             <Icon size={18} className={on ? 'text-[#0F6E56]' : 'text-[#888]'} />
                           </div>
                           <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-2">
-                              <p className="text-sm font-medium text-[#1D1E20]">{f.label}</p>
-                              {recommended && (
-                                <span className="rounded-full border border-[#f0e2c0] bg-[#fffbf0] px-2 py-0.5 text-[10px] font-semibold text-[#c49a3a]">
-                                  Recomendado
-                                </span>
-                              )}
-                            </div>
+                            <p className="text-sm font-medium text-[#1D1E20]">{f.label}</p>
                             <p className="mt-0.5 text-xs text-[#888]">{f.description}</p>
                           </div>
                           {featureSaving === f.key ? (
@@ -983,9 +1055,17 @@ export default function ConfiguracionPage() {
                 </p>
                 {eventType && (
                   <button
-                    onClick={() => {
+                    onClick={async () => {
                       const label = EVENT_TYPES.find(t => t.value === eventType)?.label ?? 'este evento'
-                      if (!templatesArePristine(eventType) && !window.confirm('Esto reemplazara tus plantillas por las recomendadas para ' + label + '. Continuar?')) return
+                      if (!templatesArePristine(eventType)) {
+                        const ok = await askConfirm({
+                          title: '¿Reemplazar tus plantillas?',
+                          message: `Se pierde lo que escribiste y quedan las recomendadas para ${label}.`,
+                          confirmLabel: 'Reemplazar',
+                          tone: 'default',
+                        })
+                        if (!ok) return
+                      }
                       applyPack(getTemplatePack(eventType))
                       scheduleAutoSave()
                     }}
@@ -1022,94 +1102,186 @@ export default function ConfiguracionPage() {
           )}
 
           {/* ── TAB: EQUIPO ── */}
+          {activeTab === 'actividad' && <ActividadTab eventId={id as string} />}
+
           {activeTab === 'equipo' && (
             <div>
-              <div className="mb-4 flex items-center gap-2">
-                <UserPlus size={16} className="text-[#48C9B0]" />
-                <h2 className="text-sm font-semibold text-[#1D1E20]">Acceso al evento</h2>
-              </div>
-              <p className="mb-4 text-xs text-[#666]">
-                Invita a otras personas a colaborar en este evento. Copia el link y mandaselo por WhatsApp o email.
-              </p>
+              <div className="flex flex-col gap-5 lg:grid lg:grid-cols-[minmax(0,320px)_minmax(0,1fr)] lg:items-start lg:gap-8">
 
-              <div className="mb-4 flex flex-col gap-2.5">
-                <input
-                  type="email"
-                  value={inviteEmail}
-                  onChange={e => { setInviteEmail(e.target.value); setInviteError('') }}
-                  onKeyDown={e => e.key === 'Enter' && handleInvite()}
-                  placeholder="email@ejemplo.com"
-                  className="w-full rounded-lg border border-[#d0d0d0] bg-white px-3 py-2.5 text-sm text-[#1D1E20] outline-none transition focus:border-[#48C9B0]"
-                />
-                <div className="grid grid-cols-3 gap-1.5">
-                  {ROLES.map(r => {
-                    const Icon = r.icon
-                    return (
-                      <button
-                        key={r.value}
-                        onClick={() => setInviteRole(r.value as 'admin' | 'editor' | 'viewer')}
-                        className={'flex flex-col items-center gap-1 rounded-lg border px-2 py-2.5 text-center transition ' +
-                          (inviteRole === r.value
-                            ? 'border-[#48C9B0] bg-[#f0fdfb] text-[#1a9e88]'
-                            : 'border-[#e0e0e0] bg-white text-[#888] hover:border-[#48C9B0] hover:text-[#1a9e88]')}
-                      >
-                        <Icon size={14} />
-                        <span className="text-[11px] font-semibold">{r.label}</span>
-                        <span className="text-[10px] leading-tight text-[#aaa]">{r.description}</span>
-                      </button>
-                    )
-                  })}
+                {/* Columna izquierda: invitar */}
+                <div className="rounded-xl border border-[#e8e8e8] bg-white p-4 lg:sticky lg:top-0">
+                  <div className="mb-1 flex items-center gap-2">
+                    <UserPlus size={16} className="text-[#48C9B0]" />
+                    <h2 className="text-sm font-semibold text-[#1D1E20]">Dar acceso a esta boda</h2>
+                  </div>
+                  <p className="mb-3 text-xs text-[#888]">Tu equipo entra por el workspace; el cliente, solo aquí.</p>
+                  <div className="flex flex-col gap-2">
+                    <button
+                      onClick={() => setModalEquipo('persona')}
+                      disabled={!workspace}
+                      title={workspace ? undefined : 'Administra el equipo desde el workspace'}
+                      className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#48C9B0] px-4 py-2.5 text-sm font-semibold text-[#08312a] transition disabled:opacity-40"
+                    >
+                      <UserPlus size={14} /> Agregar persona del equipo
+                    </button>
+                    <button
+                      onClick={() => setModalEquipo('cliente')}
+                      disabled={!workspace}
+                      title={workspace ? undefined : 'Administra el equipo desde el workspace'}
+                      className="w-full rounded-lg border border-[#e0e0e0] bg-white px-4 py-2.5 text-sm font-semibold text-[#1D1E20] transition hover:border-[#48C9B0] disabled:opacity-40"
+                    >
+                      Invitar cliente
+                    </button>
+                    <p className="text-[11px] leading-relaxed text-[#aaa]">Después le ajustas herramienta por herramienta con el engrane.</p>
+                  </div>
                 </div>
-                {inviteError && <p className="text-xs text-[#cc3333]">{inviteError}</p>}
-                <button
-                  onClick={handleInvite}
-                  disabled={inviting || !inviteEmail.trim()}
-                  className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#48C9B0] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#3ab89f] disabled:opacity-40"
-                >
-                  <UserPlus size={14} />
-                  {inviting ? 'Creando invitacion...' : 'Generar link de invitacion'}
-                </button>
-              </div>
 
-              {collaborators.length > 0 && (
-                <div className="flex flex-col gap-2">
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-[#bbb]">Con acceso</p>
-                  {collaborators.map(c => {
-                    const roleInfo = ROLES.find(r => r.value === c.role)
-                    const Icon     = roleInfo?.icon || Eye
-                    const isCopied = copiedToken === c.invite_token
-                    return (
-                      <div key={c.id} className="flex items-center gap-3 rounded-lg border border-[#e8e8e8] bg-white px-3 py-2.5">
-                        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#f0fdfb] text-[11px] font-bold text-[#48C9B0]">
-                          {c.email[0].toUpperCase()}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-xs font-medium text-[#1D1E20]">{c.email}</p>
-                          <div className="mt-0.5 flex items-center gap-1.5">
-                            <Icon size={10} className="text-[#aaa]" />
-                            <span className="text-[10px] text-[#aaa]">{roleInfo?.label}</span>
-                            <span className="text-[10px] text-[#ccc]">·</span>
-                            <span className={'text-[10px] font-medium ' + (c.status === 'active' ? 'text-[#48C9B0]' : 'text-[#f0a500]')}>
-                              {c.status === 'active' ? 'Activo' : 'Pendiente'}
-                            </span>
+                {/* Columna derecha: quien ya tiene acceso */}
+                <div>
+                  <h2 className="text-sm font-semibold text-[#1D1E20]">Personas con acceso</h2>
+                  <p className="mb-3 text-xs text-[#888]">
+                    Quien entra a este evento y que puede hacer en cada herramienta.
+                  </p>
+
+                  {collaborators.length === 0 ? (
+                    <p className="rounded-xl border border-dashed border-[#e8e8e8] px-4 py-8 text-center text-xs text-[#aaa]">
+                      Todavia nadie mas entra a este evento.
+                    </p>
+                  ) : (
+                    <div className="flex flex-col gap-2">
+                      {collaborators.map(c => {
+                        return (
+                          <div key={c.id} className="rounded-lg border border-[#e8e8e8] bg-white px-3 py-2.5">
+                            {(() => {
+                              const r = resumir({
+                                esDuenoDelEvento: false,
+                                rolCuenta: null,
+                                permisos: normalizarPermisos(c.permisos),
+                                features,
+                              })
+                              const pendiente = c.status !== 'active'
+                              const etiqueta  = r.entra === 0 ? 'Sin acceso' : r.etiqueta
+
+                              const resumenTexto = pendiente ? (
+                                <span className="text-[12px] font-medium text-[#c08a2e]">Invitación pendiente</span>
+                              ) : (
+                                <span className="text-[12px] text-[#666]">
+                                  <span className="font-semibold text-[#1D1E20]">{etiqueta}</span>
+                                  {r.entra > 0 && ` · ${r.entra} de 12`}
+                                </span>
+                              )
+
+                              return (
+                                <div className="flex items-center gap-3">
+                                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#f0fdfb] text-[11px] font-bold text-[#48C9B0]">
+                                    {c.email[0].toUpperCase()}
+                                  </div>
+
+                                  <div className="min-w-0 flex-1">
+                                    <p className="flex items-center gap-1.5 truncate text-xs font-medium text-[#1D1E20]">
+                                      {c.email}
+                                      {c.tipo === 'cliente' && <span className="rounded-full border border-[#48C9B0] bg-[#f0fdfb] px-1.5 py-px text-[10px] font-semibold text-[#1a9e88]">Cliente</span>}
+                                    </p>
+
+                                    <div className="mt-0.5 flex items-center gap-1.5">
+                                      <span className={'h-1.5 w-1.5 shrink-0 rounded-full ' + (pendiente ? 'bg-[#f0a500]' : 'bg-[#48C9B0]')} />
+                                      <span className="text-[10px] text-[#aaa]">{pendiente ? 'Sin aceptar' : 'Activo'}</span>
+                                      {pendiente && (
+                                        <button
+                                          type="button"
+                                          onClick={() => handleCopyLink(c.invite_token)}
+                                          title="Copiar enlace de invitación"
+                                          aria-label="Copiar enlace de invitación"
+                                          className="rounded p-0.5 text-[#bbb] transition hover:bg-[#f5f5f5] hover:text-[#888]"
+                                        >
+                                          {copiedToken === c.invite_token
+                                            ? <Check size={11} className="text-[#48C9B0]" />
+                                            : <Copy size={11} />}
+                                        </button>
+                                      )}
+                                    </div>
+
+                                    <div className="mt-1 sm:hidden">{resumenTexto}</div>
+                                  </div>
+
+                                  <div className="hidden shrink-0 sm:block">{resumenTexto}</div>
+
+                                  <div className="flex shrink-0 items-center gap-0.5">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setBorrador(normalizarPermisos(c.permisos))
+                                        setEditandoPermisos(c.id)
+                                      }}
+                                      title="Ajustar permisos"
+                                      aria-label="Ajustar permisos"
+                                      className="flex h-7 w-7 items-center justify-center rounded-md text-[#888] transition hover:bg-[#f5f5f5] hover:text-[#1D1E20]"
+                                    >
+                                      <Settings size={14} />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRevoke(c.id)}
+                                      disabled={revoking === c.id}
+                                      title="Quitar acceso"
+                                      aria-label="Quitar acceso"
+                                      className="flex h-7 w-7 items-center justify-center rounded-md text-[#888] transition hover:text-[#cc3333] disabled:opacity-40"
+                                    >
+                                      <X size={14} />
+                                    </button>
+                                  </div>
+                                </div>
+                              )
+                            })()}
                           </div>
-                        </div>
-                        <div className="flex shrink-0 items-center gap-1">
-                          {c.status === 'pending' && (
-                            <button onClick={() => handleCopyLink(c.invite_token)}
-                              className="flex h-7 w-7 items-center justify-center rounded-md border border-[#e0e0e0] text-[#888] transition hover:border-[#48C9B0] hover:text-[#48C9B0]">
-                              {isCopied ? <Check size={12} className="text-[#48C9B0]" /> : <Copy size={12} />}
-                            </button>
-                          )}
-                          <button onClick={() => handleRevoke(c.id)} disabled={revoking === c.id}
-                            className="flex h-7 w-7 items-center justify-center rounded-md border border-[#e0e0e0] text-[#888] transition hover:border-[#cc3333] hover:text-[#cc3333] disabled:opacity-40">
-                            <X size={12} />
-                          </button>
-                        </div>
-                      </div>
-                    )
-                  })}
+                        )
+                      })}
+                    </div>
+                  )}
                 </div>
+              </div>
+
+              {(() => {
+                const c = collaborators.find(x => x.id === editandoPermisos)
+                if (!c) return null
+
+                return (
+                  <Modal open onClose={() => setEditandoPermisos(null)} size="md">
+                    <Modal.Header
+                      title={`Accesos de ${c.email}`}
+                      subtitle="Se guarda hasta que aprietes el botón"
+                    />
+                    <Modal.Body>
+                      <PermisosEditor permisos={borrador} features={features} onChange={setBorrador} />
+                    </Modal.Body>
+                    <Modal.Footer>
+                      <button
+                        type="button"
+                        onClick={() => setEditandoPermisos(null)}
+                        className="rounded-lg border border-[#e0e0e0] px-4 py-2 text-sm text-[#888] transition hover:bg-[#f5f5f5]"
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        type="button"
+                        disabled={guardando}
+                        onClick={() => guardarPermisos(c.id)}
+                        className="ml-auto rounded-lg bg-[#48C9B0] px-4 py-2 text-sm font-semibold text-[#08312a] transition disabled:opacity-60"
+                      >
+                        {guardando ? 'Guardando…' : 'Guardar accesos'}
+                      </button>
+                    </Modal.Footer>
+                  </Modal>
+                )
+              })()}
+
+              {workspace && modalEquipo === 'persona' && (
+                <AltaPersonaModal open onClose={() => setModalEquipo(null)} workspace={workspace} bodaFija={id as string}
+                  onHecho={() => { recargarColaboradores(); fetchWorkspace(workspace.id).then(r => setWorkspace(r.activo)).catch(() => {}) }} />
+              )}
+              {workspace && modalEquipo === 'cliente' && (
+                <InvitarClienteModal open onClose={() => setModalEquipo(null)} workspace={workspace} bodaFija={id as string}
+                  onHecho={() => recargarColaboradores()} />
               )}
             </div>
           )}

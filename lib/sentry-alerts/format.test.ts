@@ -88,6 +88,16 @@ describe("formatTelegramMessage", () => {
 });
 
 describe("severidadDesdeAlerta", () => {
+  it("lo ajeno a Anfiora es azul y silencioso", () => {
+    const s = severidadDesdeAlerta({ title: "Java object is gone", origen: "externo" });
+    expect(s.emoji).toBe("🔵");
+    expect(s.silent).toBe(true);
+  });
+  it("lo ajeno gana aunque Sentry lo mande como fatal", () => {
+    const s = severidadDesdeAlerta({ title: "x", origen: "externo", level: "fatal" });
+    expect(s.silent).toBe(true);
+    expect(s.emoji).toBe("🔵");
+  });
   it("pantalla rota por impact es urgente y no silenciosa", () => {
     const s = severidadDesdeAlerta({ title: "x", impact: "pantalla-rota" });
     expect(s.silent).toBe(false);

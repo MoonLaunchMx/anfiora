@@ -16,7 +16,7 @@ import { botonClass } from '@/lib/invite/theme-css'
 import { parseDressCode, type DressCode } from '@/lib/dresscode'
 import { getGuestItinerary } from '@/lib/guest-itinerary'
 import { resolveAccessMode } from '@/lib/features'
-import type { GuestItineraryItem } from '@/lib/types'
+import type { GuestItineraryDay } from '@/lib/types'
 import InvitacionRenderer from '@/app/components/invitacion/InvitacionRenderer'
 import PreviewBoundary from '@/app/components/invitacion/PreviewBoundary'
 import type { InviteCtx } from '@/app/components/invitacion/types'
@@ -24,9 +24,10 @@ import DatePicker from '@/app/components/ui/DatePicker'
 import BlockEditor from './BlockEditor'
 import AccesoPanel from './AccesoPanel'
 import { useSalidaGuard } from '../SalidaGuardProvider'
-import { useEventAccess } from '@/lib/event-access-context'
+import { useEventAccess, usePermiso } from '@/lib/event-access-context'
 import EstiloPanel from './EstiloPanel'
 import PersonalizarPanel from './PersonalizarPanel'
+import { Cargando } from '@/app/components/ui/Cargando'
 
 type TabKey = 'diseno' | 'config'
 
@@ -34,6 +35,7 @@ type EventInfo = {
   name: string
   event_type: string | null
   event_date: string | null
+  event_end_date: string | null
   event_time: string | null
   venue: string | null
   address: string | null
@@ -71,7 +73,7 @@ export default function InvitacionPage() {
   const [dressCode, setDressCode] = useState<DressCode | null>(null)
   const [playlistToken, setPlaylistToken] = useState<string | null>(null)
   const [registryToken, setRegistryToken] = useState<string | null>(null)
-  const [itinerary, setItinerary] = useState<GuestItineraryItem[]>([])
+  const [itinerary, setItinerary] = useState<GuestItineraryDay[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -84,16 +86,17 @@ export default function InvitacionPage() {
   const [showPreview, setShowPreview] = useState(false)
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const salidaGuard = useSalidaGuard()
-  const { canEdit, isLoading: cargandoRol } = useEventAccess()
-  const soloLectura = !cargandoRol && !canEdit
+  const { isLoading: cargandoRol } = useEventAccess()
+  const permisoInvitacion = usePermiso('invitacion')
+  const soloLectura = !cargandoRol && !permisoInvitacion.editar
   const publishRef = useRef<() => Promise<void>>(async () => {})
 
   useEffect(() => {
     const load = async () => {
-      const [ev, inviteRow, dressRow, itinRows] = await Promise.all([
+      const [ev, inviteRow, dressRow] = await Promise.all([
         supabase
           .from('events')
-          .select('name, event_type, event_date, event_time, venue, address, host_name, host_name_2, guest_cap, ticket_price')
+          .select('name, event_type, event_date, event_end_date, event_time, venue, address, host_name, host_name_2, guest_cap, ticket_price')
           .eq('id', eventId)
           .single(),
         safeSingle<{ invite_config: unknown; invite_draft: unknown; playlist_token: string | null; registry_token: string | null; max_companions: number | null }>(
@@ -102,8 +105,10 @@ export default function InvitacionPage() {
         safeSingle<{ dress_code: unknown }>(
           supabase.from('event_settings').select('dress_code').eq('event_id', eventId).maybeSingle(),
         ),
-        getGuestItinerary(eventId),
       ])
+      const itinRows = ev.data
+        ? await getGuestItinerary(eventId, ev.data.event_date, ev.data.event_end_date)
+        : []
       if (ev.data) setEvent(ev.data)
       setDressCode(parseDressCode(dressRow?.dress_code))
       setPlaylistToken(inviteRow?.playlist_token ?? null)
@@ -317,13 +322,7 @@ export default function InvitacionPage() {
   // El guardian llama publish sin cerrar sobre un doc viejo: siempre el actual.
   publishRef.current = handlePublish
 
-  if (loading || !doc) {
-    return (
-      <div className="flex flex-1 items-center justify-center">
-        <div className="h-7 w-7 animate-spin rounded-full border-2 border-[#e8e8e8] border-t-[#48C9B0]" />
-      </div>
-    )
-  }
+  if (loading || !doc) return <Cargando />
 
   if (!event) {
     return (

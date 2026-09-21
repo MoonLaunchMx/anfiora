@@ -4,7 +4,7 @@ import { useEffect, useState, useRef, useMemo } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { motion, useMotionValue, useTransform, animate } from 'framer-motion'
 import type { PanInfo } from 'framer-motion'
-import { Trash2, Send, Clock, MessageSquare, AlertCircle, CheckCircle, XCircle, Download, Upload, Columns3, Search, UserPlus, Users, Wallet, Plus, Check, Copy, X, Filter, Loader2, FileSpreadsheet, FileText, AlertTriangle, ChevronDown } from 'lucide-react'
+import { Trash2, Send, Clock, MessageSquare, AlertCircle, CheckCircle, XCircle, Download, Upload, Columns3, Search, UserPlus, Users, Wallet, Plus, Check, Copy, X, Filter, Loader2, FileSpreadsheet, FileText, AlertTriangle, ChevronDown, Phone } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { buildGuestDeletionOps, executeGuestDeletion, guestConversationIds, buildBulkGuestDeletionOps, guestConversationRowsForMany, survivingGuestIds } from '@/lib/guests/delete'
 import { PartyMember, Guest, Event, EventSettings, EventStatus, RsvpStatus, Currency, formatCurrency } from '@/lib/types'
@@ -16,8 +16,11 @@ import { ImportStepsModal } from '@/app/components/ui/ImportStepsModal'
 import { Modal } from '@/app/components/ui/Modal'
 import PhoneInput from '@/app/components/ui/PhoneInput'
 import { useConfirm } from '@/app/components/ui/ConfirmModal'
-import { toWhatsApp, toE164 } from '@/lib/phone'
+import TagInput, { getTagColor } from '@/app/components/ui/TagInput'
+import { toWhatsApp, componerTelefono, componerDesdeLada } from '@/lib/phone'
 import { reportError } from '@/lib/observabilidad/report'
+import { usePermiso } from '@/lib/event-access-context'
+import { Puede } from '@/lib/permisos/Puede'
 import * as XLSX from 'xlsx'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
@@ -78,9 +81,19 @@ function SearchBox({ onDebounced }: { onDebounced: (v: string) => void }) {
   )
 }
 
-function StatusDot({ value, onChange }: { value: RsvpStatus; onChange: (s: RsvpStatus) => void }) {
+function StatusDot({ value, onChange, puedeEditar = true }: { value: RsvpStatus; onChange: (s: RsvpStatus) => void; puedeEditar?: boolean }) {
   const [open, setOpen] = useState(false)
   const s = STATUS_LABEL[value]
+
+  // Sin permiso de editar es una insignia: se lee el estatus y no se cambia.
+  if (!puedeEditar) {
+    return (
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border"
+        style={{ background: s.bg, borderColor: s.border, color: s.color }} title={s.label}>
+        {s.icon}
+      </span>
+    )
+  }
 
   return (
     <>
@@ -113,21 +126,6 @@ function StatusDot({ value, onChange }: { value: RsvpStatus; onChange: (s: RsvpS
 const GROUP_COLORS = ['#48C9B0', '#7F77DD', '#F0997B', '#378ADD', '#EF9F27', '#D4537E', '#639922', '#D85A30']
 
 
-const TAG_COLORS = [
-  { bg: '#f0fdfb', border: '#9FE1CB', text: '#0F6E56' },
-  { bg: '#f0f0ff', border: '#afa9ec', text: '#3C3489' },
-  { bg: '#fff5f0', border: '#F0997B', text: '#993C1D' },
-  { bg: '#f0f8ff', border: '#85B7EB', text: '#0C447C' },
-  { bg: '#fffbf0', border: '#FAC775', text: '#854F0B' },
-  { bg: '#fff0f7', border: '#ED93B1', text: '#72243E' },
-  { bg: '#f3fde8', border: '#C0DD97', text: '#3B6D11' },
-  { bg: '#fff5f0', border: '#f09595', text: '#A32D2D' },
-]
-
-function getTagColor(tagIndex: number) {
-  const i = ((tagIndex % TAG_COLORS.length) + TAG_COLORS.length) % TAG_COLORS.length
-  return TAG_COLORS[i]
-}
 
 function loadImageData(src: string): Promise<{ dataUrl: string; w: number; h: number }> {
   return new Promise((resolve, reject) => {
@@ -244,103 +242,15 @@ const TRASH_ICON = (
 type EditMember = { id?: string; name: string; phone: string; rsvp_status: RsvpStatus; allergies: string[]; tags: string[]; notes: string }
 type GuestTableInfo = { tableNumber: number; tableName: string | null }
 
-function TagInput({ availableTags, selectedTags, onChangeSelected, onCreateTag, onDeleteTag, label = 'Tag' }: {
-  availableTags: string[]
-  selectedTags: string[]
-  onChangeSelected: (tags: string[]) => void
-  onCreateTag: (tag: string) => void
-  onDeleteTag: (tag: string) => void
-  label?: string
-}) {
-  const [editing, setEditing] = useState(false)
-  const [query, setQuery] = useState('')
-  const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
-  const q = query.trim()
-  const ql = q.toLowerCase()
-  const exactExists = availableTags.some(t => t.toLowerCase() === ql)
-  const suggestions = availableTags.filter(t => !selectedTags.includes(t) && (!q || t.toLowerCase().includes(ql)))
-  const openEditor = () => { setEditing(true); setTimeout(() => inputRef.current?.focus(), 0) }
-  const closeEditor = () => { setEditing(false); setQuery('') }
-  const remove = (tag: string) => onChangeSelected(selectedTags.filter(t => t !== tag))
-  const assign = (tag: string) => { if (!selectedTags.includes(tag)) onChangeSelected([...selectedTags, tag]); setQuery('') }
-  const confirmAdd = () => {
-    if (!q) return
-    const exact = availableTags.find(t => t.toLowerCase() === ql)
-    if (exact) assign(exact)
-    else { onCreateTag(q); onChangeSelected([...selectedTags, q]); setQuery('') }
-  }
-  return (
-    <div>
-      <div className="flex flex-wrap items-center gap-1.5">
-        {selectedTags.map(tag => {
-          const col = getTagColor(availableTags.indexOf(tag))
-          return (
-            <span key={tag} className="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium"
-              style={{ background: col.bg, borderColor: col.border, color: col.text }}>
-              {tag}
-              <button type="button" onClick={() => remove(tag)} className="opacity-50 transition hover:opacity-100">✕</button>
-            </span>
-          )
-        })}
-        {!editing ? (
-          <button type="button" onClick={openEditor}
-            className="inline-flex items-center gap-1 rounded-full border border-dashed border-[#c8c8c8] px-2.5 py-1 text-xs font-medium text-[#888] transition hover:border-[#48C9B0] hover:text-[#48C9B0]">
-            <Plus className="h-3 w-3" /> {label}
-          </button>
-        ) : (
-          <span className="inline-flex items-center gap-1 rounded-full border border-[#48C9B0] bg-white py-0.5 pl-2.5 pr-1.5">
-            <input ref={inputRef} value={query} onChange={e => setQuery(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); confirmAdd() } if (e.key === 'Escape') closeEditor() }}
-              placeholder={label} className="w-24 bg-transparent text-xs text-[#1D1E20] outline-none placeholder:text-[#bbb]" />
-            <button type="button" onClick={confirmAdd} disabled={!q} title="Agregar" className="text-[#48C9B0] transition disabled:opacity-30"><Check className="h-4 w-4" strokeWidth={3} /></button>
-            <button type="button" onClick={closeEditor} title="Cancelar" className="text-[#bbb] transition hover:text-[#888]"><X className="h-4 w-4" /></button>
-          </span>
-        )}
-      </div>
-
-      {editing && suggestions.length > 0 && (
-        <div className="mt-2.5">
-          <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-[#bbb]">Existentes</p>
-          <div className="flex flex-wrap gap-1.5">
-            {suggestions.map(tag => {
-              const col = getTagColor(availableTags.indexOf(tag))
-              return (
-                <span key={tag} className="inline-flex items-center gap-1 rounded-full border bg-white px-2 py-0.5 text-xs"
-                  style={{ borderColor: col.border, color: col.text }}>
-                  <button type="button" onClick={() => assign(tag)} className="font-medium">{tag}</button>
-                  <button type="button" onClick={() => setConfirmDelete(tag)} title="Eliminar del evento" className="text-[#ccc] transition hover:text-[#cc3333]"><Trash2 className="h-3 w-3" /></button>
-                </span>
-              )
-            })}
-          </div>
-        </div>
-      )}
-
-      {confirmDelete && (
-        <Modal open onClose={() => setConfirmDelete(null)} size="sm">
-          <Modal.Body className="py-6 text-center">
-            <h3 className="text-base font-bold text-[#1D1E20]">¿Eliminar &quot;{confirmDelete}&quot;?</h3>
-            <p className="mt-1.5 text-xs text-[#666]">Se quitará de todos los invitados del evento. Esta acción no se puede deshacer.</p>
-          </Modal.Body>
-          <Modal.Footer>
-            <button type="button" onClick={() => setConfirmDelete(null)} className="flex-1 rounded-lg border border-[#e0e0e0] py-2.5 text-sm text-[#888] transition hover:bg-[#f8f8f8]">Cancelar</button>
-            <button type="button" onClick={() => { onDeleteTag(confirmDelete); setConfirmDelete(null) }} className="flex-1 rounded-lg bg-[#cc3333] py-2.5 text-sm font-semibold text-white transition hover:bg-[#b82e2e]">Eliminar</button>
-          </Modal.Footer>
-        </Modal>
-      )}
-    </div>
-  )
-}
-
 const ALLERGY_OPTIONS = ['Gluten', 'Lácteos', 'Mariscos', 'Nueces', 'Huevo', 'Soya', 'Cerdo']
 
-function MembersEditor({ value, onChange, allergyPool, onCreateAllergy, onDeleteAllergy }: {
+function MembersEditor({ value, onChange, allergyPool, onCreateAllergy, onDeleteAllergy, puedeEditar = true }: {
   value: EditMember[]
   onChange: (v: EditMember[]) => void
   allergyPool: string[]
   onCreateAllergy: (t: string) => void
   onDeleteAllergy: (t: string) => void
+  puedeEditar?: boolean
 }) {
   const MAX = 15
   const [open, setOpen] = useState(value.length > 0)
@@ -356,7 +266,7 @@ function MembersEditor({ value, onChange, allergyPool, onCreateAllergy, onDelete
           <span className="text-xs font-medium text-[#555]">Acompañantes</span>
           {value.length > 0 && <span className="rounded-full bg-[#f0fdfb] px-1.5 py-0.5 text-[10px] font-semibold text-[#48C9B0]">{value.length}</span>}
         </button>
-        {value.length < MAX && <button type="button" onClick={add} className="shrink-0 text-xs font-semibold text-[#48C9B0] hover:underline">+ Agregar</button>}
+        {puedeEditar && value.length < MAX && <button type="button" onClick={add} className="shrink-0 text-xs font-semibold text-[#48C9B0] hover:underline">+ Agregar</button>}
       </div>
       {open && (<>
       {value.length === 0 && <p className="mt-2 text-xs text-[#bbb]">Sin acompañantes — haz clic en "Agregar" para incluir uno.</p>}
@@ -385,7 +295,7 @@ function MembersEditor({ value, onChange, allergyPool, onCreateAllergy, onDelete
                 placeholder="Notas"
                 className="w-full rounded-lg border border-[#e0e0e0] bg-[#f8f8f8] px-3 py-2 text-base text-[#1D1E20] outline-none"
               />
-              <button type="button" onClick={() => remove(i)} className="mt-1 w-full rounded-lg border border-[#ffe0e0] bg-[#fff5f5] py-1.5 text-xs font-semibold text-[#cc3333] transition hover:bg-[#ffe8e8]">Eliminar acompañante</button>
+              {puedeEditar && <button type="button" onClick={() => remove(i)} className="mt-1 w-full rounded-lg border border-[#ffe0e0] bg-[#fff5f5] py-1.5 text-xs font-semibold text-[#cc3333] transition hover:bg-[#ffe8e8]">Eliminar acompañante</button>}
             </div>
           </div>
         ))}
@@ -399,6 +309,9 @@ type CsvDuplicateResult = {
   hasDuplicates: boolean
   rows: Array<{ event_id: string; name: string; phone: string | null; email: string | null; party_size: number; rsvp_status: string; tags: string[]; notes: string | null; side: string | null; allergies: string[] | null; _companions: string[] }>
   duplicates: Array<{ row: number; name: string; phone: string; conflictWith: string }>
+  // Filas que traian algo en la celda de telefono pero no eran un numero. Entran
+  // igual, sin telefono: el nombre y la mesa importan mas que el celular.
+  sinTelefono: Array<{ name: string; raw: string }>
   newTags: string[]
   newGroups: string[]
   newAllergies: string[]
@@ -438,22 +351,40 @@ function CobroBadge({ guest, currency, onConfirmar, onDeshacer }: {
   return null
 }
 
-function SwipeableGuestCard({ guest, groupColor, isSelected, guestTags, availableTags, cobroBadge, onSelect, onEdit, onDelete, onWaLongPressStart, onWaLongPressEnd, onWaTouchMove, onStatusChange, onOpenConversation }: {
+function SwipeableGuestCard({ guest, groupColor, isSelected, guestTags, availableTags, cobroBadge, onSelect, onEdit, onDelete, onCall, onWaLongPressStart, onWaLongPressEnd, onWaTouchMove, onStatusChange, onOpenConversation, puedeBorrar, puedeEditar }: {
   guest: Guest; groupColor: string | null; isSelected: boolean; guestTags: string[]; availableTags: string[]; cobroBadge?: React.ReactNode
-  onSelect: () => void; onEdit: () => void; onDelete: () => void
+  onSelect: () => void; onEdit: () => void; onDelete: () => void; onCall: () => void
   onWaLongPressStart: (g: Guest) => void; onWaLongPressEnd: (g: Guest) => void; onWaTouchMove: () => void; onStatusChange: (s: RsvpStatus) => void
   onOpenConversation: (guestId: string) => void
+  puedeBorrar: boolean
+  puedeEditar: boolean
 }) {
   const x = useMotionValue(0)
   const bgOpacity = useTransform(x, [-80, -20, 0], [1, 0.5, 0])
+  // Llamar no agrega un boton a la tarjeta: usa el lado que el gesto de borrar
+  // dejaba cerrado. Marcar es seguro porque el propio telefono pregunta antes
+  // de llamar; nosotros solo abrimos el marcador con el numero puesto.
+  const puedeLlamar = !!guest.phone
+  const callOpacity = useTransform(x, [0, 20, 80], [0, 0.5, 1])
+  const SWIPE_LIMITE = 60
   return (
     <div className={'relative overflow-hidden ' + (groupColor ? 'rounded-t-xl' : 'rounded-xl')}>
       <motion.div className="absolute inset-0 flex items-center justify-end bg-red-500 pr-5" style={{ opacity: bgOpacity }}>
         <Trash2 size={20} className="text-white" />
       </motion.div>
-      <motion.div style={{ x }} drag="x" dragConstraints={{ left: -80, right: 0 }} dragElastic={{ left: 0.1, right: 0 }}
+      <motion.div className="absolute inset-0 flex items-center justify-start gap-2 bg-[#48C9B0] pl-5" style={{ opacity: callOpacity }}>
+        <Phone size={18} className="text-white" />
+        <span className="text-xs font-bold uppercase tracking-wide text-white">Llamar</span>
+      </motion.div>
+      <motion.div style={{ x }} drag={puedeBorrar || puedeLlamar ? 'x' : false}
+        dragConstraints={{ left: puedeBorrar ? -80 : 0, right: puedeLlamar ? 80 : 0 }}
+        dragElastic={{ left: puedeBorrar ? 0.1 : 0, right: puedeLlamar ? 0.1 : 0 }}
         onDragEnd={(_: unknown, info: PanInfo) => {
-          if (info.offset.x < -60) onDelete()
+          if (puedeBorrar && info.offset.x < -SWIPE_LIMITE) onDelete()
+          else if (puedeLlamar && info.offset.x > SWIPE_LIMITE) {
+            onCall()
+            animate(x, 0, { type: 'spring', stiffness: 500, damping: 35 })
+          }
           else animate(x, 0, { type: 'spring', stiffness: 500, damping: 35 })
         }}
         className={'relative z-10 rounded-xl border bg-white px-3 py-3 ' + (isSelected ? 'border-[#48C9B0] bg-[#f0fdfb]' : 'border-[#e8e8e8]') + (groupColor ? ' rounded-b-none border-b-0' : '')}>
@@ -503,7 +434,7 @@ function SwipeableGuestCard({ guest, groupColor, isSelected, guestTags, availabl
             )}
             {cobroBadge && <div className="mt-1">{cobroBadge}</div>}
           </div>
-          <StatusDot value={guest.rsvp_status} onChange={onStatusChange} />
+          <StatusDot value={guest.rsvp_status} onChange={onStatusChange} puedeEditar={puedeEditar} />
         </div>
       </motion.div>
     </div>
@@ -623,10 +554,12 @@ function AddGuestModal({ availableTags, groupPool, allergyPool, onCreateTag, onD
   )
 }
 
-function EditGuestModal({ guest, availableTags, groupPool, allergyPool, onCreateTag, onDeleteTag, onCreateGroup, onDeleteGroup, onCreateAllergy, onDeleteAllergy, onSubmit, onClose, onDelete, onResolveAttention }: GuestModalShared & {
+function EditGuestModal({ guest, availableTags, groupPool, allergyPool, onCreateTag, onDeleteTag, onCreateGroup, onDeleteGroup, onCreateAllergy, onDeleteAllergy, onSubmit, onClose, onDelete, onResolveAttention, puedeEditar, puedeBorrar }: GuestModalShared & {
   guest: Guest
   onDelete: () => void
   onResolveAttention: () => void
+  puedeEditar: boolean
+  puedeBorrar: boolean
 }) {
   const [name, setName] = useState(guest.name)
   const [phone, setPhone] = useState(guest.phone || '')
@@ -652,7 +585,7 @@ function EditGuestModal({ guest, availableTags, groupPool, allergyPool, onCreate
 
   return (
     <Modal open onClose={onClose} size="xl">
-      <Modal.Header title="Editar invitado" />
+      <Modal.Header title={puedeEditar ? 'Editar invitado' : 'Detalle del invitado'} />
       <Modal.Body>
         {guest.needs_attention && (
           <div className="mb-4 rounded-lg border p-3" style={{ background: 'var(--error-bg)', borderColor: 'var(--error-border)' }}>
@@ -661,9 +594,11 @@ function EditGuestModal({ guest, availableTags, groupPool, allergyPool, onCreate
               <span className="flex-1 text-xs font-semibold" style={{ color: 'var(--error-text)' }}>
                 {ATTENTION_LABEL[guest.attention_reason || 'otro']}
               </span>
-              <button onClick={onResolveAttention} className="text-xs font-semibold" style={{ color: '#48C9B0' }}>
-                Marcar atención como resuelta
-              </button>
+              {puedeEditar && (
+                <button onClick={onResolveAttention} className="text-xs font-semibold" style={{ color: '#48C9B0' }}>
+                  Marcar atención como resuelta
+                </button>
+              )}
             </div>
             {guest.attention_detail && (
               <p className="mt-2 line-clamp-3 text-xs" style={{ color: 'var(--text-sec)' }}>
@@ -672,6 +607,7 @@ function EditGuestModal({ guest, availableTags, groupPool, allergyPool, onCreate
             )}
           </div>
         )}
+        <fieldset disabled={!puedeEditar} className="m-0 min-w-0 border-0 p-0">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div><label className="mb-1.5 block text-xs font-medium text-[#555]">Nombre *</label><input type="text" value={name} onChange={e => setName(e.target.value)} className={INPUT_CLASS} /></div>
           <div><label className="mb-1.5 block text-xs font-medium text-[#555]">WhatsApp</label><PhoneInput value={phone} onChange={setPhone} placeholder="81 1234 5678" /></div>
@@ -686,17 +622,22 @@ function EditGuestModal({ guest, availableTags, groupPool, allergyPool, onCreate
             <TagInput availableTags={allergyPool} selectedTags={allergies} onChangeSelected={setAllergies} onCreateTag={onCreateAllergy} onDeleteTag={handleDeleteAllergy} label="Alergia" />
           </div>
           <div className="sm:col-span-2"><label className="mb-1.5 block text-xs font-medium text-[#555]">Notas</label><textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Mesa preferida, restricciones..." rows={2} className={`${INPUT_CLASS} resize-y`} /></div>
-          <div className="sm:col-span-2 border-t border-[#f0f0f0] pt-4"><MembersEditor value={members} onChange={setMembers} allergyPool={allergyPool} onCreateAllergy={onCreateAllergy} onDeleteAllergy={handleDeleteAllergy} /></div>
+          <div className="sm:col-span-2 border-t border-[#f0f0f0] pt-4"><MembersEditor value={members} onChange={setMembers} allergyPool={allergyPool} onCreateAllergy={onCreateAllergy} onDeleteAllergy={handleDeleteAllergy} puedeEditar={puedeEditar} /></div>
         </div>
-        <button onClick={onDelete}
-          className="mt-4 w-full rounded-lg border border-[#ffe0e0] bg-[#fff5f5] py-3 text-sm font-semibold text-[#cc3333] transition hover:bg-[#ffe8e8] sm:hidden">
-          Eliminar invitado
-        </button>
+        </fieldset>
+        {puedeBorrar && (
+          <button onClick={onDelete}
+            className="mt-4 w-full rounded-lg border border-[#ffe0e0] bg-[#fff5f5] py-3 text-sm font-semibold text-[#cc3333] transition hover:bg-[#ffe8e8] sm:hidden">
+            Eliminar invitado
+          </button>
+        )}
         {error && <div className="mt-4 rounded-lg border border-[#ffc0c0] bg-[#fff0f0] p-2.5 text-xs text-[#cc3333]">{error}</div>}
       </Modal.Body>
       <Modal.Footer>
-        <button onClick={onClose} className="flex-1 rounded-lg border border-[#e0e0e0] py-3 text-sm text-[#888]">Cancelar</button>
-        <button onClick={submit} disabled={saving} className="flex-[2] rounded-lg bg-[#48C9B0] py-3 text-sm font-semibold text-white disabled:opacity-60">{saving ? 'Guardando...' : 'Guardar cambios'}</button>
+        <button onClick={onClose} className="flex-1 rounded-lg border border-[#e0e0e0] py-3 text-sm text-[#888]">{puedeEditar ? 'Cancelar' : 'Cerrar'}</button>
+        {puedeEditar && (
+          <button onClick={submit} disabled={saving} className="flex-[2] rounded-lg bg-[#48C9B0] py-3 text-sm font-semibold text-white disabled:opacity-60">{saving ? 'Guardando...' : 'Guardar cambios'}</button>
+        )}
       </Modal.Footer>
     </Modal>
   )
@@ -705,6 +646,7 @@ function EditGuestModal({ guest, availableTags, groupPool, allergyPool, onCreate
 export default function EventPage() {
   const { id } = useParams()
   const router = useRouter()
+  const permiso = usePermiso('invitados')
   const askConfirm = useConfirm()
   const openConversation = (guestId: string) => router.push(`/events/${id}/mensajes?guest=${guestId}`)
 
@@ -911,11 +853,13 @@ export default function EventPage() {
   }
 
   const updateStatus = async (guestId: string, status: RsvpStatus) => {
+    if (!permiso.editar) return
     setGuests(prev => prev.map(g => g.id === guestId ? { ...g, rsvp_status: status } : g))
     await supabase.from('guests').update({ rsvp_status: status }).eq('id', guestId)
   }
 
   const confirmarPago = async (guest: Guest) => {
+    if (!permiso.editar) return
     const nuevoTimestamp = new Date().toISOString()
     const { error } = await supabase.from('guests').update({ paid_at: nuevoTimestamp }).eq('id', guest.id)
     if (error) { alert('No se pudo confirmar el pago. Intenta de nuevo.'); return }
@@ -924,6 +868,7 @@ export default function EventPage() {
   }
 
   const deshacerPago = async (guest: Guest) => {
+    if (!permiso.editar) return
     const { error } = await supabase.from('guests').update({ paid_at: null }).eq('id', guest.id)
     if (error) { alert('No se pudo deshacer el pago. Intenta de nuevo.'); return }
     await logAction({ eventId: id as string, action: 'guest.payment_undone', entityType: 'guest', entityId: guest.id, entityLabel: guest.name, oldValue: { paid_at: guest.paid_at ?? null }, newValue: { paid_at: null } })
@@ -931,17 +876,20 @@ export default function EventPage() {
   }
 
   const updatePartyMemberStatus = async (memberId: string, guestId: string, status: RsvpStatus) => {
+    if (!permiso.editar) return
     setGuests(prev => prev.map(g => g.id === guestId ? { ...g, party_members: g.party_members.map(m => m.id === memberId ? { ...m, rsvp_status: status } : m) } : g))
     await supabase.from('party_members').update({ rsvp_status: status }).eq('id', memberId)
   }
 
   const resolveAttention = async (guestId: string) => {
+    if (!permiso.editar) return
     setGuests(prev => prev.map(g => g.id === guestId ? { ...g, needs_attention: false, attention_reason: null, attention_detail: null } : g))
     setEditGuest(prev => prev ? { ...prev, needs_attention: false, attention_reason: null, attention_detail: null } : null)
     await supabase.from('guests').update({ needs_attention: false, attention_reason: null, attention_detail: null }).eq('id', guestId)
   }
 
   const performDeleteGuest = async (guestId: string, conversationIds: string[], mode: 'unlink' | 'purge') => {
+    if (!permiso.borrar) return
     const ops = buildGuestDeletionOps(guestId, conversationIds, mode)
     const { ok, error } = await executeGuestDeletion(supabase, ops)
     if (!ok) {
@@ -956,6 +904,7 @@ export default function EventPage() {
   }
 
   const deleteGuest = async (guestId: string) => {
+    if (!permiso.borrar) return
     const conversationIds = await guestConversationIds(supabase, guestId)
     let hasChat = false
     if (conversationIds.length > 0) {
@@ -971,6 +920,7 @@ export default function EventPage() {
   }
 
   const deletePartyMember = async (memberId: string, guestId: string) => {
+    if (!permiso.borrar) return
     if (!(await askConfirm({ title: '¿Eliminar este acompañante?' }))) return
     await supabase.from('party_members').delete().eq('id', memberId)
     setGuests(prev => prev.map(g => g.id === guestId ? { ...g, party_size: g.party_size - 1, party_members: g.party_members.filter(m => m.id !== memberId) } : g))
@@ -989,11 +939,12 @@ export default function EventPage() {
   }
 
   const submitEditGuest = async (guest: Guest, f: GuestFormValues): Promise<string | null> => {
+    if (!permiso.editar) return null
     if (!f.name) return 'El nombre es obligatorio'
     if (f.phone) {
-      const normalizedEdit = toE164(f.phone, 'MX')
+      const normalizedEdit = componerTelefono(f.phone, 'MX')
       if (normalizedEdit) {
-        const duplicate = guests.find(g => g.id !== guest.id && g.phone && toE164(g.phone, 'MX') === normalizedEdit)
+        const duplicate = guests.find(g => g.id !== guest.id && g.phone && componerTelefono(g.phone, 'MX') === normalizedEdit)
         if (duplicate) return `Este WhatsApp ya está registrado para "${duplicate.name}"`
       }
     }
@@ -1046,6 +997,7 @@ export default function EventPage() {
   }
 
   const bulkUpdateStatus = async (status: RsvpStatus) => {
+    if (!permiso.editar) return
     const ids = Array.from(selected)
     const memberIds = Array.from(selectedMembers)
     if (ids.length > 0) await supabase.from('guests').update({ rsvp_status: status }).in('id', ids)
@@ -1060,6 +1012,7 @@ export default function EventPage() {
   }
 
   const bulkDelete = async () => {
+    if (!permiso.borrar) return
     const guestIds = Array.from(selected)
     const guestIdSet = new Set(guestIds)
     const looseMemberIds = Array.from(selectedMembers).filter(mid => { const g = guests.find(gg => gg.party_members.some(m => m.id === mid)); return g && !guestIdSet.has(g.id) })
@@ -1136,6 +1089,7 @@ export default function EventPage() {
   }
 
   const bulkAddCompanions = async () => {
+    if (!permiso.editar) return
     if (bulkCompanionCount < 1) return
     setBulkCompanionSaving(true)
     const ids = Array.from(selected)
@@ -1216,6 +1170,15 @@ export default function EventPage() {
 
   // Abre WhatsApp reusando una sola pestana en desktop (web.whatsapp.com/send, sin la pagina
   // intermedia de wa.me). En mobile abre la app con wa.me. encodedText ya viene de buildWaText.
+  // Abre el marcador del telefono con el numero puesto. El sistema pregunta antes
+  // de llamar (iOS muestra su alerta, Android deja el numero cargado sin timbrar),
+  // asi que un deslizon accidental nunca marca solo.
+  const llamar = (phone: string) => {
+    const e164 = componerTelefono(phone, 'MX')
+    if (!e164) return
+    window.location.href = 'tel:' + e164
+  }
+
   const openWhatsApp = (phone: string, encodedText?: string) => {
     const num = toWhatsApp(phone)
     if (!num) { alert('Este invitado no tiene un número de WhatsApp válido'); return }
@@ -1243,11 +1206,12 @@ export default function EventPage() {
   }
 
   const submitAddGuest = async (f: GuestFormValues): Promise<string | null> => {
+    if (!permiso.editar) return null
     if (!f.name) return 'El nombre es obligatorio'
     if (f.phone) {
-      const normalizedNew = toE164(f.phone, 'MX')
+      const normalizedNew = componerTelefono(f.phone, 'MX')
       if (normalizedNew) {
-        const duplicate = guests.find(g => g.phone && toE164(g.phone, 'MX') === normalizedNew)
+        const duplicate = guests.find(g => g.phone && componerTelefono(g.phone, 'MX') === normalizedNew)
         if (duplicate) return `Este WhatsApp ya está registrado para "${duplicate.name}"`
       }
     }
@@ -1272,7 +1236,10 @@ export default function EventPage() {
       const sep = lines[0].includes(';') ? ';' : ','
       const headers = lines[0].split(sep).map(h => h.trim().toLowerCase().replace(/"/g, '').replace(/\r/g, ''))
       const nameIdx   = headers.findIndex(h => h.includes('nombre') || h.includes('name'))
-      const phoneIdx  = headers.findIndex(h => h.includes('tel') || h.includes('phone') || h.includes('whatsapp') || h.includes('celular'))
+      // "lada" va antes que "tel": la columna de lada no debe capturar el encabezado
+      // del telefono ni al reves.
+      const ladaIdx   = headers.findIndex(h => h.includes('lada') || h.includes('pais') || h.includes('country') || h.includes('codigo'))
+      const phoneIdx  = headers.findIndex((h, i) => i !== ladaIdx && (h.includes('tel') || h.includes('phone') || h.includes('whatsapp') || h.includes('celular')))
       const emailIdx  = headers.findIndex(h => h.includes('email') || h.includes('correo'))
       const notesIdx  = headers.findIndex(h => h.includes('nota') || h.includes('note'))
       const tagsIdx   = headers.findIndex(h => h.includes('tag') || h.includes('etiqueta'))
@@ -1296,15 +1263,23 @@ export default function EventPage() {
         const sideVal = grupoIdx >= 0 ? (cols[grupoIdx] || '').trim() || null : null
         const alergRaw = alergIdx >= 0 ? cols[alergIdx] || '' : ''
         const alergArr = alergRaw ? alergRaw.split(/[|]/).map((s: string) => s.trim()).filter(Boolean) : []
-        return { event_id: id as string, name: cols[nameIdx] || '', phone: phoneIdx >= 0 ? (toE164(cols[phoneIdx] || '', 'MX') ?? (cols[phoneIdx] || null)) : null, email: emailIdx >= 0 ? cols[emailIdx] || null : null, party_size: 1 + _companions.length, rsvp_status: rsvpStatus, tags: parsedTags, notes: notesIdx >= 0 ? cols[notesIdx] || null : null, side: sideVal, allergies: alergArr.length > 0 ? alergArr : null, _companions }
+        // La lada vive en su propia columna porque Excel se come el "+" de una celda
+        // que empieza con el. Si no viene, manda el "+" del telefono y si tampoco,
+        // Mexico. Lo que no se puede componer entra como null, nunca como texto crudo.
+        const telRaw = phoneIdx >= 0 ? (cols[phoneIdx] || '') : ''
+        const telefono = telRaw ? componerDesdeLada(ladaIdx >= 0 ? (cols[ladaIdx] || '') : '', telRaw) : null
+        return { event_id: id as string, name: cols[nameIdx] || '', phone: telefono, _telRaw: telRaw, email: emailIdx >= 0 ? cols[emailIdx] || null : null, party_size: 1 + _companions.length, rsvp_status: rsvpStatus, tags: parsedTags, notes: notesIdx >= 0 ? cols[notesIdx] || null : null, side: sideVal, allergies: alergArr.length > 0 ? alergArr : null, _companions }
       }).filter(r => r.name)
       if (!rows.length) { setCsvError('No se encontraron invitados válidos'); return }
       const duplicates: CsvDuplicateResult['duplicates'] = []
       const seenInFile = new Map<string, string>()
+      // Se compara con el mismo normalizador con el que se guarda, para que un
+      // numero exotico no se escape del dedupe por no ser "posible".
+      const sinTelefono = rows.filter(r => r._telRaw.trim() && !r.phone).map(r => ({ name: r.name, raw: r._telRaw }))
       rows.forEach((row, idx) => {
         if (!row.phone) return
-        const norm = toE164(row.phone, 'MX'); if (!norm) return
-        const existingGuest = guests.find(g => g.phone && toE164(g.phone, 'MX') === norm)
+        const norm = componerTelefono(row.phone, 'MX'); if (!norm) return
+        const existingGuest = guests.find(g => g.phone && componerTelefono(g.phone, 'MX') === norm)
         if (existingGuest) { duplicates.push({ row: idx + 2, name: row.name, phone: row.phone, conflictWith: existingGuest.name + ' (ya registrado)' }); return }
         if (seenInFile.has(norm)) { duplicates.push({ row: idx + 2, name: row.name, phone: row.phone, conflictWith: seenInFile.get(norm)! + ' (misma importación)' }); return }
         seenInFile.set(norm, row.name)
@@ -1312,7 +1287,7 @@ export default function EventPage() {
       const newTags = Array.from(new Set(rows.flatMap(r => r.tags))).filter(t => !eventTags.includes(t))
       const newGroups = Array.from(new Set(rows.map(r => r.side).filter((s): s is string => !!s))).filter(s => !groupPool.includes(s))
       const newAllergies = Array.from(new Set(rows.flatMap(r => r.allergies || []))).filter(a => !allergyPool.includes(a))
-      setCsvPreview({ hasDuplicates: duplicates.length > 0, rows, duplicates, newTags, newGroups, newAllergies })
+      setCsvPreview({ hasDuplicates: duplicates.length > 0, rows, duplicates, sinTelefono, newTags, newGroups, newAllergies })
       if (fileRef.current) fileRef.current.value = ''
     }
     const readerUtf8 = new FileReader()
@@ -1329,6 +1304,7 @@ export default function EventPage() {
   }
 
   const confirmCsvImport = async (skipDuplicates: boolean) => {
+    if (!permiso.editar) return
     if (!csvPreview) return
     setCsvImporting(true); setCsvError('')
     let rowsToImport = csvPreview.rows
@@ -1457,13 +1433,14 @@ export default function EventPage() {
   const downloadTemplate = () => {
     const eventTags = event?.guest_tags || []
     const tagExample = eventTags.length >= 2 ? `${eventTags[0]} | ${eventTags[1]}` : eventTags.length === 1 ? eventTags[0] : 'Familia'
-    const headers = 'nombre,telefono,email,notas,tags,rsvp_status,acompanantes,grupo,alergias'
+    const headers = 'nombre,lada,telefono,email,notas,tags,rsvp_status,acompanantes,grupo,alergias'
     const examples = [
-      `"Maria Jose Garcia","+52 81 1234 5678","mj@ejemplo.com","Mesa 3","${tagExample}","confirmed","Juan Garcia | Sofia Garcia","Novia","Gluten | Mariscos"`,
-      `"Patricio Juarez","+52 55 9876 5432","","Sin restricciones alimentarias","","pending","","Novio",""`,
-      `"Andres Garza","","andres@ejemplo.com","Llegara tarde","","pending","Acompanante de Andres","","Nueces"`,
+      `"Maria Jose Garcia","","8112345678","mj@ejemplo.com","Mesa 3","${tagExample}","confirmed","Juan Garcia | Sofia Garcia","Novia","Gluten | Mariscos"`,
+      `"Karina Torrentegui","51","987654321","","Llega el viernes","","pending","","Novia",""`,
+      `"John Smith","1","3055551234","john@ejemplo.com","","","pending","","Novio",""`,
+      `"Andres Garza","","","andres@ejemplo.com","Llegara tarde","","pending","Acompanante de Andres","","Nueces"`,
     ]
-    const instructions = ['', '# INSTRUCCIONES:', '# nombre -> obligatorio', '# telefono -> formato +52 XX XXXX XXXX (opcional)', '# email -> correo electronico (opcional)', '# notas -> texto libre (opcional)', `# tags -> separados por | (pipe): ${eventTags.length ? eventTags.join(' | ') : 'VIP | Familia'} (se crean los nuevos)`, '# rsvp_status -> confirmed | pending | declined  (vacio = pending)', '# acompanantes -> nombres separados por | (pipe): Juan Perez | Maria Lopez (opcional)', '# grupo -> un valor (ej. Novia, Novio, Trabajo) - se crean los nuevos (opcional)', '# alergias -> separadas por | (pipe): Gluten | Nueces - se crean las nuevas (opcional)']
+    const instructions = ['', '# INSTRUCCIONES:', '# nombre -> obligatorio', '# lada -> pais del telefono: 52, 1, 51 o el nombre del pais (Peru, Espana). Vacio = Mexico', '# telefono -> solo los digitos, SIN el signo +. Excel se come el + y arruina el numero', '# email -> correo electronico (opcional)', '# notas -> texto libre (opcional)', `# tags -> separados por | (pipe): ${eventTags.length ? eventTags.join(' | ') : 'VIP | Familia'} (se crean los nuevos)`, '# rsvp_status -> confirmed | pending | declined  (vacio = pending)', '# acompanantes -> nombres separados por | (pipe): Juan Perez | Maria Lopez (opcional)', '# grupo -> un valor (ej. Novia, Novio, Trabajo) - se crean los nuevos (opcional)', '# alergias -> separadas por | (pipe): Gluten | Nueces - se crean las nuevas (opcional)']
     const csv = [headers, ...examples, ...instructions].join('\n')
     const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
@@ -1504,6 +1481,7 @@ export default function EventPage() {
   const availableTags = event?.guest_tags || []
   const tableFilterValues = useMemo(() => Array.from(new Set(guests.map(g => { const t = guestTableMap.get(g.id); return t ? `Mesa ${t.tableNumber}` : '' }).filter(Boolean))) as string[], [guests, guestTableMap])
   const createEventTag = async (tag: string) => {
+    if (!permiso.editar) return
     const t = tag.trim()
     if (!t || availableTags.some(x => x.toLowerCase() === t.toLowerCase())) return
     const next = [...availableTags, t]
@@ -1511,6 +1489,7 @@ export default function EventPage() {
     await supabase.from('events').update({ guest_tags: next }).eq('id', id)
   }
   const deleteEventTag = async (tag: string) => {
+    if (!permiso.borrar) return
     const next = availableTags.filter(t => t !== tag)
     setEvent(prev => prev ? { ...prev, guest_tags: next } : prev)
     await supabase.from('events').update({ guest_tags: next }).eq('id', id)
@@ -1522,6 +1501,7 @@ export default function EventPage() {
   }
   const createGroup = (group: string) => setGroupPool(prev => prev.includes(group) ? prev : [...prev, group])
   const deleteGroup = async (group: string) => {
+    if (!permiso.borrar) return
     setGroupPool(prev => prev.filter(g => g !== group))
     const affected = guests.filter(g => g.side === group)
     if (affected.length > 0) {
@@ -1531,6 +1511,7 @@ export default function EventPage() {
   }
   const createAllergy = (a: string) => setAllergyPool(prev => prev.includes(a) ? prev : [...prev, a])
   const deleteAllergy = async (a: string) => {
+    if (!permiso.borrar) return
     setAllergyPool(prev => prev.filter(x => x !== a))
     const affected = guests.filter(g => (g.allergies || []).includes(a))
     if (affected.length > 0) {
@@ -1641,13 +1622,13 @@ export default function EventPage() {
             <option value="declined">Declinados ({declined})</option>
           </select>
           <div className="hidden sm:block sm:flex-1" />
-          {someSelected && (
+          {someSelected && permiso.editar && (
             <button onClick={() => setShowMobileBulkSheet(true)}
               className="whitespace-nowrap rounded-lg bg-[#1D1E20] px-3 py-2 text-xs font-semibold text-white sm:hidden">
               {selected.size + selectedMembers.size} sel. ▾
             </button>
           )}
-          {someSelected && (
+          {someSelected && permiso.editar && (
             <div className="relative hidden sm:block" ref={bulkMenuRef}>
               <button onClick={() => setShowBulkMenu(!showBulkMenu)}
                 className="whitespace-nowrap rounded-lg bg-[#1D1E20] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#2d2e30]">
@@ -1736,13 +1717,17 @@ export default function EventPage() {
               </div>
             )}
           </div>
-          <button onClick={() => { setCsvError(''); setCsvSuccess(''); setCsvPreview(null); setShowCsvModal(true) }} className="hidden items-center gap-1.5 whitespace-nowrap rounded-lg border border-[#e0e0e0] px-3 py-2 text-xs text-[#666] transition hover:border-[#48C9B0] hover:text-[#48C9B0] sm:flex">
-            <Upload size={13} />Importar
-          </button>
-          <button onClick={() => setShowModal(true)}
-            className="shrink-0 whitespace-nowrap rounded-lg bg-[#48C9B0] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#3ab89f] sm:px-4 sm:text-sm">
-            + Agregar
-          </button>
+          <Puede modulo="invitados" accion="editar">
+            <button onClick={() => { setCsvError(''); setCsvSuccess(''); setCsvPreview(null); setShowCsvModal(true) }} className="hidden items-center gap-1.5 whitespace-nowrap rounded-lg border border-[#e0e0e0] px-3 py-2 text-xs text-[#666] transition hover:border-[#48C9B0] hover:text-[#48C9B0] sm:flex">
+              <Upload size={13} />Importar
+            </button>
+          </Puede>
+          <Puede modulo="invitados" accion="editar">
+            <button onClick={() => setShowModal(true)}
+              className="shrink-0 whitespace-nowrap rounded-lg bg-[#48C9B0] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#3ab89f] sm:px-4 sm:text-sm">
+              + Agregar
+            </button>
+          </Puede>
         </div>
 
         {filters.length > 0 && (
@@ -1785,9 +1770,12 @@ export default function EventPage() {
                       cobroBadge={tienePrecio ? <CobroBadge guest={guest} currency={currency} onConfirmar={() => confirmarPago(guest)} onDeshacer={() => deshacerPago(guest)} /> : undefined}
                       onSelect={() => toggleSelect(guest.id, gIdx, false)}
                       onEdit={() => openEdit(guest)} onDelete={() => deleteGuest(guest.id)}
+                      onCall={() => guest.phone && llamar(guest.phone)}
                       onWaLongPressStart={handleWaLongPressStart} onWaLongPressEnd={handleWaLongPressEnd}
                       onWaTouchMove={handleWaTouchMove} onStatusChange={(s) => updateStatus(guest.id, s)}
                       onOpenConversation={openConversation}
+                      puedeBorrar={permiso.borrar}
+                      puedeEditar={permiso.editar}
                     />
                     {groupColor && guest.party_members.map((m, mi) => {
                       const isLast = mi === guest.party_members.length - 1
@@ -1798,7 +1786,7 @@ export default function EventPage() {
                             <div className="h-6 w-[3px] shrink-0 rounded-full opacity-40" style={{ background: groupColor }} />
                             <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold" style={{ background: groupColor + '22', color: groupColor }}>+{mi + 1}</div>
                             <span className="flex-1 truncate text-xs text-[#888]">{m.name || 'Acompañante'}</span>
-                            <StatusDot value={m.rsvp_status} onChange={s => updatePartyMemberStatus(m.id, guest.id, s)} />
+                            <StatusDot value={m.rsvp_status} onChange={s => updatePartyMemberStatus(m.id, guest.id, s)} puedeEditar={permiso.editar} />
                           </div>
                         </div>
                       )
@@ -1930,8 +1918,8 @@ export default function EventPage() {
                         </div>
                       )}
                       {visibleCols.has('estatus') && (
-                        <select value={guest.rsvp_status} onChange={e => updateStatus(guest.id, e.target.value as RsvpStatus)}
-                          className="w-[120px] cursor-pointer rounded-md border px-2 py-1 text-xs font-semibold outline-none"
+                        <select value={guest.rsvp_status} onChange={e => updateStatus(guest.id, e.target.value as RsvpStatus)} disabled={!permiso.editar}
+                          className={'w-[120px] rounded-md border px-2 py-1 text-xs font-semibold outline-none ' + (permiso.editar ? 'cursor-pointer' : 'appearance-none')}
                           style={{ background: STATUS_LABEL[guest.rsvp_status].bg, borderColor: STATUS_LABEL[guest.rsvp_status].border, color: STATUS_LABEL[guest.rsvp_status].color }}>
                           <option value="mensaje_enviado">Mensaje enviado</option>
                           <option value="pending">Pendiente</option>
@@ -1941,9 +1929,11 @@ export default function EventPage() {
                           <option value="declined">Declinado</option>
                         </select>
                       )}
-                      <button onClick={() => deleteGuest(guest.id)} className="flex items-center justify-center p-1">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#cc3333" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">{TRASH_ICON}</svg>
-                      </button>
+                      <Puede modulo="invitados" accion="borrar">
+                        <button onClick={() => deleteGuest(guest.id)} className="flex items-center justify-center p-1">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#cc3333" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">{TRASH_ICON}</svg>
+                        </button>
+                      </Puede>
                     </div>
                     {groupColor && guest.party_members.map((m, mi) => {
                       const isLastMember = mi === guest.party_members.length - 1
@@ -1965,8 +1955,8 @@ export default function EventPage() {
                           {visibleCols.has('notas')    && <div />}
                           {visibleCols.has('telefono') && <div className="text-xs text-[#aaa]">{m.phone || ''}</div>}
                           {visibleCols.has('estatus')  && (
-                            <select value={m.rsvp_status} onChange={e => updatePartyMemberStatus(m.id, guest.id, e.target.value as RsvpStatus)}
-                              className="w-[120px] cursor-pointer rounded-md border px-2 py-1 text-xs font-semibold outline-none"
+                            <select value={m.rsvp_status} onChange={e => updatePartyMemberStatus(m.id, guest.id, e.target.value as RsvpStatus)} disabled={!permiso.editar}
+                              className={'w-[120px] rounded-md border px-2 py-1 text-xs font-semibold outline-none ' + (permiso.editar ? 'cursor-pointer' : 'appearance-none')}
                               style={{ background: STATUS_LABEL[m.rsvp_status].bg, borderColor: STATUS_LABEL[m.rsvp_status].border, color: STATUS_LABEL[m.rsvp_status].color }}>
                               <option value="mensaje_enviado">Mensaje enviado</option>
                               <option value="pending">Pendiente</option>
@@ -1976,9 +1966,11 @@ export default function EventPage() {
                               <option value="declined">Declinado</option>
                             </select>
                           )}
-                          <button onClick={() => deletePartyMember(m.id, guest.id)} className="flex items-center justify-center p-1 opacity-40 transition-opacity hover:opacity-100">
-                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#cc3333" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">{TRASH_ICON}</svg>
-                          </button>
+                          <Puede modulo="invitados" accion="borrar">
+                            <button onClick={() => deletePartyMember(m.id, guest.id)} className="flex items-center justify-center p-1 opacity-40 transition-opacity hover:opacity-100">
+                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#cc3333" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">{TRASH_ICON}</svg>
+                            </button>
+                          </Puede>
                         </div>
                       )
                     })}
@@ -2001,6 +1993,8 @@ export default function EventPage() {
           onClose={() => setEditGuest(null)}
           onDelete={() => { const gid = editGuest.id; setEditGuest(null); setTimeout(() => deleteGuest(gid), 0) }}
           onResolveAttention={() => resolveAttention(editGuest.id)}
+          puedeEditar={permiso.editar}
+          puedeBorrar={permiso.borrar}
         />
       )}
 
@@ -2066,7 +2060,20 @@ export default function EventPage() {
               <p className="mb-1 text-sm font-semibold text-[#1D1E20]">Resumen del archivo</p>
               <p className="text-xs text-[#666]">{csvPreview.rows.length} invitados encontrados</p>
               {csvPreview.hasDuplicates && <p className="mt-1 text-xs font-semibold text-[#cc3333]">{csvPreview.duplicates.length} con WhatsApp duplicado</p>}
+              {csvPreview.sinTelefono.length > 0 && <p className="mt-1 text-xs font-semibold text-[#999]">{csvPreview.sinTelefono.length} se {csvPreview.sinTelefono.length === 1 ? 'importa' : 'importan'} sin teléfono</p>}
             </div>
+            {csvPreview.sinTelefono.length > 0 && (
+              <div className="mb-4">
+                <p className="mb-2 text-xs font-semibold text-[#666]">Se importan sin teléfono:</p>
+                <div className="flex max-h-40 flex-col gap-1 overflow-y-auto rounded-lg border border-[#e8e8e8] bg-[#f8f8f8] p-3">
+                  {csvPreview.sinTelefono.map((s, i) => (
+                    <div key={i} className="text-xs text-[#666]">
+                      <span className="font-semibold text-[#1D1E20]">{s.name}</span> — no se entendió &ldquo;{s.raw}&rdquo;
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             {csvPreview.hasDuplicates && (
               <div className="mb-4">
                 <p className="mb-2 text-xs font-semibold text-[#cc3333]">Números duplicados detectados:</p>

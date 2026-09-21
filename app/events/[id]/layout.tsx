@@ -3,12 +3,16 @@
 import { useEffect, useState, useRef } from 'react'
 import { useParams, usePathname, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { Users, Images, Music2, Settings, LayoutGrid, PanelLeftClose, PanelLeftOpen, CalendarDays, House, User, LogOut, Wallet, Briefcase, Heart, MessageCircle, Receipt, Gift, UtensilsCrossed, Shirt, Palette, MailOpen, MessageSquarePlus } from 'lucide-react'
+import { Users, Images, Music2, Settings, LayoutGrid, PanelLeftClose, PanelLeftOpen, CalendarDays, House, User, LogOut, Wallet, Briefcase, Heart, MessageCircle, Receipt, Gift, UtensilsCrossed, Shirt, Palette, MailOpen, MessageSquarePlus, Building2 } from 'lucide-react'
 import { LEGACY_FEATURES, type FeatureKey } from '@/lib/features'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Event, formatEventDate } from '@/lib/types'
 import { EventAccessProvider, useEventAccess } from '@/lib/event-access-context'
 import { SalidaGuardProvider, useSalidaGuard } from './SalidaGuardProvider'
+import { filtrarPorPermiso, moduloDeRutaNav, primeraRutaVisible } from '@/lib/permisos/rutas'
+import { SinAcceso } from '@/app/components/ui/SinAcceso'
+import { Cargando } from '@/app/components/ui/Cargando'
+import { misWorkspacesAdministrados } from '@/lib/workspace/cliente'
 
 const EVENT_TYPE_LABELS: Record<string, string> = {
   boda:        'Boda',
@@ -292,7 +296,7 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
   const { id } = useParams()
   const pathname = usePathname()
   const router = useRouter()
-  const { canAdmin, features } = useEventAccess()
+  const { canAdmin, features, nivelDeModulo, isLoading } = useEventAccess()
   const salidaGuard = useSalidaGuard()
 
   // Toda salida del editor pasa por aqui: si hay cambios sin publicar, el
@@ -310,16 +314,35 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
   const [userName, setUserName]       = useState('')
   const [userEmail, setUserEmail]     = useState('')
   const [avatarOpen, setAvatarOpen]   = useState(false)
+  const [administra, setAdministra]   = useState(false)
 
   const navScrollRef = useRef<HTMLDivElement>(null)
   const avatarRef    = useRef<HTMLDivElement>(null)
 
-  const visibleEntries = filterNavByFeatures(
-    NAV_ITEMS.filter(entry =>
-      entry.type === 'item' ? (!entry.adminOnly || canAdmin) : true
+  const visibleEntries = filtrarPorPermiso(
+    filterNavByFeatures(
+      NAV_ITEMS.filter(entry =>
+        entry.type === 'item' ? (!entry.adminOnly || canAdmin) : true
+      ),
+      features,
     ),
-    features,
+    nivelDeModulo,
   )
+
+  // La raiz del evento ES Invitados, y todo lo que abre una boda apunta ahi:
+  // el tablero, aceptar la invitacion y el boton de <SinAcceso>. A quien no le
+  // toca Invitados le abrimos la primera herramienta que si le toca.
+  const enRaiz = pathname.replace(/\/+$/, '') === `/events/${id}`
+  const destinoRaiz =
+    enRaiz && !isLoading && nivelDeModulo('invitados') === 'ninguno'
+      ? primeraRutaVisible(visibleEntries)
+      : null
+
+  // replace y no push: con push el boton de atras rebota entre las dos.
+  useEffect(() => {
+    if (!destinoRaiz) return
+    router.replace(`/events/${id}${destinoRaiz}`)
+  }, [destinoRaiz, id, router])
 
   useEffect(() => {
     const stored = localStorage.getItem('gf_sidebar_collapsed')
@@ -352,6 +375,7 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
         const meta = session.user.user_metadata
         setUserName(meta?.full_name || '')
         setUserEmail(session.user.email || '')
+        misWorkspacesAdministrados().then(ws => setAdministra(ws.length > 0))
       }
     })
     return () => subscription.unsubscribe()
@@ -416,20 +440,20 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
     container.scrollTo({ left: Math.max(0, btnWidth * activeIndex - btnWidth), behavior: 'smooth' })
   }, [pathname, id, mobileItems.length])
 
-  if (!authChecked) {
-    return (
-      <div className="flex h-[100dvh] items-center justify-center bg-white">
-        <div className="flex flex-col items-center gap-3">
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#e8e8e8] border-t-[#48C9B0]" />
-          <p className="text-sm text-[#999]">Cargando...</p>
-        </div>
-      </div>
-    )
-  }
+  // La cascara se dibuja desde el primer frame y la espera vive SIEMPRE dentro
+  // del area de contenido. Si aqui se cortara con un <Cargando> aparte, serian
+  // dos instancias: al cambiar de una a otra la animacion reinicia y el logo
+  // salta de lugar, y se ve como dos animaciones seguidas.
+  const esperando = !authChecked || isLoading || Boolean(destinoRaiz)
 
   const initials      = getInitials(userName, userEmail)
   const displayStatus = event ? getDisplayStatus() : null
   const badgeStyle    = displayStatus ? EVENT_STATUS_STYLES[displayStatus] : null
+
+  const sufijoRuta   = pathname.replace(`/events/${id}`, '').replace(/\/+$/, '')
+  const moduloActual = moduloDeRutaNav(sufijoRuta)
+  const rutaBloqueada =
+    !isLoading && moduloActual !== null && nivelDeModulo(moduloActual) === 'ninguno'
 
   const AvatarDropdown = () => (
     <div className={`absolute bottom-full ${collapsed ? 'left-0' : 'right-0'} z-50 mb-2 w-52 overflow-hidden rounded-xl border border-[#e8e8e8] bg-white shadow-lg`}>
@@ -437,8 +461,17 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
         <p className="truncate text-xs font-semibold text-[#1D1E20]">{userName || 'Mi cuenta'}</p>
         <p className="truncate text-[11px] text-[#aaa]">{userEmail}</p>
       </div>
+      {administra && (
+        <button
+          onClick={() => { setAvatarOpen(false); irA('/configuracion/equipo') }}
+          className="flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-xs text-[#555] transition hover:bg-[#f8f8f8]"
+        >
+          <Building2 size={14} className="text-[#aaa]" />
+          Mi workspace
+        </button>
+      )}
       <button
-        onClick={() => { setAvatarOpen(false); irA('/perfil') }}
+        onClick={() => { setAvatarOpen(false); irA('/configuracion/perfil') }}
         className="flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-xs text-[#555] transition hover:bg-[#f8f8f8]"
       >
         <User size={14} className="text-[#aaa]" />
@@ -542,8 +575,17 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
                 <p className="truncate text-xs font-semibold text-[#1D1E20]">{userName || 'Mi cuenta'}</p>
                 <p className="truncate text-[11px] text-[#aaa]">{userEmail}</p>
               </div>
+              {administra && (
+                <button
+                  onClick={() => { setAvatarOpen(false); irA('/configuracion/equipo') }}
+                  className="flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-xs text-[#555] transition hover:bg-[#f8f8f8]"
+                >
+                  <Building2 size={14} className="text-[#aaa]" />
+                  Mi workspace
+                </button>
+              )}
               <button
-                onClick={() => { setAvatarOpen(false); irA('/perfil') }}
+                onClick={() => { setAvatarOpen(false); irA('/configuracion/perfil') }}
                 className="flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-xs text-[#555] transition hover:bg-[#f8f8f8]"
               >
                 <User size={14} className="text-[#aaa]" />
@@ -746,7 +788,19 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
 
         {/* MAIN */}
         <main className="flex min-h-0 flex-1 flex-col overflow-hidden bg-white pb-16 sm:pb-0">
-          {children}
+          {/* Mientras no sepamos los permisos NO se monta la herramienta: pintar
+              primero y tapar despues es como se alcanzaba a ver Invitados. */}
+          {esperando ? (
+            <Cargando
+              conLogo
+              mensaje="Preparando tu espacio de trabajo"
+              detalle="Revisando a qué herramientas tienes acceso"
+            />
+          ) : rutaBloqueada && moduloActual ? (
+            <SinAcceso modulo={moduloActual} volverA={primeraRutaVisible(visibleEntries)} />
+          ) : (
+            children
+          )}
         </main>
       </div>
 

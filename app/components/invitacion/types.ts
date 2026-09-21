@@ -1,5 +1,5 @@
 import type { DressCode } from '@/lib/dresscode'
-import type { RegistryPaymentMethod, Currency } from '@/lib/types'
+import type { RegistryPaymentMethod, Currency, GuestItineraryDay } from '@/lib/types'
 import type { ContactoPlanner } from '@/lib/invite/post-confirmacion'
 
 export type InviteGuest = {
@@ -12,7 +12,7 @@ export type InviteCompanion = { id?: string; name: string; rsvp_status: string; 
 
 export type InviteCtx = {
   event: {
-    name: string; event_type: string | null; event_date: string | null; event_time: string | null
+    name: string; event_type: string | null; event_date: string | null; event_end_date: string | null; event_time: string | null
     venue: string | null; address: string | null; host_name: string | null; host_name_2: string | null
   }
   // null en modo compartida: la puerta publica se pinta sin invitado, porque
@@ -20,7 +20,7 @@ export type InviteCtx = {
   guest: InviteGuest | null
   companions: InviteCompanion[]
   dressCode: DressCode | null
-  itinerary: { start_time: string; title: string; location: string | null }[]
+  itinerary: GuestItineraryDay[]
   tokens: { playlist: string | null; registry: string | null }
   mode: 'preview' | 'public' | 'compartida'
   onSubmit?: (payload: import('@/lib/invite').RsvpSubmission) => Promise<void>

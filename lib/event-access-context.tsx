@@ -1,9 +1,14 @@
 'use client'
 
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
+import { createContext, useContext, useState, useEffect, useCallback, useMemo, ReactNode } from 'react'
 import { supabase } from '@/lib/supabase'
 import { resolveFeatures, type FeatureKey } from '@/lib/features'
 import { logAction } from '@/lib/audit'
+import {
+  normalizarPermisos, nivelEfectivo, puede, resumir,
+  type RolCuenta, type ContextoPermiso,
+} from '@/lib/permisos/resolver'
+import type { Modulo, Nivel, PermisosEvento } from '@/lib/permisos/catalogo'
 
 // ============================================
 // Roles disponibles — owner es implícito (events.user_id)
@@ -23,6 +28,9 @@ interface EventAccessContextType {
   hasAccess: boolean
   features: Record<FeatureKey, boolean> | null   // null mientras carga
   updateFeatures: (next: Record<FeatureKey, boolean>) => Promise<boolean>
+  rolCuenta: RolCuenta
+  permisos: PermisosEvento | null
+  nivelDeModulo: (modulo: Modulo) => Nivel
 }
 
 const EventAccessContext = createContext<EventAccessContextType>({
@@ -35,6 +43,9 @@ const EventAccessContext = createContext<EventAccessContextType>({
   hasAccess: false,
   features: null,
   updateFeatures: async () => false,
+  rolCuenta: null,
+  permisos: null,
+  nivelDeModulo: () => 'ninguno',
 })
 
 // ============================================
@@ -51,6 +62,8 @@ export function EventAccessProvider({
   const [role, setRole] = useState<CollaboratorRole | null>(null)
   const [features, setFeatures] = useState<Record<FeatureKey, boolean> | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [rolCuenta, setRolCuenta] = useState<RolCuenta>(null)
+  const [permisos, setPermisos] = useState<PermisosEvento | null>(null)
 
   useEffect(() => {
     async function checkAccess() {
@@ -69,8 +82,27 @@ export function EventAccessProvider({
           setFeatures(resolveFeatures(event.event_type, settings?.enabled_features ?? null))
         }
 
+        // Una sola lectura de membresia para los dos caminos. 'dueno' aqui
+        // significa dueno DEL WORKSPACE, verificado contra workspace_members;
+        // ser dueno del evento ya lo expresa esDuenoDelEvento.
+        const leerRolCuenta = async (): Promise<RolCuenta> => {
+          try {
+            const { data: ev } = await supabase
+              .from('events').select('workspace_id').eq('id', eventId).maybeSingle()
+            if (!ev?.workspace_id) return null
+            const { data: miembro } = await supabase
+              .from('workspace_members').select('rol')
+              .eq('workspace_id', ev.workspace_id).eq('user_id', user.id).eq('status', 'active')
+              .maybeSingle()
+            return (miembro?.rol as RolCuenta) ?? null
+          } catch {
+            return null
+          }
+        }
+
         if (event?.user_id === user.id) {
           setRole('owner')
+          setRolCuenta(await leerRolCuenta())
           return
         }
 
@@ -85,6 +117,41 @@ export function EventAccessProvider({
         if (collaborator) {
           setRole(collaborator.role as CollaboratorRole)
         }
+
+        // Permisos por herramienta y rol de workspace: consultas aparte,
+        // tolerantes a que workspaces/workspace_members/permisos aun no existan.
+        // Si fallan con error de Postgrest, data llega null y se cae al respaldo
+        // legado (comportamiento de hoy). Try/catch propio: si alguna truena con
+        // una excepcion real (no un error tolerado), igual debe caer al respaldo
+        // legado, nunca dejar permisos en null.
+        let permisosLeidos: PermisosEvento | null = null
+        try {
+          const [{ data: fila }, rolLeido] = await Promise.all([
+            supabase
+              .from('event_collaborators')
+              .select('permisos')
+              .eq('event_id', eventId)
+              .eq('user_id', user.id)
+              .eq('status', 'active')
+              .maybeSingle(),
+            leerRolCuenta(),
+          ])
+
+          if (fila?.permisos != null) permisosLeidos = normalizarPermisos(fila.permisos)
+          setRolCuenta(rolLeido)
+        } catch (e) {
+          console.error(
+            '[event-access] Error leyendo el workspace o los permisos por herramienta, se cae al respaldo legado:',
+            e,
+          )
+        } finally {
+          // Sin permisos leidos no se otorga nada. El respaldo por rol legado
+          // que vivia aqui era failure-open: si esta lectura fallaba, le
+          // devolvia 'total' en los doce modulos a cualquier editor o admin
+          // viejo. La migracion ya escribio permisos para todos, asi que el
+          // respaldo no cubria a nadie y solo dejaba el riesgo.
+          setPermisos(permisosLeidos ?? {})
+        }
       } catch {
         console.error('[event-access] Error verificando acceso')
       } finally {
@@ -96,7 +163,7 @@ export function EventAccessProvider({
   }, [eventId])
 
   // Persiste el JSON completo (las 5 claves explicitas) y actualiza el estado local
-  const updateFeatures = async (next: Record<FeatureKey, boolean>) => {
+  const updateFeatures = useCallback(async (next: Record<FeatureKey, boolean>) => {
     const old = features
     const { error } = await supabase
       .from('event_settings')
@@ -118,17 +185,33 @@ export function EventAccessProvider({
       newValue: next,
     })
     return true
-  }
+  }, [eventId, features])
 
   // Derivar permisos del rol — una sola fuente de verdad
   const isOwner = role === 'owner'
   const canAdmin = role === 'owner' || role === 'admin'
   const canEdit = role === 'owner' || role === 'admin' || role === 'editor'
   const canInvite = role === 'owner' || role === 'admin'
-  const hasAccess = role !== null
 
-  return (
-    <EventAccessContext.Provider value={{
+  const ctxPermiso = useMemo<ContextoPermiso>(
+    () => ({ esDuenoDelEvento: isOwner, rolCuenta, permisos, features }),
+    [isOwner, rolCuenta, permisos, features],
+  )
+
+  // El acceso ES la suma de las herramientas (spec §6): sin una sola, no entras
+  // a la boda. Ya no se deriva de tener fila en event_collaborators, porque una
+  // fila con los doce modulos en 'ninguno' es exactamente no tener acceso.
+  const hasAccess = resumir(ctxPermiso).entra > 0
+
+  // Estable entre renders: <Puede> aparece decenas de veces por pantalla y
+  // nivelDeModulo es candidato natural a entrar en dependencias de useEffect.
+  const nivelDeModulo = useCallback(
+    (modulo: Modulo): Nivel => nivelEfectivo(ctxPermiso, modulo),
+    [ctxPermiso],
+  )
+
+  const value = useMemo<EventAccessContextType>(
+    () => ({
       role,
       isOwner,
       canEdit,
@@ -138,7 +221,15 @@ export function EventAccessProvider({
       hasAccess,
       features,
       updateFeatures,
-    }}>
+      rolCuenta,
+      permisos,
+      nivelDeModulo,
+    }),
+    [role, isOwner, canEdit, canAdmin, canInvite, isLoading, hasAccess, features, updateFeatures, rolCuenta, permisos, nivelDeModulo],
+  )
+
+  return (
+    <EventAccessContext.Provider value={value}>
       {children}
     </EventAccessContext.Provider>
   )
@@ -149,4 +240,15 @@ export function EventAccessProvider({
 // ============================================
 export function useEventAccess() {
   return useContext(EventAccessContext)
+}
+
+export function usePermiso(modulo: Modulo) {
+  const { nivelDeModulo } = useEventAccess()
+  const nivel = nivelDeModulo(modulo)
+  return {
+    nivel,
+    ver: puede(nivel, 'ver'),
+    editar: puede(nivel, 'editar'),
+    borrar: puede(nivel, 'borrar'),
+  }
 }

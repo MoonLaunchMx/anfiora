@@ -11,9 +11,12 @@ import {
 import { FaWhatsapp } from 'react-icons/fa'
 import { GiftRegistryItem, GiftReservation, RegistryPaymentMethod, RegistryExternalLink, RegistryShippingAddress, normalizePaymentMethods } from '@/lib/types'
 import { TabToggle, type TabItem } from '@/app/components/ui/TabToggle'
+import { useConfirm } from '@/app/components/ui/ConfirmModal'
 import StatsCollapse, { useStatsToggle, StatsToggleButton } from '@/app/components/ui/StatsCollapse'
 import AddGiftModal, { NewGiftData, GIFT_CATEGORIES } from './AddGiftModal'
 import PaymentMethodModal, { payTypeMeta } from './PaymentMethodModal'
+import { usePermiso } from '@/lib/event-access-context'
+import { Puede } from '@/lib/permisos/Puede'
 
 function generateToken(length = 10): string {
   const chars = 'abcdefghijklmnopqrstuvwxyz0123456789'
@@ -71,7 +74,9 @@ function SwipeableGiftCard({ enabled, onDelete, onClick, children }: {
 function MesaRegalosPageInner() {
   const { id } = useParams()
   const eventId = id as string
+  const permiso = usePermiso('regalos')
   const statsToggle = useStatsToggle(eventId, 'mesa-regalos')
+  const askConfirm  = useConfirm()
 
   const [items, setItems]               = useState<GiftRegistryItem[]>([])
   const [reservations, setReservations] = useState<GiftReservation[]>([])
@@ -120,12 +125,14 @@ function MesaRegalosPageInner() {
   }, [eventId])
 
   const handleGenerateLink = async () => {
+    if (!permiso.editar) return
     const newToken = generateToken()
     setToken(newToken)
     await supabase.from('event_settings').update({ registry_token: newToken }).eq('event_id', eventId)
   }
 
   const persistMethods = async (methods: RegistryPaymentMethod[]) => {
+    if (!permiso.editar) return
     setPayMethods(methods)
     await supabase
       .from('event_settings')
@@ -134,12 +141,20 @@ function MesaRegalosPageInner() {
   }
 
   const handleSaveMethod = async (m: RegistryPaymentMethod) => {
+    if (!permiso.editar) return
     const exists = payMethods.some(x => x.id === m.id)
     await persistMethods(exists ? payMethods.map(x => x.id === m.id ? m : x) : [...payMethods, m])
   }
 
   const handleDeleteMethod = async (id: string) => {
-    if (!confirm('¿Eliminar este método de pago?')) return
+    if (!permiso.borrar) return
+    const metodo = payMethods.find(x => x.id === id)
+    const nombre = metodo ? (metodo.label?.trim() || metodo.bank?.trim() || payTypeMeta(metodo.type).label) : null
+    const ok = await askConfirm({
+      title: nombre ? `¿Eliminar ${nombre}?` : '¿Eliminar esta forma de regalar?',
+      message: 'Tus invitados dejarán de verla como opción para mandar su regalo en efectivo.',
+    })
+    if (!ok) return
     await persistMethods(payMethods.filter(x => x.id !== id))
   }
 
@@ -157,6 +172,7 @@ function MesaRegalosPageInner() {
   }
 
   const persistExtLinks = async (links: RegistryExternalLink[]) => {
+    if (!permiso.editar) return
     setExtLinks(links)
     await supabase
       .from('event_settings')
@@ -165,6 +181,7 @@ function MesaRegalosPageInner() {
   }
 
   const handleAddExtLink = async () => {
+    if (!permiso.editar) return
     let url = newExtUrl.trim()
     if (!url) return
     if (!/^https?:\/\//i.test(url)) url = `https://${url}`
@@ -175,6 +192,7 @@ function MesaRegalosPageInner() {
   }
 
   const handleDeleteExtLink = async (linkId: string) => {
+    if (!permiso.borrar) return
     await persistExtLinks(extLinks.filter(l => l.id !== linkId))
   }
 
@@ -184,6 +202,7 @@ function MesaRegalosPageInner() {
   }
 
   const handleSaveAddress = async () => {
+    if (!permiso.editar) return
     const trimmed = Object.fromEntries(
       Object.entries(shipping).map(([k, v]) => [k, (v as string).trim()])
     ) as RegistryShippingAddress
@@ -199,6 +218,7 @@ function MesaRegalosPageInner() {
   }
 
   const handleSubmitGift = async (data: NewGiftData) => {
+    if (!permiso.editar) return
     if (editing) {
       const { data: updated } = await supabase
         .from('gift_registry_items').update(data).eq('id', editing.id).select().single()
@@ -215,13 +235,23 @@ function MesaRegalosPageInner() {
   const closeModal = () => { setShowAdd(false); setEditing(null) }
 
   const handleDeleteGift = async (itemId: string) => {
-    if (!confirm('¿Eliminar este regalo de la mesa?')) return
+    if (!permiso.borrar) return
+    const regalo = items.find(i => i.id === itemId)
+    const apartados = reservations.filter(r => r.item_id === itemId).length
+    const ok = await askConfirm({
+      title: regalo ? `¿Eliminar "${regalo.title}" de la mesa?` : '¿Eliminar este regalo de la mesa?',
+      message: apartados > 0
+        ? `${apartados === 1 ? 'Un invitado ya lo apartó' : `${apartados} invitados ya lo apartaron`}. También se borra ese registro.`
+        : 'Tus invitados dejarán de verlo en la mesa de regalos.',
+    })
+    if (!ok) return
     await supabase.from('gift_registry_items').delete().eq('id', itemId)
     setItems(prev => prev.filter(i => i.id !== itemId))
     setReservations(prev => prev.filter(r => r.item_id !== itemId))
   }
 
   const handleToggleThanked = async (r: GiftReservation) => {
+    if (!permiso.editar) return
     await supabase.from('gift_reservations').update({ thanked: !r.thanked }).eq('id', r.id)
     setReservations(prev => prev.map(x => x.id === r.id ? { ...x, thanked: !x.thanked } : x))
   }
@@ -238,6 +268,7 @@ function MesaRegalosPageInner() {
   }
 
   const thankByWhatsApp = async (r: GiftReservation, gift: GiftRegistryItem | undefined) => {
+    if (!permiso.editar) return
     window.open(waThanksUrl(r, gift), '_blank', 'noopener,noreferrer')
     if (r.thanked) return
     await supabase.from('gift_reservations').update({ thanked: true }).eq('id', r.id)
@@ -245,6 +276,7 @@ function MesaRegalosPageInner() {
   }
 
   const handleReceived = async (r: GiftReservation, gift: GiftRegistryItem | undefined) => {
+    if (!permiso.editar) return
     const willThank = !r.thanked && !!r.guest_phone
     if (willThank) window.open(waThanksUrl(r, gift), '_blank', 'noopener,noreferrer')
     const thanked = r.thanked || willThank
@@ -263,6 +295,7 @@ function MesaRegalosPageInner() {
     ) : (
       <button
         onClick={() => handleToggleThanked(r)}
+        disabled={!permiso.editar}
         title={r.thanked ? 'Quitar agradecido' : 'Marcar agradecido (sin WhatsApp)'}
         className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-medium transition
           ${r.thanked
@@ -275,6 +308,7 @@ function MesaRegalosPageInner() {
   )
 
   const actionFor = (r: GiftReservation, gift: GiftRegistryItem | undefined) => (
+    !permiso.editar ? null :
     !r.purchased ? (
       <button
         onClick={() => handleReceived(r, gift)}
@@ -334,8 +368,11 @@ function MesaRegalosPageInner() {
   const TABS: TabItem[] = [
     { key: 'regalos',   label: 'Regalos',   icon: Gift },
     { key: 'recibidos', label: 'Recibidos', icon: Heart, badge: reservations.length || undefined },
-    { key: 'config',    label: 'Configuración', shortLabel: 'Config', icon: Settings },
   ]
+
+  // Configuracion guarda cuentas de banco y la direccion de envio, asi que
+  // solo la ve quien puede editar. Con solo ver, la pestana no existe.
+  if (permiso.editar) TABS.push({ key: 'config', label: 'Configuración', shortLabel: 'Config', icon: Settings })
 
   if (loading) {
     return <div className="p-8 text-sm text-[#666]">Cargando mesa de regalos...</div>
@@ -449,12 +486,12 @@ function MesaRegalosPageInner() {
                 </button>
               ))}
             </div>
-            <button
+            <Puede modulo="regalos" accion="editar"><button
               onClick={openAdd}
               className="flex shrink-0 items-center gap-1.5 rounded-lg bg-[#48C9B0] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#3aa896]"
             >
               <Plus size={15} /> <span className="hidden sm:inline">Agregar regalo</span><span className="sm:hidden">Agregar</span>
-            </button>
+            </button></Puede>
           </div>
         )}
       </div>
@@ -472,12 +509,12 @@ function MesaRegalosPageInner() {
                 </div>
                 <p className="text-sm font-semibold text-[#1D1E20]">Tu mesa está vacía</p>
                 <p className="mt-1 text-xs text-[#888]">Agrega tu primer regalo para empezar a recibir detalles.</p>
-                <button
+                <Puede modulo="regalos" accion="editar"><button
                   onClick={openAdd}
                   className="mx-auto mt-4 flex items-center gap-1.5 rounded-lg bg-[#48C9B0] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#3aa896]"
                 >
                   <Plus size={14} /> Agregar regalo
-                </button>
+                </button></Puede>
               </div>
             ) : (
               <div className="space-y-2.5">
@@ -489,7 +526,7 @@ function MesaRegalosPageInner() {
                   return (
                     <SwipeableGiftCard
                       key={item.id}
-                      enabled={isMobile}
+                      enabled={isMobile && permiso.borrar}
                       onDelete={() => handleDeleteGift(item.id)}
                       onClick={() => openEdit(item)}
                     >
@@ -545,13 +582,13 @@ function MesaRegalosPageInner() {
                       </div>
 
                       <div className="flex shrink-0 flex-col items-end justify-between">
-                        <button
+                        {permiso.borrar && <button
                           onClick={(e) => { e.stopPropagation(); handleDeleteGift(item.id) }}
                           title="Eliminar"
                           className="hidden h-7 w-7 items-center justify-center rounded-md text-[#bbb] transition hover:bg-[#fff0f0] hover:text-[#cc3333] sm:flex"
                         >
                           <Trash2 size={14} />
-                        </button>
+                        </button>}
                         {res.count > 0 && (
                           <span className="flex items-center gap-1 text-[10px] text-[#aaa]">
                             <Heart size={11} className="text-[#48C9B0]" /> {res.count}
@@ -666,7 +703,7 @@ function MesaRegalosPageInner() {
         )}
 
         {/* ── Tab: Configuración ── */}
-        {tab === 'config' && (
+        {tab === 'config' && permiso.editar && (
           <div className="grid items-start gap-4 lg:grid-cols-2">
           {/* Columna izquierda: direccion de entrega + link publico */}
           <div className="space-y-4">
@@ -729,13 +766,13 @@ function MesaRegalosPageInner() {
             </div>
             <div className="mt-2 flex items-center justify-between gap-2">
               <p className="text-[10px] text-[#aaa]">Solo se muestra a invitados que apartan un regalo.</p>
-              <button
+              {permiso.editar && <button
                 onClick={handleSaveAddress}
                 disabled={!addrDirty}
                 className="flex shrink-0 items-center gap-1.5 rounded-lg bg-[#48C9B0] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#3aa896] disabled:opacity-50"
               >
                 {addrSaved ? <><Check size={14} /> Guardada</> : 'Guardar dirección'}
-              </button>
+              </button>}
             </div>
           </div>
 
@@ -775,12 +812,12 @@ function MesaRegalosPageInner() {
               </div>
             ) : (
               <div className="flex justify-end">
-                <button
+                <Puede modulo="regalos" accion="editar"><button
                   onClick={handleGenerateLink}
                   className="flex items-center gap-1.5 rounded-lg bg-[#1D1E20] px-3 py-2 text-xs font-semibold text-white transition hover:bg-black"
                 >
                   <Link2 size={14} /> Generar link
-                </button>
+                </button></Puede>
               </div>
             )}
           </div>
@@ -821,20 +858,20 @@ function MesaRegalosPageInner() {
                         <p className="truncate text-[11px] tabular-nums text-[#888]">{masked}</p>
                       </div>
                       <div className="flex shrink-0 items-center gap-1">
-                        <button
+                        {permiso.editar && <button
                           onClick={() => openEditMethod(m)}
                           title="Editar"
                           className="flex h-7 w-7 items-center justify-center rounded-md text-[#bbb] transition hover:bg-[#f5f5f5] hover:text-[#1D1E20]"
                         >
                           <Pencil size={13} />
-                        </button>
-                        <button
+                        </button>}
+                        {permiso.borrar && <button
                           onClick={() => handleDeleteMethod(m.id)}
                           title="Eliminar"
                           className="flex h-7 w-7 items-center justify-center rounded-md text-[#bbb] transition hover:bg-[#fff0f0] hover:text-[#cc3333]"
                         >
                           <Trash2 size={13} />
-                        </button>
+                        </button>}
                       </div>
                     </div>
                   )
@@ -843,12 +880,12 @@ function MesaRegalosPageInner() {
             )}
 
             <div className="flex justify-end">
-              <button
+              {permiso.editar && <button
                 onClick={openAddMethod}
                 className="flex items-center gap-1.5 rounded-lg bg-[#48C9B0] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#3aa896]"
               >
                 <Plus size={14} /> Agregar método
-              </button>
+              </button>}
             </div>
           </div>
 
@@ -882,20 +919,20 @@ function MesaRegalosPageInner() {
                       >
                         <Eye size={13} />
                       </a>
-                      <button
+                      {permiso.borrar && <button
                         onClick={() => handleDeleteExtLink(l.id)}
                         title="Eliminar"
                         className="flex h-7 w-7 items-center justify-center rounded-md text-[#bbb] transition hover:bg-[#fff0f0] hover:text-[#cc3333]"
                       >
                         <Trash2 size={13} />
-                      </button>
+                      </button>}
                     </div>
                   </div>
                 ))}
               </div>
             )}
 
-            <div className="flex gap-2">
+            {permiso.editar && <div className="flex gap-2">
               <input
                 className="min-w-0 flex-1 rounded-lg border border-[#e0e0e0] bg-white px-3 py-2 text-sm text-[#1D1E20] outline-none transition focus:border-[#48C9B0]"
                 value={newExtUrl}
@@ -909,7 +946,7 @@ function MesaRegalosPageInner() {
               >
                 <Plus size={14} /> Agregar
               </button>
-            </div>
+            </div>}
             {extError && <p className="mt-2 text-xs text-[#cc3333]">{extError}</p>}
           </div>
           </div>

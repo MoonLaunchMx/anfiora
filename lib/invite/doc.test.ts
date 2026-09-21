@@ -10,7 +10,15 @@ const makeId = () => `id-${++n}`
 describe('emptySection', () => {
   it('crea un bloque con puros defaults y el id dado', () => {
     const s = emptySection('portada', 'abc')
-    expect(s).toEqual({ id: 'abc', type: 'portada', content: { kicker: '', titulo: '', subtitulo: '' } })
+    expect(s).toEqual({
+      id: 'abc',
+      type: 'portada',
+      content: {
+        kicker: '', titulo: '', subtitulo: '',
+        mostrar_fecha: true, mostrar_hora: true, mostrar_lugar: true,
+        fecha_modo: 'auto', fecha_texto: '',
+      },
+    })
   })
   it('funciona para todos los tipos sin lanzar', () => {
     for (const t of SECTION_TYPES) {

@@ -1,8 +1,20 @@
-import { BudgetCategory, EventBudgetInsert } from '@/lib/types'
+import { BudgetCategory } from '@/lib/types'
 
 export type BudgetTier = 'esencial' | 'clasica' | 'premium'
 
 type BudgetItemTpl = { category: BudgetCategory; concepto: string }
+
+// category va aparte de EventBudgetInsert: es el nombre canonico del template,
+// el que el caller usa para resolver category_id contra categories antes de
+// insertar. No se guarda tal cual -EventBudgetInsert ya no tiene esa columna.
+export type SuggestedBudgetRow = {
+  event_id: string
+  category: BudgetCategory
+  subcategory: string
+  budget_amount: number
+  event_supplier_id: null
+  notes: null
+}
 
 const BODA_ESENCIAL: BudgetItemTpl[] = [
   { category: 'Venue',         concepto: 'Lugar / Salon' },
@@ -90,7 +102,7 @@ export function buildBudgetItems(
   eventCategory: string | null,
   tier: BudgetTier,
   existingKeys: Set<string>,
-): EventBudgetInsert[] {
+): SuggestedBudgetRow[] {
   let items: BudgetItemTpl[]
   if (eventType === 'boda') items = getBodaItems(tier)
   else if (eventCategory === 'corporativo') items = CORPORATIVO

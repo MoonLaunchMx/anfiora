@@ -34,8 +34,10 @@ export async function POST(req: NextRequest) {
 
   const newPlan = String(plan).trim().toLowerCase()
 
-  // El .select() al final es lo que permite contar filas afectadas: sin el, un
-  // UPDATE que no toca nada es indistinguible de uno exitoso.
+  // users.plan se sigue escribiendo por compatibilidad (nadie lo lee ya), y el
+  // plan de verdad va al workspace de esa persona. Si el SQL del Tramo 5 no ha
+  // corrido, la segunda escritura falla y se reporta como aviso: el cambio en
+  // users.plan basta mientras tanto porque /api/admin/users cae a esa columna.
   const { data: rows, error } = await supabaseAdmin
     .from('users')
     .update({ plan: newPlan })
@@ -48,5 +50,19 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: result.error }, { status: 500 })
   }
 
-  return NextResponse.json({ ok: true, plan: newPlan })
+  let warning: string | null = null
+  const { data: wsId, error: errWs } = await supabaseAdmin.rpc('asegurar_workspace', { uid: userId })
+  if (errWs || !wsId) {
+    warning = 'El plan quedo en users.plan; el workspace no se pudo actualizar (falta correr el SQL del Tramo 5)'
+    console.warn('[updatePlan]', warning, errWs?.message)
+  } else {
+    const { error: errPlan } = await supabaseAdmin
+      .from('workspaces').update({ plan: newPlan }).eq('id', wsId)
+    if (errPlan) {
+      warning = 'El workspace existe pero no acepto el plan: ' + errPlan.message
+      console.warn('[updatePlan]', warning)
+    }
+  }
+
+  return NextResponse.json({ ok: true, plan: newPlan, warning })
 }

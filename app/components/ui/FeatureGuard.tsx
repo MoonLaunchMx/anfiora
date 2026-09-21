@@ -2,7 +2,7 @@
 
 import { useState, type ReactNode } from 'react'
 import { useEventAccess } from '@/lib/event-access-context'
-import { FEATURES, type FeatureKey } from '@/lib/features'
+import { FEATURES, HIDDEN_FEATURES, type FeatureKey } from '@/lib/features'
 
 export default function FeatureGuard({ feature, children }: { feature: FeatureKey; children: ReactNode }) {
   const { features, canAdmin, updateFeatures } = useEventAccess()
@@ -18,8 +18,9 @@ export default function FeatureGuard({ feature, children }: { feature: FeatureKe
 
   if (features[feature]) return <>{children}</>
 
-  const config = FEATURES.find(f => f.key === feature)!
+  const config = (FEATURES.find(f => f.key === feature) ?? HIDDEN_FEATURES.find(f => f.key === feature))!
   const Icon = config.icon
+  const retired = !FEATURES.some(f => f.key === feature)
 
   const handleActivate = async () => {
     setActivating(true)
@@ -32,14 +33,17 @@ export default function FeatureGuard({ feature, children }: { feature: FeatureKe
       <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#f4f4f4]">
         <Icon size={22} className="text-[#aaa]" />
       </div>
-      <p className="text-sm font-semibold text-[#1D1E20]">Esta herramienta está desactivada para este evento</p>
-      <p className="max-w-sm text-xs leading-relaxed text-[#888]">
-        {config.label} no está activa.{' '}
-        {canAdmin
-          ? 'Puedes activarla aquí o desde Configuración — no se pierde ningún dato.'
-          : 'Pide al organizador del evento que la active desde Configuración.'}
+      <p className="text-sm font-semibold text-[#1D1E20]">
+        {retired ? 'Esta herramienta no está disponible' : 'Esta herramienta está desactivada para este evento'}
       </p>
-      {canAdmin && (
+      <p className="max-w-sm text-xs leading-relaxed text-[#888]">
+        {retired
+          ? `${config.label} ya no está disponible en Anfiora.`
+          : `${config.label} no está activa. ${canAdmin
+              ? 'Puedes activarla aquí o desde Configuración — no se pierde ningún dato.'
+              : 'Pide al organizador del evento que la active desde Configuración.'}`}
+      </p>
+      {canAdmin && !retired && (
         <button
           onClick={handleActivate}
           disabled={activating}

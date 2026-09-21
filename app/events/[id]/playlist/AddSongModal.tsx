@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { Music, Check } from 'lucide-react'
+import { usePermiso } from '@/lib/event-access-context'
 import { Modal } from '@/app/components/ui/Modal'
 
 interface SpotifyTrack {
@@ -33,6 +34,7 @@ export default function AddSongModal({
   onClose: () => void
   onAdded: (song: any) => void
 }) {
+  const permiso = usePermiso('playlist')
   const [query, setQuery]           = useState('')
   const [results, setResults]       = useState<SpotifyTrack[]>([])
   const [searching, setSearching]   = useState(false)
@@ -74,6 +76,7 @@ export default function AddSongModal({
   }
 
   const addTrack = async (track: SpotifyTrack) => {
+    if (!permiso.editar) return
     setAdding(true)
     setError('')
     const { data, error: insertError } = await supabase

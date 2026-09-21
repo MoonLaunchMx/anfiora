@@ -1,0 +1,398 @@
+<title>Quién invita, y quién hereda</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@300..900&family=Josefin+Sans:wght@600;700&display=swap">
+<style>
+:root{
+  --ground:#faf8f4;
+  --panel:#ffffff;
+  --panel-2:#f5f2ec;
+  --line:#e6e1d6;
+  --line-soft:#efebe3;
+  --ink:#16150f;
+  --ink-2:#6d6759;
+  --ink-3:#9c9585;
+  --gold:#b0842c;
+  --gold-fill:#d4a853;
+  --gold-wash:#fbf5e6;
+  --teal:#1f8a76;
+  --teal-fill:#48c9b0;
+  --teal-wash:#eaf8f4;
+  --bad:#b5352f;
+  --bad-wash:#fdf0ee;
+  --shadow:0 1px 2px rgba(22,21,15,.05), 0 8px 24px -18px rgba(22,21,15,.35);
+  --radius:10px;
+  --font:'Figtree',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --brand:'Josefin Sans','Figtree',sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --ground:#121110; --panel:#1b1a18; --panel-2:#232120;
+    --line:#33302c; --line-soft:#282624;
+    --ink:#f2efe8; --ink-2:#a8a294; --ink-3:#767061;
+    --gold:#e0b464; --gold-fill:#d4a853; --gold-wash:#2b2317;
+    --teal:#5fd8c0; --teal-fill:#48c9b0; --teal-wash:#132a26;
+    --bad:#e0736c; --bad-wash:#2c1b1a;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 30px -20px rgba(0,0,0,.9);
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#121110; --panel:#1b1a18; --panel-2:#232120;
+  --line:#33302c; --line-soft:#282624;
+  --ink:#f2efe8; --ink-2:#a8a294; --ink-3:#767061;
+  --gold:#e0b464; --gold-fill:#d4a853; --gold-wash:#2b2317;
+  --teal:#5fd8c0; --teal-fill:#48c9b0; --teal-wash:#132a26;
+  --bad:#e0736c; --bad-wash:#2c1b1a;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 30px -20px rgba(0,0,0,.9);
+}
+
+*{box-sizing:border-box}
+body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--font);font-size:15px;line-height:1.6;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1000px;margin:0 auto;padding:44px 22px 100px}
+
+h1,h2,h3,h4{margin:0;text-wrap:balance;letter-spacing:-.015em}
+h1{font-size:clamp(29px,4.2vw,42px);line-height:1.13;font-weight:600}
+h2{font-size:clamp(20px,2.5vw,25px);font-weight:600;line-height:1.25}
+h3{font-size:16.5px;font-weight:600}
+p{margin:0}
+.eyebrow{font-family:var(--brand);font-size:11px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--gold)}
+.lede{font-size:17px;color:var(--ink-2);max-width:62ch}
+.muted{color:var(--ink-2)}
+.dim{color:var(--ink-3)}
+.small{font-size:13.5px}
+.tiny{font-size:12px}
+strong{font-weight:600;color:var(--ink)}
+em{font-style:italic}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.88em;background:var(--panel-2);border:1px solid var(--line-soft);padding:1px 5px;border-radius:4px;color:var(--ink-2)}
+.w66{max-width:66ch}
+
+header.top{display:flex;flex-direction:column;gap:14px;padding-bottom:30px;border-bottom:1px solid var(--line)}
+.meta{display:flex;flex-wrap:wrap;gap:8px 20px;font-size:12.5px;color:var(--ink-3)}
+section{padding-top:50px;display:flex;flex-direction:column;gap:18px}
+.sec-head{display:flex;flex-direction:column;gap:7px}
+.sec-num{font-family:var(--brand);font-size:11px;font-weight:700;letter-spacing:.16em;color:var(--ink-3);text-transform:uppercase}
+.note{border-left:2px solid var(--gold-fill);padding:2px 0 2px 16px;color:var(--ink-2);font-size:14.5px;max-width:66ch}
+.cap{font-size:12.5px;color:var(--ink-3);max-width:74ch}
+
+/* referencia a una app grande */
+.ref{
+  border:1px solid var(--line);border-radius:9px;background:var(--panel);
+  padding:14px 16px;display:flex;flex-direction:column;gap:6px
+}
+.ref-top{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.ref-app{
+  font-family:var(--brand);font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--gold)
+}
+.ref-what{font-size:14px;font-weight:600}
+.ref-why{font-size:13.5px;color:var(--ink-2)}
+.refs{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:10px}
+
+/* opciones */
+.opts{display:flex;flex-direction:column;gap:11px}
+.opt{
+  border:1px solid var(--line);border-radius:var(--radius);background:var(--panel);
+  padding:16px 18px;display:flex;flex-direction:column;gap:9px
+}
+.opt.rec{border-color:var(--teal-fill);background:var(--teal-wash);box-shadow:var(--shadow)}
+.opt.no{opacity:.9}
+.opt-top{display:flex;align-items:center;gap:11px;flex-wrap:wrap}
+.opt-k{
+  font-size:11px;letter-spacing:.09em;text-transform:uppercase;font-weight:700;
+  color:var(--ink-3);border:1px solid var(--line);border-radius:5px;padding:2px 7px;flex:none
+}
+.opt.rec .opt-k{color:var(--teal);border-color:var(--teal-fill)}
+.badge-rec{
+  font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+  background:var(--teal-fill);color:#08312a;border-radius:999px;padding:3px 10px
+}
+.opt h3{flex:1 1 auto;min-width:180px}
+.pro-con{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;font-size:13.5px}
+@media (max-width:640px){.pro-con{grid-template-columns:1fr}}
+.pc{display:flex;flex-direction:column;gap:3px}
+.pc span{font-size:11px;letter-spacing:.09em;text-transform:uppercase;font-weight:700;color:var(--ink-3)}
+.pc.bien span{color:var(--teal)}
+.pc.mal span{color:var(--bad)}
+
+/* tablas */
+.twrap{overflow-x:auto}
+.tbl{width:100%;border-collapse:collapse;font-size:14px;min-width:520px}
+.tbl th{text-align:left;font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-3);padding:0 12px 9px;border-bottom:1px solid var(--line)}
+.tbl td{padding:13px 12px;border-bottom:1px solid var(--line-soft);vertical-align:top}
+.tbl tbody tr:last-child td{border-bottom:0}
+.tbl td:first-child,.tbl th:first-child{padding-left:2px}
+.screen{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:20px}
+
+.pill{display:inline-flex;align-items:center;white-space:nowrap;font-size:12px;font-weight:600;padding:3px 9px;border-radius:999px;border:1px solid var(--line);color:var(--ink-2);background:var(--panel-2)}
+.pill.gold{background:var(--gold-wash);border-color:var(--gold-fill);color:var(--gold)}
+.pill.teal{background:var(--teal-wash);border-color:var(--teal-fill);color:var(--teal)}
+.pill.free{border-style:dashed;background:transparent;color:var(--ink-3)}
+.pill.red{background:var(--bad-wash);border-color:var(--bad);color:var(--bad)}
+
+.arrow{color:var(--ink-3);padding:0 6px}
+.ask{border:1px solid var(--gold-fill);background:var(--gold-wash);border-radius:var(--radius);padding:17px 19px;display:flex;flex-direction:column;gap:8px}
+.ask h3{color:var(--gold)}
+
+footer{margin-top:60px;padding-top:22px;border-top:1px solid var(--line);color:var(--ink-3);font-size:12.5px;display:flex;flex-wrap:wrap;gap:6px 18px}
+@media (max-width:640px){.wrap{padding:30px 16px 70px}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+
+<div class="wrap">
+
+<header class="top">
+  <p class="eyebrow">Anfiora &middot; Accesos &middot; Documento 2 de 2</p>
+  <h1>Quién invita, y quién hereda</h1>
+  <p class="lede">Las dos preguntas que quedaron abiertas del modelo de accesos, pensadas a fondo y con la referencia de dónde ya está resuelto. Una recomendación por pregunta, con lo que se gana y lo que se paga.</p>
+  <div class="meta">
+    <span>4 de septiembre, 2026</span>
+    <span>Acompaña al mockup <em>Accesos del despacho</em></span>
+    <span>Pregunta A ya cerrada: el Admin sí puede otorgar el nivel Total</span>
+  </div>
+</header>
+
+<!-- ================= NUDO 1 ================= -->
+<section>
+  <div class="sec-head">
+    <p class="sec-num">Nudo 1</p>
+    <h2>"Invitar" son tres cosas distintas, y por eso no cerraba</h2>
+  </div>
+  <p class="muted w66">Cuando pregunté "¿un colaborador puede invitar?", la pregunta estaba mal hecha &mdash; por eso no te cuadró. Invitar a alguien a Anfiora puede significar tres cosas que no se parecen en nada: una cuesta dinero, otra reparte poder, y la tercera no hace ninguna de las dos.</p>
+
+  <div class="screen">
+    <div class="twrap">
+      <table class="tbl">
+        <thead>
+          <tr><th>Qué significa "invitar"</th><th>¿Cuesta?</th><th>¿Reparte poder?</th><th>Quién debería poder</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Dar de alta a alguien nuevo en el despacho</strong><br><span class="small muted">Contratas a Sofía. No existe en Anfiora.</span></td>
+            <td><span class="pill red">Sí, un asiento</span></td>
+            <td>Sí</td>
+            <td><strong>Dueño y Admin.</strong> Sin discusión &mdash; toca la factura.</td>
+          </tr>
+          <tr>
+            <td><strong>Meter a un compañero que ya existe a una boda</strong><br><span class="small muted">Juan quiere a Regina en la boda de los Cruz.</span></td>
+            <td><span class="pill free">No, ya se paga</span></td>
+            <td>Sí</td>
+            <td><strong>Dueño y Admin.</strong> Es repartir accesos, aunque no cueste.</td>
+          </tr>
+          <tr>
+            <td><strong>Invitar al cliente de esa boda</strong><br><span class="small muted">La novia entra a ver lo suyo.</span></td>
+            <td><span class="pill free">No, es gratis</span></td>
+            <td>Solo dentro de esa boda</td>
+            <td><span class="pill gold">Esta es la única pregunta real</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <p class="cap">Las dos primeras se contestan solas y coinciden con tu instinto: Owner &gt; Admin &gt; Colaborador. La tercera es la que vale la pena pensar, porque es la que te va a doler en la operación diaria.</p>
+</section>
+
+<!-- ================= LAS DOS REGLAS ================= -->
+<section>
+  <div class="sec-head">
+    <p class="sec-num">De dónde saco la respuesta</p>
+    <h2>Dos reglas que toda app grande aplica, sin excepción</h2>
+  </div>
+  <div class="refs">
+    <div class="ref">
+      <div class="ref-top"><span class="ref-app">Google Drive</span></div>
+      <p class="ref-what">Nadie regala un permiso que él mismo no tiene</p>
+      <p class="ref-why">Un "comentarista" en Drive no puede convertir a nadie en editor. Un editor sí puede compartir en solo-lectura. El permiso que otorgas siempre es <strong>igual o menor</strong> al tuyo. Es la regla anti-escalamiento, y es la más vieja del oficio: sin ella, el permiso más bajo del sistema se convierte en el más alto en dos pasos.</p>
+    </div>
+    <div class="ref">
+      <div class="ref-top"><span class="ref-app">Figma</span></div>
+      <p class="ref-what">Lo que cuesta dinero lo autoriza quien paga</p>
+      <p class="ref-why">En Figma cualquiera con acceso a un archivo lo puede compartir para <em>ver</em> &mdash; eso es gratis. Sumar un <em>editor</em> consume asiento, y eso pasa por el admin. La frontera del permiso no es jerárquica: es la factura. Misma lógica que necesitamos para que el cliente gratis no se vuelva la puerta trasera.</p>
+    </div>
+  </div>
+  <div class="note">Con esas dos reglas, la primera y la segunda fila de la tabla de arriba quedan cerradas para siempre y no hay que volver a discutirlas. Queda el cliente: <strong>no cuesta</strong> (pasa la regla de Figma) y <strong>solo recibe poder dentro de una boda</strong> (puede pasar la de Drive, si se lo damos bien).</div>
+</section>
+
+<!-- ================= OPCIONES B ================= -->
+<section>
+  <div class="sec-head">
+    <p class="sec-num">Nudo 1 &middot; la decisión</p>
+    <h2>¿Puede Juan meter a la novia a su propia boda?</h2>
+  </div>
+
+  <div class="opts">
+    <div class="opt rec">
+      <div class="opt-top">
+        <span class="opt-k">Opción 1</span>
+        <h3>No. Solo Dueño y Admin invitan a quien sea.</h3>
+        <span class="badge-rec">Recomendada</span>
+      </div>
+      <p class="small muted">Owner &gt; Admin &gt; Colaborador, tal cual lo dijiste. El colaborador trabaja; no reparte accesos de ningún tipo. Juan le escribe a Daniela y Daniela invita a la novia en veinte segundos.</p>
+      <div class="pro-con">
+        <div class="pc bien"><span>Lo que ganas</span><p class="muted">Una sola regla que cabe en una frase y no tiene excepciones. Cero superficie de fraude. Nada que configurar, nada que explicarle a nadie.</p></div>
+        <div class="pc mal"><span>Lo que pagas</span><p class="muted">Fricción cuando el despacho crezca: Juan tiene que interrumpir a alguien. Con 12 bodas y tu equipo actual, esa fricción todavía no existe.</p></div>
+      </div>
+      <div class="ref" style="background:var(--panel)">
+        <div class="ref-top"><span class="ref-app">Slack &middot; GitHub &middot; Notion</span></div>
+        <p class="ref-what">Los tres arrancan cerrado y lo abren con un switch</p>
+        <p class="ref-why">Slack, GitHub (<em>"allow members to invite outside collaborators"</em>) y Notion traen de fábrica <strong>solo admins invitan</strong>, y dejan que el dueño lo abra si su equipo lo pide. Ninguno arranca abierto. Es la posición de default de la industria completa, y también la tuya.</p>
+      </div>
+    </div>
+
+    <div class="opt">
+      <div class="opt-top">
+        <span class="opt-k">Opción 2</span>
+        <h3>El colaborador <em>pide</em>, el admin aprueba de un clic</h3>
+      </div>
+      <p class="small muted">Juan llena los datos de la novia y le llega a Daniela una solicitud con botón de aprobar. El trabajo lo hace quien está en la boda; la decisión la toma quien manda.</p>
+      <div class="pro-con">
+        <div class="pc bien"><span>Lo que ganas</span><p class="muted">Cero fricción real y control intacto. Es lo mejor de las dos.</p></div>
+        <div class="pc mal"><span>Lo que pagas</span><p class="muted">Es una fila de solicitudes: pantalla, avisos, estados. Es una feature completa para un dolor que <strong>hoy nadie tiene</strong>.</p></div>
+      </div>
+      <div class="ref" style="background:var(--panel)">
+        <div class="ref-top"><span class="ref-app">Slack</span></div>
+        <p class="ref-what">"Invitation requests" &mdash; la fila de aprobación</p>
+        <p class="ref-why">Slack la construyó justo cuando los equipos crecieron y los admins se volvieron el cuello de botella. Fíjate en el orden: <strong>primero existió el dolor, después la fila</strong>. No al revés.</p>
+      </div>
+    </div>
+
+    <div class="opt no">
+      <div class="opt-top">
+        <span class="opt-k">Opción 3</span>
+        <h3>Sí, libre &mdash; y solo puede dar lo que él mismo tiene</h3>
+      </div>
+      <p class="small muted">Juan invita a la novia sin pedirle permiso a nadie, pero solo le puede dar herramientas donde él ya entra, y a un nivel igual o menor al suyo. Es la regla de Google Drive aplicada tal cual.</p>
+      <div class="pro-con">
+        <div class="pc bien"><span>Lo que ganas</span><p class="muted">Velocidad máxima, y matemáticamente nadie puede escalar poder.</p></div>
+        <div class="pc mal"><span>Lo que pagas</span><p class="muted">Se te llena la cuenta de gente que tú nunca metiste, y si mañana el cliente llega a costar, ya hay cien invitados adentro. La regla de Drive frena el <em>poder</em>, no el <em>volumen</em>.</p></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="note">Voy con la <strong>Opción 1</strong> por una razón que ya viviste: en julio mataste la aprobación de solicitudes de la puerta pública porque era una feature nacida de un documento y no de un usuario molesto. Esta es la misma forma. La Opción 2 es correcta &mdash; pero se construye <strong>el día que Juan se queje</strong>, no antes. Mientras tanto dejamos el hueco listo: como el permiso ya vive en una sola función, abrirlo después es cambiar una condición.</div>
+</section>
+
+<!-- ================= NUDO 2 ================= -->
+<section>
+  <div class="sec-head">
+    <p class="sec-num">Nudo 2</p>
+    <h2>Qué pasa con la gente que ya está adentro</h2>
+  </div>
+  <p class="muted w66">Hoy cada colaborador está pegado a <em>una boda</em> con un rol: admin, editor o viewer. Mañana hay dos capas y niveles por herramienta. <strong>Nadie se puede quedar sin lugar</strong> &mdash; el día que corramos el cambio, cada persona que hoy trabaja tiene que amanecer en algún lado. La pregunta es dónde.</p>
+
+  <div class="screen">
+    <div class="twrap">
+      <table class="tbl">
+        <thead>
+          <tr><th>Hoy es&hellip;</th><th>&nbsp;</th><th>Mañana amanece como&hellip;</th><th>El detalle que importa</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Dueño del evento<br><span class="tiny dim">events.user_id</span></td>
+            <td class="arrow">&rarr;</td>
+            <td><span class="pill gold">Dueño del despacho</span></td>
+            <td class="small muted">Su despacho son sus eventos. Si dos personas distintas son dueñas de eventos distintos, salen <strong>dos despachos separados</strong>, no uno revuelto.</td>
+          </tr>
+          <tr>
+            <td><span class="pill">admin</span> de una boda</td>
+            <td class="arrow">&rarr;</td>
+            <td>Colaborador con <strong>Total en todo</strong>, solo en esa boda</td>
+            <td class="small muted"><strong>No sube a Admin del despacho.</strong> Si subiera, amanecería con acceso a bodas donde nunca lo invitaron. Eso no se hace en automático jamás.</td>
+          </tr>
+          <tr>
+            <td><span class="pill">editor</span> de una boda</td>
+            <td class="arrow">&rarr;</td>
+            <td><strong>Editar en todo</strong>, sin borrar</td>
+            <td class="small muted">Es el único que cambia de verdad: hoy puede borrar, mañana no, hasta que tú se lo des. Es la decisión de fondo de este documento.</td>
+          </tr>
+          <tr>
+            <td><span class="pill">viewer</span> de una boda</td>
+            <td class="arrow">&rarr;</td>
+            <td><strong>Ver en todo</strong></td>
+            <td class="small muted">Sin cambio &mdash; y por fin de verdad, porque hoy le salen botones que no sirven.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <p class="cap">Ese renglón del <strong>editor</strong> es el único que se discute. Todo lo demás es mecánico.</p>
+</section>
+
+<!-- ================= OPCIONES C ================= -->
+<section>
+  <div class="sec-head">
+    <p class="sec-num">Nudo 2 &middot; la decisión</p>
+    <h2>¿El editor de hoy conserva el poder de borrar?</h2>
+  </div>
+  <p class="muted w66">Hoy, en la base, un editor puede borrar cualquier cosa de su boda. Si el modelo nuevo dice que borrar es un nivel aparte, alguien tiene que decidir si esa gente lo conserva o lo entrega.</p>
+
+  <div class="opts">
+    <div class="opt">
+      <div class="opt-top">
+        <span class="opt-k">Opción 1</span>
+        <h3>Espejo exacto: todos conservan lo que tenían</h3>
+      </div>
+      <p class="small muted">Cada editor amanece con <strong>Total</strong> en las doce herramientas. Nadie nota nada.</p>
+      <div class="pro-con">
+        <div class="pc bien"><span>Lo que ganas</span><p class="muted">Cero llamadas de "ya no puedo hacer lo de siempre". Es lo que hace GitHub cuando cambia roles.</p></div>
+        <div class="pc mal"><span>Lo que pagas</span><p class="muted">Estrenas el modelo con todo el mundo en el nivel más alto. El cuidado con el borrado nace ya rebasado y nunca lo vas a revisar hacia atrás.</p></div>
+      </div>
+    </div>
+
+    <div class="opt rec">
+      <div class="opt-top">
+        <span class="opt-k">Opción 2</span>
+        <h3>Nadie sube de capa, y borrar se entrega a mano</h3>
+        <span class="badge-rec">Recomendada</span>
+      </div>
+      <p class="small muted">Cada quien conserva <strong>a qué entra</strong> &mdash; nadie pierde una boda ni una herramienta. Lo único que se suspende es <strong>borrar</strong>, y tú se lo devuelves a quien sí lo necesita, con una pantalla que te dice quién quedó dónde <em>antes</em> de aplicar nada.</p>
+      <div class="pro-con">
+        <div class="pc bien"><span>Lo que ganas</span><p class="muted">Nadie pierde acceso &mdash; solo la capacidad de destruir. Es reversible en un clic. Y son poquísimas personas: se revisa de una sentada.</p></div>
+        <div class="pc mal"><span>Lo que pagas</span><p class="muted">Un rato tuyo repartiendo Total, y quizá dos mensajes de "oye, no me deja borrar". Se contesta subiéndole el nivel en diez segundos.</p></div>
+      </div>
+      <div class="ref" style="background:var(--panel)">
+        <div class="ref-top"><span class="ref-app">GitHub &middot; AWS &middot; Jira</span></div>
+        <p class="ref-what">Nunca quites acceso en silencio &mdash; y enseña el resultado antes de aplicarlo</p>
+        <p class="ref-why">GitHub, al meter los roles Triage y Maintain, <strong>no movió a nadie</strong>: los nuevos roles fueron opcionales. AWS jamás cierra un permiso solo. Y Jira trae el <em>Permission Helper</em>, una pantalla para preguntar "¿qué puede hacer esta persona?" antes de confiar en el cambio.<br><br>Aquí seguimos la parte importante &mdash; nadie pierde acceso a nada, y hay pantalla de previo &mdash; y nos separamos en una sola cosa a propósito: <strong>borrar sí se suspende</strong>, porque lo que existe hoy no es una decisión que alguien tomó, es un permiso que quedó abierto por default.</p>
+      </div>
+    </div>
+
+    <div class="opt no">
+      <div class="opt-top">
+        <span class="opt-k">Opción 3</span>
+        <h3>Borrón y cuenta nueva: todos a Ver, tú repartes</h3>
+      </div>
+      <p class="small muted">El día del cambio nadie puede tocar nada hasta que tú lo autorices, herramienta por herramienta.</p>
+      <div class="pro-con">
+        <div class="pc bien"><span>Lo que ganas</span><p class="muted">El modelo nuevo arranca impecable, sin herencias raras.</p></div>
+        <div class="pc mal"><span>Lo que pagas</span><p class="muted">Le rompes el martes a gente que está trabajando en bodas reales. Un sistema de permisos que estrena tumbando al equipo arranca con la peor fama posible.</p></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="note">Dos condiciones que no se negocian, sin importar la opción que elijas. <strong>Una:</strong> el cambio no se corre hasta que el código esté en producción &mdash; es tu propia regla de sincronía, y aquí aplica al cuadrado, porque quien quede a medias se queda sin poder trabajar. <strong>Dos:</strong> antes de aplicar nada te enseño la lista completa &mdash; nombre por nombre, boda por boda, quién amanece con qué &mdash; y la corremos solo si la apruebas.</div>
+</section>
+
+<!-- ================= LO QUE FALTA ================= -->
+<section>
+  <div class="sec-head">
+    <p class="sec-num">Lo que necesito de ti</p>
+    <h2>Dos respuestas y escribo el spec</h2>
+  </div>
+  <div class="ask">
+    <h3>1 &middot; ¿Quién invita?</h3>
+    <p class="small muted">Mi voto: <strong>Opción 1</strong> &mdash; solo Dueño y Admin, y la fila de aprobación se construye el día que estorbe de verdad.</p>
+  </div>
+  <div class="ask">
+    <h3>2 &middot; ¿El editor de hoy conserva borrar?</h3>
+    <p class="small muted">Mi voto: <strong>Opción 2</strong> &mdash; nadie pierde acceso, borrar se suspende y tú lo repartes viendo la lista completa antes de que se aplique.</p>
+  </div>
+  <p class="cap">Hay un tercer punto que no es pregunta sino aviso: para escribir el SQL correcto necesito leer las políticas reales de la base. Hoy no hay evidencia en el repo de cómo están protegidas <code>guests</code>, <code>tables</code>, <code>event_timeline_tasks</code> ni <code>event_budgets</code>. Son dos consultas de solo lectura que te paso cuando lleguemos ahí. No frena el spec; frena el código.</p>
+</section>
+
+<footer>
+  <span>Anfiora &middot; accesos, documento 2</span>
+  <span>4-sep-2026</span>
+  <span>Para decisión</span>
+</footer>
+
+</div>
