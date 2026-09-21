@@ -30,6 +30,11 @@ export async function POST(req: NextRequest) {
   }
 
   let newPlan: string | null = null
+  // Valor crudo de users.plan antes de tocarlo: si el workspace termina sin
+  // aceptar el plan nuevo, se usa para revertir la escritura de compatibilidad
+  // y que un reintento no se tope con "ya tiene ese plan" comparando contra un
+  // valor que nunca cuajo en el workspace.
+  let originalUsersPlan: string | null = null
 
   if (plan) {
     const { data: target } = await supabaseAdmin
@@ -37,6 +42,7 @@ export async function POST(req: NextRequest) {
       .select('id, email, plan')
       .eq('id', userId)
       .maybeSingle()
+    originalUsersPlan = target?.plan ?? null
 
     // El plan de verdad vive en el workspace. Si una corrida anterior guardo
     // en users.plan pero el workspace fallo (SQL del Tramo 5 sin correr, o
@@ -93,11 +99,13 @@ export async function POST(req: NextRequest) {
   }
 
   let warning: string | null = null
+  let planWorkspaceFallo = false
   const { data: wsId, error: errWs } = await supabaseAdmin.rpc('asegurar_workspace', { uid: userId })
 
   if (errWs || !wsId) {
     warning = 'El workspace no se pudo actualizar (falta correr el SQL del Tramo 5)'
     console.warn('[updatePlan]', warning, errWs?.message)
+    if (plan) planWorkspaceFallo = true
   } else {
     if (plan) {
       // Igual que abajo con el sello: un UPDATE filtrado por RLS no da error,
@@ -109,6 +117,7 @@ export async function POST(req: NextRequest) {
       if (errPlan || !filasPlan || filasPlan.length === 0) {
         warning = 'El workspace existe pero no acepto el plan' + (errPlan ? ': ' + errPlan.message : '')
         console.warn('[updatePlan]', warning)
+        planWorkspaceFallo = true
       }
     }
 
@@ -128,5 +137,16 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  return NextResponse.json({ ok: true, plan: newPlan, sello, warning })
+  if (planWorkspaceFallo) {
+    // El workspace nunca acepto el plan nuevo: revertir la escritura de
+    // compatibilidad en users.plan. Sin esto, un reintento comparaba contra
+    // users.plan (ya con el valor nuevo) y respondia "ya tiene ese plan" pese
+    // a que el workspace se quedo con el viejo — el mismo sintoma que ya se
+    // cerro para el camino de la fila inexistente, sobreviviendo por este lado.
+    const { error: revertError } = await supabaseAdmin
+      .from('users').update({ plan: originalUsersPlan }).eq('id', userId)
+    if (revertError) console.warn('[updatePlan] no se pudo revertir users.plan', revertError.message)
+  }
+
+  return NextResponse.json({ ok: true, plan: planWorkspaceFallo ? originalUsersPlan : newPlan, sello, warning })
 }
