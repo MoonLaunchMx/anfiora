@@ -3,6 +3,7 @@ import type { Section } from '@/lib/invite/schema'
 import type { InviteCtx } from '../types'
 import { resolveInviteHeading } from '@/lib/invite'
 import SectionShell from '../SectionShell'
+import LegalLinks from '@/app/components/LegalLinks'
 
 type Content = Extract<Section, { type: 'cierre' }>['content']
 
@@ -26,6 +27,7 @@ export default function CierreSection({ content, ctx, portadaTitulo }: { content
       >
         Hecho con Anfiora
       </a>
+      <LegalLinks nuevaPestana className="opacity-70" />
     </SectionShell>
   )
 }

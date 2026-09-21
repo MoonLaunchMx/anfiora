@@ -7,7 +7,7 @@ import { supabase } from '@/lib/supabase'
 import { CURRENT_LEGAL_VERSION } from '@/lib/legal'
 import { Modal } from '@/app/components/ui/Modal'
 
-const EXCLUDED_PATHS = ['/terminos', '/privacidad']
+const EXCLUDED_PATHS = ['/terminos', '/privacidad', '/eliminar-datos']
 
 export default function LegalGate() {
   const pathname = usePathname()

@@ -207,6 +207,7 @@ export default function PaymentMethodModal({ isOpen, onClose, onSave, initial }:
             />
           </div>
 
+          <p className="text-[11px] leading-snug text-[#999]">Estos datos los verá cualquiera que abra el link de tu mesa de regalos.</p>
           {error && <p className="text-xs text-[#cc3333]">{error}</p>}
 
         </div>
