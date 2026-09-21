@@ -89,7 +89,7 @@ export default function LegalShell({ doc }: { doc: DocumentoLegal }) {
     <div className="flex min-h-[100dvh] flex-col bg-[var(--bg)] text-[var(--text)]">
       <SiteNav />
 
-      <div className="grid w-full flex-1 grid-cols-1 gap-0 px-5 pt-6 lg:grid-cols-[260px_minmax(0,1fr)] lg:gap-14 lg:px-10 lg:pt-10">
+      <div className="mx-auto grid w-full max-w-6xl flex-1 grid-cols-1 gap-0 px-5 pt-6 lg:grid-cols-[240px_minmax(0,1fr)] lg:gap-12 lg:pt-10">
         <aside className="sticky top-[76px] hidden self-start lg:flex lg:flex-col lg:gap-[26px]">
           <div>
             <h2 className="mb-2 text-[11px] uppercase tracking-[0.09em] text-[var(--text-muted)]">Documentos</h2>
