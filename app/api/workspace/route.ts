@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { normalizarPermisos } from '@/lib/permisos/resolver'
 import { bodasDelWorkspace, esAdministrador, planDelWorkspace, rolEnWorkspace, usuarioDeRequest } from '@/lib/workspace/servidor'
 import { elegirActivo } from '@/lib/workspace/activo'
+import { normalizarSello } from '@/lib/workspace/sello'
 import { reportError } from '@/lib/observabilidad/report'
 import type { AccesoSuelto, Cliente, Miembro, RolWorkspace, WorkspaceListado, WorkspaceResumen } from '@/lib/workspace/tipos'
 
@@ -129,6 +130,9 @@ export async function GET(req: NextRequest) {
 
   const activo: WorkspaceResumen = {
     id: activoId, name: String(ws.name), plan: await planDelWorkspace(admin, ws),
+    // La columna sello la crea la Tarea 12: select('*') simplemente no la trae
+    // mientras tanto, sin error, y normalizarSello(undefined) cae en null.
+    sello: normalizarSello(ws.sello),
     logoUrl: (ws.logo_url as string) ?? null,
     tagline: (ws.tagline as string) ?? null, miRol: mia.rol,
     esDuenoPrincipal: mia.es_dueno_principal, miembros, clientes, accesosSueltos, bodas,

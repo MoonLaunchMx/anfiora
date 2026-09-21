@@ -450,7 +450,9 @@ function Cascara({ children }: { children: ReactNode }) {
 
           {esAdmin && activo && (
             <div className="mt-auto flex flex-col gap-1 rounded-[10px] border border-[#e8e8e8] bg-white p-3">
-              <p className="text-xs font-semibold text-[#1D1E20]">Plan {etiquetaPlan(activo.plan)}</p>
+              <p className={`text-xs font-semibold ${activo.sello === 'fundador' ? 'text-[#b98d2e]' : 'text-[#1D1E20]'}`}>
+                {activo.sello === 'fundador' ? 'Partner fundador' : `Plan ${etiquetaPlan(activo.plan)}`}
+              </p>
               <p className="text-xs leading-[1.5] text-[#666]">{asientosTexto}</p>
               <p className="text-xs leading-[1.5] text-[#999]">
                 Eres {rolTexto(activo)} · {eventosActivos} evento{eventosActivos === 1 ? '' : 's'} activo{eventosActivos === 1 ? '' : 's'}

@@ -1,6 +1,7 @@
 import type { FeatureKey } from '@/lib/features'
 import type { PermisosEvento } from '@/lib/permisos/catalogo'
 import type { PlanId } from './planes'
+import type { Sello } from './sello'
 
 export type RolWorkspace = 'dueno' | 'admin' | 'colaborador'
 export type RolInvitable = 'admin' | 'colaborador'
@@ -68,6 +69,7 @@ export interface WorkspaceResumen {
   id: string
   name: string
   plan: PlanId
+  sello: Sello
   logoUrl: string | null
   tagline: string | null
   miRol: RolWorkspace
