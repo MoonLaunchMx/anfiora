@@ -12,9 +12,8 @@ import { useConfirm } from '@/app/components/ui/ConfirmModal'
 import { usePermiso } from '@/lib/event-access-context'
 import { Puede } from '@/lib/permisos/Puede'
 import { Cargando } from '@/app/components/ui/Cargando'
-import { contarPersonas, bloqueaPorTope, borrarPrimero, esErrorDeInvitados, parseErrorInvitados } from '@/lib/invitados/cupo'
+import { contarPersonas, bloqueaPorTope, esErrorDeInvitados, parseErrorInvitados } from '@/lib/invitados/cupo'
 import { esErrorDeArchivado, MENSAJE_EVENTO_ARCHIVADO } from '@/lib/capacity'
-import { reportError } from '@/lib/observabilidad/report'
 import { limiteInvitadosDelEvento } from '@/lib/workspace/cliente'
 import { MuroModal } from '@/app/components/MuroModal'
 
@@ -140,7 +139,7 @@ type DecoItem = { id: string; type: string; label: string; x: number; y: number;
 // ─── TIPOS ────────────────────────────────────
 function normalizePhone(p: string) { return p.replace(/\D/g, '') }
 type EditMember  = { id?: string; name: string; phone: string; rsvp_status: 'pending' | 'confirmed' | 'declined' }
-type PartyMember = { id: string; name: string; rsvp_status: 'pending' | 'confirmed' | 'declined'; checked_in: boolean }
+type PartyMember = { id: string; name: string; phone: string | null; rsvp_status: 'pending' | 'confirmed' | 'declined'; checked_in: boolean }
 type GuestFull   = Pick<Guest, 'id' | 'name' | 'rsvp_status'> & { tags: string[]; party_size: number; notes: string | null; phone?: string | null; email?: string | null; checked_in: boolean; party_members: PartyMember[] }
 type SeatRecord  = { id: string; table_id: string; event_id: string; seat_number: number; guest_id: string | null; party_size: number; guest?: GuestFull | null }
 type TableRecord = { id: string; event_id: string; number: number; name: string | null; capacity: number; shape: string; rotation: number; position_x: number; position_y: number; created_at: string; seats: SeatRecord[] }
@@ -1327,10 +1326,10 @@ function MesasPageInner() {
       supabase.from('tables').select('*').eq('event_id',eventId).order('number'),
       fetchAll<SeatRow>((f,t)=>supabase.from('table_seats').select('*').eq('event_id',eventId).order('seat_number').range(f,t)),
       fetchAll<GuestRow>((f,t)=>supabase.from('guests').select('id,name,rsvp_status,tags,party_size,notes,phone,email,checked_in').eq('event_id',eventId).order('name').order('id').range(f,t)),
-      fetchAll<MemberRow>((f,t)=>supabase.from('party_members').select('id,guest_id,name,rsvp_status,checked_in').eq('event_id',eventId).order('created_at').order('id').range(f,t)),
+      fetchAll<MemberRow>((f,t)=>supabase.from('party_members').select('id,guest_id,name,phone,rsvp_status,checked_in').eq('event_id',eventId).order('created_at').order('id').range(f,t)),
     ])
     const gMap=new Map<string,GuestFull>()
-    for(const g of guestsData){const members=membersData.filter(m=>m.guest_id===g.id);gMap.set(g.id,{...g,tags:g.tags||[],notes:g.notes||null,phone:g.phone||null,email:g.email||null,checked_in:g.checked_in||false,party_size:1+members.length,party_members:members.map(m=>({...m,checked_in:m.checked_in||false}))})}
+    for(const g of guestsData){const members=membersData.filter(m=>m.guest_id===g.id);gMap.set(g.id,{...g,tags:g.tags||[],notes:g.notes||null,phone:g.phone||null,email:g.email||null,checked_in:g.checked_in||false,party_size:1+members.length,party_members:members.map(m=>({...m,phone:m.phone||null,checked_in:m.checked_in||false}))})}
     const combined:TableRecord[]=(tR.data||[]).map(t=>({...t,rotation:t.rotation||0,seats:seatsData.filter(s=>s.table_id===t.id).map(s=>({...s,guest:s.guest_id?gMap.get(s.guest_id)||null:null}))}))
     return {combined,guestsList:Array.from(gMap.values())}
   }
@@ -1383,7 +1382,10 @@ function MesasPageInner() {
     setENotes(g.notes||'')
     setETags(g.tags||[])
     setEError('')
-    setEMembers(g.party_members.map(m=>({id:m.id,name:m.name,phone:'',rsvp_status:m.rsvp_status})))
+    // El telefono real, no vacio: guardar mandaba ese vacio encima del que
+    // ya estaba en la base y le borraba el telefono a todos los acompanantes
+    // en cada edicion, se tocaran o no.
+    setEMembers(g.party_members.map(m=>({id:m.id,name:m.name,phone:m.phone||'',rsvp_status:m.rsvp_status})))
   }
 
   // ─── FIX: handleEditSave con validacion de capacidad ─────────────────────
@@ -1472,80 +1474,37 @@ function MesasPageInner() {
       rsvp_status: m.rsvp_status,
     }))
 
-    // deletedOk/insertedOk terminan reflejando lo que DE VERDAD paso en la
-    // base (nunca lo que se planeaba), para que el tamano escrito en el
-    // asiento nunca quede por encima de lo que en verdad esta sentado ahi.
-    let deletedOk = toDel.length === 0
+    // Siempre se inserta primero y solo se borra si el insert entro: es la
+    // unica consecuencia predecible cuando borrar e insertar son DOS
+    // escrituras separadas (no una transaccion). Nunca se pierde un dato,
+    // porque nada se borra hasta que lo nuevo ya esta guardado. El costo
+    // aceptado: una cuenta exactamente en el tope no puede intercambiar un
+    // acompanante por otro de un jalon (ve el aviso de tope); hacerlo en dos
+    // pasos -- borrar y guardar, luego agregar y guardar -- si funciona.
     let insertedOk = insertRows.length === 0
     let aviso: string | null = null
-
-    if (borrarPrimero(totalPersonas, toDel.length, ins.length, limiteInvitadosEvento)) {
-      // Cabe borrando primero: libera lugar antes de insertar, asi una
-      // cuenta EXACTAMENTE en el tope nunca ve el muro por un intercambio.
-      if (toDel.length > 0) {
-        // Copia completa desde la base ANTES de borrar, por si hay que
-        // devolver estos acompanantes a su lugar: el PartyMember local de
-        // esta pantalla solo trae id/name/rsvp_status/checked_in (no
-        // telefono, alergias ni etiquetas), asi que reconstruir del estado
-        // local le borraria esos datos al restaurar. Sin una copia completa
-        // garantizada, no se arriesga el borrado.
-        const { data: copia, error: copiaError } = await supabase
-          .from('party_members').select('*').in('id', toDel)
-        if (copiaError || !copia || copia.length !== toDel.length) {
-          aviso = 'No se pudo verificar a los acompañantes actuales. Intenta de nuevo.'
+    if (insertRows.length > 0) {
+      const { error: insError } = await supabase.from('party_members').insert(insertRows)
+      insertedOk = !insError
+      if (insError) {
+        // Se revisa siempre, sin suponer que esta operacion "no podia ser de
+        // plan": es la unica escritura que la base puede rechazar por tope,
+        // asi que cualquier rechazo por tope tiene que salir como el aviso
+        // real, nunca como "intenta de nuevo".
+        if (esErrorDeInvitados(insError)) {
+          const datos = parseErrorInvitados(insError.message)
+          setMuroInvitados({ limite: datos?.limite ?? limiteInvitadosEvento ?? 0 })
         } else {
-          const restoreRows = copia.map(({ id: _id, created_at: _created_at, ...resto }) => resto)
-          const { error: delError } = await supabase.from('party_members').delete().in('id', toDel)
-          deletedOk = !delError
-          if (delError) aviso = 'No se pudo actualizar a los acompañantes. Intenta de nuevo.'
-          if (deletedOk && insertRows.length > 0) {
-            const { error: insError } = await supabase.from('party_members').insert(insertRows)
-            insertedOk = !insError
-            if (insError) {
-              // Esta operacion no crecia la cuenta: nunca es un problema de
-              // plan. Se devuelve lo borrado a su lugar con la copia completa
-              // que se tomo antes de borrar, para que nadie pierda un
-              // acompanante ni sus datos.
-              const { error: restoreError } = await supabase.from('party_members').insert(restoreRows)
-              if (!restoreError) deletedOk = false
-              else reportError(restoreError, { zona: 'planner' })
-              aviso = 'No se pudo guardar el cambio de acompañantes. Se conservaron los que ya tenías.'
-            }
-          } else if (!deletedOk) {
-            insertedOk = false
-          }
-        }
-      } else if (insertRows.length > 0) {
-        const { error: insError } = await supabase.from('party_members').insert(insertRows)
-        insertedOk = !insError
-        if (insError) aviso = 'No se pudieron agregar los acompañantes nuevos. Intenta de nuevo.'
-      }
-    } else {
-      // No cabe borrando primero (crezca o no la cuenta): insertar primero es
-      // lo seguro, porque si el insert fallara no se habria borrado nada
-      // todavia. Para una cuenta que crece, bloqueaPorTope ya garantizo que
-      // cabe; para una cuenta ya muy pasada del tope que solo intercambia, el
-      // insert se rechaza igual (el disparador juzga el total, no el
-      // crecimiento) y el aviso de tope es honesto.
-      if (insertRows.length > 0) {
-        const { error: insError } = await supabase.from('party_members').insert(insertRows)
-        insertedOk = !insError
-        if (insError) {
-          if (esErrorDeInvitados(insError)) {
-            const datos = parseErrorInvitados(insError.message)
-            setMuroInvitados({ limite: datos?.limite ?? limiteInvitadosEvento ?? 0 })
-          } else {
-            aviso = 'No se pudieron agregar los acompañantes nuevos. Intenta de nuevo.'
-          }
+          aviso = 'No se pudieron agregar los acompañantes nuevos. Intenta de nuevo.'
         }
       }
-      if (insertedOk && toDel.length > 0) {
-        const { error: delError } = await supabase.from('party_members').delete().in('id', toDel)
-        deletedOk = !delError
-        if (delError) aviso = 'Los acompañantes nuevos se guardaron, pero no se pudieron quitar los removidos.'
-      } else if (!insertedOk) {
-        deletedOk = false
-      }
+    }
+
+    let deletedOk = toDel.length === 0
+    if (insertedOk && toDel.length > 0) {
+      const { error: delError } = await supabase.from('party_members').delete().in('id', toDel)
+      deletedOk = !delError
+      if (delError) aviso = 'Los acompañantes nuevos se guardaron, pero no se pudieron quitar los removidos.'
     }
 
     // El tamano real segun lo que de verdad quedo en la base: nunca el que
