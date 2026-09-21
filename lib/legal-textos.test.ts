@@ -87,6 +87,27 @@ describe('documentos legales', () => {
     }
   })
 
+  it('no hay comas antes de y, o ni ni: es la regla de copy de Diego', () => {
+    for (const doc of DOCUMENTOS_LEGALES) {
+      for (const sec of doc.secciones) {
+        for (const bloque of sec.bloques) {
+          const textos = bloque.tipo === 'lista' ? bloque.items
+            : bloque.tipo === 'tabla' ? bloque.filas.flat()
+            : [bloque.texto]
+          for (const t of textos) expect(t).not.toMatch(/, (y|o|ni) /)
+        }
+      }
+      for (const linea of doc.enCorto ?? []) expect(linea).not.toMatch(/, (y|o|ni) /)
+      for (const paso of doc.pasos ?? []) expect(paso.detalle).not.toMatch(/, (y|o|ni) /)
+    }
+  })
+
+  it('solo el aviso trae el resumen En corto, con cinco lineas', () => {
+    expect(documentoLegal('privacidad').enCorto).toHaveLength(5)
+    expect(documentoLegal('terminos').enCorto).toBeUndefined()
+    expect(documentoLegal('eliminar').enCorto).toBeUndefined()
+  })
+
   it('documentoLegal encuentra por clave y truena con una desconocida', () => {
     expect(documentoLegal('terminos').titulo).toBe('Términos y Condiciones')
     // @ts-expect-error clave invalida a proposito

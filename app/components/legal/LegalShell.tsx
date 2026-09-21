@@ -1,11 +1,11 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import Image from 'next/image'
 import Link from 'next/link'
 import { ChevronDown, Mail } from 'lucide-react'
 import { CURRENT_LEGAL_VERSION, LEGAL_EFFECTIVE_DATE, LEGAL_EMAIL } from '@/lib/legal'
 import { DOCUMENTOS_LEGALES, formatearInline, type BloqueLegal, type DocumentoLegal } from '@/lib/legal-textos'
+import { SiteNav, SiteFooter } from './SiteChrome'
 
 function Inline({ texto }: { texto: string }) {
   return (
@@ -72,7 +72,7 @@ export default function LegalShell({ doc }: { doc: DocumentoLegal }) {
         const visible = entradas.filter(e => e.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0]
         if (visible) setActiva(visible.target.id)
       },
-      { rootMargin: '-80px 0px -70% 0px' }
+      { rootMargin: '-120px 0px -70% 0px' }
     )
     doc.secciones.forEach(s => {
       const el = document.getElementById(s.id)
@@ -86,16 +86,11 @@ export default function LegalShell({ doc }: { doc: DocumentoLegal }) {
     : `Versión ${CURRENT_LEGAL_VERSION} · última actualización: ${LEGAL_EFFECTIVE_DATE}`
 
   return (
-    <div className="min-h-[100dvh] bg-[var(--bg)] text-[var(--text)]">
-      <header className="flex items-center gap-3.5 border-b border-[var(--border)] bg-[var(--bg)] px-4 py-3.5 sm:px-8 sm:py-4">
-        <Link href="/">
-          <Image src="/images/isotipoylogo.svg" alt="Anfiora" width={110} height={32} priority className="h-[22px] w-auto sm:h-[26px]" />
-        </Link>
-        <Link href="/" className="ml-auto text-[13px] text-[var(--text-sec)] hover:text-[var(--text)]">Volver al inicio</Link>
-      </header>
+    <div className="flex min-h-[100dvh] flex-col bg-[var(--bg)] text-[var(--text)]">
+      <SiteNav />
 
-      <div className="grid w-full grid-cols-1 gap-0 px-[18px] pt-[18px] lg:grid-cols-[260px_minmax(0,1fr)] lg:gap-14 lg:px-10 lg:pt-10 xl:px-16">
-        <aside className="sticky top-7 hidden self-start lg:flex lg:flex-col lg:gap-[26px]">
+      <div className="grid w-full flex-1 grid-cols-1 gap-0 px-5 pt-6 lg:grid-cols-[260px_minmax(0,1fr)] lg:gap-14 lg:px-10 lg:pt-10">
+        <aside className="sticky top-[76px] hidden self-start lg:flex lg:flex-col lg:gap-[26px]">
           <div>
             <h2 className="mb-2 text-[11px] uppercase tracking-[0.09em] text-[var(--text-muted)]">Documentos</h2>
             <div className="flex flex-col gap-0.5">
@@ -155,10 +150,27 @@ export default function LegalShell({ doc }: { doc: DocumentoLegal }) {
             <p className="text-[12.5px] tabular-nums text-[var(--text-muted)]">{meta}</p>
           </div>
 
+          {doc.enCorto && (
+            <section aria-label="Resumen" className="mt-7 rounded-[14px] border border-[var(--border)] bg-[var(--surface)] p-5 lg:p-6">
+              <h2 className="mb-3 text-[11px] uppercase tracking-[0.09em] text-[var(--text-muted)]">En corto</h2>
+              <ul className="flex flex-col gap-2">
+                {doc.enCorto.map((linea, i) => (
+                  <li key={i} className="flex gap-2.5 text-sm leading-[1.5] text-[var(--text-sec)]">
+                    <span aria-hidden className="mt-[7px] h-1.5 w-1.5 flex-none rounded-full bg-[#48C9B0]" />
+                    <span>{linea}</span>
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-3.5 text-xs text-[var(--text-muted)]">
+                Este resumen es informativo. El texto completo de abajo es el que aplica.
+              </p>
+            </section>
+          )}
+
           <details
             open={indiceAbierto}
             onToggle={e => setIndiceAbierto((e.currentTarget as HTMLDetailsElement).open)}
-            className="border-y border-[var(--border)] lg:hidden"
+            className="mt-5 border-y border-[var(--border)] lg:hidden"
           >
             <summary className="flex cursor-pointer list-none items-center justify-between py-3 text-[13.5px] font-semibold [&::-webkit-details-marker]:hidden">
               <span>En esta página <span className="ml-1.5 font-normal text-[var(--text-muted)]">{doc.secciones.length}</span></span>
@@ -198,14 +210,14 @@ export default function LegalShell({ doc }: { doc: DocumentoLegal }) {
 
           <div className="text-sm leading-[1.7] text-[var(--text-sec)]">
             {doc.secciones.map(s => (
-              <section key={s.id} id={s.id} className="scroll-mt-5 border-b border-[var(--border)] py-7 last:border-b-0">
+              <section key={s.id} id={s.id} className="scroll-mt-24 border-b border-[var(--border)] py-7 last:border-b-0">
                 <h2 className="mb-3 text-pretty text-[17px] font-semibold tracking-[-0.01em] text-[var(--text)] lg:text-[19px]">{s.titulo}</h2>
                 {s.bloques.map((b, i) => <Bloque key={i} bloque={b} />)}
               </section>
             ))}
           </div>
 
-          <div className="mt-5 flex flex-wrap items-center justify-between gap-4 border-t border-[var(--border)] py-[22px]">
+          <div className="mb-10 mt-5 flex flex-wrap items-center justify-between gap-4 border-t border-[var(--border)] py-[22px]">
             <div>
               <p className="text-[17px] font-semibold text-[var(--text)]">{doc.contactoTitulo}</p>
               <p className="mt-0.5 text-[13px] text-[var(--text-sec)]">Le respondemos por correo.</p>
@@ -218,18 +230,10 @@ export default function LegalShell({ doc }: { doc: DocumentoLegal }) {
               {LEGAL_EMAIL}
             </a>
           </div>
-
-          <footer className="flex flex-col-reverse items-start justify-between gap-x-6 gap-y-2.5 border-t border-[var(--border)] px-0 pb-8 pt-5 text-xs text-[var(--text-muted)] sm:flex-row sm:items-center">
-            <span>© 2026 Anfiora</span>
-            <nav className="flex flex-wrap gap-x-[18px] gap-y-1.5">
-              {DOCUMENTOS_LEGALES.map(d => (
-                <Link key={d.clave} href={d.ruta} className="text-xs text-[var(--text-muted)] hover:text-[var(--text)]">{d.pestana}</Link>
-              ))}
-              <a href={`mailto:${LEGAL_EMAIL}`} className="text-xs text-[var(--text-muted)] hover:text-[var(--text)]">Contacto</a>
-            </nav>
-          </footer>
         </main>
       </div>
+
+      <SiteFooter />
     </div>
   )
 }

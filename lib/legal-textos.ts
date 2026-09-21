@@ -32,6 +32,9 @@ export type PasoLegal = { titulo: string; detalle: string }
 
 export type DocumentoLegal = {
   clave: 'privacidad' | 'terminos' | 'eliminar'
+  // El resumen humano que va arriba del documento. El texto completo manda:
+  // esto no agrega obligaciones, solo dice en corto lo que ya dicen las secciones.
+  enCorto?: string[]
   ruta: string
   pestana: string
   titulo: string
@@ -50,13 +53,20 @@ const PRIVACIDAD: DocumentoLegal = {
   titulo: 'Aviso de Privacidad',
   entrada: 'Qué datos guarda Anfiora, para qué los usa, con quién los comparte y cómo pedir que los borremos.',
   contactoTitulo: '¿Dudas sobre tus datos?',
+  enCorto: [
+    'Guardamos lo necesario para organizar su evento: su cuenta, sus invitados, sus proveedores y sus mensajes.',
+    'No vendemos sus datos ni los de sus invitados.',
+    'Los datos de los invitados son del organizador. Anfiora solo los procesa por su cuenta.',
+    'Las alergias y los datos bancarios son opcionales. Se piden solo donde hacen falta.',
+    'Puede pedir que borremos todo escribiendo a hola@anfiora.com.',
+  ],
   secciones: [
     {
       id: 'responsable',
       titulo: 'Responsable del tratamiento',
       bloques: [
         { tipo: 'parrafo', texto: `${LEGAL_RESPONSABLE}, con domicilio para oír y recibir notificaciones en ${LEGAL_DOMICILIO}, es el responsable del tratamiento de los datos personales que se recaban a través de Anfiora, disponible en **www.anfiora.com**.` },
-        { tipo: 'parrafo', texto: 'Cuando un organizador captura en Anfiora los datos de sus invitados, clientes o proveedores, el organizador es el responsable de esos datos frente a ellos, y Anfiora los trata por su cuenta, como encargado, para prestarle el servicio.' },
+        { tipo: 'parrafo', texto: 'Cuando un organizador captura en Anfiora los datos de sus invitados, clientes o proveedores, el organizador es el responsable de esos datos frente a ellos. Anfiora los trata por su cuenta, como encargado, para prestarle el servicio.' },
         { tipo: 'parrafo', texto: `Para cualquier asunto relacionado con sus datos personales, escríbanos a ${E}.` },
       ],
     },
@@ -109,7 +119,7 @@ const PRIVACIDAD: DocumentoLegal = {
           '**De salud:** alergias, restricciones alimentarias y condiciones que un invitado mencione (por ejemplo, embarazo, diabetes o discapacidad) para que el evento lo atienda.',
           '**Financieros:** datos bancarios que el organizador publica en la mesa de regalos (banco, titular, CLABE o número de tarjeta) y la dirección de envío.',
         ] },
-        { tipo: 'parrafo', texto: 'Estos datos son opcionales: el evento funciona sin ellos. Los pedimos solo donde hacen falta, señalando en el mismo formulario para qué son, y se tratan únicamente para organizar el evento. No los usamos para ninguna finalidad secundaria ni los compartimos con nadie fuera de los proveedores de tecnología listados más abajo.' },
+        { tipo: 'parrafo', texto: 'Estos datos son opcionales: el evento funciona sin ellos. Los pedimos solo donde hacen falta, señalando en el mismo formulario para qué son. Se tratan únicamente para organizar el evento y no se usan para finalidades secundarias.' },
       ],
     },
     {
@@ -153,8 +163,8 @@ const PRIVACIDAD: DocumentoLegal = {
           ['Giphy', 'Búsqueda de GIFs', 'EUA'],
           ['Google, Apple y Mozilla', 'Entrega de notificaciones del navegador', 'EUA'],
         ] },
-        { tipo: 'parrafo', texto: 'Algunas páginas cargan contenido de Google Fonts, YouTube, TikTok, Instagram, Spotify o Giphy cuando el organizador lo agrega, y las recomendaciones de la invitación muestran la vista previa del sitio que él enlaza. Esos servicios reciben su dirección IP y se rigen por sus propios avisos de privacidad.' },
-        { tipo: 'parrafo', texto: 'Estas transferencias internacionales son necesarias para prestar el servicio y se realizan conforme a la LFPDPPP.' },
+        { tipo: 'parrafo', texto: 'Algunas páginas cargan contenido de Google Fonts, YouTube, TikTok, Instagram, Spotify o Giphy cuando el organizador lo agrega. Las recomendaciones de la invitación muestran la vista previa del sitio que él enlaza. Esos servicios reciben su dirección IP y se rigen por sus propios avisos de privacidad.' },
+        { tipo: 'parrafo', texto: 'Estas transferencias internacionales son necesarias para prestar el servicio y se realizan conforme a la LFPDPPP. La lista de proveedores puede cambiar con el tiempo. La versión vigente es la publicada en esta página.' },
       ],
     },
     {
@@ -168,7 +178,7 @@ const PRIVACIDAD: DocumentoLegal = {
           'Redacta la respuesta al invitado',
           'Guarda notas breves de la conversación para responder mejor después',
         ] },
-        { tipo: 'parrafo', texto: 'Para hacerlo, la inteligencia artificial recibe el mensaje, la conversación previa, el nombre del invitado y los datos del evento. No se toman decisiones automatizadas con efectos legales sobre usted: el organizador ve todo el historial y puede corregir cualquier dato que se haya cambiado automáticamente.' },
+        { tipo: 'parrafo', texto: 'Para hacerlo recibe el mensaje, la conversación previa y los datos del evento que hagan falta para responder. No se toman decisiones automatizadas con efectos legales sobre usted: el organizador ve el historial y puede corregir cualquier dato que se haya cambiado automáticamente.' },
       ],
     },
     {
@@ -192,7 +202,7 @@ const PRIVACIDAD: DocumentoLegal = {
           '**Sesión:** su sesión de Anfiora se guarda en el almacenamiento local del navegador.',
           '**Preferencias:** vistas, columnas y avisos que ya vio.',
           '**Analítica:** PostHog usa una cookie con un identificador anónimo y registra las páginas visitadas, su dirección IP y su dispositivo.',
-          '**Errores:** Sentry graba algunas sesiones, con el texto y las imágenes ocultos, para reproducir fallas.',
+          '**Errores:** grabamos algunas sesiones de navegación, con el contenido oculto, para reproducir fallas.',
         ] },
         { tipo: 'parrafo', texto: 'Puede borrar o bloquear estos datos desde la configuración de su navegador. Si borra la sesión, tendrá que volver a iniciar sesión.' },
       ],
@@ -202,8 +212,15 @@ const PRIVACIDAD: DocumentoLegal = {
       titulo: 'Conservación de datos',
       bloques: [
         { tipo: 'parrafo', texto: 'Conservamos sus datos mientras su cuenta o el evento sigan activos.' },
-        { tipo: 'parrafo', texto: 'Cuando se elimina una cuenta, borramos de inmediato el perfil, sus eventos y todo lo que cuelga de ellos (invitados, mensajes, proveedores, presupuestos y pagos), los archivos que se hayan subido y la cuenta de acceso. Si la solicitud nos llega por correo, la atendemos en un plazo máximo de 30 días naturales.' },
+        { tipo: 'parrafo', texto: 'Cuando se elimina una cuenta, borramos su perfil, la información asociada a ella y los archivos que se hayan subido. Si la solicitud nos llega por correo, la atendemos en un plazo máximo de 30 días naturales.' },
         { tipo: 'parrafo', texto: 'Solo conservamos, por el tiempo que la ley nos obligue, la información que debamos guardar para efectos fiscales o para acreditar el cumplimiento de estos documentos.' },
+      ],
+    },
+    {
+      id: 'seguridad',
+      titulo: 'Seguridad de la información',
+      bloques: [
+        { tipo: 'parrafo', texto: 'Aplicamos medidas administrativas, técnicas y físicas razonables para proteger sus datos personales contra el acceso no autorizado, la pérdida o la alteración. Ningún sistema es infalible: si ocurre una vulneración que afecte de forma significativa sus derechos, se lo comunicaremos conforme a la ley.' },
       ],
     },
     {
@@ -241,7 +258,7 @@ const TERMINOS: DocumentoLegal = {
       { tipo: 'parrafo', texto: 'Usted es responsable de la veracidad de los datos de su cuenta, de mantener la confidencialidad de su contraseña y de toda actividad realizada bajo su cuenta. Si invita a miembros de su equipo o a clientes, usted responde por lo que hagan con los permisos que les otorga. Debe ser mayor de edad para registrarse.' },
     ] },
     { id: 'uso', titulo: 'Uso aceptable', bloques: [
-      { tipo: 'parrafo', texto: 'Usted se compromete a no usar la Plataforma para fines ilícitos, enviar spam o comunicaciones no autorizadas, vulnerar la seguridad del servicio, ni infringir derechos de terceros. Podemos suspender cuentas que incumplan estas reglas.' },
+      { tipo: 'parrafo', texto: 'Usted se compromete a no usar la Plataforma para fines ilícitos, enviar spam o comunicaciones no autorizadas, vulnerar la seguridad del servicio ni infringir derechos de terceros. Podemos suspender cuentas que incumplan estas reglas.' },
     ] },
     { id: 'datos-invitados', titulo: 'Datos de invitados y responsabilidad del organizador', bloques: [
       { tipo: 'parrafo', texto: 'Usted puede cargar datos personales de terceros, como nombre, teléfono, correo, alergias o datos bancarios para la mesa de regalos. Usted declara que cuenta con la base legítima y, cuando se trate de datos sensibles o financieros, con el consentimiento expreso de sus titulares para tratarlos y compartirlos con Anfiora con el fin de prestar el servicio. Usted es el responsable del tratamiento de esos datos frente a sus invitados; Anfiora actúa como encargado que los procesa por cuenta suya.' },
@@ -262,7 +279,7 @@ const TERMINOS: DocumentoLegal = {
       { tipo: 'parrafo', texto: 'La Plataforma puede mostrar videos, GIFs, canciones o enlaces a tiendas de terceros que usted agrega. Ese contenido se rige por los términos de cada servicio y Anfiora no responde por su disponibilidad.' },
     ] },
     { id: 'responsabilidad', titulo: 'Limitación de responsabilidad', bloques: [
-      { tipo: 'parrafo', texto: 'La Plataforma se ofrece sin garantías de disponibilidad ininterrumpida o ausencia de errores. En la máxima medida permitida por la ley, Anfiora no será responsable por daños indirectos, incidentales o consecuentes, ni por pérdida de datos derivada del uso o imposibilidad de uso del servicio. Nuestra responsabilidad total se limita al monto pagado por usted en los últimos 12 meses.' },
+      { tipo: 'parrafo', texto: 'La Plataforma se ofrece sin garantías de disponibilidad ininterrumpida o ausencia de errores. En la máxima medida permitida por la ley, Anfiora no será responsable por daños indirectos, incidentales o consecuentes ni por pérdida de datos derivada del uso o imposibilidad de uso del servicio. Nuestra responsabilidad total se limita al monto pagado por usted en los últimos 12 meses.' },
     ] },
     { id: 'indemnizacion', titulo: 'Indemnización', bloques: [
       { tipo: 'parrafo', texto: 'Usted se compromete a mantener indemne a Anfiora frente a reclamaciones de terceros derivadas del uso indebido de la Plataforma o del incumplimiento de estos Términos, incluyendo el tratamiento de datos de invitados sin base legítima.' },
@@ -300,13 +317,13 @@ const ELIMINAR: DocumentoLegal = {
       { tipo: 'subtitulo', texto: 'Organizadores, miembros de su equipo y clientes:' },
       { tipo: 'parrafo', texto: 'Personas con cuenta en Anfiora que administran o consultan eventos, invitados, presupuestos y proveedores.' },
       { tipo: 'subtitulo', texto: 'Invitados, proveedores y contactos:' },
-      { tipo: 'parrafo', texto: 'Personas cuyos datos capturó un organizador, o que conversaron por WhatsApp o Telegram a través de la plataforma. No necesita tener cuenta para solicitar la eliminación.' },
+      { tipo: 'parrafo', texto: 'Personas cuyos datos capturó un organizador o que conversaron por WhatsApp o Telegram a través de la plataforma. No necesita tener cuenta para solicitar la eliminación.' },
     ] },
     { id: 'que-se-elimina', titulo: 'Qué datos se eliminan', bloques: [
       { tipo: 'lista', items: [
         'Datos de la cuenta: nombre, correo, teléfono y foto de perfil',
         'Datos de invitados: nombre, teléfono, correo, alergias y confirmación',
-        'Conversaciones por WhatsApp y Telegram, y las notas del asistente de IA',
+        'Conversaciones por WhatsApp y Telegram, con las notas del asistente de IA',
         'Proveedores, presupuestos, pagos y sus archivos (cotizaciones y comprobantes)',
         'Imágenes, audios y documentos que se hayan subido a sus eventos',
         'Registro de actividad y datos de uso vinculados a la cuenta',
@@ -318,7 +335,7 @@ const ELIMINAR: DocumentoLegal = {
       { tipo: 'lista', items: [
         'Nombre completo',
         'Correo electrónico o número de teléfono asociado a sus datos',
-        'Los datos que desea eliminar, o indique que desea eliminar todo',
+        'Los datos que desea eliminar. Si quiere eliminar todo, indíquelo',
       ] },
       { tipo: 'parrafo', texto: 'Si usted es invitado, también puede pedir directamente al organizador que elimine sus datos de la lista del evento.' },
     ] },
