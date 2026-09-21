@@ -22,9 +22,12 @@ async function postToTelegram(url: string, body: BodyInit, headers?: HeadersInit
   return null
 }
 
-function comoNumero(v: unknown): number {
+// null (no fabricar un numero cuando el dato no se pudo leer) se queda como
+// null: solo un numero valido no-negativo pasa.
+function comoNumeroONulo(v: unknown): number | null {
+  if (v === null) return null
   const n = Number(v)
-  return Number.isFinite(n) && n >= 0 ? n : 0
+  return Number.isFinite(n) && n >= 0 ? n : null
 }
 
 export async function POST(req: NextRequest) {
@@ -68,8 +71,8 @@ export async function POST(req: NextRequest) {
     tipoDeCuenta: acotarCampo(body.tipoDeCuenta, 'tipoDeCuenta') || 'planner',
     planActual: acotarCampo(body.planActual, 'planActual') || 'free',
     sello: body.sello === 'fundador' ? 'fundador' : null,
-    eventosVigentes: comoNumero(body.eventosVigentes),
-    personasEnEvento: comoNumero(body.personasEnEvento),
+    eventosVigentes: comoNumeroONulo(body.eventosVigentes),
+    personasEnEvento: comoNumeroONulo(body.personasEnEvento),
     motivo,
     eventosAlAno: acotarCampo(body.eventosAlAno, 'eventosAlAno'),
     tipoDeEventos: acotarCampo(body.tipoDeEventos, 'tipoDeEventos'),

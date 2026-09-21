@@ -51,6 +51,30 @@ describe('mensaje de solicitud', () => {
   })
 })
 
+describe('mensaje de solicitud con datos no disponibles', () => {
+  it('nunca fabrica un numero: null se dice "no disponible"', () => {
+    const texto = armarMensajeSolicitud({
+      nombre: 'Bodas Planner',
+      email: 'patty@ejemplo.com',
+      telefono: '+528111111111',
+      tipoDeCuenta: 'planner',
+      planActual: 'free',
+      sello: null,
+      eventosVigentes: null,
+      personasEnEvento: null,
+      motivo: 'invitados',
+      eventosAlAno: '',
+      tipoDeEventos: '',
+      tamanoDeEquipo: '',
+      contactoPreferido: 'WhatsApp',
+      ciudad: '',
+      mensaje: '',
+    })
+    expect(texto).toContain('Eventos vigentes: no disponible')
+    expect(texto).toContain('Personas en el evento: no disponible')
+  })
+})
+
 describe('acotarCampo', () => {
   it('deja intacto un texto que ya cabe', () => {
     expect(acotarCampo('Monterrey', 'ciudad')).toBe('Monterrey')

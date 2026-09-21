@@ -5,8 +5,8 @@ export interface DatosSolicitud {
   tipoDeCuenta: string
   planActual: string
   sello: string | null
-  eventosVigentes: number
-  personasEnEvento: number
+  eventosVigentes: number | null
+  personasEnEvento: number | null
   motivo: 'eventos' | 'invitados'
   eventosAlAno: string
   tipoDeEventos: string
@@ -52,8 +52,8 @@ export function armarMensajeSolicitud(d: DatosSolicitud): string {
     'Tipo de cuenta: ' + d.tipoDeCuenta,
     'Plan actual: ' + d.planActual + (d.sello ? ' (' + d.sello + ')' : ''),
     'Tope que topo: ' + d.motivo,
-    'Eventos vigentes: ' + d.eventosVigentes,
-    'Personas en el evento: ' + d.personasEnEvento,
+    'Eventos vigentes: ' + (d.eventosVigentes ?? 'no disponible'),
+    'Personas en el evento: ' + (d.personasEnEvento ?? 'no disponible'),
     'Eventos al ano: ' + d.eventosAlAno,
     'Tipo de eventos: ' + d.tipoDeEventos,
     'Tamano de equipo: ' + d.tamanoDeEquipo,

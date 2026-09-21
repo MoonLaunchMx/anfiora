@@ -7,6 +7,7 @@ import { Aviso } from '@/app/components/ui/Aviso'
 import { supabase } from '@/lib/supabase'
 import { PAID_PLAN_IDS, PLANES, normalizarPlan } from '@/lib/workspace/planes'
 import { normalizarSello, type Sello } from '@/lib/workspace/sello'
+import { esEventoVigente, hoyISO } from '@/lib/workspace/eventos'
 import type { DatosSolicitud } from '@/lib/solicitud/mensaje'
 
 interface MuroModalProps {
@@ -14,6 +15,11 @@ interface MuroModalProps {
   motivo: 'eventos' | 'invitados'
   limite: number
   onClose: () => void
+  // El evento que disparo el aviso de invitados: solo con esto se puede
+  // contar personas reales (invitados + acompanantes) de ESE evento. Sin
+  // eventId no se fabrica un numero, se manda null y el reporte dice
+  // "no disponible".
+  eventId?: string
 }
 
 type Paso = 'aviso' | 'formulario' | 'enviado'
@@ -25,14 +31,14 @@ interface Contexto {
   tipoDeCuenta: string
   planActual: string
   sello: Sello
-  eventosVigentes: number
-  personasEnEvento: number
+  eventosVigentes: number | null
+  personasEnEvento: number | null
 }
 
 const inputCls =
   'mt-1 w-full rounded-lg border border-[#d0d0d0] bg-white px-3 py-2 text-sm text-[#1D1E20] outline-none focus:border-[#48C9B0]'
 
-async function cargarContexto(motivo: 'eventos' | 'invitados', limite: number): Promise<{
+async function cargarContexto(motivo: 'eventos' | 'invitados', eventId: string | undefined): Promise<{
   contexto: Contexto | null
   nombre: string
   telefono: string
@@ -75,21 +81,36 @@ async function cargarContexto(motivo: 'eventos' | 'invitados', limite: number): 
       }
     }
 
-    let eventosVigentes = 0
-    let personasEnEvento = 0
+    // Nunca se fabrica: si una lectura falla se queda en null y el reporte
+    // dice "no disponible" en vez de inventar un numero.
+    let eventosVigentes: number | null = null
+    let personasEnEvento: number | null = null
     if (workspaceId) {
-      const { data: eventos } = await supabase
+      const { data: eventos, error: errEventos } = await supabase
         .from('events')
-        .select('event_status, total_guests')
+        .select('id, event_status, event_date')
         .eq('workspace_id', workspaceId)
-      const activos = (eventos ?? []).filter(e => e.event_status === 'active') as { total_guests?: number | null }[]
-      eventosVigentes = activos.length
-      personasEnEvento = activos.reduce((sum, e) => sum + (Number(e.total_guests) || 0), 0)
+      if (!errEventos && eventos) {
+        const hoy = hoyISO()
+        eventosVigentes = (eventos as { id: string; event_status: string | null; event_date: string | null }[])
+          .filter(e => esEventoVigente(e, hoy))
+          .length
+      }
     }
-    // Sin datos de eventos (RLS o error de red), el numero que topo es el mejor
-    // sustituto: es exactamente el que disparo este aviso.
-    if (eventosVigentes === 0 && motivo === 'eventos') eventosVigentes = limite
-    if (personasEnEvento === 0 && motivo === 'invitados') personasEnEvento = limite
+    // Personas = invitados + acompanantes, igual que en el resto de la app
+    // (contarPersonas). Solo tiene sentido para el evento que disparo el
+    // aviso de invitados: total_guests cuenta filas, no personas, y sumar
+    // todos los eventos del workspace no responde "cuantas personas tiene
+    // ESE evento".
+    if (motivo === 'invitados' && eventId) {
+      const [rGuests, rMembers] = await Promise.all([
+        supabase.from('guests').select('id', { count: 'exact', head: true }).eq('event_id', eventId),
+        supabase.from('party_members').select('id', { count: 'exact', head: true }).eq('event_id', eventId),
+      ])
+      if (!rGuests.error && !rMembers.error) {
+        personasEnEvento = (rGuests.count ?? 0) + (rMembers.count ?? 0)
+      }
+    }
 
     return {
       contexto: {
@@ -111,7 +132,7 @@ async function cargarContexto(motivo: 'eventos' | 'invitados', limite: number): 
   }
 }
 
-export function MuroModal({ open, motivo, limite, onClose }: MuroModalProps) {
+export function MuroModal({ open, motivo, limite, onClose, eventId }: MuroModalProps) {
   const [paso, setPaso] = useState<Paso>('aviso')
   const [contexto, setContexto] = useState<Contexto | null>(null)
 
@@ -142,7 +163,7 @@ export function MuroModal({ open, motivo, limite, onClose }: MuroModalProps) {
     setContexto(null)
 
     let vivo = true
-    void cargarContexto(motivo, limite).then(r => {
+    void cargarContexto(motivo, eventId).then(r => {
       if (!vivo) return
       setContexto(r.contexto)
       setNombre(r.nombre)
@@ -150,7 +171,7 @@ export function MuroModal({ open, motivo, limite, onClose }: MuroModalProps) {
       setEmail(r.contexto?.email ?? '')
     })
     return () => { vivo = false }
-  }, [open, motivo, limite])
+  }, [open, motivo, eventId])
 
   const lineaTope = motivo === 'eventos'
     ? `Ya tienes ${limite} evento${limite === 1 ? '' : 's'} activo${limite === 1 ? '' : 's'}, el máximo de tu plan.`
@@ -176,8 +197,8 @@ export function MuroModal({ open, motivo, limite, onClose }: MuroModalProps) {
         tipoDeCuenta: contexto?.tipoDeCuenta ?? 'planner',
         planActual: contexto?.planActual ?? 'free',
         sello: contexto?.sello ?? null,
-        eventosVigentes: contexto?.eventosVigentes ?? (motivo === 'eventos' ? limite : 0),
-        personasEnEvento: contexto?.personasEnEvento ?? (motivo === 'invitados' ? limite : 0),
+        eventosVigentes: contexto?.eventosVigentes ?? null,
+        personasEnEvento: contexto?.personasEnEvento ?? null,
         motivo,
         eventosAlAno: eventosAlAno.trim(),
         tipoDeEventos: tipoDeEventos.trim(),
