@@ -307,8 +307,8 @@ const ELIMINAR: DocumentoLegal = {
   entrada: 'Con un correo borramos lo que Anfiora tenga de usted, tenga cuenta o no.',
   contactoTitulo: '¿Listo para solicitarlo?',
   pasos: [
-    { titulo: 'Escríbanos', detalle: `A ${LEGAL_EMAIL} con el asunto "Eliminación de datos".` },
-    { titulo: 'Diga quién es', detalle: 'Su nombre y el correo o teléfono con el que lo registraron.' },
+    { titulo: 'Escríbenos', detalle: `A ${LEGAL_EMAIL} con el asunto "Eliminación de datos".` },
+    { titulo: 'Dinos quién eres', detalle: 'Tu nombre y el correo o teléfono con el que te registraron.' },
     { titulo: 'Lo borramos', detalle: 'Confirmamos que lo recibimos y borramos en máximo 30 días.' },
   ],
   secciones: [
