@@ -21,7 +21,7 @@ import { toWhatsApp, componerTelefono, componerDesdeLada } from '@/lib/phone'
 import { reportError } from '@/lib/observabilidad/report'
 import { usePermiso } from '@/lib/event-access-context'
 import { Puede } from '@/lib/permisos/Puede'
-import { contarPersonas, cuantasCaben, esErrorDeInvitados, parseErrorInvitados } from '@/lib/invitados/cupo'
+import { contarPersonas, bloqueaPorTope, cuantasFilasCaben, esErrorDeInvitados, parseErrorInvitados } from '@/lib/invitados/cupo'
 import { limiteInvitadosDelEvento } from '@/lib/workspace/cliente'
 import { MuroModal } from '@/app/components/MuroModal'
 import * as XLSX from 'xlsx'
@@ -658,6 +658,10 @@ export default function EventPage() {
   const [event, setEvent] = useState<Event | null>(null)
   const [eventSettings, setEventSettings] = useState<EventSettings | null>(null)
   const [limiteInvitadosEvento, setLimiteInvitadosEvento] = useState<number | null>(null)
+  // Distinto de "sin tope": mientras esto es false, el contador de arriba
+  // no debe decidir si muestra "de 50" o no, para no brincar de un formato
+  // al otro en cuanto la consulta resuelve.
+  const [limiteCargado, setLimiteCargado] = useState(false)
   const [muroInvitados, setMuroInvitados] = useState<{ limite: number } | null>(null)
   const [plannerName, setPlannerName] = useState('')
   const [waTarget, setWaTarget] = useState<'web' | 'app'>('web')
@@ -807,7 +811,14 @@ export default function EventPage() {
       setEvent(data)
       if (data.planner_name) setPlannerName(data.planner_name)
       // El tope es del dueno del evento, no de quien esta viendo la pantalla.
-      if (data.user_id) limiteInvitadosDelEvento(id as string, data.user_id).then(setLimiteInvitadosEvento)
+      if (data.user_id) {
+        limiteInvitadosDelEvento(id as string, data.user_id).then(lim => {
+          setLimiteInvitadosEvento(lim)
+          setLimiteCargado(true)
+        })
+      } else {
+        setLimiteCargado(true)
+      }
     }
     if (settings) setEventSettings(settings)
   }
@@ -953,9 +964,11 @@ export default function EventPage() {
     const keepIds = f.members.filter(m => m.id).map(m => m.id as string)
     const toDelete = existingIds.filter(id => !keepIds.includes(id))
     const toInsert = f.members.filter(m => !m.id)
-    // Los acompanantes que se borran liberan lugar antes de contar los nuevos.
-    const { sobran } = cuantasCaben(toInsert.length, totalPersonas - toDelete.length, limiteInvitadosEvento)
-    if (sobran > 0) {
+    // Lo unico que se bloquea es que la cuenta CREZCA mas alla del tope: una
+    // cuenta ya pasada del tope puede seguir intercambiando acompanantes
+    // (borrar unos, agregar otros) mientras el total no aumente.
+    const personasDespues = totalPersonas - toDelete.length + toInsert.length
+    if (bloqueaPorTope(totalPersonas, personasDespues, limiteInvitadosEvento)) {
       setMuroInvitados({ limite: limiteInvitadosEvento as number })
       return 'Ya llegaste al tope de invitados de tu plan.'
     }
@@ -966,6 +979,9 @@ export default function EventPage() {
         if (duplicate) return `Este WhatsApp ya está registrado para "${duplicate.name}"`
       }
     }
+    // party_size se guarda de una vez con el tamano que se espera lograr; si
+    // la insercion de acompanantes nuevos falla mas abajo (carrera de dos
+    // pestanas), se corrige al tamano real para no dejarlo inflado.
     const { error } = await supabase.from('guests').update({ name: f.name, phone: f.phone || null, email: f.email || null, party_size: 1 + f.members.length, notes: f.notes || null, tags: f.tags, side: f.side || null, allergies: f.allergies.length > 0 ? f.allergies : null }).eq('id', guest.id)
     if (error) {
       reportError(error, { zona: 'planner' })
@@ -975,9 +991,14 @@ export default function EventPage() {
     for (const m of f.members.filter(m => m.id)) await supabase.from('party_members').update({ name: m.name, phone: m.phone || null, rsvp_status: m.rsvp_status, allergies: m.allergies.length ? m.allergies : null, tags: m.tags.length ? m.tags : null, notes: m.notes || null }).eq('id', m.id!)
     if (toInsert.length > 0) {
       const { error: memberError } = await supabase.from('party_members').insert(toInsert.map(m => ({ guest_id: guest.id, event_id: id as string, name: m.name, phone: m.phone || null, rsvp_status: m.rsvp_status, allergies: m.allergies.length ? m.allergies : null, tags: m.tags.length ? m.tags : null, notes: m.notes || null })))
-      if (memberError && esErrorDeInvitados(memberError)) {
-        const datos = parseErrorInvitados(memberError.message)
-        setMuroInvitados({ limite: datos?.limite ?? limiteInvitadosEvento ?? 0 })
+      if (memberError) {
+        if (esErrorDeInvitados(memberError)) {
+          const datos = parseErrorInvitados(memberError.message)
+          setMuroInvitados({ limite: datos?.limite ?? limiteInvitadosEvento ?? 0 })
+        }
+        // La insercion completa (es un solo insert) no entro: el tamano real
+        // se quedo en lo que ya tenia mas lo que se conservo.
+        await supabase.from('guests').update({ party_size: keepIds.length + 1 }).eq('id', guest.id)
       }
     }
     await loadGuests(); setEditGuest(null)
@@ -1114,18 +1135,17 @@ export default function EventPage() {
     setBulkCompanionSaving(true)
     const ids = Array.from(selected)
     const rows: { guest_id: string; event_id: string; name: string; phone: null; rsvp_status: string }[] = []
-    const sizeUpdates: { id: string; party_size: number }[] = []
+    const affectedIds: string[] = []
     for (const guestId of ids) {
       const guest = guests.find(g => g.id === guestId); if (!guest) continue
       const canAdd = Math.max(0, 15 - guest.party_members.length)
       const toAdd = Math.min(bulkCompanionCount, canAdd)
       if (toAdd <= 0) continue
       for (let i = 0; i < toAdd; i++) rows.push({ guest_id: guestId, event_id: id as string, name: '', phone: null, rsvp_status: 'pending' })
-      sizeUpdates.push({ id: guestId, party_size: guest.party_size + toAdd })
+      affectedIds.push(guestId)
     }
     if (rows.length === 0) { setBulkCompanionSaving(false); setShowBulkCompanionModal(false); return }
-    const { sobran } = cuantasCaben(rows.length, totalPersonas, limiteInvitadosEvento)
-    if (sobran > 0) {
+    if (bloqueaPorTope(totalPersonas, totalPersonas + rows.length, limiteInvitadosEvento)) {
       setBulkCompanionSaving(false); setShowBulkCompanionModal(false)
       setMuroInvitados({ limite: limiteInvitadosEvento as number })
       return
@@ -1139,9 +1159,20 @@ export default function EventPage() {
         break
       }
     }
-    const UCHUNK = 50
-    for (let i = 0; i < sizeUpdates.length; i += UCHUNK) {
-      await Promise.all(sizeUpdates.slice(i, i + UCHUNK).map(u => supabase.from('guests').update({ party_size: u.party_size }).eq('id', u.id)))
+    // No se calcula el party_size nuevo de antemano: si el ciclo de arriba
+    // se corto a medias (carrera de dos pestanas), algunos de estos
+    // invitados se quedaron sin sus acompanantes nuevos y su party_size no
+    // debe subir. Se recuenta contra lo que de verdad quedo insertado.
+    if (affectedIds.length > 0) {
+      const { data: actuales } = await supabase.from('party_members').select('guest_id').in('guest_id', affectedIds)
+      const countByGuest = new Map<string, number>()
+      for (const row of actuales || []) countByGuest.set(row.guest_id, (countByGuest.get(row.guest_id) || 0) + 1)
+      const UCHUNK = 50
+      for (let i = 0; i < affectedIds.length; i += UCHUNK) {
+        await Promise.all(affectedIds.slice(i, i + UCHUNK).map(gid =>
+          supabase.from('guests').update({ party_size: 1 + (countByGuest.get(gid) || 0) }).eq('id', gid)
+        ))
+      }
     }
     await loadGuests()
     setBulkCompanionSaving(false); setShowBulkCompanionModal(false)
@@ -1242,8 +1273,7 @@ export default function EventPage() {
     if (!permiso.editar) return null
     if (!f.name) return 'El nombre es obligatorio'
     const porAgregar = 1 + f.members.length
-    const { sobran } = cuantasCaben(porAgregar, totalPersonas, limiteInvitadosEvento)
-    if (sobran > 0) {
+    if (bloqueaPorTope(totalPersonas, totalPersonas + porAgregar, limiteInvitadosEvento)) {
       setMuroInvitados({ limite: limiteInvitadosEvento as number })
       return 'Ya llegaste al tope de invitados de tu plan.'
     }
@@ -1268,9 +1298,14 @@ export default function EventPage() {
     }
     if (f.members.length > 0) {
       const { error: memberError } = await supabase.from('party_members').insert(f.members.map(m => ({ guest_id: guestData.id, event_id: id, name: m.name, phone: m.phone || null, rsvp_status: m.rsvp_status, allergies: m.allergies.length ? m.allergies : null, tags: m.tags.length ? m.tags : null, notes: m.notes || null })))
-      if (memberError && esErrorDeInvitados(memberError)) {
-        const datos = parseErrorInvitados(memberError.message)
-        setMuroInvitados({ limite: datos?.limite ?? limiteInvitadosEvento ?? 0 })
+      if (memberError) {
+        if (esErrorDeInvitados(memberError)) {
+          const datos = parseErrorInvitados(memberError.message)
+          setMuroInvitados({ limite: datos?.limite ?? limiteInvitadosEvento ?? 0 })
+        }
+        // El invitado ya se creo con party_size adelantado; sus acompanantes
+        // no entraron, asi que se corrige a 1 para no dejarlo inflado.
+        await supabase.from('guests').update({ party_size: 1 }).eq('id', guestData.id)
       }
     }
     await supabase.rpc('increment_guests', { event_id_input: id })
@@ -1370,18 +1405,22 @@ export default function EventPage() {
     }
     if (!rowsToImport.length) { setCsvError('No quedan invitados para importar'); setCsvImporting(false); setCsvPreview(null); return }
 
-    // La importacion nunca rechaza el archivo completo: entran los que caben
-    // y el resumen final dice cuantos se quedaron fuera y por que.
-    const { caben, sobran } = cuantasCaben(rowsToImport.length, totalPersonas, limiteInvitadosEvento)
+    // La importacion nunca rechaza el archivo completo: entran las filas que
+    // caben, en orden, sin partir ninguna. El cupo cuenta PERSONAS (invitado
+    // + sus acompanantes juntos), no filas: el candado de la base tambien
+    // cuenta personas, asi que recortar por filas dejaba pasar acompanantes
+    // de mas.
+    const tamanos = rowsToImport.map(r => 1 + r._companions.length)
+    const { filas, personasFuera } = cuantasFilasCaben(tamanos, totalPersonas, limiteInvitadosEvento)
     let sobranMsg = ''
-    if (sobran > 0) {
-      if (caben === 0) {
+    if (personasFuera > 0) {
+      if (filas === 0) {
         setCsvImporting(false)
         setMuroInvitados({ limite: limiteInvitadosEvento as number })
         return
       }
-      sobranMsg = ` Tu plan permite hasta ${limiteInvitadosEvento} invitados: se importaron ${caben} y ${sobran} se quedaron fuera por el tope. Solicita acceso para importar el resto.`
-      rowsToImport = rowsToImport.slice(0, caben)
+      sobranMsg = ` Tu plan permite hasta ${limiteInvitadosEvento} invitados en total: ${personasFuera} persona${personasFuera === 1 ? '' : 's'} de este archivo se quedaron fuera por el tope. Solicita acceso para importar el resto.`
+      rowsToImport = rowsToImport.slice(0, filas)
     }
 
     const guestPayload = rowsToImport.map(r => ({ event_id: r.event_id, name: r.name, phone: r.phone, email: r.email, party_size: r.party_size, rsvp_status: r.rsvp_status, tags: r.tags, notes: r.notes, side: r.side, allergies: r.allergies }))
@@ -1395,12 +1434,35 @@ export default function EventPage() {
       setCsvError('Error al importar: ' + error.message); setCsvImporting(false); return
     }
     const memberRows = (insertedGuests || []).flatMap((g, i) => rowsToImport[i]._companions.map(name => ({ guest_id: g.id, event_id: id as string, name: name || '', phone: null, rsvp_status: 'pending' })))
+    // Se cuenta lo que de verdad entro, no memberRows.length: si el ciclo se
+    // corta a medias (carrera de dos pestanas), el resumen final no debe
+    // reportar acompanantes que nunca se insertaron.
+    let acompanantesInsertados = 0
     for (let i = 0; i < memberRows.length; i += 500) {
-      const { error: memberError } = await supabase.from('party_members').insert(memberRows.slice(i, i + 500))
-      if (memberError && esErrorDeInvitados(memberError)) {
-        const datos = parseErrorInvitados(memberError.message)
-        setMuroInvitados({ limite: datos?.limite ?? limiteInvitadosEvento ?? 0 })
+      const chunk = memberRows.slice(i, i + 500)
+      const { error: memberError } = await supabase.from('party_members').insert(chunk)
+      if (memberError) {
+        if (esErrorDeInvitados(memberError)) {
+          const datos = parseErrorInvitados(memberError.message)
+          setMuroInvitados({ limite: datos?.limite ?? limiteInvitadosEvento ?? 0 })
+        }
         break
+      }
+      acompanantesInsertados += chunk.length
+    }
+    if (acompanantesInsertados < memberRows.length) {
+      // Algunos acompanantes no entraron: el party_size que se guardo con
+      // cada invitado (ya adelantado) quedo inflado para esos casos. Se
+      // recuenta contra lo que de verdad quedo insertado.
+      const idsConAcompanantes = Array.from(new Set(memberRows.map(m => m.guest_id)))
+      const { data: actuales } = await supabase.from('party_members').select('guest_id').in('guest_id', idsConAcompanantes)
+      const countByGuest = new Map<string, number>()
+      for (const row of actuales || []) countByGuest.set(row.guest_id, (countByGuest.get(row.guest_id) || 0) + 1)
+      const UCHUNK = 50
+      for (let i = 0; i < idsConAcompanantes.length; i += UCHUNK) {
+        await Promise.all(idsConAcompanantes.slice(i, i + UCHUNK).map(gid =>
+          supabase.from('guests').update({ party_size: 1 + (countByGuest.get(gid) || 0) }).eq('id', gid)
+        ))
       }
     }
     await supabase.rpc('increment_guests_by', { event_id_input: id, amount: rowsToImport.length })
@@ -1414,7 +1476,7 @@ export default function EventPage() {
       setEvent(prev => prev ? { ...prev, total_guests: prev.total_guests + rowsToImport.length } : prev)
     }
     await loadGuests()
-    setCsvSuccess('✓ ' + rowsToImport.length + ' invitados' + (memberRows.length ? ' y ' + memberRows.length + ' acompañantes' : '') + ' importados' + (newTagsToAdd.length ? ' · ' + newTagsToAdd.length + ' tags nuevos' : '') + (skipDuplicates && csvPreview.duplicates.length > 0 ? ' (' + csvPreview.duplicates.length + ' duplicados omitidos)' : '') + sobranMsg)
+    setCsvSuccess('✓ ' + rowsToImport.length + ' invitados' + (acompanantesInsertados ? ' y ' + acompanantesInsertados + ' acompañantes' : '') + ' importados' + (newTagsToAdd.length ? ' · ' + newTagsToAdd.length + ' tags nuevos' : '') + (skipDuplicates && csvPreview.duplicates.length > 0 ? ' (' + csvPreview.duplicates.length + ' duplicados omitidos)' : '') + sobranMsg)
     // El resumen (incluido cuantos se quedaron fuera por el tope) se queda a
     // la vista: csvPreview no se limpia aqui, solo cuando la persona cierra.
     setCsvDone(true); setCsvImporting(false)
@@ -1622,7 +1684,9 @@ export default function EventPage() {
           <div className="min-w-0 flex-1">
             <h1 className="text-xl font-bold text-[#1D1E20]">Invitados</h1>
             <p className="mt-0.5 text-xs text-[#888] sm:text-sm">
-              {limiteInvitadosEvento !== null ? `${totalPersonas} de ${limiteInvitadosEvento} invitados` : `${totalPersonas} invitados`}
+              {!limiteCargado
+                ? ' '
+                : (limiteInvitadosEvento !== null ? `${totalPersonas} de ${limiteInvitadosEvento} invitados` : `${totalPersonas} invitados`)}
             </p>
           </div>
           <div className="lg:hidden shrink-0 pt-1">
@@ -2145,19 +2209,23 @@ export default function EventPage() {
         <Modal open onClose={cerrarCsvModal} size="md">
           <Modal.Header title="Importar invitados" />
           <Modal.Body>
-            <div className="mb-4 rounded-xl border border-[#e8e8e8] bg-[#f8f8f8] p-4">
-              <p className="mb-1 text-sm font-semibold text-[#1D1E20]">Resumen del archivo</p>
-              <p className="text-xs text-[#666]">{csvPreview.rows.length} invitados encontrados</p>
-              {csvPreview.hasDuplicates && <p className="mt-1 text-xs font-semibold text-[#cc3333]">{csvPreview.duplicates.length} con WhatsApp duplicado</p>}
-              {csvPreview.sinTelefono.length > 0 && <p className="mt-1 text-xs font-semibold text-[#999]">{csvPreview.sinTelefono.length} se {csvPreview.sinTelefono.length === 1 ? 'importa' : 'importan'} sin teléfono</p>}
-              {!csvDone && limiteInvitadosEvento !== null && (() => {
-                const filasAImportar = csvPreview.hasDuplicates ? csvPreview.rows.length - csvPreview.duplicates.length : csvPreview.rows.length
-                const { sobran } = cuantasCaben(filasAImportar, totalPersonas, limiteInvitadosEvento)
-                return sobran > 0 ? (
-                  <p className="mt-1 text-xs font-semibold text-[#b8860b]">Tu plan permite hasta {limiteInvitadosEvento} invitados: solo caben {filasAImportar - sobran}, {sobran} se quedarán fuera.</p>
-                ) : null
-              })()}
-            </div>
+            {!csvDone && (
+              <div className="mb-4 rounded-xl border border-[#e8e8e8] bg-[#f8f8f8] p-4">
+                <p className="mb-1 text-sm font-semibold text-[#1D1E20]">Resumen del archivo</p>
+                <p className="text-xs text-[#666]">{csvPreview.rows.length} invitados encontrados</p>
+                {csvPreview.hasDuplicates && <p className="mt-1 text-xs font-semibold text-[#cc3333]">{csvPreview.duplicates.length} con WhatsApp duplicado</p>}
+                {csvPreview.sinTelefono.length > 0 && <p className="mt-1 text-xs font-semibold text-[#999]">{csvPreview.sinTelefono.length} se {csvPreview.sinTelefono.length === 1 ? 'importa' : 'importan'} sin teléfono</p>}
+                {limiteInvitadosEvento !== null && (() => {
+                  const duplicateKeys = new Set(csvPreview.duplicates.map(d => d.name + '|' + d.phone))
+                  const filasParaCupo = csvPreview.hasDuplicates ? csvPreview.rows.filter(r => !duplicateKeys.has(r.name + '|' + r.phone)) : csvPreview.rows
+                  const tamanos = filasParaCupo.map(r => 1 + r._companions.length)
+                  const { personasFuera } = cuantasFilasCaben(tamanos, totalPersonas, limiteInvitadosEvento)
+                  return personasFuera > 0 ? (
+                    <p className="mt-1 text-xs font-semibold text-[#b8860b]">Tu plan permite hasta {limiteInvitadosEvento} invitados en total: {personasFuera} persona{personasFuera === 1 ? '' : 's'} de este archivo se quedarán fuera por el tope.</p>
+                  ) : null
+                })()}
+              </div>
+            )}
             {!csvDone && csvPreview.sinTelefono.length > 0 && (
               <div className="mb-4">
                 <p className="mb-2 text-xs font-semibold text-[#666]">Se importan sin teléfono:</p>

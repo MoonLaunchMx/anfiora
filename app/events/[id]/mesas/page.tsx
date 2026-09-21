@@ -12,7 +12,7 @@ import { useConfirm } from '@/app/components/ui/ConfirmModal'
 import { usePermiso } from '@/lib/event-access-context'
 import { Puede } from '@/lib/permisos/Puede'
 import { Cargando } from '@/app/components/ui/Cargando'
-import { contarPersonas, cuantasCaben, esErrorDeInvitados, parseErrorInvitados } from '@/lib/invitados/cupo'
+import { contarPersonas, bloqueaPorTope, esErrorDeInvitados, parseErrorInvitados } from '@/lib/invitados/cupo'
 import { limiteInvitadosDelEvento } from '@/lib/workspace/cliente'
 import { MuroModal } from '@/app/components/MuroModal'
 
@@ -1404,9 +1404,11 @@ function MesasPageInner() {
       }
     }
 
-    // Los acompanantes que se borran liberan lugar antes de contar los nuevos.
-    const { sobran } = cuantasCaben(ins.length, totalPersonas - toDel.length, limiteInvitadosEvento)
-    if (sobran > 0) {
+    // Lo unico que se bloquea es que la cuenta CREZCA mas alla del tope: una
+    // cuenta ya pasada del tope puede seguir intercambiando acompanantes
+    // (borrar unos, agregar otros) mientras el total no aumente.
+    const personasDespues = totalPersonas - toDel.length + ins.length
+    if (bloqueaPorTope(totalPersonas, personasDespues, limiteInvitadosEvento)) {
       setMuroInvitados({ limite: limiteInvitadosEvento as number })
       return
     }
@@ -1414,6 +1416,9 @@ function MesasPageInner() {
     setESaving(true)
     setEError('')
 
+    // party_size (aqui y en table_seats) se guarda de una vez con el tamano
+    // esperado; si la insercion de acompanantes nuevos falla mas abajo
+    // (carrera de dos pestanas), se corrige al tamano real.
     await supabase.from('guests').update({
       name: eName,
       phone: ePhone || null,
@@ -1436,6 +1441,7 @@ function MesasPageInner() {
     }
 
     // Insertar acompañantes nuevos
+    let partySizeFinal = newPartySize
     if (ins.length) {
       const { error: insError } = await supabase.from('party_members').insert(
         ins.map(m => ({
@@ -1446,15 +1452,21 @@ function MesasPageInner() {
           rsvp_status: m.rsvp_status,
         }))
       )
-      if (insError && esErrorDeInvitados(insError)) {
-        const datos = parseErrorInvitados(insError.message)
-        setMuroInvitados({ limite: datos?.limite ?? limiteInvitadosEvento ?? 0 })
+      if (insError) {
+        if (esErrorDeInvitados(insError)) {
+          const datos = parseErrorInvitados(insError.message)
+          setMuroInvitados({ limite: datos?.limite ?? limiteInvitadosEvento ?? 0 })
+        }
+        // La insercion completa (es un solo insert) no entro: el tamano real
+        // se quedo en lo que ya tenia mas lo que se conservo.
+        partySizeFinal = keepIds.length + 1
+        await supabase.from('guests').update({ party_size: partySizeFinal }).eq('id', editGuest.id)
       }
     }
 
     // Actualizar party_size en table_seats si está asignado
     if (seatRecord) {
-      await supabase.from('table_seats').update({ party_size: newPartySize }).eq('id', seatRecord.seatId)
+      await supabase.from('table_seats').update({ party_size: partySizeFinal }).eq('id', seatRecord.seatId)
     }
 
     await loadTables()

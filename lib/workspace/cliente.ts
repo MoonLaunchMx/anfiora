@@ -2,7 +2,7 @@
 'use client'
 import { supabase } from '@/lib/supabase'
 import { normalizarPlan } from './planes'
-import { limiteInvitados } from './sello'
+import { resolverLimiteInvitados } from './sello'
 import type { RolWorkspace, WorkspaceListado, WorkspaceResumen } from './tipos'
 
 export async function bearer(): Promise<Record<string, string> | null> {
@@ -84,32 +84,48 @@ export async function perfilConFoto(userId: string): Promise<{ nombre: string; f
 
 // El tope de invitados es el del DUENO del evento, nunca el de quien esta
 // escribiendo: un colaborador invitado no arrastra su plan al evento ajeno.
-// `plan_del_evento` es SECURITY DEFINER en Supabase, asi que responde igual
-// para el dueno y para un colaborador sin acceso directo a `workspaces`; esa
-// funcion solo regresa el plan, no el sello, asi que el sello se pide aparte
-// por `primary_owner_id` y se tolera que falle (RLS o columna sello todavia
-// sin correr la Tarea 12) o que la funcion misma no exista todavia.
+// Dos fuentes, que pueden no estar de acuerdo (la logica de a cual creerle
+// vive en resolverLimiteInvitados, pura y probada en sello.test.ts):
+// - `plan_del_evento` (RPC, SECURITY DEFINER): responde igual para el dueno
+//   que para un colaborador, pero su COALESCE cae a 'free' por default
+//   cuando el evento no tiene workspace detras — un 'free' de aqui es
+//   ambiguo, no se sabe si es real o el default.
+// - Lectura directa de `workspaces` por `primary_owner_id`: mas confiable
+//   (trae tambien el sello) pero puede no encontrar fila por RLS (un
+//   colaborador no siempre puede leer el workspace ajeno) o porque la
+//   columna `sello` todavia no existe (la crea la Tarea 12).
+// wsEncontrado solo es true cuando esa lectura directa SI devolvio una fila
+// real, sin error — ni un error de columna faltante ni un RLS que la deja
+// en cero filas cuentan como "encontrada".
 export async function limiteInvitadosDelEvento(eventId: string, ownerId: string): Promise<number | null> {
-  let plan: string | null = null
+  let rpcPlan: string | null = null
   try {
     const { data, error } = await supabase.rpc('plan_del_evento', { evento: eventId })
-    if (!error && typeof data === 'string') plan = data
+    if (!error && typeof data === 'string') rpcPlan = data
   } catch {}
 
-  let sello: unknown = null
+  let wsEncontrado = false
+  let wsPlan: string | null = null
+  let wsSello: unknown = null
   try {
     const conSello = await supabase.from('workspaces').select('plan, sello').eq('primary_owner_id', ownerId).maybeSingle()
     if (!conSello.error && conSello.data) {
       const fila = conSello.data as { plan?: string | null; sello?: string | null }
-      if (plan === null) plan = fila.plan ?? null
-      sello = fila.sello ?? null
-    } else if (plan === null) {
+      wsEncontrado = true
+      wsPlan = fila.plan ?? null
+      wsSello = fila.sello ?? null
+    } else if (conSello.error) {
+      // La columna sello puede no existir todavia: se reintenta solo con
+      // plan antes de darse por vencido.
       const soloPlan = await supabase.from('workspaces').select('plan').eq('primary_owner_id', ownerId).maybeSingle()
-      if (!soloPlan.error && soloPlan.data) plan = (soloPlan.data as { plan?: string | null }).plan ?? null
+      if (!soloPlan.error && soloPlan.data) {
+        wsEncontrado = true
+        wsPlan = (soloPlan.data as { plan?: string | null }).plan ?? null
+      }
     }
   } catch {}
 
-  return limiteInvitados(plan, sello)
+  return resolverLimiteInvitados(rpcPlan, wsEncontrado, wsPlan, wsSello)
 }
 
 export async function fetchWorkspace(id?: string) {
