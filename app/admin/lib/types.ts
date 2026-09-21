@@ -1,4 +1,5 @@
 import type { PlanId } from '@/lib/workspace/planes'
+import type { Sello } from '@/lib/workspace/sello'
 
 export interface AdminEvent {
   id: string
@@ -14,6 +15,7 @@ export interface AdminUser {
   email: string
   full_name: string | null
   plan: string
+  sello: Sello
   created_at: string
   event_count: number
   guest_count: number
