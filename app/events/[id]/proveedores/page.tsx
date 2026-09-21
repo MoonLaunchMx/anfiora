@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { Search, Plus, List, Columns2, Columns3, Disc3, Filter } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { esErrorDeArchivado, MENSAJE_EVENTO_ARCHIVADO } from '@/lib/capacity'
 import {
   Event, EventBudget, EventSupplier, Supplier, MotivoDescarte,
   SupplierStatus, SUPPLIER_STATUSES, SUPPLIER_STATUS_LABELS, Currency, formatCurrency,
@@ -423,6 +424,7 @@ export default function ProveedoresPage() {
     if (error) {
       console.error('Error agregando a la boda:', error?.message ?? error, error)
       if (error.code === '23505') throw new Error('Ese proveedor ya está en esta boda')
+      if (esErrorDeArchivado(error)) throw new Error(MENSAJE_EVENTO_ARCHIVADO)
       throw error
     }
     const item = nuevo as SupplierWithDetails
@@ -539,6 +541,7 @@ export default function ProveedoresPage() {
       .from('event_suppliers').update({ status: newStatus }).eq('id', itemId).select().maybeSingle()
     if (error || !guardado) {
       console.error('Error actualizando status:', error?.message ?? error, error)
+      if (esErrorDeArchivado(error)) alert(MENSAJE_EVENTO_ARCHIVADO)
       loadAll()
       return
     }

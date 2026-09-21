@@ -6,6 +6,7 @@ import { useParams } from 'next/navigation'
 import { Search, FileSpreadsheet, FileText, Plus, Upload, X, AlertTriangle, Check, ChevronDown, Sparkles, SlidersHorizontal, ArrowRight, Minus } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { supabase } from '@/lib/supabase'
+import { esErrorDeArchivado, MENSAJE_EVENTO_ARCHIVADO } from '@/lib/capacity'
 import {
   Event, EventBudget, EventBudgetInsert, Currency, EventSupplier, Supplier, SupplierStatus,
 } from '@/lib/types'
@@ -417,6 +418,8 @@ export default function PresupuestoPage() {
       if (error) {
         if (error.code === '23505') {
           alert('Ya existe un concepto con ese nombre en esta categoría')
+        } else if (esErrorDeArchivado(error)) {
+          alert(MENSAJE_EVENTO_ARCHIVADO)
         } else {
           console.error('Error creando concepto:', error?.message ?? error, error)
           alert(`No se pudo crear el concepto: ${error?.message ?? 'Intenta de nuevo'}`)
@@ -437,7 +440,11 @@ export default function PresupuestoPage() {
     if (!permiso.editar) return
     setBudgets(prev => prev.map(b => b.id === itemId ? { ...b, ...updates } : b))
     const { error } = await supabase.from('event_budgets').update(updates).eq('id', itemId)
-    if (error) { console.error('Error actualizando concepto:', error?.message ?? error, error); loadAll() }
+    if (error) {
+      console.error('Error actualizando concepto:', error?.message ?? error, error)
+      if (esErrorDeArchivado(error)) alert(MENSAJE_EVENTO_ARCHIVADO)
+      loadAll()
+    }
   }
 
   const handleDeleteItem = async (itemId: string) => {
@@ -452,7 +459,11 @@ export default function PresupuestoPage() {
     if (!ok) return
     setBudgets(prev => prev.filter(b => b.id !== itemId))
     const { error } = await supabase.from('event_budgets').delete().eq('id', itemId)
-    if (error) { console.error('Error borrando concepto:', error?.message ?? error, error); loadAll() }
+    if (error) {
+      console.error('Error borrando concepto:', error?.message ?? error, error)
+      if (esErrorDeArchivado(error)) alert(MENSAJE_EVENTO_ARCHIVADO)
+      loadAll()
+    }
   }
 
   const persistCategories = async (next: string[]) => {
