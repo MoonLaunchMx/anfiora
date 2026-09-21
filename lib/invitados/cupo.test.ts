@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  contarPersonas, lugaresLibres, bloqueaPorTope, borrarPrimero, cuantasFilasCaben,
+  contarPersonas, lugaresLibres, bloqueaPorTope, cuantasFilasCaben,
   parseErrorInvitados, esErrorDeInvitados,
 } from './cupo'
 
@@ -41,40 +41,6 @@ describe('cupo de invitados', () => {
     expect(bloqueaPorTope(40, 45, 50)).toBe(false)  // crece pero sigue dentro
     expect(bloqueaPorTope(48, 51, 50)).toBe(true)   // crece y cruza el tope
     expect(bloqueaPorTope(500, 600, null)).toBe(false) // sin tope nunca bloquea
-  })
-
-  it('cuenta exactamente en el tope: cambiar un acompanante por otro borra primero y cabe', () => {
-    // 50 de 50: borrar 1 y agregar 1 deja 50-1+1=50, que SI cabe (<=50), asi
-    // que borra primero: baja a 49 y sube a 50 sin rebasar nunca el limite
-    // ni ver el muro.
-    expect(borrarPrimero(50, 1, 1, 50)).toBe(true)
-  })
-
-  it('cuenta muy pasada del tope: quitar 5 y agregar 1 NO cabe, aunque no crezca', () => {
-    // 213 con tope 50: 213-5+1=209, sigue arriba de 50. Borrar primero
-    // dejaria el total en 209 igual de rechazado, y la restauracion (otro
-    // insert) se rechazaria por lo mismo -- perdiendo los 5 para siempre.
-    // La regla correcta manda insertar primero: falla sin haber borrado
-    // nada, y el aviso de tope es honesto porque esa cuenta de verdad no
-    // puede hacer este intercambio en ningun orden mientras siga tan arriba.
-    expect(borrarPrimero(213, 5, 1, 50)).toBe(false)
-  })
-
-  it('achicar (se borra mas de lo que se inserta) y cabe: borra primero', () => {
-    expect(borrarPrimero(52, 3, 1, 50)).toBe(true) // 52-3+1=50, cabe justo
-    expect(borrarPrimero(40, 2, 0, 50)).toBe(true)
-  })
-
-  it('crecer y cabe: tambien borra primero (no hay riesgo)', () => {
-    expect(borrarPrimero(40, 0, 5, 50)).toBe(true) // 40-0+5=45, cabe
-  })
-
-  it('crecer y no cabe: inserta primero, bloqueaPorTope ya lo hubiera frenado', () => {
-    expect(borrarPrimero(48, 0, 5, 50)).toBe(false) // 48-0+5=53, no cabe
-  })
-
-  it('sin tope, siempre borra primero (nunca hay riesgo de rechazo)', () => {
-    expect(borrarPrimero(500, 5, 50, null)).toBe(true)
   })
 
   it('recorta filas completas de la importacion, nunca a la mitad', () => {

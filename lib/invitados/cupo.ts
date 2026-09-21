@@ -18,27 +18,6 @@ export function bloqueaPorTope(personasAntes: number, personasDespues: number, l
   return personasDespues > personasAntes && personasDespues > limite
 }
 
-// Borrar acompanantes viejos e insertar los nuevos son DOS escrituras
-// separadas (no una transaccion), y el disparador de la base juzga el TOTAL
-// del evento en cada una, no si la operacion "crece". Mirar solo el
-// crecimiento (porInsertar <= porBorrar) esta mal: en una cuenta de 213 con
-// tope 50, quitar 5 y agregar 1 no crece, pero borrar primero deja el total
-// en 208 -- SIGUE arriba de 50 -- y el insert se rechaza igual. Peor: la
-// restauracion (devolver lo borrado) es OTRO insert, y tambien se rechaza
-// por la misma razon, perdiendo los 5 acompanantes para siempre.
-//
-// La pregunta correcta es: "despues de borrar, ¿los nuevos caben debajo del
-// tope?" -- total - porBorrar + porInsertar <= limite. Si caben, borrar
-// primero es seguro (libera lugar y el insert entra: la cuenta de 50 de 50
-// que cambia un acompanante por otro baja a 49 y sube a 50, nunca ve el
-// muro). Si NO caben, insertar primero: falla sin haber borrado nada, y el
-// aviso de tope es honesto, porque esa cuenta de verdad no puede hacer ese
-// intercambio en NINGUN orden mientras siga tan arriba del tope.
-export function borrarPrimero(total: number, porBorrar: number, porInsertar: number, limite: number | null): boolean {
-  if (limite === null) return true
-  return total - porBorrar + porInsertar <= limite
-}
-
 // La importacion nunca rechaza el archivo completo: entran las filas que
 // caben, en orden, sin partir ninguna (una fila es un invitado + sus
 // acompanantes, todos entran juntos o ninguno). tamanos[i] es 1 + los
