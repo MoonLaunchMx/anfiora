@@ -9,7 +9,8 @@
 -- en el mismo commit: aquel leia un catalogo de planes ('solo', 'studio' con
 -- 25 eventos, el correo superuser@anfiora.com) que ya no existe. Lo que seguia
 -- sirviendo — el gate de cupo, evento_editable y el disparador de archivado —
--- se conserva aqui, actualizado.
+-- se conserva aqui, actualizado. Si hace falta el texto anterior de alguna
+-- funcion, esta en git: ese archivo, en el commit anterior al que lo borro.
 --
 -- CUANDO SE CORRE: DESPUES de que el deploy este arriba y verificado. Nada de
 -- esto es inerte:
@@ -24,11 +25,16 @@
 --     proximo guardado.
 --
 -- COMO SE CORRE:
---   1. El BLOQUE 0-A solo, primero. Es de solo lectura, no cambia nada, y
---      dice el tamano exacto del cambio. Leerlo antes de seguir.
---   2. Todo lo demas de un jalon, desde BEGIN hasta COMMIT. Si un candado del
---      BLOQUE 0-B falla, aborta SIN CAMBIAR NADA.
+--   1. El BLOQUE 0-A solo, primero. Es de solo lectura, no cambia nada, y dice
+--      el tamano exacto del cambio. Leerlo antes de seguir, y GUARDAR su
+--      resultado: trae la lista de eventos que el BLOQUE 7 migra, que es lo
+--      unico que permite deshacer esa migracion evento por evento.
+--   2. Todo lo demas de un jalon, desde BEGIN hasta COMMIT: es UNA SOLA
+--      TRANSACCION. Si un candado del BLOQUE 0-B falla, aborta SIN CAMBIAR
+--      NADA. Es re-corrible completo.
 --   3. La verificacion del final, tambien sola. Es de solo lectura.
+--   4. La PRUEBA OBLIGATORIA del BLOQUE 3, una vez. Es la unica pieza que no
+--      se puede dar por buena leyendo.
 --
 -- OTRO AGENTE ESTA TRABAJANDO LA AUDITORIA DE SEGURIDAD en esta misma base
 -- (archivos docs/superpowers/plans/sql/2026-09-1x-seguridad-*.sql). Este
@@ -43,18 +49,53 @@
 -- ============================================================================
 -- Todavia no existe workspaces.sello, asi que aqui nadie tiene sello y el
 -- catalogo se lee de workspaces.plan con caida a users.plan. Los numeros son
--- el tamano real del cambio: cuantos eventos se migran, cuantas cuentas
--- quedan por encima de su tope (no se les quita nada: el muro actua sobre lo
--- que entra, no sobre lo que ya entro) y que estorba.
-WITH plan_de AS (
+-- el tamano real del cambio: cuantos eventos se migran (y CUALES), cuantas
+-- cuentas quedan por encima de su tope (no se les quita nada: el muro actua
+-- sobre lo que entra, no sobre lo que ya entro) y que estorba.
+WITH hijas AS (
+  SELECT unnest(ARRAY[
+    'guests','party_members','tables','table_seats','event_budgets',
+    'event_suppliers','event_timeline_tasks','event_itinerary_moments',
+    'event_settings','song_recommendations','gift_registry_items',
+    'gift_reservations','event_collaborators','supplier_reviews'
+  ]) AS t
+),
+declaradas AS (
+  -- Huecos que este archivo declara a proposito (ver BLOQUE 6).
+  SELECT unnest(ARRAY[
+    'event_audit_log','conversations','messages','channel_participants','wa_messages'
+  ]) AS t
+),
+esperadas AS (
+  SELECT * FROM (VALUES
+    ('get_account_capacity',       'uuid',       'TABLE(active integer, lim integer, remaining integer, over boolean)'),
+    ('plan_del_evento',            'uuid',       'text'),
+    ('evento_editable',            'uuid',       'boolean'),
+    ('plan_y_sello_de',            'uuid, uuid', 'TABLE(plan text, sello text)'),
+    ('plan_y_sello_de_cuenta',     'uuid',       'TABLE(plan text, sello text)'),
+    ('plan_y_sello_del_evento',    'uuid',       'TABLE(plan text, sello text)'),
+    ('limite_eventos_de_plan',     'text, text', 'integer'),
+    ('limite_invitados_de_plan',   'text, text', 'integer'),
+    ('limite_invitados_del_evento','uuid',       'integer'),
+    ('eventos_vigentes_de',        'uuid',       'integer'),
+    ('personas_del_evento',        'uuid',       'integer'),
+    ('events_gate_cupo',           '',           'trigger'),
+    ('invitados_gate_cupo',        '',           'trigger'),
+    ('guard_workspace_sello',      '',           'trigger'),
+    ('guard_cliente_sin_total',    '',           'trigger'),
+    ('bloquea_evento_archivado',   '',           'trigger'),
+    ('bloquea_pago_archivado',     '',           'trigger')
+  ) AS v(nombre, args, resultado)
+),
+plan_de AS (
   SELECT u.id AS user_id, lower(coalesce(w.plan, u.plan, 'free')) AS plan
     FROM users u
     LEFT JOIN workspaces w ON w.primary_owner_id = u.id
 ),
 personas AS (
   SELECT e.id, e.user_id,
-         (SELECT count(*) FROM guests g        WHERE g.event_id  = e.id)
-       + (SELECT count(*) FROM party_members m WHERE m.event_id  = e.id) AS personas
+         (SELECT count(*) FROM guests g        WHERE g.event_id = e.id)
+       + (SELECT count(*) FROM party_members m WHERE m.event_id = e.id) AS personas
     FROM events e
 ),
 vigentes AS (
@@ -64,97 +105,139 @@ vigentes AS (
      AND (coalesce(e.event_end_date, e.event_date) IS NULL
           OR coalesce(e.event_end_date, e.event_date) >= current_date)
    GROUP BY e.user_id
-),
-hijas AS (
-  SELECT unnest(ARRAY[
-    'guests','party_members','tables','table_seats','event_budgets',
-    'event_suppliers','event_timeline_tasks','event_itinerary_moments',
-    'event_settings','song_recommendations','gift_registry_items',
-    'gift_reservations','event_collaborators','supplier_reviews'
-  ]) AS t
 )
 SELECT jsonb_pretty(jsonb_build_object(
 
-  'eventos_por_estatus_hoy',
-    (SELECT jsonb_object_agg(s, n) FROM (
-       SELECT coalesce(event_status,'active') AS s, count(*) AS n FROM events GROUP BY 1) x),
-
-  'eventos_que_el_bloque_7_migra_a_archived',
-    (SELECT count(*) FROM events WHERE coalesce(event_status,'active') NOT IN ('active','archived')),
-
-  'check_de_event_status_que_impide_archived_ABORTA',
+  -- ---------- lo que hace abortar al archivo ----------
+  'A1_check_de_event_status_que_impide_archived',
     (SELECT coalesce(string_agg(conname || ' => ' || pg_get_constraintdef(oid), ' | '), 'ninguno')
        FROM pg_constraint
       WHERE conrelid = 'public.events'::regclass AND contype = 'c'
         AND pg_get_constraintdef(oid) ILIKE '%event_status%'
         AND pg_get_constraintdef(oid) NOT ILIKE '%archived%'),
 
-  'check_de_workspaces_plan_hoy',
-    (SELECT coalesce(string_agg(pg_get_constraintdef(oid), ' | '), 'ninguno')
-       FROM pg_constraint
-      WHERE conrelid = 'public.workspaces'::regclass AND contype = 'c'
-        AND pg_get_constraintdef(oid) ILIKE '%plan%'),
+  'A2_tipo_de_events_event_status_debe_ser_texto',
+    (SELECT data_type FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = 'events' AND column_name = 'event_status'),
 
-  'check_de_users_plan_hoy_SIN_STUDIO_ES_PROBLEMA',
-    (SELECT coalesce(string_agg(pg_get_constraintdef(oid), ' | '), 'ninguno')
-       FROM pg_constraint
-      WHERE conrelid = 'public.users'::regclass AND contype = 'c'
-        AND pg_get_constraintdef(oid) ILIKE '%plan%'),
+  'A3_funciones_que_ya_existen_con_otra_firma',
+    (SELECT coalesce(string_agg(e.nombre || '(' || e.args || ') hoy devuelve ' ||
+                                replace(pg_get_function_result(p.oid), '"', '') ||
+                                ' y se espera ' || e.resultado, ' | '), 'ninguna')
+       FROM esperadas e
+       JOIN pg_proc p ON p.pronamespace = 'public'::regnamespace
+                     AND p.proname = e.nombre
+                     AND pg_get_function_identity_arguments(p.oid) = e.args
+      WHERE replace(pg_get_function_result(p.oid), '"', '') <> e.resultado),
 
-  'planes_en_workspaces_fuera_del_catalogo_ABORTA',
+  'A4_planes_en_workspaces_fuera_del_catalogo',
     (SELECT coalesce(string_agg(DISTINCT plan, ', '), 'ninguno') FROM workspaces
       WHERE plan IS NOT NULL AND plan NOT IN ('free','pro','studio','agency')),
 
-  'cuentas_con_mas_de_un_evento_vigente',
-    (SELECT count(*) FROM vigentes v JOIN plan_de p ON p.user_id = v.user_id
-      WHERE p.plan = 'free' AND v.n > 1),
-
-  'eventos_vigentes_de_esas_cuentas',
-    (SELECT coalesce(jsonb_agg(jsonb_build_object('cuenta', u.email, 'vigentes', v.n)), '[]'::jsonb)
-       FROM vigentes v JOIN plan_de p ON p.user_id = v.user_id JOIN users u ON u.id = v.user_id
-      WHERE p.plan = 'free' AND v.n > 1),
-
-  'eventos_free_ya_arriba_del_tope_de_50_personas',
-    (SELECT coalesce(jsonb_agg(jsonb_build_object('cuenta', u.email, 'personas', pe.personas) ORDER BY pe.personas DESC), '[]'::jsonb)
-       FROM personas pe JOIN plan_de p ON p.user_id = pe.user_id JOIN users u ON u.id = pe.user_id
-      WHERE p.plan = 'free' AND pe.personas > 50),
-
-  'eventos_con_dos_o_mas_clientes_vivos_ABORTA',
+  'A5_eventos_con_dos_o_mas_clientes_vivos',
     (SELECT coalesce(jsonb_agg(jsonb_build_object('event_id', t.event_id, 'clientes', t.n)), '[]'::jsonb)
        FROM (SELECT c.event_id, count(*) AS n FROM event_collaborators c
               WHERE c.tipo = 'cliente' AND coalesce(c.status,'pending') <> 'revoked'
               GROUP BY c.event_id HAVING count(*) > 1) t),
 
-  'clientes_con_algun_modulo_en_total_hoy',
-    (SELECT count(*) FROM event_collaborators c
-      WHERE c.tipo = 'cliente' AND c.permisos IS NOT NULL
-        AND jsonb_typeof(c.permisos) = 'object'
-        AND EXISTS (SELECT 1 FROM jsonb_each_text(c.permisos) e WHERE e.value = 'total')),
-
-  'tablas_hijas_sin_columna_event_id_ABORTA',
-    (SELECT coalesce(string_agg(h.t, ', '), 'ninguna') FROM hijas h
+  'A6_tablas_hijas_que_no_existen_o_no_traen_event_id',
+    (SELECT coalesce(string_agg(
+              h.t || CASE WHEN to_regclass('public.' || h.t) IS NULL
+                          THEN ' (la tabla no existe)' ELSE ' (existe pero sin event_id)' END, ', '), 'ninguna')
+       FROM hijas h
       WHERE NOT EXISTS (SELECT 1 FROM information_schema.columns c
                          WHERE c.table_schema = 'public' AND c.table_name = h.t
                            AND c.column_name = 'event_id')),
 
-  'funciones_que_este_archivo_da_por_hechas_ABORTA_SI_FALTA',
+  'A7_otro_check_de_plan_en_workspaces_sin_studio',
+    (SELECT coalesce(string_agg(conname || ' => ' || pg_get_constraintdef(oid), ' | '), 'ninguno')
+       FROM pg_constraint
+      WHERE conrelid = 'public.workspaces'::regclass AND contype = 'c'
+        AND conname <> 'workspaces_plan_valido'
+        AND pg_get_constraintdef(oid) ILIKE '%plan%'
+        AND pg_get_constraintdef(oid) NOT ILIKE '%studio%'),
+
+  -- ---------- lo que hay que mirar a ojo ----------
+  'B1_checks_de_workspaces_CON_SU_NOMBRE',
+    (SELECT coalesce(jsonb_agg(jsonb_build_object('nombre', conname, 'definicion', pg_get_constraintdef(oid))), '[]'::jsonb)
+       FROM pg_constraint
+      WHERE conrelid = 'public.workspaces'::regclass AND contype = 'c'),
+
+  'B2_checks_de_users_plan_SIN_STUDIO_ES_PROBLEMA',
+    (SELECT coalesce(string_agg(conname || ' => ' || pg_get_constraintdef(oid), ' | '), 'ninguno')
+       FROM pg_constraint
+      WHERE conrelid = 'public.users'::regclass AND contype = 'c'
+        AND pg_get_constraintdef(oid) ILIKE '%plan%'),
+
+  'B3_eventos_por_estatus_hoy',
+    (SELECT jsonb_object_agg(s, n) FROM (
+       SELECT coalesce(event_status,'active') AS s, count(*) AS n FROM events GROUP BY 1) x),
+
+  -- GUARDA ESTA LISTA. Es lo unico con lo que se puede deshacer el BLOQUE 7
+  -- evento por evento: los eventos viejos no tienen renglon en event_audit_log.
+  'B4_eventos_que_el_bloque_7_migra_GUARDAR_ESTA_LISTA',
+    (SELECT coalesce(jsonb_agg(jsonb_build_object(
+              'id', e.id, 'nombre', e.name, 'estatus', e.event_status, 'fecha', e.event_date)
+              ORDER BY e.event_status, e.event_date), '[]'::jsonb)
+       FROM events e WHERE coalesce(e.event_status,'active') NOT IN ('active','archived')),
+
+  'B5_cuentas_free_con_mas_de_un_evento_vigente',
+    (SELECT coalesce(jsonb_agg(jsonb_build_object('cuenta', u.email, 'vigentes', v.n)), '[]'::jsonb)
+       FROM vigentes v JOIN plan_de p ON p.user_id = v.user_id JOIN users u ON u.id = v.user_id
+      WHERE p.plan = 'free' AND v.n > 1),
+
+  'B6_eventos_free_ya_arriba_del_tope_de_50_personas',
+    (SELECT coalesce(jsonb_agg(jsonb_build_object('cuenta', u.email, 'personas', pe.personas) ORDER BY pe.personas DESC), '[]'::jsonb)
+       FROM personas pe JOIN plan_de p ON p.user_id = pe.user_id JOIN users u ON u.id = pe.user_id
+      WHERE p.plan = 'free' AND pe.personas > 50),
+
+  'B7_clientes_con_algun_modulo_en_total_hoy',
+    (SELECT count(*) FROM event_collaborators c
+      WHERE c.tipo = 'cliente' AND c.permisos IS NOT NULL
+        AND jsonb_typeof(c.permisos) = 'object'
+        AND EXISTS (SELECT 1 FROM jsonb_each(c.permisos) e WHERE e.value = '"total"'::jsonb)),
+
+  -- Toda tabla con event_id que NO esta ni en las catorce ni declarada como
+  -- hueco en el BLOQUE 6. Si aqui sale algo, o entra a la lista o se declara.
+  'B8_tablas_con_event_id_que_nadie_declaro',
+    (SELECT coalesce(string_agg(c.relname, ', ' ORDER BY c.relname), 'ninguna')
+       FROM pg_class c
+       JOIN pg_attribute a ON a.attrelid = c.oid AND a.attname = 'event_id'
+                          AND a.attnum > 0 AND NOT a.attisdropped
+      WHERE c.relnamespace = 'public'::regnamespace AND c.relkind = 'r'
+        AND c.relname NOT IN (SELECT t FROM hijas)
+        AND c.relname NOT IN (SELECT t FROM declaradas)),
+
+  'B9_indices_por_event_id_que_el_muro_de_invitados_va_a_usar',
+    (SELECT coalesce(string_agg(indexname, ', '), 'NINGUNO — ver la nota del BLOQUE 3') FROM pg_indexes
+      WHERE schemaname = 'public' AND tablename IN ('guests','party_members')
+        AND indexdef ILIKE '%event_id%'),
+
+  'B10_funciones_de_otros_tramos_que_este_archivo_llama',
     (SELECT coalesce(jsonb_object_agg(f, existe), '{}'::jsonb) FROM (
        SELECT f, EXISTS (SELECT 1 FROM pg_proc p
                           WHERE p.pronamespace = 'public'::regnamespace AND p.proname = f) AS existe
-         FROM unnest(ARRAY['is_event_member','es_admin_de','plan_del_evento','asegurar_workspace']) AS f) y),
-
-  'indices_por_event_id_que_el_muro_de_invitados_va_a_usar',
-    (SELECT coalesce(string_agg(indexname, ', '), 'ninguno') FROM pg_indexes
-      WHERE schemaname = 'public' AND tablename IN ('guests','party_members')
-        AND indexdef ILIKE '%event_id%')
+         FROM unnest(ARRAY['is_event_member','es_admin_de','plan_del_evento','asegurar_workspace']) AS f) y)
 
 )) AS radiografia;
+-- Lo esperado: A1 a A7 en 'ninguno' / '[]' (si no, el archivo aborta y dice
+-- que arreglar), A2 'text'. B1 y B2 se miran a ojo: si hay un CHECK de plan
+-- con otro nombre, hay que tirarlo por su nombre. B4 se guarda. B8 deberia
+-- decir 'ninguna'; si no, esa tabla entra al BLOQUE 6 o se declara como hueco.
 
 
 -- ============================================================================
--- DE AQUI AL COMMIT, DE UN JALON
+-- DE AQUI AL COMMIT, DE UN JALON. UNA SOLA TRANSACCION.
 -- ============================================================================
 BEGIN;
+
+-- Antes de tomar el primer candado: si una consulta larga tiene ocupada
+-- workspaces, events, guests o party_members, este archivo falla rapido en vez
+-- de quedarse esperando con candados exclusivos tomados y encolar detras a
+-- todos los planners conectados. El remedio es volver a correrlo: es
+-- idempotente de cabo a rabo.
+SET LOCAL lock_timeout = '5s';
+SET LOCAL statement_timeout = '120s';
 
 -- ============================================================================
 -- BLOQUE 0-B — CANDADOS QUE ABORTAN SIN CAMBIAR NADA
@@ -175,7 +258,15 @@ BEGIN
     RAISE EXCEPTION 'ABORTA: el CHECK % sobre events.event_status no permite archived. Ampliarlo o tirarlo antes de correr este archivo', faltan;
   END IF;
 
-  -- 2. Columnas que este archivo da por hechas.
+  -- 2. Si event_status fuera un enum en vez de texto, escribir 'archived'
+  --    fallaria igual aunque no haya CHECK.
+  SELECT data_type INTO faltan FROM information_schema.columns
+   WHERE table_schema = 'public' AND table_name = 'events' AND column_name = 'event_status';
+  IF faltan IS NULL OR faltan NOT IN ('text', 'character varying') THEN
+    RAISE EXCEPTION 'ABORTA: events.event_status es de tipo % y este archivo lo trata como texto', coalesce(faltan, 'inexistente');
+  END IF;
+
+  -- 3. Columnas que este archivo da por hechas.
   SELECT string_agg(x.t || '.' || x.c, ', ') INTO faltan FROM (
     VALUES ('events','event_status'), ('events','event_date'), ('events','event_end_date'),
            ('events','user_id'), ('events','workspace_id'),
@@ -191,7 +282,7 @@ BEGIN
     RAISE EXCEPTION 'ABORTA: faltan columnas que este archivo da por hechas: %', faltan;
   END IF;
 
-  -- 3. Funciones de otros tramos que este archivo LLAMA (no redefine).
+  -- 4. Funciones de otros tramos que este archivo LLAMA (no redefine).
   SELECT string_agg(f, ', ') INTO faltan
     FROM unnest(ARRAY['is_event_member','es_admin_de']) AS f
    WHERE NOT EXISTS (SELECT 1 FROM pg_proc p
@@ -200,10 +291,46 @@ BEGIN
     RAISE EXCEPTION 'ABORTA: faltan funciones del tramo de accesos: %. Correr antes 2026-09-05-accesos-timeline-cimiento.sql y 2026-09-08-workspace-cimiento.sql', faltan;
   END IF;
 
-  -- 4. Las tablas hijas del BLOQUE 6 tienen que colgar de event_id. Si alguna
-  --    no lo trae, se saca de la lista del BLOQUE 6 a mano y se anota como
-  --    hueco conocido; NO se finge que quedo cerrada.
-  SELECT string_agg(h.t, ', ') INTO faltan
+  -- 5. Firmas. CREATE OR REPLACE FUNCTION no deja cambiar el tipo de regreso, y
+  --    del texto anterior de get_account_capacity, plan_del_evento y
+  --    evento_editable ya no queda copia en el repo. Si alguna existe hoy con
+  --    otra forma, este archivo reventaria a media transaccion.
+  SELECT string_agg(e.nombre || '(' || e.args || ') devuelve ' ||
+                    replace(pg_get_function_result(p.oid), '"', '') ||
+                    ' y aqui se espera ' || e.resultado, ' | ') INTO faltan
+    FROM (VALUES
+      ('get_account_capacity',       'uuid',       'TABLE(active integer, lim integer, remaining integer, over boolean)'),
+      ('plan_del_evento',            'uuid',       'text'),
+      ('evento_editable',            'uuid',       'boolean'),
+      ('plan_y_sello_de',            'uuid, uuid', 'TABLE(plan text, sello text)'),
+      ('plan_y_sello_de_cuenta',     'uuid',       'TABLE(plan text, sello text)'),
+      ('plan_y_sello_del_evento',    'uuid',       'TABLE(plan text, sello text)'),
+      ('limite_eventos_de_plan',     'text, text', 'integer'),
+      ('limite_invitados_de_plan',   'text, text', 'integer'),
+      ('limite_invitados_del_evento','uuid',       'integer'),
+      ('eventos_vigentes_de',        'uuid',       'integer'),
+      ('personas_del_evento',        'uuid',       'integer'),
+      ('events_gate_cupo',           '',           'trigger'),
+      ('invitados_gate_cupo',        '',           'trigger'),
+      ('guard_workspace_sello',      '',           'trigger'),
+      ('guard_cliente_sin_total',    '',           'trigger'),
+      ('bloquea_evento_archivado',   '',           'trigger'),
+      ('bloquea_pago_archivado',     '',           'trigger')
+    ) AS e(nombre, args, resultado)
+    JOIN pg_proc p ON p.pronamespace = 'public'::regnamespace
+                  AND p.proname = e.nombre
+                  AND pg_get_function_identity_arguments(p.oid) = e.args
+   WHERE replace(pg_get_function_result(p.oid), '"', '') <> e.resultado;
+  IF faltan IS NOT NULL THEN
+    RAISE EXCEPTION 'ABORTA: hay funciones con otra firma: %. Tirarlas con DROP FUNCTION antes de correr', faltan;
+  END IF;
+
+  -- 6. Las tablas hijas del BLOQUE 6 tienen que existir y colgar de event_id.
+  --    Si alguna no, se saca de la lista a mano y se declara como hueco; NO se
+  --    finge que quedo cerrada.
+  SELECT string_agg(h.t || CASE WHEN to_regclass('public.' || h.t) IS NULL
+                                THEN ' (la tabla no existe)'
+                                ELSE ' (la tabla existe pero no tiene event_id)' END, ', ') INTO faltan
     FROM unnest(ARRAY[
       'guests','party_members','tables','table_seats','event_budgets',
       'event_suppliers','event_timeline_tasks','event_itinerary_moments',
@@ -214,10 +341,10 @@ BEGIN
                       WHERE c.table_schema = 'public' AND c.table_name = h.t
                         AND c.column_name = 'event_id');
   IF faltan IS NOT NULL THEN
-    RAISE EXCEPTION 'ABORTA: estas tablas del BLOQUE 6 no tienen event_id: %. Sacarlas de la lista y anotarlas como hueco', faltan;
+    RAISE EXCEPTION 'ABORTA: problemas con las tablas del BLOQUE 6: %. Sacarlas de la lista y anotarlas como hueco', faltan;
   END IF;
 
-  -- 5. El catalogo nuevo tiene cuatro planes. Si alguna fila trae otro valor,
+  -- 7. El catalogo nuevo tiene cuatro planes. Si alguna fila trae otro valor,
   --    el CHECK del BLOQUE 1 fallaria a media transaccion.
   SELECT string_agg(DISTINCT plan, ', ') INTO faltan FROM workspaces
    WHERE plan IS NOT NULL AND plan NOT IN ('free','pro','studio','agency');
@@ -225,7 +352,20 @@ BEGIN
     RAISE EXCEPTION 'ABORTA: hay workspaces con plan fuera del catalogo: %. Corregirlos antes', faltan;
   END IF;
 
-  -- 6. El indice unico del BLOQUE 5 no se puede crear si ya hay un evento con
+  -- 8. Un CHECK de plan con OTRO nombre seguiria prohibiendo Studio despues de
+  --    que este archivo amplie el suyo, y nadie se enteraria: /admin fallaria
+  --    en silencio, como hoy.
+  SELECT string_agg(conname, ', ') INTO faltan
+    FROM pg_constraint
+   WHERE conrelid = 'public.workspaces'::regclass AND contype = 'c'
+     AND conname <> 'workspaces_plan_valido'
+     AND pg_get_constraintdef(oid) ILIKE '%plan%'
+     AND pg_get_constraintdef(oid) NOT ILIKE '%studio%';
+  IF faltan IS NOT NULL THEN
+    RAISE EXCEPTION 'ABORTA: el CHECK % sobre workspaces tambien limita plan y no conoce studio. Tirarlo por su nombre antes de correr', faltan;
+  END IF;
+
+  -- 9. El indice unico del BLOQUE 5 no se puede crear si ya hay un evento con
   --    dos clientes vivos.
   SELECT string_agg(t.event_id::text, ', ') INTO faltan
     FROM (SELECT c.event_id FROM event_collaborators c
@@ -317,8 +457,8 @@ CREATE TRIGGER guard_workspace_sello
 -- BLOQUE 2 — EL CUPO DE EVENTOS
 -- ============================================================================
 -- Los numeros del catalogo viven DUPLICADOS a proposito: aqui esta el candado
--- de verdad y en TypeScript esta la interfaz que se adelanta para avisar
--- antes de intentarlo.
+-- de verdad y en TypeScript esta la interfaz que se adelanta para avisar antes
+-- de intentarlo.
 -- ESPEJO: lib/workspace/planes.ts (PLANES[*].eventosActivos e
 --         .invitadosPorEvento) y lib/workspace/sello.ts (limiteEventos,
 --         limiteInvitados). Si cambias un numero aqui, cambialo alla.
@@ -328,7 +468,7 @@ CREATE OR REPLACE FUNCTION public.limite_eventos_de_plan(p_plan text, p_sello te
 RETURNS int LANGUAGE sql IMMUTABLE
 AS $$
   SELECT CASE
-    WHEN lower(coalesce(p_sello, '')) = 'fundador'                  THEN NULL::int
+    WHEN lower(coalesce(p_sello, '')) = 'fundador'                    THEN NULL::int
     WHEN lower(coalesce(p_plan, 'free')) IN ('pro','studio','agency') THEN NULL::int
     ELSE 1
   END
@@ -338,33 +478,44 @@ CREATE OR REPLACE FUNCTION public.limite_invitados_de_plan(p_plan text, p_sello 
 RETURNS int LANGUAGE sql IMMUTABLE
 AS $$
   SELECT CASE
-    WHEN lower(coalesce(p_sello, '')) = 'fundador'                  THEN NULL::int
+    WHEN lower(coalesce(p_sello, '')) = 'fundador'                    THEN NULL::int
     WHEN lower(coalesce(p_plan, 'free')) IN ('pro','studio','agency') THEN NULL::int
     ELSE 50
   END
 $$;
 
--- El plan y el sello de una CUENTA: su workspace propio manda; si no tiene,
--- se cae a users.plan (que /admin sigue escribiendo por compatibilidad) y al
--- final a free.
-CREATE OR REPLACE FUNCTION public.plan_y_sello_de_cuenta(p_user_id uuid)
+-- LAS DOS PAREDES MIDEN IGUAL, y esta es la funcion que lo garantiza: manda el
+-- workspace donde vive el evento; si no hay, el workspace propio del dueno; si
+-- tampoco, users.plan (que /admin sigue escribiendo por compatibilidad); al
+-- final, free. Un evento que vive en un workspace de paga ajeno no puede
+-- quedar sin tope de invitados y topado a un evento al mismo tiempo.
+CREATE OR REPLACE FUNCTION public.plan_y_sello_de(p_workspace_id uuid, p_user_id uuid)
 RETURNS TABLE (plan text, sello text)
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp
 AS $$
   SELECT f.plan, f.sello FROM (
-    SELECT w.plan, w.sello, 1 AS orden FROM workspaces w WHERE w.primary_owner_id = p_user_id
+    SELECT w.plan, w.sello, 1 AS orden FROM workspaces w WHERE w.id = p_workspace_id
     UNION ALL
-    SELECT coalesce(u.plan, 'free'), NULL::text, 2 FROM users u WHERE u.id = p_user_id
+    SELECT w.plan, w.sello, 2 FROM workspaces w WHERE w.primary_owner_id = p_user_id
     UNION ALL
-    SELECT 'free', NULL::text, 3
+    SELECT coalesce(u.plan, 'free'), NULL::text, 3 FROM users u WHERE u.id = p_user_id
+    UNION ALL
+    SELECT 'free', NULL::text, 4
   ) f ORDER BY f.orden LIMIT 1
+$$;
+
+CREATE OR REPLACE FUNCTION public.plan_y_sello_de_cuenta(p_user_id uuid)
+RETURNS TABLE (plan text, sello text)
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+  SELECT c.plan, c.sello FROM public.plan_y_sello_de(NULL::uuid, p_user_id) c
 $$;
 
 -- Un evento VIGENTE es el que esta 'active' y cuyo ultimo dia (la fecha de fin
 -- si existe, si no la de inicio) es de hoy en adelante. Sin fecha, cuenta.
 -- OJO con la zona horaria: current_date es UTC y Mexico va seis horas atras,
--- asi que un evento que termina "hoy" deja de ocupar lugar a las 18:00 hora
--- de Mexico. Libera antes, nunca bloquea de mas.
+-- asi que un evento que termina "hoy" deja de ocupar lugar a las 18:00 hora de
+-- Mexico. Libera antes, nunca bloquea de mas.
 -- ESPEJO: ocupaLugar() en lib/events/estado.ts.
 CREATE OR REPLACE FUNCTION public.eventos_vigentes_de(p_user_id uuid)
 RETURNS int LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp
@@ -380,9 +531,16 @@ $$;
 -- los nombres de columna NO cambian: lib/capacity.ts lee data[0].active/lim/
 -- remaining/over. Lo que cambia es el catalogo (Free uno, los de paga sin
 -- limite, sello sin limite) y que ya no hay correo privilegiado a mano.
+--
+-- Esta funcion contesta por CUENTA, sin evento de por medio, asi que no puede
+-- resolver el plan por el workspace del evento como hace el disparador. Para
+-- no inventar un muro que la base no aplicaria, es generosa: si alguno de los
+-- eventos vigentes de la cuenta vive en un workspace sin tope, contesta sin
+-- tope. Quedarse corta por aqui no abre nada — el candado real es el
+-- disparador, y su rechazo lo pinta la misma pantalla.
+--
 -- Devuelve CERO FILAS cuando el que pregunta no tiene por que saberlo; la
--- interfaz lo toma como "no pude averiguarlo" y deja pasar (el candado real
--- es el disparador de abajo, no esta funcion).
+-- interfaz lo toma como "no pude averiguarlo" y deja pasar.
 CREATE OR REPLACE FUNCTION public.get_account_capacity(p_user_id uuid)
 RETURNS TABLE (active int, lim int, remaining int, over boolean)
 LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
@@ -401,6 +559,18 @@ BEGIN
   v_lim    := public.limite_eventos_de_plan(v_plan, v_sello);
   v_active := public.eventos_vigentes_de(p_user_id);
 
+  IF v_lim IS NOT NULL AND EXISTS (
+       SELECT 1 FROM events e
+        JOIN workspaces w ON w.id = e.workspace_id
+        WHERE e.user_id = p_user_id
+          AND coalesce(e.event_status, 'active') = 'active'
+          AND (coalesce(e.event_end_date, e.event_date) IS NULL
+               OR coalesce(e.event_end_date, e.event_date) >= current_date)
+          AND public.limite_eventos_de_plan(w.plan, w.sello) IS NULL)
+  THEN
+    v_lim := NULL;
+  END IF;
+
   RETURN QUERY SELECT
     v_active,
     v_lim,
@@ -411,7 +581,18 @@ END $$;
 -- El gate. Actua solo cuando el evento ENTRA a contar: al crearse activo con
 -- fecha vigente, al reactivarse, o al mover su fecha de pasada a futura.
 -- Editar cualquier otra cosa nunca se bloquea. El lugar lo paga el DUENO del
--- evento (events.user_id), no quien esta guardando.
+-- evento (events.user_id), no quien esta guardando; el plan sale del workspace
+-- del evento, igual que en el muro de invitados.
+--
+-- A PROPOSITO NO TIENE ESCAPE PARA EL SERVICE ROLE, a diferencia de los otros
+-- dos disparadores de este archivo: los eventos no los crea ni los reactiva
+-- ningun canal de entrada — hoy no hay una sola escritura a events desde el
+-- servidor (verificado en app/api el 20-sep), solo desde el navegador. Si
+-- algun dia una ruta de soporte reactiva eventos, se topara con
+-- EVENT_LIMIT_EXCEEDED en crudo; la salida seria agregar aqui arriba:
+--     IF auth.uid() IS NULL THEN RETURN NEW; END IF;
+-- que abre el muro a TODO lo que entre con la llave de servicio. No se pone
+-- hasta que exista esa ruta y se decida.
 CREATE OR REPLACE FUNCTION public.events_gate_cupo()
 RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp
 AS $$
@@ -434,7 +615,8 @@ BEGIN
 
   IF NEW.user_id IS NULL THEN RETURN NEW; END IF;
 
-  SELECT c.plan, c.sello INTO v_plan, v_sello FROM public.plan_y_sello_de_cuenta(NEW.user_id) c;
+  SELECT c.plan, c.sello INTO v_plan, v_sello
+    FROM public.plan_y_sello_de(NEW.workspace_id, NEW.user_id) c;
   v_lim := public.limite_eventos_de_plan(v_plan, v_sello);
   IF v_lim IS NULL THEN RETURN NEW; END IF;
 
@@ -446,6 +628,9 @@ BEGIN
   RETURN NEW;
 END $$;
 
+-- Los disparadores BEFORE de events corren en orden alfabetico:
+-- set_event_workspace va antes que trg_events_gate_cupo, asi que
+-- NEW.workspace_id ya viene resuelto cuando este mira el plan.
 DROP TRIGGER IF EXISTS trg_events_gate_cupo ON public.events;
 CREATE TRIGGER trg_events_gate_cupo
   BEFORE INSERT OR UPDATE ON public.events
@@ -456,26 +641,17 @@ CREATE TRIGGER trg_events_gate_cupo
 -- BLOQUE 3 — EL CUPO DE INVITADOS
 -- ============================================================================
 -- Se cuentan PERSONAS: filas de guests mas filas de party_members del evento.
--- El tope es el del DUENO del evento, con el sello quitandolo.
+-- El tope es el del workspace del evento (y si no tiene, el del dueno), con el
+-- sello quitandolo.
 -- ESPEJO: contarPersonas() en lib/invitados/cupo.ts.
 
--- El plan y el sello que gobiernan un EVENTO. Manda el workspace del evento;
--- si no tiene, el workspace propio del dueno; si tampoco, users.plan; al
--- final, free.
 CREATE OR REPLACE FUNCTION public.plan_y_sello_del_evento(evento uuid)
 RETURNS TABLE (plan text, sello text)
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp
 AS $$
-  WITH e AS (SELECT ev.user_id, ev.workspace_id FROM events ev WHERE ev.id = evento)
-  SELECT f.plan, f.sello FROM (
-    SELECT w.plan, w.sello, 1 AS orden FROM workspaces w JOIN e ON w.id = e.workspace_id
-    UNION ALL
-    SELECT w.plan, w.sello, 2 FROM workspaces w JOIN e ON w.primary_owner_id = e.user_id
-    UNION ALL
-    SELECT coalesce(u.plan, 'free'), NULL::text, 3 FROM users u JOIN e ON u.id = e.user_id
-    UNION ALL
-    SELECT 'free', NULL::text, 4
-  ) f ORDER BY f.orden LIMIT 1
+  SELECT c.plan, c.sello
+    FROM events e, LATERAL public.plan_y_sello_de(e.workspace_id, e.user_id) c
+   WHERE e.id = evento
 $$;
 
 CREATE OR REPLACE FUNCTION public.limite_invitados_del_evento(evento uuid)
@@ -501,8 +677,21 @@ $$;
 -- tope de 50) no pierde a nadie: el disparador actua sobre lo que ENTRA. Lo
 -- que si le pasa es que no puede agregar a nadie mas hasta bajar de 50 o subir
 -- de plan — incluido el caso de intercambiar un acompanante por otro, que la
--- interfaz si deja pasar (bloqueaPorTope en lib/invitados/cupo.ts) porque
--- alla se ve la operacion completa y aqui solo se ve la fila que entra.
+-- interfaz si deja pasar (bloqueaPorTope en lib/invitados/cupo.ts) porque alla
+-- se ve la operacion completa y aqui solo se ve la fila que entra.
+--
+-- HUECO CONOCIDO: es BEFORE INSERT, asi que mover un invitado de un evento a
+-- otro con un UPDATE de guests.event_id no pasa por aqui. Ninguna pantalla lo
+-- hace; se alcanza solo desde la consola.
+--
+-- COSTO: cuenta una vez por fila que entra. Con indice por event_id en guests
+-- y party_members es trivial; sin el, una importacion grande se vuelve
+-- cuadratica. El BLOQUE 0-A (B9) dice si estan. Si falta alguno, se crea FUERA
+-- de esta transaccion (CONCURRENTLY no corre dentro de una):
+--   CREATE INDEX CONCURRENTLY IF NOT EXISTS guests_event_id_idx
+--     ON public.guests (event_id);
+--   CREATE INDEX CONCURRENTLY IF NOT EXISTS party_members_event_id_idx
+--     ON public.party_members (event_id);
 CREATE OR REPLACE FUNCTION public.invitados_gate_cupo()
 RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp
 AS $$
@@ -531,9 +720,50 @@ CREATE TRIGGER trg_party_members_gate_cupo
   BEFORE INSERT ON public.party_members
   FOR EACH ROW EXECUTE FUNCTION public.invitados_gate_cupo();
 
+-- ----------------------------------------------------------------------------
+-- PRUEBA OBLIGATORIA, UNA SOLA VEZ, DESPUES DE APLICAR ESTE ARCHIVO
+-- ----------------------------------------------------------------------------
+-- Esto NO se puede dar por bueno leyendo, y es de lo que depende que el muro
+-- exista en el camino principal: el disparador es POR FILA y la importacion de
+-- invitados manda TODAS las filas en UNA sola sentencia INSERT. Postgres deja
+-- que la fila N vea las filas anteriores de su propia sentencia (plpgsql
+-- avanza el contador de comandos antes de cada consulta interna). Si eso no
+-- fuera cierto en esta base, personas_del_evento contaria siempre lo de ANTES
+-- de la sentencia y una importacion de 300 entraria completa en una cuenta
+-- free.
+--
+-- Como se prueba, en el editor de Supabase, sobre un EVENTO VACIO de una
+-- cuenta FREE de prueba. El editor corre sin auth.uid() y el disparador se
+-- salta a proposito, asi que hay que fingir la sesion con set_config; todo va
+-- dentro de una transaccion que se deshace al final y no deja rastro:
+--
+--   BEGIN;
+--   SELECT set_config('request.jwt.claims',
+--                     '{"sub":"<UUID DEL DUENO DEL EVENTO>","role":"authenticated"}', true);
+--   INSERT INTO guests (event_id, name)
+--   SELECT '<UUID DEL EVENTO VACIO>', 'Prueba ' || g FROM generate_series(1, 60) g;
+--   ROLLBACK;
+--
+--   (si guests pide alguna columna mas sin default, agregala al INSERT)
+--
+-- LO ESPERADO: la sentencia falla con
+--     ERROR: INVITADOS_LIMITE:51:50
+-- y el ROLLBACK no deja nada. Eso significa que el muro SI ve las filas de su
+-- propia sentencia, y la importacion queda cubierta.
+--
+-- SI EN CAMBIO ENTRAN LAS 60 SIN ERROR: el muro no existe para la importacion.
+-- El remedio es cambiarlo por un disparador POR SENTENCIA con tabla de
+-- transicion, que ve todas las filas de golpe:
+--     CREATE TRIGGER trg_guests_gate_cupo AFTER INSERT ON guests
+--       REFERENCING NEW TABLE AS nuevas FOR EACH STATEMENT
+--       EXECUTE FUNCTION invitados_gate_cupo_por_sentencia();
+-- con una funcion que recorra `SELECT DISTINCT event_id FROM nuevas` aplicando
+-- el mismo limite. No se deja escrita aqui para no dejar dos caminos vivos: se
+-- escribe si la prueba lo pide.
+
 
 -- ============================================================================
--- BLOQUE 4 — LA FUNCION QUE LA INTERFAZ CONSULTA
+-- BLOQUE 4 — LA FUNCION QUE LA INTERFAZ CONSULTA, Y LOS PERMISOS
 -- ============================================================================
 -- plan_del_evento ya existia (2026-09-08-workspace-cimiento.sql) y devolvia
 -- solo el plan del workspace del evento, con 'free' por omision.
@@ -542,15 +772,15 @@ CREATE TRIGGER trg_party_members_gate_cupo
 --   - SIGUE devolviendo text. lib/workspace/cliente.ts comprueba
 --     `typeof data === 'string'`: cambiarle el tipo de regreso la dejaria
 --     ciega en silencio y, de paso, CREATE OR REPLACE ni siquiera lo permite.
---   - Gana la misma caida en cascada del BLOQUE 3 (workspace del evento ->
---     workspace propio del dueno -> users.plan -> free).
---   - El plan y el SELLO juntos salen por plan_y_sello_del_evento, creada
---     arriba: es la que resuelve el problema de que las policies de workspaces
---     no dejan a un colaborador leer esa fila. Mientras la interfaz no la
---     llame, un colaborador de una partner fundadora simplemente no ve tope en
---     pantalla (resolverLimiteInvitados devuelve null cuando no pudo
---     comprobar el plan) y el disparador del BLOQUE 3, que si lee el sello,
---     lo deja pasar. Nadie queda topado de mas.
+--   - Gana la misma caida en cascada de los otros bloques (workspace del
+--     evento -> workspace propio del dueno -> users.plan -> free).
+--   - El plan y el SELLO juntos salen por plan_y_sello_del_evento: es la que
+--     resuelve que las policies de workspaces no dejen a un colaborador leer
+--     esa fila. Mientras la interfaz no la llame, un colaborador de una
+--     partner fundadora simplemente no ve tope en pantalla
+--     (resolverLimiteInvitados devuelve null cuando no pudo comprobar el plan)
+--     y el disparador del BLOQUE 3, que si lee el sello, lo deja pasar. Nadie
+--     queda topado de mas.
 --   - Un extrano ya no aprende nada: fuera del evento devuelve NULL.
 CREATE OR REPLACE FUNCTION public.plan_del_evento(evento uuid)
 RETURNS text LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp
@@ -569,8 +799,43 @@ BEGIN
 END $$;
 
 -- ---------------------------------------------------------------------------
--- PERMISOS DE EJECUCION — TERRENO DE LA AUDITORIA DE SEGURIDAD, LEER ANTES
+-- PERMISOS DE EJECUCION — LEER ANTES DE TOCAR
 -- ---------------------------------------------------------------------------
+-- En Postgres toda funcion nace ejecutable por PUBLIC, y Supabase ademas tiene
+-- default privileges que se la otorgan a anon y authenticated. Como Supabase
+-- publica cada funcion de `public` como endpoint, una funcion nueva sin cerrar
+-- es una puerta abierta: personas_del_evento, plan_y_sello_de_cuenta,
+-- eventos_vigentes_de, limite_invitados_del_evento y evento_editable
+-- contestarian de cualquier evento o cuenta a quien no tiene ni sesion, que es
+-- justo el hueco que acaba de cerrar la auditoria de seguridad.
+-- Por eso se cierran TODAS, y luego se abre solo lo que la app llama.
+REVOKE EXECUTE ON FUNCTION
+  public.limite_eventos_de_plan(text, text),
+  public.limite_invitados_de_plan(text, text),
+  public.plan_y_sello_de(uuid, uuid),
+  public.plan_y_sello_de_cuenta(uuid),
+  public.plan_y_sello_del_evento(uuid),
+  public.limite_invitados_del_evento(uuid),
+  public.personas_del_evento(uuid),
+  public.eventos_vigentes_de(uuid),
+  public.evento_editable(uuid),
+  public.get_account_capacity(uuid),
+  public.plan_del_evento(uuid)
+FROM PUBLIC, anon, authenticated;
+
+-- Las funciones de disparador no se llaman por RPC (Postgres solo revisa el
+-- permiso al CREAR el disparador, no al dispararlo), pero se cierran igual.
+REVOKE EXECUTE ON FUNCTION
+  public.guard_workspace_sello(),
+  public.events_gate_cupo(),
+  public.invitados_gate_cupo(),
+  public.guard_cliente_sin_total(),
+  public.bloquea_evento_archivado(),
+  public.bloquea_pago_archivado()
+FROM PUBLIC, anon, authenticated;
+
+-- Lo unico que se vuelve a abrir, y por que:
+--
 -- docs/superpowers/plans/sql/2026-09-14-seguridad-1a-cerrar-ya.sql le quito a
 -- `authenticated` el permiso de ejecutar get_account_capacity y
 -- plan_del_evento, con razon: eran SECURITY DEFINER que recibian el id de
@@ -589,18 +854,14 @@ END $$;
 --
 -- Si prefieres no reabrirlos: estos dos GRANT se pueden saltar sin tocar nada
 -- mas. Los muros no dependen de ellos.
-REVOKE EXECUTE ON FUNCTION public.get_account_capacity(uuid)      FROM PUBLIC, anon;
-REVOKE EXECUTE ON FUNCTION public.plan_del_evento(uuid)           FROM PUBLIC, anon;
-REVOKE EXECUTE ON FUNCTION public.plan_y_sello_del_evento(uuid)   FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.get_account_capacity(uuid) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.plan_del_evento(uuid)      TO authenticated, service_role;
 
-GRANT EXECUTE ON FUNCTION public.get_account_capacity(uuid)     TO authenticated, service_role;
-GRANT EXECUTE ON FUNCTION public.plan_del_evento(uuid)          TO authenticated, service_role;
-GRANT EXECUTE ON FUNCTION public.plan_y_sello_del_evento(uuid)  TO authenticated, service_role;
-
--- Las demas funciones de este archivo solo las usan los disparadores (que
--- corren como su dueno) y otras funciones SECURITY DEFINER. No se les revoca
--- nada a `authenticated`: una policy de RLS que llame a cualquiera de estas se
--- evalua con el rol del usuario y se romperia entera.
+-- plan_y_sello_del_evento NO se le da a authenticated: hoy no la llama nadie
+-- desde el navegador, y abierta dejaria leer el plan y el sello de cualquier
+-- evento por la puerta de al lado. Cuando la interfaz la use, se le pone la
+-- misma pregunta de adentro que trae plan_del_evento y entonces se otorga.
+GRANT EXECUTE ON FUNCTION public.plan_y_sello_del_evento(uuid) TO service_role;
 
 
 -- ============================================================================
@@ -619,6 +880,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS event_collaborators_un_cliente_vivo
 -- 'editar', porque la intencion era darle acceso, no dejarlo fuera.
 -- Corre siempre, con sesion o sin ella: no rechaza nada, normaliza. Las dos
 -- puertas del servidor ya aplican la misma regla antes de escribir.
+-- Solo toca los valores que son EXACTAMENTE el texto "total"; cualquier otro
+-- valor del jsonb se copia tal cual, sin aplanarlo a texto.
 -- NO toca la columna legada `role`: el runtime resuelve el acceso con
 -- `permisos` (nivel_en / nivelEfectivo), no con ella.
 CREATE OR REPLACE FUNCTION public.guard_cliente_sin_total()
@@ -628,11 +891,11 @@ BEGIN
   IF NEW.tipo = 'cliente'
      AND NEW.permisos IS NOT NULL
      AND jsonb_typeof(NEW.permisos) = 'object'
-     AND EXISTS (SELECT 1 FROM jsonb_each_text(NEW.permisos) e WHERE e.value = 'total') THEN
+     AND EXISTS (SELECT 1 FROM jsonb_each(NEW.permisos) e WHERE e.value = '"total"'::jsonb) THEN
     NEW.permisos := (
-      SELECT coalesce(jsonb_object_agg(e.key,
-               to_jsonb(CASE WHEN e.value = 'total' THEN 'editar' ELSE e.value END)), '{}'::jsonb)
-        FROM jsonb_each_text(NEW.permisos) e
+      SELECT jsonb_object_agg(e.key,
+               CASE WHEN e.value = '"total"'::jsonb THEN '"editar"'::jsonb ELSE e.value END)
+        FROM jsonb_each(NEW.permisos) e
     );
   END IF;
   RETURN NEW;
@@ -678,11 +941,14 @@ END $$;
 
 -- QUE ENTRA Y QUE NO:
 --   - Las 14 tablas de abajo cuelgan directo de event_id (el BLOQUE 0-B lo
---     verifica una por una y aborta si alguna no).
+--     verifica una por una y aborta si alguna no, distinguiendo "la tabla no
+--     existe" de "existe pero no tiene event_id").
 --   - supplier_payments no tiene event_id: se resuelve con un join, abajo.
 --   - gift_reservations SI tiene event_id (columna NOT NULL desde ANF-049),
 --     asi que entra a la lista generica y no necesita join.
---   - HUECOS CONOCIDOS, fuera a proposito:
+--   - HUECOS CONOCIDOS, fuera a proposito (el BLOQUE 0-A, en B8, saca a la luz
+--     cualquier tabla con event_id que no este ni aqui ni en esta lista, para
+--     que "hueco conocido" se demuestre en vez de afirmarse):
 --       * event_audit_log — la bitacora tiene que poder seguir registrando lo
 --         que pasa en un evento archivado, incluido su archivado.
 --       * conversations, messages, channel_participants, wa_messages — el
@@ -690,14 +956,12 @@ END $$;
 --         y lo poco que escribe el navegador no vale el riesgo de partirle el
 --         hilo al agente. Un evento archivado no se muestra en la app, asi que
 --         hoy esto solo se alcanza a proposito.
---       * suppliers y categories — son del despacho, no del evento: se
+--       * suppliers y categories — no tienen event_id: son del despacho, se
 --         comparten entre eventos y no se congelan con uno.
 --
 -- El loop toma ACCESS EXCLUSIVE sobre las 14 tablas y lo retiene hasta el
--- commit. Con lock_timeout falla rapido en vez de encolar la app entera detras
--- de una consulta larga; el remedio es volver a correr el archivo, que es
--- idempotente.
-SET LOCAL lock_timeout = '5s';
+-- commit. El lock_timeout puesto arriba, justo despues del BEGIN, hace que
+-- falle rapido en vez de encolar la app entera detras de una consulta larga.
 DO $$
 DECLARE t text;
 BEGIN
@@ -744,9 +1008,11 @@ CREATE TRIGGER trg_supplier_payments_archivado
 -- ============================================================================
 -- BLOQUE 7 — LA MIGRACION DE ESTATUS
 -- ============================================================================
--- Van al final, ya con todo lo demas puesto. Ningun dato se pierde: archivado
+-- Va al final, ya con todo lo demas puesto. Ningun dato se pierde: archivado
 -- conserva todo y se puede reactivar (y reactivar vuelve a pedir lugar, que es
 -- justo lo que hace el gate del BLOQUE 2).
+-- Para deshacerla evento por evento hace falta la lista B4 del BLOQUE 0-A:
+-- guardala antes de correr esto.
 -- Esta misma sentencia dispara trg_events_gate_cupo, que la deja pasar sin
 -- mirar nada porque el estatus que queda no es 'active'.
 UPDATE events SET event_status = 'archived'
@@ -797,28 +1063,67 @@ UNION ALL
 SELECT 'V8 fundadores con sello (tope 25)',
   (SELECT count(*)::text FROM workspaces WHERE sello = 'fundador')
 UNION ALL
-SELECT 'V9 permisos de ejecucion (auth / anon)',
-  (SELECT 'get_account_capacity ' || has_function_privilege('authenticated','public.get_account_capacity(uuid)','EXECUTE')::text ||
-          '/' || has_function_privilege('anon','public.get_account_capacity(uuid)','EXECUTE')::text ||
-          ' | plan_del_evento ' || has_function_privilege('authenticated','public.plan_del_evento(uuid)','EXECUTE')::text ||
-          '/' || has_function_privilege('anon','public.plan_del_evento(uuid)','EXECUTE')::text)
+SELECT 'V9 funciones de este archivo que anon puede ejecutar (esperado: ninguna)',
+  (SELECT coalesce(string_agg(p.proname, ', ' ORDER BY p.proname), 'ninguna')
+     FROM pg_proc p
+    WHERE p.pronamespace = 'public'::regnamespace
+      AND p.proname IN ('limite_eventos_de_plan','limite_invitados_de_plan','plan_y_sello_de',
+                        'plan_y_sello_de_cuenta','plan_y_sello_del_evento','limite_invitados_del_evento',
+                        'personas_del_evento','eventos_vigentes_de','evento_editable',
+                        'get_account_capacity','plan_del_evento','guard_workspace_sello',
+                        'events_gate_cupo','invitados_gate_cupo','guard_cliente_sin_total',
+                        'bloquea_evento_archivado','bloquea_pago_archivado')
+      AND has_function_privilege('anon', p.oid, 'EXECUTE'))
 UNION ALL
-SELECT 'V10 clientes que todavia traen algun total (esperado: 0 al editarlos)',
+SELECT 'V10 las que authenticated puede ejecutar (esperado: solo las dos)',
+  (SELECT coalesce(string_agg(p.proname, ', ' ORDER BY p.proname), 'ninguna')
+     FROM pg_proc p
+    WHERE p.pronamespace = 'public'::regnamespace
+      AND p.proname IN ('limite_eventos_de_plan','limite_invitados_de_plan','plan_y_sello_de',
+                        'plan_y_sello_de_cuenta','plan_y_sello_del_evento','limite_invitados_del_evento',
+                        'personas_del_evento','eventos_vigentes_de','evento_editable',
+                        'get_account_capacity','plan_del_evento','guard_workspace_sello',
+                        'events_gate_cupo','invitados_gate_cupo','guard_cliente_sin_total',
+                        'bloquea_evento_archivado','bloquea_pago_archivado')
+      AND has_function_privilege('authenticated', p.oid, 'EXECUTE'))
+UNION ALL
+SELECT 'V11 clientes que todavia traen algun total',
   (SELECT count(*)::text FROM event_collaborators c
     WHERE c.tipo = 'cliente' AND c.permisos IS NOT NULL AND jsonb_typeof(c.permisos) = 'object'
-      AND EXISTS (SELECT 1 FROM jsonb_each_text(c.permisos) e WHERE e.value = 'total'));
+      AND EXISTS (SELECT 1 FROM jsonb_each(c.permisos) e WHERE e.value = '"total"'::jsonb));
 -- Esperado: V1 las dos columnas, V2 workspaces_plan_valido y
--- workspaces_sello_valido, V3 los seis disparadores, V4 catorce, V5 el
--- indice, V6 solo active y archived, V7 "1 evento, sin limite, sin limite |
--- invitados: 50, sin limite", V8 los que tu hayas puesto, V9 authenticated
--- true y anon false en las dos, V10 los clientes viejos que nadie ha vuelto a
--- guardar (el disparador solo los limpia cuando se escriben; no se tocan
--- datos a mano en este archivo).
+-- workspaces_sello_valido, V3 los seis disparadores, V4 catorce, V5 el indice,
+-- V6 solo active y archived, V7 "1 evento, sin limite, sin limite | invitados:
+-- 50, sin limite", V8 los que tu hayas puesto, V9 NINGUNA, V10 exactamente
+-- get_account_capacity y plan_del_evento, V11 los clientes viejos que nadie ha
+-- vuelto a guardar (el disparador solo los limpia cuando se escriben; este
+-- archivo no toca datos de nadie).
+--
+-- Y falta la PRUEBA OBLIGATORIA del BLOQUE 3 (los 60 invitados de un jalon).
 
 
 -- ============================================================================
--- REVERTIR (SOLO SI ALGO SE ROMPE). Cada pieza por separado.
+-- REVERTIR (SOLO SI ALGO SE ROMPE)
 -- ============================================================================
+-- Va en transaccion, como el archivo. OJO con lo que esta reversa NO hace:
+--   - NO restaura el texto anterior de get_account_capacity, plan_del_evento
+--     ni evento_editable: quedan con el cuerpo nuevo, que es compatible con lo
+--     que la app consume. Si de verdad hace falta el viejo, esta en git:
+--     supabase/2026-08-19-muro-eventos.sql, en el commit anterior al que lo
+--     borro (git show <commit>^:supabase/2026-08-19-muro-eventos.sql).
+--   - NO revierte la migracion de estatus. 'paused', 'cancelled' y 'completed'
+--     ya no existen en el codigo desplegado (EventStatus en lib/types.ts es
+--     'active' | 'archived'), asi que devolverlos dejaria filas que la app no
+--     sabe pintar. Si aun asi hace falta, se hace evento por evento con la
+--     lista B4 que guardaste del BLOQUE 0-A.
+--   - NO devuelve el CHECK viejo de planes, el de tres valores: reponerlo
+--     revienta si para entonces ya hay alguien en Studio, y al tirar el de
+--     cuatro primero la tabla se quedaria sin ningun candado de plan. El de
+--     cuatro valores es correcto con o sin muros: se queda.
+--
+-- BEGIN;
+-- SET LOCAL lock_timeout = '5s';
+--
 -- -- Muro de eventos:
 -- DROP TRIGGER IF EXISTS trg_events_gate_cupo ON public.events;
 --
@@ -827,7 +1132,7 @@ SELECT 'V10 clientes que todavia traen algun total (esperado: 0 al editarlos)',
 -- DROP TRIGGER IF EXISTS trg_party_members_gate_cupo ON public.party_members;
 --
 -- -- Solo lectura del evento archivado (las 14 hijas + pagos):
--- DO $$
+-- DO $x$
 -- DECLARE t text;
 -- BEGIN
 --   FOREACH t IN ARRAY ARRAY[
@@ -838,7 +1143,7 @@ SELECT 'V10 clientes que todavia traen algun total (esperado: 0 al editarlos)',
 --   ] LOOP
 --     EXECUTE format('drop trigger if exists trg_%s_archivado on public.%I', t, t);
 --   END LOOP;
--- END $$;
+-- END $x$;
 -- DROP TRIGGER IF EXISTS trg_supplier_payments_archivado ON public.supplier_payments;
 --
 -- -- Sello (el candado; las columnas se pueden dejar, son inertes):
@@ -849,18 +1154,23 @@ SELECT 'V10 clientes que todavia traen algun total (esperado: 0 al editarlos)',
 -- DROP INDEX IF EXISTS public.event_collaborators_un_cliente_vivo;
 -- DROP TRIGGER IF EXISTS guard_cliente_sin_total ON public.event_collaborators;
 --
--- -- Permisos de ejecucion, como los dejo la auditoria del 14-sep:
+-- -- Los permisos que este archivo otorgo, como los dejo la auditoria del 14-sep:
 -- REVOKE EXECUTE ON FUNCTION public.get_account_capacity(uuid), public.plan_del_evento(uuid)
 --   FROM PUBLIC, anon, authenticated;
+-- REVOKE EXECUTE ON FUNCTION public.plan_y_sello_del_evento(uuid) FROM service_role;
 --
--- -- Catalogo de planes, como estaba el 8-sep (OJO: con esto /admin ya no puede
--- -- guardar Studio):
--- ALTER TABLE public.workspaces DROP CONSTRAINT IF EXISTS workspaces_plan_valido;
--- ALTER TABLE public.workspaces
---   ADD CONSTRAINT workspaces_plan_valido CHECK (plan IN ('free', 'pro', 'agency'));
+-- -- Las funciones nuevas quedan inertes sin sus disparadores; si estorban:
+-- DROP FUNCTION IF EXISTS public.plan_y_sello_del_evento(uuid);
+-- DROP FUNCTION IF EXISTS public.plan_y_sello_de_cuenta(uuid);
+-- DROP FUNCTION IF EXISTS public.plan_y_sello_de(uuid, uuid);
+-- DROP FUNCTION IF EXISTS public.limite_invitados_del_evento(uuid);
+-- DROP FUNCTION IF EXISTS public.limite_eventos_de_plan(text, text);
+-- DROP FUNCTION IF EXISTS public.limite_invitados_de_plan(text, text);
+-- DROP FUNCTION IF EXISTS public.personas_del_evento(uuid);
+-- DROP FUNCTION IF EXISTS public.eventos_vigentes_de(uuid);
+-- DROP FUNCTION IF EXISTS public.events_gate_cupo();
+-- DROP FUNCTION IF EXISTS public.invitados_gate_cupo();
+-- DROP FUNCTION IF EXISTS public.guard_workspace_sello();
+-- DROP FUNCTION IF EXISTS public.guard_cliente_sin_total();
 --
--- -- La migracion de estatus NO se revierte: 'paused', 'cancelled' y
--- -- 'completed' ya no existen en el codigo desplegado (EventStatus en
--- -- lib/types.ts es 'active' | 'archived'), asi que devolverlos dejaria filas
--- -- que la app no sabe pintar. Si de verdad hace falta, el dato viejo esta en
--- -- event_audit_log.
+-- COMMIT;
