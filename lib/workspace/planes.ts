@@ -1,6 +1,6 @@
 import { MODULOS, type Modulo } from '@/lib/permisos/catalogo'
 
-export const PLAN_IDS = ['free', 'pro', 'agency'] as const
+export const PLAN_IDS = ['free', 'pro', 'studio', 'agency'] as const
 export type PlanId = typeof PLAN_IDS[number]
 
 export interface Plan {
@@ -8,10 +8,11 @@ export interface Plan {
   nombre: string
   precio: number
   asientosIncluidos: number
+  // null = sin limite
+  eventosActivos: number | null
+  invitadosPorEvento: number | null
   // 0 = sin Actividad; null = sin limite
   ventanaActividadDias: number | null
-  // null = ilimitadas
-  bodasActivas: number | null
   importExport: boolean
   whitelabel: boolean
   herramientas: readonly Modulo[]
@@ -25,26 +26,35 @@ const HERRAMIENTAS_FREE: readonly Modulo[] = [
 export const PLANES: Record<PlanId, Plan> = {
   free: {
     id: 'free', nombre: 'Free', precio: 0, asientosIncluidos: 1,
-    ventanaActividadDias: 0, bodasActivas: 1, importExport: false, whitelabel: false,
+    eventosActivos: 1, invitadosPorEvento: 50,
+    ventanaActividadDias: 0, importExport: false, whitelabel: false,
     herramientas: HERRAMIENTAS_FREE,
   },
   pro: {
-    id: 'pro', nombre: 'Pro', precio: 990, asientosIncluidos: 1,
-    ventanaActividadDias: 30, bodasActivas: null, importExport: true, whitelabel: false,
+    id: 'pro', nombre: 'Pro', precio: 490, asientosIncluidos: 1,
+    eventosActivos: null, invitadosPorEvento: null,
+    ventanaActividadDias: 30, importExport: true, whitelabel: false,
+    herramientas: MODULOS,
+  },
+  studio: {
+    id: 'studio', nombre: 'Studio', precio: 990, asientosIncluidos: 3,
+    eventosActivos: null, invitadosPorEvento: null,
+    ventanaActividadDias: 30, importExport: true, whitelabel: false,
     herramientas: MODULOS,
   },
   agency: {
-    id: 'agency', nombre: 'Agency', precio: 1990, asientosIncluidos: 3,
-    ventanaActividadDias: null, bodasActivas: null, importExport: true, whitelabel: true,
+    id: 'agency', nombre: 'Agency', precio: 1990, asientosIncluidos: 5,
+    eventosActivos: null, invitadosPorEvento: null,
+    ventanaActividadDias: null, importExport: true, whitelabel: true,
     herramientas: MODULOS,
   },
 }
 
 export const PRECIO_ASIENTO_EXTRA = 290
 
-// 'studio' es el catalogo de junio (3 asientos, 25 eventos): hoy equivale a Pro.
-// 'solo' y cualquier otro valor caen a Free.
-const ALIAS: Record<string, PlanId> = { studio: 'pro' }
+// studio ya es un plan real y solo nunca existio en la base: ambos caen
+// a la regla general (studio se reconoce, cualquier otro valor cae a free).
+const ALIAS: Record<string, PlanId> = {}
 
 export function normalizarPlan(raw: unknown): PlanId {
   if (typeof raw !== 'string') return 'free'
