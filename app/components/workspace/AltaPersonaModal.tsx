@@ -166,8 +166,8 @@ export function AltaPersonaModal({ open, onClose, workspace, bodaFija, onHecho }
           </div>
         ) : !permiso.ok ? (
           <div className="rounded-xl border border-[#f0dfae] bg-[#fffbf0] px-4 py-3 text-sm text-[#7a5a14]">
-            <p className="font-semibold">Para trabajar en equipo necesitas Pro.</p>
-            {/* Mientras no haya cobro, Pro se activa a mano. El aviso tiene que
+            <p className="font-semibold">Para trabajar en equipo necesitas Studio.</p>
+            {/* Mientras no haya cobro, Studio se activa a mano. El aviso tiene que
                 decir A DONDE escribir, no solo "escribenos". */}
             <p className="mt-1 text-[13px]">
               Tu plan {PLANES[workspace.plan].nombre} es solo para ti. Escríbenos a{' '}

@@ -155,11 +155,11 @@ export default function EquipoPage() {
 
       {soloYo && esFree && (
         <div className="flex flex-col items-start gap-2 rounded-xl border border-[#f0dfae] bg-[#fffbf0] p-5">
-          <p className="text-sm font-semibold text-[#7a5a14]">El equipo es parte de Pro</p>
+          <p className="text-sm font-semibold text-[#7a5a14]">El equipo es parte de Studio</p>
           <p className="max-w-[52ch] text-[13px] leading-relaxed text-[#7a5a14]">
             En Free trabajas tú solo. Escríbenos a{' '}
             <a href="mailto:partners@anfiora.com" className="font-semibold underline underline-offset-2">partners@anfiora.com</a>
-            {' '}y te activamos Pro sin costo. Invitar clientes sí está incluido, y se hace desde cada evento.
+            {' '}y te activamos Studio sin costo. Invitar clientes sí está incluido, y se hace desde cada evento.
           </p>
         </div>
       )}

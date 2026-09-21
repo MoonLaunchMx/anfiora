@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
 
   const permiso = puedeInvitar(await planDelWorkspace(admin, ws), contarAsientos(miembros ?? []))
   if (!permiso.ok) {
-    return NextResponse.json({ error: 'Para trabajar en equipo necesitas Pro', motivo: 'plan' }, { status: 402 })
+    return NextResponse.json({ error: 'Para trabajar en equipo necesitas Studio', motivo: 'plan' }, { status: 402 })
   }
 
   // Solo bodas de este workspace.
