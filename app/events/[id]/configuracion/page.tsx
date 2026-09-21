@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabase'
 import { EventStatus } from '@/lib/types'
 import { esArchivado, ocupaLugar, type EventoParaEstado } from '@/lib/events/estado'
 import { fetchAccountCapacity, esErrorDeCupo, parseLimitError } from '@/lib/capacity'
-import { MuroModal } from '@/app/components/MuroModal'
+import { MuroModal, type MuroCaso } from '@/app/components/MuroModal'
 import { getTemplatePack } from '@/lib/message-templates'
 import DatePicker from '@/app/components/ui/DatePicker'
 import TimePicker from '@/app/components/ui/TimePicker'
@@ -296,7 +296,7 @@ export default function ConfiguracionPage() {
   // Status dropdown
   const [showStatusDropdown, setShowStatusDropdown] = useState(false)
   const [statusSaving, setStatusSaving]             = useState(false)
-  const [muro, setMuro]                             = useState<{ limite: number } | null>(null)
+  const [muro, setMuro]                             = useState<{ limite: number; caso: MuroCaso } | null>(null)
   const [eventOwnerId, setEventOwnerId]              = useState<string | null>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
@@ -447,7 +447,7 @@ export default function ConfiguracionPage() {
     if (!ocupaLugar(antes, hoy) && ocupaLugar(despues, hoy) && eventOwnerId) {
       const cupo = await fetchAccountCapacity(eventOwnerId)
       if (cupo && cupo.lim !== null && cupo.remaining !== null && cupo.remaining <= 0) {
-        setMuro({ limite: cupo.lim })
+        setMuro({ limite: cupo.lim, caso: 'mover-fecha' })
         setSaving(false)
         return
       }
@@ -479,7 +479,7 @@ export default function ConfiguracionPage() {
     if (eventErr) {
       if (esErrorDeCupo(eventErr)) {
         const datos = parseLimitError(eventErr.message)
-        setMuro({ limite: datos?.limit ?? 0 })
+        setMuro({ limite: datos?.limit ?? 0, caso: 'mover-fecha' })
         setSaving(false)
         return
       }
@@ -546,7 +546,7 @@ export default function ConfiguracionPage() {
       marcarArchivado(newStatus === 'archived')
     } else if (esErrorDeCupo(err)) {
       const datos = parseLimitError(err.message)
-      setMuro({ limite: datos?.limit ?? 0 })
+      setMuro({ limite: datos?.limit ?? 0, caso: 'reactivar-evento' })
     }
     setStatusSaving(false)
   }
@@ -1344,7 +1344,7 @@ export default function ConfiguracionPage() {
 
       <MuroModal
         open={!!muro}
-        motivo="eventos"
+        caso={muro?.caso ?? 'mover-fecha'}
         limite={muro?.limite ?? 0}
         onClose={() => setMuro(null)}
       />

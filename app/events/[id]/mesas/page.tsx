@@ -15,7 +15,7 @@ import { Cargando } from '@/app/components/ui/Cargando'
 import { contarPersonas, bloqueaPorTope, esErrorDeInvitados, parseErrorInvitados } from '@/lib/invitados/cupo'
 import { esErrorDeArchivado, MENSAJE_EVENTO_ARCHIVADO } from '@/lib/capacity'
 import { limiteInvitadosDelEvento } from '@/lib/workspace/cliente'
-import { MuroModal } from '@/app/components/MuroModal'
+import { MuroModal, type MuroCaso } from '@/app/components/MuroModal'
 
 // ─── CONSTANTES ───────────────────────────────
 const STATUS_COLORS: Record<string, { bg: string; border: string; text: string; label: string }> = {
@@ -1244,7 +1244,7 @@ function MesasPageInner() {
   const [eventTags,setEventTags]=useState<string[]>([])
   const [eventInfo,setEventInfo]=useState<EventInfo|null>(null)
   const [limiteInvitadosEvento,setLimiteInvitadosEvento]=useState<number|null>(null)
-  const [muroInvitados,setMuroInvitados]=useState<{limite:number}|null>(null)
+  const [muroInvitados,setMuroInvitados]=useState<{limite:number;caso:MuroCaso}|null>(null)
   const [loading,setLoading]=useState(true)
   const [canvasMode,setCanvasMode]=useState(false)
   const [listSearch,setListSearch]=useState('')
@@ -1433,7 +1433,7 @@ function MesasPageInner() {
     // (borrar unos, agregar otros) mientras el total no aumente.
     const personasDespues = totalPersonas - toDel.length + ins.length
     if (bloqueaPorTope(totalPersonas, personasDespues, limiteInvitadosEvento)) {
-      setMuroInvitados({ limite: limiteInvitadosEvento as number })
+      setMuroInvitados({ limite: limiteInvitadosEvento as number, caso: 'invitados-tope' })
       return
     }
 
@@ -1493,7 +1493,7 @@ function MesasPageInner() {
         // real, nunca como "intenta de nuevo".
         if (esErrorDeInvitados(insError)) {
           const datos = parseErrorInvitados(insError.message)
-          setMuroInvitados({ limite: datos?.limite ?? limiteInvitadosEvento ?? 0 })
+          setMuroInvitados({ limite: datos?.limite ?? limiteInvitadosEvento ?? 0, caso: 'invitados-tope' })
         } else {
           aviso = 'No se pudieron agregar los acompañantes nuevos. Intenta de nuevo.'
         }
@@ -1869,7 +1869,7 @@ function MesasPageInner() {
 
       <ModalAsignar tables={tables} guests={guests} assignModal={assignModal} assignSearch={assignSearch} setAssignSearch={setAssignSearch} assignRef={assignRef} gSeatMap={gSeatMap} getOccupied={getOccupied} handleSelectGuest={handleSelectGuest} onClose={()=>{setAssignModal(null);setAssignSearch('')}}/>
       <ModalMover moveModal={moveModal} tables={tables} moveSaving={moveSaving} onConfirm={handleMove} onClose={()=>setMoveModal(null)}/>
-      <MuroModal open={!!muroInvitados} motivo="invitados" limite={muroInvitados?.limite ?? 0} eventId={eventId as string} onClose={()=>setMuroInvitados(null)}/>
+      <MuroModal open={!!muroInvitados} caso={muroInvitados?.caso ?? 'invitados-tope'} limite={muroInvitados?.limite ?? 0} eventId={eventId as string} onClose={()=>setMuroInvitados(null)}/>
     </div>
   )
 }

@@ -143,7 +143,7 @@ export function AltaPersonaModal({ open, onClose, workspace, bodaFija, onHecho }
   // de la app, para que el camino de pedir acceso sea uno solo. Se corta aqui,
   // despues de todos los hooks de arriba, nunca antes.
   if (!permiso.ok) {
-    return <MuroModal open={open} motivo="equipo" limite={0} onClose={onClose} />
+    return <MuroModal open={open} caso="equipo-invitar" limite={0} onClose={onClose} />
   }
 
   return (

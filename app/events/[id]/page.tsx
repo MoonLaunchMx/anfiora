@@ -24,7 +24,7 @@ import { Puede } from '@/lib/permisos/Puede'
 import { contarPersonas, bloqueaPorTope, cuantasFilasCaben, esErrorDeInvitados, parseErrorInvitados } from '@/lib/invitados/cupo'
 import { esErrorDeArchivado, MENSAJE_EVENTO_ARCHIVADO } from '@/lib/capacity'
 import { limiteInvitadosDelEvento } from '@/lib/workspace/cliente'
-import { MuroModal } from '@/app/components/MuroModal'
+import { MuroModal, type MuroCaso } from '@/app/components/MuroModal'
 import * as XLSX from 'xlsx'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
@@ -663,7 +663,7 @@ export default function EventPage() {
   // no debe decidir si muestra "de 50" o no, para no brincar de un formato
   // al otro en cuanto la consulta resuelve.
   const [limiteCargado, setLimiteCargado] = useState(false)
-  const [muroInvitados, setMuroInvitados] = useState<{ limite: number } | null>(null)
+  const [muroInvitados, setMuroInvitados] = useState<{ limite: number; caso: MuroCaso; personasEnArchivo?: number } | null>(null)
   const [plannerName, setPlannerName] = useState('')
   const [waTarget, setWaTarget] = useState<'web' | 'app'>('web')
   const [guests, setGuests] = useState<Guest[]>([])
@@ -1004,7 +1004,7 @@ export default function EventPage() {
     // (borrar unos, agregar otros) mientras el total no aumente.
     const personasDespues = totalPersonas - toDelete.length + toInsert.length
     if (bloqueaPorTope(totalPersonas, personasDespues, limiteInvitadosEvento)) {
-      setMuroInvitados({ limite: limiteInvitadosEvento as number })
+      setMuroInvitados({ limite: limiteInvitadosEvento as number, caso: 'invitados-tope' })
       return 'Ya llegaste al tope de invitados de tu plan.'
     }
     if (f.phone) {
@@ -1046,7 +1046,7 @@ export default function EventPage() {
         // real, nunca como "intenta de nuevo".
         if (esErrorDeInvitados(memberError)) {
           const datos = parseErrorInvitados(memberError.message)
-          setMuroInvitados({ limite: datos?.limite ?? limiteInvitadosEvento ?? 0 })
+          setMuroInvitados({ limite: datos?.limite ?? limiteInvitadosEvento ?? 0, caso: 'invitados-tope' })
         } else {
           aviso = 'No se pudieron agregar los acompañantes nuevos. Intenta de nuevo.'
         }
@@ -1218,7 +1218,7 @@ export default function EventPage() {
     if (rows.length === 0) { setBulkCompanionSaving(false); setShowBulkCompanionModal(false); return }
     if (bloqueaPorTope(totalPersonas, totalPersonas + rows.length, limiteInvitadosEvento)) {
       setBulkCompanionSaving(false); setShowBulkCompanionModal(false)
-      setMuroInvitados({ limite: limiteInvitadosEvento as number })
+      setMuroInvitados({ limite: limiteInvitadosEvento as number, caso: 'invitados-tope' })
       return
     }
     const CHUNK = 500
@@ -1229,7 +1229,7 @@ export default function EventPage() {
         insertOk = false
         if (esErrorDeInvitados(error)) {
           const datos = parseErrorInvitados(error.message)
-          setMuroInvitados({ limite: datos?.limite ?? limiteInvitadosEvento ?? 0 })
+          setMuroInvitados({ limite: datos?.limite ?? limiteInvitadosEvento ?? 0, caso: 'invitados-tope' })
         }
         break
       }
@@ -1355,7 +1355,7 @@ export default function EventPage() {
     if (!f.name) return 'El nombre es obligatorio'
     const porAgregar = 1 + f.members.length
     if (bloqueaPorTope(totalPersonas, totalPersonas + porAgregar, limiteInvitadosEvento)) {
-      setMuroInvitados({ limite: limiteInvitadosEvento as number })
+      setMuroInvitados({ limite: limiteInvitadosEvento as number, caso: 'invitados-tope' })
       return 'Ya llegaste al tope de invitados de tu plan.'
     }
     if (f.phone) {
@@ -1372,7 +1372,7 @@ export default function EventPage() {
         reportError(error, { zona: 'planner' })
         if (esErrorDeInvitados(error)) {
           const datos = parseErrorInvitados(error.message)
-          setMuroInvitados({ limite: datos?.limite ?? limiteInvitadosEvento ?? 0 })
+          setMuroInvitados({ limite: datos?.limite ?? limiteInvitadosEvento ?? 0, caso: 'invitados-tope' })
           return 'Ya llegaste al tope de invitados de tu plan.'
         }
       }
@@ -1383,7 +1383,7 @@ export default function EventPage() {
       if (memberError) {
         if (esErrorDeInvitados(memberError)) {
           const datos = parseErrorInvitados(memberError.message)
-          setMuroInvitados({ limite: datos?.limite ?? limiteInvitadosEvento ?? 0 })
+          setMuroInvitados({ limite: datos?.limite ?? limiteInvitadosEvento ?? 0, caso: 'invitados-tope' })
         }
         // El invitado ya se creo con party_size adelantado; sus acompanantes
         // no entraron, asi que se corrige a 1 para no dejarlo inflado.
@@ -1498,7 +1498,7 @@ export default function EventPage() {
     if (personasFuera > 0) {
       if (filas === 0) {
         setCsvImporting(false)
-        setMuroInvitados({ limite: limiteInvitadosEvento as number })
+        setMuroInvitados({ limite: limiteInvitadosEvento as number, caso: 'import-vacio', personasEnArchivo })
         return
       }
       sobranMsg = ` Tu plan permite hasta ${limiteInvitadosEvento} invitados en total: ${personasFuera} persona${personasFuera === 1 ? '' : 's'} de este archivo se quedaron fuera por el tope. Solicita acceso para importar el resto.`
@@ -1511,7 +1511,7 @@ export default function EventPage() {
       reportError(error, { zona: 'planner' })
       if (esErrorDeInvitados(error)) {
         const datos = parseErrorInvitados(error.message)
-        setMuroInvitados({ limite: datos?.limite ?? limiteInvitadosEvento ?? 0 })
+        setMuroInvitados({ limite: datos?.limite ?? limiteInvitadosEvento ?? 0, caso: 'invitados-tope' })
       }
       setCsvError('Error al importar: ' + error.message); setCsvImporting(false); return
     }
@@ -1526,7 +1526,7 @@ export default function EventPage() {
       if (memberError) {
         if (esErrorDeInvitados(memberError)) {
           const datos = parseErrorInvitados(memberError.message)
-          setMuroInvitados({ limite: datos?.limite ?? limiteInvitadosEvento ?? 0 })
+          setMuroInvitados({ limite: datos?.limite ?? limiteInvitadosEvento ?? 0, caso: 'invitados-tope' })
         }
         break
       }
@@ -2415,7 +2415,11 @@ export default function EventPage() {
                     </button>
                   )}
                   <button
-                    onClick={() => setMuroInvitados({ limite: limiteInvitadosEvento as number })}
+                    onClick={() => setMuroInvitados({
+                      limite: limiteInvitadosEvento as number,
+                      caso: cupoPreview.filas === 0 ? 'import-vacio' : 'invitados-tope',
+                      personasEnArchivo: cupoPreview.filas === 0 ? personasEnArchivo : undefined,
+                    })}
                     disabled={csvImporting}
                     className={cupoPreview.filas > 0
                       ? 'w-full rounded-lg border border-[#48C9B0] py-2.5 text-xs font-semibold text-[#1a9e88] disabled:opacity-60'
@@ -2533,9 +2537,10 @@ export default function EventPage() {
 
       <MuroModal
         open={!!muroInvitados}
-        motivo="invitados"
+        caso={muroInvitados?.caso ?? 'invitados-tope'}
         limite={muroInvitados?.limite ?? 0}
         eventId={id as string}
+        personasEnArchivo={muroInvitados?.personasEnArchivo}
         onClose={() => setMuroInvitados(null)}
       />
 

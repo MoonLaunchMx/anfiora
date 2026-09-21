@@ -655,7 +655,7 @@ export function NewEventModal({ open, onClose, onCreated }: NewEventModalProps) 
     </Modal>
     <MuroModal
       open={!!muro}
-      motivo="eventos"
+      caso="crear-evento"
       limite={muro?.limite ?? 0}
       onClose={handleClose}
     />

@@ -835,7 +835,7 @@ export default function Dashboard() {
 
       <MuroModal
         open={!!muro}
-        motivo="eventos"
+        caso="reactivar-evento"
         limite={muro?.limite ?? 0}
         onClose={() => setMuro(null)}
       />
