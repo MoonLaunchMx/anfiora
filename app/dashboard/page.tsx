@@ -10,6 +10,7 @@ import { NewEventModal } from '@/app/components/NewEventModal'
 import { EnlaceRolodex } from '@/app/components/EnlaceRolodex'
 import { OnboardingModal } from '@/app/components/OnboardingModal'
 import { misWorkspacesAdministrados } from '@/lib/workspace/cliente'
+import { esArchivado } from '@/lib/events/estado'
 
 export const dynamic = 'force-dynamic'
 
@@ -367,11 +368,9 @@ export default function Dashboard() {
     const past = list
       .filter(e => e.event_status === 'active' && !isUpcoming(e))
       .sort((a, b) => getEventDateTime(b).getTime() - getEventDateTime(a).getTime())
-    const paused = list
-      .filter(e => e.event_status === 'paused')
-      .sort((a, b) => getEventDateTime(b).getTime() - getEventDateTime(a).getTime())
+    const paused: EventWithStats[] = []
     const cancelled = list
-      .filter(e => e.event_status === 'cancelled')
+      .filter(e => esArchivado(e.event_status))
       .sort((a, b) => getEventDateTime(b).getTime() - getEventDateTime(a).getTime())
     return { active, past, paused, cancelled }
   }
@@ -409,14 +408,13 @@ export default function Dashboard() {
     { key: 'activos',    label: 'Activos',    count: myFiltered.active.length    + sharedFiltered.active.length    },
     { key: 'pasados',    label: 'Pasados',    count: myFiltered.past.length      + sharedFiltered.past.length      },
     { key: 'pausados',   label: 'Pausados',   count: myFiltered.paused.length    + sharedFiltered.paused.length    },
-    { key: 'cancelados', label: 'Cancelados', count: myFiltered.cancelled.length + sharedFiltered.cancelled.length },
+    { key: 'cancelados', label: 'Archivados', count: myFiltered.cancelled.length + sharedFiltered.cancelled.length },
   ]
 
   const getMenuOptions = (event: EventWithStats) => {
     const all: { label: string; status: EventStatus; color?: string }[] = [
-      { label: '● Activo',    status: 'active' },
-      { label: '⏸ Pausado',   status: 'paused' },
-      { label: '✕ Cancelado', status: 'cancelled', color: '#cc3333' },
+      { label: '● Activo',     status: 'active' },
+      { label: '🗄 Archivado', status: 'archived', color: '#888888' },
     ]
     return all.filter(o => o.status !== event.event_status)
   }

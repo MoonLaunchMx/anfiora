@@ -91,16 +91,13 @@ const DEFAULT_NAMES = [
 ]
 
 const STATUS_STYLES: Record<EventStatus, { dot: string; badge: string; label: string }> = {
-  active:    { dot: 'bg-[#48C9B0]', badge: 'border-[#c8ede7] bg-[#f0fdfb] text-[#1a9e88]', label: 'Activo' },
-  paused:    { dot: 'bg-blue-400',  badge: 'border-blue-200 bg-blue-50 text-blue-700',      label: 'Pausado' },
-  cancelled: { dot: 'bg-red-400',   badge: 'border-red-200 bg-red-50 text-red-600',         label: 'Cancelado' },
-  completed: { dot: 'bg-[#888]',    badge: 'border-[#e0e0e0] bg-[#f8f8f8] text-[#888]',    label: 'Completado' },
+  active:   { dot: 'bg-[#48C9B0]', badge: 'border-[#c8ede7] bg-[#f0fdfb] text-[#1a9e88]', label: 'Activo' },
+  archived: { dot: 'bg-[#888]',    badge: 'border-[#e0e0e0] bg-[#f8f8f8] text-[#888]',    label: 'Archivado' },
 }
 
 const STATUS_OPTIONS: { status: EventStatus; label: string; dot: string }[] = [
-  { status: 'active',    label: 'Activo',    dot: 'bg-[#48C9B0]' },
-  { status: 'paused',    label: 'Pausado',   dot: 'bg-blue-400' },
-  { status: 'cancelled', label: 'Cancelado', dot: 'bg-red-400' },
+  { status: 'active',   label: 'Activo',    dot: 'bg-[#48C9B0]' },
+  { status: 'archived', label: 'Archivado', dot: 'bg-[#888]' },
 ]
 
 const TABS: TabItem[] = [

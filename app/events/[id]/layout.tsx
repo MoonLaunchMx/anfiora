@@ -13,6 +13,7 @@ import { filtrarPorPermiso, moduloDeRutaNav, primeraRutaVisible } from '@/lib/pe
 import { SinAcceso } from '@/app/components/ui/SinAcceso'
 import { Cargando } from '@/app/components/ui/Cargando'
 import { misWorkspacesAdministrados } from '@/lib/workspace/cliente'
+import { esArchivado } from '@/lib/events/estado'
 
 const EVENT_TYPE_LABELS: Record<string, string> = {
   boda:        'Boda',
@@ -25,8 +26,7 @@ const EVENT_TYPE_LABELS: Record<string, string> = {
 
 const EVENT_STATUS_STYLES: Record<string, { dot: string; badge: string; label: string }> = {
   active:    { dot: 'bg-[#48C9B0]', badge: 'border-[#c8ede7] bg-[#f0fdfb] text-[#1a9e88]', label: 'Activo' },
-  paused:    { dot: 'bg-blue-400',  badge: 'border-blue-200 bg-blue-50 text-blue-700',      label: 'Pausado' },
-  cancelled: { dot: 'bg-red-400',   badge: 'border-red-200 bg-red-50 text-red-600',         label: 'Cancelado' },
+  archived:  { dot: 'bg-[#888]',    badge: 'border-[#e0e0e0] bg-[#f8f8f8] text-[#888]',    label: 'Archivado' },
   completed: { dot: 'bg-[#888]',    badge: 'border-[#e0e0e0] bg-[#f8f8f8] text-[#888]',    label: 'Completado' },
 }
 
@@ -395,9 +395,9 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
   }, [id, authChecked])
 
 
-  const getDisplayStatus = (): 'active' | 'paused' | 'cancelled' | 'completed' => {
+  const getDisplayStatus = (): 'active' | 'archived' | 'completed' => {
     const es = event?.event_status || 'active'
-    if (es === 'paused' || es === 'cancelled') return es
+    if (esArchivado(es)) return 'archived'
     if (event?.event_date) {
       const [year, month, day] = event.event_date.split('T')[0].split('-').map(Number)
       const eventDay = new Date(year, month - 1, day)

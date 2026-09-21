@@ -1,5 +1,10 @@
-import { describe, it, expect } from 'vitest'
-import { parseLimitError, esErrorDeCupo } from './capacity'
+import { describe, it, expect, vi } from 'vitest'
+
+vi.mock('@/lib/supabase', () => ({
+  supabase: { rpc: vi.fn() },
+}))
+
+import { parseLimitError, esErrorDeCupo, esErrorDeArchivado } from './capacity'
 
 describe('parseLimitError', () => {
   it('lee el error que levanta el trigger', () => {
@@ -21,5 +26,13 @@ describe('esErrorDeCupo', () => {
     expect(esErrorDeCupo({ message: 'EVENT_LIMIT_EXCEEDED:2:1' })).toBe(true)
     expect(esErrorDeCupo({ message: 'EVENTO_ARCHIVADO' })).toBe(false)
     expect(esErrorDeCupo(null)).toBe(false)
+  })
+})
+
+describe('esErrorDeArchivado', () => {
+  it('distingue el error de archivado de los demas', () => {
+    expect(esErrorDeArchivado({ message: 'EVENTO_ARCHIVADO' })).toBe(true)
+    expect(esErrorDeArchivado({ message: 'EVENT_LIMIT_EXCEEDED:2:1' })).toBe(false)
+    expect(esErrorDeArchivado(null)).toBe(false)
   })
 })
