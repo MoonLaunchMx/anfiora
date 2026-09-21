@@ -1,3 +1,5 @@
+import type { PlanId } from '@/lib/workspace/planes'
+
 export function formatDate(iso: string | null) {
   if (!iso) return '—'
   return new Date(iso).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' })
@@ -17,8 +19,19 @@ export function timeAgo(iso: string) {
   return formatDate(iso)
 }
 
-export const PLAN_STYLES: Record<string, string> = {
+// Record<PlanId, ...> en vez de Record<string, ...>: si manana se agrega un
+// plan al catalogo, tsc truena aqui hasta que se le asigne color. Nunca mas
+// un plan invisible por falta de entrada en un mapa suelto.
+export const PLAN_STYLES: Record<PlanId, string> = {
   free:   'bg-[#f0f0f0] text-[#666]',
   pro:    'bg-[#e8faf6] text-[#1a7a60]',
+  studio: 'bg-[#eef2ff] text-[#4338ca]',
   agency: 'bg-[#fff3cd] text-[#856404]',
+}
+
+export const PLAN_BAR_COLORS: Record<PlanId, string> = {
+  free:   'bg-[#e6e6e6]',
+  pro:    'bg-[#48C9B0]',
+  studio: 'bg-[#d4a853]',
+  agency: 'bg-[#1D1E20]',
 }

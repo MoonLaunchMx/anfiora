@@ -5,7 +5,8 @@ import { ChevronDown, ChevronUp, Mail, Ban, Trash2, CheckCircle } from 'lucide-r
 import { AdminUser, GlobalStats } from './lib/types'
 import { formatDate, formatDateTime, timeAgo, PLAN_STYLES } from './lib/format'
 import { CURRENT_LEGAL_VERSION } from '@/lib/legal'
-import { PLAN_IDS, PLANES } from '@/lib/workspace/planes'
+import { PLAN_IDS, PLANES, normalizarPlan } from '@/lib/workspace/planes'
+import { isPaidPlan } from '@/lib/billing'
 import DeleteUserModal from './DeleteUserModal'
 
 interface Props {
@@ -18,7 +19,7 @@ interface Props {
 
 type SortBy = 'created_at' | 'event_count' | 'guest_count' | 'last_sign_in'
 
-const isProtectedPlan = (plan: string) => plan === 'pro' || plan === 'agency'
+const isProtectedPlan = isPaidPlan
 
 export default function UsuariosTab({ users, stats, actionLoading, onChangePlan, onAdminAction }: Props) {
   const [search, setSearch]         = useState('')
@@ -163,7 +164,7 @@ export default function UsuariosTab({ users, stats, actionLoading, onChangePlan,
                       </div>
                     </td>
                     <td className="px-4 py-3">
-                      <span className={'rounded-full px-2 py-0.5 text-xs font-medium ' + (PLAN_STYLES[u.plan] || PLAN_STYLES.free)}>{u.plan}</span>
+                      <span className={'rounded-full px-2 py-0.5 text-xs font-medium ' + (PLAN_STYLES[normalizarPlan(u.plan)])}>{u.plan}</span>
                       {u.banned && <span className="ml-1 rounded-full bg-red-100 px-2 py-0.5 text-xs text-red-600">suspendido</span>}
                     </td>
                     <td className="px-4 py-3 font-medium text-[#1D1E20]">{u.event_count}</td>
@@ -285,7 +286,7 @@ export default function UsuariosTab({ users, stats, actionLoading, onChangePlan,
                     <p className="text-xs text-[#888]">{u.email}</p>
                   </div>
                   <div className="flex items-center gap-1">
-                    <span className={'rounded-full px-2 py-0.5 text-xs font-medium ' + (PLAN_STYLES[u.plan] || PLAN_STYLES.free)}>{u.plan}</span>
+                    <span className={'rounded-full px-2 py-0.5 text-xs font-medium ' + (PLAN_STYLES[normalizarPlan(u.plan)])}>{u.plan}</span>
                     {expandedId === u.id ? <ChevronUp size={14} className="text-[#aaa]" /> : <ChevronDown size={14} className="text-[#aaa]" />}
                   </div>
                 </div>

@@ -3,6 +3,8 @@
 import { AdminUser } from './lib/types'
 import { computeResumen, powerUsers, atRiskUsers, newSignups, daysSince } from './lib/metrics'
 import { formatCurrency } from '@/lib/types'
+import { PLAN_STYLES, PLAN_BAR_COLORS } from './lib/format'
+import { PLAN_IDS, normalizarPlan } from '@/lib/workspace/planes'
 import Sparkline from './Sparkline'
 
 interface Props { users: AdminUser[] }
@@ -10,10 +12,7 @@ interface Props { users: AdminUser[] }
 interface PanelRow { u: AdminUser; sub: string; tag: string; mail?: boolean }
 
 function Panel({ title, rows }: { title: string; rows: PanelRow[] }) {
-  const pillCls = (tag: string) =>
-    tag === 'pro'    ? 'bg-[#e8faf6] text-[#1a7a60]'
-  : tag === 'agency' ? 'bg-[#fff3cd] text-[#856404]'
-  : 'bg-[#f0f0f0] text-[#777]'
+  const pillCls = (tag: string) => PLAN_STYLES[normalizarPlan(tag)]
   return (
     <div className="rounded-[11px] border border-[#e8e8e8] bg-white p-3">
       <h4 className="mb-2 text-xs font-bold text-[#1D1E20]">{title}</h4>
@@ -82,11 +81,14 @@ export default function ResumenTab({ users }: Props) {
         </Tile>
         <Tile t="Planes">
           <div className="mt-2 flex h-[18px] items-end gap-[2px]">
-            <div className="rounded-[2px] bg-[#e6e6e6]" style={{ flex: m.byPlan.free || 1, height: '100%' }} />
-            <div className="rounded-[2px] bg-[#48C9B0]" style={{ flex: m.byPlan.pro || 0.01, height: '100%' }} />
-            <div className="rounded-[2px] bg-[#1D1E20]" style={{ flex: m.byPlan.agency || 0.01, height: '100%' }} />
+            {PLAN_IDS.map(id => (
+              <div key={id} className={'rounded-[2px] ' + PLAN_BAR_COLORS[id]}
+                style={{ flex: m.byPlan[id] || (id === 'free' ? 1 : 0.01), height: '100%' }} />
+            ))}
           </div>
-          <p className="mt-1.5 text-[11px] font-semibold text-[#bbb]">{m.byPlan.free}/{m.byPlan.pro}/{m.byPlan.agency}</p>
+          <p className="mt-1.5 text-[11px] font-semibold text-[#bbb]">
+            {PLAN_IDS.map(id => m.byPlan[id]).join('/')}
+          </p>
         </Tile>
       </div>
 

@@ -52,6 +52,8 @@ export const PLANES: Record<PlanId, Plan> = {
 
 export const PRECIO_ASIENTO_EXTRA = 290
 
+export const PAID_PLAN_IDS: readonly PlanId[] = PLAN_IDS.filter(id => PLANES[id].precio > 0)
+
 // studio ya es un plan real y solo nunca existio en la base: ambos caen
 // a la regla general (studio se reconoce, cualquier otro valor cae a free).
 const ALIAS: Record<string, PlanId> = {}

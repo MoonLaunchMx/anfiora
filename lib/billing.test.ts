@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { getBillingRows, getBillingSummary, isPaidPlan } from './billing'
+import { getBillingRows, getBillingSummary, isPaidPlan, type BillingRow } from './billing'
 
 describe('isPaidPlan', () => {
   it('free no cobra', () => {
@@ -36,13 +36,19 @@ describe('getBillingRows + getBillingSummary', () => {
     expect(rows).toHaveLength(0)
   })
 
-  it('un plan desconocido cae a free y no aparece en byPlan de un plan pagado', () => {
-    const rows = getBillingRows([
-      { id: '1', email: 'a@a.com', full_name: null, plan: 'enterprise', created_at: '2026-01-01' },
-    ])
+  it('un plan invalido en una fila cae a free dentro del conteo, no se pierde', () => {
+    // getBillingRows nunca produce esto (filtra por isPaidPlan antes), pero
+    // getBillingSummary es publica y debe defenderse sola si alguien le pasa
+    // una fila con un plan invalido (ej. dato viejo, migracion a medias).
+    const rows: BillingRow[] = [{
+      userId: '1', email: 'a@a.com', fullName: null, plan: 'enterprise',
+      amountMonthly: 0, status: 'active', registeredAt: '2026-01-01',
+      startedAt: null, currentPeriodEnd: null, mrrContributed: 0,
+    }]
     const resumen = getBillingSummary(rows)
-    expect(resumen.payingCustomers).toBe(0)
-    expect(resumen.byPlan.free).toBe(0)
+    expect(resumen.byPlan.free).toBe(1)
     expect(resumen.byPlan.pro).toBe(0)
+    expect(resumen.byPlan.studio).toBe(0)
+    expect(resumen.byPlan.agency).toBe(0)
   })
 })
