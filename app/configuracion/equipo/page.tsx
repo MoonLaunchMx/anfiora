@@ -154,14 +154,16 @@ export default function EquipoPage() {
       </div>
 
       {soloYo && esFree && (
-        <div className="flex flex-col items-start gap-2 rounded-xl border border-[#f0dfae] bg-[#fffbf0] p-5">
-          <p className="text-sm font-semibold text-[#7a5a14]">El equipo es parte de Studio</p>
-          <p className="max-w-[52ch] text-[13px] leading-relaxed text-[#7a5a14]">
-            En Free trabajas tú solo. Invitar clientes sí está incluido, y se hace desde cada evento.
-          </p>
+        <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-[#f0dfae] bg-[#fffbf0] p-5">
+          <div>
+            <p className="text-sm font-semibold text-[#7a5a14]">Todavía trabajas solo</p>
+            <p className="mt-1 max-w-[52ch] text-[13px] leading-relaxed text-[#7a5a14]">
+              Con Studio metes a tu equipo y le das permisos herramienta por herramienta.
+            </p>
+          </div>
           <button
             onClick={() => setAlta(true)}
-            className="mt-1 rounded-lg bg-[#48C9B0] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#3ab89f]"
+            className="shrink-0 rounded-lg bg-[#48C9B0] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#3ab89f]"
           >
             Pedir acceso
           </button>
