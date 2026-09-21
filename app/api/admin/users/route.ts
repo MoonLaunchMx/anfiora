@@ -32,13 +32,19 @@ export async function GET(req: NextRequest) {
 
   // La columna sello todavia no existe en produccion (llega con el SQL de la
   // Tarea 12): si el select de arriba fallo por eso, se repite sin ella para
-  // no perder el plan de los workspaces mientras tanto.
+  // no perder el plan de los workspaces mientras tanto. El respaldo no debe
+  // quedar mudo: si el error real fuera de permisos o de red, sin el warning
+  // nadie se entera de que todos los usuarios salieron sin sello.
   let wsData = wsRes.data
   let wsError = wsRes.error
   if (wsError) {
+    console.warn('[adminUsers] select de workspaces con sello fallo, reintentando sin esa columna', wsError.message)
     const fallback = await supabaseAdmin.from('workspaces').select('primary_owner_id, plan')
     wsData = (fallback.data ?? []).map(w => ({ ...w, sello: null }))
     wsError = fallback.error
+    if (wsError) {
+      console.warn('[adminUsers] el reintento de workspaces tambien fallo', wsError.message)
+    }
   }
 
   // Consentimientos por usuario (ya vienen ordenados por fecha desc)

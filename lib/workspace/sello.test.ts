@@ -12,6 +12,10 @@ describe('sello de partner', () => {
     expect(normalizarSello(null)).toBeNull()
   })
 
+  it('quitar el sello siempre se puede', () => {
+    expect(normalizarSello('')).toBeNull()
+  })
+
   it('free tiene topes y los de paga no', () => {
     expect(limiteEventos('free', null)).toBe(1)
     expect(limiteInvitados('free', null)).toBe(50)
