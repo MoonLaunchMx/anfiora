@@ -21,6 +21,9 @@ import { toWhatsApp, componerTelefono, componerDesdeLada } from '@/lib/phone'
 import { reportError } from '@/lib/observabilidad/report'
 import { usePermiso } from '@/lib/event-access-context'
 import { Puede } from '@/lib/permisos/Puede'
+import { contarPersonas, cuantasCaben, esErrorDeInvitados, parseErrorInvitados } from '@/lib/invitados/cupo'
+import { limiteInvitadosDelEvento } from '@/lib/workspace/cliente'
+import { MuroModal } from '@/app/components/MuroModal'
 import * as XLSX from 'xlsx'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
@@ -654,6 +657,8 @@ export default function EventPage() {
 
   const [event, setEvent] = useState<Event | null>(null)
   const [eventSettings, setEventSettings] = useState<EventSettings | null>(null)
+  const [limiteInvitadosEvento, setLimiteInvitadosEvento] = useState<number | null>(null)
+  const [muroInvitados, setMuroInvitados] = useState<{ limite: number } | null>(null)
   const [plannerName, setPlannerName] = useState('')
   const [waTarget, setWaTarget] = useState<'web' | 'app'>('web')
   const [guests, setGuests] = useState<Guest[]>([])
@@ -680,6 +685,7 @@ export default function EventPage() {
   const fileRef = useRef<HTMLInputElement>(null)
   const [csvPreview, setCsvPreview] = useState<CsvDuplicateResult | null>(null)
   const [csvImporting, setCsvImporting] = useState(false)
+  const [csvDone, setCsvDone] = useState(false)
 
   const [editGuest, setEditGuest] = useState<Guest | null>(null)
   const [deleteChatModal, setDeleteChatModal] = useState<{ guestId: string; conversationIds: string[] } | null>(null)
@@ -800,6 +806,8 @@ export default function EventPage() {
     if (data) {
       setEvent(data)
       if (data.planner_name) setPlannerName(data.planner_name)
+      // El tope es del dueno del evento, no de quien esta viendo la pantalla.
+      if (data.user_id) limiteInvitadosDelEvento(id as string, data.user_id).then(setLimiteInvitadosEvento)
     }
     if (settings) setEventSettings(settings)
   }
@@ -941,6 +949,16 @@ export default function EventPage() {
   const submitEditGuest = async (guest: Guest, f: GuestFormValues): Promise<string | null> => {
     if (!permiso.editar) return null
     if (!f.name) return 'El nombre es obligatorio'
+    const existingIds = guest.party_members.map(m => m.id)
+    const keepIds = f.members.filter(m => m.id).map(m => m.id as string)
+    const toDelete = existingIds.filter(id => !keepIds.includes(id))
+    const toInsert = f.members.filter(m => !m.id)
+    // Los acompanantes que se borran liberan lugar antes de contar los nuevos.
+    const { sobran } = cuantasCaben(toInsert.length, totalPersonas - toDelete.length, limiteInvitadosEvento)
+    if (sobran > 0) {
+      setMuroInvitados({ limite: limiteInvitadosEvento as number })
+      return 'Ya llegaste al tope de invitados de tu plan.'
+    }
     if (f.phone) {
       const normalizedEdit = componerTelefono(f.phone, 'MX')
       if (normalizedEdit) {
@@ -953,13 +971,15 @@ export default function EventPage() {
       reportError(error, { zona: 'planner' })
       return 'Error: ' + error.message
     }
-    const existingIds = guest.party_members.map(m => m.id)
-    const keepIds = f.members.filter(m => m.id).map(m => m.id as string)
-    const toDelete = existingIds.filter(id => !keepIds.includes(id))
     if (toDelete.length > 0) await supabase.from('party_members').delete().in('id', toDelete)
     for (const m of f.members.filter(m => m.id)) await supabase.from('party_members').update({ name: m.name, phone: m.phone || null, rsvp_status: m.rsvp_status, allergies: m.allergies.length ? m.allergies : null, tags: m.tags.length ? m.tags : null, notes: m.notes || null }).eq('id', m.id!)
-    const toInsert = f.members.filter(m => !m.id)
-    if (toInsert.length > 0) await supabase.from('party_members').insert(toInsert.map(m => ({ guest_id: guest.id, event_id: id as string, name: m.name, phone: m.phone || null, rsvp_status: m.rsvp_status, allergies: m.allergies.length ? m.allergies : null, tags: m.tags.length ? m.tags : null, notes: m.notes || null })))
+    if (toInsert.length > 0) {
+      const { error: memberError } = await supabase.from('party_members').insert(toInsert.map(m => ({ guest_id: guest.id, event_id: id as string, name: m.name, phone: m.phone || null, rsvp_status: m.rsvp_status, allergies: m.allergies.length ? m.allergies : null, tags: m.tags.length ? m.tags : null, notes: m.notes || null })))
+      if (memberError && esErrorDeInvitados(memberError)) {
+        const datos = parseErrorInvitados(memberError.message)
+        setMuroInvitados({ limite: datos?.limite ?? limiteInvitadosEvento ?? 0 })
+      }
+    }
     await loadGuests(); setEditGuest(null)
     return null
   }
@@ -1104,8 +1124,21 @@ export default function EventPage() {
       sizeUpdates.push({ id: guestId, party_size: guest.party_size + toAdd })
     }
     if (rows.length === 0) { setBulkCompanionSaving(false); setShowBulkCompanionModal(false); return }
+    const { sobran } = cuantasCaben(rows.length, totalPersonas, limiteInvitadosEvento)
+    if (sobran > 0) {
+      setBulkCompanionSaving(false); setShowBulkCompanionModal(false)
+      setMuroInvitados({ limite: limiteInvitadosEvento as number })
+      return
+    }
     const CHUNK = 500
-    for (let i = 0; i < rows.length; i += CHUNK) await supabase.from('party_members').insert(rows.slice(i, i + CHUNK))
+    for (let i = 0; i < rows.length; i += CHUNK) {
+      const { error } = await supabase.from('party_members').insert(rows.slice(i, i + CHUNK))
+      if (error && esErrorDeInvitados(error)) {
+        const datos = parseErrorInvitados(error.message)
+        setMuroInvitados({ limite: datos?.limite ?? limiteInvitadosEvento ?? 0 })
+        break
+      }
+    }
     const UCHUNK = 50
     for (let i = 0; i < sizeUpdates.length; i += UCHUNK) {
       await Promise.all(sizeUpdates.slice(i, i + UCHUNK).map(u => supabase.from('guests').update({ party_size: u.party_size }).eq('id', u.id)))
@@ -1208,6 +1241,12 @@ export default function EventPage() {
   const submitAddGuest = async (f: GuestFormValues): Promise<string | null> => {
     if (!permiso.editar) return null
     if (!f.name) return 'El nombre es obligatorio'
+    const porAgregar = 1 + f.members.length
+    const { sobran } = cuantasCaben(porAgregar, totalPersonas, limiteInvitadosEvento)
+    if (sobran > 0) {
+      setMuroInvitados({ limite: limiteInvitadosEvento as number })
+      return 'Ya llegaste al tope de invitados de tu plan.'
+    }
     if (f.phone) {
       const normalizedNew = componerTelefono(f.phone, 'MX')
       if (normalizedNew) {
@@ -1217,19 +1256,36 @@ export default function EventPage() {
     }
     const { data: guestData, error } = await supabase.from('guests').insert({ event_id: id, name: f.name, phone: f.phone || null, email: f.email || null, party_size: 1 + f.members.length, notes: f.notes || null, tags: f.tags, rsvp_status: 'pending', side: f.side || null, allergies: f.allergies.length > 0 ? f.allergies : null }).select().single()
     if (error || !guestData) {
-      if (error) reportError(error, { zona: 'planner' })
+      if (error) {
+        reportError(error, { zona: 'planner' })
+        if (esErrorDeInvitados(error)) {
+          const datos = parseErrorInvitados(error.message)
+          setMuroInvitados({ limite: datos?.limite ?? limiteInvitadosEvento ?? 0 })
+          return 'Ya llegaste al tope de invitados de tu plan.'
+        }
+      }
       return 'Error: ' + error?.message
     }
-    if (f.members.length > 0) await supabase.from('party_members').insert(f.members.map(m => ({ guest_id: guestData.id, event_id: id, name: m.name, phone: m.phone || null, rsvp_status: m.rsvp_status, allergies: m.allergies.length ? m.allergies : null, tags: m.tags.length ? m.tags : null, notes: m.notes || null })))
+    if (f.members.length > 0) {
+      const { error: memberError } = await supabase.from('party_members').insert(f.members.map(m => ({ guest_id: guestData.id, event_id: id, name: m.name, phone: m.phone || null, rsvp_status: m.rsvp_status, allergies: m.allergies.length ? m.allergies : null, tags: m.tags.length ? m.tags : null, notes: m.notes || null })))
+      if (memberError && esErrorDeInvitados(memberError)) {
+        const datos = parseErrorInvitados(memberError.message)
+        setMuroInvitados({ limite: datos?.limite ?? limiteInvitadosEvento ?? 0 })
+      }
+    }
     await supabase.rpc('increment_guests', { event_id_input: id })
     setEvent(prev => prev ? { ...prev, total_guests: prev.total_guests + 1 } : prev)
     await loadGuests(); setShowModal(false)
     return null
   }
 
+  const cerrarCsvModal = () => {
+    setShowCsvModal(false); setCsvPreview(null); setCsvDone(false); setCsvError(''); setCsvSuccess('')
+  }
+
   const handleCSV = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]; if (!file) return
-    setCsvError(''); setCsvSuccess(''); setCsvPreview(null)
+    setCsvError(''); setCsvSuccess(''); setCsvPreview(null); setCsvDone(false)
     const parseCSV = (text: string) => {
       const lines = text.split('\n').filter(l => l.trim())
       if (lines.length < 2) { setCsvError('El archivo está vacío'); return }
@@ -1306,18 +1362,47 @@ export default function EventPage() {
   const confirmCsvImport = async (skipDuplicates: boolean) => {
     if (!permiso.editar) return
     if (!csvPreview) return
-    setCsvImporting(true); setCsvError('')
+    setCsvImporting(true); setCsvError(''); setCsvDone(false)
     let rowsToImport = csvPreview.rows
     if (skipDuplicates) {
       const duplicateKeys = new Set(csvPreview.duplicates.map(d => d.name + '|' + d.phone))
       rowsToImport = csvPreview.rows.filter(r => !duplicateKeys.has(r.name + '|' + r.phone))
     }
     if (!rowsToImport.length) { setCsvError('No quedan invitados para importar'); setCsvImporting(false); setCsvPreview(null); return }
+
+    // La importacion nunca rechaza el archivo completo: entran los que caben
+    // y el resumen final dice cuantos se quedaron fuera y por que.
+    const { caben, sobran } = cuantasCaben(rowsToImport.length, totalPersonas, limiteInvitadosEvento)
+    let sobranMsg = ''
+    if (sobran > 0) {
+      if (caben === 0) {
+        setCsvImporting(false)
+        setMuroInvitados({ limite: limiteInvitadosEvento as number })
+        return
+      }
+      sobranMsg = ` Tu plan permite hasta ${limiteInvitadosEvento} invitados: se importaron ${caben} y ${sobran} se quedaron fuera por el tope. Solicita acceso para importar el resto.`
+      rowsToImport = rowsToImport.slice(0, caben)
+    }
+
     const guestPayload = rowsToImport.map(r => ({ event_id: r.event_id, name: r.name, phone: r.phone, email: r.email, party_size: r.party_size, rsvp_status: r.rsvp_status, tags: r.tags, notes: r.notes, side: r.side, allergies: r.allergies }))
     const { data: insertedGuests, error } = await supabase.from('guests').insert(guestPayload).select('id')
-    if (error) { reportError(error, { zona: 'planner' }); setCsvError('Error al importar: ' + error.message); setCsvImporting(false); return }
+    if (error) {
+      reportError(error, { zona: 'planner' })
+      if (esErrorDeInvitados(error)) {
+        const datos = parseErrorInvitados(error.message)
+        setMuroInvitados({ limite: datos?.limite ?? limiteInvitadosEvento ?? 0 })
+      }
+      setCsvError('Error al importar: ' + error.message); setCsvImporting(false); return
+    }
     const memberRows = (insertedGuests || []).flatMap((g, i) => rowsToImport[i]._companions.map(name => ({ guest_id: g.id, event_id: id as string, name: name || '', phone: null, rsvp_status: 'pending' })))
-    for (let i = 0; i < memberRows.length; i += 500) await supabase.from('party_members').insert(memberRows.slice(i, i + 500))
+    for (let i = 0; i < memberRows.length; i += 500) {
+      const { error: memberError } = await supabase.from('party_members').insert(memberRows.slice(i, i + 500))
+      if (memberError && esErrorDeInvitados(memberError)) {
+        const datos = parseErrorInvitados(memberError.message)
+        setMuroInvitados({ limite: datos?.limite ?? limiteInvitadosEvento ?? 0 })
+        break
+      }
+    }
     await supabase.rpc('increment_guests_by', { event_id_input: id, amount: rowsToImport.length })
     const curEventTags = event?.guest_tags || []
     const newTagsToAdd = Array.from(new Set(rowsToImport.flatMap(r => r.tags))).filter(t => !curEventTags.includes(t))
@@ -1329,8 +1414,10 @@ export default function EventPage() {
       setEvent(prev => prev ? { ...prev, total_guests: prev.total_guests + rowsToImport.length } : prev)
     }
     await loadGuests()
-    setCsvSuccess('✓ ' + rowsToImport.length + ' invitados' + (memberRows.length ? ' y ' + memberRows.length + ' acompañantes' : '') + ' importados' + (newTagsToAdd.length ? ' · ' + newTagsToAdd.length + ' tags nuevos' : '') + (skipDuplicates && csvPreview.duplicates.length > 0 ? ' (' + csvPreview.duplicates.length + ' duplicados omitidos)' : ''))
-    setCsvPreview(null); setCsvImporting(false)
+    setCsvSuccess('✓ ' + rowsToImport.length + ' invitados' + (memberRows.length ? ' y ' + memberRows.length + ' acompañantes' : '') + ' importados' + (newTagsToAdd.length ? ' · ' + newTagsToAdd.length + ' tags nuevos' : '') + (skipDuplicates && csvPreview.duplicates.length > 0 ? ' (' + csvPreview.duplicates.length + ' duplicados omitidos)' : '') + sobranMsg)
+    // El resumen (incluido cuantos se quedaron fuera por el tope) se queda a
+    // la vista: csvPreview no se limpia aqui, solo cuando la persona cierra.
+    setCsvDone(true); setCsvImporting(false)
   }
 
   const exportExcel = () => {
@@ -1450,7 +1537,7 @@ export default function EventPage() {
 
   const getTableLabel = (guestId: string): string => { const t = guestTableMap.get(guestId); if (!t) return ''; return `Mesa ${t.tableNumber}` }
 
-  const totalPersonas = guests.reduce((acc, g) => acc + 1 + g.party_members.length, 0)
+  const totalPersonas = contarPersonas(guests.length, guests.reduce((acc, g) => acc + g.party_members.length, 0))
 
   const countByStatus = (s: RsvpStatus) => guests.reduce((acc, g) => {
     if (g.rsvp_status === 'declined') return acc + (s === 'declined' ? 1 + g.party_members.length : 0)
@@ -1534,7 +1621,9 @@ export default function EventPage() {
         <div className="mb-4 flex items-start justify-between gap-4">
           <div className="min-w-0 flex-1">
             <h1 className="text-xl font-bold text-[#1D1E20]">Invitados</h1>
-            <p className="mt-0.5 text-xs text-[#888] sm:text-sm">Gestiona a todos tus invitados.</p>
+            <p className="mt-0.5 text-xs text-[#888] sm:text-sm">
+              {limiteInvitadosEvento !== null ? `${totalPersonas} de ${limiteInvitadosEvento} invitados` : `${totalPersonas} invitados`}
+            </p>
           </div>
           <div className="lg:hidden shrink-0 pt-1">
             <StatsToggleButton visible={statsVisible} onClick={toggleStats} />
@@ -1718,7 +1807,7 @@ export default function EventPage() {
             )}
           </div>
           <Puede modulo="invitados" accion="editar">
-            <button onClick={() => { setCsvError(''); setCsvSuccess(''); setCsvPreview(null); setShowCsvModal(true) }} className="hidden items-center gap-1.5 whitespace-nowrap rounded-lg border border-[#e0e0e0] px-3 py-2 text-xs text-[#666] transition hover:border-[#48C9B0] hover:text-[#48C9B0] sm:flex">
+            <button onClick={() => { setCsvError(''); setCsvSuccess(''); setCsvPreview(null); setCsvDone(false); setShowCsvModal(true) }} className="hidden items-center gap-1.5 whitespace-nowrap rounded-lg border border-[#e0e0e0] px-3 py-2 text-xs text-[#666] transition hover:border-[#48C9B0] hover:text-[#48C9B0] sm:flex">
               <Upload size={13} />Importar
             </button>
           </Puede>
@@ -2039,7 +2128,7 @@ export default function EventPage() {
       {/* Importar invitados — pasos (componente compartido) */}
       <ImportStepsModal
         open={showCsvModal && !csvPreview}
-        onClose={() => { setShowCsvModal(false); setCsvPreview(null) }}
+        onClose={cerrarCsvModal}
         title="Importar invitados"
         subtitle="Trae tu lista de invitados desde Excel en dos pasos."
         step1Desc="Ya trae las columnas correctas (nombre, teléfono, email, notas, tags). Solo llénala y guárdala como CSV."
@@ -2053,7 +2142,7 @@ export default function EventPage() {
 
       {/* Importar invitados — vista previa */}
       {showCsvModal && csvPreview && (
-        <Modal open onClose={() => { setShowCsvModal(false); setCsvPreview(null) }} size="md">
+        <Modal open onClose={cerrarCsvModal} size="md">
           <Modal.Header title="Importar invitados" />
           <Modal.Body>
             <div className="mb-4 rounded-xl border border-[#e8e8e8] bg-[#f8f8f8] p-4">
@@ -2061,8 +2150,15 @@ export default function EventPage() {
               <p className="text-xs text-[#666]">{csvPreview.rows.length} invitados encontrados</p>
               {csvPreview.hasDuplicates && <p className="mt-1 text-xs font-semibold text-[#cc3333]">{csvPreview.duplicates.length} con WhatsApp duplicado</p>}
               {csvPreview.sinTelefono.length > 0 && <p className="mt-1 text-xs font-semibold text-[#999]">{csvPreview.sinTelefono.length} se {csvPreview.sinTelefono.length === 1 ? 'importa' : 'importan'} sin teléfono</p>}
+              {!csvDone && limiteInvitadosEvento !== null && (() => {
+                const filasAImportar = csvPreview.hasDuplicates ? csvPreview.rows.length - csvPreview.duplicates.length : csvPreview.rows.length
+                const { sobran } = cuantasCaben(filasAImportar, totalPersonas, limiteInvitadosEvento)
+                return sobran > 0 ? (
+                  <p className="mt-1 text-xs font-semibold text-[#b8860b]">Tu plan permite hasta {limiteInvitadosEvento} invitados: solo caben {filasAImportar - sobran}, {sobran} se quedarán fuera.</p>
+                ) : null
+              })()}
             </div>
-            {csvPreview.sinTelefono.length > 0 && (
+            {!csvDone && csvPreview.sinTelefono.length > 0 && (
               <div className="mb-4">
                 <p className="mb-2 text-xs font-semibold text-[#666]">Se importan sin teléfono:</p>
                 <div className="flex max-h-40 flex-col gap-1 overflow-y-auto rounded-lg border border-[#e8e8e8] bg-[#f8f8f8] p-3">
@@ -2074,7 +2170,7 @@ export default function EventPage() {
                 </div>
               </div>
             )}
-            {csvPreview.hasDuplicates && (
+            {!csvDone && csvPreview.hasDuplicates && (
               <div className="mb-4">
                 <p className="mb-2 text-xs font-semibold text-[#cc3333]">Números duplicados detectados:</p>
                 <div className="flex max-h-40 flex-col gap-1 overflow-y-auto rounded-lg border border-[#ffc0c0] bg-[#fff8f8] p-3">
@@ -2086,7 +2182,7 @@ export default function EventPage() {
                 </div>
               </div>
             )}
-            {(csvPreview.newTags.length > 0 || csvPreview.newGroups.length > 0 || csvPreview.newAllergies.length > 0) && (
+            {!csvDone && (csvPreview.newTags.length > 0 || csvPreview.newGroups.length > 0 || csvPreview.newAllergies.length > 0) && (
               <div className="mb-4">
                 <p className="mb-2 text-xs font-semibold text-[#1a9e88]">Se agregarán estos nuevos:</p>
                 <div className="flex flex-col gap-1.5 rounded-lg border border-[#c8ede7] bg-[#f0fdfb] p-3 text-xs text-[#1a9e88]">
@@ -2101,16 +2197,22 @@ export default function EventPage() {
           </Modal.Body>
           <Modal.Footer>
             <div className="flex w-full flex-col gap-2">
-              {csvPreview.hasDuplicates ? (
-                <button onClick={() => confirmCsvImport(true)} disabled={csvImporting} className="w-full rounded-lg bg-[#48C9B0] py-3 text-sm font-semibold text-white disabled:opacity-60">
-                  {csvImporting ? 'Importando...' : `Importar ${csvPreview.rows.length - csvPreview.duplicates.length} sin duplicados`}
-                </button>
+              {csvDone ? (
+                <button onClick={cerrarCsvModal} className="w-full rounded-lg bg-[#48C9B0] py-3 text-sm font-semibold text-white">Listo</button>
               ) : (
-                <button onClick={() => confirmCsvImport(false)} disabled={csvImporting} className="w-full rounded-lg bg-[#48C9B0] py-3 text-sm font-semibold text-white disabled:opacity-60">
-                  {csvImporting ? 'Importando...' : `Confirmar importación (${csvPreview.rows.length} invitados)`}
-                </button>
+                <>
+                  {csvPreview.hasDuplicates ? (
+                    <button onClick={() => confirmCsvImport(true)} disabled={csvImporting} className="w-full rounded-lg bg-[#48C9B0] py-3 text-sm font-semibold text-white disabled:opacity-60">
+                      {csvImporting ? 'Importando...' : `Importar ${csvPreview.rows.length - csvPreview.duplicates.length} sin duplicados`}
+                    </button>
+                  ) : (
+                    <button onClick={() => confirmCsvImport(false)} disabled={csvImporting} className="w-full rounded-lg bg-[#48C9B0] py-3 text-sm font-semibold text-white disabled:opacity-60">
+                      {csvImporting ? 'Importando...' : `Confirmar importación (${csvPreview.rows.length} invitados)`}
+                    </button>
+                  )}
+                  <button onClick={() => setCsvPreview(null)} disabled={csvImporting} className="w-full rounded-lg border border-[#e0e0e0] py-2.5 text-xs text-[#888] disabled:opacity-60">Cancelar</button>
+                </>
               )}
-              <button onClick={() => setCsvPreview(null)} disabled={csvImporting} className="w-full rounded-lg border border-[#e0e0e0] py-2.5 text-xs text-[#888] disabled:opacity-60">Cancelar</button>
             </div>
           </Modal.Footer>
         </Modal>
@@ -2202,6 +2304,13 @@ export default function EventPage() {
           </Modal.Footer>
         </Modal>
       )}
+
+      <MuroModal
+        open={!!muroInvitados}
+        motivo="invitados"
+        limite={muroInvitados?.limite ?? 0}
+        onClose={() => setMuroInvitados(null)}
+      />
 
     </div>
   )

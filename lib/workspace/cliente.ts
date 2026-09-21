@@ -2,6 +2,7 @@
 'use client'
 import { supabase } from '@/lib/supabase'
 import { normalizarPlan } from './planes'
+import { limiteInvitados } from './sello'
 import type { RolWorkspace, WorkspaceListado, WorkspaceResumen } from './tipos'
 
 export async function bearer(): Promise<Record<string, string> | null> {
@@ -79,6 +80,36 @@ export async function perfilConFoto(userId: string): Promise<{ nombre: string; f
   const soloNombre = await supabase.from('users').select('full_name').eq('id', userId).maybeSingle()
   const fila = soloNombre.data as { full_name?: string | null } | null
   return { nombre: fila?.full_name ?? '', foto: null }
+}
+
+// El tope de invitados es el del DUENO del evento, nunca el de quien esta
+// escribiendo: un colaborador invitado no arrastra su plan al evento ajeno.
+// `plan_del_evento` es SECURITY DEFINER en Supabase, asi que responde igual
+// para el dueno y para un colaborador sin acceso directo a `workspaces`; esa
+// funcion solo regresa el plan, no el sello, asi que el sello se pide aparte
+// por `primary_owner_id` y se tolera que falle (RLS o columna sello todavia
+// sin correr la Tarea 12) o que la funcion misma no exista todavia.
+export async function limiteInvitadosDelEvento(eventId: string, ownerId: string): Promise<number | null> {
+  let plan: string | null = null
+  try {
+    const { data, error } = await supabase.rpc('plan_del_evento', { evento: eventId })
+    if (!error && typeof data === 'string') plan = data
+  } catch {}
+
+  let sello: unknown = null
+  try {
+    const conSello = await supabase.from('workspaces').select('plan, sello').eq('primary_owner_id', ownerId).maybeSingle()
+    if (!conSello.error && conSello.data) {
+      const fila = conSello.data as { plan?: string | null; sello?: string | null }
+      if (plan === null) plan = fila.plan ?? null
+      sello = fila.sello ?? null
+    } else if (plan === null) {
+      const soloPlan = await supabase.from('workspaces').select('plan').eq('primary_owner_id', ownerId).maybeSingle()
+      if (!soloPlan.error && soloPlan.data) plan = (soloPlan.data as { plan?: string | null }).plan ?? null
+    }
+  } catch {}
+
+  return limiteInvitados(plan, sello)
 }
 
 export async function fetchWorkspace(id?: string) {

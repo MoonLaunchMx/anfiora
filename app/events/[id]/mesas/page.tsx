@@ -12,6 +12,9 @@ import { useConfirm } from '@/app/components/ui/ConfirmModal'
 import { usePermiso } from '@/lib/event-access-context'
 import { Puede } from '@/lib/permisos/Puede'
 import { Cargando } from '@/app/components/ui/Cargando'
+import { contarPersonas, cuantasCaben, esErrorDeInvitados, parseErrorInvitados } from '@/lib/invitados/cupo'
+import { limiteInvitadosDelEvento } from '@/lib/workspace/cliente'
+import { MuroModal } from '@/app/components/MuroModal'
 
 // ─── CONSTANTES ───────────────────────────────
 const STATUS_COLORS: Record<string, { bg: string; border: string; text: string; label: string }> = {
@@ -1235,6 +1238,8 @@ function MesasPageInner() {
   const [guests,setGuests]=useState<GuestFull[]>([])
   const [eventTags,setEventTags]=useState<string[]>([])
   const [eventInfo,setEventInfo]=useState<EventInfo|null>(null)
+  const [limiteInvitadosEvento,setLimiteInvitadosEvento]=useState<number|null>(null)
+  const [muroInvitados,setMuroInvitados]=useState<{limite:number}|null>(null)
   const [loading,setLoading]=useState(true)
   const [canvasMode,setCanvasMode]=useState(false)
   const [listSearch,setListSearch]=useState('')
@@ -1301,7 +1306,7 @@ function MesasPageInner() {
       supabase.from('table_seats').select('*').eq('event_id',eventId),
       supabase.from('guests').select('id,name,rsvp_status,tags,party_size,notes,phone,email,checked_in').eq('event_id',eventId).order('name'),
       supabase.from('party_members').select('id,guest_id,name,rsvp_status,checked_in').eq('event_id',eventId),
-      supabase.from('events').select('guest_tags,name,event_date,venue,canvas_data').eq('id',eventId).single(),
+      supabase.from('events').select('guest_tags,name,event_date,venue,canvas_data,user_id').eq('id',eventId).single(),
     ])
     const gMap=new Map<string,GuestFull>()
     for(const g of(gR.data||[])){const members=(mR.data||[]).filter(m=>m.guest_id===g.id);gMap.set(g.id,{...g,tags:g.tags||[],notes:g.notes||null,phone:g.phone||null,email:g.email||null,checked_in:g.checked_in||false,party_size:1+members.length,party_members:members.map(m=>({...m,checked_in:m.checked_in||false}))})}
@@ -1309,6 +1314,8 @@ function MesasPageInner() {
     setTables(combined);setGuests(Array.from(gMap.values()))
     setEventTags(eR.data?.guest_tags||[])
     setEventInfo({name:eR.data?.name||'',event_date:eR.data?.event_date||null,venue:eR.data?.venue||null})
+    // El tope es del dueno del evento, no de quien esta viendo la pantalla.
+    if(eR.data?.user_id) limiteInvitadosDelEvento(eventId as string, eR.data.user_id).then(setLimiteInvitadosEvento)
     const cd=eR.data?.canvas_data
     if(cd){
       if(cd.decos)          setCanvasDecos(cd.decos)
@@ -1338,6 +1345,7 @@ function MesasPageInner() {
 
   const gSeatMap=useMemo(()=>{const m=new Map<string,any>();for(const t of tables)for(const s of t.seats)if(s.guest_id)m.set(s.guest_id,{seatId:s.id,tableNumber:t.number,tableId:t.id,tableCapacity:t.capacity});return m},[tables])
 
+  const totalPersonas=contarPersonas(guests.length, guests.reduce((a,g)=>a+g.party_members.length,0))
   const confirmed=guests.filter(g=>g.rsvp_status==='confirmed').length
   const seatedIds=useMemo(()=>{const s=new Set<string>();for(const t of tables)for(const seat of t.seats)if(seat.guest_id)s.add(seat.guest_id);return s},[tables])
   const unassigned=guests.filter(g=>g.rsvp_status==='confirmed'&&!seatedIds.has(g.id)).length
@@ -1370,6 +1378,12 @@ function MesasPageInner() {
 
     const newPartySize = 1 + eMembers.length
 
+    // Acompanantes removidos vs. nuevos (se calculan antes: los tocan tanto
+    // el candado de la mesa como el del cupo de invitados de la cuenta).
+    const keepIds = eMembers.filter(m => m.id).map(m => m.id as string)
+    const toDel = editGuest.party_members.map(m => m.id).filter(id => !keepIds.includes(id))
+    const ins = eMembers.filter(m => !m.id)
+
     // Validar capacidad solo si el invitado ya está asignado a una mesa
     const seatRecord = gSeatMap.get(editGuest.id)
     if (seatRecord) {
@@ -1390,6 +1404,13 @@ function MesasPageInner() {
       }
     }
 
+    // Los acompanantes que se borran liberan lugar antes de contar los nuevos.
+    const { sobran } = cuantasCaben(ins.length, totalPersonas - toDel.length, limiteInvitadosEvento)
+    if (sobran > 0) {
+      setMuroInvitados({ limite: limiteInvitadosEvento as number })
+      return
+    }
+
     setESaving(true)
     setEError('')
 
@@ -1403,8 +1424,6 @@ function MesasPageInner() {
     }).eq('id', editGuest.id)
 
     // Eliminar acompañantes removidos
-    const keepIds = eMembers.filter(m => m.id).map(m => m.id as string)
-    const toDel = editGuest.party_members.map(m => m.id).filter(id => !keepIds.includes(id))
     if (toDel.length) await supabase.from('party_members').delete().in('id', toDel)
 
     // Actualizar acompañantes existentes
@@ -1417,9 +1436,8 @@ function MesasPageInner() {
     }
 
     // Insertar acompañantes nuevos
-    const ins = eMembers.filter(m => !m.id)
     if (ins.length) {
-      await supabase.from('party_members').insert(
+      const { error: insError } = await supabase.from('party_members').insert(
         ins.map(m => ({
           guest_id: editGuest.id,
           event_id: eventId as string,
@@ -1428,6 +1446,10 @@ function MesasPageInner() {
           rsvp_status: m.rsvp_status,
         }))
       )
+      if (insError && esErrorDeInvitados(insError)) {
+        const datos = parseErrorInvitados(insError.message)
+        setMuroInvitados({ limite: datos?.limite ?? limiteInvitadosEvento ?? 0 })
+      }
     }
 
     // Actualizar party_size en table_seats si está asignado
@@ -1774,6 +1796,7 @@ function MesasPageInner() {
 
       <ModalAsignar tables={tables} guests={guests} assignModal={assignModal} assignSearch={assignSearch} setAssignSearch={setAssignSearch} assignRef={assignRef} gSeatMap={gSeatMap} getOccupied={getOccupied} handleSelectGuest={handleSelectGuest} onClose={()=>{setAssignModal(null);setAssignSearch('')}}/>
       <ModalMover moveModal={moveModal} tables={tables} moveSaving={moveSaving} onConfirm={handleMove} onClose={()=>setMoveModal(null)}/>
+      <MuroModal open={!!muroInvitados} motivo="invitados" limite={muroInvitados?.limite ?? 0} onClose={()=>setMuroInvitados(null)}/>
     </div>
   )
 }
