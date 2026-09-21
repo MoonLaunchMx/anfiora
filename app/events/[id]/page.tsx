@@ -2311,7 +2311,11 @@ export default function EventPage() {
               <div className="mb-4 rounded-xl border border-[#e8e8e8] bg-[#f8f8f8] p-4">
                 {cupoPreview ? (
                   <>
-                    <p className="mb-1 text-sm font-semibold text-[#1D1E20]">Van a entrar {cupoPreview.filas} de {csvPreview.rows.length}</p>
+                    <p className="mb-1 text-sm font-semibold text-[#1D1E20]">
+                      {cupoPreview.filas === 0
+                        ? `Ninguno de estos ${csvPreview.rows.length} cabe todavía`
+                        : `Van a entrar ${cupoPreview.filas} de ${csvPreview.rows.length}`}
+                    </p>
                     <p className="text-xs text-[#666]">Tu cuenta gratis llega hasta {limiteInvitadosEvento} personas por evento.</p>
                     <div className="mt-3 flex flex-col gap-1.5">
                       <div className="flex items-baseline gap-1.5">
