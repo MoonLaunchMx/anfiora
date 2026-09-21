@@ -5,9 +5,8 @@ import { usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { CURRENT_LEGAL_VERSION } from '@/lib/legal'
+import { puertaAplica } from '@/lib/legal-puerta'
 import { Modal } from '@/app/components/ui/Modal'
-
-const EXCLUDED_PATHS = ['/terminos', '/privacidad', '/eliminar-datos']
 
 export default function LegalGate() {
   const pathname = usePathname()
@@ -18,6 +17,8 @@ export default function LegalGate() {
 
   useEffect(() => {
     let active = true
+    // En una pagina publica no se pregunta nada: ni sesion ni status.
+    if (!puertaAplica(pathname)) { setShow(false); return }
     async function check() {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) return
@@ -37,7 +38,7 @@ export default function LegalGate() {
     }
     check()
     return () => { active = false }
-  }, [])
+  }, [pathname])
 
   async function accept() {
     if (!token) return
@@ -61,7 +62,7 @@ export default function LegalGate() {
     window.location.href = '/'
   }
 
-  if (!show || EXCLUDED_PATHS.includes(pathname)) return null
+  if (!show || !puertaAplica(pathname)) return null
 
   return (
     // sin Modal.Header a proposito: esta puerta no se cierra, no debe tener tache ni cerrarse con Escape
