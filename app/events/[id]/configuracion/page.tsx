@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { EventStatus } from '@/lib/types'
+import { esArchivado } from '@/lib/events/estado'
 import { getTemplatePack } from '@/lib/message-templates'
 import DatePicker from '@/app/components/ui/DatePicker'
 import TimePicker from '@/app/components/ui/TimePicker'
@@ -367,7 +368,7 @@ export default function ConfiguracionPage() {
       setEventTime(eventData.event_time || '')
       setVenue(eventData.venue || '')
       setAddress(eventData.address || '')
-      setEventStatus(eventData.event_status || 'active')
+      setEventStatus(esArchivado(eventData.event_status) ? 'archived' : 'active')
       setPlannerName(eventData.planner_name || '')
       setPlannerPhone(eventData.planner_phone || '')
       setPlannerEmail(eventData.planner_email || '')
@@ -622,7 +623,7 @@ export default function ConfiguracionPage() {
     )
   }
 
-  const badgeStyle      = STATUS_STYLES[eventStatus]
+  const badgeStyle      = STATUS_STYLES[eventStatus] || STATUS_STYLES.active
   const dropdownOptions = STATUS_OPTIONS.filter(o => o.status !== eventStatus)
 
   return (
