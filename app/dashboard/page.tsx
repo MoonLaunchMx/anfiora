@@ -10,7 +10,7 @@ import { NewEventModal } from '@/app/components/NewEventModal'
 import { EnlaceRolodex } from '@/app/components/EnlaceRolodex'
 import { OnboardingModal } from '@/app/components/OnboardingModal'
 import { misWorkspacesAdministrados } from '@/lib/workspace/cliente'
-import { esArchivado } from '@/lib/events/estado'
+import { esArchivado, estadoEvento } from '@/lib/events/estado'
 import { esErrorDeCupo, parseLimitError } from '@/lib/capacity'
 import { MuroModal } from '@/app/components/MuroModal'
 
@@ -363,21 +363,18 @@ export default function Dashboard() {
   const today = new Date()
   today.setHours(0, 0, 0, 0)
 
-  const isUpcoming = (e: Event) => {
-    const d = getEventDateTime(e)
-    d.setHours(0, 0, 0, 0)
-    return d >= today
-  }
-
   const filterByTab = (list: EventWithStats[]) => {
+    // estadoEvento mira event_end_date || event_date (ultimoDia): un evento de
+    // varios dias que empezo ayer y termina manana sigue activo, no cae en
+    // Pasados solo por mirar la fecha de inicio.
     const active = list
-      .filter(e => e.event_status === 'active' && isUpcoming(e))
+      .filter(e => estadoEvento(e, today) === 'activo')
       .sort((a, b) => {
         const diff = getEventDateTime(a).getTime() - getEventDateTime(b).getTime()
         return sortAsc ? diff : -diff
       })
     const past = list
-      .filter(e => e.event_status === 'active' && !isUpcoming(e))
+      .filter(e => estadoEvento(e, today) === 'pasado')
       .sort((a, b) => getEventDateTime(b).getTime() - getEventDateTime(a).getTime())
     const archived = list
       .filter(e => esArchivado(e.event_status))
@@ -424,9 +421,13 @@ export default function Dashboard() {
   }
 
   const getMenuOptions = (event: EventWithStats) => {
+    // Estatus viejos en prod (paused/cancelled/completed) no son 'active' ni
+    // 'archived': sin normalizar primero, ninguno de los dos calza contra el
+    // crudo y el menu ofrece Archivar Y Reactivar al mismo tiempo.
+    const estatusEfectivo: EventStatus = esArchivado(event.event_status) ? 'archived' : 'active'
     const all: EventStatus[] = ['active', 'archived']
     return all
-      .filter(status => status !== event.event_status)
+      .filter(status => status !== estatusEfectivo)
       .map(status => ({ status, dot: MENU_STATUS_DOT[status] }))
   }
 

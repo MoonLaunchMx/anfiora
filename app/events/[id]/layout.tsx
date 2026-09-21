@@ -298,7 +298,7 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
   const { id } = useParams()
   const pathname = usePathname()
   const router = useRouter()
-  const { canAdmin, isOwner, features, nivelDeModulo, isLoading } = useEventAccess()
+  const { canAdmin, isOwner, features, nivelDeModulo, isLoading, marcarArchivado } = useEventAccess()
   const salidaGuard = useSalidaGuard()
 
   // Toda salida del editor pasa por aqui: si hay cambios sin publicar, el
@@ -409,6 +409,7 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
       }
     } else {
       setEvent(prev => prev ? { ...prev, event_status: 'active' } : prev)
+      marcarArchivado(false)
     }
     setReactivando(false)
   }

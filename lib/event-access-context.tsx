@@ -32,6 +32,10 @@ interface EventAccessContextType {
   rolCuenta: RolCuenta
   permisos: PermisosEvento | null
   nivelDeModulo: (modulo: Modulo) => Nivel
+  // El estatus se escribe en events.event_status desde fuera de este
+  // provider (Configuracion, el banner del evento archivado): quien lo
+  // escribe avisa aqui para que canEdit se entere sin recargar la pagina.
+  marcarArchivado: (archivado: boolean) => void
 }
 
 const EventAccessContext = createContext<EventAccessContextType>({
@@ -47,6 +51,7 @@ const EventAccessContext = createContext<EventAccessContextType>({
   rolCuenta: null,
   permisos: null,
   nivelDeModulo: () => 'ninguno',
+  marcarArchivado: () => {},
 })
 
 // ============================================
@@ -190,6 +195,14 @@ export function EventAccessProvider({
     return true
   }, [eventId, features])
 
+  // No escribe nada: quien archiva o reactiva ya hizo su propio update a
+  // events.event_status (Configuracion, el banner del evento archivado) y
+  // solo avisa aqui para que canEdit se recalcule en el momento, sin depender
+  // de que la pagina se recargue.
+  const marcarArchivado = useCallback((archivado: boolean) => {
+    setEventArchived(archivado)
+  }, [])
+
   // Derivar permisos del rol — una sola fuente de verdad
   const isOwner = role === 'owner'
   const canAdmin = role === 'owner' || role === 'admin'
@@ -229,8 +242,9 @@ export function EventAccessProvider({
       rolCuenta,
       permisos,
       nivelDeModulo,
+      marcarArchivado,
     }),
-    [role, isOwner, canEdit, canAdmin, canInvite, isLoading, hasAccess, features, updateFeatures, rolCuenta, permisos, nivelDeModulo],
+    [role, isOwner, canEdit, canAdmin, canInvite, isLoading, hasAccess, features, updateFeatures, rolCuenta, permisos, nivelDeModulo, marcarArchivado],
   )
 
   return (

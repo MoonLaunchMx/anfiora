@@ -4,8 +4,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { EventStatus } from '@/lib/types'
-import { esArchivado } from '@/lib/events/estado'
-import { esErrorDeCupo, parseLimitError } from '@/lib/capacity'
+import { esArchivado, ocupaLugar, type EventoParaEstado } from '@/lib/events/estado'
+import { fetchAccountCapacity, esErrorDeCupo, parseLimitError } from '@/lib/capacity'
 import { MuroModal } from '@/app/components/MuroModal'
 import { getTemplatePack } from '@/lib/message-templates'
 import DatePicker from '@/app/components/ui/DatePicker'
@@ -244,7 +244,7 @@ function TemplateInput({
 
 export default function ConfiguracionPage() {
   const { id } = useParams()
-  const { features, updateFeatures, canAdmin, isOwner, isLoading } = useEventAccess()
+  const { features, updateFeatures, canAdmin, isOwner, isLoading, marcarArchivado } = useEventAccess()
   const [featureSaving, setFeatureSaving] = useState<FeatureKey | null>(null)
 
   const [loading, setLoading]   = useState(true)
@@ -296,7 +296,15 @@ export default function ConfiguracionPage() {
   const [showStatusDropdown, setShowStatusDropdown] = useState(false)
   const [statusSaving, setStatusSaving]             = useState(false)
   const [muro, setMuro]                             = useState<{ limite: number } | null>(null)
+  const [eventOwnerId, setEventOwnerId]              = useState<string | null>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
+
+  // Snapshot de lo que YA esta guardado en la base, para saber si un cambio de
+  // fecha hace que el evento pase de no ocupar lugar a ocuparlo. El estado
+  // eventDate/eventEndDate es el borrador del formulario, no sirve para esto.
+  const savedDatesRef = useRef<{ event_date: string | null; event_end_date: string | null }>({
+    event_date: null, event_end_date: null,
+  })
 
   // Colaboradores
   const [collaborators, setCollaborators] = useState<Collaborator[]>([])
@@ -375,6 +383,8 @@ export default function ConfiguracionPage() {
       setPlannerName(eventData.planner_name || '')
       setPlannerPhone(eventData.planner_phone || '')
       setPlannerEmail(eventData.planner_email || '')
+      setEventOwnerId(eventData.user_id || null)
+      savedDatesRef.current = { event_date: eventData.event_date || null, event_end_date: eventData.event_end_date || null }
 
       // El equipo se administra desde el workspace de la boda. Si el evento
       // no tiene workspace_id (caso raro, movido a mano) o el usuario no lo
@@ -427,6 +437,21 @@ export default function ConfiguracionPage() {
     if (!name) { setError('El nombre es obligatorio'); return }
     setSaving(true); setError(''); setSaved(false)
 
+    // Tercer disparador de la pared (los otros dos son crear y reactivar):
+    // mover la fecha de un evento que hoy no ocupa lugar (pasado o archivado)
+    // a una fecha futura lo hace entrar a contar contra el cupo de la cuenta.
+    const antes: EventoParaEstado = { event_status: eventStatus, ...savedDatesRef.current }
+    const despues: EventoParaEstado = { event_status: eventStatus, event_date: eventDate || null, event_end_date: eventEndDate || null }
+    const hoy = new Date()
+    if (!ocupaLugar(antes, hoy) && ocupaLugar(despues, hoy) && eventOwnerId) {
+      const cupo = await fetchAccountCapacity(eventOwnerId)
+      if (cupo && cupo.lim !== null && cupo.remaining !== null && cupo.remaining <= 0) {
+        setMuro({ limite: cupo.lim })
+        setSaving(false)
+        return
+      }
+    }
+
     // Campos contextuales según tipo
     const isSocial = ['boda','xv','cumpleanos','graduacion','bautizo','fiesta','despedida','otro'].includes(eventType)
     const isCorp   = ['conferencia','capacitacion','teambuilding','lanzamiento','asamblea','congreso','caridad'].includes(eventType)
@@ -450,7 +475,15 @@ export default function ConfiguracionPage() {
       planner_email:  plannerEmail.trim() || null,
     }).eq('id', id).select('id')
 
-    if (eventErr) { setError('Error: ' + eventErr.message); setSaving(false); return }
+    if (eventErr) {
+      if (esErrorDeCupo(eventErr)) {
+        const datos = parseLimitError(eventErr.message)
+        setMuro({ limite: datos?.limit ?? 0 })
+        setSaving(false)
+        return
+      }
+      setError('Error: ' + eventErr.message); setSaving(false); return
+    }
     // Un UPDATE filtrado por RLS devuelve cero filas SIN error: sin contar filas
     // la pantalla diria "guardado" habiendo escrito nada. El trigger de
     // configuracion si lanza excepcion, pero la policy no — son dos fallos
@@ -460,6 +493,12 @@ export default function ConfiguracionPage() {
       setSaving(false)
       return
     }
+
+    // El evento ya quedo guardado con estas fechas: el proximo autosave (que no
+    // recarga la pagina) debe comparar contra esto, no contra la fecha con la
+    // que abrio la pantalla, o repetiria el chequeo de cupo contra un evento
+    // que ya cuenta a su propio favor.
+    savedDatesRef.current = despues
 
     const { error: settingsErr } = await supabase.from('event_settings').upsert({
       ...(settingsId ? { id: settingsId } : {}),
@@ -503,6 +542,7 @@ export default function ConfiguracionPage() {
     const { error: err } = await supabase.from('events').update({ event_status: newStatus }).eq('id', id)
     if (!err) {
       setEventStatus(newStatus)
+      marcarArchivado(newStatus === 'archived')
     } else if (esErrorDeCupo(err)) {
       const datos = parseLimitError(err.message)
       setMuro({ limite: datos?.limit ?? 0 })
