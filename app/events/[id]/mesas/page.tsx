@@ -1323,7 +1323,7 @@ function MesasPageInner() {
     }
     const [tR,seatsData,guestsData,membersData]=await Promise.all([
       supabase.from('tables').select('*').eq('event_id',eventId).order('number'),
-      fetchAll<SeatRow>((f,t)=>supabase.from('table_seats').select('*').eq('event_id',eventId).order('id').range(f,t)),
+      fetchAll<SeatRow>((f,t)=>supabase.from('table_seats').select('*').eq('event_id',eventId).order('seat_number').range(f,t)),
       fetchAll<GuestRow>((f,t)=>supabase.from('guests').select('id,name,rsvp_status,tags,party_size,notes,phone,email,checked_in').eq('event_id',eventId).order('name').order('id').range(f,t)),
       fetchAll<MemberRow>((f,t)=>supabase.from('party_members').select('id,guest_id,name,rsvp_status,checked_in').eq('event_id',eventId).order('created_at').order('id').range(f,t)),
     ])

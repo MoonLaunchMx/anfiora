@@ -893,6 +893,7 @@ export default function EventPage() {
           .select('guest_id')
           .eq('event_id', id)
           .in('guest_id', idsChunk)
+          .order('id')
           .range(from, from + PAGE - 1)
         if (error) return null
         if (!data || data.length === 0) break
@@ -1174,7 +1175,7 @@ export default function EventPage() {
       const toAdd = Math.min(bulkCompanionCount, canAdd)
       if (toAdd <= 0) continue
       for (let i = 0; i < toAdd; i++) rows.push({ guest_id: guestId, event_id: id as string, name: '', phone: null, rsvp_status: 'pending' })
-      sizeUpdates.push({ id: guestId, party_size: guest.party_size + toAdd })
+      sizeUpdates.push({ id: guestId, party_size: 1 + guest.party_members.length + toAdd })
     }
     if (rows.length === 0) { setBulkCompanionSaving(false); setShowBulkCompanionModal(false); return }
     if (bloqueaPorTope(totalPersonas, totalPersonas + rows.length, limiteInvitadosEvento)) {
