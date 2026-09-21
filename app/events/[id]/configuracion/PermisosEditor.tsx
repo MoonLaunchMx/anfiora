@@ -37,9 +37,13 @@ interface Props {
   permisos: PermisosEvento
   features: Record<FeatureKey, boolean> | null
   onChange: (siguiente: PermisosEvento) => void
+  // Un cliente nunca llega a "total": el editor ni se lo ofrece.
+  sinTotal?: boolean
 }
 
-export function PermisosEditor({ permisos, features, onChange }: Props) {
+export function PermisosEditor({ permisos, features, onChange, sinTotal }: Props) {
+  const niveles = sinTotal ? NIVELES.filter(n => n !== 'total') : NIVELES
+
   const estaPrendida = (modulo: Modulo) => {
     const f = MODULOS_CONFIG.find(m => m.key === modulo)!.feature
     return f === null || features?.[f] === true
@@ -90,7 +94,7 @@ export function PermisosEditor({ permisos, features, onChange }: Props) {
             </span>
           </span>
           <span className="anf-sin-barra flex w-full shrink-0 overflow-x-auto rounded-lg bg-[#f4f4f2] p-0.5 sm:w-auto">
-            {NIVELES.map(n => (
+            {niveles.map(n => (
               <button
                 key={n}
                 type="button"
@@ -136,7 +140,7 @@ export function PermisosEditor({ permisos, features, onChange }: Props) {
 
                   {prendida ? (
                     <span className="anf-sin-barra flex w-full shrink-0 overflow-x-auto rounded-lg bg-[#f4f4f2] p-0.5 sm:w-auto">
-                      {NIVELES.map(n => (
+                      {niveles.map(n => (
                         <button
                           key={n}
                           type="button"

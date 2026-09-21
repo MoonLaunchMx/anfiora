@@ -19,6 +19,7 @@ import { FEATURES, ALWAYS_ON_FEATURES, type FeatureKey } from '@/lib/features'
 import { logAction } from '@/lib/audit'
 import { PermisosEditor } from './PermisosEditor'
 import { normalizarPermisos, resumir } from '@/lib/permisos/resolver'
+import { topeDeCliente } from '@/lib/workspace/invitacion'
 import type { PermisosEvento } from '@/lib/permisos/catalogo'
 import { Modal } from '@/app/components/ui/Modal'
 import { AltaPersonaModal } from '@/app/components/workspace/AltaPersonaModal'
@@ -614,10 +615,13 @@ export default function ConfiguracionPage() {
   }
 
   const guardarPermisos = async (colaboradorId: string) => {
+    const colaborador = collaborators.find(c => c.id === colaboradorId)
+    const permisosAGuardar = colaborador?.tipo === 'cliente' ? topeDeCliente(borrador) : borrador
+
     setGuardando(true)
     const { data, error: err } = await supabase
       .from('event_collaborators')
-      .update({ permisos: borrador })
+      .update({ permisos: permisosAGuardar })
       .eq('id', colaboradorId)
       .select('id')
 
@@ -628,7 +632,7 @@ export default function ConfiguracionPage() {
     }
 
     setCollaborators(prev =>
-      prev.map(c => (c.id === colaboradorId ? { ...c, permisos: borrador } : c)),
+      prev.map(c => (c.id === colaboradorId ? { ...c, permisos: permisosAGuardar } : c)),
     )
     setEditandoPermisos(null)
     logAction({
@@ -636,8 +640,8 @@ export default function ConfiguracionPage() {
       action: 'collaborator.permissions_updated',
       entityType: 'collaborator',
       entityId: colaboradorId,
-      entityLabel: collaborators.find(c => c.id === colaboradorId)?.email ?? '',
-      newValue: borrador,
+      entityLabel: colaborador?.email ?? '',
+      newValue: permisosAGuardar,
     })
   }
 
@@ -1258,7 +1262,8 @@ export default function ConfiguracionPage() {
                                     <button
                                       type="button"
                                       onClick={() => {
-                                        setBorrador(normalizarPermisos(c.permisos))
+                                        const normalizados = normalizarPermisos(c.permisos)
+                                        setBorrador(c.tipo === 'cliente' ? topeDeCliente(normalizados) : normalizados)
                                         setEditandoPermisos(c.id)
                                       }}
                                       title="Ajustar permisos"
@@ -1300,7 +1305,7 @@ export default function ConfiguracionPage() {
                       subtitle="Se guarda hasta que aprietes el botón"
                     />
                     <Modal.Body>
-                      <PermisosEditor permisos={borrador} features={features} onChange={setBorrador} />
+                      <PermisosEditor permisos={borrador} features={features} onChange={setBorrador} sinTotal={c.tipo === 'cliente'} />
                     </Modal.Body>
                     <Modal.Footer>
                       <button
