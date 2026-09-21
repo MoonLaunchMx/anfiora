@@ -129,7 +129,7 @@ export default function LegalShell({ doc }: { doc: DocumentoLegal }) {
         </aside>
 
         <main className="min-w-0">
-          <nav aria-label="Documentos legales" className="mb-[18px] flex gap-0.5 overflow-x-auto rounded-[10px] bg-[var(--surface-alt)] p-[3px] lg:hidden">
+          <nav aria-label="Documentos legales" className="mx-auto mb-[18px] flex w-fit max-w-full gap-0.5 overflow-x-auto rounded-[10px] bg-[var(--surface-alt)] p-[3px] lg:hidden">
             {DOCUMENTOS_LEGALES.map(d => (
               <Link
                 key={d.clave}
@@ -139,7 +139,7 @@ export default function LegalShell({ doc }: { doc: DocumentoLegal }) {
                   d.clave === doc.clave ? 'bg-white font-semibold text-[var(--text)] shadow-sm' : 'text-[var(--text-sec)]'
                 }`}
               >
-                {d.pestana}
+                {d.pestanaCorta}
               </Link>
             ))}
           </nav>

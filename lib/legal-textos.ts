@@ -37,6 +37,9 @@ export type DocumentoLegal = {
   enCorto?: string[]
   ruta: string
   pestana: string
+  // En celular las tres pestanas no caben con el nombre largo: se desbordan y
+  // la tira se recorre a la izquierda en vez de quedar centrada.
+  pestanaCorta: string
   titulo: string
   entrada: string
   contactoTitulo: string
@@ -50,6 +53,7 @@ const PRIVACIDAD: DocumentoLegal = {
   clave: 'privacidad',
   ruta: '/privacidad',
   pestana: 'Aviso de Privacidad',
+  pestanaCorta: 'Privacidad',
   titulo: 'Aviso de Privacidad',
   entrada: 'Qué datos guarda Anfiora, para qué los usa, con quién los comparte y cómo pedir que los borremos.',
   contactoTitulo: '¿Dudas sobre tus datos?',
@@ -244,6 +248,7 @@ const TERMINOS: DocumentoLegal = {
   clave: 'terminos',
   ruta: '/terminos',
   pestana: 'Términos',
+  pestanaCorta: 'Términos',
   titulo: 'Términos y Condiciones',
   entrada: 'Las reglas para usar Anfiora: qué le toca a usted y qué nos toca a nosotros.',
   contactoTitulo: '¿Dudas sobre estos términos?',
@@ -303,6 +308,7 @@ const ELIMINAR: DocumentoLegal = {
   clave: 'eliminar',
   ruta: '/eliminar-datos',
   pestana: 'Eliminar mis datos',
+  pestanaCorta: 'Eliminar datos',
   titulo: 'Eliminar mis datos',
   entrada: 'Con un correo borramos lo que Anfiora tenga de usted, tenga cuenta o no.',
   contactoTitulo: '¿Listo para solicitarlo?',
