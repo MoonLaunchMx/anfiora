@@ -40,7 +40,8 @@
 -- (archivos docs/superpowers/plans/sql/2026-09-1x-seguridad-*.sql). Este
 -- archivo NO reescribe nada de lo suyo: ni guard_users_plan, ni
 -- guard_event_config, ni sus policies. Lo unico que toca de su terreno son dos
--- GRANT del BLOQUE 4, explicados ahi con su motivo.
+-- GRANT de la seccion PERMISOS DE EJECUCION, que va al final, despues del
+-- BLOQUE 6: ahi estan explicados con su motivo.
 -- ============================================================================
 
 
@@ -780,6 +781,19 @@ CREATE TRIGGER trg_party_members_gate_cupo
 --        SELECT public.limite_invitados_del_evento('<UUID DEL EVENTO>'); -- 50
 --      Si sale NULL (plan de paga o sello), las 60 entran y eso es lo correcto:
 --      no habrias probado nada.
+--   c) El evento tiene que estar ACTIVO, no archivado:
+--        SELECT public.evento_editable('<UUID DEL EVENTO>');  -- debe dar true
+--      guests lleva DOS disparadores por fila, y corren en orden alfabetico:
+--      trg_guests_archivado va ANTES que trg_guests_gate_cupo. Como la prueba
+--      finge una sesion, ese primero tambien evalua, y sobre un evento
+--      archivado el error que sale es EVENTO_ARCHIVADO — no el del tope — y
+--      pareceria que el muro no sirve. Ojo con esto justo despues de correr
+--      este archivo: el BLOQUE 7 acaba de volver 'archived' todo lo que estaba
+--      pausado, cancelado o completado, que es el estado tipico de un evento
+--      de prueba viejo. Si salio archivado, reactivalo antes:
+--        UPDATE events SET event_status = 'active' WHERE id = '<UUID>';
+--      (eso consume el lugar de esa cuenta; el muro de eventos puede
+--       rechazarlo si ya tiene otro vigente — archiva el otro primero).
 -- El editor corre sin auth.uid() y el disparador se salta a proposito, asi que
 -- hay que fingir la sesion con set_config; todo va dentro de una transaccion
 -- que se deshace al final y no deja rastro:
