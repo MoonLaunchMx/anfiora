@@ -12,6 +12,7 @@ export interface DatosSolicitud {
   tipoDeEventos: string
   tamanoDeEquipo: string
   contactoPreferido: string
+  pais: string
   ciudad: string
   mensaje: string
 }
@@ -29,6 +30,7 @@ export const LIMITES_CAMPO = {
   tipoDeEventos: 150,
   tamanoDeEquipo: 60,
   contactoPreferido: 60,
+  pais: 60,
   ciudad: 120,
   mensaje: 1500,
 } as const
@@ -44,8 +46,13 @@ export function acotarCampo(valor: unknown, campo: CampoLibre): string {
   return texto.slice(0, max).trim() + ' (cortado)'
 }
 
-export function armarMensajeSolicitud(d: DatosSolicitud): string {
+// El folio no vive en DatosSolicitud: lo genera el servidor al recibir la
+// solicitud (no hay tabla donde guardarlo) y solo se usa para armar el
+// mensaje y mostrarselo a la persona. Va arriba de todo para que Diego lo
+// vea de un vistazo en Telegram.
+export function armarMensajeSolicitud(d: DatosSolicitud, folio: string): string {
   return [
+    'Folio: ' + folio,
     'SOLICITUD DE ACCESO',
     'Correo: ' + d.email,
     'Nombre: ' + d.nombre,
@@ -59,6 +66,7 @@ export function armarMensajeSolicitud(d: DatosSolicitud): string {
     'Tamano de equipo: ' + d.tamanoDeEquipo,
     'Contactar por: ' + d.contactoPreferido,
     'WhatsApp: ' + d.telefono,
+    'Pais: ' + d.pais,
     'Ciudad: ' + d.ciudad,
     'Mensaje: ' + (d.mensaje || 'sin mensaje'),
   ].join('\n')

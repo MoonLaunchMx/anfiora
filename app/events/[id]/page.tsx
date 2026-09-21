@@ -1685,6 +1685,20 @@ export default function EventPage() {
 
   const totalPersonas = contarPersonas(guests.length, guests.reduce((acc, g) => acc + g.party_members.length, 0))
 
+  // Cuanto de este archivo de verdad entra, calculado una sola vez para que
+  // el titulo, la barra, el aviso dorado y el boton de confirmar digan
+  // siempre el mismo numero real — nunca el total del archivo disfrazado
+  // de "va a entrar todo".
+  const cupoPreview = useMemo(() => {
+    if (!csvPreview || limiteInvitadosEvento === null) return null
+    const duplicateKeys = new Set(csvPreview.duplicates.map(d => d.name + '|' + d.phone))
+    const filasParaCupo = csvPreview.hasDuplicates ? csvPreview.rows.filter(r => !duplicateKeys.has(r.name + '|' + r.phone)) : csvPreview.rows
+    const tamanos = filasParaCupo.map(r => 1 + r._companions.length)
+    const { filas, personasImportadas, personasFuera } = cuantasFilasCaben(tamanos, totalPersonas, limiteInvitadosEvento)
+    if (personasFuera === 0) return null
+    return { filas, personasImportadas, personasFuera }
+  }, [csvPreview, limiteInvitadosEvento, totalPersonas])
+
   const countByStatus = (s: RsvpStatus) => guests.reduce((acc, g) => {
     if (g.rsvp_status === 'declined') return acc + (s === 'declined' ? 1 + g.party_members.length : 0)
     let n = g.rsvp_status === s ? 1 : 0
@@ -2295,19 +2309,36 @@ export default function EventPage() {
           <Modal.Body>
             {!csvDone && (
               <div className="mb-4 rounded-xl border border-[#e8e8e8] bg-[#f8f8f8] p-4">
-                <p className="mb-1 text-sm font-semibold text-[#1D1E20]">Resumen del archivo</p>
-                <p className="text-xs text-[#666]">{csvPreview.rows.length} invitados encontrados</p>
-                {csvPreview.hasDuplicates && <p className="mt-1 text-xs font-semibold text-[#cc3333]">{csvPreview.duplicates.length} con WhatsApp duplicado</p>}
+                {cupoPreview ? (
+                  <>
+                    <p className="mb-1 text-sm font-semibold text-[#1D1E20]">Van a entrar {cupoPreview.filas} de {csvPreview.rows.length}</p>
+                    <p className="text-xs text-[#666]">Tu cuenta gratis llega hasta {limiteInvitadosEvento} personas por evento.</p>
+                    <div className="mt-3 flex flex-col gap-1.5">
+                      <div className="flex items-baseline gap-1.5">
+                        <span className="text-2xl font-bold text-[#1D1E20]">{totalPersonas + cupoPreview.personasImportadas}</span>
+                        <span className="text-xs text-[#888]">de {limiteInvitadosEvento} personas</span>
+                      </div>
+                      <div className="h-2 w-full overflow-hidden rounded-full bg-[#eee]">
+                        <div
+                          className="h-full rounded-full bg-[#b98d2e]"
+                          style={{ width: `${Math.min(100, ((totalPersonas + cupoPreview.personasImportadas) / (limiteInvitadosEvento as number)) * 100)}%` }}
+                        />
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <p className="mb-1 text-sm font-semibold text-[#1D1E20]">Resumen del archivo</p>
+                    <p className="text-xs text-[#666]">{csvPreview.rows.length} invitados encontrados</p>
+                  </>
+                )}
+                {csvPreview.hasDuplicates && <p className="mt-2 text-xs font-semibold text-[#cc3333]">{csvPreview.duplicates.length} con WhatsApp duplicado</p>}
                 {csvPreview.sinTelefono.length > 0 && <p className="mt-1 text-xs font-semibold text-[#999]">{csvPreview.sinTelefono.length} se {csvPreview.sinTelefono.length === 1 ? 'importa' : 'importan'} sin teléfono</p>}
-                {limiteInvitadosEvento !== null && (() => {
-                  const duplicateKeys = new Set(csvPreview.duplicates.map(d => d.name + '|' + d.phone))
-                  const filasParaCupo = csvPreview.hasDuplicates ? csvPreview.rows.filter(r => !duplicateKeys.has(r.name + '|' + r.phone)) : csvPreview.rows
-                  const tamanos = filasParaCupo.map(r => 1 + r._companions.length)
-                  const { personasFuera } = cuantasFilasCaben(tamanos, totalPersonas, limiteInvitadosEvento)
-                  return personasFuera > 0 ? (
-                    <p className="mt-1 text-xs font-semibold text-[#b8860b]">Tu plan permite hasta {limiteInvitadosEvento} invitados en total: {personasFuera} persona{personasFuera === 1 ? '' : 's'} de este archivo se quedarán fuera por el tope.</p>
-                  ) : null
-                })()}
+              </div>
+            )}
+            {!csvDone && cupoPreview && (
+              <div className="mb-4 rounded-lg border border-[#eeddb0] bg-[#fdf8ec] p-3 text-xs leading-snug text-[#8a6a1f]">
+                {cupoPreview.personasFuera} se quedan fuera. Entran los primeros del archivo, completos con sus acompañantes. Los demás los puedes importar en cuanto amplíes tu plan.
               </div>
             )}
             {!csvDone && csvPreview.sinTelefono.length > 0 && (
@@ -2351,6 +2382,14 @@ export default function EventPage() {
             <div className="flex w-full flex-col gap-2">
               {csvDone ? (
                 <button onClick={cerrarCsvModal} className="w-full rounded-lg bg-[#48C9B0] py-3 text-sm font-semibold text-white">Listo</button>
+              ) : cupoPreview ? (
+                <>
+                  <button onClick={() => confirmCsvImport(csvPreview.hasDuplicates)} disabled={csvImporting} className="w-full rounded-lg bg-[#48C9B0] py-3 text-sm font-semibold text-white disabled:opacity-60">
+                    {csvImporting ? 'Importando...' : `Importar ${cupoPreview.filas}`}
+                  </button>
+                  <button onClick={() => setMuroInvitados({ limite: limiteInvitadosEvento as number })} disabled={csvImporting} className="w-full rounded-lg border border-[#48C9B0] py-2.5 text-xs font-semibold text-[#1a9e88] disabled:opacity-60">Pedir acceso</button>
+                  <button onClick={() => setCsvPreview(null)} disabled={csvImporting} className="w-full rounded-lg border border-[#e0e0e0] py-2.5 text-xs text-[#888] disabled:opacity-60">Cancelar</button>
+                </>
               ) : (
                 <>
                   {csvPreview.hasDuplicates ? (

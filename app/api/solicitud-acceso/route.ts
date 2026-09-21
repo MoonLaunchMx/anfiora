@@ -30,6 +30,13 @@ function comoNumeroONulo(v: unknown): number | null {
   return Number.isFinite(n) && n >= 0 ? n : null
 }
 
+// SOL- mas 4 digitos: facil de leer en voz alta y de buscar en Telegram. No
+// hay tabla donde guardarlo, asi que no hay riesgo real de colision — es solo
+// una referencia para la conversacion, no una llave unica de base de datos.
+function generarFolio(): string {
+  return 'SOL-' + String(Math.floor(1000 + Math.random() * 9000))
+}
+
 export async function POST(req: NextRequest) {
   const authHeader = req.headers.get('authorization')
   if (!authHeader) return NextResponse.json({ ok: false, error: 'no autorizado' }, { status: 401 })
@@ -78,11 +85,14 @@ export async function POST(req: NextRequest) {
     tipoDeEventos: acotarCampo(body.tipoDeEventos, 'tipoDeEventos'),
     tamanoDeEquipo: acotarCampo(body.tamanoDeEquipo, 'tamanoDeEquipo'),
     contactoPreferido: acotarCampo(body.contactoPreferido, 'contactoPreferido'),
+    pais: acotarCampo(body.pais, 'pais'),
     ciudad: acotarCampo(body.ciudad, 'ciudad'),
     mensaje: acotarCampo(body.mensaje, 'mensaje'),
   }
 
-  const text = armarMensajeSolicitud(datos)
+  const folio = generarFolio()
+  const enviadoEn = new Date().toISOString()
+  const text = armarMensajeSolicitud(datos, folio)
   const base = `https://api.telegram.org/bot${token}`
 
   const res = await postToTelegram(
@@ -97,5 +107,5 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: 'envio fallo' }, { status: 502 })
   }
 
-  return NextResponse.json({ ok: true })
+  return NextResponse.json({ ok: true, folio, enviadoEn })
 }

@@ -17,14 +17,40 @@ describe('mensaje de solicitud', () => {
       tipoDeEventos: 'Bodas',
       tamanoDeEquipo: '3',
       contactoPreferido: 'WhatsApp',
+      pais: 'México',
       ciudad: 'Monterrey',
       mensaje: 'Necesito mas invitados',
-    })
+    }, 'SOL-2409')
     expect(texto).toContain('patty@ejemplo.com')
     expect(texto).toContain('planner')
     expect(texto).toContain('free')
     expect(texto).toContain('151')
     expect(texto).toContain('+528111111111')
+    expect(texto).toContain('Pais: México')
+    expect(texto).toContain('Ciudad: Monterrey')
+  })
+
+  it('pone el folio arriba de todo', () => {
+    const texto = armarMensajeSolicitud({
+      nombre: 'Bodas Planner',
+      email: 'patty@ejemplo.com',
+      telefono: '+528111111111',
+      tipoDeCuenta: 'planner',
+      planActual: 'free',
+      sello: null,
+      eventosVigentes: 2,
+      personasEnEvento: 151,
+      motivo: 'invitados',
+      eventosAlAno: '12',
+      tipoDeEventos: 'Bodas',
+      tamanoDeEquipo: '3',
+      contactoPreferido: 'WhatsApp',
+      pais: 'México',
+      ciudad: 'Monterrey',
+      mensaje: '',
+    }, 'SOL-2409')
+    const lineas = texto.split('\n')
+    expect(lineas[0]).toBe('Folio: SOL-2409')
   })
 
   it('avisa el plan y el sello juntos cuando hay sello', () => {
@@ -42,9 +68,10 @@ describe('mensaje de solicitud', () => {
       tipoDeEventos: 'Boda',
       tamanoDeEquipo: '1',
       contactoPreferido: 'Llamada',
+      pais: 'México',
       ciudad: 'CDMX',
       mensaje: '',
-    })
+    }, 'SOL-1000')
     expect(texto).toContain('Plan actual: free (fundador)')
     expect(texto).toContain('Tope que topo: eventos')
     expect(texto).toContain('Mensaje: sin mensaje')
@@ -67,9 +94,10 @@ describe('mensaje de solicitud con datos no disponibles', () => {
       tipoDeEventos: '',
       tamanoDeEquipo: '',
       contactoPreferido: 'WhatsApp',
+      pais: '',
       ciudad: '',
       mensaje: '',
-    })
+    }, 'SOL-1234')
     expect(texto).toContain('Eventos vigentes: no disponible')
     expect(texto).toContain('Personas en el evento: no disponible')
   })
@@ -98,7 +126,7 @@ describe('acotarCampo', () => {
 })
 
 describe('el mensaje completo nunca pasa el limite de Telegram', () => {
-  it('con los 11 campos de texto al maximo, sigue debajo de 4096', () => {
+  it('con los campos de texto al maximo, sigue debajo de 4096', () => {
     const datos: DatosSolicitud = {
       nombre: acotarCampo('a'.repeat(9999), 'nombre'),
       email: acotarCampo('a'.repeat(9999), 'email'),
@@ -113,9 +141,10 @@ describe('el mensaje completo nunca pasa el limite de Telegram', () => {
       tipoDeEventos: acotarCampo('a'.repeat(9999), 'tipoDeEventos'),
       tamanoDeEquipo: acotarCampo('a'.repeat(9999), 'tamanoDeEquipo'),
       contactoPreferido: acotarCampo('a'.repeat(9999), 'contactoPreferido'),
+      pais: acotarCampo('a'.repeat(9999), 'pais'),
       ciudad: acotarCampo('a'.repeat(9999), 'ciudad'),
       mensaje: acotarCampo('a'.repeat(9999), 'mensaje'),
     }
-    expect(armarMensajeSolicitud(datos).length).toBeLessThan(4096)
+    expect(armarMensajeSolicitud(datos, 'SOL-9999').length).toBeLessThan(4096)
   })
 })
