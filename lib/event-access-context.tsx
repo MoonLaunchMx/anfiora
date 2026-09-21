@@ -3,6 +3,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, useMemo, ReactNode } from 'react'
 import { supabase } from '@/lib/supabase'
 import { resolveFeatures, type FeatureKey } from '@/lib/features'
+import { esArchivado } from '@/lib/events/estado'
 import { logAction } from '@/lib/audit'
 import {
   normalizarPermisos, nivelEfectivo, puede, resumir,
@@ -64,6 +65,7 @@ export function EventAccessProvider({
   const [isLoading, setIsLoading] = useState(true)
   const [rolCuenta, setRolCuenta] = useState<RolCuenta>(null)
   const [permisos, setPermisos] = useState<PermisosEvento | null>(null)
+  const [eventArchived, setEventArchived] = useState(false)
 
   useEffect(() => {
     async function checkAccess() {
@@ -74,12 +76,13 @@ export function EventAccessProvider({
         // Si la columna enabled_features aun no existe en la DB, la query de
         // settings regresa error y data null -> resolveFeatures(type, null) = legacy
         const [{ data: event }, { data: settings }] = await Promise.all([
-          supabase.from('events').select('user_id, event_type').eq('id', eventId).single(),
+          supabase.from('events').select('user_id, event_type, event_status').eq('id', eventId).single(),
           supabase.from('event_settings').select('enabled_features').eq('event_id', eventId).maybeSingle(),
         ])
 
         if (event) {
           setFeatures(resolveFeatures(event.event_type, settings?.enabled_features ?? null))
+          setEventArchived(esArchivado(event.event_status))
         }
 
         // Una sola lectura de membresia para los dos caminos. 'dueno' aqui
@@ -190,7 +193,9 @@ export function EventAccessProvider({
   // Derivar permisos del rol — una sola fuente de verdad
   const isOwner = role === 'owner'
   const canAdmin = role === 'owner' || role === 'admin'
-  const canEdit = role === 'owner' || role === 'admin' || role === 'editor'
+  // Un evento archivado es solo lectura para todos, sin importar el rol: el
+  // candado de edicion vive aqui, no en cada pantalla por separado.
+  const canEdit = !eventArchived && (role === 'owner' || role === 'admin' || role === 'editor')
   const canInvite = role === 'owner' || role === 'admin'
 
   const ctxPermiso = useMemo<ContextoPermiso>(

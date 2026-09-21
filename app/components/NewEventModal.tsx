@@ -9,6 +9,8 @@ import { ChevronRight, ArrowLeft, UserCheck } from 'lucide-react'
 import { Modal } from '@/app/components/ui/Modal'
 import { EVENT_TYPES, CATEGORIES, EventTypeConfig, EventCategory } from '@/lib/event-types'
 import { FEATURES, ALWAYS_ON_FEATURES, ACCESS_MODES, getDefaultFeatures, getDefaultAccessMode, getDefaultRequiresApproval, normalizeAccessFields, CANDADO_PRECIO_LISTO, CANDADO_APROBACION_LISTO, type FeatureKey, type AccessMode } from '@/lib/features'
+import { fetchAccountCapacity, esErrorDeCupo, parseLimitError } from '@/lib/capacity'
+import { MuroModal } from '@/app/components/MuroModal'
 
 function generatePlaylistToken(): string {
   return Math.random().toString(36).substring(2, 10) +
@@ -47,6 +49,7 @@ export function NewEventModal({ open, onClose, onCreated }: NewEventModalProps) 
 
   const [loading, setLoading]             = useState(false)
   const [error, setError]                 = useState('')
+  const [muro, setMuro]                   = useState<{ limite: number } | null>(null)
 
   const resetForm = () => {
     setStep(1)
@@ -61,6 +64,7 @@ export function NewEventModal({ open, onClose, onCreated }: NewEventModalProps) 
     setTicketPrice('')
     setError('')
     setLoading(false)
+    setMuro(null)
   }
 
   const handleClose = () => {
@@ -107,6 +111,13 @@ export function NewEventModal({ open, onClose, onCreated }: NewEventModalProps) 
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { window.location.href = '/'; return }
 
+    const cupo = await fetchAccountCapacity(user.id)
+    if (cupo && cupo.lim !== null && cupo.remaining !== null && cupo.remaining <= 0) {
+      setMuro({ limite: cupo.lim })
+      setLoading(false)
+      return
+    }
+
     // Mientras el candado de aprobacion no exista, ningun evento nace con
     // aprobacion armada que se activaria de golpe al construir esa fase.
     const access = normalizeAccessFields({
@@ -138,6 +149,12 @@ export function NewEventModal({ open, onClose, onCreated }: NewEventModalProps) 
       .single()
 
     if (eventError) {
+      if (esErrorDeCupo(eventError)) {
+        const datos = parseLimitError(eventError.message)
+        setMuro({ limite: datos?.limit ?? 0 })
+        setLoading(false)
+        return
+      }
       setError('Error al crear el evento: ' + eventError.message)
       setLoading(false)
       return
@@ -540,7 +557,8 @@ export function NewEventModal({ open, onClose, onCreated }: NewEventModalProps) 
   // ─── Render ───────────────────────────────────────────────────────────────
 
   return (
-    <Modal open={open} onClose={handleClose} size="lg">
+    <>
+    <Modal open={open && !muro} onClose={handleClose} size="lg">
       {/* Pasos */}
       <div className="shrink-0 px-5 pt-4">
         <div className="flex items-center gap-2">
@@ -635,5 +653,12 @@ export function NewEventModal({ open, onClose, onCreated }: NewEventModalProps) 
         </Modal.Footer>
       )}
     </Modal>
+    <MuroModal
+      open={!!muro}
+      motivo="eventos"
+      limite={muro?.limite ?? 0}
+      onClose={handleClose}
+    />
+    </>
   )
 }

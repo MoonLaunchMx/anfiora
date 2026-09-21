@@ -11,6 +11,8 @@ import { EnlaceRolodex } from '@/app/components/EnlaceRolodex'
 import { OnboardingModal } from '@/app/components/OnboardingModal'
 import { misWorkspacesAdministrados } from '@/lib/workspace/cliente'
 import { esArchivado } from '@/lib/events/estado'
+import { esErrorDeCupo, parseLimitError } from '@/lib/capacity'
+import { MuroModal } from '@/app/components/MuroModal'
 
 export const dynamic = 'force-dynamic'
 
@@ -25,7 +27,7 @@ type EventWithStats = Event & {
   owner_name?: string | null
 }
 
-type Tab = 'activos' | 'pasados' | 'pausados' | 'cancelados'
+type Tab = 'activos' | 'pasados' | 'archivados'
 
 type ReminderTask = {
   id: string
@@ -106,6 +108,7 @@ export default function Dashboard() {
   const [showNewEvent, setShowNewEvent] = useState(false)
   const [showOnboarding, setShowOnboarding] = useState(false)
   const [administra, setAdministra]     = useState(false)
+  const [muro, setMuro]                 = useState<{ limite: number } | null>(null)
 
   useEffect(() => {
     const interval = setInterval(() => setNow(new Date()), 1000)
@@ -287,8 +290,16 @@ export default function Dashboard() {
     e.stopPropagation()
     setOpenMenuId(null)
     if (event.is_shared) return
+    const previousStatus = event.event_status
     setMyEvents(prev => prev.map(ev => ev.id === event.id ? { ...ev, event_status: newStatus } : ev))
-    await supabase.from('events').update({ event_status: newStatus }).eq('id', event.id)
+    const { error } = await supabase.from('events').update({ event_status: newStatus }).eq('id', event.id)
+    if (error) {
+      setMyEvents(prev => prev.map(ev => ev.id === event.id ? { ...ev, event_status: previousStatus } : ev))
+      if (esErrorDeCupo(error)) {
+        const datos = parseLimitError(error.message)
+        setMuro({ limite: datos?.limit ?? 0 })
+      }
+    }
   }
 
   const handleLogout = async () => {
@@ -368,11 +379,10 @@ export default function Dashboard() {
     const past = list
       .filter(e => e.event_status === 'active' && !isUpcoming(e))
       .sort((a, b) => getEventDateTime(b).getTime() - getEventDateTime(a).getTime())
-    const paused: EventWithStats[] = []
-    const cancelled = list
+    const archived = list
       .filter(e => esArchivado(e.event_status))
       .sort((a, b) => getEventDateTime(b).getTime() - getEventDateTime(a).getTime())
-    return { active, past, paused, cancelled }
+    return { active, past, archived }
   }
 
   const myFiltered = filterByTab(myEvents)
@@ -381,14 +391,12 @@ export default function Dashboard() {
   const currentMy =
     activeTab === 'activos'    ? myFiltered.active :
     activeTab === 'pasados'    ? myFiltered.past :
-    activeTab === 'pausados'   ? myFiltered.paused :
-    myFiltered.cancelled
+    myFiltered.archived
 
   const currentShared =
     activeTab === 'activos'    ? sharedFiltered.active :
     activeTab === 'pasados'    ? sharedFiltered.past :
-    activeTab === 'pausados'   ? sharedFiltered.paused :
-    sharedFiltered.cancelled
+    sharedFiltered.archived
 
   const nextCandidates = [
     ...myFiltered.active,
@@ -405,18 +413,21 @@ export default function Dashboard() {
     : []
 
   const tabs: { key: Tab; label: string; count: number }[] = [
-    { key: 'activos',    label: 'Activos',    count: myFiltered.active.length    + sharedFiltered.active.length    },
-    { key: 'pasados',    label: 'Pasados',    count: myFiltered.past.length      + sharedFiltered.past.length      },
-    { key: 'pausados',   label: 'Pausados',   count: myFiltered.paused.length    + sharedFiltered.paused.length    },
-    { key: 'cancelados', label: 'Archivados', count: myFiltered.cancelled.length + sharedFiltered.cancelled.length },
+    { key: 'activos',    label: 'Activos',    count: myFiltered.active.length   + sharedFiltered.active.length   },
+    { key: 'pasados',    label: 'Pasados',    count: myFiltered.past.length     + sharedFiltered.past.length     },
+    { key: 'archivados', label: 'Archivados', count: myFiltered.archived.length + sharedFiltered.archived.length },
   ]
 
+  const MENU_STATUS_DOT: Record<EventStatus, string> = {
+    active:   'bg-[#48C9B0]',
+    archived: 'bg-[#888888]',
+  }
+
   const getMenuOptions = (event: EventWithStats) => {
-    const all: { label: string; status: EventStatus; color?: string }[] = [
-      { label: '● Activo',     status: 'active' },
-      { label: '🗄 Archivado', status: 'archived', color: '#888888' },
-    ]
-    return all.filter(o => o.status !== event.event_status)
+    const all: EventStatus[] = ['active', 'archived']
+    return all
+      .filter(status => status !== event.event_status)
+      .map(status => ({ status, dot: MENU_STATUS_DOT[status] }))
   }
 
   const totalReminders = reminders.length
@@ -495,9 +506,9 @@ export default function Dashboard() {
                   <div className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-[#bbb]">Cambiar estado</div>
                   {getMenuOptions(event).map(opt => (
                     <button key={opt.status} onClick={e => handleStatusChange(event, opt.status, e)}
-                      className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-xs transition hover:bg-[#f8f8f8]"
-                      style={{ color: opt.color || '#555' }}>
-                      {opt.label}
+                      className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-xs text-[#555] transition hover:bg-[#f8f8f8]">
+                      <span className={'h-2 w-2 rounded-full ' + opt.dot} />
+                      {opt.status === 'archived' ? 'Archivar' : 'Reactivar'}
                     </button>
                   ))}
                 </div>
@@ -719,7 +730,7 @@ export default function Dashboard() {
           )}
 
           <div className="flex items-center gap-2 pb-3">
-            <div className="grid flex-1 grid-cols-4 gap-1">
+            <div className="grid flex-1 grid-cols-3 gap-1">
               {tabs.map(tab => (
                 <button key={tab.key} onClick={() => setActiveTab(tab.key)}
                   className={'flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-semibold transition ' + (activeTab === tab.key ? 'bg-[#1D1E20] text-white' : 'text-[#888] hover:bg-[#efefef]')}>
@@ -765,8 +776,7 @@ export default function Dashboard() {
               <p className="text-sm text-[#888]">
                 {activeTab === 'activos'    && 'No tienes eventos activos'}
                 {activeTab === 'pasados'    && 'No tienes eventos pasados'}
-                {activeTab === 'pausados'   && 'No tienes eventos pausados'}
-                {activeTab === 'cancelados' && 'No tienes eventos cancelados'}
+                {activeTab === 'archivados' && 'No tienes eventos archivados'}
               </p>
             </div>
           ) : (
@@ -805,6 +815,13 @@ export default function Dashboard() {
           setShowNewEvent(false)
           window.location.href = '/events/' + eventId
         }}
+      />
+
+      <MuroModal
+        open={!!muro}
+        motivo="eventos"
+        limite={muro?.limite ?? 0}
+        onClose={() => setMuro(null)}
       />
 
     </div>

@@ -14,6 +14,8 @@ import { SinAcceso } from '@/app/components/ui/SinAcceso'
 import { Cargando } from '@/app/components/ui/Cargando'
 import { misWorkspacesAdministrados } from '@/lib/workspace/cliente'
 import { esArchivado } from '@/lib/events/estado'
+import { esErrorDeCupo, parseLimitError } from '@/lib/capacity'
+import { MuroModal } from '@/app/components/MuroModal'
 
 const EVENT_TYPE_LABELS: Record<string, string> = {
   boda:        'Boda',
@@ -27,7 +29,7 @@ const EVENT_TYPE_LABELS: Record<string, string> = {
 const EVENT_STATUS_STYLES: Record<string, { dot: string; badge: string; label: string }> = {
   active:    { dot: 'bg-[#48C9B0]', badge: 'border-[#c8ede7] bg-[#f0fdfb] text-[#1a9e88]', label: 'Activo' },
   archived:  { dot: 'bg-[#888]',    badge: 'border-[#e0e0e0] bg-[#f8f8f8] text-[#888]',    label: 'Archivado' },
-  completed: { dot: 'bg-[#888]',    badge: 'border-[#e0e0e0] bg-[#f8f8f8] text-[#888]',    label: 'Completado' },
+  pasado:    { dot: 'bg-[#888]',    badge: 'border-[#e0e0e0] bg-[#f8f8f8] text-[#888]',    label: 'Pasado' },
 }
 
 type NavSubItem = {
@@ -296,7 +298,7 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
   const { id } = useParams()
   const pathname = usePathname()
   const router = useRouter()
-  const { canAdmin, features, nivelDeModulo, isLoading } = useEventAccess()
+  const { canAdmin, isOwner, features, nivelDeModulo, isLoading } = useEventAccess()
   const salidaGuard = useSalidaGuard()
 
   // Toda salida del editor pasa por aqui: si hay cambios sin publicar, el
@@ -315,6 +317,8 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
   const [userEmail, setUserEmail]     = useState('')
   const [avatarOpen, setAvatarOpen]   = useState(false)
   const [administra, setAdministra]   = useState(false)
+  const [reactivando, setReactivando] = useState(false)
+  const [muro, setMuro]               = useState<{ limite: number } | null>(null)
 
   const navScrollRef = useRef<HTMLDivElement>(null)
   const avatarRef    = useRef<HTMLDivElement>(null)
@@ -394,8 +398,22 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
     loadEvent()
   }, [id, authChecked])
 
+  const handleReactivar = async () => {
+    if (reactivando) return
+    setReactivando(true)
+    const { error } = await supabase.from('events').update({ event_status: 'active' }).eq('id', id)
+    if (error) {
+      if (esErrorDeCupo(error)) {
+        const datos = parseLimitError(error.message)
+        setMuro({ limite: datos?.limit ?? 0 })
+      }
+    } else {
+      setEvent(prev => prev ? { ...prev, event_status: 'active' } : prev)
+    }
+    setReactivando(false)
+  }
 
-  const getDisplayStatus = (): 'active' | 'archived' | 'completed' => {
+  const getDisplayStatus = (): 'active' | 'archived' | 'pasado' => {
     const es = event?.event_status || 'active'
     if (esArchivado(es)) return 'archived'
     if (event?.event_date) {
@@ -403,7 +421,7 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
       const eventDay = new Date(year, month - 1, day)
       eventDay.setHours(0, 0, 0, 0)
       const today = new Date(); today.setHours(0, 0, 0, 0)
-      if (eventDay < today) return 'completed'
+      if (eventDay < today) return 'pasado'
     }
     return 'active'
   }
@@ -449,6 +467,7 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
   const initials      = getInitials(userName, userEmail)
   const displayStatus = event ? getDisplayStatus() : null
   const badgeStyle    = displayStatus ? EVENT_STATUS_STYLES[displayStatus] : null
+  const archivado     = esArchivado(event?.event_status)
 
   const sufijoRuta   = pathname.replace(`/events/${id}`, '').replace(/\/+$/, '')
   const moduloActual = moduloDeRutaNav(sufijoRuta)
@@ -788,6 +807,20 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
 
         {/* MAIN */}
         <main className="flex min-h-0 flex-1 flex-col overflow-hidden bg-white pb-16 sm:pb-0">
+          {!esperando && archivado && (
+            <div className="flex shrink-0 items-center justify-between gap-3 border-b border-[#e0e0e0] bg-[#f8f8f8] px-4 py-2.5 sm:px-6">
+              <p className="text-xs text-[#666] sm:text-sm">Este evento está archivado. Solo lectura.</p>
+              {isOwner && (
+                <button
+                  onClick={handleReactivar}
+                  disabled={reactivando}
+                  className="shrink-0 rounded-lg bg-[#48C9B0] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#3ab89f] disabled:opacity-60"
+                >
+                  {reactivando ? 'Reactivando...' : 'Reactivar'}
+                </button>
+              )}
+            </div>
+          )}
           {/* Mientras no sepamos los permisos NO se monta la herramienta: pintar
               primero y tapar despues es como se alcanzaba a ver Invitados. */}
           {esperando ? (
@@ -849,6 +882,13 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
           ))}
         </AnimatePresence>
       </nav>
+
+      <MuroModal
+        open={!!muro}
+        motivo="eventos"
+        limite={muro?.limite ?? 0}
+        onClose={() => setMuro(null)}
+      />
     </div>
   )
 }

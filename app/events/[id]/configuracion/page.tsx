@@ -5,6 +5,8 @@ import { useParams, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { EventStatus } from '@/lib/types'
 import { esArchivado } from '@/lib/events/estado'
+import { esErrorDeCupo, parseLimitError } from '@/lib/capacity'
+import { MuroModal } from '@/app/components/MuroModal'
 import { getTemplatePack } from '@/lib/message-templates'
 import DatePicker from '@/app/components/ui/DatePicker'
 import TimePicker from '@/app/components/ui/TimePicker'
@@ -242,7 +244,7 @@ function TemplateInput({
 
 export default function ConfiguracionPage() {
   const { id } = useParams()
-  const { features, updateFeatures, canAdmin, isLoading } = useEventAccess()
+  const { features, updateFeatures, canAdmin, isOwner, isLoading } = useEventAccess()
   const [featureSaving, setFeatureSaving] = useState<FeatureKey | null>(null)
 
   const [loading, setLoading]   = useState(true)
@@ -293,6 +295,7 @@ export default function ConfiguracionPage() {
   // Status dropdown
   const [showStatusDropdown, setShowStatusDropdown] = useState(false)
   const [statusSaving, setStatusSaving]             = useState(false)
+  const [muro, setMuro]                             = useState<{ limite: number } | null>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
   // Colaboradores
@@ -498,7 +501,12 @@ export default function ConfiguracionPage() {
     setStatusSaving(true)
     setShowStatusDropdown(false)
     const { error: err } = await supabase.from('events').update({ event_status: newStatus }).eq('id', id)
-    if (!err) setEventStatus(newStatus)
+    if (!err) {
+      setEventStatus(newStatus)
+    } else if (esErrorDeCupo(err)) {
+      const datos = parseLimitError(err.message)
+      setMuro({ limite: datos?.limit ?? 0 })
+    }
     setStatusSaving(false)
   }
 
@@ -624,7 +632,9 @@ export default function ConfiguracionPage() {
   }
 
   const badgeStyle      = STATUS_STYLES[eventStatus] || STATUS_STYLES.active
-  const dropdownOptions = STATUS_OPTIONS.filter(o => o.status !== eventStatus)
+  // Reactivar consume el lugar de la cuenta del dueno: solo el lo ofrece.
+  // Archivar no cuesta lugar, sigue abierto a cualquier admin.
+  const dropdownOptions = STATUS_OPTIONS.filter(o => o.status !== eventStatus && (o.status !== 'active' || isOwner))
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-white">
@@ -1286,6 +1296,13 @@ export default function ConfiguracionPage() {
 
         </div>
       </div>
+
+      <MuroModal
+        open={!!muro}
+        motivo="eventos"
+        limite={muro?.limite ?? 0}
+        onClose={() => setMuro(null)}
+      />
     </div>
   )
 }
