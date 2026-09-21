@@ -14,6 +14,7 @@ import { Puede } from '@/lib/permisos/Puede'
 import { Cargando } from '@/app/components/ui/Cargando'
 import { contarPersonas, bloqueaPorTope, borrarPrimero, esErrorDeInvitados, parseErrorInvitados } from '@/lib/invitados/cupo'
 import { esErrorDeArchivado, MENSAJE_EVENTO_ARCHIVADO } from '@/lib/capacity'
+import { reportError } from '@/lib/observabilidad/report'
 import { limiteInvitadosDelEvento } from '@/lib/workspace/cliente'
 import { MuroModal } from '@/app/components/MuroModal'
 
@@ -1470,13 +1471,6 @@ function MesasPageInner() {
       phone: m.phone || null,
       rsvp_status: m.rsvp_status,
     }))
-    // Datos originales de los que se van a borrar, por si hay que devolverlos
-    // a su lugar cuando el insert no entra en el camino que borra primero. El
-    // PartyMember de esta pantalla solo trae id/name/rsvp_status/checked_in
-    // (no telefono ni etiquetas), asi que es lo unico que se puede reconstruir.
-    const restoreRows = editGuest.party_members
-      .filter(m => toDel.includes(m.id))
-      .map(m => ({ guest_id: editGuest.id, event_id: eventId as string, name: m.name, rsvp_status: m.rsvp_status, checked_in: m.checked_in }))
 
     // deletedOk/insertedOk terminan reflejando lo que DE VERDAD paso en la
     // base (nunca lo que se planeaba), para que el tamano escrito en el
@@ -1485,33 +1479,54 @@ function MesasPageInner() {
     let insertedOk = insertRows.length === 0
     let aviso: string | null = null
 
-    if (borrarPrimero(ins.length, toDel.length)) {
-      // No crece: borrar primero libera lugar antes de insertar, asi una
+    if (borrarPrimero(totalPersonas, toDel.length, ins.length, limiteInvitadosEvento)) {
+      // Cabe borrando primero: libera lugar antes de insertar, asi una
       // cuenta EXACTAMENTE en el tope nunca ve el muro por un intercambio.
       if (toDel.length > 0) {
-        const { error: delError } = await supabase.from('party_members').delete().in('id', toDel)
-        deletedOk = !delError
-        if (delError) aviso = 'No se pudo actualizar a los acompañantes. Intenta de nuevo.'
-      }
-      if (deletedOk && insertRows.length > 0) {
+        // Copia completa desde la base ANTES de borrar, por si hay que
+        // devolver estos acompanantes a su lugar: el PartyMember local de
+        // esta pantalla solo trae id/name/rsvp_status/checked_in (no
+        // telefono, alergias ni etiquetas), asi que reconstruir del estado
+        // local le borraria esos datos al restaurar. Sin una copia completa
+        // garantizada, no se arriesga el borrado.
+        const { data: copia, error: copiaError } = await supabase
+          .from('party_members').select('*').in('id', toDel)
+        if (copiaError || !copia || copia.length !== toDel.length) {
+          aviso = 'No se pudo verificar a los acompañantes actuales. Intenta de nuevo.'
+        } else {
+          const restoreRows = copia.map(({ id: _id, created_at: _created_at, ...resto }) => resto)
+          const { error: delError } = await supabase.from('party_members').delete().in('id', toDel)
+          deletedOk = !delError
+          if (delError) aviso = 'No se pudo actualizar a los acompañantes. Intenta de nuevo.'
+          if (deletedOk && insertRows.length > 0) {
+            const { error: insError } = await supabase.from('party_members').insert(insertRows)
+            insertedOk = !insError
+            if (insError) {
+              // Esta operacion no crecia la cuenta: nunca es un problema de
+              // plan. Se devuelve lo borrado a su lugar con la copia completa
+              // que se tomo antes de borrar, para que nadie pierda un
+              // acompanante ni sus datos.
+              const { error: restoreError } = await supabase.from('party_members').insert(restoreRows)
+              if (!restoreError) deletedOk = false
+              else reportError(restoreError, { zona: 'planner' })
+              aviso = 'No se pudo guardar el cambio de acompañantes. Se conservaron los que ya tenías.'
+            }
+          } else if (!deletedOk) {
+            insertedOk = false
+          }
+        }
+      } else if (insertRows.length > 0) {
         const { error: insError } = await supabase.from('party_members').insert(insertRows)
         insertedOk = !insError
-        if (insError) {
-          // Esta operacion no crecia la cuenta: nunca es un problema de plan.
-          // Se devuelve lo borrado a su lugar con los datos que ya estaban en
-          // pantalla, para que nadie pierda un acompanante.
-          if (restoreRows.length > 0) {
-            const { error: restoreError } = await supabase.from('party_members').insert(restoreRows)
-            if (!restoreError) deletedOk = false
-          }
-          aviso = 'No se pudo guardar el cambio de acompañantes. Se conservaron los que ya tenías.'
-        }
-      } else if (!deletedOk) {
-        insertedOk = false
+        if (insError) aviso = 'No se pudieron agregar los acompañantes nuevos. Intenta de nuevo.'
       }
     } else {
-      // Crece: bloqueaPorTope ya garantizo que cabe. Insertar primero es lo
-      // seguro, porque si el insert fallara no se habria borrado nada todavia.
+      // No cabe borrando primero (crezca o no la cuenta): insertar primero es
+      // lo seguro, porque si el insert fallara no se habria borrado nada
+      // todavia. Para una cuenta que crece, bloqueaPorTope ya garantizo que
+      // cabe; para una cuenta ya muy pasada del tope que solo intercambia, el
+      // insert se rechaza igual (el disparador juzga el total, no el
+      // crecimiento) y el aviso de tope es honesto.
       if (insertRows.length > 0) {
         const { error: insError } = await supabase.from('party_members').insert(insertRows)
         insertedOk = !insError

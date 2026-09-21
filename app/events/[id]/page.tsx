@@ -1028,9 +1028,16 @@ export default function EventPage() {
     const insertRows = toInsert.map(m => ({ guest_id: guest.id, event_id: id as string, name: m.name, phone: m.phone || null, rsvp_status: m.rsvp_status, allergies: m.allergies.length ? m.allergies : null, tags: m.tags.length ? m.tags : null, notes: m.notes || null }))
     // Datos originales de los que se van a borrar, por si hay que devolverlos
     // a su lugar cuando el insert no entra en el camino que borra primero.
+    // loadGuests trae party_members con select('*'), asi que guest.party_members
+    // ya es la copia completa (incluido checked_in, que el tipo PartyMember
+    // no declara pero la fila si trae) — sin esto el restore devolvia al
+    // acompanante pero le borraba el check-in.
     const restoreRows = guest.party_members
       .filter(m => toDelete.includes(m.id))
-      .map(m => ({ guest_id: guest.id, event_id: id as string, name: m.name, phone: m.phone || null, rsvp_status: m.rsvp_status, allergies: m.allergies?.length ? m.allergies : null, tags: m.tags?.length ? m.tags : null, notes: m.notes || null }))
+      .map(m => {
+        const full = m as PartyMember & { checked_in?: boolean }
+        return { guest_id: guest.id, event_id: id as string, name: full.name, phone: full.phone || null, rsvp_status: full.rsvp_status, allergies: full.allergies?.length ? full.allergies : null, tags: full.tags?.length ? full.tags : null, notes: full.notes || null, checked_in: full.checked_in ?? false }
+      })
 
     // deletedOk/insertedOk terminan reflejando lo que DE VERDAD paso en la
     // base (nunca lo que se planeaba), para que party_size nunca quede
@@ -1039,7 +1046,7 @@ export default function EventPage() {
     let insertedOk = insertRows.length === 0
     let aviso: string | null = null
 
-    if (borrarPrimero(toInsert.length, toDelete.length)) {
+    if (borrarPrimero(totalPersonas, toDelete.length, toInsert.length, limiteInvitadosEvento)) {
       // No crece: borrar primero libera lugar antes de insertar, asi una
       // cuenta EXACTAMENTE en el tope nunca ve el muro por un intercambio.
       if (toDelete.length > 0) {
@@ -1065,8 +1072,12 @@ export default function EventPage() {
         insertedOk = false
       }
     } else {
-      // Crece: bloqueaPorTope ya garantizo que cabe. Insertar primero es lo
-      // seguro, porque si el insert fallara no se habria borrado nada todavia.
+      // No cabe borrando primero (crezca o no la cuenta): insertar primero es
+      // lo seguro, porque si el insert fallara no se habria borrado nada
+      // todavia. Para una cuenta que crece, bloqueaPorTope ya garantizo que
+      // cabe y el insert deberia entrar; para una cuenta ya muy pasada del
+      // tope que solo intercambia, el insert se rechaza igual (el disparador
+      // juzga el total, no el crecimiento) y el aviso de tope es honesto.
       if (insertRows.length > 0) {
         const { error: memberError } = await supabase.from('party_members').insert(insertRows)
         insertedOk = !memberError
