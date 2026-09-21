@@ -21,14 +21,13 @@ describe('esEventoVigente', () => {
   })
 
   it('los estados terminados nunca se ofrecen, aunque sean del futuro', () => {
-    for (const estado of ['cancelled', 'completed', 'archived']) {
+    for (const estado of ['cancelled', 'completed', 'archived', 'paused']) {
       expect(esEventoVigente(ev('a', '2027-02-14', estado), HOY)).toBe(false)
     }
   })
 
   it('un estado desconocido o nulo no descalifica', () => {
     expect(esEventoVigente(ev('a', '2027-02-14', null), HOY)).toBe(true)
-    expect(esEventoVigente(ev('a', '2027-02-14', 'paused'), HOY)).toBe(true)
   })
 })
 
@@ -81,7 +80,10 @@ describe('eventoTerminado', () => {
     // Es el caso que Diego cerro el 11-sep: despues del evento todavia hay
     // ajustes, reviews y pagos por cerrar.
     expect(eventoTerminado('active')).toBe(false)
-    expect(eventoTerminado('paused')).toBe(false)
+  })
+
+  it('paused cuenta como terminado, igual que esArchivado', () => {
+    expect(eventoTerminado('paused')).toBe(true)
   })
 
   it('sin estado no se da por muerto', () => {
@@ -90,7 +92,7 @@ describe('eventoTerminado', () => {
     expect(eventoTerminado('')).toBe(false)
   })
 
-  it('son exactamente tres y no cambian sin querer', () => {
-    expect([...ESTADOS_TERMINADOS].sort()).toEqual(['archived', 'cancelled', 'completed'])
+  it('son exactamente cuatro y no cambian sin querer', () => {
+    expect([...ESTADOS_TERMINADOS].sort()).toEqual(['archived', 'cancelled', 'completed', 'paused'])
   })
 })

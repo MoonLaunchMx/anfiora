@@ -14,7 +14,10 @@ import { etiquetaPlan } from '@/lib/workspace/planes'
 import type { RolWorkspace, WorkspaceListado, WorkspaceResumen } from '@/lib/workspace/tipos'
 import { WorkspaceProvider, useWorkspace } from './WorkspaceContext'
 
-const EVENTOS_TERMINADOS = new Set(['cancelled', 'completed', 'archived'])
+// Mismos estados que ESTADOS_TERMINADOS en lib/workspace/eventos.ts: 'paused'
+// cuenta como terminado igual que esArchivado, si no un evento pausado sale
+// archivado en el dashboard y activo aqui, en la misma pantalla de al lado.
+const EVENTOS_TERMINADOS = new Set(['cancelled', 'completed', 'archived', 'paused'])
 
 function iniciales(texto: string): string {
   const partes = texto.trim().split(/\s+/).filter(Boolean)

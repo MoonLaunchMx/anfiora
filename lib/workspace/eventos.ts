@@ -5,7 +5,10 @@
 // lista en el enlace de invitacion, ni revive una invitacion pendiente al
 // aceptar. Un evento que solo PASO de fecha no esta aqui: sigue vivo porque
 // todavia se le hacen ajustes, reviews y cierres de pago.
-export const ESTADOS_TERMINADOS = ['cancelled', 'completed', 'archived'] as const
+// 'paused' cuenta como terminado (igual que esArchivado en lib/events/estado):
+// mientras el SQL del muro no corre, produccion todavia tiene filas en ese
+// estado, y esta lista tiene que verlas igual de muertas que el resto de la app.
+export const ESTADOS_TERMINADOS = ['cancelled', 'completed', 'archived', 'paused'] as const
 
 const TERMINADOS: ReadonlySet<string> = new Set(ESTADOS_TERMINADOS)
 
