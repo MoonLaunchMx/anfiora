@@ -22,6 +22,7 @@ import { reportError } from '@/lib/observabilidad/report'
 import { usePermiso } from '@/lib/event-access-context'
 import { Puede } from '@/lib/permisos/Puede'
 import { contarPersonas, bloqueaPorTope, cuantasFilasCaben, esErrorDeInvitados, parseErrorInvitados } from '@/lib/invitados/cupo'
+import { esErrorDeArchivado, MENSAJE_EVENTO_ARCHIVADO } from '@/lib/capacity'
 import { limiteInvitadosDelEvento } from '@/lib/workspace/cliente'
 import { MuroModal } from '@/app/components/MuroModal'
 import * as XLSX from 'xlsx'
@@ -945,6 +946,7 @@ export default function EventPage() {
     const ops = buildGuestDeletionOps(guestId, conversationIds, mode)
     const { ok, error } = await executeGuestDeletion(supabase, ops)
     if (!ok) {
+      if (esErrorDeArchivado(error ? { message: error } : null)) { alert(MENSAJE_EVENTO_ARCHIVADO); return }
       reportError(error, { zona: 'planner' })
       alert('No se pudo eliminar el invitado. Intenta de nuevo.' + (error ? ' (' + error + ')' : ''))
       return
@@ -1017,23 +1019,29 @@ export default function EventPage() {
     // pestanas), se corrige al tamano real para no dejarlo inflado.
     const { error } = await supabase.from('guests').update({ name: f.name, phone: f.phone || null, email: f.email || null, party_size: 1 + f.members.length, notes: f.notes || null, tags: f.tags, side: f.side || null, allergies: f.allergies.length > 0 ? f.allergies : null }).eq('id', guest.id)
     if (error) {
+      if (esErrorDeArchivado(error)) return MENSAJE_EVENTO_ARCHIVADO
       reportError(error, { zona: 'planner' })
       return 'Error: ' + error.message
     }
-    if (toDelete.length > 0) await supabase.from('party_members').delete().in('id', toDelete)
     for (const m of f.members.filter(m => m.id)) await supabase.from('party_members').update({ name: m.name, phone: m.phone || null, rsvp_status: m.rsvp_status, allergies: m.allergies.length ? m.allergies : null, tags: m.tags.length ? m.tags : null, notes: m.notes || null }).eq('id', m.id!)
+    // Insertar antes de borrar: si la cuenta ya esta sobre el tope, el
+    // disparador rechaza el insert. Borrar primero perderia al acompanante
+    // viejo sin haber metido el nuevo.
+    let insertOk = true
     if (toInsert.length > 0) {
       const { error: memberError } = await supabase.from('party_members').insert(toInsert.map(m => ({ guest_id: guest.id, event_id: id as string, name: m.name, phone: m.phone || null, rsvp_status: m.rsvp_status, allergies: m.allergies.length ? m.allergies : null, tags: m.tags.length ? m.tags : null, notes: m.notes || null })))
       if (memberError) {
+        insertOk = false
         if (esErrorDeInvitados(memberError)) {
           const datos = parseErrorInvitados(memberError.message)
           setMuroInvitados({ limite: datos?.limite ?? limiteInvitadosEvento ?? 0 })
         }
-        // La insercion completa (es un solo insert) no entro: el tamano real
-        // se quedo en lo que ya tenia mas lo que se conservo.
-        await supabase.from('guests').update({ party_size: keepIds.length + 1 }).eq('id', guest.id)
+        // La insercion completa (es un solo insert) no entro y no se borro
+        // nada: el tamano real se quedo igual al que tenia antes de editar.
+        await supabase.from('guests').update({ party_size: existingIds.length + 1 }).eq('id', guest.id)
       }
     }
+    if (toDelete.length > 0 && insertOk) await supabase.from('party_members').delete().in('id', toDelete)
     await loadGuests(); setEditGuest(null)
     return null
   }
@@ -1330,6 +1338,7 @@ export default function EventPage() {
     const { data: guestData, error } = await supabase.from('guests').insert({ event_id: id, name: f.name, phone: f.phone || null, email: f.email || null, party_size: 1 + f.members.length, notes: f.notes || null, tags: f.tags, rsvp_status: 'pending', side: f.side || null, allergies: f.allergies.length > 0 ? f.allergies : null }).select().single()
     if (error || !guestData) {
       if (error) {
+        if (esErrorDeArchivado(error)) return MENSAJE_EVENTO_ARCHIVADO
         reportError(error, { zona: 'planner' })
         if (esErrorDeInvitados(error)) {
           const datos = parseErrorInvitados(error.message)
@@ -2422,6 +2431,7 @@ export default function EventPage() {
         open={!!muroInvitados}
         motivo="invitados"
         limite={muroInvitados?.limite ?? 0}
+        eventId={id as string}
         onClose={() => setMuroInvitados(null)}
       />
 

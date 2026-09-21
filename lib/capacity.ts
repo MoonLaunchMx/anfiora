@@ -25,3 +25,9 @@ export function esErrorDeCupo(error: { message: string } | null): boolean {
 export function esErrorDeArchivado(error: { message: string } | null): boolean {
   return !!error && error.message.includes('EVENTO_ARCHIVADO')
 }
+
+// Mensaje unico para toda la app: un evento archivado quedo de solo lectura
+// en la base (bloquea_evento_archivado / bloquea_pago_archivado), y sin este
+// aviso la escritura fallaba muda: la pantalla mostraba el cambio optimista
+// y al recargar no estaba.
+export const MENSAJE_EVENTO_ARCHIVADO = 'Este evento esta archivado. Reactivalo en Configuracion para poder editarlo.'
