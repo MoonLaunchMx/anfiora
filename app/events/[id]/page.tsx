@@ -2338,7 +2338,9 @@ export default function EventPage() {
             )}
             {!csvDone && cupoPreview && (
               <div className="mb-4 rounded-lg border border-[#eeddb0] bg-[#fdf8ec] p-3 text-xs leading-snug text-[#8a6a1f]">
-                {cupoPreview.personasFuera} se quedan fuera. Entran los primeros del archivo, completos con sus acompañantes. Los demás los puedes importar en cuanto amplíes tu plan.
+                {cupoPreview.filas === 0
+                  ? 'Tu lista ya está en su tope: ningún invitado de este archivo puede entrar todavía. Pide acceso para importarlos en cuanto amplíes tu plan.'
+                  : `${cupoPreview.personasFuera} se queda${cupoPreview.personasFuera === 1 ? '' : 'n'} fuera. Entran los primeros del archivo, completos con sus acompañantes. Los demás los puedes importar en cuanto amplíes tu plan.`}
               </div>
             )}
             {!csvDone && csvPreview.sinTelefono.length > 0 && (
@@ -2384,10 +2386,20 @@ export default function EventPage() {
                 <button onClick={cerrarCsvModal} className="w-full rounded-lg bg-[#48C9B0] py-3 text-sm font-semibold text-white">Listo</button>
               ) : cupoPreview ? (
                 <>
-                  <button onClick={() => confirmCsvImport(csvPreview.hasDuplicates)} disabled={csvImporting} className="w-full rounded-lg bg-[#48C9B0] py-3 text-sm font-semibold text-white disabled:opacity-60">
-                    {csvImporting ? 'Importando...' : `Importar ${cupoPreview.filas}`}
+                  {cupoPreview.filas > 0 && (
+                    <button onClick={() => confirmCsvImport(csvPreview.hasDuplicates)} disabled={csvImporting} className="w-full rounded-lg bg-[#48C9B0] py-3 text-sm font-semibold text-white disabled:opacity-60">
+                      {csvImporting ? 'Importando...' : `Importar ${cupoPreview.filas}`}
+                    </button>
+                  )}
+                  <button
+                    onClick={() => setMuroInvitados({ limite: limiteInvitadosEvento as number })}
+                    disabled={csvImporting}
+                    className={cupoPreview.filas > 0
+                      ? 'w-full rounded-lg border border-[#48C9B0] py-2.5 text-xs font-semibold text-[#1a9e88] disabled:opacity-60'
+                      : 'w-full rounded-lg bg-[#48C9B0] py-3 text-sm font-semibold text-white disabled:opacity-60'}
+                  >
+                    Pedir acceso
                   </button>
-                  <button onClick={() => setMuroInvitados({ limite: limiteInvitadosEvento as number })} disabled={csvImporting} className="w-full rounded-lg border border-[#48C9B0] py-2.5 text-xs font-semibold text-[#1a9e88] disabled:opacity-60">Pedir acceso</button>
                   <button onClick={() => setCsvPreview(null)} disabled={csvImporting} className="w-full rounded-lg border border-[#e0e0e0] py-2.5 text-xs text-[#888] disabled:opacity-60">Cancelar</button>
                 </>
               ) : (

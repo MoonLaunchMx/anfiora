@@ -67,7 +67,10 @@ export async function POST(req: NextRequest) {
   const email = acotarCampo(body.email, 'email')
   const nombre = acotarCampo(body.nombre, 'nombre')
   const telefono = acotarCampo(body.telefono, 'telefono')
-  if (!motivo || !email || !nombre || !telefono) {
+  // El cliente manda los chips ya unidos con ", " — un string vacio quiere
+  // decir que no se marco ninguno, la misma regla que la pantalla.
+  const tipoDeEventos = acotarCampo(body.tipoDeEventos, 'tipoDeEventos')
+  if (!motivo || !email || !nombre || !telefono || !tipoDeEventos) {
     return NextResponse.json({ ok: false, error: 'faltan datos' }, { status: 400 })
   }
 
@@ -82,7 +85,7 @@ export async function POST(req: NextRequest) {
     personasEnEvento: comoNumeroONulo(body.personasEnEvento),
     motivo,
     eventosAlAno: acotarCampo(body.eventosAlAno, 'eventosAlAno'),
-    tipoDeEventos: acotarCampo(body.tipoDeEventos, 'tipoDeEventos'),
+    tipoDeEventos,
     tamanoDeEquipo: acotarCampo(body.tamanoDeEquipo, 'tamanoDeEquipo'),
     contactoPreferido: acotarCampo(body.contactoPreferido, 'contactoPreferido'),
     pais: acotarCampo(body.pais, 'pais'),
