@@ -13,6 +13,7 @@ import { usePermiso } from '@/lib/event-access-context'
 import { Puede } from '@/lib/permisos/Puede'
 import { Cargando } from '@/app/components/ui/Cargando'
 import { contarPersonas, bloqueaPorTope, esErrorDeInvitados, parseErrorInvitados } from '@/lib/invitados/cupo'
+import { esErrorDeArchivado, MENSAJE_EVENTO_ARCHIVADO } from '@/lib/capacity'
 import { limiteInvitadosDelEvento } from '@/lib/workspace/cliente'
 import { MuroModal } from '@/app/components/MuroModal'
 
@@ -1439,7 +1440,7 @@ function MesasPageInner() {
     // party_size (aqui y en table_seats) se guarda de una vez con el tamano
     // esperado; si la insercion de acompanantes nuevos falla mas abajo
     // (carrera de dos pestanas), se corrige al tamano real.
-    await supabase.from('guests').update({
+    const { error: guestError } = await supabase.from('guests').update({
       name: eName,
       phone: ePhone || null,
       email: eEmail || null,
@@ -1447,9 +1448,11 @@ function MesasPageInner() {
       notes: eNotes || null,
       tags: eTags,
     }).eq('id', editGuest.id)
-
-    // Eliminar acompañantes removidos
-    if (toDel.length) await supabase.from('party_members').delete().in('id', toDel)
+    if (guestError) {
+      setEError(esErrorDeArchivado(guestError) ? MENSAJE_EVENTO_ARCHIVADO : 'No se pudo guardar. Intenta de nuevo.')
+      setESaving(false)
+      return
+    }
 
     // Actualizar acompañantes existentes
     for (const m of eMembers.filter(m => m.id)) {
@@ -1460,8 +1463,11 @@ function MesasPageInner() {
       }).eq('id', m.id!)
     }
 
-    // Insertar acompañantes nuevos
+    // Insertar acompañantes nuevos ANTES de borrar los removidos: si la
+    // cuenta ya esta sobre el tope, el disparador rechaza el insert. Borrar
+    // primero perderia al acompanante viejo sin haber metido el nuevo.
     let partySizeFinal = newPartySize
+    let insertOk = true
     if (ins.length) {
       const { error: insError } = await supabase.from('party_members').insert(
         ins.map(m => ({
@@ -1473,16 +1479,20 @@ function MesasPageInner() {
         }))
       )
       if (insError) {
+        insertOk = false
         if (esErrorDeInvitados(insError)) {
           const datos = parseErrorInvitados(insError.message)
           setMuroInvitados({ limite: datos?.limite ?? limiteInvitadosEvento ?? 0 })
         }
-        // La insercion completa (es un solo insert) no entro: el tamano real
-        // se quedo en lo que ya tenia mas lo que se conservo.
-        partySizeFinal = keepIds.length + 1
+        // La insercion completa (es un solo insert) no entro y no se borro
+        // nada: el tamano real se quedo igual al que tenia antes de editar.
+        partySizeFinal = editGuest.party_members.length + 1
         await supabase.from('guests').update({ party_size: partySizeFinal }).eq('id', editGuest.id)
       }
     }
+
+    // Eliminar acompañantes removidos (solo si la insercion de arriba, si la hubo, entro)
+    if (toDel.length && insertOk) await supabase.from('party_members').delete().in('id', toDel)
 
     // Actualizar party_size en table_seats si está asignado
     if (seatRecord) {
@@ -1509,8 +1519,14 @@ function MesasPageInner() {
     const cap=parseInt(mCap);if(!cap||cap<1||cap>100){setMError('Capacidad entre 1 y 100');return}
     if(tables.find(t=>t.number===num&&t.id!==editTable?.id)){setMError(`Mesa ${num} ya existe`);return}
     setMSaving(true);setMError('')
-    if(editTable)await supabase.from('tables').update({number:num,name:mName||null,capacity:cap,shape:mShape}).eq('id',editTable.id)
-    else await supabase.from('tables').insert({event_id:eventId,number:num,name:mName||null,capacity:cap,shape:mShape,rotation:0})
+    const { error } = editTable
+      ? await supabase.from('tables').update({number:num,name:mName||null,capacity:cap,shape:mShape}).eq('id',editTable.id)
+      : await supabase.from('tables').insert({event_id:eventId,number:num,name:mName||null,capacity:cap,shape:mShape,rotation:0})
+    if (error) {
+      setMError(esErrorDeArchivado(error) ? MENSAJE_EVENTO_ARCHIVADO : 'No se pudo guardar la mesa. Intenta de nuevo.')
+      setMSaving(false)
+      return
+    }
     await loadTables();setShowModal(false);setMSaving(false)
   }
   const handleDeleteTable=async(t:TableRecord)=>{
@@ -1828,7 +1844,7 @@ function MesasPageInner() {
 
       <ModalAsignar tables={tables} guests={guests} assignModal={assignModal} assignSearch={assignSearch} setAssignSearch={setAssignSearch} assignRef={assignRef} gSeatMap={gSeatMap} getOccupied={getOccupied} handleSelectGuest={handleSelectGuest} onClose={()=>{setAssignModal(null);setAssignSearch('')}}/>
       <ModalMover moveModal={moveModal} tables={tables} moveSaving={moveSaving} onConfirm={handleMove} onClose={()=>setMoveModal(null)}/>
-      <MuroModal open={!!muroInvitados} motivo="invitados" limite={muroInvitados?.limite ?? 0} onClose={()=>setMuroInvitados(null)}/>
+      <MuroModal open={!!muroInvitados} motivo="invitados" limite={muroInvitados?.limite ?? 0} eventId={eventId as string} onClose={()=>setMuroInvitados(null)}/>
     </div>
   )
 }
