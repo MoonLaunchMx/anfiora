@@ -3,7 +3,7 @@
 import { useState, Fragment } from 'react'
 import { ChevronDown, ChevronUp, Mail, Ban, Trash2, CheckCircle } from 'lucide-react'
 import { AdminUser, GlobalStats } from './lib/types'
-import { formatDate, formatDateTime, timeAgo, PLAN_STYLES } from './lib/format'
+import { formatDate, formatDateTime, timeAgo, PLAN_STYLES, PLAN_LABEL_COLORS } from './lib/format'
 import { CURRENT_LEGAL_VERSION } from '@/lib/legal'
 import { PLAN_IDS, PLANES, normalizarPlan } from '@/lib/workspace/planes'
 import { isPaidPlan } from '@/lib/billing'
@@ -55,18 +55,12 @@ export default function UsuariosTab({ users, stats, actionLoading, onChangePlan,
           <div className="rounded-xl border border-[#e8e8e8] bg-white p-4">
             <p className="text-xs text-[#888]">Por plan</p>
             <div className="mt-2 space-y-1">
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-[#888]">Free</span>
-                <span className="text-xs font-semibold text-[#1D1E20]">{stats.free_users}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-[#48C9B0]">Pro</span>
-                <span className="text-xs font-semibold text-[#1D1E20]">{stats.pro_users}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-[#f59e0b]">Agency</span>
-                <span className="text-xs font-semibold text-[#1D1E20]">{stats.agency_users}</span>
-              </div>
+              {PLAN_IDS.map(id => (
+                <div key={id} className="flex items-center justify-between">
+                  <span className={'text-xs ' + PLAN_LABEL_COLORS[id]}>{PLANES[id].nombre}</span>
+                  <span className="text-xs font-semibold text-[#1D1E20]">{stats.byPlan[id]}</span>
+                </div>
+              ))}
             </div>
           </div>
           <div className="rounded-xl border border-[#e8e8e8] bg-white p-4">

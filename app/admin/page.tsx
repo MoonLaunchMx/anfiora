@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { LayoutDashboard, Users, CreditCard, Activity, Megaphone } from 'lucide-react'
 import { AdminUser, GlobalStats, AuditEntry, EventOption } from './lib/types'
+import { PLAN_IDS, normalizarPlan, type PlanId } from '@/lib/workspace/planes'
 import ResumenTab from './ResumenTab'
 import UsuariosTab from './UsuariosTab'
 import PagosTab from './PagosTab'
@@ -120,11 +121,12 @@ export default function AdminPage() {
       const now          = new Date()
       const sevenDaysAgo = new Date(now.getTime() - 7 * 86400000).toISOString()
 
+      const byPlan = Object.fromEntries(PLAN_IDS.map(id => [id, 0])) as Record<PlanId, number>
+      for (const u of usersRaw as ApiUser[]) byPlan[normalizarPlan(u.plan)] += 1
+
       setStats({
         total_users:   usersRaw.length,
-        free_users:    usersRaw.filter((u: ApiUser) => (u.plan || 'free') === 'free').length,
-        pro_users:     usersRaw.filter((u: ApiUser) => u.plan === 'pro').length,
-        agency_users:  usersRaw.filter((u: ApiUser) => u.plan === 'agency').length,
+        byPlan,
         total_events:  events.length,
         total_guests:  guests.length + partyMembers.length,
         confirmed:     guests.filter((g: { rsvp_status: string }) => g.rsvp_status === 'confirmed').length,

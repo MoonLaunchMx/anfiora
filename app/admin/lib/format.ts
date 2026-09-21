@@ -35,3 +35,10 @@ export const PLAN_BAR_COLORS: Record<PlanId, string> = {
   studio: 'bg-[#d4a853]',
   agency: 'bg-[#1D1E20]',
 }
+
+export const PLAN_LABEL_COLORS: Record<PlanId, string> = {
+  free:   'text-[#888]',
+  pro:    'text-[#48C9B0]',
+  studio: 'text-[#4338ca]',
+  agency: 'text-[#f59e0b]',
+}

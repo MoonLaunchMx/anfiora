@@ -1,3 +1,5 @@
+import type { PlanId } from '@/lib/workspace/planes'
+
 export interface AdminEvent {
   id: string
   name: string
@@ -37,9 +39,7 @@ export interface AdminUser {
 
 export interface GlobalStats {
   total_users: number
-  free_users: number
-  pro_users: number
-  agency_users: number
+  byPlan: Record<PlanId, number>
   total_events: number
   total_guests: number
   confirmed: number
