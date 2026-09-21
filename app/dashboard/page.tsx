@@ -13,6 +13,7 @@ import { misWorkspacesAdministrados } from '@/lib/workspace/cliente'
 import { esArchivado, estadoEvento } from '@/lib/events/estado'
 import { esErrorDeCupo, parseLimitError } from '@/lib/capacity'
 import { MuroModal } from '@/app/components/MuroModal'
+import { useConfirm } from '@/app/components/ui/ConfirmModal'
 
 export const dynamic = 'force-dynamic'
 
@@ -109,6 +110,7 @@ export default function Dashboard() {
   const [showOnboarding, setShowOnboarding] = useState(false)
   const [administra, setAdministra]     = useState(false)
   const [muro, setMuro]                 = useState<{ limite: number } | null>(null)
+  const askConfirm = useConfirm()
 
   useEffect(() => {
     const interval = setInterval(() => setNow(new Date()), 1000)
@@ -292,14 +294,25 @@ export default function Dashboard() {
     if (event.is_shared) return
     const previousStatus = event.event_status
     setMyEvents(prev => prev.map(ev => ev.id === event.id ? { ...ev, event_status: newStatus } : ev))
-    const { error } = await supabase.from('events').update({ event_status: newStatus }).eq('id', event.id)
-    if (error) {
+    // Sin .select() un UPDATE filtrado por RLS (o rechazado por una regla
+    // vieja de la base que no conozca el estatus nuevo) no da error: devuelve
+    // cero filas. Igual que en admin/update-plan, el exito se decide por
+    // filas afectadas, no por la ausencia de error.
+    const { data: filas, error } = await supabase
+      .from('events').update({ event_status: newStatus }).eq('id', event.id).select('id')
+    if (error || !filas || filas.length === 0) {
       setMyEvents(prev => prev.map(ev => ev.id === event.id ? { ...ev, event_status: previousStatus } : ev))
-      if (esErrorDeCupo(error)) {
+      if (error && esErrorDeCupo(error)) {
         const datos = parseLimitError(error.message)
         setMuro({ limite: datos?.limit ?? 0 })
       } else {
-        alert('No se pudo cambiar el estatus del evento. Intenta de nuevo.')
+        await askConfirm({
+          title: 'No se pudo cambiar el estatus del evento',
+          message: 'Intenta de nuevo.',
+          soloAviso: true,
+          tone: 'default',
+          confirmLabel: 'Entendido',
+        })
       }
     }
   }
