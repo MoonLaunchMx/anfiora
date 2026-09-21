@@ -13,7 +13,7 @@ import { filtrarPorPermiso, moduloDeRutaNav, primeraRutaVisible } from '@/lib/pe
 import { SinAcceso } from '@/app/components/ui/SinAcceso'
 import { Cargando } from '@/app/components/ui/Cargando'
 import { misWorkspacesAdministrados } from '@/lib/workspace/cliente'
-import { esArchivado } from '@/lib/events/estado'
+import { esArchivado, estadoEvento } from '@/lib/events/estado'
 import { esErrorDeCupo, parseLimitError } from '@/lib/capacity'
 import { MuroModal } from '@/app/components/MuroModal'
 
@@ -414,17 +414,18 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
     setReactivando(false)
   }
 
+  // estadoEvento mira event_end_date (con fallback a event_date): un evento
+  // de varios dias que sigue en curso no debe salir "Pasado" solo porque su
+  // primer dia ya paso.
   const getDisplayStatus = (): 'active' | 'archived' | 'pasado' => {
-    const es = event?.event_status || 'active'
-    if (esArchivado(es)) return 'archived'
-    if (event?.event_date) {
-      const [year, month, day] = event.event_date.split('T')[0].split('-').map(Number)
-      const eventDay = new Date(year, month - 1, day)
-      eventDay.setHours(0, 0, 0, 0)
-      const today = new Date(); today.setHours(0, 0, 0, 0)
-      if (eventDay < today) return 'pasado'
-    }
-    return 'active'
+    if (!event) return 'active'
+    const estado = estadoEvento(
+      { event_status: event.event_status ?? null, event_date: event.event_date ?? null, event_end_date: event.event_end_date ?? null },
+      new Date(),
+    )
+    if (estado === 'activo') return 'active'
+    if (estado === 'archivado') return 'archived'
+    return 'pasado'
   }
 
   const isActive = (path: string) => {
