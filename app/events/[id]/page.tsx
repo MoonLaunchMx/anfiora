@@ -819,6 +819,10 @@ export default function EventPage() {
       } else {
         setLimiteCargado(true)
       }
+    } else {
+      // Si el evento no cargo, el contador no se queda en blanco para
+      // siempre: cae a mostrar solo el numero de personas (sin "de X").
+      setLimiteCargado(true)
     }
     if (settings) setEventSettings(settings)
   }
@@ -869,6 +873,34 @@ export default function EventPage() {
     setGroupPool(Array.from(new Set(guestsData.map(g => g.side).filter((s): s is string => !!s))))
     setAllergyPool(Array.from(new Set([...ALLERGY_OPTIONS, ...guestsData.flatMap(g => g.allergies || []), ...membersData.flatMap(m => m.allergies || [])])))
     setLoading(false)
+  }
+
+  // Recuento real de acompanantes por invitado — solo se usa para corregir
+  // party_size cuando una insercion se corto a medias (carrera de dos
+  // pestanas). Pagina igual que loadGuests: por invitados (200 a la vez, el
+  // tope que ya confirma el .in() de arriba) y por filas (de mil en mil).
+  // Si CUALQUIER lectura falla, regresa null: mejor dejar el party_size
+  // viejo que escribir uno adivinado a medias.
+  const contarAcompanantesPorInvitado = async (guestIds: string[]): Promise<Map<string, number> | null> => {
+    const countByGuest = new Map<string, number>()
+    const IDCHUNK = 200
+    const PAGE = 1000
+    for (let i = 0; i < guestIds.length; i += IDCHUNK) {
+      const idsChunk = guestIds.slice(i, i + IDCHUNK)
+      for (let from = 0; ; from += PAGE) {
+        const { data, error } = await supabase
+          .from('party_members')
+          .select('guest_id')
+          .eq('event_id', id)
+          .in('guest_id', idsChunk)
+          .range(from, from + PAGE - 1)
+        if (error) return null
+        if (!data || data.length === 0) break
+        for (const row of data) countByGuest.set(row.guest_id, (countByGuest.get(row.guest_id) || 0) + 1)
+        if (data.length < PAGE) break
+      }
+    }
+    return countByGuest
   }
 
   const updateStatus = async (guestId: string, status: RsvpStatus) => {
@@ -1135,14 +1167,14 @@ export default function EventPage() {
     setBulkCompanionSaving(true)
     const ids = Array.from(selected)
     const rows: { guest_id: string; event_id: string; name: string; phone: null; rsvp_status: string }[] = []
-    const affectedIds: string[] = []
+    const sizeUpdates: { id: string; party_size: number }[] = []
     for (const guestId of ids) {
       const guest = guests.find(g => g.id === guestId); if (!guest) continue
       const canAdd = Math.max(0, 15 - guest.party_members.length)
       const toAdd = Math.min(bulkCompanionCount, canAdd)
       if (toAdd <= 0) continue
       for (let i = 0; i < toAdd; i++) rows.push({ guest_id: guestId, event_id: id as string, name: '', phone: null, rsvp_status: 'pending' })
-      affectedIds.push(guestId)
+      sizeUpdates.push({ id: guestId, party_size: guest.party_size + toAdd })
     }
     if (rows.length === 0) { setBulkCompanionSaving(false); setShowBulkCompanionModal(false); return }
     if (bloqueaPorTope(totalPersonas, totalPersonas + rows.length, limiteInvitadosEvento)) {
@@ -1151,27 +1183,37 @@ export default function EventPage() {
       return
     }
     const CHUNK = 500
+    let insertOk = true
     for (let i = 0; i < rows.length; i += CHUNK) {
       const { error } = await supabase.from('party_members').insert(rows.slice(i, i + CHUNK))
-      if (error && esErrorDeInvitados(error)) {
-        const datos = parseErrorInvitados(error.message)
-        setMuroInvitados({ limite: datos?.limite ?? limiteInvitadosEvento ?? 0 })
+      if (error) {
+        insertOk = false
+        if (esErrorDeInvitados(error)) {
+          const datos = parseErrorInvitados(error.message)
+          setMuroInvitados({ limite: datos?.limite ?? limiteInvitadosEvento ?? 0 })
+        }
         break
       }
     }
-    // No se calcula el party_size nuevo de antemano: si el ciclo de arriba
-    // se corto a medias (carrera de dos pestanas), algunos de estos
-    // invitados se quedaron sin sus acompanantes nuevos y su party_size no
-    // debe subir. Se recuenta contra lo que de verdad quedo insertado.
-    if (affectedIds.length > 0) {
-      const { data: actuales } = await supabase.from('party_members').select('guest_id').in('guest_id', affectedIds)
-      const countByGuest = new Map<string, number>()
-      for (const row of actuales || []) countByGuest.set(row.guest_id, (countByGuest.get(row.guest_id) || 0) + 1)
-      const UCHUNK = 50
-      for (let i = 0; i < affectedIds.length; i += UCHUNK) {
-        await Promise.all(affectedIds.slice(i, i + UCHUNK).map(gid =>
-          supabase.from('guests').update({ party_size: 1 + (countByGuest.get(gid) || 0) }).eq('id', gid)
-        ))
+    const UCHUNK = 50
+    if (insertOk) {
+      // Camino feliz (la inmensa mayoria de las veces): lo que se esperaba
+      // insertar es lo que entro, el tamano adivinado ya es el real.
+      for (let i = 0; i < sizeUpdates.length; i += UCHUNK) {
+        await Promise.all(sizeUpdates.slice(i, i + UCHUNK).map(u => supabase.from('guests').update({ party_size: u.party_size }).eq('id', u.id)))
+      }
+    } else if (sizeUpdates.length > 0) {
+      // Se corto a medias (carrera de dos pestanas): el tamano adivinado ya
+      // no es confiable para todos. Se recuenta contra lo que de verdad
+      // quedo insertado; si la lectura misma falla, no se escribe nada —
+      // mejor un party_size viejo que uno inventado.
+      const countByGuest = await contarAcompanantesPorInvitado(sizeUpdates.map(u => u.id))
+      if (countByGuest) {
+        for (let i = 0; i < sizeUpdates.length; i += UCHUNK) {
+          await Promise.all(sizeUpdates.slice(i, i + UCHUNK).map(u =>
+            supabase.from('guests').update({ party_size: 1 + (countByGuest.get(u.id) || 0) }).eq('id', u.id)
+          ))
+        }
       }
     }
     await loadGuests()
@@ -1453,16 +1495,18 @@ export default function EventPage() {
     if (acompanantesInsertados < memberRows.length) {
       // Algunos acompanantes no entraron: el party_size que se guardo con
       // cada invitado (ya adelantado) quedo inflado para esos casos. Se
-      // recuenta contra lo que de verdad quedo insertado.
+      // recuenta contra lo que de verdad quedo insertado; si la lectura
+      // misma falla, no se escribe nada — mejor un party_size viejo que
+      // uno inventado.
       const idsConAcompanantes = Array.from(new Set(memberRows.map(m => m.guest_id)))
-      const { data: actuales } = await supabase.from('party_members').select('guest_id').in('guest_id', idsConAcompanantes)
-      const countByGuest = new Map<string, number>()
-      for (const row of actuales || []) countByGuest.set(row.guest_id, (countByGuest.get(row.guest_id) || 0) + 1)
-      const UCHUNK = 50
-      for (let i = 0; i < idsConAcompanantes.length; i += UCHUNK) {
-        await Promise.all(idsConAcompanantes.slice(i, i + UCHUNK).map(gid =>
-          supabase.from('guests').update({ party_size: 1 + (countByGuest.get(gid) || 0) }).eq('id', gid)
-        ))
+      const countByGuest = await contarAcompanantesPorInvitado(idsConAcompanantes)
+      if (countByGuest) {
+        const UCHUNK = 50
+        for (let i = 0; i < idsConAcompanantes.length; i += UCHUNK) {
+          await Promise.all(idsConAcompanantes.slice(i, i + UCHUNK).map(gid =>
+            supabase.from('guests').update({ party_size: 1 + (countByGuest.get(gid) || 0) }).eq('id', gid)
+          ))
+        }
       }
     }
     await supabase.rpc('increment_guests_by', { event_id_input: id, amount: rowsToImport.length })

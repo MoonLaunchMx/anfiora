@@ -40,23 +40,44 @@ describe('sello de partner', () => {
   })
 })
 
-describe('resolverLimiteInvitados: RPC ambiguo vs lectura directa', () => {
-  it('la lectura directa del workspace manda sobre el RPC', () => {
+describe('resolverLimiteInvitados: el plan de paga del RPC (el workspace DEL EVENTO) manda siempre', () => {
+  it('un plan de paga del RPC gana aunque la lectura directa diga free — el creador puede administrar un workspace que no es el suyo', () => {
+    // Antes de este arreglo, wsEncontrado ganaba siempre y esto daba 50:
+    // un evento Agency creado por alguien cuyo workspace PERSONAL es free
+    // quedaba topado por error.
+    expect(resolverLimiteInvitados('agency', true, 'free', null)).toBeNull()
+    expect(resolverLimiteInvitados('pro', true, 'free', 'fundador')).toBeNull()
+  })
+
+  it('la lectura directa desambigua un free del RPC (puede ser su default) cuando SI encuentra fila', () => {
     expect(resolverLimiteInvitados('free', true, 'pro', null)).toBeNull()
-    expect(resolverLimiteInvitados('pro', true, 'free', null)).toBe(50)
+    expect(resolverLimiteInvitados(null, true, 'agency', null)).toBeNull()
+  })
+
+  it('la lectura directa confirma un free real: 50, o sin tope si trae el sello', () => {
+    expect(resolverLimiteInvitados('free', true, 'free', null)).toBe(50)
     expect(resolverLimiteInvitados('free', true, 'free', 'fundador')).toBeNull()
   })
 
-  it('un plan de paga del RPC es confiable aunque la lectura directa no encuentre nada', () => {
-    expect(resolverLimiteInvitados('pro', false, null, null)).toBeNull()
-    expect(resolverLimiteInvitados('agency', false, null, null)).toBeNull()
+  it('el plan del RPC se normaliza antes de comparar: mayusculas, espacios o un valor desconocido no esquivan la ambiguedad de "free"', () => {
+    expect(resolverLimiteInvitados('FREE', true, 'free', null)).toBe(50)
+    expect(resolverLimiteInvitados(' Free ', true, 'pro', null)).toBeNull()
+    expect(resolverLimiteInvitados('lo-que-sea', true, 'free', null)).toBe(50)
   })
 
-  it('un free del RPC es ambiguo (puede ser su default): sin lectura directa, no se confia', () => {
+  it('un free del RPC es ambiguo: sin lectura directa que lo confirme, no se confia — sin tope', () => {
     expect(resolverLimiteInvitados('free', false, null, null)).toBeNull()
   })
 
   it('sin ninguna fuente confiable, no se pudo verificar: sin tope', () => {
     expect(resolverLimiteInvitados(null, false, null, null)).toBeNull()
   })
+
+  // Nota: no hay una prueba separada de "un plan de paga del RPC es
+  // confiable sin lectura directa" — resolverLimiteInvitados(x, false, ...)
+  // con x de paga y con x ambiguo dan el mismo numero (null), asi que esa
+  // aserticion sola no distingue nada. La prueba que SI distingue de verdad
+  // es la primera de este describe: ahi wsEncontrado es true con un plan
+  // free en conflicto, y solo una implementacion que de verdad prioriza el
+  // plan de paga del RPC (antes de mirar wsEncontrado) pasa esa prueba.
 })

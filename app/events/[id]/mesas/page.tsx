@@ -144,6 +144,10 @@ type SeatRecord  = { id: string; table_id: string; event_id: string; seat_number
 type TableRecord = { id: string; event_id: string; number: number; name: string | null; capacity: number; shape: string; rotation: number; position_x: number; position_y: number; created_at: string; seats: SeatRecord[] }
 type MoveModal   = { guest: GuestFull; fromSeatId: string; fromTableNumber: number; toTableId: string; toTableCapacity: number }
 type EventInfo   = { name: string; event_date: string | null; venue: string | null }
+// Filas crudas de las consultas paginadas (antes de combinarse en GuestFull/TableRecord)
+type SeatRow   = Omit<SeatRecord, 'guest'>
+type GuestRow  = Pick<Guest, 'id' | 'name' | 'rsvp_status'> & { tags: string[] | null; party_size: number; notes: string | null; phone: string | null; email: string | null; checked_in: boolean | null }
+type MemberRow = PartyMember & { guest_id: string }
 
 // ─── HELPERS ──────────────────────────────────
 function getTableSvgDims(table: TableRecord): { w: number; h: number } {
@@ -1299,19 +1303,43 @@ function MesasPageInner() {
   useEffect(()=>{loadData()},[])
   useEffect(()=>{if(assignModal)setTimeout(()=>assignRef.current?.focus(),50)},[assignModal])
 
-  const loadData=async()=>{
-    setLoading(true)
-    const [tR,sR,gR,mR,eR]=await Promise.all([
+  // table_seats, guests y party_members se paginan: sin esto, un evento con
+  // mas de mil filas en cualquiera de las tres se queda corto en silencio
+  // (el limite por default de Supabase), y ese total corto es justo lo que
+  // alimenta totalPersonas y por lo tanto la pared de invitados. tables no
+  // se pagina — un venue real nunca llega a mil mesas.
+  const cargarMesasYGuests=async():Promise<{combined:TableRecord[];guestsList:GuestFull[]}>=>{
+    const PAGE=1000
+    const fetchAll=async <T,>(build:(from:number,to:number)=>PromiseLike<{data:T[]|null;error:unknown}>):Promise<T[]>=>{
+      const out:T[]=[]
+      for(let from=0;;from+=PAGE){
+        const {data,error}=await build(from,from+PAGE-1)
+        if(error){console.error('mesas fetchAll:',error);break}
+        if(!data||data.length===0)break
+        out.push(...data)
+        if(data.length<PAGE)break
+      }
+      return out
+    }
+    const [tR,seatsData,guestsData,membersData]=await Promise.all([
       supabase.from('tables').select('*').eq('event_id',eventId).order('number'),
-      supabase.from('table_seats').select('*').eq('event_id',eventId),
-      supabase.from('guests').select('id,name,rsvp_status,tags,party_size,notes,phone,email,checked_in').eq('event_id',eventId).order('name'),
-      supabase.from('party_members').select('id,guest_id,name,rsvp_status,checked_in').eq('event_id',eventId),
-      supabase.from('events').select('guest_tags,name,event_date,venue,canvas_data,user_id').eq('id',eventId).single(),
+      fetchAll<SeatRow>((f,t)=>supabase.from('table_seats').select('*').eq('event_id',eventId).order('id').range(f,t)),
+      fetchAll<GuestRow>((f,t)=>supabase.from('guests').select('id,name,rsvp_status,tags,party_size,notes,phone,email,checked_in').eq('event_id',eventId).order('name').order('id').range(f,t)),
+      fetchAll<MemberRow>((f,t)=>supabase.from('party_members').select('id,guest_id,name,rsvp_status,checked_in').eq('event_id',eventId).order('created_at').order('id').range(f,t)),
     ])
     const gMap=new Map<string,GuestFull>()
-    for(const g of(gR.data||[])){const members=(mR.data||[]).filter(m=>m.guest_id===g.id);gMap.set(g.id,{...g,tags:g.tags||[],notes:g.notes||null,phone:g.phone||null,email:g.email||null,checked_in:g.checked_in||false,party_size:1+members.length,party_members:members.map(m=>({...m,checked_in:m.checked_in||false}))})}
-    const combined:TableRecord[]=(tR.data||[]).map(t=>({...t,rotation:t.rotation||0,seats:(sR.data||[]).filter(s=>s.table_id===t.id).map(s=>({...s,guest:s.guest_id?gMap.get(s.guest_id)||null:null}))}))
-    setTables(combined);setGuests(Array.from(gMap.values()))
+    for(const g of guestsData){const members=membersData.filter(m=>m.guest_id===g.id);gMap.set(g.id,{...g,tags:g.tags||[],notes:g.notes||null,phone:g.phone||null,email:g.email||null,checked_in:g.checked_in||false,party_size:1+members.length,party_members:members.map(m=>({...m,checked_in:m.checked_in||false}))})}
+    const combined:TableRecord[]=(tR.data||[]).map(t=>({...t,rotation:t.rotation||0,seats:seatsData.filter(s=>s.table_id===t.id).map(s=>({...s,guest:s.guest_id?gMap.get(s.guest_id)||null:null}))}))
+    return {combined,guestsList:Array.from(gMap.values())}
+  }
+
+  const loadData=async()=>{
+    setLoading(true)
+    const [{combined,guestsList},eR]=await Promise.all([
+      cargarMesasYGuests(),
+      supabase.from('events').select('guest_tags,name,event_date,venue,canvas_data,user_id').eq('id',eventId).single(),
+    ])
+    setTables(combined);setGuests(guestsList)
     setEventTags(eR.data?.guest_tags||[])
     setEventInfo({name:eR.data?.name||'',event_date:eR.data?.event_date||null,venue:eR.data?.venue||null})
     // El tope es del dueno del evento, no de quien esta viendo la pantalla.
@@ -1328,16 +1356,8 @@ function MesasPageInner() {
   }
 
   const loadTables=async()=>{
-    const [tR,sR,gR,mR]=await Promise.all([
-      supabase.from('tables').select('*').eq('event_id',eventId).order('number'),
-      supabase.from('table_seats').select('*').eq('event_id',eventId),
-      supabase.from('guests').select('id,name,rsvp_status,tags,party_size,notes,phone,email,checked_in').eq('event_id',eventId).order('name'),
-      supabase.from('party_members').select('id,guest_id,name,rsvp_status,checked_in').eq('event_id',eventId),
-    ])
-    const gMap=new Map<string,GuestFull>()
-    for(const g of(gR.data||[])){const members=(mR.data||[]).filter(m=>m.guest_id===g.id);gMap.set(g.id,{...g,tags:g.tags||[],notes:g.notes||null,phone:g.phone||null,email:g.email||null,checked_in:g.checked_in||false,party_size:1+members.length,party_members:members.map(m=>({...m,checked_in:m.checked_in||false}))})}
-    const combined:TableRecord[]=(tR.data||[]).map(t=>({...t,rotation:t.rotation||0,seats:(sR.data||[]).filter(s=>s.table_id===t.id).map(s=>({...s,guest:s.guest_id?gMap.get(s.guest_id)||null:null}))}))
-    setTables(combined); setGuests(Array.from(gMap.values()))
+    const {combined,guestsList}=await cargarMesasYGuests()
+    setTables(combined); setGuests(guestsList)
   }
 
   const getOccupied=(t:TableRecord)=>t.seats.filter(s=>s.guest_id).reduce((a,s)=>a+(s.guest?s.guest.party_size:(s.party_size||1)),0)

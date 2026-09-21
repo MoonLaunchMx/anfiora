@@ -65,4 +65,17 @@ describe('cupo de invitados', () => {
   it('sin tope, todas las filas caben', () => {
     expect(cuantasFilasCaben([3, 3, 3], 500, null)).toEqual({ filas: 3, personasImportadas: 9, personasFuera: 0 })
   })
+
+  it('sin lugares libres, no cabe ni una fila', () => {
+    expect(cuantasFilasCaben([3, 3, 3], 50, 50)).toEqual({ filas: 0, personasImportadas: 0, personasFuera: 9 })
+    // cuenta ya pasada del tope: tambien cero, nunca negativo
+    expect(cuantasFilasCaben([1, 2, 3], 213, 50)).toEqual({ filas: 0, personasImportadas: 0, personasFuera: 6 })
+  })
+
+  it('cuando el total cae exacto en el tope, todas las filas que ajustan pasan', () => {
+    // 9 lugares libres, tres filas de 3: la suma da justo 9, ninguna se corta
+    expect(cuantasFilasCaben([3, 3, 3], 41, 50)).toEqual({ filas: 3, personasImportadas: 9, personasFuera: 0 })
+    // una fila mas, ya no cabe: la igualdad exacta no se rompe por el vecino
+    expect(cuantasFilasCaben([3, 3, 3, 1], 41, 50)).toEqual({ filas: 3, personasImportadas: 9, personasFuera: 1 })
+  })
 })
