@@ -21,7 +21,7 @@ import { toWhatsApp, componerTelefono, componerDesdeLada } from '@/lib/phone'
 import { reportError } from '@/lib/observabilidad/report'
 import { usePermiso } from '@/lib/event-access-context'
 import { Puede } from '@/lib/permisos/Puede'
-import { contarPersonas, bloqueaPorTope, cuantasFilasCaben, esErrorDeInvitados, parseErrorInvitados } from '@/lib/invitados/cupo'
+import { contarPersonas, bloqueaPorTope, borrarPrimero, cuantasFilasCaben, esErrorDeInvitados, parseErrorInvitados } from '@/lib/invitados/cupo'
 import { esErrorDeArchivado, MENSAJE_EVENTO_ARCHIVADO } from '@/lib/capacity'
 import { limiteInvitadosDelEvento } from '@/lib/workspace/cliente'
 import { MuroModal } from '@/app/components/MuroModal'
@@ -1024,25 +1024,83 @@ export default function EventPage() {
       return 'Error: ' + error.message
     }
     for (const m of f.members.filter(m => m.id)) await supabase.from('party_members').update({ name: m.name, phone: m.phone || null, rsvp_status: m.rsvp_status, allergies: m.allergies.length ? m.allergies : null, tags: m.tags.length ? m.tags : null, notes: m.notes || null }).eq('id', m.id!)
-    // Insertar antes de borrar: si la cuenta ya esta sobre el tope, el
-    // disparador rechaza el insert. Borrar primero perderia al acompanante
-    // viejo sin haber metido el nuevo.
-    let insertOk = true
-    if (toInsert.length > 0) {
-      const { error: memberError } = await supabase.from('party_members').insert(toInsert.map(m => ({ guest_id: guest.id, event_id: id as string, name: m.name, phone: m.phone || null, rsvp_status: m.rsvp_status, allergies: m.allergies.length ? m.allergies : null, tags: m.tags.length ? m.tags : null, notes: m.notes || null })))
-      if (memberError) {
-        insertOk = false
-        if (esErrorDeInvitados(memberError)) {
-          const datos = parseErrorInvitados(memberError.message)
-          setMuroInvitados({ limite: datos?.limite ?? limiteInvitadosEvento ?? 0 })
+
+    const insertRows = toInsert.map(m => ({ guest_id: guest.id, event_id: id as string, name: m.name, phone: m.phone || null, rsvp_status: m.rsvp_status, allergies: m.allergies.length ? m.allergies : null, tags: m.tags.length ? m.tags : null, notes: m.notes || null }))
+    // Datos originales de los que se van a borrar, por si hay que devolverlos
+    // a su lugar cuando el insert no entra en el camino que borra primero.
+    const restoreRows = guest.party_members
+      .filter(m => toDelete.includes(m.id))
+      .map(m => ({ guest_id: guest.id, event_id: id as string, name: m.name, phone: m.phone || null, rsvp_status: m.rsvp_status, allergies: m.allergies?.length ? m.allergies : null, tags: m.tags?.length ? m.tags : null, notes: m.notes || null }))
+
+    // deletedOk/insertedOk terminan reflejando lo que DE VERDAD paso en la
+    // base (nunca lo que se planeaba), para que party_size nunca quede
+    // desfasado de la realidad.
+    let deletedOk = toDelete.length === 0
+    let insertedOk = insertRows.length === 0
+    let aviso: string | null = null
+
+    if (borrarPrimero(toInsert.length, toDelete.length)) {
+      // No crece: borrar primero libera lugar antes de insertar, asi una
+      // cuenta EXACTAMENTE en el tope nunca ve el muro por un intercambio.
+      if (toDelete.length > 0) {
+        const { error: delError } = await supabase.from('party_members').delete().in('id', toDelete)
+        deletedOk = !delError
+        if (delError) aviso = 'No se pudo actualizar a los acompañantes. Intenta de nuevo.'
+      }
+      if (deletedOk && insertRows.length > 0) {
+        const { error: memberError } = await supabase.from('party_members').insert(insertRows)
+        insertedOk = !memberError
+        if (memberError) {
+          // Esta operacion no crecia la cuenta: nunca es un problema de plan.
+          // Se devuelve lo borrado a su lugar con los datos que ya estaban en
+          // pantalla, para que nadie pierda un acompanante.
+          if (restoreRows.length > 0) {
+            const { error: restoreError } = await supabase.from('party_members').insert(restoreRows)
+            if (!restoreError) deletedOk = false
+            else reportError(restoreError, { zona: 'planner' })
+          }
+          aviso = 'No se pudo guardar el cambio de acompañantes. Se conservaron los que ya tenías.'
         }
-        // La insercion completa (es un solo insert) no entro y no se borro
-        // nada: el tamano real se quedo igual al que tenia antes de editar.
-        await supabase.from('guests').update({ party_size: existingIds.length + 1 }).eq('id', guest.id)
+      } else if (!deletedOk) {
+        insertedOk = false
+      }
+    } else {
+      // Crece: bloqueaPorTope ya garantizo que cabe. Insertar primero es lo
+      // seguro, porque si el insert fallara no se habria borrado nada todavia.
+      if (insertRows.length > 0) {
+        const { error: memberError } = await supabase.from('party_members').insert(insertRows)
+        insertedOk = !memberError
+        if (memberError) {
+          if (esErrorDeInvitados(memberError)) {
+            const datos = parseErrorInvitados(memberError.message)
+            setMuroInvitados({ limite: datos?.limite ?? limiteInvitadosEvento ?? 0 })
+          } else {
+            aviso = 'No se pudieron agregar los acompañantes nuevos. Intenta de nuevo.'
+          }
+        }
+      }
+      if (insertedOk && toDelete.length > 0) {
+        const { error: delError } = await supabase.from('party_members').delete().in('id', toDelete)
+        deletedOk = !delError
+        if (delError) aviso = 'Los acompañantes nuevos se guardaron, pero no se pudieron quitar los removidos.'
+      } else if (!insertedOk) {
+        deletedOk = false
       }
     }
-    if (toDelete.length > 0 && insertOk) await supabase.from('party_members').delete().in('id', toDelete)
+
+    // El tamano real segun lo que de verdad quedo en la base: los que se
+    // conservaron, mas los viejos que no se pudieron borrar, mas los nuevos
+    // que si entraron.
+    const acompanantesReal = keepIds.length + (deletedOk ? 0 : toDelete.length) + (insertedOk ? toInsert.length : 0)
+    if (1 + acompanantesReal !== 1 + f.members.length) {
+      await supabase.from('guests').update({ party_size: 1 + acompanantesReal }).eq('id', guest.id)
+    }
+
     await loadGuests(); setEditGuest(null)
+    // El resto del invitado ya se guardo y el modal se cierra: el aviso de
+    // un problema con los acompanantes va aparte, no como error de
+    // formulario (que ya no se veria).
+    if (aviso) alert(aviso)
     return null
   }
 

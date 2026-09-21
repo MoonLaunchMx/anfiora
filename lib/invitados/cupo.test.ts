@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  contarPersonas, lugaresLibres, bloqueaPorTope, cuantasFilasCaben,
+  contarPersonas, lugaresLibres, bloqueaPorTope, borrarPrimero, cuantasFilasCaben,
   parseErrorInvitados, esErrorDeInvitados,
 } from './cupo'
 
@@ -41,6 +41,22 @@ describe('cupo de invitados', () => {
     expect(bloqueaPorTope(40, 45, 50)).toBe(false)  // crece pero sigue dentro
     expect(bloqueaPorTope(48, 51, 50)).toBe(true)   // crece y cruza el tope
     expect(bloqueaPorTope(500, 600, null)).toBe(false) // sin tope nunca bloquea
+  })
+
+  it('cuenta exactamente en el tope: cambiar un acompanante por otro borra primero', () => {
+    // 50 de 50: 1 por insertar, 1 por borrar -> no crece, borrar primero baja
+    // a 49 y sube a 50 sin rebasar nunca el limite ni ver el muro.
+    expect(borrarPrimero(1, 1)).toBe(true)
+  })
+
+  it('achicar (se borra mas de lo que se inserta) tambien borra primero', () => {
+    expect(borrarPrimero(0, 2)).toBe(true)
+    expect(borrarPrimero(1, 3)).toBe(true)
+  })
+
+  it('crecer inserta primero: si el insert falla no se ha borrado nada', () => {
+    expect(borrarPrimero(2, 0)).toBe(false)
+    expect(borrarPrimero(2, 1)).toBe(false)
   })
 
   it('recorta filas completas de la importacion, nunca a la mitad', () => {

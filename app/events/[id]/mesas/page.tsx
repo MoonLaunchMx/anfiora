@@ -12,7 +12,7 @@ import { useConfirm } from '@/app/components/ui/ConfirmModal'
 import { usePermiso } from '@/lib/event-access-context'
 import { Puede } from '@/lib/permisos/Puede'
 import { Cargando } from '@/app/components/ui/Cargando'
-import { contarPersonas, bloqueaPorTope, esErrorDeInvitados, parseErrorInvitados } from '@/lib/invitados/cupo'
+import { contarPersonas, bloqueaPorTope, borrarPrimero, esErrorDeInvitados, parseErrorInvitados } from '@/lib/invitados/cupo'
 import { esErrorDeArchivado, MENSAJE_EVENTO_ARCHIVADO } from '@/lib/capacity'
 import { limiteInvitadosDelEvento } from '@/lib/workspace/cliente'
 import { MuroModal } from '@/app/components/MuroModal'
@@ -1463,36 +1463,86 @@ function MesasPageInner() {
       }).eq('id', m.id!)
     }
 
-    // Insertar acompañantes nuevos ANTES de borrar los removidos: si la
-    // cuenta ya esta sobre el tope, el disparador rechaza el insert. Borrar
-    // primero perderia al acompanante viejo sin haber metido el nuevo.
-    let partySizeFinal = newPartySize
-    let insertOk = true
-    if (ins.length) {
-      const { error: insError } = await supabase.from('party_members').insert(
-        ins.map(m => ({
-          guest_id: editGuest.id,
-          event_id: eventId as string,
-          name: m.name,
-          phone: m.phone || null,
-          rsvp_status: m.rsvp_status,
-        }))
-      )
-      if (insError) {
-        insertOk = false
-        if (esErrorDeInvitados(insError)) {
-          const datos = parseErrorInvitados(insError.message)
-          setMuroInvitados({ limite: datos?.limite ?? limiteInvitadosEvento ?? 0 })
+    const insertRows = ins.map(m => ({
+      guest_id: editGuest.id,
+      event_id: eventId as string,
+      name: m.name,
+      phone: m.phone || null,
+      rsvp_status: m.rsvp_status,
+    }))
+    // Datos originales de los que se van a borrar, por si hay que devolverlos
+    // a su lugar cuando el insert no entra en el camino que borra primero. El
+    // PartyMember de esta pantalla solo trae id/name/rsvp_status/checked_in
+    // (no telefono ni etiquetas), asi que es lo unico que se puede reconstruir.
+    const restoreRows = editGuest.party_members
+      .filter(m => toDel.includes(m.id))
+      .map(m => ({ guest_id: editGuest.id, event_id: eventId as string, name: m.name, rsvp_status: m.rsvp_status, checked_in: m.checked_in }))
+
+    // deletedOk/insertedOk terminan reflejando lo que DE VERDAD paso en la
+    // base (nunca lo que se planeaba), para que el tamano escrito en el
+    // asiento nunca quede por encima de lo que en verdad esta sentado ahi.
+    let deletedOk = toDel.length === 0
+    let insertedOk = insertRows.length === 0
+    let aviso: string | null = null
+
+    if (borrarPrimero(ins.length, toDel.length)) {
+      // No crece: borrar primero libera lugar antes de insertar, asi una
+      // cuenta EXACTAMENTE en el tope nunca ve el muro por un intercambio.
+      if (toDel.length > 0) {
+        const { error: delError } = await supabase.from('party_members').delete().in('id', toDel)
+        deletedOk = !delError
+        if (delError) aviso = 'No se pudo actualizar a los acompañantes. Intenta de nuevo.'
+      }
+      if (deletedOk && insertRows.length > 0) {
+        const { error: insError } = await supabase.from('party_members').insert(insertRows)
+        insertedOk = !insError
+        if (insError) {
+          // Esta operacion no crecia la cuenta: nunca es un problema de plan.
+          // Se devuelve lo borrado a su lugar con los datos que ya estaban en
+          // pantalla, para que nadie pierda un acompanante.
+          if (restoreRows.length > 0) {
+            const { error: restoreError } = await supabase.from('party_members').insert(restoreRows)
+            if (!restoreError) deletedOk = false
+          }
+          aviso = 'No se pudo guardar el cambio de acompañantes. Se conservaron los que ya tenías.'
         }
-        // La insercion completa (es un solo insert) no entro y no se borro
-        // nada: el tamano real se quedo igual al que tenia antes de editar.
-        partySizeFinal = editGuest.party_members.length + 1
-        await supabase.from('guests').update({ party_size: partySizeFinal }).eq('id', editGuest.id)
+      } else if (!deletedOk) {
+        insertedOk = false
+      }
+    } else {
+      // Crece: bloqueaPorTope ya garantizo que cabe. Insertar primero es lo
+      // seguro, porque si el insert fallara no se habria borrado nada todavia.
+      if (insertRows.length > 0) {
+        const { error: insError } = await supabase.from('party_members').insert(insertRows)
+        insertedOk = !insError
+        if (insError) {
+          if (esErrorDeInvitados(insError)) {
+            const datos = parseErrorInvitados(insError.message)
+            setMuroInvitados({ limite: datos?.limite ?? limiteInvitadosEvento ?? 0 })
+          } else {
+            aviso = 'No se pudieron agregar los acompañantes nuevos. Intenta de nuevo.'
+          }
+        }
+      }
+      if (insertedOk && toDel.length > 0) {
+        const { error: delError } = await supabase.from('party_members').delete().in('id', toDel)
+        deletedOk = !delError
+        if (delError) aviso = 'Los acompañantes nuevos se guardaron, pero no se pudieron quitar los removidos.'
+      } else if (!insertedOk) {
+        deletedOk = false
       }
     }
 
-    // Eliminar acompañantes removidos (solo si la insercion de arriba, si la hubo, entro)
-    if (toDel.length && insertOk) await supabase.from('party_members').delete().in('id', toDel)
+    // El tamano real segun lo que de verdad quedo en la base: nunca el que
+    // se planeaba (newPartySize) si algo no entro como se esperaba. Se
+    // escribe igual en guests.party_size y en table_seats.party_size, para
+    // que la mesa nunca quede reportada con mas gente de la que en verdad
+    // tiene sentada.
+    const acompanantesReal = keepIds.length + (deletedOk ? 0 : toDel.length) + (insertedOk ? ins.length : 0)
+    const partySizeFinal = 1 + acompanantesReal
+    if (partySizeFinal !== newPartySize) {
+      await supabase.from('guests').update({ party_size: partySizeFinal }).eq('id', editGuest.id)
+    }
 
     // Actualizar party_size en table_seats si está asignado
     if (seatRecord) {
@@ -1502,6 +1552,7 @@ function MesasPageInner() {
     await loadTables()
     setEditGuest(null)
     setESaving(false)
+    if (aviso) alert(aviso)
   }
 
   const toggleCheckin=async(gId:string,cur:boolean)=>{

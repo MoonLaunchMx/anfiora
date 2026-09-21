@@ -8,15 +8,26 @@ export function lugaresLibres(personas: number, limite: number | null): number |
 }
 
 // Una edicion que borra acompanantes y agrega otros en la misma operacion
-// nunca se mide con lugaresLibres/cuantasCaben: esas cuentan cupo NUEVO
-// contra el total de ANTES, y una cuenta que ya paso el tope siempre tiene
-// cero lugares libres, aunque este intercambio la deje mas chica. La regla
-// real es otra: lo unico que se bloquea es que la cuenta CREZCA mas alla de
-// lo que ya tenia y siga por encima del tope. Intercambiar, o de plano
-// achicar, siempre se deja pasar.
+// nunca se mide con lugaresLibres: esa cuenta cupo NUEVO contra el total de
+// ANTES, y una cuenta que ya paso el tope siempre tiene cero lugares libres,
+// aunque este intercambio la deje mas chica. La regla real es otra: lo unico
+// que se bloquea es que la cuenta CREZCA mas alla de lo que ya tenia y siga
+// por encima del tope. Intercambiar, o de plano achicar, siempre se deja pasar.
 export function bloqueaPorTope(personasAntes: number, personasDespues: number, limite: number | null): boolean {
   if (limite === null) return false
   return personasDespues > personasAntes && personasDespues > limite
+}
+
+// Borrar acompanantes viejos e insertar los nuevos son DOS escrituras
+// separadas (no una transaccion), y el disparador de la base evalua cada una
+// por su cuenta. Si la operacion NO crece la cuenta, borrar primero libera
+// lugar antes de insertar: una cuenta EXACTAMENTE en el tope (50 de 50) que
+// cambia un acompanante por otro baja a 49 y luego sube a 50, sin rebasar
+// nunca el limite, y nunca ve el muro. Si la operacion SI crece, insertar
+// primero es lo seguro: bloqueaPorTope ya garantizo que cabe, y si el insert
+// fallara no se habria borrado nada todavia.
+export function borrarPrimero(porInsertar: number, porBorrar: number): boolean {
+  return porInsertar <= porBorrar
 }
 
 // La importacion nunca rechaza el archivo completo: entran las filas que
