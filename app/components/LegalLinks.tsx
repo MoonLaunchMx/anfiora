@@ -5,17 +5,19 @@ type Props = {
   tono?: 'claro' | 'oscuro'
   idioma?: 'es' | 'en'
   contacto?: boolean
+  // Solo en el pie del sitio. En la invitacion el invitado no necesita la FAQ de Anfiora.
+  preguntas?: boolean
   // En las paginas publicas con formulario se abre aparte para no perder lo capturado.
   nuevaPestana?: boolean
   className?: string
 }
 
 const TEXTOS = {
-  es: { privacidad: 'Aviso de Privacidad', terminos: 'Términos', eliminar: 'Eliminar mis datos', contacto: 'Contacto' },
-  en: { privacidad: 'Privacy', terminos: 'Terms', eliminar: 'Delete my data', contacto: 'Contact' },
+  es: { preguntas: 'Preguntas frecuentes', privacidad: 'Aviso de Privacidad', terminos: 'Términos', eliminar: 'Eliminar mis datos', contacto: 'Contacto' },
+  en: { preguntas: 'FAQ', privacidad: 'Privacy', terminos: 'Terms', eliminar: 'Delete my data', contacto: 'Contact' },
 }
 
-export default function LegalLinks({ tono = 'claro', idioma = 'es', contacto = false, nuevaPestana = false, className = '' }: Props) {
+export default function LegalLinks({ tono = 'claro', idioma = 'es', contacto = false, preguntas = false, nuevaPestana = false, className = '' }: Props) {
   const t = TEXTOS[idioma]
   const color = tono === 'oscuro' ? 'text-white/40 hover:text-white/80' : 'text-[#999] hover:text-[#1D1E20]'
   const enlace = `whitespace-nowrap no-underline transition-colors ${color}`
@@ -23,6 +25,7 @@ export default function LegalLinks({ tono = 'claro', idioma = 'es', contacto = f
 
   return (
     <nav aria-label="Legal" className={`flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-[11px] ${className}`}>
+      {preguntas && <Link href="/preguntas" className={enlace} {...destino}>{t.preguntas}</Link>}
       <Link href="/privacidad" className={enlace} {...destino}>{t.privacidad}</Link>
       <Link href="/terminos" className={enlace} {...destino}>{t.terminos}</Link>
       <Link href="/eliminar-datos" className={enlace} {...destino}>{t.eliminar}</Link>

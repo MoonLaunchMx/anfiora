@@ -6,10 +6,10 @@ import Link from 'next/link'
 import LegalLinks from '@/app/components/LegalLinks'
 import AuthModal from '@/app/components/auth/AuthModal'
 
-// El navbar y el pie de la landing viven dentro de app/page.tsx, que es un
-// client component enorme con todo el copy bilingue. Aqui se repiten con la
-// misma forma y el mismo tope de max-w-6xl para que las paginas legales se
-// vean como una pagina mas del sitio y el logo no salte al navegar.
+// El navbar y el pie de la landing viven en app/components/LandingChrome.tsx,
+// que tambien usa /preguntas. Aqui se repiten con la misma forma y el mismo
+// tope de max-w-6xl para que las paginas legales se vean como una pagina mas
+// del sitio y el logo no salte al navegar.
 //
 // Unica diferencia a proposito: no hay cambio de idioma, porque los tres
 // documentos solo existen en espanol y una bandera que no hace nada es peor
@@ -95,7 +95,7 @@ export function SiteFooter() {
           height={24}
           className="h-6 w-auto shrink-0 brightness-0 invert"
         />
-        <LegalLinks tono="oscuro" contacto />
+        <LegalLinks tono="oscuro" contacto preguntas />
         <p className="shrink-0 whitespace-nowrap text-[10px] text-white/20">
           © 2026 Anfiora. Todos los derechos reservados.
         </p>

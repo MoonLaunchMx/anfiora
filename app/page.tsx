@@ -3,13 +3,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import AuthModal from '@/app/components/auth/AuthModal'
-import LegalLinks from '@/app/components/LegalLinks'
+import { LandingNav, LandingFooter } from '@/app/components/LandingChrome'
 
 const SATOSHI = { fontFamily: 'Satoshi, sans-serif' }
 
 const translations = {
   es: {
-    nav: { features: 'Features', compare: 'Comparativa', login: 'Iniciar sesión', cta: 'Empieza gratis' },
     hero: {
       badge: 'Para todo tipo de organizadores de eventos',
       prefix: 'Gestiona tu', suffix: 'sin el caos',
@@ -84,7 +83,6 @@ const translations = {
       sub: 'Sin tarjeta de crédito. Listo en menos de 2 minutos.',
       btn: 'Crear mi primer evento gratis',
     },
-    footer: { copy: '© 2026 Anfiora · Hecho en México 🇲🇽' },
     mockup: {
       tab: 'app.anfiora.mx · Boda García & López',
       event: 'Boda García & López',
@@ -100,7 +98,6 @@ const translations = {
     },
   },
   en: {
-    nav: { features: 'Features', compare: 'Compare', login: 'Log in', cta: 'Get started free' },
     hero: {
       badge: 'For all types of event organizers',
       prefix: 'Manage your', suffix: 'without the chaos',
@@ -175,7 +172,6 @@ const translations = {
       sub: 'No credit card required. Ready in under 2 minutes.',
       btn: 'Create my first event free',
     },
-    footer: { copy: '© 2026 Anfiora · Made in Mexico 🇲🇽' },
     mockup: {
       tab: 'app.anfiora.mx · García & López Wedding',
       event: 'García & López Wedding',
@@ -250,7 +246,6 @@ const IMPORT_ICONS = [
 
 export default function LandingPage() {
   const [lang, setLang]           = useState<Lang>('es')
-  const [menuOpen, setMenuOpen]   = useState(false)
   const [authOpen, setAuthOpen]   = useState(false)
   const [authTab, setAuthTab]     = useState<'login' | 'register'>('login')
 
@@ -269,57 +264,12 @@ export default function LandingPage() {
 
   return (
     <>
-      <nav className="sticky top-0 z-50 border-b border-[#f0ede8] bg-white">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-3.5">
-          <a href="/" className="shrink-0">
-            <img src="/images/isotipoylogo.svg" alt="Anfiora" className="h-8" />
-          </a>
-          <div className="hidden items-center gap-3 md:flex">
-            <a href="#features" className="text-sm text-[#888] transition hover:text-[#1D1E20]">{t.nav.features}</a>
-            <a href="#compare"  className="text-sm text-[#888] transition hover:text-[#1D1E20]">{t.nav.compare}</a>
-            <button onClick={() => setLang(l => l === 'es' ? 'en' : 'es')}
-              className="rounded-lg border border-[#e0e0e0] px-3 py-2 text-lg transition hover:border-[#48C9B0]"
-              title={lang === 'es' ? 'Switch to English' : 'Cambiar a Español'}>
-              {lang === 'es' ? '🇬🇧' : '🇲🇽'}
-            </button>
-            <button onClick={openLogin}
-              className="rounded-lg border border-[#e0e0e0] px-4 py-2 text-sm text-[#555] transition hover:border-[#48C9B0] hover:text-[#48C9B0]">
-              {t.nav.login}
-            </button>
-            <button onClick={openRegister}
-              className="rounded-lg bg-[#48C9B0] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#3ab89f]">
-              {t.nav.cta}
-            </button>
-          </div>
-          <button className="flex flex-col gap-1.5 md:hidden" onClick={() => setMenuOpen(!menuOpen)}>
-            <span className={`h-0.5 w-5 bg-[#1D1E20] transition-all ${menuOpen ? 'translate-y-2 rotate-45' : ''}`}/>
-            <span className={`h-0.5 w-5 bg-[#1D1E20] transition-all ${menuOpen ? 'opacity-0' : ''}`}/>
-            <span className={`h-0.5 w-5 bg-[#1D1E20] transition-all ${menuOpen ? '-translate-y-2 -rotate-45' : ''}`}/>
-          </button>
-        </div>
-        <AnimatePresence>
-          {menuOpen && (
-            <motion.div
-              initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.25 }}
-              className="overflow-hidden border-t border-[#f0ede8] bg-white px-5 md:hidden"
-            >
-              <div className="flex flex-col gap-3 py-4">
-                <a href="#features" className="text-sm text-[#555]" onClick={() => setMenuOpen(false)}>{t.nav.features}</a>
-                <a href="#compare"  className="text-sm text-[#555]" onClick={() => setMenuOpen(false)}>{t.nav.compare}</a>
-                <button onClick={() => setLang(l => l === 'es' ? 'en' : 'es')}
-                  className="rounded-lg border border-[#e0e0e0] py-2.5 text-base">
-                  {lang === 'es' ? '🇬🇧 Switch to English' : '🇲🇽 Cambiar a Español'}
-                </button>
-                <button onClick={openLogin}
-                  className="rounded-lg border border-[#e0e0e0] py-2.5 text-sm text-[#555]">{t.nav.login}</button>
-                <button onClick={openRegister}
-                  className="rounded-lg bg-[#48C9B0] py-2.5 text-sm font-semibold text-white">{t.nav.cta}</button>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </nav>
+      <LandingNav
+        lang={lang}
+        onCambiarIdioma={() => setLang(l => l === 'es' ? 'en' : 'es')}
+        onLogin={openLogin}
+        onRegistro={openRegister}
+      />
 
       <div className="min-h-[100dvh] overflow-x-hidden bg-white text-[#1D1E20]">
 
@@ -600,13 +550,7 @@ export default function LandingPage() {
         </section>
 
         {/* FOOTER */}
-        <footer className="border-t border-white/10 bg-[#1D1E20] px-5 py-4">
-          <div className="mx-auto flex max-w-6xl flex-col items-center gap-3 sm:flex-row sm:justify-between sm:gap-4">
-            <img src="/images/isotipoylogo.svg" alt="Anfiora" className="h-6 shrink-0 brightness-0 invert" />
-            <LegalLinks tono="oscuro" idioma={lang} contacto />
-            <p className="shrink-0 whitespace-nowrap text-[10px] text-white/20">{t.footer.copy}</p>
-          </div>
-        </footer>
+        <LandingFooter lang={lang} />
 
       </div>
 
