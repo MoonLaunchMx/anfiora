@@ -38,7 +38,22 @@ export async function POST(req: NextRequest) {
       .eq('id', userId)
       .maybeSingle()
 
-    const check = checkPlanChange({ target: target as PlanChangeTarget | null, newPlan: plan })
+    // El plan de verdad vive en el workspace. Si una corrida anterior guardo
+    // en users.plan pero el workspace fallo (SQL del Tramo 5 sin correr, o
+    // RLS), comparar contra users.plan bloquea el reintento con "ya tiene ese
+    // plan" aunque el workspace siga desactualizado. Se compara contra el
+    // workspace cuando existe columna, y solo se cae a users.plan si no.
+    const { data: wsTarget } = await supabaseAdmin
+      .from('workspaces')
+      .select('plan')
+      .eq('primary_owner_id', userId)
+      .maybeSingle()
+
+    const effectiveTarget = target
+      ? { ...target, plan: wsTarget?.plan ?? target.plan } as PlanChangeTarget
+      : null
+
+    const check = checkPlanChange({ target: effectiveTarget, newPlan: plan })
     if (!check.ok) return NextResponse.json({ error: check.error }, { status: 400 })
 
     newPlan = String(plan).trim().toLowerCase()
@@ -85,10 +100,14 @@ export async function POST(req: NextRequest) {
     console.warn('[updatePlan]', warning, errWs?.message)
   } else {
     if (plan) {
-      const { error: errPlan } = await supabaseAdmin
-        .from('workspaces').update({ plan: newPlan }).eq('id', wsId)
-      if (errPlan) {
-        warning = 'El workspace existe pero no acepto el plan: ' + errPlan.message
+      // Igual que abajo con el sello: un UPDATE filtrado por RLS no da error,
+      // solo cero filas. Sin el .select() y el chequeo de filas, esta rama
+      // nunca ponia warning y el admin veia "Plan actualizado" con el
+      // workspace intacto.
+      const { data: filasPlan, error: errPlan } = await supabaseAdmin
+        .from('workspaces').update({ plan: newPlan }).eq('id', wsId).select('id')
+      if (errPlan || !filasPlan || filasPlan.length === 0) {
+        warning = 'El workspace existe pero no acepto el plan' + (errPlan ? ': ' + errPlan.message : '')
         console.warn('[updatePlan]', warning)
       }
     }

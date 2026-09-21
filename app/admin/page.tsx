@@ -184,7 +184,14 @@ export default function AdminPage() {
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
-      showToast('Plan actualizado a ' + data.plan)
+      if (data.warning) {
+        if (previous !== undefined) {
+          setUsers(prev => prev.map(u => u.id === userId ? { ...u, plan: previous } : u))
+        }
+        showToast(data.warning, false)
+      } else {
+        showToast('Plan actualizado a ' + data.plan)
+      }
     } catch (e: unknown) {
       if (previous !== undefined) {
         setUsers(prev => prev.map(u => u.id === userId ? { ...u, plan: previous } : u))
