@@ -298,6 +298,8 @@ export default function Dashboard() {
       if (esErrorDeCupo(error)) {
         const datos = parseLimitError(error.message)
         setMuro({ limite: datos?.limit ?? 0 })
+      } else {
+        alert('No se pudo cambiar el estatus del evento. Intenta de nuevo.')
       }
     }
   }
