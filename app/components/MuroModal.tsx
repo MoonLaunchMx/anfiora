@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { ChevronDown } from 'lucide-react'
 import { Modal } from '@/app/components/ui/Modal'
 import PhoneInput from '@/app/components/ui/PhoneInput'
 import { supabase } from '@/lib/supabase'
@@ -12,7 +13,7 @@ import type { DatosSolicitud } from '@/lib/solicitud/mensaje'
 
 interface MuroModalProps {
   open: boolean
-  motivo: 'eventos' | 'invitados'
+  motivo: 'eventos' | 'invitados' | 'equipo'
   limite: number
   onClose: () => void
   // El evento que disparo el aviso de invitados: solo con esto se puede
@@ -30,12 +31,34 @@ const OPCIONES_TIPO_EVENTO = [
   'Bodas', 'XV años', 'Bautizos', 'Cumpleaños', 'Corporativos', 'Graduaciones', 'Baby shower', 'Otro',
 ] as const
 
+// Sin precios: al toparse con un limite el precio asusta y no ayuda, se habla
+// de eso cuando Anfiora escribe. Cada plan dice solo que resuelve. La version
+// corta es para el aviso de invitados, donde ya hay numero grande y barra y el
+// espacio es mas chico.
+const DESCRIPCION_PLAN: Record<'pro' | 'studio', { larga: string; corta: string }> = {
+  pro: {
+    larga: 'Todos los eventos que quieras, sin tope de invitados. Para quien trabaja solo.',
+    corta: 'Invitados sin tope, en todos tus eventos.',
+  },
+  studio: {
+    larga: 'Todo lo de Pro y además tu equipo adentro, con permisos por persona.',
+    corta: 'Lo mismo, y además tu equipo adentro.',
+  },
+}
+
 // Agency todavia no se puede vender: su precio es provisional y no tiene
 // marca propia. Sale de este aviso, no del catalogo de planes.
-const PLANES_AVISO: { id: 'pro' | 'studio'; nombre: string; precio: number; descripcion: string; destacado: boolean }[] = [
-  { id: 'pro', nombre: 'Pro', precio: PLANES.pro.precio, descripcion: 'Eventos e invitados sin límite', destacado: true },
-  { id: 'studio', nombre: 'Studio', precio: PLANES.studio.precio, descripcion: 'Todo lo de Pro, más tu equipo', destacado: false },
-]
+function planesAviso(motivo: 'eventos' | 'invitados' | 'equipo'): { id: 'pro' | 'studio'; nombre: string; descripcion: string; destacado: boolean }[] {
+  // El motivo equipo destaca Studio: es el plan que trae equipo. Los demas
+  // destacan Pro, el plan de entrada.
+  const destacadoId: 'pro' | 'studio' = motivo === 'equipo' ? 'studio' : 'pro'
+  return (['pro', 'studio'] as const).map(id => ({
+    id,
+    nombre: PLANES[id].nombre,
+    descripcion: motivo === 'invitados' ? DESCRIPCION_PLAN[id].corta : DESCRIPCION_PLAN[id].larga,
+    destacado: id === destacadoId,
+  }))
+}
 
 interface Contexto {
   email: string
@@ -54,16 +77,7 @@ interface Resultado {
 const inputCls =
   'mt-1 w-full rounded-lg border border-[#d0d0d0] bg-white px-3 py-2 text-sm text-[#1D1E20] outline-none focus:border-[#48C9B0]'
 
-function formatearFechaSolicitud(iso: string): string {
-  try {
-    const hora = new Date(iso).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })
-    return `hoy a las ${hora}`
-  } catch {
-    return ''
-  }
-}
-
-async function cargarContexto(motivo: 'eventos' | 'invitados', eventId: string | undefined): Promise<{
+async function cargarContexto(motivo: 'eventos' | 'invitados' | 'equipo', eventId: string | undefined): Promise<{
   contexto: Contexto | null
   nombre: string
   telefono: string
@@ -157,6 +171,61 @@ async function cargarContexto(motivo: 'eventos' | 'invitados', eventId: string |
   }
 }
 
+// Campo que se despliega, no ocho chips sueltos: en un modal chico los chips
+// se veian de golpe y descuadraban el formulario. Vive dentro del flujo
+// normal (nada de portal ni posicion absoluta) para que nunca se salga de la
+// pantalla, y el boton "Listo" queda a la altura de la lista para cerrarse
+// con el pulgar en movil.
+function CampoTipoEvento({ value, onChange }: { value: string[]; onChange: (next: string[]) => void }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const onClickOutside = (e: MouseEvent) => {
+      if (ref.current?.contains(e.target as Node)) return
+      setOpen(false)
+    }
+    document.addEventListener('mousedown', onClickOutside)
+    return () => document.removeEventListener('mousedown', onClickOutside)
+  }, [open])
+
+  const toggle = (t: string) => onChange(value.includes(t) ? value.filter(x => x !== t) : [...value, t])
+
+  return (
+    <div ref={ref} className="relative flex flex-col gap-1">
+      <label className="text-xs font-semibold text-[#666]">Qué eventos organizas</label>
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className={`${inputCls} flex w-full items-center justify-between gap-2 text-left`}
+      >
+        <span className={`truncate ${value.length ? 'text-[#1D1E20]' : 'text-[#aaa]'}`}>
+          {value.length ? value.join(', ') : 'Elige uno o más'}
+        </span>
+        <ChevronDown size={14} className={`shrink-0 text-[#999] transition ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <div className="overflow-hidden rounded-lg border border-[#e0e0e0] bg-white shadow-lg">
+          <div className="max-h-40 overflow-y-auto p-1.5">
+            {OPCIONES_TIPO_EVENTO.map(t => (
+              <label key={t} className="flex cursor-pointer select-none items-center gap-2.5 rounded-md px-2.5 py-2 text-sm text-[#1D1E20] transition hover:bg-[#f8f8f8]">
+                <input type="checkbox" checked={value.includes(t)} onChange={() => toggle(t)} className="h-4 w-4 shrink-0 accent-[#48C9B0]" />
+                {t}
+              </label>
+            ))}
+          </div>
+          <div className="border-t border-[#f0f0f0] p-1.5">
+            <button type="button" onClick={() => setOpen(false)} className="w-full rounded-md py-1.5 text-xs font-semibold text-[#1a9e88] transition hover:bg-[#f0fdfb]">
+              Listo
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function MuroModal({ open, motivo, limite, onClose, eventId }: MuroModalProps) {
   const [paso, setPaso] = useState<Paso>('aviso')
   const [contexto, setContexto] = useState<Contexto | null>(null)
@@ -202,14 +271,15 @@ export function MuroModal({ open, motivo, limite, onClose, eventId }: MuroModalP
     return () => { vivo = false }
   }, [open, motivo, eventId])
 
-  const toggleTipoEvento = (t: string) =>
-    setTiposDeEventos(prev => prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t])
-
   const tituloAviso = motivo === 'eventos'
     ? 'Necesitas un plan para llevar otro evento'
+    : motivo === 'equipo'
+    ? 'Necesitas un plan para trabajar en equipo'
     : `Tu lista llegó a ${limite} persona${limite === 1 ? '' : 's'}`
   const subtituloAviso = motivo === 'eventos'
     ? 'Tu cuenta gratis lleva un evento a la vez. El tuyo sigue intacto.'
+    : motivo === 'equipo'
+    ? 'Tu cuenta gratis es de una persona. Tus clientes sí puedes invitarlos, desde cada evento.'
     : 'Es el tope de la cuenta gratis. Nadie de los que ya tienes se pierde.'
 
   const personasParaBarra = Math.min(contexto?.personasEnEvento ?? limite, limite)
@@ -299,15 +369,12 @@ export function MuroModal({ open, motivo, limite, onClose, eventId }: MuroModalP
             )}
 
             <div className="flex flex-col gap-2">
-              {PLANES_AVISO.map(plan => (
+              {planesAviso(motivo).map(plan => (
                 <div
                   key={plan.id}
                   className={`rounded-lg border px-3 py-2.5 ${plan.destacado ? 'border-[#48C9B0] bg-[#f0fdfb]' : 'border-[#e8e8e8] bg-[#f8f8f8]'}`}
                 >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-sm font-semibold text-[#1D1E20]">{plan.nombre}</span>
-                    <span className="text-xs font-semibold text-[#1D1E20]">${plan.precio.toLocaleString('es-MX')} MXN/mes</span>
-                  </div>
+                  <span className="text-sm font-semibold text-[#1D1E20]">{plan.nombre}</span>
                   <p className="mt-0.5 text-xs text-[#666]">{plan.descripcion}</p>
                 </div>
               ))}
@@ -333,25 +400,7 @@ export function MuroModal({ open, motivo, limite, onClose, eventId }: MuroModalP
                 <input value={tamanoDeEquipo} onChange={e => setTamanoDeEquipo(e.target.value)} placeholder="Ej. 3" className={inputCls} />
               </label>
             </div>
-            <div>
-              <p className="text-xs font-semibold text-[#666]">Qué eventos organizas</p>
-              <div className="mt-1 grid grid-cols-2 gap-1.5">
-                {OPCIONES_TIPO_EVENTO.map(t => (
-                  <button
-                    key={t}
-                    type="button"
-                    onClick={() => toggleTipoEvento(t)}
-                    className={`rounded-lg border px-3 py-2 text-xs font-medium transition ${
-                      tiposDeEventos.includes(t)
-                        ? 'border-[#48C9B0] bg-[#f0fdfb] text-[#1a9e88]'
-                        : 'border-[#e0e0e0] text-[#666] hover:bg-[#f8f8f8]'
-                    }`}
-                  >
-                    {t}
-                  </button>
-                ))}
-              </div>
-            </div>
+            <CampoTipoEvento value={tiposDeEventos} onChange={setTiposDeEventos} />
             <div className="grid grid-cols-2 gap-3">
               <label className="text-xs font-semibold text-[#666]">País
                 <select value={pais} onChange={e => { setPais(e.target.value); setCiudad('') }} className={inputCls}>
@@ -408,9 +457,6 @@ export function MuroModal({ open, motivo, limite, onClose, eventId }: MuroModalP
             <img src="/images/isotipoylogo.svg" alt="Anfiora" className="h-9 w-auto" />
             <div className="flex flex-col gap-1">
               <h3 className="text-base font-bold text-[#1D1E20]">Recibimos tu solicitud</h3>
-              {resultado.folio && (
-                <p className="text-xs text-[#999]">Solicitud {resultado.folio} · {formatearFechaSolicitud(resultado.enviadoEn)}</p>
-              )}
             </div>
             <div className="flex w-full flex-col gap-3 text-left">
               {pasosSolicitud.map((texto, i) => (

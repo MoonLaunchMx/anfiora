@@ -1699,6 +1699,21 @@ export default function EventPage() {
     return { filas, personasImportadas, personasFuera }
   }, [csvPreview, limiteInvitadosEvento, totalPersonas])
 
+  // Personas totales del archivo (invitados + acompanantes), no filas: es el
+  // numero que va junto al de arriba, porque el tope mide personas, no filas.
+  const personasEnArchivo = useMemo(() => {
+    if (!csvPreview) return 0
+    return csvPreview.rows.reduce((acc, r) => acc + 1 + r._companions.length, 0)
+  }, [csvPreview])
+
+  // "Son 47 invitados con sus 3 acompañantes" — nunca "con 0 acompañantes".
+  const fraseInvitadosQueEntran = (filas: number, acompanantes: number): string => {
+    const invitadosTxt = `${filas} invitado${filas === 1 ? '' : 's'}`
+    if (acompanantes === 0) return `Son ${invitadosTxt}, sin acompañantes.`
+    const acompTxt = acompanantes === 1 ? 'su 1 acompañante' : `sus ${acompanantes} acompañantes`
+    return `Son ${invitadosTxt} con ${acompTxt}.`
+  }
+
   const countByStatus = (s: RsvpStatus) => guests.reduce((acc, g) => {
     if (g.rsvp_status === 'declined') return acc + (s === 'declined' ? 1 + g.party_members.length : 0)
     let n = g.rsvp_status === s ? 1 : 0
@@ -2313,10 +2328,14 @@ export default function EventPage() {
                   <>
                     <p className="mb-1 text-sm font-semibold text-[#1D1E20]">
                       {cupoPreview.filas === 0
-                        ? `Ninguno de estos ${csvPreview.rows.length} cabe todavía`
-                        : `Van a entrar ${cupoPreview.filas} de ${csvPreview.rows.length}`}
+                        ? `Ninguna de estas ${personasEnArchivo} personas cabe todavía`
+                        : `Entran ${cupoPreview.personasImportadas} personas de las ${personasEnArchivo} del archivo`}
                     </p>
-                    <p className="text-xs text-[#666]">Tu cuenta gratis llega hasta {limiteInvitadosEvento} personas por evento.</p>
+                    <p className="text-xs text-[#666]">
+                      {cupoPreview.filas === 0
+                        ? `Tu cuenta gratis llega hasta ${limiteInvitadosEvento} personas por evento.`
+                        : `Tu cuenta gratis llega hasta ${limiteInvitadosEvento} personas por evento, y este archivo las llena.`}
+                    </p>
                     <div className="mt-3 flex flex-col gap-1.5">
                       <div className="flex items-baseline gap-1.5">
                         <span className="text-2xl font-bold text-[#1D1E20]">{totalPersonas + cupoPreview.personasImportadas}</span>
@@ -2344,7 +2363,7 @@ export default function EventPage() {
               <div className="mb-4 rounded-lg border border-[#eeddb0] bg-[#fdf8ec] p-3 text-xs leading-snug text-[#8a6a1f]">
                 {cupoPreview.filas === 0
                   ? 'Tu lista ya está en su tope: ningún invitado de este archivo puede entrar todavía. Pide acceso para importarlos en cuanto amplíes tu plan.'
-                  : `${cupoPreview.personasFuera} se queda${cupoPreview.personasFuera === 1 ? '' : 'n'} fuera. Entran los primeros del archivo, completos con sus acompañantes. Los demás los puedes importar en cuanto amplíes tu plan.`}
+                  : `${fraseInvitadosQueEntran(cupoPreview.filas, cupoPreview.personasImportadas - cupoPreview.filas)} Los otros ${cupoPreview.personasFuera} se queda${cupoPreview.personasFuera === 1 ? '' : 'n'} fuera y los importas en cuanto amplíes tu plan.`}
               </div>
             )}
             {!csvDone && csvPreview.sinTelefono.length > 0 && (
@@ -2392,7 +2411,7 @@ export default function EventPage() {
                 <>
                   {cupoPreview.filas > 0 && (
                     <button onClick={() => confirmCsvImport(csvPreview.hasDuplicates)} disabled={csvImporting} className="w-full rounded-lg bg-[#48C9B0] py-3 text-sm font-semibold text-white disabled:opacity-60">
-                      {csvImporting ? 'Importando...' : `Importar ${cupoPreview.filas}`}
+                      {csvImporting ? 'Importando...' : `Importar ${cupoPreview.personasImportadas} personas`}
                     </button>
                   )}
                   <button

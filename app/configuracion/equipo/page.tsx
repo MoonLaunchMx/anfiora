@@ -157,10 +157,14 @@ export default function EquipoPage() {
         <div className="flex flex-col items-start gap-2 rounded-xl border border-[#f0dfae] bg-[#fffbf0] p-5">
           <p className="text-sm font-semibold text-[#7a5a14]">El equipo es parte de Studio</p>
           <p className="max-w-[52ch] text-[13px] leading-relaxed text-[#7a5a14]">
-            En Free trabajas tú solo. Escríbenos a{' '}
-            <a href="mailto:partners@anfiora.com" className="font-semibold underline underline-offset-2">partners@anfiora.com</a>
-            {' '}y te activamos Studio sin costo. Invitar clientes sí está incluido, y se hace desde cada evento.
+            En Free trabajas tú solo. Invitar clientes sí está incluido, y se hace desde cada evento.
           </p>
+          <button
+            onClick={() => setAlta(true)}
+            className="mt-1 rounded-lg bg-[#48C9B0] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#3ab89f]"
+          >
+            Pedir acceso
+          </button>
         </div>
       )}
 

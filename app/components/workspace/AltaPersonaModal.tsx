@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Check, Copy } from 'lucide-react'
 import { FaWhatsapp } from 'react-icons/fa'
 import { Modal } from '@/app/components/ui/Modal'
+import { MuroModal } from '@/app/components/MuroModal'
 import { PermisosEditor } from '@/app/events/[id]/configuracion/PermisosEditor'
 import type { PermisosEvento } from '@/lib/permisos/catalogo'
 import { aplicarKit } from '@/lib/permisos/resolver'
@@ -138,6 +139,13 @@ export function AltaPersonaModal({ open, onClose, workspace, bodaFija, onHecho }
   const btnCta = btnBase + ' bg-[#48C9B0] text-[#08312a]'
   const btnSec = 'rounded-lg border border-[#e0e0e0] px-4 py-2 text-sm text-[#888] transition hover:bg-[#f5f5f5]'
 
+  // Sin plan para equipo, esto YA no es el alta: es el mismo muro que el resto
+  // de la app, para que el camino de pedir acceso sea uno solo. Se corta aqui,
+  // despues de todos los hooks de arriba, nunca antes.
+  if (!permiso.ok) {
+    return <MuroModal open={open} motivo="equipo" limite={0} onClose={onClose} />
+  }
+
   return (
     <Modal open={open} onClose={onClose} size={paso === 3 && rol === 'colaborador' && elegidas.size > 1 ? '2xl' : 'lg'}>
       <Modal.Header
@@ -163,17 +171,6 @@ export function AltaPersonaModal({ open, onClose, workspace, bodaFija, onHecho }
             >
               <FaWhatsapp size={16} /> Enviar por WhatsApp
             </a>
-          </div>
-        ) : !permiso.ok ? (
-          <div className="rounded-xl border border-[#f0dfae] bg-[#fffbf0] px-4 py-3 text-sm text-[#7a5a14]">
-            <p className="font-semibold">Para trabajar en equipo necesitas Studio.</p>
-            {/* Mientras no haya cobro, Studio se activa a mano. El aviso tiene que
-                decir A DONDE escribir, no solo "escribenos". */}
-            <p className="mt-1 text-[13px]">
-              Tu plan {PLANES[workspace.plan].nombre} es solo para ti. Escríbenos a{' '}
-              <a href="mailto:partners@anfiora.com" className="font-semibold underline underline-offset-2">partners@anfiora.com</a>
-              {' '}y te lo activamos sin costo.
-            </p>
           </div>
         ) : (
           <div className="flex flex-col gap-3">
@@ -312,8 +309,6 @@ export function AltaPersonaModal({ open, onClose, workspace, bodaFija, onHecho }
       <Modal.Footer>
         {token ? (
           <button className={btnCta + ' ml-auto'} onClick={onClose}>Listo</button>
-        ) : !permiso.ok ? (
-          <button className={btnSec + ' ml-auto'} onClick={onClose}>Cerrar</button>
         ) : (
           <>
             {paso > 1 && <button className={btnSec} onClick={() => setPaso((paso === 3 && rol === 'admin' ? 1 : paso - 1) as Paso)}>Atrás</button>}

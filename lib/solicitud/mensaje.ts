@@ -7,7 +7,7 @@ export interface DatosSolicitud {
   sello: string | null
   eventosVigentes: number | null
   personasEnEvento: number | null
-  motivo: 'eventos' | 'invitados'
+  motivo: 'eventos' | 'invitados' | 'equipo'
   eventosAlAno: string
   tipoDeEventos: string
   tamanoDeEquipo: string

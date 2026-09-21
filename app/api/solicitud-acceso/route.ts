@@ -63,7 +63,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: 'cuerpo invalido' }, { status: 400 })
   }
 
-  const motivo = body.motivo === 'eventos' || body.motivo === 'invitados' ? body.motivo : null
+  const motivo = body.motivo === 'eventos' || body.motivo === 'invitados' || body.motivo === 'equipo' ? body.motivo : null
   const email = acotarCampo(body.email, 'email')
   const nombre = acotarCampo(body.nombre, 'nombre')
   const telefono = acotarCampo(body.telefono, 'telefono')
