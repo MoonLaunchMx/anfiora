@@ -732,8 +732,8 @@ export default function Dashboard() {
               className="flex items-center gap-1.5 rounded-lg bg-[#48C9B0] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#3ab89f] active:scale-95 sm:px-5 sm:py-2.5"
             >
               {checkingCupo && <Loader2 size={14} className="animate-spin" />}
-              <span className="sm:hidden">{checkingCupo ? 'Un momento...' : '+ Nuevo'}</span>
-              <span className="hidden sm:inline">{checkingCupo ? 'Un momento...' : '+ Nuevo evento'}</span>
+              <span className="sm:hidden">+ Nuevo</span>
+              <span className="hidden sm:inline">+ Nuevo evento</span>
             </button>
           </div>
 
@@ -833,7 +833,7 @@ export default function Dashboard() {
                 className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-[#48C9B0] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#3ab89f]"
               >
                 {checkingCupo && <Loader2 size={14} className="animate-spin" />}
-                {checkingCupo ? 'Un momento...' : '+ Crear evento'}
+                + Crear evento
               </button>
             </div>
           ) : (currentMy.length === 0 && currentShared.length === 0) ? (
