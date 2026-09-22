@@ -128,6 +128,16 @@ interface Resultado {
 const inputCls =
   'mt-1 w-full rounded-lg border border-[#d0d0d0] bg-white px-3 py-2 text-base font-normal text-[#1D1E20] outline-none focus:border-[#48C9B0]'
 
+// Mismo campo, con el alto fijado a los 42px de PhoneInput (FIELD_HEIGHT en
+// PhoneInput.tsx: 1+1 de borde, 8+8 de py-2, 24 de line-height del texto
+// base). Un <select> nativo puede rendir mas bajo que un <input> aunque
+// compartan las mismas clases (quirk del combobox del sistema operativo), asi
+// que a los campos de una sola linea se les fija el alto en vez de dejarlo
+// emerger del box model: es la unica forma de garantizar que midan lo mismo
+// en cualquier navegador. El textarea de mensaje NO lo usa: necesita crecer
+// con sus filas.
+const fieldCls = `${inputCls} h-[42px]`
+
 async function cargarContexto(caso: MuroCaso, eventId: string | undefined): Promise<{
   contexto: Contexto | null
   nombre: string
@@ -339,7 +349,7 @@ function CampoTipoEvento({
       <button
         type="button"
         onClick={() => setOpen(o => !o)}
-        className={`${inputCls} flex w-full items-center justify-between gap-2 text-left`}
+        className={`${fieldCls} flex w-full items-center justify-between gap-2 text-left`}
       >
         <span className={`truncate ${value.length ? 'text-[#1D1E20]' : 'text-[#aaa]'}`}>
           {value.length ? value.join(', ') : 'Elige uno o más'}
@@ -435,7 +445,7 @@ function CampoCiudadMexico({
       <button
         type="button"
         onClick={() => setOpen(o => !o)}
-        className={`${inputCls} flex w-full items-center justify-between gap-2 text-left`}
+        className={`${fieldCls} flex w-full items-center justify-between gap-2 text-left`}
       >
         <span className={`truncate ${value ? 'text-[#1D1E20]' : 'text-[#aaa]'}`}>
           {seleccionada ? `${seleccionada.nombre} (${seleccionada.estado})` : (value || 'Busca tu ciudad')}
@@ -653,14 +663,14 @@ export function MuroModal({ open, caso, limite, onClose, eventId }: MuroModalPro
             <div ref={columnaDerechaRef} className="anf-barra-fina min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-5">
               <div className="flex flex-col gap-3">
                 <label className="text-xs font-semibold text-[#666]">Nombre o empresa
-                  <input value={nombre} onChange={e => setNombre(e.target.value)} autoFocus className={inputCls} />
+                  <input value={nombre} onChange={e => setNombre(e.target.value)} autoFocus className={fieldCls} />
                 </label>
 
                 <CampoTipoEvento value={tiposDeEventos} onChange={setTiposDeEventos} contenedorRef={columnaDerechaRef} />
 
                 <div className="grid grid-cols-2 gap-3">
                   <label className="text-xs font-semibold text-[#666]">País
-                    <select value={pais} onChange={e => { setPais(e.target.value); setCiudad('') }} className={inputCls}>
+                    <select value={pais} onChange={e => { setPais(e.target.value); setCiudad('') }} className={fieldCls}>
                       {PAISES.map(p => <option key={p.codigo} value={p.codigo}>{p.nombre}</option>)}
                     </select>
                   </label>
@@ -668,20 +678,20 @@ export function MuroModal({ open, caso, limite, onClose, eventId }: MuroModalPro
                     <CampoCiudadMexico value={ciudad} onChange={setCiudad} contenedorRef={columnaDerechaRef} />
                   ) : (
                     <label className="text-xs font-semibold text-[#666]">Ciudad
-                      <input value={ciudad} onChange={e => setCiudad(e.target.value)} className={inputCls} />
+                      <input value={ciudad} onChange={e => setCiudad(e.target.value)} className={fieldCls} />
                     </label>
                   )}
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
                   <label className="text-xs font-semibold text-[#666]">Te contactamos por
-                    <select value={contactoPreferido} onChange={e => setContactoPreferido(e.target.value as Contacto)} className={inputCls}>
+                    <select value={contactoPreferido} onChange={e => setContactoPreferido(e.target.value as Contacto)} className={fieldCls}>
                       {CONTACTOS.map(c => <option key={c} value={c}>{c}</option>)}
                     </select>
                   </label>
                   {contactoPreferido === 'Correo' ? (
                     <label className="text-xs font-semibold text-[#666]">Correo
-                      <input value={email} disabled className={`${inputCls} cursor-not-allowed bg-[#f5f5f5] text-[#888]`} />
+                      <input value={email} disabled className={`${fieldCls} cursor-not-allowed bg-[#f5f5f5] text-[#888]`} />
                     </label>
                   ) : (
                     <label className="text-xs font-semibold text-[#666]">Teléfono
@@ -691,11 +701,11 @@ export function MuroModal({ open, caso, limite, onClose, eventId }: MuroModalPro
                 </div>
 
                 <label className="text-xs font-semibold text-[#666]">Eventos al año
-                  <input value={eventosAlAno} onChange={e => setEventosAlAno(e.target.value)} placeholder="Ej. 12" className={inputCls} />
+                  <input value={eventosAlAno} onChange={e => setEventosAlAno(e.target.value)} placeholder="Ej. 12" className={fieldCls} />
                 </label>
 
                 <label className="text-xs font-semibold text-[#666]">Tamaño de tu equipo
-                  <input value={tamanoDeEquipo} onChange={e => setTamanoDeEquipo(e.target.value)} placeholder="Ej. 3" className={inputCls} />
+                  <input value={tamanoDeEquipo} onChange={e => setTamanoDeEquipo(e.target.value)} placeholder="Ej. 3" className={fieldCls} />
                 </label>
 
                 <label className="text-xs font-semibold text-[#666]">Algo que quieras contarnos
