@@ -17,14 +17,19 @@ import { Puede } from '@/lib/permisos/Puede'
 import { Cargando } from '@/app/components/ui/Cargando'
 
 // ─── CONSTANTES ───────────────────────────────
-const STATUS_COLORS: Record<string, { bg: string; border: string; text: string; label: string }> = {
-  confirmed:        { bg: '#d4f5e9', border: '#5DCAA5', text: '#0F6E56', label: 'Confirmado'      },
-  pending:          { bg: '#fef3c7', border: '#FAC775', text: '#92400e', label: 'Pendiente'        },
-  declined:         { bg: '#fee2e2', border: '#F09595', text: '#991b1b', label: 'Declinado'        },
-  mensaje_enviado:  { bg: '#dbeafe', border: '#85B7EB', text: '#1e40af', label: 'Msg. enviado'     },
-  respondio:        { bg: '#ffedd5', border: '#f0c090', text: '#9a3412', label: 'Respondió'        },
-  accion_necesaria: { bg: '#fee2e2', border: '#F09595', text: '#991b1b', label: 'Acción necesaria' },
-}
+import { estatusDe } from './estatus'
+import { personasDe, mapaAsientos, ocupacionDe, opsSentar, opsQuitar, etiquetaSeparado, type Persona, type Fila } from '@/lib/mesas/asientos'
+import { ejecutarOps } from '@/lib/mesas/ejecutar'
+import { DndContext, DragOverlay, MouseSensor, useSensor, useSensors, type DragEndEvent, type DragStartEvent } from '@dnd-kit/core'
+import { PersonaCard, ChipFantasma } from './PersonaItem'
+import FilaPersona from './FilaPersona'
+import MesaDroppable from './MesaDroppable'
+import SillasArrastrables from './SillasArrastrables'
+import { sillasDe, RADIO_SILLA } from '@/lib/mesas/sillas'
+import SinMesaPanel from './SinMesaPanel'
+import ModalAsignar from './ModalAsignar'
+import ModalElegirMesa, { type ElegirMesa } from './ModalElegirMesa'
+import PersonaMenu from './PersonaMenu'
 
 const TAG_COLORS = [
   { bg: '#f0fdfb', border: '#9FE1CB', text: '#0F6E56' },
@@ -139,24 +144,14 @@ type DecoItem = { id: string; type: string; label: string; x: number; y: number;
 function normalizePhone(p: string) { return p.replace(/\D/g, '') }
 type EditMember  = { id?: string; name: string; phone: string; rsvp_status: 'pending' | 'confirmed' | 'declined' }
 type PartyMember = { id: string; name: string; rsvp_status: 'pending' | 'confirmed' | 'declined'; checked_in: boolean }
-type GuestFull   = Pick<Guest, 'id' | 'name' | 'rsvp_status'> & { tags: string[]; party_size: number; notes: string | null; phone?: string | null; email?: string | null; checked_in: boolean; party_members: PartyMember[] }
+type GuestFull   = Pick<Guest, 'id' | 'name' | 'rsvp_status'> & { tags: string[]; party_size: number; notes: string | null; phone?: string | null; email?: string | null; side?: string | null; checked_in: boolean; party_members: PartyMember[] }
 type SeatRecord  = { id: string; table_id: string; event_id: string; seat_number: number; guest_id: string | null; party_size: number; guest?: GuestFull | null }
 type TableRecord = { id: string; event_id: string; number: number; name: string | null; capacity: number; shape: string; rotation: number; position_x: number; position_y: number; created_at: string; seats: SeatRecord[] }
-type MoveModal   = { guest: GuestFull; fromSeatId: string; fromTableNumber: number; toTableId: string; toTableCapacity: number }
 type EventInfo   = { name: string; event_date: string | null; venue: string | null }
 
 // ─── HELPERS ──────────────────────────────────
 function getTableSvgDims(table: TableRecord): { w: number; h: number } {
-  const cap = table.capacity; const sR = 7; const gap = 22; const pad = sR + 10
-  switch (table.shape) {
-    case 'round': { const r = Math.max(28, Math.min(44, 20 + cap * 2)); const orbit = r + sR + 5; const s = (orbit + sR + 6) * 2; return { w: s, h: s } }
-    case 'oval':  { const tW = Math.max(90, Math.ceil(cap/2)*gap+24); return { w: tW+pad*2, h: 70+pad*2 } }
-    case 'rectangle': { const top = Math.ceil(cap/2); const tW = Math.max(80, top*gap+20); return { w: tW+pad*2, h: 44+pad*2+sR*2 } }
-    case 'square': { const side = Math.ceil(cap/4); const tW = Math.max(60, side*gap+20); return { w: tW+pad*2, h: tW+pad*2 } }
-    case 'halfmoon': { const tW = Math.max(80, cap*gap+20); return { w: tW, h: tW/2+pad+sR } }
-    case 'row': { return { w: cap*(gap)+pad, h: sR*2+16 } }
-    default: { const r = Math.max(28, Math.min(44, 20 + cap * 2)); const orbit = r + sR + 5; const s = (orbit + sR + 6) * 2; return { w: s, h: s } }
-  }
+  const d = sillasDe(table.shape, table.capacity); return { w: d.w, h: d.h }
 }
 
 // ─── SVG MESAS ────────────────────────────────
@@ -170,139 +165,35 @@ const SEAT_COLORS: Record<string,{fill:string;stroke:string}> = {
 }
 const SEAT_EMPTY = { fill:'#f0f0f0', stroke:'#d0d0d0' }
 
-function getSeatColors(table: TableRecord, seatIndex: number): {fill:string;stroke:string} {
-  let idx = 0
-  for (const seat of table.seats) {
-    if (!seat.guest) continue
-    const status = seat.guest.rsvp_status
-    const sc = SEAT_COLORS[status] || SEAT_COLORS.confirmed
-    const size = seat.guest.party_size || 1
-    for (let j = 0; j < size; j++) {
-      if (idx === seatIndex) return sc
-      idx++
-    }
-  }
-  return SEAT_EMPTY
-}
-
-function TableSVG({ table, occupied, isSelected, isHighlighted, isDimmed, colorFill, colorBorder }: {
-  table: TableRecord; occupied: number; isSelected: boolean; isHighlighted: boolean; isDimmed: boolean
+// Cada silla es una persona con su propio estatus (antes heredaban el del titular).
+function TableSVG({ table, ocupados, isSelected, isHighlighted, isDimmed, colorFill, colorBorder }: {
+  table: TableRecord; ocupados: Persona[]; isSelected: boolean; isHighlighted: boolean; isDimmed: boolean
   colorFill?: string; colorBorder?: string
 }) {
-  const cap = table.capacity; const isFull = occupied >= cap; const sR = 7; const gap = 22; const pad = sR + 10
+  const cap = table.capacity; const occupied = ocupados.length; const isFull = occupied >= cap
   const stroke = isHighlighted ? '#48C9B0' : isFull ? '#5DCAA5' : isSelected ? '#48C9B0' : (colorBorder||'#d0d0d0')
   const sw = isHighlighted ? 3 : isSelected ? 2.5 : 1.5
   const fill = colorFill && colorFill!=='#ffffff' ? colorFill : (isHighlighted ? '#f0fdfb' : isFull ? '#f0fff6' : '#fff')
   const statColor = isFull ? '#0F6E56' : occupied > 0 ? '#48C9B0' : '#bbb'
   const opacity = isDimmed ? 0.2 : 1
-
-  const seatColorList = Array.from({length:cap}, (_,i) =>
-    i < occupied ? getSeatColors(table, i) : SEAT_EMPTY
+  const d = sillasDe(table.shape, cap)
+  const c = d.cuerpo
+  const colorDe = (i: number) => i < occupied ? (SEAT_COLORS[ocupados[i].rsvp] || SEAT_COLORS.confirmed) : SEAT_EMPTY
+  const ty = c.tipo === 'arco' ? [d.cy - 14, d.cy - 2] : [d.cy - 5, d.cy + 9]
+  return (
+    <svg width={d.w} height={d.h} style={{display:'block',opacity,pointerEvents:'none'}}>
+      {d.sillas.map((sl, i) => { const col = colorDe(i); return <circle key={i} cx={sl.x} cy={sl.y} r={RADIO_SILLA} fill={col.fill} stroke={col.stroke} strokeWidth="1.5"/> })}
+      {c.tipo === 'circulo' && <circle cx={d.cx} cy={d.cy} r={c.r} fill={fill} stroke={stroke} strokeWidth={sw}/>}
+      {c.tipo === 'elipse' && <ellipse cx={d.cx} cy={d.cy} rx={c.rx} ry={c.ry} fill={fill} stroke={stroke} strokeWidth={sw}/>}
+      {c.tipo === 'rect' && <rect x={d.cx - c.w/2} y={d.cy - c.h/2} width={c.w} height={c.h} rx={c.radio} fill={fill} stroke={stroke} strokeWidth={sw}/>}
+      {c.tipo === 'arco' && <path d={`M ${d.cx - c.r} ${d.cy} A ${c.r} ${c.r} 0 0 1 ${d.cx + c.r} ${d.cy} Z`} fill={fill} stroke={stroke} strokeWidth={sw}/>}
+      {c.tipo === 'linea' && <line x1={RADIO_SILLA} y1={d.cy + RADIO_SILLA + 4} x2={d.w - RADIO_SILLA} y2={d.cy + RADIO_SILLA + 4} stroke={stroke} strokeWidth={sw} strokeLinecap="round"/>}
+      {c.tipo !== 'linea' && <>
+        <text x={d.cx} y={ty[0]} textAnchor="middle" fontSize="12" fontWeight="700" fill="#1D1E20">#{table.number}</text>
+        <text x={d.cx} y={ty[1]} textAnchor="middle" fontSize="10" fill={statColor}>{occupied}/{cap}</text>
+      </>}
+    </svg>
   )
-
-  if (table.shape === 'round') {
-    const r = Math.max(28, Math.min(44, 20 + cap * 2)); const orbit = r + sR + 5
-    const size = (orbit + sR + 6) * 2; const cx = size/2; const cy = size/2
-    const seats = Array.from({length:cap}, (_,i) => { const a=(2*Math.PI*i)/cap-Math.PI/2; return {x:Math.cos(a)*orbit,y:Math.sin(a)*orbit,c:seatColorList[i]} })
-    return (
-      <svg width={size} height={size} style={{display:'block',opacity,pointerEvents:'none'}}>
-        {seats.map((s,i)=><circle key={i} cx={cx+s.x} cy={cy+s.y} r={sR} fill={s.c.fill} stroke={s.c.stroke} strokeWidth="1.5"/>)}
-        <circle cx={cx} cy={cy} r={r} fill={fill} stroke={stroke} strokeWidth={sw}/>
-        <text x={cx} y={cy-5} textAnchor="middle" fontSize="12" fontWeight="700" fill="#1D1E20">#{table.number}</text>
-        <text x={cx} y={cy+9} textAnchor="middle" fontSize="10" fill={statColor}>{occupied}/{cap}</text>
-      </svg>
-    )
-  }
-
-  if (table.shape === 'oval') {
-    const rx = Math.max(48, Math.min(80, 30 + cap * 3)); const ry = Math.round(rx * 0.55)
-    const orbitRx = rx + sR + 5; const orbitRy = ry + sR + 5
-    const svgW = (orbitRx + sR + 8) * 2; const svgH = (orbitRy + sR + 8) * 2
-    const cx = svgW/2; const cy = svgH/2
-    const seats = Array.from({length:cap}, (_,i) => {
-      const a = (2*Math.PI*i)/cap - Math.PI/2
-      return { x: cx + Math.cos(a)*orbitRx, y: cy + Math.sin(a)*orbitRy, c: seatColorList[i] }
-    })
-    return (
-      <svg width={svgW} height={svgH} style={{display:'block',opacity,pointerEvents:'none'}}>
-        {seats.map((s,i)=><circle key={i} cx={s.x} cy={s.y} r={sR} fill={s.c.fill} stroke={s.c.stroke} strokeWidth="1.5"/>)}
-        <ellipse cx={cx} cy={cy} rx={rx} ry={ry} fill={fill} stroke={stroke} strokeWidth={sw}/>
-        <text x={cx} y={cy-5} textAnchor="middle" fontSize="12" fontWeight="700" fill="#1D1E20">#{table.number}</text>
-        <text x={cx} y={cy+9} textAnchor="middle" fontSize="10" fill={statColor}>{occupied}/{cap}</text>
-      </svg>
-    )
-  }
-
-  if (table.shape === 'rectangle') {
-    const sides = cap > 6 ? Math.floor((cap - Math.ceil(cap*0.6)) / 2) : 0
-    const tbEach = Math.ceil((cap - sides*2) / 2); const tbBot = cap - sides*2 - tbEach
-    const tW = Math.max(80, tbEach*gap+20); const tH = Math.max(40, sides>0?sides*gap+20:40)
-    const svgW = tW+pad*2; const svgH = tH+pad*2+sR*2; const cx = svgW/2; const cy = svgH/2
-    const topS  = Array.from({length:tbEach},(_,i)=>({x:cx-((tbEach-1)*gap)/2+i*gap, y:pad-sR, i:i}))
-    const botS  = Array.from({length:tbBot}, (_,i)=>({x:cx-((tbBot-1)*gap)/2+i*gap,  y:svgH-pad+sR, i:i+tbEach}))
-    const leftS = Array.from({length:sides}, (_,i)=>({x:pad-sR, y:cy-((sides-1)*gap)/2+i*gap, i:i+tbEach+tbBot}))
-    const rightS= Array.from({length:sides}, (_,i)=>({x:svgW-pad+sR, y:cy-((sides-1)*gap)/2+i*gap, i:i+tbEach+tbBot+sides}))
-    const dot=(s:{x:number;y:number;i:number},k:string)=>{const c=seatColorList[s.i];return<circle key={k} cx={s.x} cy={s.y} r={sR} fill={c.fill} stroke={c.stroke} strokeWidth="1.5"/>}
-    return (
-      <svg width={svgW} height={svgH} style={{display:'block',opacity,pointerEvents:'none'}}>
-        {topS.map((s)=>dot(s,`t${s.i}`))}
-        {botS.map((s)=>dot(s,`b${s.i}`))}
-        {leftS.map((s)=>dot(s,`l${s.i}`))}
-        {rightS.map((s)=>dot(s,`r${s.i}`))}
-        <rect x={cx-tW/2} y={cy-tH/2} width={tW} height={tH} rx="8" fill={fill} stroke={stroke} strokeWidth={sw}/>
-        <text x={cx} y={cy-5} textAnchor="middle" fontSize="12" fontWeight="700" fill="#1D1E20">#{table.number}</text>
-        <text x={cx} y={cy+9} textAnchor="middle" fontSize="10" fill={statColor}>{occupied}/{cap}</text>
-      </svg>
-    )
-  }
-
-  if (table.shape === 'square') {
-    const perSide = Math.ceil(cap/4); const tW = Math.max(60, perSide*gap+20)
-    const svgW = tW+pad*2; const svgH = tW+pad*2; const cx = svgW/2; const cy = svgH/2
-    const topS  = Array.from({length:perSide},(_,i)=>({x:cx-((perSide-1)*gap)/2+i*gap,y:pad-sR,           i:i}))
-    const botS  = Array.from({length:perSide},(_,i)=>({x:cx-((perSide-1)*gap)/2+i*gap,y:svgH-pad+sR,      i:i+perSide}))
-    const leftS = Array.from({length:perSide},(_,i)=>({y:cy-((perSide-1)*gap)/2+i*gap,x:pad-sR,           i:i+perSide*2}))
-    const rightS= Array.from({length:perSide},(_,i)=>({y:cy-((perSide-1)*gap)/2+i*gap,x:svgW-pad+sR,      i:i+perSide*3}))
-    const dot=(s:any,k:string)=>{const c=seatColorList[s.i];return<circle key={k} cx={s.x} cy={s.y} r={sR} fill={c.fill} stroke={c.stroke} strokeWidth="1.5"/>}
-    return (
-      <svg width={svgW} height={svgH} style={{display:'block',opacity,pointerEvents:'none'}}>
-        {topS.map(s=>dot(s,`t${s.i}`))}
-        {botS.map(s=>dot(s,`b${s.i}`))}
-        {leftS.map(s=>dot(s,`l${s.i}`))}
-        {rightS.map(s=>dot(s,`r${s.i}`))}
-        <rect x={cx-tW/2} y={cy-tW/2} width={tW} height={tW} rx="6" fill={fill} stroke={stroke} strokeWidth={sw}/>
-        <text x={cx} y={cy-5} textAnchor="middle" fontSize="12" fontWeight="700" fill="#1D1E20">#{table.number}</text>
-        <text x={cx} y={cy+9} textAnchor="middle" fontSize="10" fill={statColor}>{occupied}/{cap}</text>
-      </svg>
-    )
-  }
-
-  if (table.shape === 'halfmoon') {
-    const tW = Math.max(80, cap*gap+20); const arcR = tW/2; const svgW = tW; const svgH = arcR+pad+sR
-    const cy = svgH-pad; const cx = svgW/2
-    const botS = Array.from({length:cap},(_,i)=>({x:cx-((cap-1)*gap)/2+i*gap, y:svgH-sR-4, i:i}))
-    return (
-      <svg width={svgW} height={svgH} style={{display:'block',opacity,pointerEvents:'none'}}>
-        {botS.map(s=>{const c=seatColorList[s.i];return<circle key={s.i} cx={s.x} cy={s.y} r={sR} fill={c.fill} stroke={c.stroke} strokeWidth="1.5"/>})}
-        <path d={`M ${cx-arcR} ${cy} A ${arcR} ${arcR} 0 0 1 ${cx+arcR} ${cy} Z`} fill={fill} stroke={stroke} strokeWidth={sw}/>
-        <text x={cx} y={cy-14} textAnchor="middle" fontSize="12" fontWeight="700" fill="#1D1E20">#{table.number}</text>
-        <text x={cx} y={cy-2} textAnchor="middle" fontSize="10" fill={statColor}>{occupied}/{cap}</text>
-      </svg>
-    )
-  }
-
-  if (table.shape === 'row') {
-    const svgW = cap*gap+pad; const svgH = sR*2+16; const cy = svgH/2-4
-    const seats = Array.from({length:cap},(_,i)=>({x:sR+i*gap+pad/2, y:cy, i:i}))
-    return (
-      <svg width={svgW} height={svgH} style={{display:'block',opacity,pointerEvents:'none'}}>
-        {seats.map(s=>{const c=seatColorList[s.i];return<circle key={s.i} cx={s.x} cy={s.y} r={sR} fill={c.fill} stroke={c.stroke} strokeWidth="1.5"/>})}
-        <line x1={sR} y1={cy+sR+4} x2={svgW-sR} y2={cy+sR+4} stroke={stroke} strokeWidth={sw} strokeLinecap="round"/>
-      </svg>
-    )
-  }
-
-  return null
 }
 
 // ─── ELEMENTO DECO ────────────────────────────
@@ -464,33 +355,26 @@ function ContextMenu({ menu, onColor, onDuplicate, onDelete, onClose }: {
 }
 
 // ─── MODAL DETALLE MESA ───────────────────────
-function TableDetailModal({ table, getOccupied, onClose, onAssign, onRemoveGuest, onEditTable, onDeleteTable, puedeEditar, puedeBorrar }: {
-  table: TableRecord; getOccupied:(t:TableRecord)=>number; onClose:()=>void
-  onAssign:(id:string,cap:number)=>void; onRemoveGuest:(seatId:string,name:string)=>void
+function TableDetailModal({ table, ocupados, ocupacion, etiqueta, onClose, onAssign, onPersona, onEditTable, onDeleteTable, puedeEditar, puedeBorrar }: {
+  table: TableRecord; ocupados: Persona[]; ocupacion:(tableId:string)=>number; etiqueta:(p:Persona)=>string|null; onClose:()=>void
+  onAssign:(id:string,cap:number)=>void; onPersona:(p:Persona)=>void
   onEditTable:(t:TableRecord)=>void; onDeleteTable:(t:TableRecord)=>void
   puedeEditar:boolean; puedeBorrar:boolean
 }) {
-  const occ=getOccupied(table); const avail=table.capacity-occ; const full=avail===0
+  const occ=ocupacion(table.id); const avail=table.capacity-occ; const full=avail<=0
   return (
     <Modal open onClose={onClose} size="md">
       <Modal.Header
         title={`#${table.number} ${table.name||`Mesa ${table.number}`}`}
-        subtitle={`${SHAPE_LABELS[table.shape as TableShape]||table.shape} · ${occ}/${table.capacity} asientos${full?' · Llena':''}`}
+        subtitle={`${SHAPE_LABELS[table.shape as TableShape]||table.shape} · ${occ}/${table.capacity} lugares${full?' · Llena':''}`}
       />
       <Modal.Body>
-        {!table.seats.some(s=>s.guest)?<p className="py-6 text-center text-sm text-[#bbb]">Sin invitados asignados</p>:(
+        {ocupados.length===0?<p className="py-6 text-center text-sm text-[#bbb]">Nadie sentado todavía</p>:(
           <div className="flex flex-col gap-2">
-            {table.seats.map(seat=>{const g=seat.guest;if(!g)return null;const st=STATUS_COLORS[g.rsvp_status];return(
-              <div key={seat.id} className="rounded-xl border px-3 py-2.5" style={{background:st.bg,borderColor:st.border}}>
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex min-w-0 items-center gap-2"><span className="truncate text-sm font-semibold" style={{color:st.text}}>{g.name}</span>{g.party_size>1&&<span className="text-xs font-semibold" style={{color:st.text}}>+{g.party_size-1}</span>}</div>
-                  <div className="flex items-center gap-2"><span className="text-xs font-semibold" style={{color:st.text}}>{st.label}</span>{puedeEditar&&<button onClick={()=>onRemoveGuest(seat.id,g.name)} className="opacity-40 hover:opacity-100" style={{color:st.text}}><X width={12} height={12}/></button>}</div>
-                </div>
-                {g.party_members.length>0&&<div className="mt-1.5 flex flex-col gap-1 border-t pt-1.5" style={{borderColor:st.border}}>{g.party_members.map(m=><div key={m.id} className="flex items-center justify-between"><div className="flex items-center gap-1.5"><div className="h-3 w-[2px] rounded-full opacity-30" style={{background:st.text}}/><span className="text-xs" style={{color:st.text}}>{m.name||'Acompañante'}</span></div><span className="text-[11px]" style={{color:STATUS_COLORS[m.rsvp_status].text}}>{STATUS_COLORS[m.rsvp_status].label}</span></div>)}</div>}
-              </div>
-            )})}
+            {ocupados.map(p=><PersonaCard key={p.clave} persona={p} etiqueta={etiqueta(p)} puedeEditar={puedeEditar} arrastrable={false} onTap={()=>{onClose();onPersona(p)}}/>)}
           </div>
         )}
+        {ocupados.length>0&&<p className="mt-3 text-center text-[11px] text-[#bbb]">Toca a alguien para moverlo o quitarlo</p>}
       </Modal.Body>
       <Modal.Footer>
         {puedeBorrar&&<button onClick={()=>{onDeleteTable(table);onClose()}} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[#ffe0e0] bg-[#fff5f5] text-[#cc3333] hover:bg-[#ffe8e8]"><Trash2 width={14} height={14}/></button>}
@@ -502,10 +386,11 @@ function TableDetailModal({ table, getOccupied, onClose, onAssign, onRemoveGuest
 }
 
 // ─── CANVAS FULLSCREEN ────────────────────────
-function CanvasFullscreen({ tables, getOccupied, onBack, onTableClick, onPositionSave, onRotationSave, onOpenCreate, puedeEditar, resetKey,
+function CanvasFullscreen({ tables, getOccupied, enMesa, etiqueta, arrastrando, onPersona, panel, onBack, onTableClick, onPositionSave, onRotationSave, onOpenCreate, puedeEditar, resetKey,
   decos, setDecos, decoRotations, setDecoRotations, tableColors, setTableColors, decoColors, setDecoColors
 }: {
   tables: TableRecord[]; getOccupied:(t:TableRecord)=>number; onBack:()=>void
+  enMesa:(tableId:string)=>Persona[]; etiqueta:(p:Persona)=>string|null; arrastrando:Persona|null; onPersona:(p:Persona)=>void; panel:React.ReactNode
   onTableClick:(t:TableRecord)=>void; onPositionSave:(id:string,x:number,y:number)=>void
   onRotationSave:(id:string,rotation:number)=>void; onOpenCreate:()=>void
   puedeEditar: boolean
@@ -927,7 +812,9 @@ function CanvasFullscreen({ tables, getOccupied, onBack, onTableClick, onPositio
         </div>
       </div>
 
-      {/* ── Canvas ── */}
+      {/* ── Panel de sin mesa (escritorio) + Canvas ── */}
+      <div style={{display:'flex',flex:1,minHeight:0}}>
+      <div className="hidden sm:flex" style={{height:'100%'}}>{panel}</div>
       <div ref={canvasRef} className="relative flex-1 overflow-auto sm:pb-0 pb-16"
         style={{background:'#f5f5f5',cursor:isPanning?'grabbing':'grab',touchAction:'none'}}
         onMouseDown={startPan}
@@ -1001,9 +888,12 @@ function CanvasFullscreen({ tables, getOccupied, onBack, onTableClick, onPositio
                     <RotateCw width={11} height={11} color="white" style={{pointerEvents:'none'}}/>
                   </div>
                 )}
-                <div style={{transform:`rotate(${rot}deg)`,transformOrigin:'center',display:'inline-block'}}>
-                  <TableSVG table={table} occupied={occ} isSelected={isActive} isHighlighted={isHL} isDimmed={isDim} colorFill={tableColor.fill} colorBorder={tableColor.border}/>
+                <MesaDroppable tableId={table.id} llena={!puedeEditar||occ>=table.capacity} arrastrando={arrastrando} redonda={table.shape==='round'||table.shape==='oval'} enPlano>
+                <div style={{transform:`rotate(${rot}deg)`,transformOrigin:'center',display:'inline-block',position:'relative'}}>
+                  <TableSVG table={table} ocupados={enMesa(table.id)} isSelected={isActive} isHighlighted={isHL} isDimmed={isDim} colorFill={tableColor.fill} colorBorder={tableColor.border}/>
+                  <SillasArrastrables shape={table.shape} capacity={table.capacity} ocupados={enMesa(table.id)} etiqueta={etiqueta} puedeEditar={puedeEditar} onPersona={onPersona}/>
                 </div>
+                </MesaDroppable>
                 {table.name&&(
                   <div style={{width:dims.w,textAlign:'center',marginTop:3,opacity:isDim?0.2:1,pointerEvents:'none'}}>
                     <span style={{fontSize:11,fontWeight:600,color:isSel?'#48C9B0':'#555',display:'block',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{table.name}</span>
@@ -1015,6 +905,7 @@ function CanvasFullscreen({ tables, getOccupied, onBack, onTableClick, onPositio
         </div>
       </div>
 
+      </div>
       {/* ── Menú contextual ── */}
       {contextMenu&&(
         <ContextMenu menu={contextMenu} onColor={handleContextColor} onDuplicate={handleContextDuplicate}
@@ -1159,84 +1050,6 @@ function ModalMesa({ visible=true, editTable, mNum, setMNum, mName, setMName, mC
   )
 }
 
-function ModalAsignar({ tables, guests, assignModal, assignSearch, setAssignSearch, assignRef, gSeatMap, getOccupied, handleSelectGuest, onClose }: {
-  tables:TableRecord[]; guests:GuestFull[]; assignModal:{tableId:string;tableCapacity:number}|null; assignSearch:string; setAssignSearch:(v:string)=>void; assignRef:React.RefObject<HTMLInputElement|null>; gSeatMap:Map<string,any>; getOccupied:(t:TableRecord)=>number; handleSelectGuest:(gId:string,tId:string,cap:number)=>void; onClose:()=>void
-}) {
-  if(!assignModal)return null
-  const table=tables.find(t=>t.id===assignModal.tableId)
-  if(!table)return null
-  const occ=getOccupied(table); const avail=table.capacity-occ
-  const isFull=avail<=0
-  const filtered=assignSearch?guests.filter(g=>g.name.toLowerCase().includes(assignSearch.toLowerCase())):guests
-  return(
-    <Modal open onClose={onClose} size="sm">
-      <div className="shrink-0 border-b border-[#f0f0f0] px-4 py-3">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="flex items-center gap-1.5 text-sm font-bold text-[#1D1E20]">
-              Asignar a <span className="rounded bg-[#f0f0f0] px-1.5 py-0.5 text-xs font-bold text-[#555]">#{table.number}</span>{table.name||`Mesa ${table.number}`}
-            </p>
-            <p className="text-[11px]" style={{color:isFull?'#cc3333':'#aaa'}}>
-              {isFull ? 'Mesa llena' : `${avail} asiento(s) disponible(s) · ${occ}/${table.capacity}`}
-            </p>
-          </div>
-          <button onClick={onClose} className="rounded-lg bg-[#48C9B0] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#3ab89f]">Listo</button>
-        </div>
-        <div className="relative mt-3">
-          <Search width={13} height={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#bbb]"/>
-          <input ref={assignRef} type="text" value={assignSearch} onChange={e=>setAssignSearch(e.target.value)} placeholder="Buscar invitado..." className="w-full rounded-lg border border-[#e0e0e0] bg-[#f8f8f8] py-2 pl-8 pr-3 text-base outline-none focus:border-[#48C9B0]"/>
-        </div>
-      </div>
-      {/* lista a sangre: el primitivo no expone un cuerpo sin respiro lateral */}
-      <div className="min-h-0 flex-1 overflow-y-auto">
-          {!filtered.length?<p className="px-4 py-6 text-center text-xs text-[#bbb]">Sin resultados</p>:filtered.map(g=>{
-            const need=1+g.party_members.length
-            const ex=gSeatMap.get(g.id)
-            const here=ex?.tableId===assignModal.tableId
-            const elsewhere=ex&&!here
-            const noSpace=need>avail&&!here&&!elsewhere
-            return(
-              <button key={g.id}
-                onClick={()=>{ if(!here && !noSpace) handleSelectGuest(g.id,assignModal.tableId,table.capacity) }}
-                disabled={here||noSpace}
-                className={`flex w-full items-center gap-3 border-b border-[#f5f5f5] px-4 py-3 text-left transition last:border-0 ${here||noSpace?'cursor-not-allowed opacity-40':'cursor-pointer hover:bg-[#f0fdfb]'}`}>
-                <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                  <div className="flex items-center gap-1.5">
-                    <span className="truncate text-sm font-semibold text-[#1D1E20]">{g.name}</span>
-                    {need>1&&<span className="shrink-0 rounded-full border border-[#9FE1CB] bg-[#f0fdfb] px-1.5 text-[9px] font-semibold text-[#0F6E56]">+{need-1}</span>}
-                    {here&&<span className="shrink-0 rounded-full bg-[#f0fdfb] px-1.5 text-[9px] font-semibold text-[#48C9B0]">Ya asignado</span>}
-                    {elsewhere&&<span className="shrink-0 rounded-full border border-[#f0d080] bg-[#fffbf0] px-1.5 text-[9px] font-semibold text-[#b8860b]">#{ex.tableNumber}</span>}
-                  </div>
-                  {noSpace&&<span className="text-[10px] text-[#cc3333]">Necesita {need} asientos — hay {avail}</span>}
-                  {elsewhere&&!noSpace&&<span className="text-[10px] text-[#b8860b]">Mover a esta mesa</span>}
-                </div>
-                <span className="shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-bold" style={{background:STATUS_COLORS[g.rsvp_status].bg,borderColor:STATUS_COLORS[g.rsvp_status].border,color:STATUS_COLORS[g.rsvp_status].text}}>{STATUS_COLORS[g.rsvp_status].label.slice(0,4)}</span>
-              </button>
-            )
-          })}
-      </div>
-    </Modal>
-  )
-}
-
-function ModalMover({ moveModal, tables, moveSaving, onConfirm, onClose }: {
-  moveModal:MoveModal|null; tables:TableRecord[]; moveSaving:boolean; onConfirm:()=>void; onClose:()=>void
-}) {
-  if(!moveModal)return null
-  return(
-    <Modal open onClose={onClose} size="sm">
-      <Modal.Body className="py-6 text-center">
-        <h2 className="text-base font-bold text-[#1D1E20]">¿Mover a otra mesa?</h2>
-        <p className="mt-2 text-sm text-[#555]"><span className="font-semibold">{moveModal.guest.name}</span>{moveModal.guest.party_size>1&&<span className="text-[#888]"> +{moveModal.guest.party_size-1}</span>}{' '}está en <span className="font-semibold">Mesa #{moveModal.fromTableNumber}</span>. ¿Mover a <span className="font-semibold">Mesa #{tables.find(t=>t.id===moveModal.toTableId)?.number}</span>?</p>
-      </Modal.Body>
-      <Modal.Footer>
-        <button onClick={onClose} className="flex-1 rounded-lg border border-[#e0e0e0] py-3 text-sm text-[#888]">Cancelar</button>
-        <button onClick={onConfirm} disabled={moveSaving} className="flex-[2] rounded-lg bg-[#48C9B0] py-3 text-sm font-semibold text-white disabled:opacity-60">{moveSaving?'Moviendo…':'Sí, mover'}</button>
-      </Modal.Footer>
-    </Modal>
-  )
-}
-
 // ─── PÁGINA PRINCIPAL ─────────────────────────
 function MesasPageInner() {
   const {id:eventId}=useParams()
@@ -1278,10 +1091,11 @@ function MesasPageInner() {
   const [canvasDetailId,setCanvasDetailId]=useState<string|null>(null)
   const canvasDetail = canvasDetailId ? (tables.find(t=>t.id===canvasDetailId) ?? null) : null
   const [assignModal,setAssignModal]=useState<{tableId:string;tableCapacity:number}|null>(null)
-  const [assignSearch,setAssignSearch]=useState('')
-  const [moveModal,setMoveModal]=useState<MoveModal|null>(null)
-  const [moveSaving,setMoveSaving]=useState(false)
-  const assignRef=useRef<HTMLInputElement>(null)
+  const [elegirMesa,setElegirMesa]=useState<ElegirMesa|null>(null)
+  const [personaMenu,setPersonaMenu]=useState<Persona|null>(null)
+  const [arrastrando,setArrastrando]=useState<Persona|null>(null)
+  const [panelBusqueda,setPanelBusqueda]=useState('')
+  const [filas,setFilas]=useState<Fila[]>([])
   const canvasSaveTimer=useRef<ReturnType<typeof setTimeout>|null>(null)
 
   const [canvasDecos,       setCanvasDecos]       = useState<DecoItem[]>([])
@@ -1312,21 +1126,20 @@ function MesasPageInner() {
   const [eErrorReintentable,setEErrorReintentable]=useState(false)
 
   useEffect(()=>{loadData()},[])
-  useEffect(()=>{if(assignModal)setTimeout(()=>assignRef.current?.focus(),50)},[assignModal])
 
   const loadData=async()=>{
     setLoading(true)
     const [tR,sR,gR,mR,eR]=await Promise.all([
       supabase.from('tables').select('*').eq('event_id',eventId).order('number'),
       supabase.from('table_seats').select('*').eq('event_id',eventId),
-      supabase.from('guests').select('id,name,rsvp_status,tags,party_size,notes,phone,email,checked_in').eq('event_id',eventId).order('name'),
+      supabase.from('guests').select('id,name,rsvp_status,tags,party_size,notes,phone,email,side,checked_in').eq('event_id',eventId).order('name'),
       supabase.from('party_members').select('id,guest_id,name,rsvp_status,checked_in').eq('event_id',eventId),
       supabase.from('events').select('guest_tags,name,event_date,venue,canvas_data').eq('id',eventId).single(),
     ])
     const gMap=new Map<string,GuestFull>()
     for(const g of(gR.data||[])){const members=(mR.data||[]).filter(m=>m.guest_id===g.id);gMap.set(g.id,{...g,tags:g.tags||[],notes:g.notes||null,phone:g.phone||null,email:g.email||null,checked_in:g.checked_in||false,party_size:1+members.length,party_members:members.map(m=>({...m,checked_in:m.checked_in||false}))})}
     const combined:TableRecord[]=(tR.data||[]).map(t=>({...t,rotation:t.rotation||0,seats:(sR.data||[]).filter(s=>s.table_id===t.id).map(s=>({...s,guest:s.guest_id?gMap.get(s.guest_id)||null:null}))}))
-    setTables(combined);setGuests(Array.from(gMap.values()))
+    setTables(combined);setGuests(Array.from(gMap.values()));setFilas((sR.data||[]) as Fila[])
     setEventTags(eR.data?.guest_tags||[])
     setEventInfo({name:eR.data?.name||'',event_date:eR.data?.event_date||null,venue:eR.data?.venue||null})
     const cd=eR.data?.canvas_data
@@ -1344,26 +1157,35 @@ function MesasPageInner() {
     const [tR,sR,gR,mR]=await Promise.all([
       supabase.from('tables').select('*').eq('event_id',eventId).order('number'),
       supabase.from('table_seats').select('*').eq('event_id',eventId),
-      supabase.from('guests').select('id,name,rsvp_status,tags,party_size,notes,phone,email,checked_in').eq('event_id',eventId).order('name'),
+      supabase.from('guests').select('id,name,rsvp_status,tags,party_size,notes,phone,email,side,checked_in').eq('event_id',eventId).order('name'),
       supabase.from('party_members').select('id,guest_id,name,rsvp_status,checked_in').eq('event_id',eventId),
     ])
     const gMap=new Map<string,GuestFull>()
     for(const g of(gR.data||[])){const members=(mR.data||[]).filter(m=>m.guest_id===g.id);gMap.set(g.id,{...g,tags:g.tags||[],notes:g.notes||null,phone:g.phone||null,email:g.email||null,checked_in:g.checked_in||false,party_size:1+members.length,party_members:members.map(m=>({...m,checked_in:m.checked_in||false}))})}
     const combined:TableRecord[]=(tR.data||[]).map(t=>({...t,rotation:t.rotation||0,seats:(sR.data||[]).filter(s=>s.table_id===t.id).map(s=>({...s,guest:s.guest_id?gMap.get(s.guest_id)||null:null}))}))
-    setTables(combined); setGuests(Array.from(gMap.values()))
+    setTables(combined); setGuests(Array.from(gMap.values())); setFilas((sR.data||[]) as Fila[])
   }
+  const filasDeLaBase=async()=>((await supabase.from('table_seats').select('*').eq('event_id',eventId)).data||[]) as Fila[]
 
-  const getOccupied=(t:TableRecord)=>t.seats.filter(s=>s.guest_id).reduce((a,s)=>a+(s.guest?s.guest.party_size:(s.party_size||1)),0)
+  // Todo lo que se pinta sale de aqui: una persona por fila de table_seats,
+  // con las familias legado (una fila con party_size N) entendidas como si
+  // ya estuvieran expandidas.
+  const personas=useMemo(()=>personasDe(guests),[guests])
+  const mapa=useMemo(()=>mapaAsientos(filas,personas),[filas,personas])
+  const ocupacion=useCallback((tableId:string)=>ocupacionDe(tableId,filas),[filas])
+  const enMesa=useCallback((tableId:string)=>personas.filter(p=>mapa.get(p.clave)?.tableId===tableId),[personas,mapa])
+  const sinMesa=useMemo(()=>personas.filter(p=>!mapa.has(p.clave)),[personas,mapa])
+  const numeroDeMesa=useCallback((tableId:string)=>tables.find(t=>t.id===tableId)?.number??0,[tables])
+  const etiqueta=useCallback((p:Persona)=>etiquetaSeparado(p,mapa,personas,numeroDeMesa),[mapa,personas,numeroDeMesa])
+  const nombreMesa=(tableId:string)=>{const t=tables.find(x=>x.id===tableId);return t?`Mesa ${t.number}${t.name?' · '+t.name:''}`:''}
+  const getOccupied=(t:TableRecord)=>ocupacion(t.id)
   const nextNum=()=>{if(!tables.length)return 1;const u=new Set(tables.map(t=>t.number));let n=1;while(u.has(n))n++;return n}
 
-  const gSeatMap=useMemo(()=>{const m=new Map<string,any>();for(const t of tables)for(const s of t.seats)if(s.guest_id)m.set(s.guest_id,{seatId:s.id,tableNumber:t.number,tableId:t.id,tableCapacity:t.capacity});return m},[tables])
-
-  const confirmed=guests.filter(g=>g.rsvp_status==='confirmed').length
-  const seatedIds=useMemo(()=>{const s=new Set<string>();for(const t of tables)for(const seat of t.seats)if(seat.guest_id)s.add(seat.guest_id);return s},[tables])
-  const unassigned=guests.filter(g=>g.rsvp_status==='confirmed'&&!seatedIds.has(g.id)).length
+  const confirmed=personas.filter(p=>p.rsvp==='confirmed').length
+  const unassigned=sinMesa.filter(p=>p.rsvp==='confirmed').length
   const totalSeats=tables.reduce((a,t)=>a+t.capacity,0)
-  const totalFree=totalSeats-tables.reduce((a,t)=>a+getOccupied(t),0)
-  const fullTables=tables.filter(t=>getOccupied(t)>=t.capacity).length
+  const totalFree=totalSeats-tables.reduce((a,t)=>a+ocupacion(t.id),0)
+  const fullTables=tables.filter(t=>ocupacion(t.id)>=t.capacity).length
 
   const openEditGuest=(g:GuestFull)=>{
     setEditGuest(g)
@@ -1388,27 +1210,8 @@ function MesasPageInner() {
       if (dup) { setEError(`WhatsApp ya registrado para "${dup.name}"`); return }
     }
 
+    // Un acompanante nuevo nace sin mesa: ya no hay cupo que validar aqui.
     const newPartySize = 1 + eMembers.length
-
-    // Validar capacidad solo si el invitado ya está asignado a una mesa
-    const seatRecord = gSeatMap.get(editGuest.id)
-    if (seatRecord) {
-      const assignedTable = tables.find(t => t.id === seatRecord.tableId)
-      if (assignedTable) {
-        const currentOccupied = getOccupied(assignedTable)
-        // Espacio real = capacidad total - ocupados + lo que ocupa este grupo actualmente
-        // (descontamos el grupo actual porque va a ser reemplazado por el nuevo tamaño)
-        const spaceAvailableForThisGroup = assignedTable.capacity - currentOccupied + editGuest.party_size
-        if (newPartySize > spaceAvailableForThisGroup) {
-          setEError(
-            `Sin espacio en Mesa #${seatRecord.tableNumber}: necesitas ${newPartySize} asiento(s) ` +
-            `pero solo hay ${spaceAvailableForThisGroup} disponible(s) para este grupo. ` +
-            `Reduce acompañantes o mueve al invitado a otra mesa primero.`
-          )
-          return
-        }
-      }
-    }
 
     setESaving(true)
     setEError('')
@@ -1465,11 +1268,6 @@ function MesasPageInner() {
         }))
       ).select('id'), ins.length)
       if (fi) return fallar(deAcomp, fi)
-    }
-
-    if (seatRecord) {
-      const fs = falloDeEscritura(await supabase.from('table_seats').update({ party_size: newPartySize }).eq('id', seatRecord.seatId).select('id'))
-      if (fs) return fallar('Se guardó pero su lugar en la Mesa ' + seatRecord.tableNumber + ' no se actualizó.', fs)
     }
 
     await loadTables()
@@ -1541,59 +1339,56 @@ function MesasPageInner() {
     await loadTables();setShowBulk(false);setBSaving(false)
   }
 
-  const doAssign=async(tableId:string,cap:number,guest:GuestFull):Promise<boolean>=>{
-    if (!permiso.editar) return false
-    const t=tables.find(x=>x.id===tableId)!;const occ=getOccupied(t);const need=1+guest.party_members.length
-    // El buscador ya apaga a quien no cabe. Si llega aqui es que alguien mas
-    // lleno la mesa mientras tanto: se recarga y se dice, sin reintentar.
-    if(need>cap-occ){await loadTables();toast.error({titulo:`La Mesa ${t.number} ya no tiene lugar para ${need}`,detalle:'Alguien más la ocupó. La pantalla ya se actualizó.'});return false}
-    const next=(t.seats.map(s=>s.seat_number).sort((a,b)=>b-a)[0]||0)+1
-    const fallo=falloDeEscritura(await supabase.from('table_seats').insert({table_id:tableId,event_id:eventId,seat_number:next,guest_id:guest.id,party_size:need}).select('id'))
-    if(fallo){toast.fallo({titulo:`No se sentó a ${guest.name} en la Mesa ${t.number}`,fallo,reintentar:()=>doAssign(tableId,cap,guest)});return false}
-    await loadTables()
-    setAssignSearch('')
-    return true
-  }
-  const handleSelectGuest=(gId:string,tableId:string,cap:number)=>{
-    const g=guests.find(x=>x.id===gId)!;const ex=gSeatMap.get(gId)
-    if(ex&&ex.tableId!==tableId){setMoveModal({guest:g,fromSeatId:ex.seatId,fromTableNumber:ex.tableNumber,toTableId:tableId,toTableCapacity:cap});setAssignModal(null);setAssignSearch('');return}
-    doAssign(tableId,cap,g)
-  }
-  const handleMove=async()=>{
-    if (!permiso.editar) return
-    if(!moveModal)return;setMoveSaving(true)
-    await moverAsiento(moveModal)
-    setMoveModal(null);setMoveSaving(false)
-  }
-  // Mover es UN solo cambio sobre el asiento que ya existe: entra completo o
-  // no entra. Antes se borraba el viejo y luego se creaba el nuevo, y si lo
-  // segundo fallaba el invitado se quedaba sin mesa sin que nadie lo viera.
-  const moverAsiento=async(mv:MoveModal):Promise<boolean>=>{
-    const{guest,fromSeatId,fromTableNumber,toTableId,toTableCapacity}=mv
-    const t=tables.find(x=>x.id===toTableId);if(!t)return false
-    const need=1+guest.party_members.length
-    if(need>toTableCapacity-getOccupied(t)){await loadTables();toast.error({titulo:`La Mesa ${t.number} ya no tiene lugar para ${need}`,detalle:'Alguien más la ocupó. La pantalla ya se actualizó.'});return false}
-    const next=(t.seats.map(s=>s.seat_number).sort((a,b)=>b-a)[0]||0)+1
-    const fallo=falloDeEscritura(await supabase.from('table_seats').update({table_id:toTableId,seat_number:next,party_size:need}).eq('id',fromSeatId).select('id'))
-    if(fallo){toast.fallo({titulo:`No se movió a ${guest.name} a la Mesa ${t.number}`,fallo:{...fallo,detalle:fallo.detalle+` Sigue en la Mesa ${fromTableNumber}.`},reintentar:()=>moverAsiento(mv)});return false}
+  // Sentar o mover a varias personas a una mesa, de una en una. Cada persona
+  // es su propia tanda: si una falla, las anteriores se quedan (son verdad).
+  const sentarPersonas=async(claves:string[],tableId:string):Promise<boolean>=>{
+    if(!permiso.editar)return false
+    const t=tables.find(x=>x.id===tableId);if(!t)return false
+    const gente=claves.map(c=>personas.find(p=>p.clave===c)).filter((p):p is Persona=>!!p)
+    const nuevos=gente.filter(p=>mapa.get(p.clave)?.tableId!==tableId).length
+    // El buscador y el plano ya apagan la mesa llena. Si llega aqui es que
+    // alguien mas la lleno mientras tanto: se recarga y se dice, sin reintentar.
+    if(nuevos>t.capacity-ocupacion(tableId)){await loadTables();toast.error({titulo:`La Mesa ${t.number} ya no tiene lugar para ${nuevos}`,detalle:'Alguien más la ocupó. La pantalla ya se actualizó.'});return false}
+    let vivas=filas
+    for(const p of gente){
+      const ops=opsSentar(p,tableId,eventId as string,vivas,personas)
+      if(ops.length===0)continue
+      const fallo=await ejecutarOps(supabase,ops)
+      if(fallo){await loadTables();toast.fallo({titulo:gente.length===1?`No se sentó a ${p.nombre} en la Mesa ${t.number}`:`No se sentó a todos en la Mesa ${t.number}`,fallo,reintentar:()=>sentarPersonas(claves,tableId),clave:'sentar-'+tableId});return false}
+      vivas=await filasDeLaBase()
+    }
     await loadTables()
     return true
   }
-  const removeGuest=async(seatId:string,name:string)=>{
-    if (!permiso.editar) return
-    const ok=await askConfirm({
-      title:`¿Quitar a ${name} de esta mesa?`,
-      message:'Vuelve a la lista de invitados sin mesa. No se borra del evento.',
-      confirmLabel:'Quitar',
-    })
+  const quitarPersona=async(p:Persona):Promise<boolean>=>{
+    if(!permiso.editar)return false
+    const ops=opsQuitar(p,filas,personas)
+    if(ops.length===0)return true
+    const fallo=await ejecutarOps(supabase,ops)
+    if(fallo){await loadTables();toast.fallo({titulo:`No se quitó a ${p.nombre} de la mesa`,fallo,reintentar:()=>quitarPersona(p)});return false}
+    await loadTables()
+    return true
+  }
+  const removeGuest=async(p:Persona)=>{
+    if(!permiso.editar)return
+    const ok=await askConfirm({title:`¿Quitar a ${p.nombre} de esta mesa?`,message:'Vuelve a la lista de personas sin mesa. No se borra del evento.',confirmLabel:'Quitar'})
     if(!ok)return
-    await quitarDeMesa(seatId,name)
+    await quitarPersona(p)
   }
-  const quitarDeMesa=async(seatId:string,name:string):Promise<boolean>=>{
-    const fallo=falloDeEscritura(await supabase.from('table_seats').delete().eq('id',seatId).select('id'))
-    if(fallo){toast.fallo({titulo:`No se quitó a ${name} de la mesa`,fallo,reintentar:()=>quitarDeMesa(seatId,name)});return false}
-    await loadTables()
-    return true
+  const abrirMover=(p:Persona)=>setElegirMesa({personas:[p],titulo:'Mover a '+p.nombre})
+  const abrirSentarGrupo=(gente:Persona[])=>setElegirMesa({personas:gente,titulo:`Sentar a los ${gente.length}`})
+  const verInvitado=(p:Persona)=>{const g=guests.find(x=>x.id===p.guestId);if(g)openEditGuest(g)}
+
+  // Arrastrar solo con mouse: con el dedo las personas se tocan y la lista
+  // sigue haciendo scroll. Soltar en una mesa sienta o mueve; en el panel, quita.
+  const sensors=useSensors(useSensor(MouseSensor,{activationConstraint:{distance:5}}))
+  const onDragStart=(e:DragStartEvent)=>{const p=(e.active.data.current as {persona?:Persona}|undefined)?.persona;setArrastrando(p??null)}
+  const onDragEnd=async(e:DragEndEvent)=>{
+    const p=arrastrando;setArrastrando(null)
+    if(!p||!e.over)return
+    const over=String(e.over.id)
+    if(over==='panel'){if(mapa.has(p.clave))await quitarPersona(p);return}
+    if(over.startsWith('t:'))await sentarPersonas([p.clave],over.slice(2))
   }
   // Posicion y giro del plano: si no se guardan, el plano regresa a lo que
   // dice la base (resetKey) y el aviso ofrece volver a mandar lo mismo.
@@ -1625,8 +1420,8 @@ function MesasPageInner() {
   const handlePrint=()=>{
     const fd=(d:string)=>{const[y,mo,day]=d.split('T')[0].split('-').map(Number);return new Date(y,mo-1,day).toLocaleDateString('es-MX',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}
     const rows:string[]=[]; let n=1
-    for(const t of tables){const ml=t.name?`${t.number} · ${t.name}`:String(t.number);for(const s of t.seats){const g=s.guest;if(!g)continue;rows.push(`<tr class="mr"><td>${n++}</td><td>${ml}</td><td class="nb">${g.name}</td><td>${STATUS_COLORS[g.rsvp_status].label}</td><td>${g.tags.join(', ')||'—'}</td><td>${g.notes||'—'}</td><td class="cc"><div class="cb"></div></td></tr>`);for(const m of g.party_members)rows.push(`<tr class="ar"><td>${n++}</td><td></td><td class="mn">↳ ${m.name||'Acompañante'}</td><td>${STATUS_COLORS[m.rsvp_status].label}</td><td>—</td><td>—</td><td class="cc"><div class="cb"></div></td></tr>`)}}
-    const total=tables.reduce((a,t)=>a+t.seats.reduce((b,s)=>b+(s.guest?1+s.guest.party_members.length:0),0),0)
+    for(const t of tables){const ml=t.name?`${t.number} · ${t.name}`:String(t.number);for(const p of enMesa(t.id)){const g=guests.find(x=>x.id===p.guestId);const cls=p.memberId?'ar':'mr';const nombre=p.memberId?`${p.nombre} <span style="color:#999">· de ${p.titular}</span>`:p.nombre;rows.push(`<tr class="${cls}"><td>${n++}</td><td>${ml}</td><td class="nb">${nombre}</td><td>${estatusDe(p.rsvp).label}</td><td>${p.memberId?'—':(g?.tags.join(', ')||'—')}</td><td>${p.memberId?'—':(g?.notes||'—')}</td><td class="cc"><div class="cb"></div></td></tr>`)}}
+    const total=tables.reduce((a,t)=>a+enMesa(t.id).length,0)
     const pd=new Date().toLocaleDateString('es-MX',{day:'numeric',month:'long',year:'numeric'})
     const html=`<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,sans-serif;font-size:11px;color:#1D1E20;padding:20px}.hd{margin-bottom:14px;padding-bottom:10px;border-bottom:2px solid #1D1E20}.hd h1{font-size:18px;font-weight:700}.hm{display:flex;gap:20px;margin-top:5px;font-size:10px;color:#888}table{width:100%;border-collapse:collapse}th{text-align:left;font-size:9px;font-weight:600;text-transform:uppercase;color:#888;padding:5px 8px;border-bottom:1.5px solid #1D1E20}.mr td{padding:6px 8px;border-bottom:1px solid #e8e8e8;white-space:nowrap}.ar td{padding:3px 8px;border-bottom:1px solid #f0f0f0;color:#666;white-space:nowrap}.nb{font-weight:600}.mn{padding-left:14px!important}.cc{text-align:center}.cb{display:inline-block;width:14px;height:14px;border:1.5px solid #1D1E20;border-radius:3px}.ft{margin-top:14px;padding-top:8px;border-top:1px solid #e8e8e8;font-size:9px;color:#aaa;display:flex;justify-content:space-between}.fb{font-weight:700;color:#48C9B0}@media print{body{padding:0}@page{margin:1.2cm;size:A4 landscape}tr{page-break-inside:avoid}}</style></head><body><div class="hd"><h1>${eventInfo?.name||'Lista'}</h1><div class="hm">${eventInfo?.event_date?`<span>📅 ${fd(eventInfo.event_date)}</span>`:''} ${eventInfo?.venue?`<span>📍 ${eventInfo.venue}</span>`:''}<span>👥 ${total} personas · ${tables.length} mesas</span></div></div><table><thead><tr><th>#</th><th>Mesa</th><th>Nombre</th><th>RSVP</th><th>Tags</th><th>Notas</th><th style="text-align:center">Llegó</th></tr></thead><tbody>${rows.join('')}</tbody></table><div class="ft"><span class="fb">Anfiora</span><span>Impreso el ${pd}</span></div></body></html>`
     const iframe=document.createElement('iframe');iframe.style.cssText='position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;border:none;';document.body.appendChild(iframe)
@@ -1637,22 +1432,32 @@ function MesasPageInner() {
 
   const TagChips=({tags}:{tags:string[]})=>(<>{tags.length===0?<span className="text-[11px] text-[#ddd]">—</span>:tags.map(tag=>{const i=eventTags.indexOf(tag);const c=TAG_COLORS[i>=0?i%TAG_COLORS.length:0];return<span key={tag} className="rounded-full border px-1.5 py-0.5 text-[9px] font-medium" style={{background:c.bg,borderColor:c.border,color:c.text}}>{tag}</span>})}</>)
 
+  const mesaAsignar=assignModal?(tables.find(t=>t.id===assignModal.tableId)??null):null
+  const panelSinMesa=<SinMesaPanel sinMesa={sinMesa} busqueda={panelBusqueda} setBusqueda={setPanelBusqueda} puedeEditar={permiso.editar} arrastrando={arrastrando} onSentarGrupo={abrirSentarGrupo} onTap={p=>setPersonaMenu(p)}/>
+  const modalesPersona=(
+    <>
+      <ModalAsignar key={assignModal?.tableId??'ninguna'} table={mesaAsignar} personas={personas} mapa={mapa} ocupacion={ocupacion} numeroDeMesa={numeroDeMesa} onSentar={claves=>sentarPersonas(claves,assignModal!.tableId)} onClose={()=>setAssignModal(null)}/>
+      <ModalElegirMesa abierto={elegirMesa} tables={tables} ocupacion={ocupacion} mapa={mapa} personas={personas} onElegir={tableId=>sentarPersonas(elegirMesa!.personas.map(p=>p.clave),tableId)} onClose={()=>setElegirMesa(null)}/>
+      <PersonaMenu persona={personaMenu} sentado={!!personaMenu&&mapa.has(personaMenu.clave)} mesa={personaMenu&&mapa.get(personaMenu.clave)?nombreMesa(mapa.get(personaMenu.clave)!.tableId):'Sin mesa'} puedeEditar={permiso.editar} onMover={()=>personaMenu&&abrirMover(personaMenu)} onVer={()=>personaMenu&&verInvitado(personaMenu)} onQuitar={()=>personaMenu&&removeGuest(personaMenu)} onClose={()=>setPersonaMenu(null)}/>
+      <DragOverlay dropAnimation={null}>{arrastrando&&<ChipFantasma persona={arrastrando}/>}</DragOverlay>
+    </>
+  )
+
   if (loading) return <Cargando mensaje="Cargando las mesas" />
 
   // ── CANVAS ──
   if(canvasMode)return(
-    <>
-      <CanvasFullscreen tables={tables} getOccupied={getOccupied} onBack={()=>setCanvasMode(false)} onTableClick={t=>setCanvasDetailId(t.id)} onPositionSave={handlePosSave} onRotationSave={handleRotSave} onOpenCreate={openCreate} puedeEditar={permiso.editar} resetKey={canvasResetKey}
+    <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd}>
+      <CanvasFullscreen tables={tables} getOccupied={getOccupied} enMesa={enMesa} etiqueta={etiqueta} arrastrando={arrastrando} onPersona={p=>setPersonaMenu(p)} panel={panelSinMesa} onBack={()=>setCanvasMode(false)} onTableClick={t=>setCanvasDetailId(t.id)} onPositionSave={handlePosSave} onRotationSave={handleRotSave} onOpenCreate={openCreate} puedeEditar={permiso.editar} resetKey={canvasResetKey}
         decos={canvasDecos} setDecos={setCanvasDecos}
         decoRotations={canvasDecoRots} setDecoRotations={setCanvasDecoRots}
         tableColors={canvasTableColors} setTableColors={setCanvasTableColors}
         decoColors={canvasDecoColors} setDecoColors={setCanvasDecoColors}
       />
-      {canvasDetail&&<TableDetailModal table={canvasDetail} getOccupied={getOccupied} onClose={()=>setCanvasDetailId(null)} onAssign={(id,cap)=>{setAssignModal({tableId:id,tableCapacity:cap});setAssignSearch('')}} onRemoveGuest={removeGuest} onEditTable={openEditTable} onDeleteTable={handleDeleteTable} puedeEditar={permiso.editar} puedeBorrar={permiso.borrar}/>}
+      {canvasDetail&&<TableDetailModal table={canvasDetail} ocupados={enMesa(canvasDetail.id)} ocupacion={ocupacion} etiqueta={etiqueta} onClose={()=>setCanvasDetailId(null)} onAssign={(id,cap)=>setAssignModal({tableId:id,tableCapacity:cap})} onPersona={p=>setPersonaMenu(p)} onEditTable={openEditTable} onDeleteTable={handleDeleteTable} puedeEditar={permiso.editar} puedeBorrar={permiso.borrar}/>}
       <ModalMesa visible={showModal && permiso.editar} editTable={editTable} mNum={mNum} setMNum={setMNum} mName={mName} setMName={setMName} mCap={mCap} setMCap={setMCap} mShape={mShape} setMShape={setMShape} mError={mError} mSaving={mSaving} onSave={handleSaveTable} onClose={()=>setShowModal(false)} inp={inp}/>
-      <ModalAsignar tables={tables} guests={guests} assignModal={assignModal} assignSearch={assignSearch} setAssignSearch={setAssignSearch} assignRef={assignRef} gSeatMap={gSeatMap} getOccupied={getOccupied} handleSelectGuest={handleSelectGuest} onClose={()=>{setAssignModal(null);setAssignSearch('')}}/>
-      <ModalMover moveModal={moveModal} tables={tables} moveSaving={moveSaving} onConfirm={handleMove} onClose={()=>setMoveModal(null)}/>
-    </>
+      {modalesPersona}
+    </DndContext>
   )
 
   // ── LISTA ──
@@ -1660,6 +1465,7 @@ function MesasPageInner() {
   const filtered=listSearch?tables.map(t=>({...t,seats:t.seats.filter(s=>s.guest?.name.toLowerCase().includes(listSearch.toLowerCase())||s.guest?.party_members.some(m=>m.name?.toLowerCase().includes(listSearch.toLowerCase())))})).filter(t=>t.seats.length>0||t.name?.toLowerCase().includes(listSearch.toLowerCase())):tables
 
   return(
+    <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd}>
     <div style={{height:'100%',display:'flex',flexDirection:'column',overflow:'hidden',background:'#ffffff',color:'#1D1E20'}}>
       {/* Header */}
       <div style={{flexShrink:0,borderBottom:'1px solid #e8e8e8'}} className="px-4 pt-4 pb-0 sm:px-6 sm:pt-5 lg:px-10 lg:pt-6">
@@ -1702,7 +1508,9 @@ function MesasPageInner() {
         </div>
       </div>
 
-      {/* Lista */}
+      {/* Panel de sin mesa (escritorio) + Lista */}
+      <div style={{flex:1,minHeight:0,display:'flex'}}>
+      <div className="hidden sm:flex" style={{height:'100%'}}>{panelSinMesa}</div>
       <div style={{flex:1,overflowY:'auto'}} className="px-4 pb-6 pt-3 sm:px-6 lg:px-10">
         {tables.length===0?(
           <div className="mt-5 rounded-xl border border-dashed border-[#e0e0e0] px-6 py-14 text-center"><p className="text-sm text-[#888]">Sin mesas aún</p><p className="mt-1 text-xs text-[#bbb]">Crea tu primera mesa para empezar</p><div className="mt-4 flex items-center justify-center gap-2">{permiso.editar&&<button onClick={()=>setShowBulk(true)} className="rounded-lg border border-[#e0e0e0] px-4 py-2.5 text-sm text-[#666] hover:border-[#48C9B0] hover:text-[#48C9B0]">Agregar en bulk</button>}{permiso.editar&&<button onClick={openCreate} className="rounded-lg bg-[#48C9B0] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#3ab89f]">+ Nueva mesa</button>}</div></div>
@@ -1717,7 +1525,7 @@ function MesasPageInner() {
               {filtered.map((table,idx)=>{
                 const occ=getOccupied(table),avail=table.capacity-occ,full=avail===0,over=occ>table.capacity,open=expanded.has(table.id),bg=idx%2===0?'bg-white':'bg-[#fafafa]'
                 return(
-                  <div key={table.id}>
+                  <MesaDroppable key={table.id} tableId={table.id} llena={!permiso.editar||occ>=table.capacity} arrastrando={arrastrando}>
                     <div className={`grid items-center px-4 py-3 ${bg} border-b border-[#f0f0f0]`} style={{gridTemplateColumns:cols}}>
                       <div className="text-xs text-[#888]">{SHAPE_LABELS[table.shape as TableShape]?.slice(0,3)||'?'}</div>
                       <div><span className="rounded bg-[#f0f0f0] px-1.5 py-0.5 text-xs font-bold text-[#555]">#{table.number}</span></div>
@@ -1735,34 +1543,15 @@ function MesasPageInner() {
                       </div>
                     </div>
                     {open&&<>
-                      {table.seats.map(seat=>{const g=seat.guest;if(!g)return null;const st=STATUS_COLORS[g.rsvp_status];return(
-                        <div key={seat.id}>
-                          <div className={`grid items-center border-b border-[#f5f5f5] px-4 py-2 ${bg}`} style={{gridTemplateColumns:cols}}>
-                            <div/><div/><div className="flex justify-center"><div className="h-5 w-[2px] rounded-full" style={{background:st.border}}/></div>
-                            <div className="flex items-center gap-1.5"><button onClick={()=>openEditGuest(g)} className="text-xs font-semibold text-[#1D1E20] hover:text-[#48C9B0] hover:underline">{g.name}</button>{g.party_size>1&&<span className="rounded-full border border-[#9FE1CB] bg-[#f0fdfb] px-1.5 py-0.5 text-[9px] font-semibold text-[#0F6E56]">+{g.party_size-1}</span>}</div>
-                            <div><span className="rounded-full border px-2 py-0.5 text-[10px] font-semibold" style={{background:st.bg,borderColor:st.border,color:st.text}}>{st.label.slice(0,4)}.</span></div>
-                            <div className="flex flex-wrap gap-1"><TagChips tags={g.tags}/></div>
-                            <div className="truncate text-[11px] text-[#aaa]">{g.notes||<span className="text-[#ddd]">—</span>}</div>
-                            <div/>
-                            <div className="flex justify-center">{!permiso.editar?<span className={`flex h-5 w-5 items-center justify-center rounded border-2 ${g.checked_in?'border-[#48C9B0] bg-[#48C9B0]':'border-[#d0d0d0] bg-white'}`}>{g.checked_in&&<svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M1.5 5l2.5 2.5 4.5-4.5" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>}</span>:<button onClick={()=>toggleCheckin(g.id,g.checked_in)} className={`flex h-5 w-5 items-center justify-center rounded border-2 transition ${g.checked_in?'border-[#48C9B0] bg-[#48C9B0]':'border-[#d0d0d0] bg-white hover:border-[#48C9B0]'}`}>{g.checked_in&&<svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M1.5 5l2.5 2.5 4.5-4.5" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>}</button>}</div>
-                            <div className="flex justify-end">{permiso.editar&&<button onClick={()=>removeGuest(seat.id,g.name)} className="flex h-6 w-6 items-center justify-center rounded text-[#ccc] hover:text-[#cc3333]"><X width={11} height={11}/></button>}</div>
-                          </div>
-                          {g.party_members.map(m=>(
-                            <div key={m.id} className={`grid items-center border-b border-[#f5f5f5] px-4 py-1.5 ${bg}`} style={{gridTemplateColumns:cols}}>
-                              <div/><div/><div className="flex justify-center"><div className="h-4 w-[2px] rounded-full opacity-25" style={{background:st.border}}/></div>
-                              <div className="flex items-center pl-3"><span className="text-[11px] text-[#888]">{m.name||'Acompañante'}</span></div>
-                              <div><span className="rounded-full border px-2 py-0.5 text-[9px] font-semibold" style={{background:STATUS_COLORS[m.rsvp_status].bg,borderColor:STATUS_COLORS[m.rsvp_status].border,color:STATUS_COLORS[m.rsvp_status].text}}>{STATUS_COLORS[m.rsvp_status].label.slice(0,4)}.</span></div>
-                              <div/><div/><div/>
-                              <div className="flex justify-center">{!permiso.editar?<span className={`flex h-5 w-5 items-center justify-center rounded border-2 ${m.checked_in?'border-[#48C9B0] bg-[#48C9B0]':'border-[#d0d0d0] bg-white'}`}>{m.checked_in&&<svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M1.5 5l2.5 2.5 4.5-4.5" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>}</span>:<button onClick={()=>toggleMemberCheckin(m.id,g.id,m.checked_in)} className={`flex h-5 w-5 items-center justify-center rounded border-2 transition ${m.checked_in?'border-[#48C9B0] bg-[#48C9B0]':'border-[#d0d0d0] bg-white hover:border-[#48C9B0]'}`}>{m.checked_in&&<svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M1.5 5l2.5 2.5 4.5-4.5" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>}</button>}</div>
-                              <div/>
-                            </div>
-                          ))}
-                        </div>
+                      {enMesa(table.id).map(p=>{const g=guests.find(x=>x.id===p.guestId);return(
+                        <FilaPersona key={p.clave} persona={p} etiqueta={etiqueta(p)} bg={bg} cols={cols} puedeEditar={permiso.editar}
+                          tags={p.memberId?<span className="text-[11px] text-[#ddd]">—</span>:<TagChips tags={g?.tags||[]}/>} notas={p.memberId?null:(g?.notes||null)}
+                          onVer={()=>{if(g)openEditGuest(g)}} onQuitar={()=>removeGuest(p)} onCheckin={()=>p.memberId?toggleMemberCheckin(p.memberId,p.guestId,p.checkedIn):toggleCheckin(p.guestId,p.checkedIn)}/>
                       )})}
-                      {avail>0&&permiso.editar&&<div className={`border-b border-[#f0f0f0] px-4 py-2 ${bg}`}><button onClick={()=>{setAssignModal({tableId:table.id,tableCapacity:table.capacity});setAssignSearch('')}} className="flex items-center gap-1.5 text-xs text-[#48C9B0] hover:underline"><Plus width={11} height={11}/>Asignar invitado ({avail} libre{avail!==1?'s':''})</button></div>}
+                      {avail>0&&permiso.editar&&<div className={`border-b border-[#f0f0f0] px-4 py-2 ${bg}`}><button onClick={()=>setAssignModal({tableId:table.id,tableCapacity:table.capacity})} className="flex items-center gap-1.5 text-xs text-[#48C9B0] hover:underline"><Plus width={11} height={11}/>Asignar ({avail} libre{avail!==1?'s':''})</button></div>}
                       {over&&<div className={`border-b border-[#f0f0f0] px-4 py-2 ${bg}`}><span className="text-xs font-medium text-[#cc3333]">Sobrecupo: {occ} de {table.capacity} asientos ({occ-table.capacity} de más)</span></div>}
                     </>}
-                  </div>
+                  </MesaDroppable>
                 )
               })}
             </div>
@@ -1786,18 +1575,10 @@ function MesasPageInner() {
                     </div>
                     {open&&<div className="border-t border-[#f0f0f0] px-3 py-2">
                       <div className="flex flex-col gap-2">
-                        {table.seats.map(seat=>{const g=seat.guest;const st=g?STATUS_COLORS[g.rsvp_status]:null;if(!g)return null;return(
-                          <div key={seat.id} className="rounded-xl border px-3 py-2.5" style={{background:st!.bg,borderColor:st!.border}}>
-                            <div className="flex items-start justify-between gap-2">
-                              <button className="flex min-w-0 items-center gap-1.5" onClick={()=>openEditGuest(g)}><span className="truncate text-sm font-semibold hover:underline" style={{color:st!.text}}>{g.name}</span>{g.party_size>1&&<span className="shrink-0 text-sm font-semibold" style={{color:st!.text}}>+{g.party_size-1}</span>}</button>
-                              <div className="flex shrink-0 items-center gap-1.5"><span className="text-xs font-semibold" style={{color:st!.text}}>{st!.label}</span>{permiso.editar&&<button onClick={()=>removeGuest(seat.id,g.name)} style={{color:st!.text,opacity:0.4}}><X width={12} height={12}/></button>}</div>
-                            </div>
-                            {g.party_members.length>0&&<div className="mt-1.5 flex flex-col gap-1 border-t pt-1.5" style={{borderColor:st!.border}}>{g.party_members.map(m=><div key={m.id} className="flex items-center justify-between"><div className="flex items-center gap-1.5"><div className="h-3 w-[2px] shrink-0 rounded-full opacity-30" style={{background:st!.text}}/><span className="text-xs" style={{color:st!.text}}>{m.name||'Acompañante'}</span></div><span className="text-[11px]" style={{color:STATUS_COLORS[m.rsvp_status].text}}>{STATUS_COLORS[m.rsvp_status].label}</span></div>)}</div>}
-                          </div>
-                        )})}
+                        {enMesa(table.id).map(p=><PersonaCard key={p.clave} persona={p} etiqueta={etiqueta(p)} puedeEditar={permiso.editar} arrastrable={false} onTap={()=>setPersonaMenu(p)} onCheckin={()=>p.memberId?toggleMemberCheckin(p.memberId,p.guestId,p.checkedIn):toggleCheckin(p.guestId,p.checkedIn)}/>)}
                       </div>
-                      {avail>0&&permiso.editar&&<button onClick={()=>{setAssignModal({tableId:table.id,tableCapacity:table.capacity});setAssignSearch('')}} className="mt-2 flex w-full items-center gap-2 rounded-xl border border-dashed border-[#e0e0e0] px-3 py-2 hover:border-[#48C9B0] hover:bg-[#f0fdfb]"><Plus width={12} height={12} className="text-[#48C9B0]"/><span className="text-xs text-[#aaa]">Asignar invitado ({avail} libres)</span></button>}
-                      {over&&<p className="mt-2 text-xs font-medium text-[#cc3333]">Sobrecupo: {occ} de {table.capacity} asientos</p>}
+                      {avail>0&&permiso.editar&&<button onClick={()=>setAssignModal({tableId:table.id,tableCapacity:table.capacity})} className="mt-2 flex w-full items-center gap-2 rounded-xl border border-dashed border-[#e0e0e0] px-3 py-2 hover:border-[#48C9B0] hover:bg-[#f0fdfb]"><Plus width={12} height={12} className="text-[#48C9B0]"/><span className="text-xs text-[#aaa]">Asignar ({avail} libres)</span></button>}
+                      {over&&<p className="mt-2 text-xs font-medium text-[#cc3333]">Sobrecupo: {occ} de {table.capacity} lugares</p>}
                     </div>}
                   </div>
                 )
@@ -1807,26 +1588,17 @@ function MesasPageInner() {
         )}
       </div>
 
+      </div>
       {/* Modal editar invitado */}
       {editGuest&&(
         <Modal open onClose={()=>setEditGuest(null)} size="md">
           <Modal.Header title={permisoInvitados.editar ? 'Editar invitado' : 'Detalle del invitado'} />
           <Modal.Body>
-            {/* Aviso de mesa asignada */}
-            {gSeatMap.get(editGuest.id)&&(()=>{
-              const sr=gSeatMap.get(editGuest.id)
-              const assignedTable=tables.find(t=>t.id===sr.tableId)
-              if(!assignedTable)return null
-              const occ=getOccupied(assignedTable)
-              const available=assignedTable.capacity-occ+editGuest.party_size
-              return(
-                <div className="mb-4 rounded-lg border border-[#e8f8f4] bg-[#f0fdfb] px-3 py-2.5">
-                  <p className="text-[11px] font-semibold text-[#1a9e88]">
-                    Asignado a Mesa #{sr.tableNumber} · {available} asiento(s) disponibles para este grupo
-                  </p>
-                </div>
-              )
-            })()}
+            {mapa.get(editGuest.id)&&(
+              <div className="mb-4 rounded-lg border border-[#e8f8f4] bg-[#f0fdfb] px-3 py-2.5">
+                <p className="text-[11px] font-semibold text-[#1a9e88]">Sentado en {nombreMesa(mapa.get(editGuest.id)!.tableId)}{etiqueta(personas.find(p=>p.clave===editGuest.id)!)?' · '+etiqueta(personas.find(p=>p.clave===editGuest.id)!):''}</p>
+              </div>
+            )}
             <fieldset disabled={!permisoInvitados.editar} className="m-0 min-w-0 border-0 p-0">
             <div className="flex flex-col gap-4">
               <div><label className="mb-1.5 block text-xs font-medium text-[#555]">Nombre *</label><input type="text" value={eName} onChange={e=>setEName(e.target.value)} className={EDIT_GUEST_INPUT_CLASS}/></div>
@@ -1871,9 +1643,9 @@ function MesasPageInner() {
         </Modal.Footer>
       </Modal>
 
-      <ModalAsignar tables={tables} guests={guests} assignModal={assignModal} assignSearch={assignSearch} setAssignSearch={setAssignSearch} assignRef={assignRef} gSeatMap={gSeatMap} getOccupied={getOccupied} handleSelectGuest={handleSelectGuest} onClose={()=>{setAssignModal(null);setAssignSearch('')}}/>
-      <ModalMover moveModal={moveModal} tables={tables} moveSaving={moveSaving} onConfirm={handleMove} onClose={()=>setMoveModal(null)}/>
+      {modalesPersona}
     </div>
+    </DndContext>
   )
 }
 export default function MesasPage() {
