@@ -1,19 +1,20 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type RefObject } from 'react'
+import { createPortal } from 'react-dom'
 import { ChevronDown } from 'lucide-react'
 import { Modal } from '@/app/components/ui/Modal'
 import PhoneInput from '@/app/components/ui/PhoneInput'
 import { supabase } from '@/lib/supabase'
 import { sinAcentos } from '@/lib/phone'
-import { PLANES, normalizarPlan } from '@/lib/workspace/planes'
+import { normalizarPlan } from '@/lib/workspace/planes'
 import { normalizarSello, type Sello } from '@/lib/workspace/sello'
 import { esEventoVigente, hoyISO } from '@/lib/workspace/eventos'
 import { PAISES, CIUDADES_MEXICO, CODIGO_PAIS_DEFAULT, nombrePais } from '@/lib/ubicaciones'
 import type { DatosSolicitud } from '@/lib/solicitud/mensaje'
 
 // Cada muro es UNA cosa que la persona acabo de intentar, no un catalogo de
-// planes. Este tipo enumera los ocho caminos reales del producto (el noveno,
+// planes. Este tipo enumera los seis caminos reales del producto (el septimo,
 // el estado vacio de Equipo, no es un modal: solo reusa este mismo formulario
 // via AltaPersonaModal -> caso "equipo-invitar").
 export type MuroCaso =
@@ -34,12 +35,13 @@ interface MuroModalProps {
   // eventId no se fabrica un numero, se manda null y el reporte dice
   // "no disponible".
   eventId?: string
-  // Solo para "import-vacio": cuantas personas traia el archivo que no cupo
-  // ninguna. El resto de los casos no lo usa.
+  // Solo lo usa events/[id]/page.tsx al armar el reporte que se manda a
+  // Telegram (no vive en el texto que ve la persona): cuantas personas
+  // traia el archivo que no cupo ninguna. El modal ya no lo muestra.
   personasEnArchivo?: number
 }
 
-type Paso = 'aviso' | 'formulario' | 'enviado'
+type Paso = 'formulario' | 'enviado'
 type Contacto = 'WhatsApp' | 'Llamada' | 'Correo'
 const CONTACTOS: Contacto[] = ['WhatsApp', 'Llamada', 'Correo']
 
@@ -48,27 +50,22 @@ const OPCIONES_TIPO_EVENTO = [
 ] as const
 
 // Lo que la persona escoge en el formulario: es la informacion mas valiosa de
-// la solicitud, la primera que Diego necesita leer. Viene preseleccionada por
-// el muro que se topo, pero siempre se puede cambiar.
+// la solicitud, la primera que Diego necesita leer. Viene preseleccionada
+// segun el caso (Studio si es de equipo, Pro en los demas), pero siempre se
+// puede cambiar.
 const OPCIONES_PLAN_DESEADO: { id: 'pro' | 'studio'; nombre: string; resuelve: string }[] = [
   { id: 'pro', nombre: 'Pro', resuelve: 'Trabajo solo. Eventos e invitados sin tope.' },
-  { id: 'studio', nombre: 'Studio', resuelve: 'Tengo equipo. Todo lo de Pro y además mi gente adentro, con permisos.' },
+  { id: 'studio', nombre: 'Studio', resuelve: 'Tengo equipo. Todo lo de Pro y mi gente adentro.' },
 ]
 
 interface CasoConfig {
   // El grupo es lo que ya sabe el backend (DatosSolicitud.motivo) y decide si
   // se cargan personas del evento: no se toca ese contrato, solo se agrupan
-  // los ocho caminos en los tres baldes de siempre.
+  // los seis caminos en los tres baldes de siempre. Tambien decide el plan
+  // preseleccionado: Studio si es 'equipo', Pro en los demas.
   grupo: 'eventos' | 'invitados' | 'equipo'
-  titulo: (ctx: { limite: number; personasEnArchivo?: number }) => string
-  subtitulo: (ctx: { limite: number }) => string
-  // Un solo plan por muro: el que desbloquea justo lo que se intento hacer.
-  // Agency nunca aparece aqui, solo en el catalogo de planes.
-  plan: { id: 'pro' | 'studio'; descripcion: string }
-  // Linea tenue debajo del plan. null = ninguna.
-  notaTenue: string | null
-  botonSecundario: string
-  mostrarBarra: boolean
+  frase: (ctx: { limite: number }) => string
+  linea: (ctx: { limite: number }) => string
 }
 
 // Unico lugar con el texto de cada muro: agregar un caso nuevo es agregar una
@@ -76,60 +73,33 @@ interface CasoConfig {
 const CASOS: Record<MuroCaso, CasoConfig> = {
   'crear-evento': {
     grupo: 'eventos',
-    titulo: () => 'Necesitas un plan para llevar otro evento',
-    subtitulo: () => 'Tu cuenta gratis lleva un evento a la vez. El tuyo sigue intacto.',
-    plan: { id: 'pro', descripcion: 'Todos los eventos que quieras, sin tope de invitados.' },
-    notaTenue: 'Pides acceso y te escribimos para activarlo.',
-    botonSecundario: 'Ahora no',
-    mostrarBarra: false,
+    frase: () => 'Llevas un evento a la vez',
+    linea: () => 'El que ya tienes sigue intacto.',
   },
   'reactivar-evento': {
     grupo: 'eventos',
-    titulo: () => 'Para reactivarlo necesitas un plan',
-    subtitulo: () => 'Tu cuenta gratis lleva un evento a la vez, y ya tienes uno activo.',
-    plan: { id: 'pro', descripcion: 'Todos los eventos que quieras, sin tope de invitados.' },
-    notaTenue: 'También puedes archivar el otro y reactivar este.',
-    botonSecundario: 'Ahora no',
-    mostrarBarra: false,
+    frase: () => 'Ya tienes un evento activo',
+    linea: () => 'Archiva ese para reactivar este.',
   },
   'mover-fecha': {
     grupo: 'eventos',
-    titulo: () => 'Con esa fecha vuelve a contar como activo',
-    subtitulo: () => 'Y tu cuenta gratis lleva un evento a la vez. No guardamos el cambio.',
-    plan: { id: 'pro', descripcion: 'Todos los eventos que quieras, sin tope de invitados.' },
-    notaTenue: 'Pides acceso y te escribimos para activarlo.',
-    botonSecundario: 'Ahora no',
-    mostrarBarra: false,
+    frase: () => 'Con esa fecha vuelve a contar',
+    linea: () => 'No guardamos el cambio.',
   },
   'invitados-tope': {
     grupo: 'invitados',
-    // El titulo ya trae el dato (el limite). El numero grande de la barra
-    // repetia lo mismo, y encima se alcanzaba a pintar en 0 mientras el conteo
-    // del contexto todavia no cargaba (ver mostrarBarra: false abajo).
-    titulo: ({ limite }) => `Tu lista llegó a ${limite} persona${limite === 1 ? '' : 's'}`,
-    subtitulo: () => 'Nadie de los que ya tienes se pierde.',
-    plan: { id: 'pro', descripcion: 'Invitados sin tope, en todos tus eventos.' },
-    notaTenue: 'Pides acceso y te escribimos para activarlo.',
-    botonSecundario: 'Ahora no',
-    mostrarBarra: false,
+    frase: ({ limite }) => `Tu lista llegó a ${limite} persona${limite === 1 ? '' : 's'}`,
+    linea: () => 'No se pierde nadie de los que ya tienes.',
   },
   'import-vacio': {
     grupo: 'invitados',
-    titulo: ({ personasEnArchivo }) => `Ninguno de estos ${personasEnArchivo ?? 0} cabe todavía`,
-    subtitulo: ({ limite }) => `Tu lista ya está en su tope de ${limite} personas.`,
-    plan: { id: 'pro', descripcion: 'Invitados sin tope, en todos tus eventos.' },
-    notaTenue: null,
-    botonSecundario: 'Cancelar',
-    mostrarBarra: true,
+    frase: ({ limite }) => `Tu lista llegó a ${limite} persona${limite === 1 ? '' : 's'}`,
+    linea: () => 'Del archivo entraron las que cupieron.',
   },
   'equipo-invitar': {
     grupo: 'equipo',
-    titulo: () => 'Necesitas Studio para trabajar en equipo',
-    subtitulo: () => 'Tu cuenta gratis es de una persona.',
-    plan: { id: 'studio', descripcion: 'Tu equipo adentro, con permisos por persona, y eventos e invitados sin tope.' },
-    notaTenue: 'A tus clientes sí puedes invitarlos, desde cada evento.',
-    botonSecundario: 'Ahora no',
-    mostrarBarra: false,
+    frase: () => 'Tu cuenta gratis es de una persona',
+    linea: () => 'A tus clientes sí puedes invitarlos desde cada evento.',
   },
 }
 
@@ -211,9 +181,9 @@ async function cargarContexto(caso: MuroCaso, eventId: string | undefined): Prom
     }
     // Personas = invitados + acompanantes, igual que en el resto de la app
     // (contarPersonas). Solo tiene sentido para el evento que disparo el
-    // aviso de invitados: total_guests cuenta filas, no personas, y sumar
-    // todos los eventos del workspace no responde "cuantas personas tiene
-    // ESE evento".
+    // aviso de invitados: total_guests cuenta filas, no personas. Sumar
+    // todos los eventos del workspace tampoco responde "cuantas personas
+    // tiene ESE evento".
     if (CASOS[caso].grupo === 'invitados' && eventId) {
       const [rGuests, rMembers] = await Promise.all([
         supabase.from('guests').select('id', { count: 'exact', head: true }).eq('event_id', eventId),
@@ -241,26 +211,81 @@ async function cargarContexto(caso: MuroCaso, eventId: string | undefined): Prom
       telefono: fila?.phone ?? '',
     }
   } catch (e) {
-    // El aviso y el formulario tienen que servir aunque el contexto no cargue:
-    // se degrada a los defaults, nunca se queda una promesa sin atrapar.
+    // El formulario tiene que servir aunque el contexto no cargue: se
+    // degrada a los defaults, nunca se queda una promesa sin atrapar.
     console.error('[MuroModal] no se pudo cargar el contexto', e)
     return vacio
   }
 }
 
-// Campo que se despliega, no ocho chips sueltos: en un modal chico los chips
-// se veian de golpe y descuadraban el formulario. Vive dentro del flujo
-// normal (nada de portal ni posicion absoluta) para que nunca se salga de la
-// pantalla, y el boton "Listo" queda a la altura de la lista para cerrarse
-// con el pulgar en movil.
+// Posicion de un menu flotante: nunca empuja el contenido de abajo, se
+// dibuja encima via portal. Ancla al elemento disparador, se voltea hacia
+// arriba si no hay espacio abajo. Su alto se recorta al que realmente
+// quepa en el lado elegido — igual de criterio que el selector de pais de
+// PhoneInput, pero sin el modo "hoja" porque estos campos viven dentro de un
+// modal que ya resuelve el viewport de iOS por su cuenta.
+const FLOTANTE_GAP = 4
+const FLOTANTE_ALTO_MAX = 200
+const FLOTANTE_ALTO_MIN = 80
+
+interface LayoutFlotante {
+  top: number
+  left: number
+  width: number
+  maxHeight: number
+}
+
+function calcularLayoutFlotante(trigger: HTMLElement): LayoutFlotante {
+  const rect = trigger.getBoundingClientRect()
+  const vh = window.innerHeight
+  const espacioAbajo = vh - rect.bottom - FLOTANTE_GAP
+  const espacioArriba = rect.top - FLOTANTE_GAP
+  const haciaArriba = espacioAbajo < FLOTANTE_ALTO_MIN + 40 && espacioArriba > espacioAbajo
+  const disponible = haciaArriba ? espacioArriba : espacioAbajo
+  const maxHeight = Math.max(FLOTANTE_ALTO_MIN, Math.min(FLOTANTE_ALTO_MAX, disponible - 8))
+  const top = haciaArriba ? Math.max(8, rect.top - FLOTANTE_GAP - maxHeight) : rect.bottom + FLOTANTE_GAP
+  const left = Math.max(8, Math.min(rect.left, window.innerWidth - rect.width - 8))
+  return { top, left, width: rect.width, maxHeight }
+}
+
+function useLayoutFlotante(open: boolean, triggerRef: RefObject<HTMLDivElement | null>): LayoutFlotante {
+  const [layout, setLayout] = useState<LayoutFlotante>({ top: 0, left: 0, width: 0, maxHeight: FLOTANTE_ALTO_MAX })
+
+  useEffect(() => {
+    if (!open) return
+    const recalcular = () => {
+      const el = triggerRef.current
+      if (el) setLayout(calcularLayoutFlotante(el))
+    }
+    recalcular()
+    // capture:true para enterarse tambien del scroll interno del modal (la
+    // columna derecha), que es un ancestro y no dispara scroll en window.
+    window.addEventListener('scroll', recalcular, true)
+    window.addEventListener('resize', recalcular)
+    return () => {
+      window.removeEventListener('scroll', recalcular, true)
+      window.removeEventListener('resize', recalcular)
+    }
+  }, [open, triggerRef])
+
+  return layout
+}
+
+// Campo que se despliega, no ocho chips sueltos. La lista flota encima del
+// formulario (portal a document.body) en vez de empujarlo: antes crecia en
+// linea y cambiaba el alto del modal cada vez que se abria.
 function CampoTipoEvento({ value, onChange }: { value: string[]; onChange: (next: string[]) => void }) {
   const [open, setOpen] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
+  const triggerRef = useRef<HTMLDivElement>(null)
+  const dropdownRef = useRef<HTMLDivElement>(null)
+  const layout = useLayoutFlotante(open, triggerRef)
 
   useEffect(() => {
     if (!open) return
     const onClickOutside = (e: MouseEvent) => {
-      if (ref.current?.contains(e.target as Node)) return
+      const target = e.target as Node
+      if (triggerRef.current?.contains(target)) return
+      if (dropdownRef.current?.contains(target)) return
       setOpen(false)
     }
     document.addEventListener('mousedown', onClickOutside)
@@ -270,7 +295,7 @@ function CampoTipoEvento({ value, onChange }: { value: string[]; onChange: (next
   const toggle = (t: string) => onChange(value.includes(t) ? value.filter(x => x !== t) : [...value, t])
 
   return (
-    <div ref={ref} className="relative flex flex-col gap-1">
+    <div ref={triggerRef} className="flex flex-col gap-1">
       <label className="text-xs font-semibold text-[#666]">Qué eventos organizas</label>
       <button
         type="button"
@@ -282,9 +307,13 @@ function CampoTipoEvento({ value, onChange }: { value: string[]; onChange: (next
         </span>
         <ChevronDown size={14} className={`shrink-0 text-[#999] transition ${open ? 'rotate-180' : ''}`} />
       </button>
-      {open && (
-        <div className="overflow-hidden rounded-lg border border-[#e0e0e0] bg-white shadow-lg">
-          <div className="max-h-40 overflow-y-auto p-1.5">
+      {open && createPortal(
+        <div
+          ref={dropdownRef}
+          style={{ top: layout.top, left: layout.left, width: layout.width }}
+          className="fixed z-[350] overflow-hidden rounded-lg border border-[#e0e0e0] bg-white shadow-xl"
+        >
+          <div className="overflow-y-auto p-1.5" style={{ maxHeight: layout.maxHeight }}>
             {OPCIONES_TIPO_EVENTO.map(t => (
               <label key={t} className="flex cursor-pointer select-none items-center gap-2.5 rounded-md px-2.5 py-2 text-sm text-[#1D1E20] transition hover:bg-[#f8f8f8]">
                 <input type="checkbox" checked={value.includes(t)} onChange={() => toggle(t)} className="h-4 w-4 shrink-0 accent-[#48C9B0]" />
@@ -297,26 +326,31 @@ function CampoTipoEvento({ value, onChange }: { value: string[]; onChange: (next
               Listo
             </button>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   )
 }
 
-// Mismo patron que CampoTipoEvento: en el flujo normal (nada de portal ni
-// posicion absoluta) para que nunca se salga de la pantalla en movil, con un
-// buscador arriba porque 283 ciudades ya no caben en un <select> usable.
-// El filtro es sin acentos (sinAcentos de lib/phone.ts, mismo criterio que
-// PhoneInput con paises) para que "leon" encuentre "León".
+// Mismo patron que CampoTipoEvento: la lista flota via portal en vez de
+// empujar el formulario, con un buscador arriba porque 283 ciudades ya no
+// caben en un <select> usable. El filtro es sin acentos (sinAcentos de
+// lib/phone.ts, mismo criterio que PhoneInput con paises) para que "leon"
+// encuentre "León".
 function CampoCiudadMexico({ value, onChange }: { value: string; onChange: (next: string) => void }) {
   const [open, setOpen] = useState(false)
   const [filtro, setFiltro] = useState('')
-  const ref = useRef<HTMLDivElement>(null)
+  const triggerRef = useRef<HTMLDivElement>(null)
+  const dropdownRef = useRef<HTMLDivElement>(null)
+  const layout = useLayoutFlotante(open, triggerRef)
 
   useEffect(() => {
     if (!open) return
     const onClickOutside = (e: MouseEvent) => {
-      if (ref.current?.contains(e.target as Node)) return
+      const target = e.target as Node
+      if (triggerRef.current?.contains(target)) return
+      if (dropdownRef.current?.contains(target)) return
       setOpen(false)
     }
     document.addEventListener('mousedown', onClickOutside)
@@ -348,7 +382,7 @@ function CampoCiudadMexico({ value, onChange }: { value: string; onChange: (next
   }
 
   return (
-    <div ref={ref} className="relative flex flex-col gap-1">
+    <div ref={triggerRef} className="flex flex-col gap-1">
       <label className="text-xs font-semibold text-[#666]">Ciudad</label>
       <button
         type="button"
@@ -360,8 +394,12 @@ function CampoCiudadMexico({ value, onChange }: { value: string; onChange: (next
         </span>
         <ChevronDown size={14} className={`shrink-0 text-[#999] transition ${open ? 'rotate-180' : ''}`} />
       </button>
-      {open && (
-        <div className="overflow-hidden rounded-lg border border-[#e0e0e0] bg-white shadow-lg">
+      {open && createPortal(
+        <div
+          ref={dropdownRef}
+          style={{ top: layout.top, left: layout.left, width: layout.width }}
+          className="fixed z-[350] overflow-hidden rounded-lg border border-[#e0e0e0] bg-white shadow-xl"
+        >
           <div className="border-b border-[#f0f0f0] p-1.5">
             <input
               autoFocus
@@ -371,7 +409,7 @@ function CampoCiudadMexico({ value, onChange }: { value: string; onChange: (next
               className="w-full rounded-md border border-[#e0e0e0] px-2.5 py-1.5 text-sm text-[#1D1E20] outline-none focus:border-[#48C9B0]"
             />
           </div>
-          <div className="max-h-40 overflow-y-auto p-1.5">
+          <div className="overflow-y-auto p-1.5" style={{ maxHeight: layout.maxHeight }}>
             {filtradas.length === 0 && !mostrarUsarTalCual && (
               <p className="px-2.5 py-2 text-sm text-[#999]">Sin resultados</p>
             )}
@@ -398,15 +436,16 @@ function CampoCiudadMexico({ value, onChange }: { value: string; onChange: (next
               </button>
             )}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   )
 }
 
-export function MuroModal({ open, caso, limite, onClose, eventId, personasEnArchivo }: MuroModalProps) {
+export function MuroModal({ open, caso, limite, onClose, eventId }: MuroModalProps) {
   const casoCfg = CASOS[caso]
-  const [paso, setPaso] = useState<Paso>('aviso')
+  const [paso, setPaso] = useState<Paso>('formulario')
   const [contexto, setContexto] = useState<Contexto | null>(null)
 
   const [nombre, setNombre] = useState('')
@@ -427,13 +466,12 @@ export function MuroModal({ open, caso, limite, onClose, eventId, personasEnArch
 
   useEffect(() => {
     if (!open) return
-    setPaso('aviso')
+    setPaso('formulario')
     setError('')
     setEnviando(false)
-    // Preseleccionado segun el muro que se topo (Studio si topo con equipo,
-    // Pro en los demas), pero se puede cambiar: la eleccion real vive en el
-    // formulario, no en el aviso.
-    setPlanDeseado(CASOS[caso].plan.id)
+    // Preseleccionado segun el caso (Studio si es de equipo, Pro en los
+    // demas), pero se puede cambiar: es una eleccion, no un dato fijo.
+    setPlanDeseado(casoCfg.grupo === 'equipo' ? 'studio' : 'pro')
     setEventosAlAno('')
     setTiposDeEventos([])
     setTamanoDeEquipo('')
@@ -453,19 +491,11 @@ export function MuroModal({ open, caso, limite, onClose, eventId, personasEnArch
       setEmail(r.contexto?.email ?? '')
     })
     return () => { vivo = false }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, caso, eventId])
 
-  const tituloAviso = casoCfg.titulo({ limite, personasEnArchivo })
-  const subtituloAviso = casoCfg.subtitulo({ limite })
-
-  // null mientras no haya un conteo real y confirmado: nunca un relleno con
-  // `limite`, y nunca un 0 si el conteo fallo o todavia no llega.
-  const personasParaBarra = contexto?.personasEnEvento != null
-    ? Math.min(contexto.personasEnEvento, limite)
-    : null
-  const pctBarra = personasParaBarra !== null && limite > 0
-    ? Math.min(100, (personasParaBarra / limite) * 100)
-    : 0
+  const frase = casoCfg.frase({ limite })
+  const linea = casoCfg.linea({ limite })
 
   const medioContacto = contactoPreferido === 'Correo'
     ? `por correo a ${email}`
@@ -483,8 +513,11 @@ export function MuroModal({ open, caso, limite, onClose, eventId, personasEnArch
     ? `Mientras tanto tu evento y tus ${limite} invitados siguen ahí. No se pierde nada.`
     : 'Mientras tanto tu evento sigue ahí. No se pierde nada.'
 
+  const faltaTelefono = contactoPreferido !== 'Correo' && !telefono.trim()
+  const puedeEnviar = !enviando && !!nombre.trim() && !!email.trim() && tiposDeEventos.length > 0 && !faltaTelefono
+
   const enviar = async () => {
-    if (enviando || !nombre.trim() || !telefono.trim() || !email.trim() || tiposDeEventos.length === 0) return
+    if (!puedeEnviar) return
     setEnviando(true)
     setError('')
     try {
@@ -532,124 +565,109 @@ export function MuroModal({ open, caso, limite, onClose, eventId, personasEnArch
   }
 
   return (
-    <Modal open={open} onClose={onClose} size="md">
-      {paso !== 'enviado' && <Modal.Header title={tituloAviso} />}
-      <Modal.Body>
-        {paso === 'aviso' && (
-          <div className="flex flex-col gap-4">
-            <p className="text-sm text-[#666]">{subtituloAviso}</p>
-
-            {casoCfg.mostrarBarra && personasParaBarra !== null && (
-              <div className="flex flex-col gap-1.5">
-                <div className="flex items-baseline gap-1.5">
-                  <span className="text-3xl font-bold text-[#1D1E20]">{personasParaBarra}</span>
-                  <span className="text-sm text-[#888]">de {limite} personas</span>
-                </div>
-                <div className="h-2 w-full overflow-hidden rounded-full bg-[#f0f0f0]">
-                  <div className="h-full rounded-full bg-[#b98d2e]" style={{ width: `${pctBarra}%` }} />
-                </div>
-              </div>
-            )}
-
-            <div className="rounded-lg border border-[#48C9B0] bg-[#f0fdfb] px-3 py-2.5">
-              <span className="text-sm font-semibold text-[#1D1E20]">{PLANES[casoCfg.plan.id].nombre}</span>
-              <p className="mt-0.5 text-xs text-[#666]">{casoCfg.plan.descripcion}</p>
-            </div>
-
-            {casoCfg.notaTenue && (
-              <p className="text-[11px] leading-snug text-[#999]">{casoCfg.notaTenue}</p>
-            )}
-          </div>
-        )}
-
+    <Modal open={open} onClose={onClose} size={paso === 'enviado' ? 'md' : 'xl'}>
+      <Modal.Body className="!overflow-hidden !p-0">
         {paso === 'formulario' && (
-          <div className="flex flex-col gap-3">
-            <div>
-              <p className="text-xs font-semibold text-[#666]">Qué plan te interesa</p>
-              <div className="mt-1 grid grid-cols-1 gap-1.5 sm:grid-cols-2">
-                {OPCIONES_PLAN_DESEADO.map(o => (
-                  <button
-                    key={o.id}
-                    type="button"
-                    onClick={() => setPlanDeseado(o.id)}
-                    aria-pressed={planDeseado === o.id}
-                    className={`rounded-lg border px-3 py-2.5 text-left transition ${
-                      planDeseado === o.id
-                        ? 'border-[#48C9B0] bg-[#f0fdfb]'
-                        : 'border-[#e0e0e0] hover:bg-[#f8f8f8]'
-                    }`}
-                  >
-                    <span className={`block text-sm font-semibold ${planDeseado === o.id ? 'text-[#1a9e88]' : 'text-[#1D1E20]'}`}>
-                      {o.nombre}
-                    </span>
-                    <span className="mt-0.5 block text-xs leading-snug text-[#666]">{o.resuelve}</span>
-                  </button>
-                ))}
+          <div className="flex h-full min-h-0 flex-col sm:flex-row">
+            <div className="flex shrink-0 flex-col gap-5 border-b border-[#eee] bg-[#f8f8f7] px-5 py-5 sm:w-[220px] sm:border-b-0 sm:border-r">
+              <div>
+                <p className="text-[15px] font-semibold text-[#1D1E20]">{frase}</p>
+                <p className="mt-1 text-[12.5px] leading-snug text-[#666]">{linea}</p>
               </div>
+
+              <div>
+                <p className="text-xs font-semibold text-[#666]">¿Qué plan te interesa?</p>
+                <div className="mt-1.5 flex flex-col gap-1.5">
+                  {OPCIONES_PLAN_DESEADO.map(o => (
+                    <button
+                      key={o.id}
+                      type="button"
+                      onClick={() => setPlanDeseado(o.id)}
+                      aria-pressed={planDeseado === o.id}
+                      className={`rounded-lg border px-3 py-2.5 text-left transition ${
+                        planDeseado === o.id
+                          ? 'border-[#48C9B0] bg-[#f0fdfb]'
+                          : 'border-[#e0e0e0] bg-white hover:bg-[#f5f5f5]'
+                      }`}
+                    >
+                      <span className={`block text-sm font-semibold ${planDeseado === o.id ? 'text-[#1a9e88]' : 'text-[#1D1E20]'}`}>
+                        {o.nombre}
+                      </span>
+                      <span className="mt-0.5 block text-xs leading-snug text-[#666]">{o.resuelve}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <p className="mt-auto text-[11px] leading-snug text-[#999]">Te escribimos el mismo día para activarlo.</p>
             </div>
-            <label className="text-xs font-semibold text-[#666]">Nombre
-              <input value={nombre} onChange={e => setNombre(e.target.value)} autoFocus className={inputCls} />
-            </label>
-            <label className="text-xs font-semibold text-[#666]">WhatsApp
-              <PhoneInput value={telefono} onChange={setTelefono} className="mt-1" />
-            </label>
-            <div className="grid grid-cols-2 gap-3">
-              <label className="text-xs font-semibold text-[#666]">Eventos al año
-                <input value={eventosAlAno} onChange={e => setEventosAlAno(e.target.value)} placeholder="Ej. 12" className={inputCls} />
-              </label>
-              <label className="text-xs font-semibold text-[#666]">Tamaño de equipo
-                <input value={tamanoDeEquipo} onChange={e => setTamanoDeEquipo(e.target.value)} placeholder="Ej. 3" className={inputCls} />
-              </label>
-            </div>
-            <CampoTipoEvento value={tiposDeEventos} onChange={setTiposDeEventos} />
-            <div className="grid grid-cols-2 gap-3">
-              <label className="text-xs font-semibold text-[#666]">País
-                <select value={pais} onChange={e => { setPais(e.target.value); setCiudad('') }} className={inputCls}>
-                  {PAISES.map(p => <option key={p.codigo} value={p.codigo}>{p.nombre}</option>)}
-                </select>
-              </label>
-              {pais === CODIGO_PAIS_DEFAULT ? (
-                <CampoCiudadMexico value={ciudad} onChange={setCiudad} />
-              ) : (
-                <label className="text-xs font-semibold text-[#666]">Ciudad
-                  <input value={ciudad} onChange={e => setCiudad(e.target.value)} className={inputCls} />
+
+            <div className="anf-barra-fina min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-5">
+              <div className="flex flex-col gap-3">
+                <label className="text-xs font-semibold text-[#666]">Nombre o empresa
+                  <input value={nombre} onChange={e => setNombre(e.target.value)} autoFocus className={inputCls} />
                 </label>
-              )}
-            </div>
-            <div>
-              <p className="text-xs font-semibold text-[#666]">Cómo prefieres que te contactemos</p>
-              <div className="mt-1 grid grid-cols-3 gap-1.5">
-                {CONTACTOS.map(c => (
-                  <button
-                    key={c}
-                    type="button"
-                    onClick={() => setContactoPreferido(c)}
-                    className={`rounded-lg border px-3 py-2 text-xs font-medium transition ${
-                      contactoPreferido === c
-                        ? 'border-[#48C9B0] bg-[#f0fdfb] text-[#1a9e88]'
-                        : 'border-[#e0e0e0] text-[#666] hover:bg-[#f8f8f8]'
-                    }`}
-                  >
-                    {c}
-                  </button>
-                ))}
+
+                <CampoTipoEvento value={tiposDeEventos} onChange={setTiposDeEventos} />
+
+                <div className="grid grid-cols-2 gap-3">
+                  <label className="text-xs font-semibold text-[#666]">País
+                    <select value={pais} onChange={e => { setPais(e.target.value); setCiudad('') }} className={inputCls}>
+                      {PAISES.map(p => <option key={p.codigo} value={p.codigo}>{p.nombre}</option>)}
+                    </select>
+                  </label>
+                  {pais === CODIGO_PAIS_DEFAULT ? (
+                    <CampoCiudadMexico value={ciudad} onChange={setCiudad} />
+                  ) : (
+                    <label className="text-xs font-semibold text-[#666]">Ciudad
+                      <input value={ciudad} onChange={e => setCiudad(e.target.value)} className={inputCls} />
+                    </label>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <label className="text-xs font-semibold text-[#666]">Te contactamos por
+                    <select value={contactoPreferido} onChange={e => setContactoPreferido(e.target.value as Contacto)} className={inputCls}>
+                      {CONTACTOS.map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  </label>
+                  {contactoPreferido === 'Correo' ? (
+                    <label className="text-xs font-semibold text-[#666]">Correo
+                      <input value={email} disabled className={`${inputCls} cursor-not-allowed bg-[#f5f5f5] text-[#888]`} />
+                    </label>
+                  ) : (
+                    <label className="text-xs font-semibold text-[#666]">Teléfono
+                      <PhoneInput value={telefono} onChange={setTelefono} className="mt-1" />
+                    </label>
+                  )}
+                </div>
+
+                <label className="text-xs font-semibold text-[#666]">Eventos al año
+                  <input value={eventosAlAno} onChange={e => setEventosAlAno(e.target.value)} placeholder="Ej. 12" className={inputCls} />
+                </label>
+
+                <label className="text-xs font-semibold text-[#666]">Tamaño de tu equipo
+                  <input value={tamanoDeEquipo} onChange={e => setTamanoDeEquipo(e.target.value)} placeholder="Ej. 3" className={inputCls} />
+                </label>
+
+                <label className="text-xs font-semibold text-[#666]">Algo que quieras contarnos
+                  <textarea
+                    value={mensaje}
+                    onChange={e => setMensaje(e.target.value)}
+                    rows={3}
+                    placeholder="Cuéntanos qué necesitas..."
+                    className={`${inputCls} resize-none`}
+                  />
+                </label>
+
+                {error && <p className="text-xs text-[#cc3333]">{error}</p>}
               </div>
             </div>
-            <label className="text-xs font-semibold text-[#666]">Mensaje
-              <textarea
-                value={mensaje}
-                onChange={e => setMensaje(e.target.value)}
-                rows={3}
-                placeholder="Cuéntanos qué necesitas..."
-                className={`${inputCls} resize-none`}
-              />
-            </label>
-            {error && <p className="text-xs text-[#cc3333]">{error}</p>}
           </div>
         )}
 
         {paso === 'enviado' && resultado && (
-          <div className="flex flex-col items-center gap-5 px-1 py-3 text-center">
+          <div className="flex flex-col items-center gap-5 px-6 py-7 text-center">
             <img src="/images/isotipoylogo.svg" alt="Anfiora" className="h-9 w-auto" />
             <div className="flex flex-col gap-1">
               <h3 className="text-base font-bold text-[#1D1E20]">Recibimos tu solicitud</h3>
@@ -671,41 +689,22 @@ export function MuroModal({ open, caso, limite, onClose, eventId, personasEnArch
         )}
       </Modal.Body>
       <Modal.Footer>
-        {paso === 'aviso' && (
-          <>
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-lg border border-[#e0e0e0] px-4 py-2 text-sm text-[#888] transition hover:bg-[#f5f5f5]"
-            >
-              {casoCfg.botonSecundario}
-            </button>
-            <button
-              type="button"
-              onClick={() => setPaso('formulario')}
-              className="ml-auto rounded-lg bg-[#48C9B0] px-4 py-2 text-sm font-semibold text-[#08312a] transition hover:bg-[#3db39d]"
-            >
-              Pedir acceso
-            </button>
-          </>
-        )}
-
         {paso === 'formulario' && (
           <>
             <button
               type="button"
-              onClick={() => setPaso('aviso')}
-              className="rounded-lg border border-[#e0e0e0] px-4 py-2 text-sm text-[#888] transition hover:bg-[#f5f5f5]"
+              onClick={onClose}
+              className="text-sm text-[#888] transition hover:text-[#1D1E20]"
             >
-              Atrás
+              Ahora no
             </button>
             <button
               type="button"
               onClick={enviar}
-              disabled={enviando || !nombre.trim() || !telefono.trim() || !email.trim() || tiposDeEventos.length === 0}
+              disabled={!puedeEnviar}
               className="ml-auto rounded-lg bg-[#48C9B0] px-4 py-2 text-sm font-semibold text-[#08312a] transition hover:bg-[#3db39d] disabled:opacity-50"
             >
-              {enviando ? 'Enviando...' : 'Pedir acceso'}
+              {enviando ? 'Enviando...' : 'Enviar solicitud'}
             </button>
           </>
         )}
