@@ -64,42 +64,44 @@ interface CasoConfig {
   // los seis caminos en los tres baldes de siempre. Tambien decide el plan
   // preseleccionado: Studio si es 'equipo', Pro en los demas.
   grupo: 'eventos' | 'invitados' | 'equipo'
-  frase: (ctx: { limite: number }) => string
-  linea: (ctx: { limite: number }) => string
+  subtitulo: (ctx: { limite: number }) => string
 }
+
+// El titulo es el mismo para los seis casos: lo que cambia es el subtitulo,
+// una sola frase con el numero real del plan.
+const TITULO_MURO = 'Alcanzaste el límite de tu plan gratuito'
 
 // Unico lugar con el texto de cada muro: agregar un caso nuevo es agregar una
 // entrada aqui, no tocar los archivos que abren el modal.
 const CASOS: Record<MuroCaso, CasoConfig> = {
   'crear-evento': {
     grupo: 'eventos',
-    frase: () => 'Llevas un evento a la vez',
-    linea: () => 'El que ya tienes sigue intacto.',
+    subtitulo: ({ limite }) =>
+      `Tu plan incluye ${limite} evento${limite === 1 ? '' : 's'} activo${limite === 1 ? '' : 's'}: cambia a Pro para crear más.`,
   },
   'reactivar-evento': {
     grupo: 'eventos',
-    frase: () => 'Ya tienes un evento activo',
-    linea: () => 'Archiva ese para reactivar este.',
+    subtitulo: ({ limite }) =>
+      `Tu plan incluye ${limite} evento${limite === 1 ? '' : 's'} activo${limite === 1 ? '' : 's'}: archiva el actual o cambia a Pro.`,
   },
   'mover-fecha': {
     grupo: 'eventos',
-    frase: () => 'Con esa fecha vuelve a contar',
-    linea: () => 'No guardamos el cambio.',
+    subtitulo: ({ limite }) =>
+      `Con esa fecha tendrías ${limite + 1} eventos activos: cambia a Pro para llevar más de ${limite}.`,
   },
   'invitados-tope': {
     grupo: 'invitados',
-    frase: ({ limite }) => `Tu lista llegó a ${limite} persona${limite === 1 ? '' : 's'}`,
-    linea: () => 'No se pierde nadie de los que ya tienes.',
+    subtitulo: ({ limite }) =>
+      `Tu plan incluye ${limite} persona${limite === 1 ? '' : 's'} por evento: cambia a Pro para agregar más.`,
   },
   'import-vacio': {
     grupo: 'invitados',
-    frase: ({ limite }) => `Tu lista llegó a ${limite} persona${limite === 1 ? '' : 's'}`,
-    linea: () => 'Del archivo entraron las que cupieron.',
+    subtitulo: ({ limite }) =>
+      `Tu plan incluye ${limite} persona${limite === 1 ? '' : 's'} por evento y ya las tienes: cambia a Pro para importar más.`,
   },
   'equipo-invitar': {
     grupo: 'equipo',
-    frase: () => 'Tu cuenta gratis es de una persona',
-    linea: () => 'A tus clientes sí puedes invitarlos desde cada evento.',
+    subtitulo: () => 'Tu plan es individual: cambia a Studio para invitar a tu equipo.',
   },
 }
 
@@ -117,8 +119,11 @@ interface Resultado {
   enviadoEn: string
 }
 
+// text-base + py-2 porque es el alto que ya trae PhoneInput fijo por dentro
+// (no se toca ese componente para un solo modal): si aqui se usa un texto
+// mas chico el campo de telefono se ve mas grande que sus vecinos.
 const inputCls =
-  'mt-1 w-full rounded-lg border border-[#d0d0d0] bg-white px-3 py-2 text-sm text-[#1D1E20] outline-none focus:border-[#48C9B0]'
+  'mt-1 w-full rounded-lg border border-[#d0d0d0] bg-white px-3 py-2 text-base text-[#1D1E20] outline-none focus:border-[#48C9B0]'
 
 async function cargarContexto(caso: MuroCaso, eventId: string | undefined): Promise<{
   contexto: Contexto | null
@@ -538,8 +543,7 @@ export function MuroModal({ open, caso, limite, onClose, eventId }: MuroModalPro
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, caso, eventId])
 
-  const frase = casoCfg.frase({ limite })
-  const linea = casoCfg.linea({ limite })
+  const subtitulo = casoCfg.subtitulo({ limite })
 
   const medioContacto = contactoPreferido === 'Correo'
     ? `por correo a ${email}`
@@ -611,15 +615,11 @@ export function MuroModal({ open, caso, limite, onClose, eventId }: MuroModalPro
 
   return (
     <Modal open={open} onClose={onClose} size={paso === 'enviado' ? 'md' : 'xl'}>
+      {paso === 'formulario' && <Modal.Header title={TITULO_MURO} subtitle={subtitulo} />}
       <Modal.Body className={paso === 'formulario' ? '!overflow-hidden !p-0' : ''}>
         {paso === 'formulario' && (
           <div className="flex h-full min-h-0 flex-col sm:flex-row">
             <div className="flex shrink-0 flex-col gap-5 border-b border-[#eee] bg-[#f8f8f7] px-5 py-5 sm:w-[220px] sm:border-b-0 sm:border-r">
-              <div>
-                <p className="text-[15px] font-semibold text-[#1D1E20]">{frase}</p>
-                <p className="mt-1 text-[12.5px] leading-snug text-[#666]">{linea}</p>
-              </div>
-
               <div>
                 <p className="text-xs font-semibold text-[#666]">¿Qué plan te interesa?</p>
                 <div className="mt-1.5 flex flex-col gap-1.5">
@@ -682,7 +682,7 @@ export function MuroModal({ open, caso, limite, onClose, eventId }: MuroModalPro
                     </label>
                   ) : (
                     <label className="text-xs font-semibold text-[#666]">Teléfono
-                      <PhoneInput value={telefono} onChange={setTelefono} className="mt-1" />
+                      <PhoneInput value={telefono} onChange={setTelefono} placeholder="81 1234 5678" className="mt-1" />
                     </label>
                   )}
                 </div>
