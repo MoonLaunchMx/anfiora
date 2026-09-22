@@ -42,7 +42,8 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const fallo = useCallback<Api['fallo']>(({ titulo, fallo, reintentar, clave }) => {
-    if (fallo.tipo === 'interno') reportError(fallo.tecnico, { zona: 'planner' })
+    // En local no hay Sentry: la consola es el unico lugar donde se ve el error real.
+    if (fallo.tipo === 'interno') { console.error('[anfiora] fallo interno:', fallo.tecnico); reportError(fallo.tecnico, { zona: 'planner' }) }
     error({ titulo, detalle: fallo.detalle, reintentar: fallo.reintentable ? reintentar : undefined, clave })
   }, [error])
 
