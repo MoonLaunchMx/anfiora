@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import type { User } from '@supabase/supabase-js'
 import { Event, EventStatus, formatEventDate } from '@/lib/types'
-import { Bell, Building2, MessageSquarePlus } from 'lucide-react'
+import { Bell, Building2, Loader2, MessageSquarePlus } from 'lucide-react'
 import { WhatsNewModal } from '@/app/components/WhatsNewModal'
 import { NewEventModal } from '@/app/components/NewEventModal'
 import { EnlaceRolodex } from '@/app/components/EnlaceRolodex'
@@ -12,7 +12,7 @@ import { OnboardingModal } from '@/app/components/OnboardingModal'
 import { misWorkspacesAdministrados } from '@/lib/workspace/cliente'
 import { esArchivado, estadoEvento, ocupaLugar, type EventoParaEstado } from '@/lib/events/estado'
 import { esErrorDeCupo, parseLimitError, fetchAccountCapacity } from '@/lib/capacity'
-import { MuroModal } from '@/app/components/MuroModal'
+import { MuroModal, type MuroCaso } from '@/app/components/MuroModal'
 import { useConfirm } from '@/app/components/ui/ConfirmModal'
 
 export const dynamic = 'force-dynamic'
@@ -109,7 +109,9 @@ export default function Dashboard() {
   const [showNewEvent, setShowNewEvent] = useState(false)
   const [showOnboarding, setShowOnboarding] = useState(false)
   const [administra, setAdministra]     = useState(false)
-  const [muro, setMuro]                 = useState<{ limite: number } | null>(null)
+  const [muro, setMuro]                 = useState<{ limite: number; caso: MuroCaso } | null>(null)
+  const [userId, setUserId]             = useState<string | null>(null)
+  const [checkingCupo, setCheckingCupo] = useState(false)
   const askConfirm = useConfirm()
 
   useEffect(() => {
@@ -135,6 +137,7 @@ export default function Dashboard() {
   const init = async () => {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { window.location.href = '/'; return }
+    setUserId(user.id)
     checkAuth(user)
     loadData(user)
     misWorkspacesAdministrados().then(ws => setAdministra(ws.length > 0))
@@ -303,7 +306,7 @@ export default function Dashboard() {
     if (!ocupaLugar(antes, hoy) && ocupaLugar(despues, hoy)) {
       const cupo = await fetchAccountCapacity(event.user_id)
       if (cupo && cupo.lim !== null && cupo.remaining !== null && cupo.remaining <= 0) {
-        setMuro({ limite: cupo.lim })
+        setMuro({ limite: cupo.lim, caso: 'reactivar-evento' })
         return
       }
     }
@@ -320,7 +323,7 @@ export default function Dashboard() {
       setMyEvents(prev => prev.map(ev => ev.id === event.id ? { ...ev, event_status: previousStatus } : ev))
       if (error && esErrorDeCupo(error)) {
         const datos = parseLimitError(error.message)
-        setMuro({ limite: datos?.limit ?? 0 })
+        setMuro({ limite: datos?.limit ?? 0, caso: 'reactivar-evento' })
       } else {
         await askConfirm({
           title: 'No se pudo cambiar el estatus del evento',
@@ -330,6 +333,30 @@ export default function Dashboard() {
           confirmLabel: 'Entendido',
         })
       }
+    }
+  }
+
+  // El boton "+ Nuevo evento" nunca abre el asistente a ciegas: se checa el
+  // cupo ANTES, para no dejar a la persona llenar cuatro pasos y enterarse
+  // del muro hasta el final. Si el cupo no se pudo leer (RPC revocado y la
+  // lectura directa tambien fallo), fetchAccountCapacity regresa null y aqui
+  // se abre el asistente igual: el candado real vive en la base, la interfaz
+  // nunca bloquea por no haber podido preguntar. handleCreate en
+  // NewEventModal se queda como red de seguridad para quien tenga dos
+  // pestañas abiertas o cree un evento desde otro lado.
+  const handleNuevoEvento = async () => {
+    if (checkingCupo) return
+    if (!userId) { setShowNewEvent(true); return }
+    setCheckingCupo(true)
+    try {
+      const cupo = await fetchAccountCapacity(userId)
+      if (cupo && cupo.lim !== null && cupo.remaining !== null && cupo.remaining <= 0) {
+        setMuro({ limite: cupo.lim, caso: 'crear-evento' })
+        return
+      }
+      setShowNewEvent(true)
+    } finally {
+      setCheckingCupo(false)
     }
   }
 
@@ -697,11 +724,12 @@ export default function Dashboard() {
               <p className="mt-0.5 text-xs text-[#888] sm:text-sm">Resumen de tus eventos</p>
             </div>
             <button
-              onClick={() => setShowNewEvent(true)}
-              className="rounded-lg bg-[#48C9B0] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#3ab89f] active:scale-95 sm:px-5 sm:py-2.5"
+              onClick={handleNuevoEvento}
+              className="flex items-center gap-1.5 rounded-lg bg-[#48C9B0] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#3ab89f] active:scale-95 sm:px-5 sm:py-2.5"
             >
-              <span className="sm:hidden">+ Nuevo</span>
-              <span className="hidden sm:inline">+ Nuevo evento</span>
+              {checkingCupo && <Loader2 size={14} className="animate-spin" />}
+              <span className="sm:hidden">{checkingCupo ? 'Un momento...' : '+ Nuevo'}</span>
+              <span className="hidden sm:inline">{checkingCupo ? 'Un momento...' : '+ Nuevo evento'}</span>
             </button>
           </div>
 
@@ -797,10 +825,11 @@ export default function Dashboard() {
               <p className="text-sm text-[#888] sm:text-base">Aun no tienes eventos</p>
               <p className="mt-1 text-xs text-[#bbb] sm:text-sm">Crea tu primer evento para empezar</p>
               <button
-                onClick={() => setShowNewEvent(true)}
-                className="mt-4 rounded-lg bg-[#48C9B0] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#3ab89f]"
+                onClick={handleNuevoEvento}
+                className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-[#48C9B0] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#3ab89f]"
               >
-                + Crear evento
+                {checkingCupo && <Loader2 size={14} className="animate-spin" />}
+                {checkingCupo ? 'Un momento...' : '+ Crear evento'}
               </button>
             </div>
           ) : (currentMy.length === 0 && currentShared.length === 0) ? (
@@ -851,7 +880,7 @@ export default function Dashboard() {
 
       <MuroModal
         open={!!muro}
-        caso="reactivar-evento"
+        caso={muro?.caso ?? 'crear-evento'}
         limite={muro?.limite ?? 0}
         onClose={() => setMuro(null)}
       />
