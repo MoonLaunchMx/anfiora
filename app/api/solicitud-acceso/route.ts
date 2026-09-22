@@ -64,13 +64,14 @@ export async function POST(req: NextRequest) {
   }
 
   const motivo = body.motivo === 'eventos' || body.motivo === 'invitados' || body.motivo === 'equipo' ? body.motivo : null
+  const planDeseado = body.planDeseado === 'pro' || body.planDeseado === 'studio' ? body.planDeseado : null
   const email = acotarCampo(body.email, 'email')
   const nombre = acotarCampo(body.nombre, 'nombre')
   const telefono = acotarCampo(body.telefono, 'telefono')
   // El cliente manda los chips ya unidos con ", " — un string vacio quiere
   // decir que no se marco ninguno, la misma regla que la pantalla.
   const tipoDeEventos = acotarCampo(body.tipoDeEventos, 'tipoDeEventos')
-  if (!motivo || !email || !nombre || !telefono || !tipoDeEventos) {
+  if (!motivo || !planDeseado || !email || !nombre || !telefono || !tipoDeEventos) {
     return NextResponse.json({ ok: false, error: 'faltan datos' }, { status: 400 })
   }
 
@@ -83,6 +84,7 @@ export async function POST(req: NextRequest) {
     sello: body.sello === 'fundador' ? 'fundador' : null,
     eventosVigentes: comoNumeroONulo(body.eventosVigentes),
     personasEnEvento: comoNumeroONulo(body.personasEnEvento),
+    planDeseado,
     motivo,
     eventosAlAno: acotarCampo(body.eventosAlAno, 'eventosAlAno'),
     tipoDeEventos,

@@ -12,6 +12,7 @@ describe('mensaje de solicitud', () => {
       sello: null,
       eventosVigentes: 2,
       personasEnEvento: 151,
+      planDeseado: 'pro',
       motivo: 'invitados',
       eventosAlAno: '12',
       tipoDeEventos: 'Bodas',
@@ -40,6 +41,7 @@ describe('mensaje de solicitud', () => {
       sello: null,
       eventosVigentes: 2,
       personasEnEvento: 151,
+      planDeseado: 'pro',
       motivo: 'invitados',
       eventosAlAno: '12',
       tipoDeEventos: 'Bodas',
@@ -63,6 +65,7 @@ describe('mensaje de solicitud', () => {
       sello: 'fundador',
       eventosVigentes: 1,
       personasEnEvento: 30,
+      planDeseado: 'studio',
       motivo: 'eventos',
       eventosAlAno: '1',
       tipoDeEventos: 'Boda',
@@ -75,6 +78,34 @@ describe('mensaje de solicitud', () => {
     expect(texto).toContain('Plan actual: free (fundador)')
     expect(texto).toContain('Tope que topo: eventos')
     expect(texto).toContain('Mensaje: sin mensaje')
+  })
+
+  it('el plan que la persona eligio va arriba, junto al correo', () => {
+    const texto = armarMensajeSolicitud({
+      nombre: 'Ana',
+      email: 'ana@ejemplo.com',
+      telefono: '+528122222222',
+      tipoDeCuenta: 'anfitrion',
+      planActual: 'free',
+      sello: null,
+      eventosVigentes: 1,
+      personasEnEvento: 30,
+      planDeseado: 'studio',
+      motivo: 'equipo',
+      eventosAlAno: '1',
+      tipoDeEventos: 'Boda',
+      tamanoDeEquipo: '5',
+      contactoPreferido: 'Llamada',
+      pais: 'México',
+      ciudad: 'CDMX',
+      mensaje: '',
+    }, 'SOL-1001')
+    const lineas = texto.split('\n')
+    expect(lineas).toContain('Plan que quiere: Studio')
+    const idxPlan = lineas.indexOf('Plan que quiere: Studio')
+    const idxCorreo = lineas.findIndex(l => l.startsWith('Correo:'))
+    expect(idxPlan).toBeGreaterThanOrEqual(0)
+    expect(idxCorreo - idxPlan).toBe(1)
   })
 })
 
@@ -89,6 +120,7 @@ describe('mensaje de solicitud con datos no disponibles', () => {
       sello: null,
       eventosVigentes: null,
       personasEnEvento: null,
+      planDeseado: 'pro',
       motivo: 'invitados',
       eventosAlAno: '',
       tipoDeEventos: '',
@@ -136,6 +168,7 @@ describe('el mensaje completo nunca pasa el limite de Telegram', () => {
       sello: 'fundador',
       eventosVigentes: 999,
       personasEnEvento: 999999,
+      planDeseado: 'studio',
       motivo: 'invitados',
       eventosAlAno: acotarCampo('a'.repeat(9999), 'eventosAlAno'),
       tipoDeEventos: acotarCampo('a'.repeat(9999), 'tipoDeEventos'),

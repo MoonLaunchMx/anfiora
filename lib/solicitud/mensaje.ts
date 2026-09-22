@@ -7,6 +7,10 @@ export interface DatosSolicitud {
   sello: string | null
   eventosVigentes: number | null
   personasEnEvento: number | null
+  // Lo que la persona escogio en el formulario, no el plan unico del muro que
+  // la trajo hasta aqui: es la informacion mas valiosa de la solicitud, dice
+  // si trabaja sola (Pro) o si tiene equipo (Studio).
+  planDeseado: 'pro' | 'studio'
   motivo: 'eventos' | 'invitados' | 'equipo'
   eventosAlAno: string
   tipoDeEventos: string
@@ -50,10 +54,16 @@ export function acotarCampo(valor: unknown, campo: CampoLibre): string {
 // solicitud (no hay tabla donde guardarlo) y solo se usa para armar el
 // mensaje y mostrarselo a la persona. Va arriba de todo para que Diego lo
 // vea de un vistazo en Telegram.
+const ETIQUETA_PLAN_DESEADO: Record<DatosSolicitud['planDeseado'], string> = {
+  pro: 'Pro',
+  studio: 'Studio',
+}
+
 export function armarMensajeSolicitud(d: DatosSolicitud, folio: string): string {
   return [
     'Folio: ' + folio,
     'SOLICITUD DE ACCESO',
+    'Plan que quiere: ' + ETIQUETA_PLAN_DESEADO[d.planDeseado],
     'Correo: ' + d.email,
     'Nombre: ' + d.nombre,
     'Tipo de cuenta: ' + d.tipoDeCuenta,

@@ -5,6 +5,7 @@ import { ChevronDown } from 'lucide-react'
 import { Modal } from '@/app/components/ui/Modal'
 import PhoneInput from '@/app/components/ui/PhoneInput'
 import { supabase } from '@/lib/supabase'
+import { sinAcentos } from '@/lib/phone'
 import { PLANES, normalizarPlan } from '@/lib/workspace/planes'
 import { normalizarSello, type Sello } from '@/lib/workspace/sello'
 import { esEventoVigente, hoyISO } from '@/lib/workspace/eventos'
@@ -45,6 +46,14 @@ const CONTACTOS: Contacto[] = ['WhatsApp', 'Llamada', 'Correo']
 const OPCIONES_TIPO_EVENTO = [
   'Bodas', 'XV años', 'Bautizos', 'Cumpleaños', 'Corporativos', 'Graduaciones', 'Baby shower', 'Otro',
 ] as const
+
+// Lo que la persona escoge en el formulario: es la informacion mas valiosa de
+// la solicitud, la primera que Diego necesita leer. Viene preseleccionada por
+// el muro que se topo, pero siempre se puede cambiar.
+const OPCIONES_PLAN_DESEADO: { id: 'pro' | 'studio'; nombre: string; resuelve: string }[] = [
+  { id: 'pro', nombre: 'Pro', resuelve: 'Trabajo solo. Eventos e invitados sin tope.' },
+  { id: 'studio', nombre: 'Studio', resuelve: 'Tengo equipo. Todo lo de Pro y además mi gente adentro, con permisos.' },
+]
 
 interface CasoConfig {
   // El grupo es lo que ya sabe el backend (DatosSolicitud.motivo) y decide si
@@ -94,12 +103,15 @@ const CASOS: Record<MuroCaso, CasoConfig> = {
   },
   'invitados-tope': {
     grupo: 'invitados',
+    // El titulo ya trae el dato (el limite). El numero grande de la barra
+    // repetia lo mismo, y encima se alcanzaba a pintar en 0 mientras el conteo
+    // del contexto todavia no cargaba (ver mostrarBarra: false abajo).
     titulo: ({ limite }) => `Tu lista llegó a ${limite} persona${limite === 1 ? '' : 's'}`,
-    subtitulo: () => 'Es el tope de la cuenta gratis. Nadie de los que ya tienes se pierde.',
+    subtitulo: () => 'Nadie de los que ya tienes se pierde.',
     plan: { id: 'pro', descripcion: 'Invitados sin tope, en todos tus eventos.' },
     notaTenue: 'Pides acceso y te escribimos para activarlo.',
     botonSecundario: 'Ahora no',
-    mostrarBarra: true,
+    mostrarBarra: false,
   },
   'import-vacio': {
     grupo: 'invitados',
@@ -207,8 +219,12 @@ async function cargarContexto(caso: MuroCaso, eventId: string | undefined): Prom
         supabase.from('guests').select('id', { count: 'exact', head: true }).eq('event_id', eventId),
         supabase.from('party_members').select('id', { count: 'exact', head: true }).eq('event_id', eventId),
       ])
-      if (!rGuests.error && !rMembers.error) {
-        personasEnEvento = (rGuests.count ?? 0) + (rMembers.count ?? 0)
+      // rGuests.count/rMembers.count vienen null (sin error) cuando Postgrest
+      // no pudo calcular el conteo exacto: ahi tambien se queda en null, nunca
+      // en 0 — un 0 relleno es lo que hacia decir "0 de 50" un instante
+      // despues de "50 de 50".
+      if (!rGuests.error && !rMembers.error && rGuests.count !== null && rMembers.count !== null) {
+        personasEnEvento = rGuests.count + rMembers.count
       }
     }
 
@@ -287,6 +303,90 @@ function CampoTipoEvento({ value, onChange }: { value: string[]; onChange: (next
   )
 }
 
+// Mismo patron que CampoTipoEvento: en el flujo normal (nada de portal ni
+// posicion absoluta) para que nunca se salga de la pantalla en movil, con un
+// buscador arriba porque 283 ciudades ya no caben en un <select> usable.
+// El filtro es sin acentos (sinAcentos de lib/phone.ts, mismo criterio que
+// PhoneInput con paises) para que "leon" encuentre "León".
+function CampoCiudadMexico({ value, onChange }: { value: string; onChange: (next: string) => void }) {
+  const [open, setOpen] = useState(false)
+  const [filtro, setFiltro] = useState('')
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const onClickOutside = (e: MouseEvent) => {
+      if (ref.current?.contains(e.target as Node)) return
+      setOpen(false)
+    }
+    document.addEventListener('mousedown', onClickOutside)
+    return () => document.removeEventListener('mousedown', onClickOutside)
+  }, [open])
+
+  const filtroNorm = sinAcentos(filtro.trim())
+  const filtradas = filtroNorm
+    ? CIUDADES_MEXICO.filter(c => sinAcentos(c.nombre).includes(filtroNorm) || sinAcentos(c.estado).includes(filtroNorm))
+    : CIUDADES_MEXICO
+
+  // El valor guardado es solo el nombre (asi vive el campo hoy): con nombres
+  // repetidos entre estados (Guadalupe en Nuevo Leon y en Zacatecas) se
+  // muestra el primero que calce, misma ambiguedad que ya tenia el <select>.
+  const seleccionada = CIUDADES_MEXICO.find(c => c.nombre === value)
+
+  const elegir = (nombre: string) => {
+    onChange(nombre)
+    setOpen(false)
+    setFiltro('')
+  }
+
+  return (
+    <div ref={ref} className="relative flex flex-col gap-1">
+      <label className="text-xs font-semibold text-[#666]">Ciudad</label>
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className={`${inputCls} flex w-full items-center justify-between gap-2 text-left`}
+      >
+        <span className={`truncate ${value ? 'text-[#1D1E20]' : 'text-[#aaa]'}`}>
+          {seleccionada ? `${seleccionada.nombre} (${seleccionada.estado})` : 'Busca tu ciudad'}
+        </span>
+        <ChevronDown size={14} className={`shrink-0 text-[#999] transition ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <div className="overflow-hidden rounded-lg border border-[#e0e0e0] bg-white shadow-lg">
+          <div className="border-b border-[#f0f0f0] p-1.5">
+            <input
+              autoFocus
+              value={filtro}
+              onChange={e => setFiltro(e.target.value)}
+              placeholder="Buscar ciudad o estado"
+              className="w-full rounded-md border border-[#e0e0e0] px-2.5 py-1.5 text-sm text-[#1D1E20] outline-none focus:border-[#48C9B0]"
+            />
+          </div>
+          <div className="max-h-40 overflow-y-auto p-1.5">
+            {filtradas.length === 0 && (
+              <p className="px-2.5 py-2 text-sm text-[#999]">Sin resultados</p>
+            )}
+            {filtradas.map(c => (
+              <button
+                key={`${c.nombre}|${c.estado}`}
+                type="button"
+                onClick={() => elegir(c.nombre)}
+                className={`flex w-full items-center justify-between gap-2 rounded-md px-2.5 py-2 text-left text-sm transition ${
+                  c.nombre === value ? 'bg-[#f0fdfb] text-[#1a9e88]' : 'text-[#1D1E20] hover:bg-[#f8f8f8]'
+                }`}
+              >
+                <span className="truncate">{c.nombre}</span>
+                <span className="shrink-0 text-xs text-[#999]">{c.estado}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function MuroModal({ open, caso, limite, onClose, eventId, personasEnArchivo }: MuroModalProps) {
   const casoCfg = CASOS[caso]
   const [paso, setPaso] = useState<Paso>('aviso')
@@ -295,6 +395,7 @@ export function MuroModal({ open, caso, limite, onClose, eventId, personasEnArch
   const [nombre, setNombre] = useState('')
   const [email, setEmail] = useState('')
   const [telefono, setTelefono] = useState('')
+  const [planDeseado, setPlanDeseado] = useState<'pro' | 'studio'>('pro')
   const [eventosAlAno, setEventosAlAno] = useState('')
   const [tiposDeEventos, setTiposDeEventos] = useState<string[]>([])
   const [tamanoDeEquipo, setTamanoDeEquipo] = useState('')
@@ -312,6 +413,10 @@ export function MuroModal({ open, caso, limite, onClose, eventId, personasEnArch
     setPaso('aviso')
     setError('')
     setEnviando(false)
+    // Preseleccionado segun el muro que se topo (Studio si topo con equipo,
+    // Pro en los demas), pero se puede cambiar: la eleccion real vive en el
+    // formulario, no en el aviso.
+    setPlanDeseado(CASOS[caso].plan.id)
     setEventosAlAno('')
     setTiposDeEventos([])
     setTamanoDeEquipo('')
@@ -336,8 +441,14 @@ export function MuroModal({ open, caso, limite, onClose, eventId, personasEnArch
   const tituloAviso = casoCfg.titulo({ limite, personasEnArchivo })
   const subtituloAviso = casoCfg.subtitulo({ limite })
 
-  const personasParaBarra = Math.min(contexto?.personasEnEvento ?? limite, limite)
-  const pctBarra = limite > 0 ? Math.min(100, (personasParaBarra / limite) * 100) : 100
+  // null mientras no haya un conteo real y confirmado: nunca un relleno con
+  // `limite`, y nunca un 0 si el conteo fallo o todavia no llega.
+  const personasParaBarra = contexto?.personasEnEvento != null
+    ? Math.min(contexto.personasEnEvento, limite)
+    : null
+  const pctBarra = personasParaBarra !== null && limite > 0
+    ? Math.min(100, (personasParaBarra / limite) * 100)
+    : 0
 
   const medioContacto = contactoPreferido === 'Correo'
     ? `por correo a ${email}`
@@ -373,6 +484,7 @@ export function MuroModal({ open, caso, limite, onClose, eventId, personasEnArch
         sello: contexto?.sello ?? null,
         eventosVigentes: contexto?.eventosVigentes ?? null,
         personasEnEvento: contexto?.personasEnEvento ?? null,
+        planDeseado,
         motivo: casoCfg.grupo,
         eventosAlAno: eventosAlAno.trim(),
         tipoDeEventos: tiposDeEventos.join(', '),
@@ -410,7 +522,7 @@ export function MuroModal({ open, caso, limite, onClose, eventId, personasEnArch
           <div className="flex flex-col gap-4">
             <p className="text-sm text-[#666]">{subtituloAviso}</p>
 
-            {casoCfg.mostrarBarra && (
+            {casoCfg.mostrarBarra && personasParaBarra !== null && (
               <div className="flex flex-col gap-1.5">
                 <div className="flex items-baseline gap-1.5">
                   <span className="text-3xl font-bold text-[#1D1E20]">{personasParaBarra}</span>
@@ -435,6 +547,29 @@ export function MuroModal({ open, caso, limite, onClose, eventId, personasEnArch
 
         {paso === 'formulario' && (
           <div className="flex flex-col gap-3">
+            <div>
+              <p className="text-xs font-semibold text-[#666]">Qué plan te interesa</p>
+              <div className="mt-1 grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+                {OPCIONES_PLAN_DESEADO.map(o => (
+                  <button
+                    key={o.id}
+                    type="button"
+                    onClick={() => setPlanDeseado(o.id)}
+                    aria-pressed={planDeseado === o.id}
+                    className={`rounded-lg border px-3 py-2.5 text-left transition ${
+                      planDeseado === o.id
+                        ? 'border-[#48C9B0] bg-[#f0fdfb]'
+                        : 'border-[#e0e0e0] hover:bg-[#f8f8f8]'
+                    }`}
+                  >
+                    <span className={`block text-sm font-semibold ${planDeseado === o.id ? 'text-[#1a9e88]' : 'text-[#1D1E20]'}`}>
+                      {o.nombre}
+                    </span>
+                    <span className="mt-0.5 block text-xs leading-snug text-[#666]">{o.resuelve}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
             <label className="text-xs font-semibold text-[#666]">Nombre
               <input value={nombre} onChange={e => setNombre(e.target.value)} autoFocus className={inputCls} />
             </label>
@@ -456,18 +591,13 @@ export function MuroModal({ open, caso, limite, onClose, eventId, personasEnArch
                   {PAISES.map(p => <option key={p.codigo} value={p.codigo}>{p.nombre}</option>)}
                 </select>
               </label>
-              <label className="text-xs font-semibold text-[#666]">Ciudad
-                {pais === CODIGO_PAIS_DEFAULT ? (
-                  <select value={ciudad} onChange={e => setCiudad(e.target.value)} className={inputCls}>
-                    <option value="">Selecciona...</option>
-                    {CIUDADES_MEXICO.map(c => (
-                      <option key={c.nombre} value={c.nombre}>{c.nombre} ({c.estado})</option>
-                    ))}
-                  </select>
-                ) : (
+              {pais === CODIGO_PAIS_DEFAULT ? (
+                <CampoCiudadMexico value={ciudad} onChange={setCiudad} />
+              ) : (
+                <label className="text-xs font-semibold text-[#666]">Ciudad
                   <input value={ciudad} onChange={e => setCiudad(e.target.value)} className={inputCls} />
-                )}
-              </label>
+                </label>
+              )}
             </div>
             <div>
               <p className="text-xs font-semibold text-[#666]">Cómo prefieres que te contactemos</p>
