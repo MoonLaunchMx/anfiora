@@ -34,7 +34,7 @@ y un acompanante tiene a lo mas una fila (`party_member_id` unico).
 
 ## Superficies
 
-**Mesas · escritorio (lista y plano).** Panel "Sin mesa" a la izquierda, agrupado por familia,
+**Mesas · escritorio (lista y plano).** Panel "Sin mesa" a la izquierda, agrupado por el Grupo que ya existe en la base (),
 con buscador y "Sentar a los N". Arrastrar (solo mouse) una persona del panel a una mesa la
 sienta; de una mesa a otra la mueve; al panel la quita. En el plano, cada silla ocupada es una
 persona arrastrable con tooltip.

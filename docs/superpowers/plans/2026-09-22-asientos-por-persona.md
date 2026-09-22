@@ -718,7 +718,7 @@ git commit -m "feat(mesas): sentar, mover y quitar de uno en uno, tocando"
 
 - [ ] **Step 1: Componente**
 
-Cabecera `SIN MESA · {n}` con `Users` de Lucide; buscador; grupos: por `guestId`, titulo `Familia {apellido del titular}` cuando hay mas de una persona (`titular.split(' ').slice(-1)[0]`) y link `Sentar a los {k}` a la derecha; personas sin familia bajo `Sin familia`. Cuando `sinMesa` esta vacio: `Todos tienen mesa` en teal. Ancho 230px en escritorio, `hidden sm:flex`.
+Cabecera `SIN MESA · {n}` con `Users` de Lucide; buscador; se agrupa por el **Grupo** del invitado (`guests.side`, la columna Grupo de Invitados; los sin grupo al final bajo `Sin grupo`). Dentro del grupo, cada titular con sus acompanantes indentados debajo y, cuando la familia tiene 2 o mas sin mesa, el link `Sentar a los {k}` a la derecha del titular. Mesas hoy no carga `side`: agregarlo al select de guests en `loadData`/`loadTables` y a `GuestFull`. Cuando `sinMesa` esta vacio: `Todos tienen mesa` en teal. Ancho 230px en escritorio, `hidden sm:flex`.
 
 - [ ] **Step 2: Montar en lista y plano**
 
