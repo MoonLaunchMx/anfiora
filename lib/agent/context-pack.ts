@@ -48,6 +48,7 @@ export async function buildContextPack(
       .from('table_seats')
       .select('tables(name, number)')
       .eq('guest_id', guestId)
+      .is('party_member_id', null)
       .maybeSingle(),
     supabase
       .from('party_members')

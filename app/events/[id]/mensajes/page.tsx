@@ -830,6 +830,7 @@ function MensajesInbox() {
       .from('table_seats')
       .select('tables(name, number)')
       .eq('guest_id', guestId)
+      .is('party_member_id', null)
       .maybeSingle()
       .then(({ data }) => {
         if (data?.tables) {

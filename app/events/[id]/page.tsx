@@ -21,6 +21,7 @@ import TagInput, { getTagColor } from '@/app/components/ui/TagInput'
 import { toWhatsApp, componerTelefono, componerDesdeLada } from '@/lib/phone'
 import { reportError } from '@/lib/observabilidad/report'
 import { falloDeEscritura, describirFallo, type Fallo } from '@/lib/escrituras/fallo'
+import { personasDe, mapaAsientos, type Fila } from '@/lib/mesas/asientos'
 import { usePermiso } from '@/lib/event-access-context'
 import { Puede } from '@/lib/permisos/Puede'
 import * as XLSX from 'xlsx'
@@ -757,7 +758,7 @@ export default function EventPage() {
           case 'allergy':     return (g.allergies || []).includes(f.value)
           case 'side':        return g.side === f.value
           case 'rsvp_status': return g.rsvp_status === f.value || g.party_members.some(m => m.rsvp_status === f.value)
-          case 'table':       { const tb = guestTableMap.get(g.id); return !!tb && `Mesa ${tb.tableNumber}` === f.value }
+          case 'table':       return [g.id, ...g.party_members.map(m => m.id)].some(k => { const tb = guestTableMap.get(k); return !!tb && `Mesa ${tb.tableNumber}` === f.value })
           case 'cobro':       return estadoAcceso(g) === 'pendiente_pago'
           default:            return true
         }
@@ -841,8 +842,8 @@ export default function EventPage() {
         supabase.from('guests').select('*').eq('event_id', id).order('name').order('id').range(f, t)),
       fetchAll<PartyMember>((f, t) =>
         supabase.from('party_members').select('*').eq('event_id', id).order('created_at').order('id').range(f, t)),
-      fetchAll<{ guest_id: string; table_id: string }>((f, t) =>
-        supabase.from('table_seats').select('guest_id, table_id').eq('event_id', id).order('id').range(f, t)),
+      fetchAll<Fila>((f, t) =>
+        supabase.from('table_seats').select('id, table_id, event_id, guest_id, party_member_id, party_size, seat_number').eq('event_id', id).order('id').range(f, t)),
       supabase.from('tables').select('id, number, name').eq('event_id', id).then(r => r.data || []),
     ])
 
@@ -853,12 +854,13 @@ export default function EventPage() {
       else membersByGuest.set(m.guest_id, [m])
     }
 
+    // El mapa va por persona: la clave es el id del acompanante o del invitado.
     const tableById = new Map((tablesData || []).map(t => [t.id, t]))
+    const personas = personasDe(guestsData.map(g => ({ ...g, party_members: membersByGuest.get(g.id) || [] })))
     const seatMap = new Map<string, GuestTableInfo>()
-    for (const seat of seatsData) {
-      if (!seat.guest_id) continue
-      const table = tableById.get(seat.table_id)
-      if (table) seatMap.set(seat.guest_id, { tableNumber: table.number, tableName: table.name })
+    for (const [clave, lugar] of mapaAsientos(seatsData, personas)) {
+      const table = tableById.get(lugar.tableId)
+      if (table) seatMap.set(clave, { tableNumber: table.number, tableName: table.name })
     }
 
     setGuestTableMap(seatMap)
@@ -1467,7 +1469,7 @@ export default function EventPage() {
         Tags: (g.tags || []).join(', '),
         Alergias: (g.allergies || []).join(', '),
         Notas: g.notes || '',
-        'Acompañantes': g.party_members.map(m => m.name || 'Acompañante').join(', '),
+        'Acompañantes': g.party_members.map(m => (m.name || 'Acompañante') + (guestTableMap.get(m.id) ? ' (Mesa ' + guestTableMap.get(m.id)!.tableNumber + ')' : '')).join(', '),
       }
     })
     const ws = XLSX.utils.json_to_sheet(data)
@@ -1511,7 +1513,7 @@ export default function EventPage() {
     ]
     if (visibleCols.has('estatus')) colDefs.push({ label: 'Estatus', guest: g => STATUS_LABEL[g.rsvp_status].label, member: m => STATUS_LABEL[m.rsvp_status].label })
     if (visibleCols.has('lado'))     colDefs.push({ label: 'Grupo', guest: g => g.side || '', member: () => '' })
-    if (visibleCols.has('mesa'))     colDefs.push({ label: 'Mesa', guest: g => { const t = guestTableMap.get(g.id); return t ? `Mesa ${t.tableNumber}` : '' }, member: () => '' })
+    if (visibleCols.has('mesa'))     colDefs.push({ label: 'Mesa', guest: g => getTableLabel(g.id), member: m => getTableLabel(m.id) })
     if (visibleCols.has('tags'))     colDefs.push({ label: 'Tags', guest: g => (g.tags || []).join(', '), member: () => '' })
     if (visibleCols.has('notas'))    colDefs.push({ label: 'Notas', guest: g => g.notes || '', member: () => '' })
     if (visibleCols.has('telefono')) colDefs.push({ label: 'Teléfono', guest: g => g.phone || '', member: m => m.phone || '' })
@@ -1539,7 +1541,7 @@ export default function EventPage() {
   const exportCSV = () => {
     const headers = 'nombre,telefono,email,status,mesa,notas,tags,acompañantes'
     const rows = guests.map(g => {
-      const memberNames = g.party_members.map(m => m.name || 'Acompañante').join(' | ')
+      const memberNames = g.party_members.map(m => (m.name || 'Acompañante') + (guestTableMap.get(m.id) ? ' (Mesa ' + guestTableMap.get(m.id)!.tableNumber + ')' : '')).join(' | ')
       const tableInfo = guestTableMap.get(g.id)
       const mesaLabel = tableInfo ? `Mesa ${tableInfo.tableNumber}${tableInfo.tableName ? ' - ' + tableInfo.tableName : ''}` : ''
       return '"' + g.name + '","' + (g.phone || '') + '","' + (g.email || '') + '","' + STATUS_LABEL[g.rsvp_status].label + '","' + mesaLabel + '","' + (g.notes || '').replace(/"/g, '""') + '","' + (g.tags || []).join(', ') + '","' + memberNames + '"'
@@ -1600,7 +1602,7 @@ export default function EventPage() {
   const activeTemplates = (eventSettings?.message_templates as string[] | null)?.filter((t: string) => t.trim()) || []
   const templateNames = eventSettings?.template_names as string[] | null
   const availableTags = event?.guest_tags || []
-  const tableFilterValues = useMemo(() => Array.from(new Set(guests.map(g => { const t = guestTableMap.get(g.id); return t ? `Mesa ${t.tableNumber}` : '' }).filter(Boolean))) as string[], [guests, guestTableMap])
+  const tableFilterValues = useMemo(() => Array.from(new Set(guests.flatMap(g => [g.id, ...g.party_members.map(m => m.id)]).map(k => { const t = guestTableMap.get(k); return t ? `Mesa ${t.tableNumber}` : '' }).filter(Boolean))) as string[], [guests, guestTableMap])
   const createEventTag = async (tag: string) => {
     if (!permiso.editar) return
     const t = tag.trim()
@@ -1923,6 +1925,7 @@ export default function EventPage() {
                             <div className="h-6 w-[3px] shrink-0 rounded-full opacity-40" style={{ background: groupColor }} />
                             <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold" style={{ background: groupColor + '22', color: groupColor }}>+{mi + 1}</div>
                             <span className="flex-1 truncate text-xs text-[#888]">{m.name || 'Acompañante'}</span>
+                            {getTableLabel(m.id) && <span className="shrink-0 rounded-full border border-[#c8ede7] bg-[#f0fdfb] px-1.5 py-0.5 text-[10px] font-medium text-[#1f8a75]">{getTableLabel(m.id)}</span>}
                             <StatusDot value={m.rsvp_status} onChange={s => updatePartyMemberStatus(m.id, guest.id, s)} puedeEditar={permiso.editar} />
                           </div>
                         </div>
@@ -2087,7 +2090,9 @@ export default function EventPage() {
                             <span className="text-xs text-[#888]">{m.name || 'Acompañante'}</span>
                           </div>
                           {visibleCols.has('tags')     && <div />}
-                          {visibleCols.has('mesa')     && <div />}
+                          {visibleCols.has('mesa')     && (
+                            <div>{getTableLabel(m.id) ? <span onClick={(e) => { e.stopPropagation(); addFilter('table', getTableLabel(m.id)) }} className="cursor-pointer rounded-full border border-[#c8ede7] bg-[#f0fdfb] px-2 py-0.5 text-[10px] font-semibold text-[#1a9e88] transition hover:opacity-75">{getTableLabel(m.id)}</span> : <span className="text-[#ddd] text-xs">—</span>}</div>
+                          )}
                           {visibleCols.has('lado')     && <div />}
                           {visibleCols.has('notas')    && <div />}
                           {visibleCols.has('telefono') && <div className="text-xs text-[#aaa]">{m.phone || ''}</div>}
