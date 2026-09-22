@@ -325,9 +325,13 @@ export default function Dashboard() {
         const datos = parseLimitError(error.message)
         setMuro({ limite: datos?.limit ?? 0, caso: 'reactivar-evento' })
       } else {
+        // El motivo real (el que devuelve la base) sirve mas que un generico
+        // "intenta de nuevo": cuando no hay mensaje (cero filas sin error) es
+        // que un candado silencioso lo bloqueo y ahi si no hay motivo que
+        // mostrar.
         await askConfirm({
           title: 'No se pudo cambiar el estatus del evento',
-          message: 'Intenta de nuevo.',
+          message: error?.message?.trim() || 'No se pudo cambiar el estatus. Recarga la página e inténtalo otra vez.',
           soloAviso: true,
           tone: 'default',
           confirmLabel: 'Entendido',
