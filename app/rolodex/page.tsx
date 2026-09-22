@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Columns2, Filter, Search, X } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { planDelWorkspaceActivo } from '@/lib/workspace/cliente'
 import { Cargando } from '@/app/components/ui/Cargando'
 import StatsCollapse, { useStatsToggle, StatsToggleButton } from '@/app/components/ui/StatsCollapse'
 import { Categoria, cargarCategorias, nombrePorId } from '@/lib/rolodex/categorias-store'
@@ -56,6 +57,16 @@ export default function DirectorioPage() {
     const cargar = async () => {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { window.location.href = '/'; return }
+
+      // El Rolodex es de plan: free no lo tiene. Si no se pudo leer el plan
+      // no se saca a nadie (el candado real vive en el resto del muro); solo
+      // se manda de vuelta al tablero cuando SI se confirmo free sin sello.
+      const ws = await planDelWorkspaceActivo()
+      if (ws && ws.plan === 'free' && ws.sello !== 'fundador') {
+        window.location.href = '/dashboard'
+        return
+      }
+      if (!vivo) return
 
       const [proveedoresRes, categorias] = await Promise.all([
         supabase

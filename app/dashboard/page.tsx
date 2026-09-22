@@ -4,12 +4,16 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import type { User } from '@supabase/supabase-js'
 import { Event, EventStatus, formatEventDate } from '@/lib/types'
-import { Bell, Building2, MessageSquarePlus } from 'lucide-react'
+import { Bell, Building2, Loader2, MessageSquarePlus } from 'lucide-react'
 import { WhatsNewModal } from '@/app/components/WhatsNewModal'
 import { NewEventModal } from '@/app/components/NewEventModal'
 import { EnlaceRolodex } from '@/app/components/EnlaceRolodex'
 import { OnboardingModal } from '@/app/components/OnboardingModal'
 import { misWorkspacesAdministrados } from '@/lib/workspace/cliente'
+import { esArchivado, estadoEvento, ocupaLugar, type EventoParaEstado } from '@/lib/events/estado'
+import { esErrorDeCupo, parseLimitError, fetchAccountCapacity } from '@/lib/capacity'
+import { MuroModal, type MuroCaso } from '@/app/components/MuroModal'
+import { useConfirm } from '@/app/components/ui/ConfirmModal'
 
 export const dynamic = 'force-dynamic'
 
@@ -24,7 +28,7 @@ type EventWithStats = Event & {
   owner_name?: string | null
 }
 
-type Tab = 'activos' | 'pasados' | 'pausados' | 'cancelados'
+type Tab = 'activos' | 'pasados' | 'archivados'
 
 type ReminderTask = {
   id: string
@@ -105,6 +109,10 @@ export default function Dashboard() {
   const [showNewEvent, setShowNewEvent] = useState(false)
   const [showOnboarding, setShowOnboarding] = useState(false)
   const [administra, setAdministra]     = useState(false)
+  const [muro, setMuro]                 = useState<{ limite: number; caso: MuroCaso } | null>(null)
+  const [userId, setUserId]             = useState<string | null>(null)
+  const [checkingCupo, setCheckingCupo] = useState(false)
+  const askConfirm = useConfirm()
 
   useEffect(() => {
     const interval = setInterval(() => setNow(new Date()), 1000)
@@ -129,6 +137,7 @@ export default function Dashboard() {
   const init = async () => {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { window.location.href = '/'; return }
+    setUserId(user.id)
     checkAuth(user)
     loadData(user)
     misWorkspacesAdministrados().then(ws => setAdministra(ws.length > 0))
@@ -151,7 +160,7 @@ export default function Dashboard() {
     const [myRes, collabRes] = await Promise.all([
       supabase
         .from('events')
-        .select('id, name, event_date, event_end_date, event_time, venue, total_guests, event_status')
+        .select('id, name, event_date, event_end_date, event_time, venue, total_guests, event_status, user_id')
         .eq('user_id', userId)
         .order('event_date', { ascending: true }),
       supabase
@@ -286,8 +295,73 @@ export default function Dashboard() {
     e.stopPropagation()
     setOpenMenuId(null)
     if (event.is_shared) return
+
+    // Reactivar un evento archivado lo hace volver a ocupar lugar: se checa
+    // antes del update, sin depender del trigger de la base (el candado real
+    // vive ahi, pero mientras su SQL no corra en produccion esta es la unica
+    // pared). Mismo criterio que configuracion/page.tsx.
+    const antes: EventoParaEstado = { event_status: event.event_status, event_date: event.event_date ?? null, event_end_date: event.event_end_date ?? null }
+    const despues: EventoParaEstado = { event_status: newStatus, event_date: event.event_date ?? null, event_end_date: event.event_end_date ?? null }
+    const hoy = new Date()
+    if (!ocupaLugar(antes, hoy) && ocupaLugar(despues, hoy)) {
+      const cupo = await fetchAccountCapacity(event.user_id)
+      if (cupo && cupo.lim !== null && cupo.remaining !== null && cupo.remaining <= 0) {
+        setMuro({ limite: cupo.lim, caso: 'reactivar-evento' })
+        return
+      }
+    }
+
+    const previousStatus = event.event_status
     setMyEvents(prev => prev.map(ev => ev.id === event.id ? { ...ev, event_status: newStatus } : ev))
-    await supabase.from('events').update({ event_status: newStatus }).eq('id', event.id)
+    // Sin .select() un UPDATE filtrado por RLS (o rechazado por una regla
+    // vieja de la base que no conozca el estatus nuevo) no da error: devuelve
+    // cero filas. Igual que en admin/update-plan, el exito se decide por
+    // filas afectadas, no por la ausencia de error.
+    const { data: filas, error } = await supabase
+      .from('events').update({ event_status: newStatus }).eq('id', event.id).select('id')
+    if (error || !filas || filas.length === 0) {
+      setMyEvents(prev => prev.map(ev => ev.id === event.id ? { ...ev, event_status: previousStatus } : ev))
+      if (error && esErrorDeCupo(error)) {
+        const datos = parseLimitError(error.message)
+        setMuro({ limite: datos?.limit ?? 0, caso: 'reactivar-evento' })
+      } else {
+        // El motivo real (el que devuelve la base) sirve mas que un generico
+        // "intenta de nuevo": cuando no hay mensaje (cero filas sin error) es
+        // que un candado silencioso lo bloqueo y ahi si no hay motivo que
+        // mostrar.
+        await askConfirm({
+          title: 'No se pudo cambiar el estatus del evento',
+          message: error?.message?.trim() || 'No se pudo cambiar el estatus. Recarga la página e inténtalo otra vez.',
+          soloAviso: true,
+          tone: 'default',
+          confirmLabel: 'Entendido',
+        })
+      }
+    }
+  }
+
+  // El boton "+ Nuevo evento" nunca abre el asistente a ciegas: se checa el
+  // cupo ANTES, para no dejar a la persona llenar cuatro pasos y enterarse
+  // del muro hasta el final. Si el cupo no se pudo leer (RPC revocado y la
+  // lectura directa tambien fallo), fetchAccountCapacity regresa null y aqui
+  // se abre el asistente igual: el candado real vive en la base, la interfaz
+  // nunca bloquea por no haber podido preguntar. handleCreate en
+  // NewEventModal se queda como red de seguridad para quien tenga dos
+  // pestañas abiertas o cree un evento desde otro lado.
+  const handleNuevoEvento = async () => {
+    if (checkingCupo) return
+    if (!userId) { setShowNewEvent(true); return }
+    setCheckingCupo(true)
+    try {
+      const cupo = await fetchAccountCapacity(userId)
+      if (cupo && cupo.lim !== null && cupo.remaining !== null && cupo.remaining <= 0) {
+        setMuro({ limite: cupo.lim, caso: 'crear-evento' })
+        return
+      }
+      setShowNewEvent(true)
+    } finally {
+      setCheckingCupo(false)
+    }
   }
 
   const handleLogout = async () => {
@@ -351,29 +425,23 @@ export default function Dashboard() {
   const today = new Date()
   today.setHours(0, 0, 0, 0)
 
-  const isUpcoming = (e: Event) => {
-    const d = getEventDateTime(e)
-    d.setHours(0, 0, 0, 0)
-    return d >= today
-  }
-
   const filterByTab = (list: EventWithStats[]) => {
+    // estadoEvento mira event_end_date || event_date (ultimoDia): un evento de
+    // varios dias que empezo ayer y termina manana sigue activo, no cae en
+    // Pasados solo por mirar la fecha de inicio.
     const active = list
-      .filter(e => e.event_status === 'active' && isUpcoming(e))
+      .filter(e => estadoEvento(e, today) === 'activo')
       .sort((a, b) => {
         const diff = getEventDateTime(a).getTime() - getEventDateTime(b).getTime()
         return sortAsc ? diff : -diff
       })
     const past = list
-      .filter(e => e.event_status === 'active' && !isUpcoming(e))
+      .filter(e => estadoEvento(e, today) === 'pasado')
       .sort((a, b) => getEventDateTime(b).getTime() - getEventDateTime(a).getTime())
-    const paused = list
-      .filter(e => e.event_status === 'paused')
+    const archived = list
+      .filter(e => esArchivado(e.event_status))
       .sort((a, b) => getEventDateTime(b).getTime() - getEventDateTime(a).getTime())
-    const cancelled = list
-      .filter(e => e.event_status === 'cancelled')
-      .sort((a, b) => getEventDateTime(b).getTime() - getEventDateTime(a).getTime())
-    return { active, past, paused, cancelled }
+    return { active, past, archived }
   }
 
   const myFiltered = filterByTab(myEvents)
@@ -382,14 +450,12 @@ export default function Dashboard() {
   const currentMy =
     activeTab === 'activos'    ? myFiltered.active :
     activeTab === 'pasados'    ? myFiltered.past :
-    activeTab === 'pausados'   ? myFiltered.paused :
-    myFiltered.cancelled
+    myFiltered.archived
 
   const currentShared =
     activeTab === 'activos'    ? sharedFiltered.active :
     activeTab === 'pasados'    ? sharedFiltered.past :
-    activeTab === 'pausados'   ? sharedFiltered.paused :
-    sharedFiltered.cancelled
+    sharedFiltered.archived
 
   const nextCandidates = [
     ...myFiltered.active,
@@ -406,19 +472,25 @@ export default function Dashboard() {
     : []
 
   const tabs: { key: Tab; label: string; count: number }[] = [
-    { key: 'activos',    label: 'Activos',    count: myFiltered.active.length    + sharedFiltered.active.length    },
-    { key: 'pasados',    label: 'Pasados',    count: myFiltered.past.length      + sharedFiltered.past.length      },
-    { key: 'pausados',   label: 'Pausados',   count: myFiltered.paused.length    + sharedFiltered.paused.length    },
-    { key: 'cancelados', label: 'Cancelados', count: myFiltered.cancelled.length + sharedFiltered.cancelled.length },
+    { key: 'activos',    label: 'Activos',    count: myFiltered.active.length   + sharedFiltered.active.length   },
+    { key: 'pasados',    label: 'Pasados',    count: myFiltered.past.length     + sharedFiltered.past.length     },
+    { key: 'archivados', label: 'Archivados', count: myFiltered.archived.length + sharedFiltered.archived.length },
   ]
 
+  const MENU_STATUS_DOT: Record<EventStatus, string> = {
+    active:   'bg-[#48C9B0]',
+    archived: 'bg-[#888888]',
+  }
+
   const getMenuOptions = (event: EventWithStats) => {
-    const all: { label: string; status: EventStatus; color?: string }[] = [
-      { label: '● Activo',    status: 'active' },
-      { label: '⏸ Pausado',   status: 'paused' },
-      { label: '✕ Cancelado', status: 'cancelled', color: '#cc3333' },
-    ]
-    return all.filter(o => o.status !== event.event_status)
+    // Estatus viejos en prod (paused/cancelled/completed) no son 'active' ni
+    // 'archived': sin normalizar primero, ninguno de los dos calza contra el
+    // crudo y el menu ofrece Archivar Y Reactivar al mismo tiempo.
+    const estatusEfectivo: EventStatus = esArchivado(event.event_status) ? 'archived' : 'active'
+    const all: EventStatus[] = ['active', 'archived']
+    return all
+      .filter(status => status !== estatusEfectivo)
+      .map(status => ({ status, dot: MENU_STATUS_DOT[status] }))
   }
 
   const totalReminders = reminders.length
@@ -497,9 +569,9 @@ export default function Dashboard() {
                   <div className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-[#bbb]">Cambiar estado</div>
                   {getMenuOptions(event).map(opt => (
                     <button key={opt.status} onClick={e => handleStatusChange(event, opt.status, e)}
-                      className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-xs transition hover:bg-[#f8f8f8]"
-                      style={{ color: opt.color || '#555' }}>
-                      {opt.label}
+                      className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-xs text-[#555] transition hover:bg-[#f8f8f8]">
+                      <span className={'h-2 w-2 rounded-full ' + opt.dot} />
+                      {opt.status === 'archived' ? 'Archivar' : 'Reactivar'}
                     </button>
                   ))}
                 </div>
@@ -656,9 +728,10 @@ export default function Dashboard() {
               <p className="mt-0.5 text-xs text-[#888] sm:text-sm">Resumen de tus eventos</p>
             </div>
             <button
-              onClick={() => setShowNewEvent(true)}
-              className="rounded-lg bg-[#48C9B0] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#3ab89f] active:scale-95 sm:px-5 sm:py-2.5"
+              onClick={handleNuevoEvento}
+              className="flex items-center gap-1.5 rounded-lg bg-[#48C9B0] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#3ab89f] active:scale-95 sm:px-5 sm:py-2.5"
             >
+              {checkingCupo && <Loader2 size={14} className="animate-spin" />}
               <span className="sm:hidden">+ Nuevo</span>
               <span className="hidden sm:inline">+ Nuevo evento</span>
             </button>
@@ -721,7 +794,7 @@ export default function Dashboard() {
           )}
 
           <div className="flex items-center gap-2 pb-3">
-            <div className="grid flex-1 grid-cols-4 gap-1">
+            <div className="grid flex-1 grid-cols-3 gap-1">
               {tabs.map(tab => (
                 <button key={tab.key} onClick={() => setActiveTab(tab.key)}
                   className={'flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-semibold transition ' + (activeTab === tab.key ? 'bg-[#1D1E20] text-white' : 'text-[#888] hover:bg-[#efefef]')}>
@@ -756,9 +829,10 @@ export default function Dashboard() {
               <p className="text-sm text-[#888] sm:text-base">Aun no tienes eventos</p>
               <p className="mt-1 text-xs text-[#bbb] sm:text-sm">Crea tu primer evento para empezar</p>
               <button
-                onClick={() => setShowNewEvent(true)}
-                className="mt-4 rounded-lg bg-[#48C9B0] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#3ab89f]"
+                onClick={handleNuevoEvento}
+                className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-[#48C9B0] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#3ab89f]"
               >
+                {checkingCupo && <Loader2 size={14} className="animate-spin" />}
                 + Crear evento
               </button>
             </div>
@@ -767,8 +841,7 @@ export default function Dashboard() {
               <p className="text-sm text-[#888]">
                 {activeTab === 'activos'    && 'No tienes eventos activos'}
                 {activeTab === 'pasados'    && 'No tienes eventos pasados'}
-                {activeTab === 'pausados'   && 'No tienes eventos pausados'}
-                {activeTab === 'cancelados' && 'No tienes eventos cancelados'}
+                {activeTab === 'archivados' && 'No tienes eventos archivados'}
               </p>
             </div>
           ) : (
@@ -807,6 +880,13 @@ export default function Dashboard() {
           setShowNewEvent(false)
           window.location.href = '/events/' + eventId
         }}
+      />
+
+      <MuroModal
+        open={!!muro}
+        caso={muro?.caso ?? 'crear-evento'}
+        limite={muro?.limite ?? 0}
+        onClose={() => setMuro(null)}
       />
 
     </div>

@@ -3,8 +3,11 @@
 import { useState, Fragment } from 'react'
 import { ChevronDown, ChevronUp, Mail, Ban, Trash2, CheckCircle } from 'lucide-react'
 import { AdminUser, GlobalStats } from './lib/types'
-import { formatDate, formatDateTime, timeAgo, PLAN_STYLES } from './lib/format'
+import { formatDate, formatDateTime, timeAgo, PLAN_STYLES, PLAN_LABEL_COLORS } from './lib/format'
 import { CURRENT_LEGAL_VERSION } from '@/lib/legal'
+import { PLAN_IDS, PLANES, normalizarPlan } from '@/lib/workspace/planes'
+import { isPaidPlan } from '@/lib/billing'
+import { LUGARES_FUNDADOR, hayLugarDeFundador } from '@/lib/workspace/sello'
 import DeleteUserModal from './DeleteUserModal'
 
 interface Props {
@@ -12,19 +15,22 @@ interface Props {
   stats: GlobalStats | null
   actionLoading: string | null
   onChangePlan: (userId: string, plan: string) => void
+  onChangeSello: (userId: string, fundador: boolean) => void
   onAdminAction: (userId: string, action: 'delete' | 'ban' | 'unban', emailConfirm?: string) => void
 }
 
 type SortBy = 'created_at' | 'event_count' | 'guest_count' | 'last_sign_in'
 
-const isProtectedPlan = (plan: string) => plan === 'pro' || plan === 'agency'
+const isProtectedPlan = isPaidPlan
 
-export default function UsuariosTab({ users, stats, actionLoading, onChangePlan, onAdminAction }: Props) {
+export default function UsuariosTab({ users, stats, actionLoading, onChangePlan, onChangeSello, onAdminAction }: Props) {
   const [search, setSearch]         = useState('')
   const [planFilter, setPlanFilter] = useState<string>('all')
   const [sortBy, setSortBy]         = useState<SortBy>('created_at')
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<AdminUser | null>(null)
+
+  const founderCount = users.filter(u => u.sello === 'fundador').length
 
   const filtered = users
     .filter(u => {
@@ -53,18 +59,12 @@ export default function UsuariosTab({ users, stats, actionLoading, onChangePlan,
           <div className="rounded-xl border border-[#e8e8e8] bg-white p-4">
             <p className="text-xs text-[#888]">Por plan</p>
             <div className="mt-2 space-y-1">
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-[#888]">Free</span>
-                <span className="text-xs font-semibold text-[#1D1E20]">{stats.free_users}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-[#48C9B0]">Pro</span>
-                <span className="text-xs font-semibold text-[#1D1E20]">{stats.pro_users}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-[#f59e0b]">Agency</span>
-                <span className="text-xs font-semibold text-[#1D1E20]">{stats.agency_users}</span>
-              </div>
+              {PLAN_IDS.map(id => (
+                <div key={id} className="flex items-center justify-between">
+                  <span className={'text-xs ' + PLAN_LABEL_COLORS[id]}>{PLANES[id].nombre}</span>
+                  <span className="text-xs font-semibold text-[#1D1E20]">{stats.byPlan[id]}</span>
+                </div>
+              ))}
             </div>
           </div>
           <div className="rounded-xl border border-[#e8e8e8] bg-white p-4">
@@ -110,7 +110,7 @@ export default function UsuariosTab({ users, stats, actionLoading, onChangePlan,
             className="flex-1 rounded-lg border border-[#e0e0e0] px-3 py-1.5 text-sm text-[#1D1E20] outline-none focus:border-[#48C9B0] min-w-[180px]"
           />
           <div className="flex gap-2">
-            {['all', 'free', 'pro', 'agency'].map(p => (
+            {['all', ...PLAN_IDS].map(p => (
               <button key={p} onClick={() => setPlanFilter(p)}
                 className={'rounded-lg px-3 py-1.5 text-xs font-medium transition ' + (planFilter === p ? 'bg-[#48C9B0] text-white' : 'border border-[#e0e0e0] text-[#555] hover:bg-[#f5f5f5]')}>
                 {p === 'all' ? 'Todos' : p.charAt(0).toUpperCase() + p.slice(1)}
@@ -162,7 +162,10 @@ export default function UsuariosTab({ users, stats, actionLoading, onChangePlan,
                       </div>
                     </td>
                     <td className="px-4 py-3">
-                      <span className={'rounded-full px-2 py-0.5 text-xs font-medium ' + (PLAN_STYLES[u.plan] || PLAN_STYLES.free)}>{u.plan}</span>
+                      <span className={'rounded-full px-2 py-0.5 text-xs font-medium ' + (PLAN_STYLES[normalizarPlan(u.plan)])}>{u.plan}</span>
+                      {u.sello === 'fundador' && (
+                        <span className="ml-1 rounded-full bg-[#fdf8ec] px-2 py-0.5 text-xs font-medium text-[#b98d2e]">Partner</span>
+                      )}
                       {u.banned && <span className="ml-1 rounded-full bg-red-100 px-2 py-0.5 text-xs text-red-600">suspendido</span>}
                     </td>
                     <td className="px-4 py-3 font-medium text-[#1D1E20]">{u.event_count}</td>
@@ -189,10 +192,23 @@ export default function UsuariosTab({ users, stats, actionLoading, onChangePlan,
                     <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                       <select value={u.plan} onChange={e => onChangePlan(u.id, e.target.value)}
                         className="rounded-lg border border-[#e0e0e0] px-2 py-1 text-xs text-[#555] outline-none hover:border-[#48C9B0]">
-                        <option value="free">free</option>
-                        <option value="pro">pro</option>
-                        <option value="agency">agency</option>
+                        {PLAN_IDS.map(id => (
+                          <option key={id} value={id}>
+                            {PLANES[id].nombre}{id === 'agency' ? ' (marca propia: próximamente)' : ''}
+                          </option>
+                        ))}
                       </select>
+                      <label className="mt-1.5 flex items-center gap-1.5 text-xs text-[#888]">
+                        <input
+                          type="checkbox"
+                          checked={u.sello === 'fundador'}
+                          disabled={!!actionLoading || (u.sello !== 'fundador' && !hayLugarDeFundador(founderCount))}
+                          onChange={e => onChangeSello(u.id, e.target.checked)}
+                          className="h-3.5 w-3.5 accent-[#b98d2e]"
+                        />
+                        Partner fundador
+                      </label>
+                      <p className="mt-0.5 text-[10px] text-[#aaa]">{founderCount + ' de ' + LUGARES_FUNDADOR + ' lugares'}</p>
                     </td>
                     <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                       <div className="flex items-center gap-2">
@@ -282,7 +298,10 @@ export default function UsuariosTab({ users, stats, actionLoading, onChangePlan,
                     <p className="text-xs text-[#888]">{u.email}</p>
                   </div>
                   <div className="flex items-center gap-1">
-                    <span className={'rounded-full px-2 py-0.5 text-xs font-medium ' + (PLAN_STYLES[u.plan] || PLAN_STYLES.free)}>{u.plan}</span>
+                    <span className={'rounded-full px-2 py-0.5 text-xs font-medium ' + (PLAN_STYLES[normalizarPlan(u.plan)])}>{u.plan}</span>
+                    {u.sello === 'fundador' && (
+                      <span className="rounded-full bg-[#fdf8ec] px-2 py-0.5 text-xs font-medium text-[#b98d2e]">Partner</span>
+                    )}
                     {expandedId === u.id ? <ChevronUp size={14} className="text-[#aaa]" /> : <ChevronDown size={14} className="text-[#aaa]" />}
                   </div>
                 </div>
@@ -330,12 +349,27 @@ export default function UsuariosTab({ users, stats, actionLoading, onChangePlan,
                       </div>
                     )}
                   </div>
+                  <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+                    <label className="flex items-center gap-1.5 text-xs text-[#888]" onClick={e => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        checked={u.sello === 'fundador'}
+                        disabled={!!actionLoading || (u.sello !== 'fundador' && !hayLugarDeFundador(founderCount))}
+                        onChange={e => onChangeSello(u.id, e.target.checked)}
+                        className="h-3.5 w-3.5 accent-[#b98d2e]"
+                      />
+                      Partner fundador
+                    </label>
+                    <span className="text-[10px] text-[#aaa]">{founderCount + ' de ' + LUGARES_FUNDADOR + ' lugares'}</span>
+                  </div>
                   <div className="flex items-center gap-2">
                     <select value={u.plan} onChange={e => onChangePlan(u.id, e.target.value)} onClick={e => e.stopPropagation()}
                       className="rounded-lg border border-[#e0e0e0] px-2 py-1 text-xs text-[#555] outline-none">
-                      <option value="free">free</option>
-                      <option value="pro">pro</option>
-                      <option value="agency">agency</option>
+                      {PLAN_IDS.map(id => (
+                        <option key={id} value={id}>
+                          {PLANES[id].nombre}{id === 'agency' ? ' (marca propia: próximamente)' : ''}
+                        </option>
+                      ))}
                     </select>
                     <button onClick={() => { window.location.href = 'mailto:' + u.email }} className="rounded-lg border border-[#e0e0e0] p-1.5 text-[#888]"><Mail size={14} /></button>
                     {u.banned ? (

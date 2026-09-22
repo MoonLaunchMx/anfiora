@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   nivelMayor, kitDesde, filasDeAlta, validarAltaEquipo, validarCliente,
-  filasParaActivar, normalizarCorreo,
+  filasParaActivar, normalizarCorreo, topeDeCliente,
 } from './invitacion'
 
 describe('nivelMayor y kit', () => {
@@ -90,6 +90,35 @@ describe('validaciones', () => {
       .toEqual({ ok: false, error: 'Es de tu equipo: dale acceso desde su ficha' })
     expect(validarCliente({ email: 'vieja@gmail.com', eventId: 'e2', colaboradores, miembros }))
       .toEqual({ ok: true, error: null })
+  })
+
+  it('un evento solo admite un cliente', () => {
+    const v = validarCliente({
+      email: 'otro@ejemplo.com',
+      eventId: 'e1',
+      colaboradores: [
+        { email: 'novia@ejemplo.com', event_id: 'e1', tipo: 'cliente', status: 'active' },
+      ],
+      miembros: [],
+    })
+    expect(v.ok).toBe(false)
+    expect(v.error).toContain('ya tiene un cliente')
+  })
+
+  it('un cliente revocado deja libre el lugar', () => {
+    const v = validarCliente({
+      email: 'otro@ejemplo.com',
+      eventId: 'e1',
+      colaboradores: [
+        { email: 'novia@ejemplo.com', event_id: 'e1', tipo: 'cliente', status: 'revoked' },
+      ],
+      miembros: [],
+    })
+    expect(v.ok).toBe(true)
+  })
+
+  it('el cliente nunca llega a total', () => {
+    expect(topeDeCliente({ invitados: 'total', mesas: 'ver' }).invitados).toBe('editar')
   })
 })
 

@@ -76,7 +76,11 @@ export default function ConfiguracionIndexPage() {
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1.5">
                 <span className="truncate text-[15px] font-semibold text-[#1D1E20]">{activo.name}</span>
-                <span className="shrink-0 rounded-full bg-[#e1f5ee] px-[7px] py-[1px] text-[10px] font-semibold text-[#04342C]">{etiquetaPlan(activo.plan)}</span>
+                {activo.sello === 'fundador' ? (
+                  <span className="shrink-0 rounded-full bg-[#fdf8ec] px-[7px] py-[1px] text-[10px] font-semibold text-[#b98d2e]">Partner fundador</span>
+                ) : (
+                  <span className="shrink-0 rounded-full bg-[#e1f5ee] px-[7px] py-[1px] text-[10px] font-semibold text-[#04342C]">{etiquetaPlan(activo.plan)}</span>
+                )}
               </div>
               <p className="mt-0.5 text-xs text-[#666]">{rolTextoCorto(activo.esDuenoPrincipal, activo.miRol)}</p>
             </div>
@@ -152,7 +156,7 @@ export default function ConfiguracionIndexPage() {
 
       {esAdmin && activo && asientos ? (
         <div className="rounded-xl bg-[#f8f5f0] px-4 py-3.5 text-[13px] leading-[1.5] text-[#666]">
-          Plan {etiquetaPlan(activo.plan)} · {asientos.ocupados} de {asientos.incluidos} asientos usados. <span className="font-semibold text-[#48C9B0]">Ver plan</span>
+          {activo.sello === 'fundador' ? 'Partner fundador' : `Plan ${etiquetaPlan(activo.plan)}`} · {asientos.ocupados} de {asientos.incluidos} asientos usados. <span className="font-semibold text-[#48C9B0]">Ver plan</span>
         </div>
       ) : !esAdmin ? (
         <div className="rounded-xl border border-[#e8e8e8] bg-[#f8f8f8] p-4">

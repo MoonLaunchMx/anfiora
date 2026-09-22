@@ -1,13 +1,45 @@
 // lib/workspace/cliente.ts
 'use client'
 import { supabase } from '@/lib/supabase'
-import { normalizarPlan } from './planes'
+import { normalizarPlan, type PlanId } from './planes'
+import { normalizarSello, resolverLimiteInvitados, type Sello } from './sello'
 import type { RolWorkspace, WorkspaceListado, WorkspaceResumen } from './tipos'
 
 export async function bearer(): Promise<Record<string, string> | null> {
   const { data: { session } } = await supabase.auth.getSession()
   if (!session) return null
   return { Authorization: 'Bearer ' + session.access_token, 'Content-Type': 'application/json' }
+}
+
+// Para herramientas que existen o no segun el plan (hoy: el Rolodex). El plan
+// sale del workspace que la persona administra (dueno o admin), igual que el
+// resto del muro. null = no se pudo leer: quien llama nunca debe esconder
+// la herramienta en ese caso, solo cuando SI se confirmo free sin sello.
+export async function planDelWorkspaceActivo(): Promise<{ plan: PlanId; sello: Sello } | null> {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return null
+
+  const { data: mem } = await supabase
+    .from('workspace_members')
+    .select('workspace_id')
+    .eq('user_id', user.id).eq('status', 'active').in('rol', ['dueno', 'admin'])
+    .limit(1)
+    .maybeSingle()
+  const workspaceId = (mem as { workspace_id?: string } | null)?.workspace_id ?? null
+  if (!workspaceId) return null
+
+  const conSello = await supabase.from('workspaces').select('plan, sello').eq('id', workspaceId).maybeSingle()
+  if (!conSello.error && conSello.data) {
+    const ws = conSello.data as { plan?: string; sello?: string }
+    return { plan: normalizarPlan(ws.plan), sello: normalizarSello(ws.sello) }
+  }
+  // La columna sello puede no existir todavia en este ambiente: se pide el
+  // plan solo, sin dejar que ese hueco tumbe la lectura.
+  const soloPlan = await supabase.from('workspaces').select('plan').eq('id', workspaceId).maybeSingle()
+  if (!soloPlan.error && soloPlan.data) {
+    return { plan: normalizarPlan((soloPlan.data as { plan?: string }).plan), sello: null }
+  }
+  return null
 }
 
 // Para el menu: solo necesita saber si administras alguno. Lee con RLS
@@ -79,6 +111,52 @@ export async function perfilConFoto(userId: string): Promise<{ nombre: string; f
   const soloNombre = await supabase.from('users').select('full_name').eq('id', userId).maybeSingle()
   const fila = soloNombre.data as { full_name?: string | null } | null
   return { nombre: fila?.full_name ?? '', foto: null }
+}
+
+// El tope de invitados es el del DUENO del evento, nunca el de quien esta
+// escribiendo: un colaborador invitado no arrastra su plan al evento ajeno.
+// Dos fuentes, que pueden no estar de acuerdo (la logica de a cual creerle
+// vive en resolverLimiteInvitados, pura y probada en sello.test.ts):
+// - `plan_del_evento` (RPC, SECURITY DEFINER): responde igual para el dueno
+//   que para un colaborador, pero su COALESCE cae a 'free' por default
+//   cuando el evento no tiene workspace detras — un 'free' de aqui es
+//   ambiguo, no se sabe si es real o el default.
+// - Lectura directa de `workspaces` por `primary_owner_id`: mas confiable
+//   (trae tambien el sello) pero puede no encontrar fila por RLS (un
+//   colaborador no siempre puede leer el workspace ajeno) o porque la
+//   columna `sello` todavia no existe (la crea la Tarea 12).
+// wsEncontrado solo es true cuando esa lectura directa SI devolvio una fila
+// real, sin error — ni un error de columna faltante ni un RLS que la deja
+// en cero filas cuentan como "encontrada".
+export async function limiteInvitadosDelEvento(eventId: string, ownerId: string): Promise<number | null> {
+  let rpcPlan: string | null = null
+  try {
+    const { data, error } = await supabase.rpc('plan_del_evento', { evento: eventId })
+    if (!error && typeof data === 'string') rpcPlan = data
+  } catch {}
+
+  let wsEncontrado = false
+  let wsPlan: string | null = null
+  let wsSello: unknown = null
+  try {
+    const conSello = await supabase.from('workspaces').select('plan, sello').eq('primary_owner_id', ownerId).maybeSingle()
+    if (!conSello.error && conSello.data) {
+      const fila = conSello.data as { plan?: string | null; sello?: string | null }
+      wsEncontrado = true
+      wsPlan = fila.plan ?? null
+      wsSello = fila.sello ?? null
+    } else if (conSello.error) {
+      // La columna sello puede no existir todavia: se reintenta solo con
+      // plan antes de darse por vencido.
+      const soloPlan = await supabase.from('workspaces').select('plan').eq('primary_owner_id', ownerId).maybeSingle()
+      if (!soloPlan.error && soloPlan.data) {
+        wsEncontrado = true
+        wsPlan = (soloPlan.data as { plan?: string | null }).plan ?? null
+      }
+    }
+  } catch {}
+
+  return resolverLimiteInvitados(rpcPlan, wsEncontrado, wsPlan, wsSello)
 }
 
 export async function fetchWorkspace(id?: string) {

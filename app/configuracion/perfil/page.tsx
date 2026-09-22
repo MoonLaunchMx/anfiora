@@ -11,6 +11,8 @@ import PhoneInput from '@/app/components/ui/PhoneInput'
 import LegalLinks from '@/app/components/LegalLinks'
 import { borrarImagenAnterior, subirImagen } from '@/lib/workspace/subir'
 import { usuarioActual } from '@/lib/workspace/sesion'
+import { etiquetaPlan } from '@/lib/workspace/planes'
+import { useWorkspace } from '../WorkspaceContext'
 
 function inicialesDe(texto: string): string {
   const partes = texto.trim().split(/[\s@.]+/).filter(Boolean)
@@ -52,6 +54,7 @@ function PassInput({
 
 export default function PerfilPage() {
   const router = useRouter()
+  const { activo } = useWorkspace()
 
   const [userId, setUserId] = useState('')
   const [email, setEmail]   = useState('')
@@ -389,6 +392,13 @@ export default function PerfilPage() {
             placeholder="Ana García"
             className="rounded-lg border border-[#e8e8e8] px-3 py-2.5 text-sm text-[#1D1E20] outline-none transition placeholder:text-[#c0c0c0] focus:border-[#48C9B0] focus:ring-2 focus:ring-[#48C9B0]/20"
           />
+          {activo && (
+            <p className="text-[11.5px] text-[#999]">
+              {activo.sello === 'fundador'
+                ? <span className="font-semibold text-[#b98d2e]">Partner fundador · sin costo mientras no cobramos. Al empezar, 40% el primer año.</span>
+                : `Plan ${etiquetaPlan(activo.plan)}`}
+            </p>
+          )}
         </div>
 
         <div className="flex flex-col gap-1.5">

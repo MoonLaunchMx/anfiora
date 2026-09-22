@@ -12,6 +12,10 @@ import { useConfirm } from '@/app/components/ui/ConfirmModal'
 import { usePermiso } from '@/lib/event-access-context'
 import { Puede } from '@/lib/permisos/Puede'
 import { Cargando } from '@/app/components/ui/Cargando'
+import { contarPersonas, bloqueaPorTope, esErrorDeInvitados, parseErrorInvitados } from '@/lib/invitados/cupo'
+import { esErrorDeArchivado, MENSAJE_EVENTO_ARCHIVADO } from '@/lib/capacity'
+import { limiteInvitadosDelEvento } from '@/lib/workspace/cliente'
+import { MuroModal, type MuroCaso } from '@/app/components/MuroModal'
 
 // ─── CONSTANTES ───────────────────────────────
 const STATUS_COLORS: Record<string, { bg: string; border: string; text: string; label: string }> = {
@@ -135,12 +139,16 @@ type DecoItem = { id: string; type: string; label: string; x: number; y: number;
 // ─── TIPOS ────────────────────────────────────
 function normalizePhone(p: string) { return p.replace(/\D/g, '') }
 type EditMember  = { id?: string; name: string; phone: string; rsvp_status: 'pending' | 'confirmed' | 'declined' }
-type PartyMember = { id: string; name: string; rsvp_status: 'pending' | 'confirmed' | 'declined'; checked_in: boolean }
+type PartyMember = { id: string; name: string; phone: string | null; rsvp_status: 'pending' | 'confirmed' | 'declined'; checked_in: boolean }
 type GuestFull   = Pick<Guest, 'id' | 'name' | 'rsvp_status'> & { tags: string[]; party_size: number; notes: string | null; phone?: string | null; email?: string | null; checked_in: boolean; party_members: PartyMember[] }
 type SeatRecord  = { id: string; table_id: string; event_id: string; seat_number: number; guest_id: string | null; party_size: number; guest?: GuestFull | null }
 type TableRecord = { id: string; event_id: string; number: number; name: string | null; capacity: number; shape: string; rotation: number; position_x: number; position_y: number; created_at: string; seats: SeatRecord[] }
 type MoveModal   = { guest: GuestFull; fromSeatId: string; fromTableNumber: number; toTableId: string; toTableCapacity: number }
 type EventInfo   = { name: string; event_date: string | null; venue: string | null }
+// Filas crudas de las consultas paginadas (antes de combinarse en GuestFull/TableRecord)
+type SeatRow   = Omit<SeatRecord, 'guest'>
+type GuestRow  = Pick<Guest, 'id' | 'name' | 'rsvp_status'> & { tags: string[] | null; party_size: number; notes: string | null; phone: string | null; email: string | null; checked_in: boolean | null }
+type MemberRow = PartyMember & { guest_id: string }
 
 // ─── HELPERS ──────────────────────────────────
 function getTableSvgDims(table: TableRecord): { w: number; h: number } {
@@ -1235,6 +1243,8 @@ function MesasPageInner() {
   const [guests,setGuests]=useState<GuestFull[]>([])
   const [eventTags,setEventTags]=useState<string[]>([])
   const [eventInfo,setEventInfo]=useState<EventInfo|null>(null)
+  const [limiteInvitadosEvento,setLimiteInvitadosEvento]=useState<number|null>(null)
+  const [muroInvitados,setMuroInvitados]=useState<{limite:number;caso:MuroCaso}|null>(null)
   const [loading,setLoading]=useState(true)
   const [canvasMode,setCanvasMode]=useState(false)
   const [listSearch,setListSearch]=useState('')
@@ -1294,21 +1304,47 @@ function MesasPageInner() {
   useEffect(()=>{loadData()},[])
   useEffect(()=>{if(assignModal)setTimeout(()=>assignRef.current?.focus(),50)},[assignModal])
 
-  const loadData=async()=>{
-    setLoading(true)
-    const [tR,sR,gR,mR,eR]=await Promise.all([
+  // table_seats, guests y party_members se paginan: sin esto, un evento con
+  // mas de mil filas en cualquiera de las tres se queda corto en silencio
+  // (el limite por default de Supabase), y ese total corto es justo lo que
+  // alimenta totalPersonas y por lo tanto la pared de invitados. tables no
+  // se pagina — un venue real nunca llega a mil mesas.
+  const cargarMesasYGuests=async():Promise<{combined:TableRecord[];guestsList:GuestFull[]}>=>{
+    const PAGE=1000
+    const fetchAll=async <T,>(build:(from:number,to:number)=>PromiseLike<{data:T[]|null;error:unknown}>):Promise<T[]>=>{
+      const out:T[]=[]
+      for(let from=0;;from+=PAGE){
+        const {data,error}=await build(from,from+PAGE-1)
+        if(error){console.error('mesas fetchAll:',error);break}
+        if(!data||data.length===0)break
+        out.push(...data)
+        if(data.length<PAGE)break
+      }
+      return out
+    }
+    const [tR,seatsData,guestsData,membersData]=await Promise.all([
       supabase.from('tables').select('*').eq('event_id',eventId).order('number'),
-      supabase.from('table_seats').select('*').eq('event_id',eventId),
-      supabase.from('guests').select('id,name,rsvp_status,tags,party_size,notes,phone,email,checked_in').eq('event_id',eventId).order('name'),
-      supabase.from('party_members').select('id,guest_id,name,rsvp_status,checked_in').eq('event_id',eventId),
-      supabase.from('events').select('guest_tags,name,event_date,venue,canvas_data').eq('id',eventId).single(),
+      fetchAll<SeatRow>((f,t)=>supabase.from('table_seats').select('*').eq('event_id',eventId).order('seat_number').range(f,t)),
+      fetchAll<GuestRow>((f,t)=>supabase.from('guests').select('id,name,rsvp_status,tags,party_size,notes,phone,email,checked_in').eq('event_id',eventId).order('name').order('id').range(f,t)),
+      fetchAll<MemberRow>((f,t)=>supabase.from('party_members').select('id,guest_id,name,phone,rsvp_status,checked_in').eq('event_id',eventId).order('created_at').order('id').range(f,t)),
     ])
     const gMap=new Map<string,GuestFull>()
-    for(const g of(gR.data||[])){const members=(mR.data||[]).filter(m=>m.guest_id===g.id);gMap.set(g.id,{...g,tags:g.tags||[],notes:g.notes||null,phone:g.phone||null,email:g.email||null,checked_in:g.checked_in||false,party_size:1+members.length,party_members:members.map(m=>({...m,checked_in:m.checked_in||false}))})}
-    const combined:TableRecord[]=(tR.data||[]).map(t=>({...t,rotation:t.rotation||0,seats:(sR.data||[]).filter(s=>s.table_id===t.id).map(s=>({...s,guest:s.guest_id?gMap.get(s.guest_id)||null:null}))}))
-    setTables(combined);setGuests(Array.from(gMap.values()))
+    for(const g of guestsData){const members=membersData.filter(m=>m.guest_id===g.id);gMap.set(g.id,{...g,tags:g.tags||[],notes:g.notes||null,phone:g.phone||null,email:g.email||null,checked_in:g.checked_in||false,party_size:1+members.length,party_members:members.map(m=>({...m,phone:m.phone||null,checked_in:m.checked_in||false}))})}
+    const combined:TableRecord[]=(tR.data||[]).map(t=>({...t,rotation:t.rotation||0,seats:seatsData.filter(s=>s.table_id===t.id).map(s=>({...s,guest:s.guest_id?gMap.get(s.guest_id)||null:null}))}))
+    return {combined,guestsList:Array.from(gMap.values())}
+  }
+
+  const loadData=async()=>{
+    setLoading(true)
+    const [{combined,guestsList},eR]=await Promise.all([
+      cargarMesasYGuests(),
+      supabase.from('events').select('guest_tags,name,event_date,venue,canvas_data,user_id').eq('id',eventId).single(),
+    ])
+    setTables(combined);setGuests(guestsList)
     setEventTags(eR.data?.guest_tags||[])
     setEventInfo({name:eR.data?.name||'',event_date:eR.data?.event_date||null,venue:eR.data?.venue||null})
+    // El tope es del dueno del evento, no de quien esta viendo la pantalla.
+    if(eR.data?.user_id) limiteInvitadosDelEvento(eventId as string, eR.data.user_id).then(setLimiteInvitadosEvento)
     const cd=eR.data?.canvas_data
     if(cd){
       if(cd.decos)          setCanvasDecos(cd.decos)
@@ -1321,16 +1357,8 @@ function MesasPageInner() {
   }
 
   const loadTables=async()=>{
-    const [tR,sR,gR,mR]=await Promise.all([
-      supabase.from('tables').select('*').eq('event_id',eventId).order('number'),
-      supabase.from('table_seats').select('*').eq('event_id',eventId),
-      supabase.from('guests').select('id,name,rsvp_status,tags,party_size,notes,phone,email,checked_in').eq('event_id',eventId).order('name'),
-      supabase.from('party_members').select('id,guest_id,name,rsvp_status,checked_in').eq('event_id',eventId),
-    ])
-    const gMap=new Map<string,GuestFull>()
-    for(const g of(gR.data||[])){const members=(mR.data||[]).filter(m=>m.guest_id===g.id);gMap.set(g.id,{...g,tags:g.tags||[],notes:g.notes||null,phone:g.phone||null,email:g.email||null,checked_in:g.checked_in||false,party_size:1+members.length,party_members:members.map(m=>({...m,checked_in:m.checked_in||false}))})}
-    const combined:TableRecord[]=(tR.data||[]).map(t=>({...t,rotation:t.rotation||0,seats:(sR.data||[]).filter(s=>s.table_id===t.id).map(s=>({...s,guest:s.guest_id?gMap.get(s.guest_id)||null:null}))}))
-    setTables(combined); setGuests(Array.from(gMap.values()))
+    const {combined,guestsList}=await cargarMesasYGuests()
+    setTables(combined); setGuests(guestsList)
   }
 
   const getOccupied=(t:TableRecord)=>t.seats.filter(s=>s.guest_id).reduce((a,s)=>a+(s.guest?s.guest.party_size:(s.party_size||1)),0)
@@ -1338,6 +1366,7 @@ function MesasPageInner() {
 
   const gSeatMap=useMemo(()=>{const m=new Map<string,any>();for(const t of tables)for(const s of t.seats)if(s.guest_id)m.set(s.guest_id,{seatId:s.id,tableNumber:t.number,tableId:t.id,tableCapacity:t.capacity});return m},[tables])
 
+  const totalPersonas=contarPersonas(guests.length, guests.reduce((a,g)=>a+g.party_members.length,0))
   const confirmed=guests.filter(g=>g.rsvp_status==='confirmed').length
   const seatedIds=useMemo(()=>{const s=new Set<string>();for(const t of tables)for(const seat of t.seats)if(seat.guest_id)s.add(seat.guest_id);return s},[tables])
   const unassigned=guests.filter(g=>g.rsvp_status==='confirmed'&&!seatedIds.has(g.id)).length
@@ -1353,7 +1382,10 @@ function MesasPageInner() {
     setENotes(g.notes||'')
     setETags(g.tags||[])
     setEError('')
-    setEMembers(g.party_members.map(m=>({id:m.id,name:m.name,phone:'',rsvp_status:m.rsvp_status})))
+    // El telefono real, no vacio: guardar mandaba ese vacio encima del que
+    // ya estaba en la base y le borraba el telefono a todos los acompanantes
+    // en cada edicion, se tocaran o no.
+    setEMembers(g.party_members.map(m=>({id:m.id,name:m.name,phone:m.phone||'',rsvp_status:m.rsvp_status})))
   }
 
   // ─── FIX: handleEditSave con validacion de capacidad ─────────────────────
@@ -1369,6 +1401,12 @@ function MesasPageInner() {
     }
 
     const newPartySize = 1 + eMembers.length
+
+    // Acompanantes removidos vs. nuevos (se calculan antes: los tocan tanto
+    // el candado de la mesa como el del cupo de invitados de la cuenta).
+    const keepIds = eMembers.filter(m => m.id).map(m => m.id as string)
+    const toDel = editGuest.party_members.map(m => m.id).filter(id => !keepIds.includes(id))
+    const ins = eMembers.filter(m => !m.id)
 
     // Validar capacidad solo si el invitado ya está asignado a una mesa
     const seatRecord = gSeatMap.get(editGuest.id)
@@ -1390,10 +1428,22 @@ function MesasPageInner() {
       }
     }
 
+    // Lo unico que se bloquea es que la cuenta CREZCA mas alla del tope: una
+    // cuenta ya pasada del tope puede seguir intercambiando acompanantes
+    // (borrar unos, agregar otros) mientras el total no aumente.
+    const personasDespues = totalPersonas - toDel.length + ins.length
+    if (bloqueaPorTope(totalPersonas, personasDespues, limiteInvitadosEvento)) {
+      setMuroInvitados({ limite: limiteInvitadosEvento as number, caso: 'invitados-tope' })
+      return
+    }
+
     setESaving(true)
     setEError('')
 
-    await supabase.from('guests').update({
+    // party_size (aqui y en table_seats) se guarda de una vez con el tamano
+    // esperado; si la insercion de acompanantes nuevos falla mas abajo
+    // (carrera de dos pestanas), se corrige al tamano real.
+    const { error: guestError } = await supabase.from('guests').update({
       name: eName,
       phone: ePhone || null,
       email: eEmail || null,
@@ -1401,11 +1451,11 @@ function MesasPageInner() {
       notes: eNotes || null,
       tags: eTags,
     }).eq('id', editGuest.id)
-
-    // Eliminar acompañantes removidos
-    const keepIds = eMembers.filter(m => m.id).map(m => m.id as string)
-    const toDel = editGuest.party_members.map(m => m.id).filter(id => !keepIds.includes(id))
-    if (toDel.length) await supabase.from('party_members').delete().in('id', toDel)
+    if (guestError) {
+      setEError(esErrorDeArchivado(guestError) ? MENSAJE_EVENTO_ARCHIVADO : 'No se pudo guardar. Intenta de nuevo.')
+      setESaving(false)
+      return
+    }
 
     // Actualizar acompañantes existentes
     for (const m of eMembers.filter(m => m.id)) {
@@ -1416,28 +1466,67 @@ function MesasPageInner() {
       }).eq('id', m.id!)
     }
 
-    // Insertar acompañantes nuevos
-    const ins = eMembers.filter(m => !m.id)
-    if (ins.length) {
-      await supabase.from('party_members').insert(
-        ins.map(m => ({
-          guest_id: editGuest.id,
-          event_id: eventId as string,
-          name: m.name,
-          phone: m.phone || null,
-          rsvp_status: m.rsvp_status,
-        }))
-      )
+    const insertRows = ins.map(m => ({
+      guest_id: editGuest.id,
+      event_id: eventId as string,
+      name: m.name,
+      phone: m.phone || null,
+      rsvp_status: m.rsvp_status,
+    }))
+
+    // Siempre se inserta primero y solo se borra si el insert entro: es la
+    // unica consecuencia predecible cuando borrar e insertar son DOS
+    // escrituras separadas (no una transaccion). Nunca se pierde un dato,
+    // porque nada se borra hasta que lo nuevo ya esta guardado. El costo
+    // aceptado: una cuenta exactamente en el tope no puede intercambiar un
+    // acompanante por otro de un jalon (ve el aviso de tope); hacerlo en dos
+    // pasos -- borrar y guardar, luego agregar y guardar -- si funciona.
+    let insertedOk = insertRows.length === 0
+    let aviso: string | null = null
+    if (insertRows.length > 0) {
+      const { error: insError } = await supabase.from('party_members').insert(insertRows)
+      insertedOk = !insError
+      if (insError) {
+        // Se revisa siempre, sin suponer que esta operacion "no podia ser de
+        // plan": es la unica escritura que la base puede rechazar por tope,
+        // asi que cualquier rechazo por tope tiene que salir como el aviso
+        // real, nunca como "intenta de nuevo".
+        if (esErrorDeInvitados(insError)) {
+          const datos = parseErrorInvitados(insError.message)
+          setMuroInvitados({ limite: datos?.limite ?? limiteInvitadosEvento ?? 0, caso: 'invitados-tope' })
+        } else {
+          aviso = 'No se pudieron agregar los acompañantes nuevos. Intenta de nuevo.'
+        }
+      }
+    }
+
+    let deletedOk = toDel.length === 0
+    if (insertedOk && toDel.length > 0) {
+      const { error: delError } = await supabase.from('party_members').delete().in('id', toDel)
+      deletedOk = !delError
+      if (delError) aviso = 'Los acompañantes nuevos se guardaron, pero no se pudieron quitar los removidos.'
+    }
+
+    // El tamano real segun lo que de verdad quedo en la base: nunca el que
+    // se planeaba (newPartySize) si algo no entro como se esperaba. Se
+    // escribe igual en guests.party_size y en table_seats.party_size, para
+    // que la mesa nunca quede reportada con mas gente de la que en verdad
+    // tiene sentada.
+    const acompanantesReal = keepIds.length + (deletedOk ? 0 : toDel.length) + (insertedOk ? ins.length : 0)
+    const partySizeFinal = 1 + acompanantesReal
+    if (partySizeFinal !== newPartySize) {
+      await supabase.from('guests').update({ party_size: partySizeFinal }).eq('id', editGuest.id)
     }
 
     // Actualizar party_size en table_seats si está asignado
     if (seatRecord) {
-      await supabase.from('table_seats').update({ party_size: newPartySize }).eq('id', seatRecord.seatId)
+      await supabase.from('table_seats').update({ party_size: partySizeFinal }).eq('id', seatRecord.seatId)
     }
 
     await loadTables()
     setEditGuest(null)
     setESaving(false)
+    if (aviso) alert(aviso)
   }
 
   const toggleCheckin=async(gId:string,cur:boolean)=>{
@@ -1455,8 +1544,14 @@ function MesasPageInner() {
     const cap=parseInt(mCap);if(!cap||cap<1||cap>100){setMError('Capacidad entre 1 y 100');return}
     if(tables.find(t=>t.number===num&&t.id!==editTable?.id)){setMError(`Mesa ${num} ya existe`);return}
     setMSaving(true);setMError('')
-    if(editTable)await supabase.from('tables').update({number:num,name:mName||null,capacity:cap,shape:mShape}).eq('id',editTable.id)
-    else await supabase.from('tables').insert({event_id:eventId,number:num,name:mName||null,capacity:cap,shape:mShape,rotation:0})
+    const { error } = editTable
+      ? await supabase.from('tables').update({number:num,name:mName||null,capacity:cap,shape:mShape}).eq('id',editTable.id)
+      : await supabase.from('tables').insert({event_id:eventId,number:num,name:mName||null,capacity:cap,shape:mShape,rotation:0})
+    if (error) {
+      setMError(esErrorDeArchivado(error) ? MENSAJE_EVENTO_ARCHIVADO : 'No se pudo guardar la mesa. Intenta de nuevo.')
+      setMSaving(false)
+      return
+    }
     await loadTables();setShowModal(false);setMSaving(false)
   }
   const handleDeleteTable=async(t:TableRecord)=>{
@@ -1774,6 +1869,7 @@ function MesasPageInner() {
 
       <ModalAsignar tables={tables} guests={guests} assignModal={assignModal} assignSearch={assignSearch} setAssignSearch={setAssignSearch} assignRef={assignRef} gSeatMap={gSeatMap} getOccupied={getOccupied} handleSelectGuest={handleSelectGuest} onClose={()=>{setAssignModal(null);setAssignSearch('')}}/>
       <ModalMover moveModal={moveModal} tables={tables} moveSaving={moveSaving} onConfirm={handleMove} onClose={()=>setMoveModal(null)}/>
+      <MuroModal open={!!muroInvitados} caso={muroInvitados?.caso ?? 'invitados-tope'} limite={muroInvitados?.limite ?? 0} eventId={eventId as string} onClose={()=>setMuroInvitados(null)}/>
     </div>
   )
 }

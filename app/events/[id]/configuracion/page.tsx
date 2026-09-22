@@ -4,6 +4,9 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { EventStatus } from '@/lib/types'
+import { esArchivado, ocupaLugar, type EventoParaEstado } from '@/lib/events/estado'
+import { fetchAccountCapacity, esErrorDeCupo, parseLimitError } from '@/lib/capacity'
+import { MuroModal, type MuroCaso } from '@/app/components/MuroModal'
 import { getTemplatePack } from '@/lib/message-templates'
 import DatePicker from '@/app/components/ui/DatePicker'
 import TimePicker from '@/app/components/ui/TimePicker'
@@ -16,6 +19,7 @@ import { FEATURES, ALWAYS_ON_FEATURES, type FeatureKey } from '@/lib/features'
 import { logAction } from '@/lib/audit'
 import { PermisosEditor } from './PermisosEditor'
 import { normalizarPermisos, resumir } from '@/lib/permisos/resolver'
+import { topeDeCliente } from '@/lib/workspace/invitacion'
 import type { PermisosEvento } from '@/lib/permisos/catalogo'
 import { Modal } from '@/app/components/ui/Modal'
 import { AltaPersonaModal } from '@/app/components/workspace/AltaPersonaModal'
@@ -91,16 +95,13 @@ const DEFAULT_NAMES = [
 ]
 
 const STATUS_STYLES: Record<EventStatus, { dot: string; badge: string; label: string }> = {
-  active:    { dot: 'bg-[#48C9B0]', badge: 'border-[#c8ede7] bg-[#f0fdfb] text-[#1a9e88]', label: 'Activo' },
-  paused:    { dot: 'bg-blue-400',  badge: 'border-blue-200 bg-blue-50 text-blue-700',      label: 'Pausado' },
-  cancelled: { dot: 'bg-red-400',   badge: 'border-red-200 bg-red-50 text-red-600',         label: 'Cancelado' },
-  completed: { dot: 'bg-[#888]',    badge: 'border-[#e0e0e0] bg-[#f8f8f8] text-[#888]',    label: 'Completado' },
+  active:   { dot: 'bg-[#48C9B0]', badge: 'border-[#c8ede7] bg-[#f0fdfb] text-[#1a9e88]', label: 'Activo' },
+  archived: { dot: 'bg-[#888]',    badge: 'border-[#e0e0e0] bg-[#f8f8f8] text-[#888]',    label: 'Archivado' },
 }
 
 const STATUS_OPTIONS: { status: EventStatus; label: string; dot: string }[] = [
-  { status: 'active',    label: 'Activo',    dot: 'bg-[#48C9B0]' },
-  { status: 'paused',    label: 'Pausado',   dot: 'bg-blue-400' },
-  { status: 'cancelled', label: 'Cancelado', dot: 'bg-red-400' },
+  { status: 'active',   label: 'Activo',    dot: 'bg-[#48C9B0]' },
+  { status: 'archived', label: 'Archivado', dot: 'bg-[#888]' },
 ]
 
 const TABS: TabItem[] = [
@@ -244,7 +245,7 @@ function TemplateInput({
 
 export default function ConfiguracionPage() {
   const { id } = useParams()
-  const { features, updateFeatures, canAdmin, isLoading } = useEventAccess()
+  const { features, updateFeatures, canAdmin, isOwner, isLoading, marcarArchivado } = useEventAccess()
   const [featureSaving, setFeatureSaving] = useState<FeatureKey | null>(null)
 
   const [loading, setLoading]   = useState(true)
@@ -295,7 +296,16 @@ export default function ConfiguracionPage() {
   // Status dropdown
   const [showStatusDropdown, setShowStatusDropdown] = useState(false)
   const [statusSaving, setStatusSaving]             = useState(false)
+  const [muro, setMuro]                             = useState<{ limite: number; caso: MuroCaso } | null>(null)
+  const [eventOwnerId, setEventOwnerId]              = useState<string | null>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
+
+  // Snapshot de lo que YA esta guardado en la base, para saber si un cambio de
+  // fecha hace que el evento pase de no ocupar lugar a ocuparlo. El estado
+  // eventDate/eventEndDate es el borrador del formulario, no sirve para esto.
+  const savedDatesRef = useRef<{ event_date: string | null; event_end_date: string | null }>({
+    event_date: null, event_end_date: null,
+  })
 
   // Colaboradores
   const [collaborators, setCollaborators] = useState<Collaborator[]>([])
@@ -370,10 +380,12 @@ export default function ConfiguracionPage() {
       setEventTime(eventData.event_time || '')
       setVenue(eventData.venue || '')
       setAddress(eventData.address || '')
-      setEventStatus(eventData.event_status || 'active')
+      setEventStatus(esArchivado(eventData.event_status) ? 'archived' : 'active')
       setPlannerName(eventData.planner_name || '')
       setPlannerPhone(eventData.planner_phone || '')
       setPlannerEmail(eventData.planner_email || '')
+      setEventOwnerId(eventData.user_id || null)
+      savedDatesRef.current = { event_date: eventData.event_date || null, event_end_date: eventData.event_end_date || null }
 
       // El equipo se administra desde el workspace de la boda. Si el evento
       // no tiene workspace_id (caso raro, movido a mano) o el usuario no lo
@@ -426,6 +438,21 @@ export default function ConfiguracionPage() {
     if (!name) { setError('El nombre es obligatorio'); return }
     setSaving(true); setError(''); setSaved(false)
 
+    // Tercer disparador de la pared (los otros dos son crear y reactivar):
+    // mover la fecha de un evento que hoy no ocupa lugar (pasado o archivado)
+    // a una fecha futura lo hace entrar a contar contra el cupo de la cuenta.
+    const antes: EventoParaEstado = { event_status: eventStatus, ...savedDatesRef.current }
+    const despues: EventoParaEstado = { event_status: eventStatus, event_date: eventDate || null, event_end_date: eventEndDate || null }
+    const hoy = new Date()
+    if (!ocupaLugar(antes, hoy) && ocupaLugar(despues, hoy) && eventOwnerId) {
+      const cupo = await fetchAccountCapacity(eventOwnerId)
+      if (cupo && cupo.lim !== null && cupo.remaining !== null && cupo.remaining <= 0) {
+        setMuro({ limite: cupo.lim, caso: 'mover-fecha' })
+        setSaving(false)
+        return
+      }
+    }
+
     // Campos contextuales según tipo
     const isSocial = ['boda','xv','cumpleanos','graduacion','bautizo','fiesta','despedida','otro'].includes(eventType)
     const isCorp   = ['conferencia','capacitacion','teambuilding','lanzamiento','asamblea','congreso','caridad'].includes(eventType)
@@ -449,7 +476,15 @@ export default function ConfiguracionPage() {
       planner_email:  plannerEmail.trim() || null,
     }).eq('id', id).select('id')
 
-    if (eventErr) { setError('Error: ' + eventErr.message); setSaving(false); return }
+    if (eventErr) {
+      if (esErrorDeCupo(eventErr)) {
+        const datos = parseLimitError(eventErr.message)
+        setMuro({ limite: datos?.limit ?? 0, caso: 'mover-fecha' })
+        setSaving(false)
+        return
+      }
+      setError('Error: ' + eventErr.message); setSaving(false); return
+    }
     // Un UPDATE filtrado por RLS devuelve cero filas SIN error: sin contar filas
     // la pantalla diria "guardado" habiendo escrito nada. El trigger de
     // configuracion si lanza excepcion, pero la policy no — son dos fallos
@@ -459,6 +494,12 @@ export default function ConfiguracionPage() {
       setSaving(false)
       return
     }
+
+    // El evento ya quedo guardado con estas fechas: el proximo autosave (que no
+    // recarga la pagina) debe comparar contra esto, no contra la fecha con la
+    // que abrio la pantalla, o repetiria el chequeo de cupo contra un evento
+    // que ya cuenta a su propio favor.
+    savedDatesRef.current = despues
 
     const { error: settingsErr } = await supabase.from('event_settings').upsert({
       ...(settingsId ? { id: settingsId } : {}),
@@ -497,10 +538,32 @@ export default function ConfiguracionPage() {
   }
 
   const handleStatusChange = async (newStatus: EventStatus) => {
-    setStatusSaving(true)
     setShowStatusDropdown(false)
+
+    // Segundo disparador de la pared (el tercero esta en handleSave):
+    // reactivar un evento archivado lo hace volver a ocupar lugar. Se checa
+    // antes del update, igual que mover-fecha: la base ya puede no ser la
+    // unica que avisa (ver lib/capacity.ts).
+    const antes: EventoParaEstado = { event_status: eventStatus, event_date: eventDate || null, event_end_date: eventEndDate || null }
+    const despues: EventoParaEstado = { event_status: newStatus, event_date: eventDate || null, event_end_date: eventEndDate || null }
+    const hoy = new Date()
+    if (!ocupaLugar(antes, hoy) && ocupaLugar(despues, hoy) && eventOwnerId) {
+      const cupo = await fetchAccountCapacity(eventOwnerId)
+      if (cupo && cupo.lim !== null && cupo.remaining !== null && cupo.remaining <= 0) {
+        setMuro({ limite: cupo.lim, caso: 'reactivar-evento' })
+        return
+      }
+    }
+
+    setStatusSaving(true)
     const { error: err } = await supabase.from('events').update({ event_status: newStatus }).eq('id', id)
-    if (!err) setEventStatus(newStatus)
+    if (!err) {
+      setEventStatus(newStatus)
+      marcarArchivado(newStatus === 'archived')
+    } else if (esErrorDeCupo(err)) {
+      const datos = parseLimitError(err.message)
+      setMuro({ limite: datos?.limit ?? 0, caso: 'reactivar-evento' })
+    }
     setStatusSaving(false)
   }
 
@@ -568,10 +631,13 @@ export default function ConfiguracionPage() {
   }
 
   const guardarPermisos = async (colaboradorId: string) => {
+    const colaborador = collaborators.find(c => c.id === colaboradorId)
+    const permisosAGuardar = colaborador?.tipo === 'cliente' ? topeDeCliente(borrador) : borrador
+
     setGuardando(true)
     const { data, error: err } = await supabase
       .from('event_collaborators')
-      .update({ permisos: borrador })
+      .update({ permisos: permisosAGuardar })
       .eq('id', colaboradorId)
       .select('id')
 
@@ -582,7 +648,7 @@ export default function ConfiguracionPage() {
     }
 
     setCollaborators(prev =>
-      prev.map(c => (c.id === colaboradorId ? { ...c, permisos: borrador } : c)),
+      prev.map(c => (c.id === colaboradorId ? { ...c, permisos: permisosAGuardar } : c)),
     )
     setEditandoPermisos(null)
     logAction({
@@ -590,8 +656,8 @@ export default function ConfiguracionPage() {
       action: 'collaborator.permissions_updated',
       entityType: 'collaborator',
       entityId: colaboradorId,
-      entityLabel: collaborators.find(c => c.id === colaboradorId)?.email ?? '',
-      newValue: borrador,
+      entityLabel: colaborador?.email ?? '',
+      newValue: permisosAGuardar,
     })
   }
 
@@ -625,8 +691,10 @@ export default function ConfiguracionPage() {
     )
   }
 
-  const badgeStyle      = STATUS_STYLES[eventStatus]
-  const dropdownOptions = STATUS_OPTIONS.filter(o => o.status !== eventStatus)
+  const badgeStyle      = STATUS_STYLES[eventStatus] || STATUS_STYLES.active
+  // Reactivar consume el lugar de la cuenta del dueno: solo el lo ofrece.
+  // Archivar no cuesta lugar, sigue abierto a cualquier admin.
+  const dropdownOptions = STATUS_OPTIONS.filter(o => o.status !== eventStatus && (o.status !== 'active' || isOwner))
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-white">
@@ -1210,7 +1278,8 @@ export default function ConfiguracionPage() {
                                     <button
                                       type="button"
                                       onClick={() => {
-                                        setBorrador(normalizarPermisos(c.permisos))
+                                        const normalizados = normalizarPermisos(c.permisos)
+                                        setBorrador(c.tipo === 'cliente' ? topeDeCliente(normalizados) : normalizados)
                                         setEditandoPermisos(c.id)
                                       }}
                                       title="Ajustar permisos"
@@ -1252,7 +1321,7 @@ export default function ConfiguracionPage() {
                       subtitle="Se guarda hasta que aprietes el botón"
                     />
                     <Modal.Body>
-                      <PermisosEditor permisos={borrador} features={features} onChange={setBorrador} />
+                      <PermisosEditor permisos={borrador} features={features} onChange={setBorrador} sinTotal={c.tipo === 'cliente'} />
                     </Modal.Body>
                     <Modal.Footer>
                       <button
@@ -1288,6 +1357,13 @@ export default function ConfiguracionPage() {
 
         </div>
       </div>
+
+      <MuroModal
+        open={!!muro}
+        caso={muro?.caso ?? 'mover-fecha'}
+        limite={muro?.limite ?? 0}
+        onClose={() => setMuro(null)}
+      />
     </div>
   )
 }

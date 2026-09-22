@@ -1,4 +1,5 @@
 import type { PushType } from '@/lib/types'
+import { esArchivado } from '@/lib/events/estado'
 
 // task_date es `date` y task_time es `time without time zone`: no guardan zona.
 // Mexico no aplica horario de verano desde 2022, asi que un offset fijo es
@@ -54,9 +55,7 @@ export function reminderSkipReason(
   now: Date,
 ): SkipReason {
   if (!event) return 'evento_no_activo'
-  if (event.event_status === 'cancelled' || event.event_status === 'completed') {
-    return 'evento_no_activo'
-  }
+  if (esArchivado(event.event_status)) return 'evento_no_activo'
   const moment = taskMoment(task)
   if (moment && moment.getTime() <= now.getTime()) return 'tarea_ya_paso'
   return null

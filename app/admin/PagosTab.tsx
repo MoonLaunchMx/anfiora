@@ -5,7 +5,8 @@ import { Zap } from 'lucide-react'
 import { AdminUser } from './lib/types'
 import { getBillingRows, getBillingSummary } from '@/lib/billing'
 import { formatCurrency } from '@/lib/types'
-import { formatDate } from './lib/format'
+import { formatDate, PLAN_STYLES } from './lib/format'
+import { PAID_PLAN_IDS, PLANES, normalizarPlan, type PlanId } from '@/lib/workspace/planes'
 
 interface Props { users: AdminUser[] }
 
@@ -19,13 +20,16 @@ function Tile({ t, v, d }: { t: string; v: string; d?: string }) {
   )
 }
 
-const planPill = (p: string) => p === 'agency' ? 'bg-[#fff3cd] text-[#856404]' : 'bg-[#e8faf6] text-[#1a7a60]'
+const planPill = (p: string) => PLAN_STYLES[normalizarPlan(p)]
 
 export default function PagosTab({ users }: Props) {
-  const [filter, setFilter] = useState<'all' | 'pro' | 'agency'>('all')
+  const [filter, setFilter] = useState<'all' | PlanId>('all')
   const rows = getBillingRows(users)
   const summary = getBillingSummary(rows)
-  const shown = rows.filter(r => filter === 'all' || r.plan === filter)
+  const shown = rows.filter(r => filter === 'all' || normalizarPlan(r.plan) === filter)
+  const clientesActivosDesc = PAID_PLAN_IDS
+    .map(id => summary.byPlan[id] + ' ' + PLANES[id].nombre.toLowerCase())
+    .join(' · ')
 
   return (
     <div>
@@ -36,7 +40,7 @@ export default function PagosTab({ users }: Props) {
       <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-[#aaa]">Ingresos</p>
       <div className="mb-4 grid grid-cols-2 gap-2 lg:grid-cols-4">
         <Tile t="MRR" v={formatCurrency(summary.mrr, 'MXN')} d="recurrente mensual" />
-        <Tile t="Clientes activos" v={String(summary.payingCustomers)} d={summary.byPlan.pro + ' pro · ' + summary.byPlan.agency + ' agency'} />
+        <Tile t="Clientes activos" v={String(summary.payingCustomers)} d={clientesActivosDesc} />
         <Tile t="Ticket promedio" v={formatCurrency(summary.avgTicket, 'MXN')} d="por cliente" />
         <Tile t="ARR proyectado" v={formatCurrency(summary.arr, 'MXN')} d="MRR x12" />
       </div>
@@ -44,10 +48,10 @@ export default function PagosTab({ users }: Props) {
       <div className="rounded-[12px] border border-[#e8e8e8] bg-white">
         <div className="flex items-center justify-between border-b border-[#f0f0f0] px-3.5 py-2.5">
           <div className="flex gap-1.5">
-            {(['all', 'pro', 'agency'] as const).map(f => (
+            {(['all', ...PAID_PLAN_IDS] as const).map(f => (
               <button key={f} onClick={() => setFilter(f)}
                 className={'rounded-lg border px-2.5 py-1 text-[11px] font-bold transition ' + (filter === f ? 'border-[#48C9B0] bg-[#48C9B0] text-white' : 'border-[#e0e0e0] text-[#666] hover:bg-[#f5f5f5]')}>
-                {f === 'all' ? 'Todos' : f === 'pro' ? 'Pro' : 'Agency'}
+                {f === 'all' ? 'Todos' : PLANES[f].nombre}
               </button>
             ))}
           </div>

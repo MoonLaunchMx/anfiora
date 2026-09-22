@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { LayoutDashboard, Users, CreditCard, Activity, Megaphone } from 'lucide-react'
 import { AdminUser, GlobalStats, AuditEntry, EventOption } from './lib/types'
+import { PLAN_IDS, normalizarPlan, type PlanId } from '@/lib/workspace/planes'
+import type { Sello } from '@/lib/workspace/sello'
 import ResumenTab from './ResumenTab'
 import UsuariosTab from './UsuariosTab'
 import PagosTab from './PagosTab'
@@ -19,6 +21,7 @@ interface ApiUser {
   email: string
   full_name: string | null
   plan: string
+  sello: Sello
   created_at: string
   last_sign_in: string | null
   banned: boolean
@@ -104,6 +107,7 @@ export default function AdminPage() {
         return {
           ...u,
           plan:         u.plan || 'free',
+          sello:        u.sello ?? null,
           event_count:  userEvents.length,
           guest_count:  userGuests.length,
           party_count:  userParty.length,
@@ -120,11 +124,12 @@ export default function AdminPage() {
       const now          = new Date()
       const sevenDaysAgo = new Date(now.getTime() - 7 * 86400000).toISOString()
 
+      const byPlan = Object.fromEntries(PLAN_IDS.map(id => [id, 0])) as Record<PlanId, number>
+      for (const u of usersRaw as ApiUser[]) byPlan[normalizarPlan(u.plan)] += 1
+
       setStats({
         total_users:   usersRaw.length,
-        free_users:    usersRaw.filter((u: ApiUser) => (u.plan || 'free') === 'free').length,
-        pro_users:     usersRaw.filter((u: ApiUser) => u.plan === 'pro').length,
-        agency_users:  usersRaw.filter((u: ApiUser) => u.plan === 'agency').length,
+        byPlan,
         total_events:  events.length,
         total_guests:  guests.length + partyMembers.length,
         confirmed:     guests.filter((g: { rsvp_status: string }) => g.rsvp_status === 'confirmed').length,
@@ -179,11 +184,49 @@ export default function AdminPage() {
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
-      showToast('Plan actualizado a ' + data.plan)
+      if (data.warning) {
+        if (previous !== undefined) {
+          setUsers(prev => prev.map(u => u.id === userId ? { ...u, plan: previous } : u))
+        }
+        showToast(data.warning, false)
+      } else {
+        showToast('Plan actualizado a ' + data.plan)
+      }
     } catch (e: unknown) {
       if (previous !== undefined) {
         setUsers(prev => prev.map(u => u.id === userId ? { ...u, plan: previous } : u))
       }
+      showToast(e instanceof Error ? e.message : 'Error desconocido', false)
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+  // Mismo motivo que changePlan: el UPDATE pasa por la ruta con service role
+  // porque un filtrado por RLS no da error, solo cero filas.
+  async function changeSello(userId: string, fundador: boolean) {
+    const token = sessionToken
+    if (!token) return
+    const previous = users.find(u => u.id === userId)?.sello ?? null
+    const next: Sello = fundador ? 'fundador' : null
+    setActionLoading(userId + 'sello')
+    setUsers(prev => prev.map(u => u.id === userId ? { ...u, sello: next } : u))
+    try {
+      const res = await fetch('/api/admin/update-plan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+        body: JSON.stringify({ userId, sello: fundador ? 'fundador' : '' })
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      if (data.warning) {
+        setUsers(prev => prev.map(u => u.id === userId ? { ...u, sello: previous } : u))
+        showToast(data.warning, false)
+      } else {
+        showToast(fundador ? 'Partner fundador asignado' : 'Sello de partner fundador retirado')
+      }
+    } catch (e: unknown) {
+      setUsers(prev => prev.map(u => u.id === userId ? { ...u, sello: previous } : u))
       showToast(e instanceof Error ? e.message : 'Error desconocido', false)
     } finally {
       setActionLoading(null)
@@ -300,6 +343,7 @@ export default function AdminPage() {
             stats={stats}
             actionLoading={actionLoading}
             onChangePlan={changePlan}
+            onChangeSello={changeSello}
             onAdminAction={callAdminAction}
           />
         )}

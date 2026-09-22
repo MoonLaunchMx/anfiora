@@ -3,6 +3,7 @@
 import { useEffect, useState, useMemo, useRef, Fragment } from 'react'
 import { useParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { esErrorDeArchivado, MENSAJE_EVENTO_ARCHIVADO } from '@/lib/capacity'
 import {
   Receipt, Search, ChevronDown, ChevronRight,
   FileSpreadsheet, FileText, ArrowUpDown, ArrowUp, ArrowDown,
@@ -368,7 +369,7 @@ export default function PagosPage() {
       await reloadSilent()
     } catch (err: any) {
       console.error('Error guardando pago:', err?.message ?? err)
-      alert('No se pudo guardar el pago. Intenta de nuevo.')
+      alert(esErrorDeArchivado(err) ? MENSAJE_EVENTO_ARCHIVADO : 'No se pudo guardar el pago. Intenta de nuevo.')
     } finally { setSaving(false) }
   }
 
@@ -388,7 +389,7 @@ export default function PagosPage() {
       await reloadSilent()
     } catch (err: any) {
       console.error('Error eliminando pago:', err?.message ?? err)
-      alert('No se pudo eliminar el pago. Intenta de nuevo.')
+      alert(esErrorDeArchivado(err) ? MENSAJE_EVENTO_ARCHIVADO : 'No se pudo eliminar el pago. Intenta de nuevo.')
     } finally { setDeleting(false) }
   }
 

@@ -116,6 +116,7 @@ export function InvitarClienteModal({ open, onClose, workspace, bodaFija, onHech
                   permisos={permisosActuales}
                   features={boda.features}
                   onChange={setPermisos}
+                  sinTotal
                 />
               </div>
             )}

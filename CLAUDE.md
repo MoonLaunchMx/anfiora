@@ -605,10 +605,37 @@ Checklist antes de cualquier cambio en Supabase:
 
 ## Planes (MXN)
 
-| Plan | Precio | WhatsApp | IA |
-|---|---|---|---|
-| Free | $0 | wa.me manual | — |
-| Pro | $1,990/mes | Número compartido Anfiora | RSVP AI |
-| Agency | $3,990–$4,990/mes | Número dedicado | RSVP AI |
+Dos caminos de cliente, decididos el 17-sep-2026:
 
-Columna `plan` en `users`. Cambio manual en Supabase hasta tener Stripe. Sin modularidad hasta tener clientes pagando.
+- **Planner** (`users.role = 'planner'`): suscripcion mensual, medida por asientos.
+- **Anfitrion** (`users.role = 'anfitrion'`): pago unico por evento, medido por invitados (Esencial $1,490/150 · Pro $2,990/300 · Gran $3,990/500 · Sin Limites $5,990). **NO existe en codigo**: se conecta cuando entre Stripe.
+
+### Planes de planner
+
+| Plan | Precio | Asientos | Eventos activos | Invitados por evento |
+|---|---|---|---|---|
+| Free | $0 | 1 | 1 a la vez | 50 |
+| Pro | $490/mes | 1 | sin limite | sin limite |
+| Studio | $990/mes | 3 | sin limite | sin limite |
+| Agency | $1,990/mes (provisional) | 5 | sin limite | sin limite |
+
+Asiento extra: **$290/mes**. Agency suma marca propia, que **todavia no existe en codigo**: por eso su precio es provisional y se define cuando exista. Lo que Agency vende es la marca, no la cantidad de gente.
+
+- Catalogo unico: `lib/workspace/planes.ts`. Ningun componente pregunta por el nombre del plan.
+- El plan vive en `workspaces.plan`; `users.plan` queda como respaldo (`planDelWorkspace` en `lib/workspace/servidor.ts`).
+- Se asigna a mano desde `/admin` (`/api/admin/update-plan`, service role) hasta tener Stripe. Un disparador en Postgres impide que una cuenta se cambie el plan sola.
+
+**RENOMBRE 20-sep-2026, ojo con los datos viejos:** hasta esa fecha `pro` significaba $990 con 3 asientos. Ahora **Pro = $490 con 1 asiento** y **Studio = $990 con 3 asientos**; `studio` dejo de ser alias de `pro` y es un plan real. Al migrar, las cuentas con equipo pasan a `studio`, no a `pro`, o pierden asientos.
+
+### Sello de partner fundador
+
+No es un plan: convive con el plan y quita los topes de eventos e invitados.
+
+- 25 lugares, se asignan a mano desde `/admin`.
+- Gratis mientras no cobremos; al empezar a cobrar, **40% de descuento el primer ano** (cupon de Stripe). Nunca gratis de por vida.
+- El usuario ve su sello en su workspace y en su perfil.
+
+### Reglas de cuenta
+
+- **Un cliente por evento**, en todos los planes, con acceso maximo `editar` (nunca `total`). El cliente no ocupa asiento.
+- Los muros de Free (1 evento activo, 50 invitados contando acompanantes) se construyen en la rama `feat/muro-un-evento`; spec: `docs/superpowers/specs/2026-09-19-planes-planner-y-muros-design.md`.

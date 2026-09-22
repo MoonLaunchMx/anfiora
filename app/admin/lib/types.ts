@@ -1,3 +1,6 @@
+import type { PlanId } from '@/lib/workspace/planes'
+import type { Sello } from '@/lib/workspace/sello'
+
 export interface AdminEvent {
   id: string
   name: string
@@ -12,6 +15,7 @@ export interface AdminUser {
   email: string
   full_name: string | null
   plan: string
+  sello: Sello
   created_at: string
   event_count: number
   guest_count: number
@@ -37,9 +41,7 @@ export interface AdminUser {
 
 export interface GlobalStats {
   total_users: number
-  free_users: number
-  pro_users: number
-  agency_users: number
+  byPlan: Record<PlanId, number>
   total_events: number
   total_guests: number
   confirmed: number

@@ -6,6 +6,7 @@ import { after } from 'next/server'
 import { mirrorInbound, mirrorOutbound } from '@/lib/whatsapp/canonical-mirror'
 import { notifyInboundRsvp } from '@/lib/omnichannel/notify'
 import { resolveRsvpAndAttention } from '@/lib/agent/attention'
+import { esArchivado } from '@/lib/events/estado'
 
 const TWIML_EMPTY = '<Response/>'
 
@@ -60,8 +61,8 @@ export async function POST(request: NextRequest) {
       .eq('id', guest.event_id)
       .single()
 
-    if (event?.event_status === 'cancelled' || event?.event_status === 'completed') {
-      console.log('[Webhook] Evento no activo, se ignora:', guest.event_id, event.event_status)
+    if (esArchivado(event?.event_status)) {
+      console.log('[Webhook] Evento no activo, se ignora:', guest.event_id, event?.event_status)
       return twimlResponse()
     }
 

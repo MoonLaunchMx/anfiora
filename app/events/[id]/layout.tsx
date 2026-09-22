@@ -13,6 +13,9 @@ import { filtrarPorPermiso, moduloDeRutaNav, primeraRutaVisible } from '@/lib/pe
 import { SinAcceso } from '@/app/components/ui/SinAcceso'
 import { Cargando } from '@/app/components/ui/Cargando'
 import { misWorkspacesAdministrados } from '@/lib/workspace/cliente'
+import { esArchivado, estadoEvento, ocupaLugar, type EventoParaEstado } from '@/lib/events/estado'
+import { esErrorDeCupo, parseLimitError, fetchAccountCapacity } from '@/lib/capacity'
+import { MuroModal } from '@/app/components/MuroModal'
 
 const EVENT_TYPE_LABELS: Record<string, string> = {
   boda:        'Boda',
@@ -25,9 +28,8 @@ const EVENT_TYPE_LABELS: Record<string, string> = {
 
 const EVENT_STATUS_STYLES: Record<string, { dot: string; badge: string; label: string }> = {
   active:    { dot: 'bg-[#48C9B0]', badge: 'border-[#c8ede7] bg-[#f0fdfb] text-[#1a9e88]', label: 'Activo' },
-  paused:    { dot: 'bg-blue-400',  badge: 'border-blue-200 bg-blue-50 text-blue-700',      label: 'Pausado' },
-  cancelled: { dot: 'bg-red-400',   badge: 'border-red-200 bg-red-50 text-red-600',         label: 'Cancelado' },
-  completed: { dot: 'bg-[#888]',    badge: 'border-[#e0e0e0] bg-[#f8f8f8] text-[#888]',    label: 'Completado' },
+  archived:  { dot: 'bg-[#888]',    badge: 'border-[#e0e0e0] bg-[#f8f8f8] text-[#888]',    label: 'Archivado' },
+  pasado:    { dot: 'bg-[#888]',    badge: 'border-[#e0e0e0] bg-[#f8f8f8] text-[#888]',    label: 'Pasado' },
 }
 
 type NavSubItem = {
@@ -296,7 +298,7 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
   const { id } = useParams()
   const pathname = usePathname()
   const router = useRouter()
-  const { canAdmin, features, nivelDeModulo, isLoading } = useEventAccess()
+  const { canAdmin, isOwner, features, nivelDeModulo, isLoading, marcarArchivado } = useEventAccess()
   const salidaGuard = useSalidaGuard()
 
   // Toda salida del editor pasa por aqui: si hay cambios sin publicar, el
@@ -315,6 +317,8 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
   const [userEmail, setUserEmail]     = useState('')
   const [avatarOpen, setAvatarOpen]   = useState(false)
   const [administra, setAdministra]   = useState(false)
+  const [reactivando, setReactivando] = useState(false)
+  const [muro, setMuro]               = useState<{ limite: number } | null>(null)
 
   const navScrollRef = useRef<HTMLDivElement>(null)
   const avatarRef    = useRef<HTMLDivElement>(null)
@@ -386,7 +390,7 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
     const loadEvent = async () => {
       const { data } = await supabase
         .from('events')
-        .select('id, name, event_date, event_end_date, venue, event_type, event_status')
+        .select('id, name, event_date, event_end_date, venue, event_type, event_status, user_id')
         .eq('id', id)
         .single()
       if (data) setEvent(data as any)
@@ -394,18 +398,48 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
     loadEvent()
   }, [id, authChecked])
 
+  const handleReactivar = async () => {
+    if (reactivando || !event) return
 
-  const getDisplayStatus = (): 'active' | 'paused' | 'cancelled' | 'completed' => {
-    const es = event?.event_status || 'active'
-    if (es === 'paused' || es === 'cancelled') return es
-    if (event?.event_date) {
-      const [year, month, day] = event.event_date.split('T')[0].split('-').map(Number)
-      const eventDay = new Date(year, month - 1, day)
-      eventDay.setHours(0, 0, 0, 0)
-      const today = new Date(); today.setHours(0, 0, 0, 0)
-      if (eventDay < today) return 'completed'
+    // Igual que en dashboard y configuracion: se checa antes del update, sin
+    // depender del trigger de la base (su SQL todavia no corre en produccion).
+    const antes: EventoParaEstado = { event_status: event.event_status ?? null, event_date: event.event_date ?? null, event_end_date: event.event_end_date ?? null }
+    const despues: EventoParaEstado = { ...antes, event_status: 'active' }
+    const hoy = new Date()
+    if (!ocupaLugar(antes, hoy) && ocupaLugar(despues, hoy)) {
+      const cupo = await fetchAccountCapacity(event.user_id)
+      if (cupo && cupo.lim !== null && cupo.remaining !== null && cupo.remaining <= 0) {
+        setMuro({ limite: cupo.lim })
+        return
+      }
     }
-    return 'active'
+
+    setReactivando(true)
+    const { error } = await supabase.from('events').update({ event_status: 'active' }).eq('id', id)
+    if (error) {
+      if (esErrorDeCupo(error)) {
+        const datos = parseLimitError(error.message)
+        setMuro({ limite: datos?.limit ?? 0 })
+      }
+    } else {
+      setEvent(prev => prev ? { ...prev, event_status: 'active' } : prev)
+      marcarArchivado(false)
+    }
+    setReactivando(false)
+  }
+
+  // estadoEvento mira event_end_date (con fallback a event_date): un evento
+  // de varios dias que sigue en curso no debe salir "Pasado" solo porque su
+  // primer dia ya paso.
+  const getDisplayStatus = (): 'active' | 'archived' | 'pasado' => {
+    if (!event) return 'active'
+    const estado = estadoEvento(
+      { event_status: event.event_status ?? null, event_date: event.event_date ?? null, event_end_date: event.event_end_date ?? null },
+      new Date(),
+    )
+    if (estado === 'activo') return 'active'
+    if (estado === 'archivado') return 'archived'
+    return 'pasado'
   }
 
   const isActive = (path: string) => {
@@ -449,6 +483,7 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
   const initials      = getInitials(userName, userEmail)
   const displayStatus = event ? getDisplayStatus() : null
   const badgeStyle    = displayStatus ? EVENT_STATUS_STYLES[displayStatus] : null
+  const archivado     = esArchivado(event?.event_status)
 
   const sufijoRuta   = pathname.replace(`/events/${id}`, '').replace(/\/+$/, '')
   const moduloActual = moduloDeRutaNav(sufijoRuta)
@@ -788,6 +823,20 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
 
         {/* MAIN */}
         <main className="flex min-h-0 flex-1 flex-col overflow-hidden bg-white pb-16 sm:pb-0">
+          {!esperando && archivado && (
+            <div className="flex shrink-0 items-center justify-between gap-3 border-b border-[#e0e0e0] bg-[#f8f8f8] px-4 py-2.5 sm:px-6">
+              <p className="text-xs text-[#666] sm:text-sm">Este evento está archivado. Solo lectura.</p>
+              {isOwner && (
+                <button
+                  onClick={handleReactivar}
+                  disabled={reactivando}
+                  className="shrink-0 rounded-lg bg-[#48C9B0] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#3ab89f] disabled:opacity-60"
+                >
+                  {reactivando ? 'Reactivando...' : 'Reactivar'}
+                </button>
+              )}
+            </div>
+          )}
           {/* Mientras no sepamos los permisos NO se monta la herramienta: pintar
               primero y tapar despues es como se alcanzaba a ver Invitados. */}
           {esperando ? (
@@ -849,6 +898,13 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
           ))}
         </AnimatePresence>
       </nav>
+
+      <MuroModal
+        open={!!muro}
+        caso="reactivar-evento"
+        limite={muro?.limite ?? 0}
+        onClose={() => setMuro(null)}
+      />
     </div>
   )
 }

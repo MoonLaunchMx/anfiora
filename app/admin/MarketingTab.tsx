@@ -6,6 +6,7 @@ import {
   Smartphone, Monitor, Tablet, HelpCircle,
 } from 'lucide-react'
 import { AdminUser } from './lib/types'
+import { isPaidPlan } from '@/lib/billing'
 
 const ADMIN_EMAIL = 'diego.garza@moonlaunch.mx'
 const N_MIN = 10
@@ -26,7 +27,7 @@ const ROLE_LABEL: Record<string, string> = { planner: 'Planner', anfitrion: 'Anf
 
 const FUNNEL_STEPS = ['Se registro', 'Creo evento', 'Agrego invitados', 'Paso a pago'] as const
 
-function isPaying(u: AdminUser) { return u.plan === 'pro' || u.plan === 'agency' }
+function isPaying(u: AdminUser) { return isPaidPlan(u.plan) }
 
 function Tile({ t, children }: { t: string; children: React.ReactNode }) {
   return (

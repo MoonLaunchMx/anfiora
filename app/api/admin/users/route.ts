@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { normalizarPlan } from '@/lib/workspace/planes'
+import { normalizarSello, type Sello } from '@/lib/workspace/sello'
 
 const ADMIN_EMAIL = 'diego.garza@moonlaunch.mx'
 
@@ -26,8 +27,25 @@ export async function GET(req: NextRequest) {
     supabaseAdmin.from('guests').select('id, event_id, rsvp_status'),
     supabaseAdmin.from('party_members').select('id, event_id'),
     supabaseAdmin.from('terms_acceptances').select('user_id, version, accepted_at, ip_address').order('accepted_at', { ascending: false }),
-    supabaseAdmin.from('workspaces').select('primary_owner_id, plan'),
+    supabaseAdmin.from('workspaces').select('primary_owner_id, plan, sello'),
   ])
+
+  // La columna sello todavia no existe en produccion (llega con el SQL de la
+  // Tarea 12): si el select de arriba fallo por eso, se repite sin ella para
+  // no perder el plan de los workspaces mientras tanto. El respaldo no debe
+  // quedar mudo: si el error real fuera de permisos o de red, sin el warning
+  // nadie se entera de que todos los usuarios salieron sin sello.
+  let wsData = wsRes.data
+  let wsError = wsRes.error
+  if (wsError) {
+    console.warn('[adminUsers] select de workspaces con sello fallo, reintentando sin esa columna', wsError.message)
+    const fallback = await supabaseAdmin.from('workspaces').select('primary_owner_id, plan')
+    wsData = (fallback.data ?? []).map(w => ({ ...w, sello: null }))
+    wsError = fallback.error
+    if (wsError) {
+      console.warn('[adminUsers] el reintento de workspaces tambien fallo', wsError.message)
+    }
+  }
 
   // Consentimientos por usuario (ya vienen ordenados por fecha desc)
   const termsByUser: Record<string, { version: string; accepted_at: string; ip_address: string | null }[]> = {}
@@ -54,12 +72,14 @@ export async function GET(req: NextRequest) {
     page++
   }
 
-  // Si el SQL del Tramo 5 no ha corrido, la columna plan no existe y wsRes.error
+  // Si el SQL del Tramo 5 no ha corrido, la columna plan no existe y wsError
   // viene lleno: se cae a users.plan sin ruido.
   const planPorDueno = new Map<string, string>()
-  if (!wsRes.error) {
-    for (const w of (wsRes.data ?? []) as { primary_owner_id: string; plan: string | null }[]) {
+  const selloPorDueno = new Map<string, Sello>()
+  if (!wsError) {
+    for (const w of (wsData ?? []) as { primary_owner_id: string; plan: string | null; sello: string | null }[]) {
       planPorDueno.set(w.primary_owner_id, normalizarPlan(w.plan))
+      selloPorDueno.set(w.primary_owner_id, normalizarSello(w.sello))
     }
   }
 
@@ -68,6 +88,7 @@ export async function GET(req: NextRequest) {
     return {
       ...u,
       plan:              planPorDueno.get(u.id) ?? normalizarPlan(u.plan),
+      sello:             selloPorDueno.get(u.id) ?? null,
       last_sign_in:      authByUserId[u.id]?.last_sign_in_at ?? null,
       banned:            authByUserId[u.id]?.banned ?? false,
       terms_version:     history[0]?.version ?? null,

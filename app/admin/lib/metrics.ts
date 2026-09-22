@@ -1,5 +1,6 @@
 import { AdminUser } from './types'
 import { PLAN_PRICES, isPaidPlan } from '@/lib/billing'
+import { PLAN_IDS, normalizarPlan, type PlanId } from '@/lib/workspace/planes'
 
 const DAY = 86400000
 
@@ -22,7 +23,7 @@ export interface ResumenMetrics {
   active7d: number
   active30d: number
   ghostAccounts: number
-  byPlan: { free: number; pro: number; agency: number }
+  byPlan: Record<PlanId, number>
   lastActivity: AdminUser | null
 }
 
@@ -48,6 +49,9 @@ export function computeResumen(users: AdminUser[]): ResumenMetrics {
     return d !== null && d <= days
   }
 
+  const byPlan = Object.fromEntries(PLAN_IDS.map(id => [id, 0])) as Record<PlanId, number>
+  for (const u of users) byPlan[normalizarPlan(u.plan)] += 1
+
   return {
     mrr,
     arr: mrr * 12,
@@ -66,11 +70,7 @@ export function computeResumen(users: AdminUser[]): ResumenMetrics {
     active7d:  users.filter(u => within(u.last_sign_in, 7)).length,
     active30d: users.filter(u => within(u.last_sign_in, 30)).length,
     ghostAccounts: users.filter(u => u.event_count === 0).length,
-    byPlan: {
-      free:   users.filter(u => (u.plan || 'free') === 'free').length,
-      pro:    users.filter(u => u.plan === 'pro').length,
-      agency: users.filter(u => u.plan === 'agency').length,
-    },
+    byPlan,
     lastActivity: [...users]
       .filter(u => u.last_sign_in)
       .sort((a, b) => new Date(b.last_sign_in!).getTime() - new Date(a.last_sign_in!).getTime())[0] || null,

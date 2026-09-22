@@ -20,7 +20,7 @@ export interface PermisoDeInvitar {
 }
 
 export function puedeInvitar(plan: PlanId, ocupados: number): PermisoDeInvitar {
-  if (plan === 'free') return { ok: false, motivo: 'plan', costoNuevoAsiento: 0 }
+  if (PLANES[plan].asientosIncluidos <= 1) return { ok: false, motivo: 'plan', costoNuevoAsiento: 0 }
   const cuesta = ocupados + 1 > PLANES[plan].asientosIncluidos
   return { ok: true, motivo: null, costoNuevoAsiento: cuesta ? PRECIO_ASIENTO_EXTRA : 0 }
 }

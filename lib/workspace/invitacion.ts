@@ -123,7 +123,24 @@ export function validarCliente(p: {
   if (vivas.some(c => c.tipo === 'cliente')) {
     return falla('Ese correo ya es cliente de otra boda. Un cliente solo tiene una')
   }
+  const clientesDelEvento = p.colaboradores.filter(
+    c => c.event_id === p.eventId && c.tipo === 'cliente' && c.status !== 'revoked',
+  )
+  if (clientesDelEvento.length > 0) {
+    return falla('Este evento ya tiene un cliente. Quita el acceso del actual para invitar a otro')
+  }
   return ok
+}
+
+// El cliente nunca llega a "total": si el kit o un envio a mano lo trae, se
+// recorta a "editar" en vez de rechazarse, porque la intencion era darle
+// acceso, no dejarlo fuera.
+export function topeDeCliente(permisos: PermisosEvento): PermisosEvento {
+  const out: PermisosEvento = { ...permisos }
+  for (const m of MODULOS) {
+    if (out[m] === 'total') out[m] = 'editar'
+  }
+  return out
 }
 
 // Al aceptar el enlace de miembro se activan, de un jalon, todas las filas de

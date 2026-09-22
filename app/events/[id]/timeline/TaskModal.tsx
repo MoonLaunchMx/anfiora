@@ -11,6 +11,7 @@ import { Modal } from '@/app/components/ui/Modal'
 import DatePicker from '@/app/components/ui/DatePicker'
 import { usePermiso } from '@/lib/event-access-context'
 import { Puede } from '@/lib/permisos/Puede'
+import { esErrorDeArchivado, MENSAJE_EVENTO_ARCHIVADO } from '@/lib/capacity'
 import {
   reminderPresetsFor,
   computeReminderInstant,
@@ -179,18 +180,21 @@ export function TaskModal({ editTask, prefillDate, eventId, onClose, onSaved }: 
       reminder_date:       computedReminderDate,
     }
 
-    if (editTask) {
+    const { error } = editTask
       // Mover el recordatorio de una tarea ya avisada tiene que volver a
       // ponerla en la fila del cron: si no, el aviso nuevo no sale nunca.
-      const update = reminderChanged(editTask.reminder_date, computedReminderDate)
-        ? { ...payload, reminder_sent_at: null }
-        : payload
-      await supabase.from('event_timeline_tasks').update(update).eq('id', editTask.id)
-    } else {
-      await supabase.from('event_timeline_tasks').insert(payload)
-    }
+      ? await supabase.from('event_timeline_tasks').update(
+          reminderChanged(editTask.reminder_date, computedReminderDate)
+            ? { ...payload, reminder_sent_at: null }
+            : payload
+        ).eq('id', editTask.id)
+      : await supabase.from('event_timeline_tasks').insert(payload)
 
     setSaving(false)
+    if (error) {
+      alert(esErrorDeArchivado(error) ? MENSAJE_EVENTO_ARCHIVADO : 'No se pudo guardar la tarea. Intenta de nuevo.')
+      return
+    }
     onSaved()
   }
 
@@ -198,7 +202,11 @@ export function TaskModal({ editTask, prefillDate, eventId, onClose, onSaved }: 
   const handleDelete = async () => {
     if (!permiso.borrar) return
     if (!editTask) return
-    await supabase.from('event_timeline_tasks').delete().eq('id', editTask.id)
+    const { error } = await supabase.from('event_timeline_tasks').delete().eq('id', editTask.id)
+    if (error) {
+      alert(esErrorDeArchivado(error) ? MENSAJE_EVENTO_ARCHIVADO : 'No se pudo eliminar la tarea. Intenta de nuevo.')
+      return
+    }
     onSaved()
   }
 

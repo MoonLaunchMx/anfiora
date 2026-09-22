@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { aplicarKit, normalizarPermisos, permisosDeRol } from '@/lib/permisos/resolver'
 import { MODULOS } from '@/lib/permisos/catalogo'
-import { normalizarCorreo, validarCliente } from '@/lib/workspace/invitacion'
+import { normalizarCorreo, topeDeCliente, validarCliente } from '@/lib/workspace/invitacion'
 import { bodasDelWorkspace, esAdministrador, rolEnWorkspace, usuarioDeRequest } from '@/lib/workspace/servidor'
 
 export async function POST(req: NextRequest) {
@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
   // Si vienen permisos elegidos a mano, mandan esos; si no, se usa el punto de
   // partida. El rol legado () se deriva de lo que de verdad puede hacer.
   const elegidos = body.permisos !== undefined ? normalizarPermisos(body.permisos) : null
-  const permisos = aplicarKit(elegidos ?? permisosDeRol(punto), boda.features)
+  const permisos = topeDeCliente(aplicarKit(elegidos ?? permisosDeRol(punto), boda.features))
   const rolLegado = MODULOS.some(k => permisos[k] === 'editar' || permisos[k] === 'total') ? 'editor' : 'viewer'
 
   const { data: fila, error } = await admin.from('event_collaborators').insert({

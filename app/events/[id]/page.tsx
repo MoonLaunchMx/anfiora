@@ -21,6 +21,10 @@ import { toWhatsApp, componerTelefono, componerDesdeLada } from '@/lib/phone'
 import { reportError } from '@/lib/observabilidad/report'
 import { usePermiso } from '@/lib/event-access-context'
 import { Puede } from '@/lib/permisos/Puede'
+import { contarPersonas, bloqueaPorTope, cuantasFilasCaben, esErrorDeInvitados, parseErrorInvitados } from '@/lib/invitados/cupo'
+import { esErrorDeArchivado, MENSAJE_EVENTO_ARCHIVADO } from '@/lib/capacity'
+import { limiteInvitadosDelEvento } from '@/lib/workspace/cliente'
+import { MuroModal, type MuroCaso } from '@/app/components/MuroModal'
 import * as XLSX from 'xlsx'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
@@ -244,17 +248,20 @@ type GuestTableInfo = { tableNumber: number; tableName: string | null }
 
 const ALLERGY_OPTIONS = ['Gluten', 'Lácteos', 'Mariscos', 'Nueces', 'Huevo', 'Soya', 'Cerdo']
 
-function MembersEditor({ value, onChange, allergyPool, onCreateAllergy, onDeleteAllergy, puedeEditar = true }: {
+function MembersEditor({ value, onChange, allergyPool, onCreateAllergy, onDeleteAllergy, puedeEditar = true, nombreListo = true }: {
   value: EditMember[]
   onChange: (v: EditMember[]) => void
   allergyPool: string[]
   onCreateAllergy: (t: string) => void
   onDeleteAllergy: (t: string) => void
   puedeEditar?: boolean
+  // El acompañante siempre cuelga de un invitado con nombre: agregarlo con el
+  // nombre vacio dejaba una fila huerfana que despues fallaba al guardar.
+  nombreListo?: boolean
 }) {
   const MAX = 15
   const [open, setOpen] = useState(value.length > 0)
-  const add = () => { if (value.length < MAX) { onChange([...value, { name: '', phone: '', rsvp_status: 'pending', allergies: [], tags: [], notes: '' }]); setOpen(true) } }
+  const add = () => { if (nombreListo && value.length < MAX) { onChange([...value, { name: '', phone: '', rsvp_status: 'pending', allergies: [], tags: [], notes: '' }]); setOpen(true) } }
   const remove = (i: number) => onChange(value.filter((_, idx) => idx !== i))
   const update = (i: number, field: 'name' | 'phone' | 'rsvp_status' | 'notes', val: string) => onChange(value.map((m, idx) => idx === i ? { ...m, [field]: val } : m))
   const updateAllergies = (i: number, val: string[]) => onChange(value.map((m, idx) => idx === i ? { ...m, allergies: val } : m))
@@ -266,10 +273,24 @@ function MembersEditor({ value, onChange, allergyPool, onCreateAllergy, onDelete
           <span className="text-xs font-medium text-[#555]">Acompañantes</span>
           {value.length > 0 && <span className="rounded-full bg-[#f0fdfb] px-1.5 py-0.5 text-[10px] font-semibold text-[#48C9B0]">{value.length}</span>}
         </button>
-        {puedeEditar && value.length < MAX && <button type="button" onClick={add} className="shrink-0 text-xs font-semibold text-[#48C9B0] hover:underline">+ Agregar</button>}
+        {puedeEditar && value.length < MAX && (
+          <button
+            type="button"
+            onClick={add}
+            disabled={!nombreListo}
+            title={nombreListo ? undefined : 'Escribe primero el nombre del invitado'}
+            className={'shrink-0 text-xs font-semibold transition ' + (nombreListo ? 'text-[#48C9B0] hover:underline' : 'cursor-not-allowed text-[#ccc]')}
+          >
+            + Agregar
+          </button>
+        )}
       </div>
       {open && (<>
-      {value.length === 0 && <p className="mt-2 text-xs text-[#bbb]">Sin acompañantes — haz clic en "Agregar" para incluir uno.</p>}
+      {value.length === 0 && (
+        <p className="mt-2 text-xs text-[#bbb]">
+          {nombreListo ? 'Sin acompañantes — haz clic en "Agregar" para incluir uno.' : 'Escribe el nombre del invitado para poder agregar acompañantes.'}
+        </p>
+      )}
       <div className="mt-2 flex flex-col gap-2">
         {value.map((m, i) => (
           <div key={i} className="rounded-lg border border-[#e8e8e8] bg-[#f8f8f8] p-3">
@@ -529,7 +550,11 @@ function AddGuestModal({ availableTags, groupPool, allergyPool, onCreateTag, onD
       <Modal.Header title="Agregar invitado" />
       <Modal.Body>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div><label className="mb-1.5 block text-xs font-medium text-[#555]">Nombre *</label><input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Ana García" className={INPUT_CLASS} /></div>
+          <div>
+            <label className="mb-1.5 block text-xs font-medium text-[#555]">Nombre *</label>
+            <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Ana García" className={INPUT_CLASS} />
+            {formError && <p className="mt-1.5 text-xs text-[#cc3333]">{formError}</p>}
+          </div>
           <div><label className="mb-1.5 block text-xs font-medium text-[#555]">WhatsApp <span className="font-normal text-[#ccc]">(opcional)</span></label><PhoneInput value={phone} onChange={setPhone} placeholder="81 1234 5678" /></div>
           <div><label className="mb-1.5 block text-xs font-medium text-[#555]">Email <span className="font-normal text-[#ccc]">(opcional)</span></label><input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="ana@ejemplo.com" className={INPUT_CLASS} /></div>
           <div>
@@ -543,9 +568,8 @@ function AddGuestModal({ availableTags, groupPool, allergyPool, onCreateTag, onD
             <p className="mt-1.5 text-[11px] leading-snug text-[#999]">Dato de salud: captúralo solo si el invitado te lo compartió para el evento.</p>
           </div>
           <div className="sm:col-span-2"><label className="mb-1.5 block text-xs font-medium text-[#555]">Notas <span className="font-normal text-[#ccc]">(opcional)</span></label><textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Mesa preferida, restricciones..." rows={2} className={`${INPUT_CLASS} resize-y`} /></div>
-          <div className="sm:col-span-2 border-t border-[#f0f0f0] pt-4"><MembersEditor value={members} onChange={setMembers} allergyPool={allergyPool} onCreateAllergy={onCreateAllergy} onDeleteAllergy={handleDeleteAllergy} /></div>
+          <div className="sm:col-span-2 border-t border-[#f0f0f0] pt-4"><MembersEditor value={members} onChange={setMembers} allergyPool={allergyPool} onCreateAllergy={onCreateAllergy} onDeleteAllergy={handleDeleteAllergy} nombreListo={!!name.trim()} /></div>
         </div>
-        {formError && <div className="mt-4 rounded-lg border border-[#ffc0c0] bg-[#fff0f0] p-2.5 text-xs text-[#cc3333]">{formError}</div>}
       </Modal.Body>
       <Modal.Footer>
         <button onClick={onClose} className="flex-1 rounded-lg border border-[#e0e0e0] py-3 text-sm text-[#888]">Cancelar</button>
@@ -610,7 +634,11 @@ function EditGuestModal({ guest, availableTags, groupPool, allergyPool, onCreate
         )}
         <fieldset disabled={!puedeEditar} className="m-0 min-w-0 border-0 p-0">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div><label className="mb-1.5 block text-xs font-medium text-[#555]">Nombre *</label><input type="text" value={name} onChange={e => setName(e.target.value)} className={INPUT_CLASS} /></div>
+          <div>
+            <label className="mb-1.5 block text-xs font-medium text-[#555]">Nombre *</label>
+            <input type="text" value={name} onChange={e => setName(e.target.value)} className={INPUT_CLASS} />
+            {error && <p className="mt-1.5 text-xs text-[#cc3333]">{error}</p>}
+          </div>
           <div><label className="mb-1.5 block text-xs font-medium text-[#555]">WhatsApp</label><PhoneInput value={phone} onChange={setPhone} placeholder="81 1234 5678" /></div>
           <div><label className="mb-1.5 block text-xs font-medium text-[#555]">Email</label><input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="ana@ejemplo.com" className={INPUT_CLASS} /></div>
           <div>
@@ -624,7 +652,7 @@ function EditGuestModal({ guest, availableTags, groupPool, allergyPool, onCreate
             <p className="mt-1.5 text-[11px] leading-snug text-[#999]">Dato de salud: captúralo solo si el invitado te lo compartió para el evento.</p>
           </div>
           <div className="sm:col-span-2"><label className="mb-1.5 block text-xs font-medium text-[#555]">Notas</label><textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Mesa preferida, restricciones..." rows={2} className={`${INPUT_CLASS} resize-y`} /></div>
-          <div className="sm:col-span-2 border-t border-[#f0f0f0] pt-4"><MembersEditor value={members} onChange={setMembers} allergyPool={allergyPool} onCreateAllergy={onCreateAllergy} onDeleteAllergy={handleDeleteAllergy} puedeEditar={puedeEditar} /></div>
+          <div className="sm:col-span-2 border-t border-[#f0f0f0] pt-4"><MembersEditor value={members} onChange={setMembers} allergyPool={allergyPool} onCreateAllergy={onCreateAllergy} onDeleteAllergy={handleDeleteAllergy} puedeEditar={puedeEditar} nombreListo={!!name.trim()} /></div>
         </div>
         </fieldset>
         {puedeBorrar && (
@@ -633,7 +661,6 @@ function EditGuestModal({ guest, availableTags, groupPool, allergyPool, onCreate
             Eliminar invitado
           </button>
         )}
-        {error && <div className="mt-4 rounded-lg border border-[#ffc0c0] bg-[#fff0f0] p-2.5 text-xs text-[#cc3333]">{error}</div>}
       </Modal.Body>
       <Modal.Footer>
         <button onClick={onClose} className="flex-1 rounded-lg border border-[#e0e0e0] py-3 text-sm text-[#888]">{puedeEditar ? 'Cancelar' : 'Cerrar'}</button>
@@ -656,6 +683,12 @@ export default function EventPage() {
 
   const [event, setEvent] = useState<Event | null>(null)
   const [eventSettings, setEventSettings] = useState<EventSettings | null>(null)
+  const [limiteInvitadosEvento, setLimiteInvitadosEvento] = useState<number | null>(null)
+  // Distinto de "sin tope": mientras esto es false, el contador de arriba
+  // no debe decidir si muestra "de 50" o no, para no brincar de un formato
+  // al otro en cuanto la consulta resuelve.
+  const [limiteCargado, setLimiteCargado] = useState(false)
+  const [muroInvitados, setMuroInvitados] = useState<{ limite: number; caso: MuroCaso; personasEnArchivo?: number } | null>(null)
   const [plannerName, setPlannerName] = useState('')
   const [waTarget, setWaTarget] = useState<'web' | 'app'>('web')
   const [guests, setGuests] = useState<Guest[]>([])
@@ -682,6 +715,7 @@ export default function EventPage() {
   const fileRef = useRef<HTMLInputElement>(null)
   const [csvPreview, setCsvPreview] = useState<CsvDuplicateResult | null>(null)
   const [csvImporting, setCsvImporting] = useState(false)
+  const [csvDone, setCsvDone] = useState(false)
 
   const [editGuest, setEditGuest] = useState<Guest | null>(null)
   const [deleteChatModal, setDeleteChatModal] = useState<{ guestId: string; conversationIds: string[] } | null>(null)
@@ -802,6 +836,19 @@ export default function EventPage() {
     if (data) {
       setEvent(data)
       if (data.planner_name) setPlannerName(data.planner_name)
+      // El tope es del dueno del evento, no de quien esta viendo la pantalla.
+      if (data.user_id) {
+        limiteInvitadosDelEvento(id as string, data.user_id).then(lim => {
+          setLimiteInvitadosEvento(lim)
+          setLimiteCargado(true)
+        })
+      } else {
+        setLimiteCargado(true)
+      }
+    } else {
+      // Si el evento no cargo, el contador no se queda en blanco para
+      // siempre: cae a mostrar solo el numero de personas (sin "de X").
+      setLimiteCargado(true)
     }
     if (settings) setEventSettings(settings)
   }
@@ -854,6 +901,35 @@ export default function EventPage() {
     setLoading(false)
   }
 
+  // Recuento real de acompanantes por invitado — solo se usa para corregir
+  // party_size cuando una insercion se corto a medias (carrera de dos
+  // pestanas). Pagina igual que loadGuests: por invitados (200 a la vez, el
+  // tope que ya confirma el .in() de arriba) y por filas (de mil en mil).
+  // Si CUALQUIER lectura falla, regresa null: mejor dejar el party_size
+  // viejo que escribir uno adivinado a medias.
+  const contarAcompanantesPorInvitado = async (guestIds: string[]): Promise<Map<string, number> | null> => {
+    const countByGuest = new Map<string, number>()
+    const IDCHUNK = 200
+    const PAGE = 1000
+    for (let i = 0; i < guestIds.length; i += IDCHUNK) {
+      const idsChunk = guestIds.slice(i, i + IDCHUNK)
+      for (let from = 0; ; from += PAGE) {
+        const { data, error } = await supabase
+          .from('party_members')
+          .select('guest_id')
+          .eq('event_id', id)
+          .in('guest_id', idsChunk)
+          .order('id')
+          .range(from, from + PAGE - 1)
+        if (error) return null
+        if (!data || data.length === 0) break
+        for (const row of data) countByGuest.set(row.guest_id, (countByGuest.get(row.guest_id) || 0) + 1)
+        if (data.length < PAGE) break
+      }
+    }
+    return countByGuest
+  }
+
   const updateStatus = async (guestId: string, status: RsvpStatus) => {
     if (!permiso.editar) return
     setGuests(prev => prev.map(g => g.id === guestId ? { ...g, rsvp_status: status } : g))
@@ -895,6 +971,7 @@ export default function EventPage() {
     const ops = buildGuestDeletionOps(guestId, conversationIds, mode)
     const { ok, error } = await executeGuestDeletion(supabase, ops)
     if (!ok) {
+      if (esErrorDeArchivado(error ? { message: error } : null)) { alert(MENSAJE_EVENTO_ARCHIVADO); return }
       reportError(error, { zona: 'planner' })
       alert('No se pudo eliminar el invitado. Intenta de nuevo.' + (error ? ' (' + error + ')' : ''))
       return
@@ -943,6 +1020,18 @@ export default function EventPage() {
   const submitEditGuest = async (guest: Guest, f: GuestFormValues): Promise<string | null> => {
     if (!permiso.editar) return null
     if (!f.name) return 'El nombre es obligatorio'
+    const existingIds = guest.party_members.map(m => m.id)
+    const keepIds = f.members.filter(m => m.id).map(m => m.id as string)
+    const toDelete = existingIds.filter(id => !keepIds.includes(id))
+    const toInsert = f.members.filter(m => !m.id)
+    // Lo unico que se bloquea es que la cuenta CREZCA mas alla del tope: una
+    // cuenta ya pasada del tope puede seguir intercambiando acompanantes
+    // (borrar unos, agregar otros) mientras el total no aumente.
+    const personasDespues = totalPersonas - toDelete.length + toInsert.length
+    if (bloqueaPorTope(totalPersonas, personasDespues, limiteInvitadosEvento)) {
+      setMuroInvitados({ limite: limiteInvitadosEvento as number, caso: 'invitados-tope' })
+      return 'Ya llegaste al tope de invitados de tu plan.'
+    }
     if (f.phone) {
       const normalizedEdit = componerTelefono(f.phone, 'MX')
       if (normalizedEdit) {
@@ -950,19 +1039,65 @@ export default function EventPage() {
         if (duplicate) return `Este WhatsApp ya está registrado para "${duplicate.name}"`
       }
     }
+    // party_size se guarda de una vez con el tamano que se espera lograr; si
+    // la insercion de acompanantes nuevos falla mas abajo (carrera de dos
+    // pestanas), se corrige al tamano real para no dejarlo inflado.
     const { error } = await supabase.from('guests').update({ name: f.name, phone: f.phone || null, email: f.email || null, party_size: 1 + f.members.length, notes: f.notes || null, tags: f.tags, side: f.side || null, allergies: f.allergies.length > 0 ? f.allergies : null }).eq('id', guest.id)
     if (error) {
+      if (esErrorDeArchivado(error)) return MENSAJE_EVENTO_ARCHIVADO
       reportError(error, { zona: 'planner' })
       return 'Error: ' + error.message
     }
-    const existingIds = guest.party_members.map(m => m.id)
-    const keepIds = f.members.filter(m => m.id).map(m => m.id as string)
-    const toDelete = existingIds.filter(id => !keepIds.includes(id))
-    if (toDelete.length > 0) await supabase.from('party_members').delete().in('id', toDelete)
     for (const m of f.members.filter(m => m.id)) await supabase.from('party_members').update({ name: m.name, phone: m.phone || null, rsvp_status: m.rsvp_status, allergies: m.allergies.length ? m.allergies : null, tags: m.tags.length ? m.tags : null, notes: m.notes || null }).eq('id', m.id!)
-    const toInsert = f.members.filter(m => !m.id)
-    if (toInsert.length > 0) await supabase.from('party_members').insert(toInsert.map(m => ({ guest_id: guest.id, event_id: id as string, name: m.name, phone: m.phone || null, rsvp_status: m.rsvp_status, allergies: m.allergies.length ? m.allergies : null, tags: m.tags.length ? m.tags : null, notes: m.notes || null })))
+
+    const insertRows = toInsert.map(m => ({ guest_id: guest.id, event_id: id as string, name: m.name, phone: m.phone || null, rsvp_status: m.rsvp_status, allergies: m.allergies.length ? m.allergies : null, tags: m.tags.length ? m.tags : null, notes: m.notes || null }))
+
+    // Siempre se inserta primero y solo se borra si el insert entro: es la
+    // unica consecuencia predecible cuando borrar e insertar son DOS
+    // escrituras separadas (no una transaccion). Nunca se pierde un dato,
+    // porque nada se borra hasta que lo nuevo ya esta guardado. El costo
+    // aceptado: una cuenta exactamente en el tope no puede intercambiar un
+    // acompanante por otro de un jalon (ve el aviso de tope); hacerlo en dos
+    // pasos -- borrar y guardar, luego agregar y guardar -- si funciona.
+    let insertedOk = insertRows.length === 0
+    let aviso: string | null = null
+    if (insertRows.length > 0) {
+      const { error: memberError } = await supabase.from('party_members').insert(insertRows)
+      insertedOk = !memberError
+      if (memberError) {
+        // Se revisa siempre, sin suponer que esta operacion "no podia ser de
+        // plan": es la unica escritura que la base puede rechazar por tope,
+        // asi que cualquier rechazo por tope tiene que salir como el aviso
+        // real, nunca como "intenta de nuevo".
+        if (esErrorDeInvitados(memberError)) {
+          const datos = parseErrorInvitados(memberError.message)
+          setMuroInvitados({ limite: datos?.limite ?? limiteInvitadosEvento ?? 0, caso: 'invitados-tope' })
+        } else {
+          aviso = 'No se pudieron agregar los acompañantes nuevos. Intenta de nuevo.'
+        }
+      }
+    }
+
+    let deletedOk = toDelete.length === 0
+    if (insertedOk && toDelete.length > 0) {
+      const { error: delError } = await supabase.from('party_members').delete().in('id', toDelete)
+      deletedOk = !delError
+      if (delError) aviso = 'Los acompañantes nuevos se guardaron, pero no se pudieron quitar los removidos.'
+    }
+
+    // El tamano real segun lo que de verdad quedo en la base: los que se
+    // conservaron, mas los viejos que no se pudieron borrar (o que ni se
+    // intentaron, porque el insert no entro), mas los nuevos que si entraron.
+    const acompanantesReal = keepIds.length + (deletedOk ? 0 : toDelete.length) + (insertedOk ? toInsert.length : 0)
+    if (1 + acompanantesReal !== 1 + f.members.length) {
+      await supabase.from('guests').update({ party_size: 1 + acompanantesReal }).eq('id', guest.id)
+    }
+
     await loadGuests(); setEditGuest(null)
+    // El resto del invitado ya se guardo y el modal se cierra: el aviso de
+    // un problema con los acompanantes va aparte, no como error de
+    // formulario (que ya no se veria).
+    if (aviso) alert(aviso)
     return null
   }
 
@@ -1103,14 +1238,47 @@ export default function EventPage() {
       const toAdd = Math.min(bulkCompanionCount, canAdd)
       if (toAdd <= 0) continue
       for (let i = 0; i < toAdd; i++) rows.push({ guest_id: guestId, event_id: id as string, name: '', phone: null, rsvp_status: 'pending' })
-      sizeUpdates.push({ id: guestId, party_size: guest.party_size + toAdd })
+      sizeUpdates.push({ id: guestId, party_size: 1 + guest.party_members.length + toAdd })
     }
     if (rows.length === 0) { setBulkCompanionSaving(false); setShowBulkCompanionModal(false); return }
+    if (bloqueaPorTope(totalPersonas, totalPersonas + rows.length, limiteInvitadosEvento)) {
+      setBulkCompanionSaving(false); setShowBulkCompanionModal(false)
+      setMuroInvitados({ limite: limiteInvitadosEvento as number, caso: 'invitados-tope' })
+      return
+    }
     const CHUNK = 500
-    for (let i = 0; i < rows.length; i += CHUNK) await supabase.from('party_members').insert(rows.slice(i, i + CHUNK))
+    let insertOk = true
+    for (let i = 0; i < rows.length; i += CHUNK) {
+      const { error } = await supabase.from('party_members').insert(rows.slice(i, i + CHUNK))
+      if (error) {
+        insertOk = false
+        if (esErrorDeInvitados(error)) {
+          const datos = parseErrorInvitados(error.message)
+          setMuroInvitados({ limite: datos?.limite ?? limiteInvitadosEvento ?? 0, caso: 'invitados-tope' })
+        }
+        break
+      }
+    }
     const UCHUNK = 50
-    for (let i = 0; i < sizeUpdates.length; i += UCHUNK) {
-      await Promise.all(sizeUpdates.slice(i, i + UCHUNK).map(u => supabase.from('guests').update({ party_size: u.party_size }).eq('id', u.id)))
+    if (insertOk) {
+      // Camino feliz (la inmensa mayoria de las veces): lo que se esperaba
+      // insertar es lo que entro, el tamano adivinado ya es el real.
+      for (let i = 0; i < sizeUpdates.length; i += UCHUNK) {
+        await Promise.all(sizeUpdates.slice(i, i + UCHUNK).map(u => supabase.from('guests').update({ party_size: u.party_size }).eq('id', u.id)))
+      }
+    } else if (sizeUpdates.length > 0) {
+      // Se corto a medias (carrera de dos pestanas): el tamano adivinado ya
+      // no es confiable para todos. Se recuenta contra lo que de verdad
+      // quedo insertado; si la lectura misma falla, no se escribe nada —
+      // mejor un party_size viejo que uno inventado.
+      const countByGuest = await contarAcompanantesPorInvitado(sizeUpdates.map(u => u.id))
+      if (countByGuest) {
+        for (let i = 0; i < sizeUpdates.length; i += UCHUNK) {
+          await Promise.all(sizeUpdates.slice(i, i + UCHUNK).map(u =>
+            supabase.from('guests').update({ party_size: 1 + (countByGuest.get(u.id) || 0) }).eq('id', u.id)
+          ))
+        }
+      }
     }
     await loadGuests()
     setBulkCompanionSaving(false); setShowBulkCompanionModal(false)
@@ -1210,6 +1378,11 @@ export default function EventPage() {
   const submitAddGuest = async (f: GuestFormValues): Promise<string | null> => {
     if (!permiso.editar) return null
     if (!f.name) return 'El nombre es obligatorio'
+    const porAgregar = 1 + f.members.length
+    if (bloqueaPorTope(totalPersonas, totalPersonas + porAgregar, limiteInvitadosEvento)) {
+      setMuroInvitados({ limite: limiteInvitadosEvento as number, caso: 'invitados-tope' })
+      return 'Ya llegaste al tope de invitados de tu plan.'
+    }
     if (f.phone) {
       const normalizedNew = componerTelefono(f.phone, 'MX')
       if (normalizedNew) {
@@ -1219,19 +1392,42 @@ export default function EventPage() {
     }
     const { data: guestData, error } = await supabase.from('guests').insert({ event_id: id, name: f.name, phone: f.phone || null, email: f.email || null, party_size: 1 + f.members.length, notes: f.notes || null, tags: f.tags, rsvp_status: 'pending', side: f.side || null, allergies: f.allergies.length > 0 ? f.allergies : null }).select().single()
     if (error || !guestData) {
-      if (error) reportError(error, { zona: 'planner' })
+      if (error) {
+        if (esErrorDeArchivado(error)) return MENSAJE_EVENTO_ARCHIVADO
+        reportError(error, { zona: 'planner' })
+        if (esErrorDeInvitados(error)) {
+          const datos = parseErrorInvitados(error.message)
+          setMuroInvitados({ limite: datos?.limite ?? limiteInvitadosEvento ?? 0, caso: 'invitados-tope' })
+          return 'Ya llegaste al tope de invitados de tu plan.'
+        }
+      }
       return 'Error: ' + error?.message
     }
-    if (f.members.length > 0) await supabase.from('party_members').insert(f.members.map(m => ({ guest_id: guestData.id, event_id: id, name: m.name, phone: m.phone || null, rsvp_status: m.rsvp_status, allergies: m.allergies.length ? m.allergies : null, tags: m.tags.length ? m.tags : null, notes: m.notes || null })))
+    if (f.members.length > 0) {
+      const { error: memberError } = await supabase.from('party_members').insert(f.members.map(m => ({ guest_id: guestData.id, event_id: id, name: m.name, phone: m.phone || null, rsvp_status: m.rsvp_status, allergies: m.allergies.length ? m.allergies : null, tags: m.tags.length ? m.tags : null, notes: m.notes || null })))
+      if (memberError) {
+        if (esErrorDeInvitados(memberError)) {
+          const datos = parseErrorInvitados(memberError.message)
+          setMuroInvitados({ limite: datos?.limite ?? limiteInvitadosEvento ?? 0, caso: 'invitados-tope' })
+        }
+        // El invitado ya se creo con party_size adelantado; sus acompanantes
+        // no entraron, asi que se corrige a 1 para no dejarlo inflado.
+        await supabase.from('guests').update({ party_size: 1 }).eq('id', guestData.id)
+      }
+    }
     await supabase.rpc('increment_guests', { event_id_input: id })
     setEvent(prev => prev ? { ...prev, total_guests: prev.total_guests + 1 } : prev)
     await loadGuests(); setShowModal(false)
     return null
   }
 
+  const cerrarCsvModal = () => {
+    setShowCsvModal(false); setCsvPreview(null); setCsvDone(false); setCsvError(''); setCsvSuccess('')
+  }
+
   const handleCSV = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]; if (!file) return
-    setCsvError(''); setCsvSuccess(''); setCsvPreview(null)
+    setCsvError(''); setCsvSuccess(''); setCsvPreview(null); setCsvDone(false)
     const parseCSV = (text: string) => {
       const lines = text.split('\n').filter(l => l.trim())
       if (lines.length < 2) { setCsvError('El archivo está vacío'); return }
@@ -1308,18 +1504,76 @@ export default function EventPage() {
   const confirmCsvImport = async (skipDuplicates: boolean) => {
     if (!permiso.editar) return
     if (!csvPreview) return
-    setCsvImporting(true); setCsvError('')
+    setCsvImporting(true); setCsvError(''); setCsvDone(false)
     let rowsToImport = csvPreview.rows
     if (skipDuplicates) {
       const duplicateKeys = new Set(csvPreview.duplicates.map(d => d.name + '|' + d.phone))
       rowsToImport = csvPreview.rows.filter(r => !duplicateKeys.has(r.name + '|' + r.phone))
     }
     if (!rowsToImport.length) { setCsvError('No quedan invitados para importar'); setCsvImporting(false); setCsvPreview(null); return }
+
+    // La importacion nunca rechaza el archivo completo: entran las filas que
+    // caben, en orden, sin partir ninguna. El cupo cuenta PERSONAS (invitado
+    // + sus acompanantes juntos), no filas: el candado de la base tambien
+    // cuenta personas, asi que recortar por filas dejaba pasar acompanantes
+    // de mas.
+    const tamanos = rowsToImport.map(r => 1 + r._companions.length)
+    const { filas, personasFuera } = cuantasFilasCaben(tamanos, totalPersonas, limiteInvitadosEvento)
+    let sobranMsg = ''
+    if (personasFuera > 0) {
+      if (filas === 0) {
+        setCsvImporting(false)
+        setMuroInvitados({ limite: limiteInvitadosEvento as number, caso: 'import-vacio', personasEnArchivo })
+        return
+      }
+      sobranMsg = ` Tu plan permite hasta ${limiteInvitadosEvento} invitados en total: ${personasFuera} persona${personasFuera === 1 ? '' : 's'} de este archivo se quedaron fuera por el tope. Solicita acceso para importar el resto.`
+      rowsToImport = rowsToImport.slice(0, filas)
+    }
+
     const guestPayload = rowsToImport.map(r => ({ event_id: r.event_id, name: r.name, phone: r.phone, email: r.email, party_size: r.party_size, rsvp_status: r.rsvp_status, tags: r.tags, notes: r.notes, side: r.side, allergies: r.allergies }))
     const { data: insertedGuests, error } = await supabase.from('guests').insert(guestPayload).select('id')
-    if (error) { reportError(error, { zona: 'planner' }); setCsvError('Error al importar: ' + error.message); setCsvImporting(false); return }
+    if (error) {
+      reportError(error, { zona: 'planner' })
+      if (esErrorDeInvitados(error)) {
+        const datos = parseErrorInvitados(error.message)
+        setMuroInvitados({ limite: datos?.limite ?? limiteInvitadosEvento ?? 0, caso: 'invitados-tope' })
+      }
+      setCsvError('Error al importar: ' + error.message); setCsvImporting(false); return
+    }
     const memberRows = (insertedGuests || []).flatMap((g, i) => rowsToImport[i]._companions.map(name => ({ guest_id: g.id, event_id: id as string, name: name || '', phone: null, rsvp_status: 'pending' })))
-    for (let i = 0; i < memberRows.length; i += 500) await supabase.from('party_members').insert(memberRows.slice(i, i + 500))
+    // Se cuenta lo que de verdad entro, no memberRows.length: si el ciclo se
+    // corta a medias (carrera de dos pestanas), el resumen final no debe
+    // reportar acompanantes que nunca se insertaron.
+    let acompanantesInsertados = 0
+    for (let i = 0; i < memberRows.length; i += 500) {
+      const chunk = memberRows.slice(i, i + 500)
+      const { error: memberError } = await supabase.from('party_members').insert(chunk)
+      if (memberError) {
+        if (esErrorDeInvitados(memberError)) {
+          const datos = parseErrorInvitados(memberError.message)
+          setMuroInvitados({ limite: datos?.limite ?? limiteInvitadosEvento ?? 0, caso: 'invitados-tope' })
+        }
+        break
+      }
+      acompanantesInsertados += chunk.length
+    }
+    if (acompanantesInsertados < memberRows.length) {
+      // Algunos acompanantes no entraron: el party_size que se guardo con
+      // cada invitado (ya adelantado) quedo inflado para esos casos. Se
+      // recuenta contra lo que de verdad quedo insertado; si la lectura
+      // misma falla, no se escribe nada — mejor un party_size viejo que
+      // uno inventado.
+      const idsConAcompanantes = Array.from(new Set(memberRows.map(m => m.guest_id)))
+      const countByGuest = await contarAcompanantesPorInvitado(idsConAcompanantes)
+      if (countByGuest) {
+        const UCHUNK = 50
+        for (let i = 0; i < idsConAcompanantes.length; i += UCHUNK) {
+          await Promise.all(idsConAcompanantes.slice(i, i + UCHUNK).map(gid =>
+            supabase.from('guests').update({ party_size: 1 + (countByGuest.get(gid) || 0) }).eq('id', gid)
+          ))
+        }
+      }
+    }
     await supabase.rpc('increment_guests_by', { event_id_input: id, amount: rowsToImport.length })
     const curEventTags = event?.guest_tags || []
     const newTagsToAdd = Array.from(new Set(rowsToImport.flatMap(r => r.tags))).filter(t => !curEventTags.includes(t))
@@ -1331,8 +1585,10 @@ export default function EventPage() {
       setEvent(prev => prev ? { ...prev, total_guests: prev.total_guests + rowsToImport.length } : prev)
     }
     await loadGuests()
-    setCsvSuccess('✓ ' + rowsToImport.length + ' invitados' + (memberRows.length ? ' y ' + memberRows.length + ' acompañantes' : '') + ' importados' + (newTagsToAdd.length ? ' · ' + newTagsToAdd.length + ' tags nuevos' : '') + (skipDuplicates && csvPreview.duplicates.length > 0 ? ' (' + csvPreview.duplicates.length + ' duplicados omitidos)' : ''))
-    setCsvPreview(null); setCsvImporting(false)
+    setCsvSuccess('✓ ' + rowsToImport.length + ' invitados' + (acompanantesInsertados ? ' y ' + acompanantesInsertados + ' acompañantes' : '') + ' importados' + (newTagsToAdd.length ? ' · ' + newTagsToAdd.length + ' tags nuevos' : '') + (skipDuplicates && csvPreview.duplicates.length > 0 ? ' (' + csvPreview.duplicates.length + ' duplicados omitidos)' : '') + sobranMsg)
+    // El resumen (incluido cuantos se quedaron fuera por el tope) se queda a
+    // la vista: csvPreview no se limpia aqui, solo cuando la persona cierra.
+    setCsvDone(true); setCsvImporting(false)
   }
 
   const exportExcel = () => {
@@ -1452,7 +1708,36 @@ export default function EventPage() {
 
   const getTableLabel = (guestId: string): string => { const t = guestTableMap.get(guestId); if (!t) return ''; return `Mesa ${t.tableNumber}` }
 
-  const totalPersonas = guests.reduce((acc, g) => acc + 1 + g.party_members.length, 0)
+  const totalPersonas = contarPersonas(guests.length, guests.reduce((acc, g) => acc + g.party_members.length, 0))
+
+  // Cuanto de este archivo de verdad entra, calculado una sola vez para que
+  // el titulo, la barra, el aviso dorado y el boton de confirmar digan
+  // siempre el mismo numero real — nunca el total del archivo disfrazado
+  // de "va a entrar todo".
+  const cupoPreview = useMemo(() => {
+    if (!csvPreview || limiteInvitadosEvento === null) return null
+    const duplicateKeys = new Set(csvPreview.duplicates.map(d => d.name + '|' + d.phone))
+    const filasParaCupo = csvPreview.hasDuplicates ? csvPreview.rows.filter(r => !duplicateKeys.has(r.name + '|' + r.phone)) : csvPreview.rows
+    const tamanos = filasParaCupo.map(r => 1 + r._companions.length)
+    const { filas, personasImportadas, personasFuera } = cuantasFilasCaben(tamanos, totalPersonas, limiteInvitadosEvento)
+    if (personasFuera === 0) return null
+    return { filas, personasImportadas, personasFuera }
+  }, [csvPreview, limiteInvitadosEvento, totalPersonas])
+
+  // Personas totales del archivo (invitados + acompanantes), no filas: es el
+  // numero que va junto al de arriba, porque el tope mide personas, no filas.
+  const personasEnArchivo = useMemo(() => {
+    if (!csvPreview) return 0
+    return csvPreview.rows.reduce((acc, r) => acc + 1 + r._companions.length, 0)
+  }, [csvPreview])
+
+  // "Son 47 invitados con sus 3 acompañantes" — nunca "con 0 acompañantes".
+  const fraseInvitadosQueEntran = (filas: number, acompanantes: number): string => {
+    const invitadosTxt = `${filas} invitado${filas === 1 ? '' : 's'}`
+    if (acompanantes === 0) return `Son ${invitadosTxt}, sin acompañantes.`
+    const acompTxt = acompanantes === 1 ? 'su 1 acompañante' : `sus ${acompanantes} acompañantes`
+    return `Son ${invitadosTxt} con ${acompTxt}.`
+  }
 
   const countByStatus = (s: RsvpStatus) => guests.reduce((acc, g) => {
     if (g.rsvp_status === 'declined') return acc + (s === 'declined' ? 1 + g.party_members.length : 0)
@@ -1536,7 +1821,11 @@ export default function EventPage() {
         <div className="mb-4 flex items-start justify-between gap-4">
           <div className="min-w-0 flex-1">
             <h1 className="text-xl font-bold text-[#1D1E20]">Invitados</h1>
-            <p className="mt-0.5 text-xs text-[#888] sm:text-sm">Gestiona a todos tus invitados.</p>
+            <p className="mt-0.5 text-xs text-[#888] sm:text-sm">
+              {!limiteCargado
+                ? ' '
+                : (limiteInvitadosEvento !== null ? `${totalPersonas} de ${limiteInvitadosEvento} invitados` : `${totalPersonas} invitados`)}
+            </p>
           </div>
           <div className="lg:hidden shrink-0 pt-1">
             <StatsToggleButton visible={statsVisible} onClick={toggleStats} />
@@ -1720,7 +2009,7 @@ export default function EventPage() {
             )}
           </div>
           <Puede modulo="invitados" accion="editar">
-            <button onClick={() => { setCsvError(''); setCsvSuccess(''); setCsvPreview(null); setShowCsvModal(true) }} className="hidden items-center gap-1.5 whitespace-nowrap rounded-lg border border-[#e0e0e0] px-3 py-2 text-xs text-[#666] transition hover:border-[#48C9B0] hover:text-[#48C9B0] sm:flex">
+            <button onClick={() => { setCsvError(''); setCsvSuccess(''); setCsvPreview(null); setCsvDone(false); setShowCsvModal(true) }} className="hidden items-center gap-1.5 whitespace-nowrap rounded-lg border border-[#e0e0e0] px-3 py-2 text-xs text-[#666] transition hover:border-[#48C9B0] hover:text-[#48C9B0] sm:flex">
               <Upload size={13} />Importar
             </button>
           </Puede>
@@ -2041,7 +2330,7 @@ export default function EventPage() {
       {/* Importar invitados — pasos (componente compartido) */}
       <ImportStepsModal
         open={showCsvModal && !csvPreview}
-        onClose={() => { setShowCsvModal(false); setCsvPreview(null) }}
+        onClose={cerrarCsvModal}
         title="Importar invitados"
         subtitle="Trae tu lista de invitados desde Excel en dos pasos."
         step1Desc="Ya trae las columnas correctas (nombre, teléfono, email, notas, tags). Solo llénala y guárdala como CSV."
@@ -2055,16 +2344,54 @@ export default function EventPage() {
 
       {/* Importar invitados — vista previa */}
       {showCsvModal && csvPreview && (
-        <Modal open onClose={() => { setShowCsvModal(false); setCsvPreview(null) }} size="md">
+        <Modal open onClose={cerrarCsvModal} size="md">
           <Modal.Header title="Importar invitados" />
           <Modal.Body>
-            <div className="mb-4 rounded-xl border border-[#e8e8e8] bg-[#f8f8f8] p-4">
-              <p className="mb-1 text-sm font-semibold text-[#1D1E20]">Resumen del archivo</p>
-              <p className="text-xs text-[#666]">{csvPreview.rows.length} invitados encontrados</p>
-              {csvPreview.hasDuplicates && <p className="mt-1 text-xs font-semibold text-[#cc3333]">{csvPreview.duplicates.length} con WhatsApp duplicado</p>}
-              {csvPreview.sinTelefono.length > 0 && <p className="mt-1 text-xs font-semibold text-[#999]">{csvPreview.sinTelefono.length} se {csvPreview.sinTelefono.length === 1 ? 'importa' : 'importan'} sin teléfono</p>}
-            </div>
-            {csvPreview.sinTelefono.length > 0 && (
+            {!csvDone && (
+              <div className="mb-4 rounded-xl border border-[#e8e8e8] bg-[#f8f8f8] p-4">
+                {cupoPreview ? (
+                  <>
+                    <p className="mb-1 text-sm font-semibold text-[#1D1E20]">
+                      {cupoPreview.filas === 0
+                        ? `Ninguna de estas ${personasEnArchivo} personas cabe todavía`
+                        : `Entran ${cupoPreview.personasImportadas} personas de las ${personasEnArchivo} del archivo`}
+                    </p>
+                    <p className="text-xs text-[#666]">
+                      {cupoPreview.filas === 0
+                        ? `Tu cuenta gratis llega hasta ${limiteInvitadosEvento} personas por evento.`
+                        : `Tu cuenta gratis llega hasta ${limiteInvitadosEvento} personas por evento, y este archivo las llena.`}
+                    </p>
+                    <div className="mt-3 flex flex-col gap-1.5">
+                      <div className="flex items-baseline gap-1.5">
+                        <span className="text-2xl font-bold text-[#1D1E20]">{totalPersonas + cupoPreview.personasImportadas}</span>
+                        <span className="text-xs text-[#888]">de {limiteInvitadosEvento} personas</span>
+                      </div>
+                      <div className="h-2 w-full overflow-hidden rounded-full bg-[#eee]">
+                        <div
+                          className="h-full rounded-full bg-[#b98d2e]"
+                          style={{ width: `${Math.min(100, ((totalPersonas + cupoPreview.personasImportadas) / (limiteInvitadosEvento as number)) * 100)}%` }}
+                        />
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <p className="mb-1 text-sm font-semibold text-[#1D1E20]">Resumen del archivo</p>
+                    <p className="text-xs text-[#666]">{csvPreview.rows.length} invitados encontrados</p>
+                  </>
+                )}
+                {csvPreview.hasDuplicates && <p className="mt-2 text-xs font-semibold text-[#cc3333]">{csvPreview.duplicates.length} con WhatsApp duplicado</p>}
+                {csvPreview.sinTelefono.length > 0 && <p className="mt-1 text-xs font-semibold text-[#999]">{csvPreview.sinTelefono.length} se {csvPreview.sinTelefono.length === 1 ? 'importa' : 'importan'} sin teléfono</p>}
+              </div>
+            )}
+            {!csvDone && cupoPreview && (
+              <div className="mb-4 rounded-lg border border-[#eeddb0] bg-[#fdf8ec] p-3 text-xs leading-snug text-[#8a6a1f]">
+                {cupoPreview.filas === 0
+                  ? 'Tu lista ya está en su tope: ningún invitado de este archivo puede entrar todavía. Pide acceso para importarlos en cuanto amplíes tu plan.'
+                  : `${fraseInvitadosQueEntran(cupoPreview.filas, cupoPreview.personasImportadas - cupoPreview.filas)} Los otros ${cupoPreview.personasFuera} se queda${cupoPreview.personasFuera === 1 ? '' : 'n'} fuera y los importas en cuanto amplíes tu plan.`}
+              </div>
+            )}
+            {!csvDone && csvPreview.sinTelefono.length > 0 && (
               <div className="mb-4">
                 <p className="mb-2 text-xs font-semibold text-[#666]">Se importan sin teléfono:</p>
                 <div className="flex max-h-40 flex-col gap-1 overflow-y-auto rounded-lg border border-[#e8e8e8] bg-[#f8f8f8] p-3">
@@ -2076,7 +2403,7 @@ export default function EventPage() {
                 </div>
               </div>
             )}
-            {csvPreview.hasDuplicates && (
+            {!csvDone && csvPreview.hasDuplicates && (
               <div className="mb-4">
                 <p className="mb-2 text-xs font-semibold text-[#cc3333]">Números duplicados detectados:</p>
                 <div className="flex max-h-40 flex-col gap-1 overflow-y-auto rounded-lg border border-[#ffc0c0] bg-[#fff8f8] p-3">
@@ -2088,7 +2415,7 @@ export default function EventPage() {
                 </div>
               </div>
             )}
-            {(csvPreview.newTags.length > 0 || csvPreview.newGroups.length > 0 || csvPreview.newAllergies.length > 0) && (
+            {!csvDone && (csvPreview.newTags.length > 0 || csvPreview.newGroups.length > 0 || csvPreview.newAllergies.length > 0) && (
               <div className="mb-4">
                 <p className="mb-2 text-xs font-semibold text-[#1a9e88]">Se agregarán estos nuevos:</p>
                 <div className="flex flex-col gap-1.5 rounded-lg border border-[#c8ede7] bg-[#f0fdfb] p-3 text-xs text-[#1a9e88]">
@@ -2103,16 +2430,44 @@ export default function EventPage() {
           </Modal.Body>
           <Modal.Footer>
             <div className="flex w-full flex-col gap-2">
-              {csvPreview.hasDuplicates ? (
-                <button onClick={() => confirmCsvImport(true)} disabled={csvImporting} className="w-full rounded-lg bg-[#48C9B0] py-3 text-sm font-semibold text-white disabled:opacity-60">
-                  {csvImporting ? 'Importando...' : `Importar ${csvPreview.rows.length - csvPreview.duplicates.length} sin duplicados`}
-                </button>
+              {csvDone ? (
+                <button onClick={cerrarCsvModal} className="w-full rounded-lg bg-[#48C9B0] py-3 text-sm font-semibold text-white">Listo</button>
+              ) : cupoPreview ? (
+                <>
+                  {cupoPreview.filas > 0 && (
+                    <button onClick={() => confirmCsvImport(csvPreview.hasDuplicates)} disabled={csvImporting} className="w-full rounded-lg bg-[#48C9B0] py-3 text-sm font-semibold text-white disabled:opacity-60">
+                      {csvImporting ? 'Importando...' : `Importar ${cupoPreview.personasImportadas} personas`}
+                    </button>
+                  )}
+                  <button
+                    onClick={() => setMuroInvitados({
+                      limite: limiteInvitadosEvento as number,
+                      caso: cupoPreview.filas === 0 ? 'import-vacio' : 'invitados-tope',
+                      personasEnArchivo: cupoPreview.filas === 0 ? personasEnArchivo : undefined,
+                    })}
+                    disabled={csvImporting}
+                    className={cupoPreview.filas > 0
+                      ? 'w-full rounded-lg border border-[#48C9B0] py-2.5 text-xs font-semibold text-[#1a9e88] disabled:opacity-60'
+                      : 'w-full rounded-lg bg-[#48C9B0] py-3 text-sm font-semibold text-white disabled:opacity-60'}
+                  >
+                    Pedir acceso
+                  </button>
+                  <button onClick={() => setCsvPreview(null)} disabled={csvImporting} className="w-full rounded-lg border border-[#e0e0e0] py-2.5 text-xs text-[#888] disabled:opacity-60">Cancelar</button>
+                </>
               ) : (
-                <button onClick={() => confirmCsvImport(false)} disabled={csvImporting} className="w-full rounded-lg bg-[#48C9B0] py-3 text-sm font-semibold text-white disabled:opacity-60">
-                  {csvImporting ? 'Importando...' : `Confirmar importación (${csvPreview.rows.length} invitados)`}
-                </button>
+                <>
+                  {csvPreview.hasDuplicates ? (
+                    <button onClick={() => confirmCsvImport(true)} disabled={csvImporting} className="w-full rounded-lg bg-[#48C9B0] py-3 text-sm font-semibold text-white disabled:opacity-60">
+                      {csvImporting ? 'Importando...' : `Importar ${csvPreview.rows.length - csvPreview.duplicates.length} sin duplicados`}
+                    </button>
+                  ) : (
+                    <button onClick={() => confirmCsvImport(false)} disabled={csvImporting} className="w-full rounded-lg bg-[#48C9B0] py-3 text-sm font-semibold text-white disabled:opacity-60">
+                      {csvImporting ? 'Importando...' : `Confirmar importación (${csvPreview.rows.length} invitados)`}
+                    </button>
+                  )}
+                  <button onClick={() => setCsvPreview(null)} disabled={csvImporting} className="w-full rounded-lg border border-[#e0e0e0] py-2.5 text-xs text-[#888] disabled:opacity-60">Cancelar</button>
+                </>
               )}
-              <button onClick={() => setCsvPreview(null)} disabled={csvImporting} className="w-full rounded-lg border border-[#e0e0e0] py-2.5 text-xs text-[#888] disabled:opacity-60">Cancelar</button>
             </div>
           </Modal.Footer>
         </Modal>
@@ -2204,6 +2559,15 @@ export default function EventPage() {
           </Modal.Footer>
         </Modal>
       )}
+
+      <MuroModal
+        open={!!muroInvitados}
+        caso={muroInvitados?.caso ?? 'invitados-tope'}
+        limite={muroInvitados?.limite ?? 0}
+        eventId={id as string}
+        personasEnArchivo={muroInvitados?.personasEnArchivo}
+        onClose={() => setMuroInvitados(null)}
+      />
 
     </div>
   )
