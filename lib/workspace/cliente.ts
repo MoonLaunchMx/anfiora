@@ -1,14 +1,45 @@
 // lib/workspace/cliente.ts
 'use client'
 import { supabase } from '@/lib/supabase'
-import { normalizarPlan } from './planes'
-import { resolverLimiteInvitados } from './sello'
+import { normalizarPlan, type PlanId } from './planes'
+import { normalizarSello, resolverLimiteInvitados, type Sello } from './sello'
 import type { RolWorkspace, WorkspaceListado, WorkspaceResumen } from './tipos'
 
 export async function bearer(): Promise<Record<string, string> | null> {
   const { data: { session } } = await supabase.auth.getSession()
   if (!session) return null
   return { Authorization: 'Bearer ' + session.access_token, 'Content-Type': 'application/json' }
+}
+
+// Para herramientas que existen o no segun el plan (hoy: el Rolodex). El plan
+// sale del workspace que la persona administra (dueno o admin), igual que el
+// resto del muro. null = no se pudo leer: quien llama nunca debe esconder
+// la herramienta en ese caso, solo cuando SI se confirmo free sin sello.
+export async function planDelWorkspaceActivo(): Promise<{ plan: PlanId; sello: Sello } | null> {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return null
+
+  const { data: mem } = await supabase
+    .from('workspace_members')
+    .select('workspace_id')
+    .eq('user_id', user.id).eq('status', 'active').in('rol', ['dueno', 'admin'])
+    .limit(1)
+    .maybeSingle()
+  const workspaceId = (mem as { workspace_id?: string } | null)?.workspace_id ?? null
+  if (!workspaceId) return null
+
+  const conSello = await supabase.from('workspaces').select('plan, sello').eq('id', workspaceId).maybeSingle()
+  if (!conSello.error && conSello.data) {
+    const ws = conSello.data as { plan?: string; sello?: string }
+    return { plan: normalizarPlan(ws.plan), sello: normalizarSello(ws.sello) }
+  }
+  // La columna sello puede no existir todavia en este ambiente: se pide el
+  // plan solo, sin dejar que ese hueco tumbe la lectura.
+  const soloPlan = await supabase.from('workspaces').select('plan').eq('id', workspaceId).maybeSingle()
+  if (!soloPlan.error && soloPlan.data) {
+    return { plan: normalizarPlan((soloPlan.data as { plan?: string }).plan), sello: null }
+  }
+  return null
 }
 
 // Para el menu: solo necesita saber si administras alguno. Lee con RLS
