@@ -121,9 +121,12 @@ interface Resultado {
 
 // text-base + py-2 porque es el alto que ya trae PhoneInput fijo por dentro
 // (no se toca ese componente para un solo modal): si aqui se usa un texto
-// mas chico el campo de telefono se ve mas grande que sus vecinos.
+// mas chico el campo de telefono se ve mas grande que sus vecinos. font-normal
+// porque varios de estos campos viven DENTRO de un <label> font-semibold: sin
+// resetear el peso aqui, el campo (valor Y placeholder, que hereda tipografia
+// del propio campo) sale en negritas por herencia de CSS.
 const inputCls =
-  'mt-1 w-full rounded-lg border border-[#d0d0d0] bg-white px-3 py-2 text-base text-[#1D1E20] outline-none focus:border-[#48C9B0]'
+  'mt-1 w-full rounded-lg border border-[#d0d0d0] bg-white px-3 py-2 text-base font-normal text-[#1D1E20] outline-none focus:border-[#48C9B0]'
 
 async function cargarContexto(caso: MuroCaso, eventId: string | undefined): Promise<{
   contexto: Contexto | null
@@ -682,7 +685,7 @@ export function MuroModal({ open, caso, limite, onClose, eventId }: MuroModalPro
                     </label>
                   ) : (
                     <label className="text-xs font-semibold text-[#666]">Teléfono
-                      <PhoneInput value={telefono} onChange={setTelefono} placeholder="81 1234 5678" className="mt-1" />
+                      <PhoneInput value={telefono} onChange={setTelefono} placeholder="81 1234 5678" className="mt-1 font-normal" />
                     </label>
                   )}
                 </div>
