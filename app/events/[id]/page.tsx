@@ -248,17 +248,20 @@ type GuestTableInfo = { tableNumber: number; tableName: string | null }
 
 const ALLERGY_OPTIONS = ['Gluten', 'Lácteos', 'Mariscos', 'Nueces', 'Huevo', 'Soya', 'Cerdo']
 
-function MembersEditor({ value, onChange, allergyPool, onCreateAllergy, onDeleteAllergy, puedeEditar = true }: {
+function MembersEditor({ value, onChange, allergyPool, onCreateAllergy, onDeleteAllergy, puedeEditar = true, nombreListo = true }: {
   value: EditMember[]
   onChange: (v: EditMember[]) => void
   allergyPool: string[]
   onCreateAllergy: (t: string) => void
   onDeleteAllergy: (t: string) => void
   puedeEditar?: boolean
+  // El acompañante siempre cuelga de un invitado con nombre: agregarlo con el
+  // nombre vacio dejaba una fila huerfana que despues fallaba al guardar.
+  nombreListo?: boolean
 }) {
   const MAX = 15
   const [open, setOpen] = useState(value.length > 0)
-  const add = () => { if (value.length < MAX) { onChange([...value, { name: '', phone: '', rsvp_status: 'pending', allergies: [], tags: [], notes: '' }]); setOpen(true) } }
+  const add = () => { if (nombreListo && value.length < MAX) { onChange([...value, { name: '', phone: '', rsvp_status: 'pending', allergies: [], tags: [], notes: '' }]); setOpen(true) } }
   const remove = (i: number) => onChange(value.filter((_, idx) => idx !== i))
   const update = (i: number, field: 'name' | 'phone' | 'rsvp_status' | 'notes', val: string) => onChange(value.map((m, idx) => idx === i ? { ...m, [field]: val } : m))
   const updateAllergies = (i: number, val: string[]) => onChange(value.map((m, idx) => idx === i ? { ...m, allergies: val } : m))
@@ -270,10 +273,24 @@ function MembersEditor({ value, onChange, allergyPool, onCreateAllergy, onDelete
           <span className="text-xs font-medium text-[#555]">Acompañantes</span>
           {value.length > 0 && <span className="rounded-full bg-[#f0fdfb] px-1.5 py-0.5 text-[10px] font-semibold text-[#48C9B0]">{value.length}</span>}
         </button>
-        {puedeEditar && value.length < MAX && <button type="button" onClick={add} className="shrink-0 text-xs font-semibold text-[#48C9B0] hover:underline">+ Agregar</button>}
+        {puedeEditar && value.length < MAX && (
+          <button
+            type="button"
+            onClick={add}
+            disabled={!nombreListo}
+            title={nombreListo ? undefined : 'Escribe primero el nombre del invitado'}
+            className={'shrink-0 text-xs font-semibold transition ' + (nombreListo ? 'text-[#48C9B0] hover:underline' : 'cursor-not-allowed text-[#ccc]')}
+          >
+            + Agregar
+          </button>
+        )}
       </div>
       {open && (<>
-      {value.length === 0 && <p className="mt-2 text-xs text-[#bbb]">Sin acompañantes — haz clic en "Agregar" para incluir uno.</p>}
+      {value.length === 0 && (
+        <p className="mt-2 text-xs text-[#bbb]">
+          {nombreListo ? 'Sin acompañantes — haz clic en "Agregar" para incluir uno.' : 'Escribe el nombre del invitado para poder agregar acompañantes.'}
+        </p>
+      )}
       <div className="mt-2 flex flex-col gap-2">
         {value.map((m, i) => (
           <div key={i} className="rounded-lg border border-[#e8e8e8] bg-[#f8f8f8] p-3">
@@ -533,7 +550,11 @@ function AddGuestModal({ availableTags, groupPool, allergyPool, onCreateTag, onD
       <Modal.Header title="Agregar invitado" />
       <Modal.Body>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div><label className="mb-1.5 block text-xs font-medium text-[#555]">Nombre *</label><input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Ana García" className={INPUT_CLASS} /></div>
+          <div>
+            <label className="mb-1.5 block text-xs font-medium text-[#555]">Nombre *</label>
+            <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Ana García" className={INPUT_CLASS} />
+            {formError && <p className="mt-1.5 text-xs text-[#cc3333]">{formError}</p>}
+          </div>
           <div><label className="mb-1.5 block text-xs font-medium text-[#555]">WhatsApp <span className="font-normal text-[#ccc]">(opcional)</span></label><PhoneInput value={phone} onChange={setPhone} placeholder="81 1234 5678" /></div>
           <div><label className="mb-1.5 block text-xs font-medium text-[#555]">Email <span className="font-normal text-[#ccc]">(opcional)</span></label><input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="ana@ejemplo.com" className={INPUT_CLASS} /></div>
           <div>
@@ -546,9 +567,8 @@ function AddGuestModal({ availableTags, groupPool, allergyPool, onCreateTag, onD
             <TagInput availableTags={allergyPool} selectedTags={allergies} onChangeSelected={setAllergies} onCreateTag={onCreateAllergy} onDeleteTag={handleDeleteAllergy} label="Alergia" />
           </div>
           <div className="sm:col-span-2"><label className="mb-1.5 block text-xs font-medium text-[#555]">Notas <span className="font-normal text-[#ccc]">(opcional)</span></label><textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Mesa preferida, restricciones..." rows={2} className={`${INPUT_CLASS} resize-y`} /></div>
-          <div className="sm:col-span-2 border-t border-[#f0f0f0] pt-4"><MembersEditor value={members} onChange={setMembers} allergyPool={allergyPool} onCreateAllergy={onCreateAllergy} onDeleteAllergy={handleDeleteAllergy} /></div>
+          <div className="sm:col-span-2 border-t border-[#f0f0f0] pt-4"><MembersEditor value={members} onChange={setMembers} allergyPool={allergyPool} onCreateAllergy={onCreateAllergy} onDeleteAllergy={handleDeleteAllergy} nombreListo={!!name.trim()} /></div>
         </div>
-        {formError && <div className="mt-4 rounded-lg border border-[#ffc0c0] bg-[#fff0f0] p-2.5 text-xs text-[#cc3333]">{formError}</div>}
       </Modal.Body>
       <Modal.Footer>
         <button onClick={onClose} className="flex-1 rounded-lg border border-[#e0e0e0] py-3 text-sm text-[#888]">Cancelar</button>
@@ -613,7 +633,11 @@ function EditGuestModal({ guest, availableTags, groupPool, allergyPool, onCreate
         )}
         <fieldset disabled={!puedeEditar} className="m-0 min-w-0 border-0 p-0">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div><label className="mb-1.5 block text-xs font-medium text-[#555]">Nombre *</label><input type="text" value={name} onChange={e => setName(e.target.value)} className={INPUT_CLASS} /></div>
+          <div>
+            <label className="mb-1.5 block text-xs font-medium text-[#555]">Nombre *</label>
+            <input type="text" value={name} onChange={e => setName(e.target.value)} className={INPUT_CLASS} />
+            {error && <p className="mt-1.5 text-xs text-[#cc3333]">{error}</p>}
+          </div>
           <div><label className="mb-1.5 block text-xs font-medium text-[#555]">WhatsApp</label><PhoneInput value={phone} onChange={setPhone} placeholder="81 1234 5678" /></div>
           <div><label className="mb-1.5 block text-xs font-medium text-[#555]">Email</label><input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="ana@ejemplo.com" className={INPUT_CLASS} /></div>
           <div>
@@ -626,7 +650,7 @@ function EditGuestModal({ guest, availableTags, groupPool, allergyPool, onCreate
             <TagInput availableTags={allergyPool} selectedTags={allergies} onChangeSelected={setAllergies} onCreateTag={onCreateAllergy} onDeleteTag={handleDeleteAllergy} label="Alergia" />
           </div>
           <div className="sm:col-span-2"><label className="mb-1.5 block text-xs font-medium text-[#555]">Notas</label><textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Mesa preferida, restricciones..." rows={2} className={`${INPUT_CLASS} resize-y`} /></div>
-          <div className="sm:col-span-2 border-t border-[#f0f0f0] pt-4"><MembersEditor value={members} onChange={setMembers} allergyPool={allergyPool} onCreateAllergy={onCreateAllergy} onDeleteAllergy={handleDeleteAllergy} puedeEditar={puedeEditar} /></div>
+          <div className="sm:col-span-2 border-t border-[#f0f0f0] pt-4"><MembersEditor value={members} onChange={setMembers} allergyPool={allergyPool} onCreateAllergy={onCreateAllergy} onDeleteAllergy={handleDeleteAllergy} puedeEditar={puedeEditar} nombreListo={!!name.trim()} /></div>
         </div>
         </fieldset>
         {puedeBorrar && (
@@ -635,7 +659,6 @@ function EditGuestModal({ guest, availableTags, groupPool, allergyPool, onCreate
             Eliminar invitado
           </button>
         )}
-        {error && <div className="mt-4 rounded-lg border border-[#ffc0c0] bg-[#fff0f0] p-2.5 text-xs text-[#cc3333]">{error}</div>}
       </Modal.Body>
       <Modal.Footer>
         <button onClick={onClose} className="flex-1 rounded-lg border border-[#e0e0e0] py-3 text-sm text-[#888]">{puedeEditar ? 'Cancelar' : 'Cerrar'}</button>
