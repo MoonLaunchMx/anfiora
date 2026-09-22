@@ -1,59 +1,33 @@
 'use client'
 
-import { useDraggable } from '@dnd-kit/core'
-import { GripVertical, X } from 'lucide-react'
+import { GripVertical } from 'lucide-react'
 import type { Persona } from '@/lib/mesas/asientos'
 import { estatusDe } from './estatus'
-import { ChipTitular, ChipSeparado } from './chips'
+import { ChipTitular, ChipSeparado, IconoEstatus } from './chips'
 
-// Ids de dnd-kit: 'p:<clave>' para personas, 't:<tableId>' para mesas y
-// 'panel' para el panel de sin mesa (soltar ahi = quitar de la mesa).
-export const idArrastre = (p: Persona) => 'p:' + p.clave
-
-// Chip del panel "Sin mesa" y del DragOverlay. Se arrastra solo con mouse.
-export function PersonaChip({ persona, arrastrable, sombra, onTap }: { persona: Persona; arrastrable: boolean; sombra?: boolean; onTap?: () => void }) {
-  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: idArrastre(persona), data: { persona }, disabled: !arrastrable })
-  return (
-    <div ref={setNodeRef} {...attributes} {...listeners} onClick={onTap}
-      className={'flex items-center gap-1.5 rounded-lg border bg-white px-2 py-1.5 text-xs text-[#1D1E20] ' + (persona.memberId ? 'ml-3 ' : '') + (sombra ? 'border-[#48C9B0] bg-[#f0fdfb] shadow-xl ' : 'border-[#e0e0e0] ') + (isDragging ? 'opacity-30 ' : '') + (arrastrable ? 'cursor-grab active:cursor-grabbing' : onTap ? 'cursor-pointer' : '')}>
-      {arrastrable && <GripVertical size={12} className="shrink-0 text-[#bbb]" />}
-      <span className="min-w-0 flex-1 truncate font-medium">{persona.nombre}</span>
-    </div>
-  )
-}
-
-// Tarjeta de una persona sentada: detalle de mesa en el plano y cards del celular.
-export function PersonaCard({ persona, etiqueta, puedeEditar, arrastrable, onTap, onQuitar, onCheckin }: {
-  persona: Persona; etiqueta: string | null; puedeEditar: boolean; arrastrable: boolean
-  onTap?: () => void; onQuitar?: () => void; onCheckin?: () => void
-}) {
+// Tarjeta de una persona sentada: el detalle de mesa del plano.
+export function PersonaCard({ persona, etiqueta, onTap }: { persona: Persona; etiqueta: string | null; onTap?: () => void }) {
   const st = estatusDe(persona.rsvp)
-  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: idArrastre(persona), data: { persona }, disabled: !arrastrable })
   return (
-    <div ref={setNodeRef} {...attributes} {...listeners} className={'rounded-xl border px-3 py-2 ' + (isDragging ? 'opacity-30 ' : '') + (arrastrable ? 'cursor-grab active:cursor-grabbing' : '')} style={{ background: st.bg, borderColor: st.border }}>
-      <div className="flex items-center gap-2">
-        <button type="button" onClick={onTap} className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5 text-left">
-          <span className="truncate text-sm font-semibold" style={{ color: st.text }}>{persona.nombre}</span>
-          <ChipTitular persona={persona} />
-          <ChipSeparado etiqueta={etiqueta} />
-        </button>
-        <span className="shrink-0 text-[11px] font-semibold" style={{ color: st.text }}>{st.label}</span>
-        {onCheckin && (
-          puedeEditar
-            ? <button type="button" onClick={onCheckin} aria-label="Check-in" className={'flex h-5 w-5 shrink-0 items-center justify-center rounded border-2 transition ' + (persona.checkedIn ? 'border-[#48C9B0] bg-[#48C9B0]' : 'border-[#d0d0d0] bg-white hover:border-[#48C9B0]')}>{persona.checkedIn && <Palomita />}</button>
-            : <span className={'flex h-5 w-5 shrink-0 items-center justify-center rounded border-2 ' + (persona.checkedIn ? 'border-[#48C9B0] bg-[#48C9B0]' : 'border-[#d0d0d0] bg-white')}>{persona.checkedIn && <Palomita />}</span>
-        )}
-        {puedeEditar && onQuitar && <button type="button" onClick={onQuitar} aria-label="Quitar de la mesa" className="shrink-0 opacity-40 hover:opacity-100" style={{ color: st.text }}><X size={12} /></button>}
-      </div>
-    </div>
+    <button type="button" onClick={onTap} className={'flex w-full items-center gap-2 rounded-xl border px-3 py-2 text-left ' + (persona.memberId ? 'ml-4 w-[calc(100%-1rem)]' : '')} style={{ background: st.bg, borderColor: st.border }}>
+      <IconoEstatus rsvp={persona.rsvp} size={16} />
+      <span className="min-w-0 flex-1 truncate text-sm font-semibold" style={{ color: st.text }}>{persona.nombre}</span>
+      <ChipTitular persona={persona} />
+      <ChipSeparado etiqueta={etiqueta} />
+    </button>
   )
 }
 
-// Lo que se ve pegado al cursor mientras arrastras: un chip sin hooks.
-export function ChipFantasma({ persona }: { persona: Persona }) {
+// Lo que se ve pegado al cursor mientras arrastras: la familia o la persona.
+export function ChipFantasma({ personas }: { personas: Persona[] }) {
+  const p = personas[0]
+  if (!p) return null
   return (
-    <div className="flex items-center gap-1.5 rounded-lg border border-[#48C9B0] bg-[#f0fdfb] px-2 py-1.5 text-xs font-medium text-[#1D1E20] shadow-xl" style={{ transform: 'rotate(-2deg)' }}>
-      <GripVertical size={12} className="text-[#48C9B0]" />{persona.nombre}
+    <div className="flex items-center gap-1.5 rounded-lg border border-[#48C9B0] bg-[#f0fdfb] px-2.5 py-1.5 text-xs font-medium text-[#1D1E20] shadow-xl" style={{ transform: 'rotate(-2deg)' }}>
+      <GripVertical size={12} className="text-[#48C9B0]" />
+      <IconoEstatus rsvp={p.rsvp} size={14} />
+      {p.nombre}
+      {personas.length > 1 && <span className="font-semibold text-[#1f8a75]">+{personas.length - 1}</span>}
     </div>
   )
 }

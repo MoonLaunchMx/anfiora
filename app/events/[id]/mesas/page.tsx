@@ -17,15 +17,16 @@ import { Puede } from '@/lib/permisos/Puede'
 import { Cargando } from '@/app/components/ui/Cargando'
 
 // ─── CONSTANTES ───────────────────────────────
-import { estatusDe } from './estatus'
+import { estatusDe, glifoDe } from './estatus'
 import { personasDe, mapaAsientos, ocupacionDe, opsSentar, opsQuitar, etiquetaSeparado, type Persona, type Fila } from '@/lib/mesas/asientos'
 import { ejecutarOps } from '@/lib/mesas/ejecutar'
 import { DndContext, DragOverlay, MouseSensor, useSensor, useSensors, type DragEndEvent, type DragStartEvent } from '@dnd-kit/core'
 import { PersonaCard, ChipFantasma } from './PersonaItem'
-import FilaPersona from './FilaPersona'
+import MesaCard from './MesaCard'
 import MesaDroppable from './MesaDroppable'
 import SillasArrastrables from './SillasArrastrables'
 import { sillasDe, RADIO_SILLA } from '@/lib/mesas/sillas'
+import { LeyendaEstatus } from './chips'
 import SinMesaPanel from './SinMesaPanel'
 import ModalAsignar from './ModalAsignar'
 import ModalElegirMesa, { type ElegirMesa } from './ModalElegirMesa'
@@ -161,7 +162,7 @@ const SEAT_COLORS: Record<string,{fill:string;stroke:string}> = {
   declined:         { fill:'#F09595', stroke:'#991b1b' },
   mensaje_enviado:  { fill:'#85B7EB', stroke:'#1e40af' },
   respondio:        { fill:'#f0c090', stroke:'#9a3412' },
-  accion_necesaria: { fill:'#F09595', stroke:'#991b1b' },
+  accion_necesaria: { fill:'#e88bbd', stroke:'#9d174d' },
 }
 const SEAT_EMPTY = { fill:'#f0f0f0', stroke:'#d0d0d0' }
 
@@ -182,7 +183,12 @@ function TableSVG({ table, ocupados, isSelected, isHighlighted, isDimmed, colorF
   const ty = c.tipo === 'arco' ? [d.cy - 14, d.cy - 2] : [d.cy - 5, d.cy + 9]
   return (
     <svg width={d.w} height={d.h} style={{display:'block',opacity,pointerEvents:'none'}}>
-      {d.sillas.map((sl, i) => { const col = colorDe(i); return <circle key={i} cx={sl.x} cy={sl.y} r={RADIO_SILLA} fill={col.fill} stroke={col.stroke} strokeWidth="1.5"/> })}
+      {d.sillas.map((sl, i) => { const col = colorDe(i); const k = RADIO_SILLA * 1.3 / 24; return (
+        <g key={i}>
+          <circle cx={sl.x} cy={sl.y} r={RADIO_SILLA} fill={col.fill} stroke={col.stroke} strokeWidth="1.5"/>
+          {i < occupied && <path d={glifoDe(ocupados[i].rsvp)} transform={`translate(${sl.x - 12 * k} ${sl.y - 12 * k}) scale(${k})`} fill="none" stroke="#fff" strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round"/>}
+        </g>
+      )})}
       {c.tipo === 'circulo' && <circle cx={d.cx} cy={d.cy} r={c.r} fill={fill} stroke={stroke} strokeWidth={sw}/>}
       {c.tipo === 'elipse' && <ellipse cx={d.cx} cy={d.cy} rx={c.rx} ry={c.ry} fill={fill} stroke={stroke} strokeWidth={sw}/>}
       {c.tipo === 'rect' && <rect x={d.cx - c.w/2} y={d.cy - c.h/2} width={c.w} height={c.h} rx={c.radio} fill={fill} stroke={stroke} strokeWidth={sw}/>}
@@ -371,7 +377,7 @@ function TableDetailModal({ table, ocupados, ocupacion, etiqueta, onClose, onAss
       <Modal.Body>
         {ocupados.length===0?<p className="py-6 text-center text-sm text-[#bbb]">Nadie sentado todavía</p>:(
           <div className="flex flex-col gap-2">
-            {ocupados.map(p=><PersonaCard key={p.clave} persona={p} etiqueta={etiqueta(p)} puedeEditar={puedeEditar} arrastrable={false} onTap={()=>{onClose();onPersona(p)}}/>)}
+            {ocupados.map(p=><PersonaCard key={p.clave} persona={p} etiqueta={etiqueta(p)} onTap={()=>{onClose();onPersona(p)}}/>)}
           </div>
         )}
         {ocupados.length>0&&<p className="mt-3 text-center text-[11px] text-[#bbb]">Toca a alguien para moverlo o quitarlo</p>}
@@ -386,11 +392,11 @@ function TableDetailModal({ table, ocupados, ocupacion, etiqueta, onClose, onAss
 }
 
 // ─── CANVAS FULLSCREEN ────────────────────────
-function CanvasFullscreen({ tables, getOccupied, enMesa, etiqueta, arrastrando, onPersona, panel, onBack, onTableClick, onPositionSave, onRotationSave, onOpenCreate, puedeEditar, resetKey,
+function CanvasFullscreen({ tables, getOccupied, enMesa, grupoDe, etiqueta, arrastrando, onPersona, panel, onBack, onTableClick, onPositionSave, onRotationSave, onOpenCreate, puedeEditar, resetKey,
   decos, setDecos, decoRotations, setDecoRotations, tableColors, setTableColors, decoColors, setDecoColors
 }: {
   tables: TableRecord[]; getOccupied:(t:TableRecord)=>number; onBack:()=>void
-  enMesa:(tableId:string)=>Persona[]; etiqueta:(p:Persona)=>string|null; arrastrando:Persona|null; onPersona:(p:Persona)=>void; panel:React.ReactNode
+  enMesa:(tableId:string)=>Persona[]; grupoDe:(p:Persona)=>Persona[]; etiqueta:(p:Persona)=>string|null; arrastrando:Persona[]|null; onPersona:(p:Persona)=>void; panel:React.ReactNode
   onTableClick:(t:TableRecord)=>void; onPositionSave:(id:string,x:number,y:number)=>void
   onRotationSave:(id:string,rotation:number)=>void; onOpenCreate:()=>void
   puedeEditar: boolean
@@ -888,10 +894,10 @@ function CanvasFullscreen({ tables, getOccupied, enMesa, etiqueta, arrastrando, 
                     <RotateCw width={11} height={11} color="white" style={{pointerEvents:'none'}}/>
                   </div>
                 )}
-                <MesaDroppable tableId={table.id} llena={!puedeEditar||occ>=table.capacity} arrastrando={arrastrando} redonda={table.shape==='round'||table.shape==='oval'} enPlano>
+                <MesaDroppable tableId={table.id} libres={puedeEditar?table.capacity-occ:0} ocupados={enMesa(table.id)} arrastrando={arrastrando} redonda={table.shape==='round'||table.shape==='oval'}>
                 <div style={{transform:`rotate(${rot}deg)`,transformOrigin:'center',display:'inline-block',position:'relative'}}>
                   <TableSVG table={table} ocupados={enMesa(table.id)} isSelected={isActive} isHighlighted={isHL} isDimmed={isDim} colorFill={tableColor.fill} colorBorder={tableColor.border}/>
-                  <SillasArrastrables shape={table.shape} capacity={table.capacity} ocupados={enMesa(table.id)} etiqueta={etiqueta} puedeEditar={puedeEditar} onPersona={onPersona}/>
+                  <SillasArrastrables shape={table.shape} capacity={table.capacity} ocupados={enMesa(table.id)} grupoDe={grupoDe} etiqueta={etiqueta} puedeEditar={puedeEditar} onPersona={onPersona}/>
                 </div>
                 </MesaDroppable>
                 {table.name&&(
@@ -1093,7 +1099,9 @@ function MesasPageInner() {
   const [assignModal,setAssignModal]=useState<{tableId:string;tableCapacity:number}|null>(null)
   const [elegirMesa,setElegirMesa]=useState<ElegirMesa|null>(null)
   const [personaMenu,setPersonaMenu]=useState<Persona|null>(null)
-  const [arrastrando,setArrastrando]=useState<Persona|null>(null)
+  const [arrastrando,setArrastrando]=useState<Persona[]|null>(null)
+  // Palomeados en el panel para "Sentar aqui" sin arrastrar.
+  const [marcados,setMarcados]=useState<Set<string>>(new Set())
   const [panelBusqueda,setPanelBusqueda]=useState('')
   const [filas,setFilas]=useState<Fila[]>([])
   const canvasSaveTimer=useRef<ReturnType<typeof setTimeout>|null>(null)
@@ -1376,20 +1384,34 @@ function MesasPageInner() {
     await quitarPersona(p)
   }
   const abrirMover=(p:Persona)=>setElegirMesa({personas:[p],titulo:'Mover a '+p.nombre})
-  const abrirSentarGrupo=(gente:Persona[])=>setElegirMesa({personas:gente,titulo:`Sentar a los ${gente.length}`})
   const verInvitado=(p:Persona)=>{const g=guests.find(x=>x.id===p.guestId);if(g)openEditGuest(g)}
+
+  // La familia que se mueve con alguien: el titular jala a los suyos que estan
+  // donde el esta (sin mesa juntos o en la misma mesa); un acompanante va solo.
+  const grupoDe=useCallback((p:Persona):Persona[]=>{
+    if(p.memberId)return [p]
+    const donde=mapa.get(p.clave)?.tableId??null
+    return [p,...personas.filter(x=>x.guestId===p.guestId&&x.memberId&&(mapa.get(x.clave)?.tableId??null)===donde)]
+  },[mapa,personas])
+  const onMarcar=(claves:string[],on:boolean)=>setMarcados(prev=>{const s=new Set(prev);for(const c of claves)on?s.add(c):s.delete(c);return s})
+  const seleccion=useMemo(()=>personas.filter(p=>marcados.has(p.clave)&&!mapa.has(p.clave)),[personas,marcados,mapa])
+  const sentarSeleccion=async(tableId:string)=>{
+    const ok=await sentarPersonas(seleccion.map(p=>p.clave),tableId)
+    if(ok)setMarcados(new Set())
+  }
 
   // Arrastrar solo con mouse: con el dedo las personas se tocan y la lista
   // sigue haciendo scroll. Soltar en una mesa sienta o mueve; en el panel, quita.
   const sensors=useSensors(useSensor(MouseSensor,{activationConstraint:{distance:5}}))
-  const onDragStart=(e:DragStartEvent)=>{const p=(e.active.data.current as {persona?:Persona}|undefined)?.persona;setArrastrando(p??null)}
+  const onDragStart=(e:DragStartEvent)=>{const g=(e.active.data.current as {personas?:Persona[]}|undefined)?.personas;setArrastrando(g&&g.length?g:null)}
   const onDragEnd=async(e:DragEndEvent)=>{
-    const p=arrastrando;setArrastrando(null)
-    if(!p||!e.over)return
+    const gente=arrastrando;setArrastrando(null)
+    if(!gente||!e.over)return
     const over=String(e.over.id)
-    if(over==='panel'){if(mapa.has(p.clave))await quitarPersona(p);return}
-    if(over.startsWith('t:'))await sentarPersonas([p.clave],over.slice(2))
+    if(over==='panel'){for(const p of gente)if(mapa.has(p.clave)){if(!(await quitarPersona(p)))break};return}
+    if(over.startsWith('t:'))await sentarPersonas(gente.map(p=>p.clave),over.slice(2))
   }
+  const onDragCancel=()=>setArrastrando(null)
   // Posicion y giro del plano: si no se guardan, el plano regresa a lo que
   // dice la base (resetKey) y el aviso ofrece volver a mandar lo mismo.
   const handlePosSave=async(id:string,x:number,y:number):Promise<boolean>=>{
@@ -1433,13 +1455,13 @@ function MesasPageInner() {
   const TagChips=({tags}:{tags:string[]})=>(<>{tags.length===0?<span className="text-[11px] text-[#ddd]">—</span>:tags.map(tag=>{const i=eventTags.indexOf(tag);const c=TAG_COLORS[i>=0?i%TAG_COLORS.length:0];return<span key={tag} className="rounded-full border px-1.5 py-0.5 text-[9px] font-medium" style={{background:c.bg,borderColor:c.border,color:c.text}}>{tag}</span>})}</>)
 
   const mesaAsignar=assignModal?(tables.find(t=>t.id===assignModal.tableId)??null):null
-  const panelSinMesa=<SinMesaPanel sinMesa={sinMesa} busqueda={panelBusqueda} setBusqueda={setPanelBusqueda} puedeEditar={permiso.editar} arrastrando={arrastrando} onSentarGrupo={abrirSentarGrupo} onTap={p=>setPersonaMenu(p)}/>
+  const panelSinMesa=<SinMesaPanel sinMesa={sinMesa} busqueda={panelBusqueda} setBusqueda={setPanelBusqueda} puedeEditar={permiso.editar} arrastrando={arrastrando} marcados={marcados} onMarcar={onMarcar} onTap={p=>setPersonaMenu(p)}/>
   const modalesPersona=(
     <>
       <ModalAsignar key={assignModal?.tableId??'ninguna'} table={mesaAsignar} personas={personas} mapa={mapa} ocupacion={ocupacion} numeroDeMesa={numeroDeMesa} onSentar={claves=>sentarPersonas(claves,assignModal!.tableId)} onClose={()=>setAssignModal(null)}/>
       <ModalElegirMesa abierto={elegirMesa} tables={tables} ocupacion={ocupacion} mapa={mapa} personas={personas} onElegir={tableId=>sentarPersonas(elegirMesa!.personas.map(p=>p.clave),tableId)} onClose={()=>setElegirMesa(null)}/>
       <PersonaMenu persona={personaMenu} sentado={!!personaMenu&&mapa.has(personaMenu.clave)} mesa={personaMenu&&mapa.get(personaMenu.clave)?nombreMesa(mapa.get(personaMenu.clave)!.tableId):'Sin mesa'} puedeEditar={permiso.editar} onMover={()=>personaMenu&&abrirMover(personaMenu)} onVer={()=>personaMenu&&verInvitado(personaMenu)} onQuitar={()=>personaMenu&&removeGuest(personaMenu)} onClose={()=>setPersonaMenu(null)}/>
-      <DragOverlay dropAnimation={null}>{arrastrando&&<ChipFantasma persona={arrastrando}/>}</DragOverlay>
+      <DragOverlay dropAnimation={null} zIndex={600}>{arrastrando&&<ChipFantasma personas={arrastrando}/>}</DragOverlay>
     </>
   )
 
@@ -1447,8 +1469,8 @@ function MesasPageInner() {
 
   // ── CANVAS ──
   if(canvasMode)return(
-    <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd}>
-      <CanvasFullscreen tables={tables} getOccupied={getOccupied} enMesa={enMesa} etiqueta={etiqueta} arrastrando={arrastrando} onPersona={p=>setPersonaMenu(p)} panel={panelSinMesa} onBack={()=>setCanvasMode(false)} onTableClick={t=>setCanvasDetailId(t.id)} onPositionSave={handlePosSave} onRotationSave={handleRotSave} onOpenCreate={openCreate} puedeEditar={permiso.editar} resetKey={canvasResetKey}
+    <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd} onDragCancel={onDragCancel}>
+      <CanvasFullscreen tables={tables} getOccupied={getOccupied} enMesa={enMesa} grupoDe={grupoDe} etiqueta={etiqueta} arrastrando={arrastrando} onPersona={p=>setPersonaMenu(p)} panel={panelSinMesa} onBack={()=>setCanvasMode(false)} onTableClick={t=>setCanvasDetailId(t.id)} onPositionSave={handlePosSave} onRotationSave={handleRotSave} onOpenCreate={openCreate} puedeEditar={permiso.editar} resetKey={canvasResetKey}
         decos={canvasDecos} setDecos={setCanvasDecos}
         decoRotations={canvasDecoRots} setDecoRotations={setCanvasDecoRots}
         tableColors={canvasTableColors} setTableColors={setCanvasTableColors}
@@ -1462,10 +1484,11 @@ function MesasPageInner() {
 
   // ── LISTA ──
   const cols='28px 36px 24px 1.8fr 90px 100px 1fr 80px 60px 56px'
-  const filtered=listSearch?tables.map(t=>({...t,seats:t.seats.filter(s=>s.guest?.name.toLowerCase().includes(listSearch.toLowerCase())||s.guest?.party_members.some(m=>m.name?.toLowerCase().includes(listSearch.toLowerCase())))})).filter(t=>t.seats.length>0||t.name?.toLowerCase().includes(listSearch.toLowerCase())):tables
+  const q=listSearch.trim().toLowerCase()
+  const filtered=q?tables.filter(t=>t.name?.toLowerCase().includes(q)||String(t.number)===q||enMesa(t.id).some(p=>p.nombre.toLowerCase().includes(q)||(p.titular||'').toLowerCase().includes(q))):tables
 
   return(
-    <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd}>
+    <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd} onDragCancel={onDragCancel}>
     <div style={{height:'100%',display:'flex',flexDirection:'column',overflow:'hidden',background:'#ffffff',color:'#1D1E20'}}>
       {/* Header */}
       <div style={{flexShrink:0,borderBottom:'1px solid #e8e8e8'}} className="px-4 pt-4 pb-0 sm:px-6 sm:pt-5 lg:px-10 lg:pt-6">
@@ -1516,78 +1539,19 @@ function MesasPageInner() {
           <div className="mt-5 rounded-xl border border-dashed border-[#e0e0e0] px-6 py-14 text-center"><p className="text-sm text-[#888]">Sin mesas aún</p><p className="mt-1 text-xs text-[#bbb]">Crea tu primera mesa para empezar</p><div className="mt-4 flex items-center justify-center gap-2">{permiso.editar&&<button onClick={()=>setShowBulk(true)} className="rounded-lg border border-[#e0e0e0] px-4 py-2.5 text-sm text-[#666] hover:border-[#48C9B0] hover:text-[#48C9B0]">Agregar en bulk</button>}{permiso.editar&&<button onClick={openCreate} className="rounded-lg bg-[#48C9B0] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#3ab89f]">+ Nueva mesa</button>}</div></div>
         ):(
           <>
-            {/* Desktop */}
-            <div className="hidden overflow-visible rounded-xl border border-[#e8e8e8] sm:block">
-              <div className="grid items-center border-b border-[#e8e8e8] bg-[#f8f8f8] px-4 py-2" style={{gridTemplateColumns:cols}}>
-                <div/><div/><div/>
-                {['Invitado','Status','Tags','Notas','Asientos','Llegó',''].map((h,i)=><div key={i} className="text-[11px] font-semibold uppercase tracking-wide text-[#aaa]">{h}</div>)}
-              </div>
-              {filtered.map((table,idx)=>{
-                const occ=getOccupied(table),avail=table.capacity-occ,full=avail===0,over=occ>table.capacity,open=expanded.has(table.id),bg=idx%2===0?'bg-white':'bg-[#fafafa]'
-                return(
-                  <MesaDroppable key={table.id} tableId={table.id} llena={!permiso.editar||occ>=table.capacity} arrastrando={arrastrando}>
-                    <div className={`grid items-center px-4 py-3 ${bg} border-b border-[#f0f0f0]`} style={{gridTemplateColumns:cols}}>
-                      <div className="text-xs text-[#888]">{SHAPE_LABELS[table.shape as TableShape]?.slice(0,3)||'?'}</div>
-                      <div><span className="rounded bg-[#f0f0f0] px-1.5 py-0.5 text-xs font-bold text-[#555]">#{table.number}</span></div>
-                      <div/>
-                      <div className="cursor-pointer" onClick={()=>openEditTable(table)}>
-                        <span className="text-sm font-semibold text-[#1D1E20] hover:text-[#48C9B0]">{table.name||<span className="font-normal text-[#ccc]">Sin nombre</span>}</span>
-                        {over?<span className="ml-2 rounded-full border border-[#ffc0c0] bg-[#fff0f0] px-1.5 py-0.5 text-[9px] font-semibold text-[#cc3333]">Sobrecupo</span>:full&&<span className="ml-2 rounded-full border border-[#a0e0c0] bg-[#f0fff6] px-1.5 py-0.5 text-[9px] font-semibold text-[#2a7a50]">Llena</span>}
-                      </div>
-                      <div/><div/><div/>
-                      <div className="text-sm text-[#888]"><span className="font-semibold" style={{color:over?'#cc3333':'#1D1E20'}}>{occ}</span>/{table.capacity}<div className="mt-0.5 h-1 w-12 overflow-hidden rounded-full bg-[#e8e8e8]"><div className="h-full rounded-full" style={{width:`${Math.min((occ/table.capacity)*100,100)}%`,background:over?'#cc3333':full?'#48C9B0':'#a0e0c0'}}/></div></div>
-                      <div/>
-                      <div className="flex items-center justify-end gap-1">
-                        <button onClick={()=>setExpanded(p=>{const n=new Set(p);n.has(table.id)?n.delete(table.id):n.add(table.id);return n})} className="flex h-7 w-7 items-center justify-center rounded-lg border border-[#e0e0e0] text-[#888] hover:border-[#48C9B0] hover:text-[#48C9B0]">{open?<ChevronUp width={12} height={12}/>:<ChevronDown width={12} height={12}/>}</button>
-                        {permiso.borrar&&<button onClick={()=>handleDeleteTable(table)} className="flex h-7 w-7 items-center justify-center rounded-lg border border-[#ffe0e0] bg-[#fff5f5] text-[#cc3333] hover:bg-[#ffe8e8]"><Trash2 width={12} height={12}/></button>}
-                      </div>
-                    </div>
-                    {open&&<>
-                      {enMesa(table.id).map(p=>{const g=guests.find(x=>x.id===p.guestId);return(
-                        <FilaPersona key={p.clave} persona={p} etiqueta={etiqueta(p)} bg={bg} cols={cols} puedeEditar={permiso.editar}
-                          tags={p.memberId?<span className="text-[11px] text-[#ddd]">—</span>:<TagChips tags={g?.tags||[]}/>} notas={p.memberId?null:(g?.notes||null)}
-                          onVer={()=>{if(g)openEditGuest(g)}} onQuitar={()=>removeGuest(p)} onCheckin={()=>p.memberId?toggleMemberCheckin(p.memberId,p.guestId,p.checkedIn):toggleCheckin(p.guestId,p.checkedIn)}/>
-                      )})}
-                      {avail>0&&permiso.editar&&<div className={`border-b border-[#f0f0f0] px-4 py-2 ${bg}`}><button onClick={()=>setAssignModal({tableId:table.id,tableCapacity:table.capacity})} className="flex items-center gap-1.5 text-xs text-[#48C9B0] hover:underline"><Plus width={11} height={11}/>Asignar ({avail} libre{avail!==1?'s':''})</button></div>}
-                      {over&&<div className={`border-b border-[#f0f0f0] px-4 py-2 ${bg}`}><span className="text-xs font-medium text-[#cc3333]">Sobrecupo: {occ} de {table.capacity} asientos ({occ-table.capacity} de más)</span></div>}
-                    </>}
-                  </MesaDroppable>
-                )
-              })}
-            </div>
-
-            {/* Mobile */}
-            <div className="flex flex-col gap-3 sm:hidden">
-              {filtered.map(table=>{
-                const occ=getOccupied(table),avail=table.capacity-occ,full=avail===0,over=occ>table.capacity,open=expanded.has(table.id)
-                return(
-                  <div key={table.id} className="rounded-xl border border-[#e8e8e8] bg-white">
-                    <div className="flex items-center gap-3 px-4 py-3">
-                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#f8f8f8] text-xs font-semibold text-[#888]">{SHAPE_LABELS[table.shape as TableShape]?.slice(0,3)||'?'}</div>
-                      <div className="min-w-0 flex-1 cursor-pointer" onClick={()=>permiso.editar?openEditTable(table):setExpanded(p=>{const nn=new Set(p);nn.has(table.id)?nn.delete(table.id):nn.add(table.id);return nn})}>
-                        <div className="flex items-center gap-2"><span className="rounded bg-[#f0f0f0] px-1.5 py-0.5 text-xs font-bold text-[#555]">#{table.number}</span><span className="text-sm font-bold text-[#1D1E20]">{table.name||`Mesa ${table.number}`}</span>{over?<span className="rounded-full border border-[#ffc0c0] bg-[#fff0f0] px-1.5 py-0.5 text-[9px] font-semibold text-[#cc3333]">Sobrecupo</span>:full&&<span className="rounded-full border border-[#a0e0c0] bg-[#f0fff6] px-1.5 py-0.5 text-[9px] font-semibold text-[#2a7a50]">Llena</span>}</div>
-                        <div className="mt-1 flex items-center gap-2"><span className="text-xs" style={{color:over?'#cc3333':'#888'}}>{occ}/{table.capacity}</span><div className="h-1.5 w-20 overflow-hidden rounded-full bg-[#e8e8e8]"><div className="h-full rounded-full" style={{width:`${Math.min((occ/table.capacity)*100,100)}%`,background:over?'#cc3333':full?'#48C9B0':'#a0e0c0'}}/></div><span className="text-[11px]" style={{color:over?'#cc3333':'#bbb'}}>{over?`+${occ-table.capacity} sobrecupo`:`${avail} libres`}</span></div>
-                      </div>
-                      <div className="flex shrink-0 items-center gap-1">
-                        <button onClick={()=>setExpanded(p=>{const n=new Set(p);n.has(table.id)?n.delete(table.id):n.add(table.id);return n})} className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#e0e0e0] text-[#888]">{open?<ChevronUp width={14} height={14}/>:<ChevronDown width={14} height={14}/>}</button>
-                        {permiso.borrar&&<button onClick={()=>handleDeleteTable(table)} className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#ffe0e0] bg-[#fff5f5] text-[#cc3333]"><Trash2 width={13} height={13}/></button>}
-                      </div>
-                    </div>
-                    {open&&<div className="border-t border-[#f0f0f0] px-3 py-2">
-                      <div className="flex flex-col gap-2">
-                        {enMesa(table.id).map(p=><PersonaCard key={p.clave} persona={p} etiqueta={etiqueta(p)} puedeEditar={permiso.editar} arrastrable={false} onTap={()=>setPersonaMenu(p)} onCheckin={()=>p.memberId?toggleMemberCheckin(p.memberId,p.guestId,p.checkedIn):toggleCheckin(p.guestId,p.checkedIn)}/>)}
-                      </div>
-                      {avail>0&&permiso.editar&&<button onClick={()=>setAssignModal({tableId:table.id,tableCapacity:table.capacity})} className="mt-2 flex w-full items-center gap-2 rounded-xl border border-dashed border-[#e0e0e0] px-3 py-2 hover:border-[#48C9B0] hover:bg-[#f0fdfb]"><Plus width={12} height={12} className="text-[#48C9B0]"/><span className="text-xs text-[#aaa]">Asignar ({avail} libres)</span></button>}
-                      {over&&<p className="mt-2 text-xs font-medium text-[#cc3333]">Sobrecupo: {occ} de {table.capacity} lugares</p>}
-                    </div>}
-                  </div>
-                )
-              })}
+            <LeyendaEstatus className="mb-3" />
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              {filtered.map(table=>(
+                <MesaCard key={table.id} table={table} ocupados={enMesa(table.id)} etiqueta={etiqueta} puedeEditar={permiso.editar} puedeBorrar={permiso.borrar}
+                  arrastrando={arrastrando} seleccion={seleccion}
+                  onSentarSeleccion={()=>sentarSeleccion(table.id)} onEditar={()=>openEditTable(table)} onBorrar={()=>handleDeleteTable(table)} onAsignar={()=>setAssignModal({tableId:table.id,tableCapacity:table.capacity})}
+                  onPersona={p=>setPersonaMenu(p)} onQuitar={p=>removeGuest(p)} onCheckin={p=>p.memberId?toggleMemberCheckin(p.memberId,p.guestId,p.checkedIn):toggleCheckin(p.guestId,p.checkedIn)}/>
+              ))}
+              {filtered.length===0&&<p className="col-span-full py-8 text-center text-sm text-[#bbb]">Nadie con ese nombre en una mesa</p>}
             </div>
           </>
         )}
       </div>
-
       </div>
       {/* Modal editar invitado */}
       {editGuest&&(

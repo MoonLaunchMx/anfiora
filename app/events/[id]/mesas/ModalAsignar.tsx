@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react'
 import { Search } from 'lucide-react'
 import { Modal } from '@/app/components/ui/Modal'
 import type { Lugar, Persona } from '@/lib/mesas/asientos'
-import { ChipTitular, estatusDeChip } from './chips'
+import { IconoEstatus } from './chips'
 
 type Mesa = { id: string; number: number; name: string | null; capacity: number }
 
@@ -36,7 +36,14 @@ export default function ModalAsignar({ table, personas, mapa, ocupacion, numeroD
   const n = marcados.size
   const cabe = n > 0 && n <= libres
 
-  const toggle = (clave: string) => setMarcados(prev => { const s = new Set(prev); s.has(clave) ? s.delete(clave) : s.add(clave); return s })
+  // Palomear al titular palomea a su familia (los que no estan ya aqui).
+  const toggle = (p: Persona) => setMarcados(prev => {
+    const s = new Set(prev)
+    const familia = p.memberId ? [p] : personas.filter(x => x.guestId === p.guestId && mapa.get(x.clave)?.tableId !== table?.id)
+    const on = !s.has(p.clave)
+    for (const x of familia) on ? s.add(x.clave) : s.delete(x.clave)
+    return s
+  })
   const sentar = async () => {
     if (!cabe) return
     setGuardando(true)
@@ -58,7 +65,7 @@ export default function ModalAsignar({ table, personas, mapa, ocupacion, numeroD
             </p>
           </div>
           <button type="button" onClick={sentar} disabled={!cabe || guardando} className="shrink-0 rounded-lg bg-[#48C9B0] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#3ab89f] disabled:opacity-40">
-            {guardando ? 'Sentando…' : n === 0 ? 'Sentar' : `Sentar a ${n}`}
+            {guardando ? 'Sentando…' : 'Sentar aquí'}
           </button>
         </div>
         {n > libres && <p className="mt-1 text-[11px] font-medium text-[#cc3333]">Marcaste {n} y solo hay {libres} {libres === 1 ? 'lugar' : 'lugares'}</p>}
@@ -71,16 +78,14 @@ export default function ModalAsignar({ table, personas, mapa, ocupacion, numeroD
         {visibles.length === 0 ? <p className="px-4 py-6 text-center text-xs text-[#bbb]">Sin resultados</p> : visibles.map(p => {
           const lugar = mapa.get(p.clave)
           const aqui = lugar?.tableId === table.id
-          const st = estatusDeChip(p.rsvp)
           return (
             <label key={p.clave} className={'flex w-full items-center gap-3 border-b border-[#f5f5f5] px-4 py-2.5 last:border-0 ' + (p.memberId ? 'pl-8 ' : '') + (aqui ? 'cursor-default opacity-40' : 'cursor-pointer hover:bg-[#f0fdfb]')}>
-              <input type="checkbox" checked={marcados.has(p.clave)} disabled={aqui} onChange={() => toggle(p.clave)} style={{ accentColor: '#48C9B0' }} className="shrink-0" />
+              <input type="checkbox" checked={marcados.has(p.clave)} disabled={aqui} onChange={() => toggle(p)} style={{ accentColor: '#48C9B0' }} className="shrink-0" />
+              <IconoEstatus rsvp={p.rsvp} size={14} />
               <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
                 <span className={'truncate text-sm ' + (p.memberId ? 'text-[#444]' : 'font-semibold text-[#1D1E20]')}>{p.nombre}</span>
-                <ChipTitular persona={p} />
               </div>
-              <span className="shrink-0 text-[10px] font-medium text-[#999]">{aqui ? 'Ya está aquí' : lugar ? `Mesa ${numeroDeMesa(lugar.tableId)}` : 'Sin mesa'}</span>
-              <span className="shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-bold" style={{ background: st.bg, borderColor: st.border, color: st.text }}>{st.label.slice(0, 4)}</span>
+              <span className="shrink-0 text-[10px] font-medium" style={{ color: aqui ? '#48C9B0' : '#999' }}>{aqui ? 'Ya está aquí' : lugar ? `Mesa ${numeroDeMesa(lugar.tableId)}` : 'Sin mesa'}</span>
             </label>
           )
         })}
