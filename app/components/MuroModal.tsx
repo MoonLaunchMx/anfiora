@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState, type RefObject } from 'react'
+import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { ChevronDown } from 'lucide-react'
 import { Modal } from '@/app/components/ui/Modal'
@@ -248,14 +248,36 @@ function calcularLayoutFlotante(trigger: HTMLElement): LayoutFlotante {
   return { top, left, width: rect.width, maxHeight }
 }
 
-function useLayoutFlotante(open: boolean, triggerRef: RefObject<HTMLDivElement | null>): LayoutFlotante {
+// El campo vive dentro de la columna derecha, que tiene su propio scroll: si
+// la persona scrollea esa columna con la lista abierta, el campo puede
+// quedar tapado bajo el borde del contenedor mientras la lista sigue
+// flotando donde ya no hay nada debajo. `contenedorRef` es esa columna: si
+// el campo deja de solaparse con su area visible, `alSalirDeVista` cierra
+// la lista en vez de dejarla colgada.
+function useLayoutFlotante(
+  open: boolean,
+  triggerRef: RefObject<HTMLDivElement | null>,
+  contenedorRef: RefObject<HTMLDivElement | null>,
+  alSalirDeVista: () => void
+): LayoutFlotante {
   const [layout, setLayout] = useState<LayoutFlotante>({ top: 0, left: 0, width: 0, maxHeight: FLOTANTE_ALTO_MAX })
 
   useEffect(() => {
     if (!open) return
     const recalcular = () => {
       const el = triggerRef.current
-      if (el) setLayout(calcularLayoutFlotante(el))
+      if (!el) return
+      const contenedor = contenedorRef.current
+      if (contenedor) {
+        const rectEl = el.getBoundingClientRect()
+        const rectContenedor = contenedor.getBoundingClientRect()
+        const visible = rectEl.bottom > rectContenedor.top && rectEl.top < rectContenedor.bottom
+        if (!visible) {
+          alSalirDeVista()
+          return
+        }
+      }
+      setLayout(calcularLayoutFlotante(el))
     }
     recalcular()
     // capture:true para enterarse tambien del scroll interno del modal (la
@@ -266,7 +288,7 @@ function useLayoutFlotante(open: boolean, triggerRef: RefObject<HTMLDivElement |
       window.removeEventListener('scroll', recalcular, true)
       window.removeEventListener('resize', recalcular)
     }
-  }, [open, triggerRef])
+  }, [open, triggerRef, contenedorRef, alSalirDeVista])
 
   return layout
 }
@@ -274,11 +296,20 @@ function useLayoutFlotante(open: boolean, triggerRef: RefObject<HTMLDivElement |
 // Campo que se despliega, no ocho chips sueltos. La lista flota encima del
 // formulario (portal a document.body) en vez de empujarlo: antes crecia en
 // linea y cambiaba el alto del modal cada vez que se abria.
-function CampoTipoEvento({ value, onChange }: { value: string[]; onChange: (next: string[]) => void }) {
+function CampoTipoEvento({
+  value,
+  onChange,
+  contenedorRef,
+}: {
+  value: string[]
+  onChange: (next: string[]) => void
+  contenedorRef: RefObject<HTMLDivElement | null>
+}) {
   const [open, setOpen] = useState(false)
   const triggerRef = useRef<HTMLDivElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
-  const layout = useLayoutFlotante(open, triggerRef)
+  const cerrar = useCallback(() => setOpen(false), [])
+  const layout = useLayoutFlotante(open, triggerRef, contenedorRef, cerrar)
 
   useEffect(() => {
     if (!open) return
@@ -338,12 +369,21 @@ function CampoTipoEvento({ value, onChange }: { value: string[]; onChange: (next
 // caben en un <select> usable. El filtro es sin acentos (sinAcentos de
 // lib/phone.ts, mismo criterio que PhoneInput con paises) para que "leon"
 // encuentre "León".
-function CampoCiudadMexico({ value, onChange }: { value: string; onChange: (next: string) => void }) {
+function CampoCiudadMexico({
+  value,
+  onChange,
+  contenedorRef,
+}: {
+  value: string
+  onChange: (next: string) => void
+  contenedorRef: RefObject<HTMLDivElement | null>
+}) {
   const [open, setOpen] = useState(false)
   const [filtro, setFiltro] = useState('')
   const triggerRef = useRef<HTMLDivElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
-  const layout = useLayoutFlotante(open, triggerRef)
+  const cerrar = useCallback(() => setOpen(false), [])
+  const layout = useLayoutFlotante(open, triggerRef, contenedorRef, cerrar)
 
   useEffect(() => {
     if (!open) return
@@ -464,6 +504,10 @@ export function MuroModal({ open, caso, limite, onClose, eventId }: MuroModalPro
   const [error, setError] = useState('')
   const [resultado, setResultado] = useState<Resultado | null>(null)
 
+  // La columna derecha tiene su propio scroll: los campos flotantes la usan
+  // para cerrarse solos si el disparador queda tapado por el borde.
+  const columnaDerechaRef = useRef<HTMLDivElement>(null)
+
   useEffect(() => {
     if (!open) return
     setPaso('formulario')
@@ -514,7 +558,8 @@ export function MuroModal({ open, caso, limite, onClose, eventId }: MuroModalPro
     : 'Mientras tanto tu evento sigue ahí. No se pierde nada.'
 
   const faltaTelefono = contactoPreferido !== 'Correo' && !telefono.trim()
-  const puedeEnviar = !enviando && !!nombre.trim() && !!email.trim() && tiposDeEventos.length > 0 && !faltaTelefono
+  const puedeEnviar = !enviando && !!nombre.trim() && !!email.trim() && !!ciudad.trim() && !!pais
+    && tiposDeEventos.length > 0 && !faltaTelefono
 
   const enviar = async () => {
     if (!puedeEnviar) return
@@ -566,7 +611,7 @@ export function MuroModal({ open, caso, limite, onClose, eventId }: MuroModalPro
 
   return (
     <Modal open={open} onClose={onClose} size={paso === 'enviado' ? 'md' : 'xl'}>
-      <Modal.Body className="!overflow-hidden !p-0">
+      <Modal.Body className={paso === 'formulario' ? '!overflow-hidden !p-0' : ''}>
         {paso === 'formulario' && (
           <div className="flex h-full min-h-0 flex-col sm:flex-row">
             <div className="flex shrink-0 flex-col gap-5 border-b border-[#eee] bg-[#f8f8f7] px-5 py-5 sm:w-[220px] sm:border-b-0 sm:border-r">
@@ -602,13 +647,13 @@ export function MuroModal({ open, caso, limite, onClose, eventId }: MuroModalPro
               <p className="mt-auto text-[11px] leading-snug text-[#999]">Te escribimos el mismo día para activarlo.</p>
             </div>
 
-            <div className="anf-barra-fina min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-5">
+            <div ref={columnaDerechaRef} className="anf-barra-fina min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-5">
               <div className="flex flex-col gap-3">
                 <label className="text-xs font-semibold text-[#666]">Nombre o empresa
                   <input value={nombre} onChange={e => setNombre(e.target.value)} autoFocus className={inputCls} />
                 </label>
 
-                <CampoTipoEvento value={tiposDeEventos} onChange={setTiposDeEventos} />
+                <CampoTipoEvento value={tiposDeEventos} onChange={setTiposDeEventos} contenedorRef={columnaDerechaRef} />
 
                 <div className="grid grid-cols-2 gap-3">
                   <label className="text-xs font-semibold text-[#666]">País
@@ -617,7 +662,7 @@ export function MuroModal({ open, caso, limite, onClose, eventId }: MuroModalPro
                     </select>
                   </label>
                   {pais === CODIGO_PAIS_DEFAULT ? (
-                    <CampoCiudadMexico value={ciudad} onChange={setCiudad} />
+                    <CampoCiudadMexico value={ciudad} onChange={setCiudad} contenedorRef={columnaDerechaRef} />
                   ) : (
                     <label className="text-xs font-semibold text-[#666]">Ciudad
                       <input value={ciudad} onChange={e => setCiudad(e.target.value)} className={inputCls} />
@@ -667,7 +712,7 @@ export function MuroModal({ open, caso, limite, onClose, eventId }: MuroModalPro
         )}
 
         {paso === 'enviado' && resultado && (
-          <div className="flex flex-col items-center gap-5 px-6 py-7 text-center">
+          <div className="flex flex-col items-center gap-5 px-1 py-3 text-center">
             <img src="/images/isotipoylogo.svg" alt="Anfiora" className="h-9 w-auto" />
             <div className="flex flex-col gap-1">
               <h3 className="text-base font-bold text-[#1D1E20]">Recibimos tu solicitud</h3>
