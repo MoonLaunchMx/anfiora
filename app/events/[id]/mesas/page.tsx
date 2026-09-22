@@ -9,6 +9,9 @@ import { Plus, Trash2, ChevronDown, ChevronUp, X, List, Map as MapIcon, Printer,
 import StatsCollapse, { StatsToggleButton, useStatsToggle } from '@/app/components/ui/StatsCollapse'
 import { Modal } from '@/app/components/ui/Modal'
 import { useConfirm } from '@/app/components/ui/ConfirmModal'
+import { useToast } from '@/app/components/ui/Toast'
+import { falloDeEscritura, describirFallo } from '@/lib/escrituras/fallo'
+import { reportError } from '@/lib/observabilidad/report'
 import { usePermiso } from '@/lib/event-access-context'
 import { Puede } from '@/lib/permisos/Puede'
 import { Cargando } from '@/app/components/ui/Cargando'
@@ -499,13 +502,16 @@ function TableDetailModal({ table, getOccupied, onClose, onAssign, onRemoveGuest
 }
 
 // ─── CANVAS FULLSCREEN ────────────────────────
-function CanvasFullscreen({ tables, getOccupied, onBack, onTableClick, onPositionSave, onRotationSave, onOpenCreate, puedeEditar,
+function CanvasFullscreen({ tables, getOccupied, onBack, onTableClick, onPositionSave, onRotationSave, onOpenCreate, puedeEditar, resetKey,
   decos, setDecos, decoRotations, setDecoRotations, tableColors, setTableColors, decoColors, setDecoColors
 }: {
   tables: TableRecord[]; getOccupied:(t:TableRecord)=>number; onBack:()=>void
   onTableClick:(t:TableRecord)=>void; onPositionSave:(id:string,x:number,y:number)=>void
   onRotationSave:(id:string,rotation:number)=>void; onOpenCreate:()=>void
   puedeEditar: boolean
+  // Al cambiar, el plano descarta lo que tenia en memoria y vuelve a leer
+  // posiciones y giros de `tables`: es el regreso tras un guardado fallido.
+  resetKey: number
   decos: DecoItem[]; setDecos: React.Dispatch<React.SetStateAction<DecoItem[]>>
   decoRotations: Record<string,number>; setDecoRotations: React.Dispatch<React.SetStateAction<Record<string,number>>>
   tableColors: Record<string,string>; setTableColors: React.Dispatch<React.SetStateAction<Record<string,string>>>
@@ -552,6 +558,16 @@ function CanvasFullscreen({ tables, getOccupied, onBack, onTableClick, onPositio
       return r
     })
   },[tables.map(t=>t.id).join(',')])
+
+  useEffect(()=>{
+    if(!resetKey)return
+    const p:Record<string,{x:number;y:number}>={}, r:Record<string,number>={}
+    tables.forEach((t,i)=>{
+      p[t.id]=((t.position_x||t.position_y)&&(t.position_x!==0||t.position_y!==0))?{x:t.position_x,y:t.position_y}:{x:80+(i%4)*240,y:80+Math.floor(i/4)*240}
+      r[t.id]=t.rotation||0
+    })
+    setPositions(p); setRotations(r)
+  },[resetKey])
 
   const autoLayout=()=>{
     const p:Record<string,{x:number;y:number}>={}, r:Record<string,number>={}
@@ -1228,7 +1244,10 @@ function MesasPageInner() {
   // Toggle de estadísticas en mobile (persiste por evento en localStorage)
   const { visible: statsVisible, toggle: toggleStats } = useStatsToggle(eventId as string, 'tables')
   const askConfirm = useConfirm()
+  const toast = useToast()
   const permiso = usePermiso('mesas')
+  // Cuando una posicion o giro no se guarda, el plano vuelve a lo que dice la base.
+  const [canvasResetKey,setCanvasResetKey]=useState(0)
   const permisoInvitados = usePermiso('invitados')
 
   const [tables,setTables]=useState<TableRecord[]>([])
@@ -1290,6 +1309,7 @@ function MesasPageInner() {
   const [eMembers,setEMembers]=useState<EditMember[]>([])
   const [eSaving,setESaving]=useState(false)
   const [eError,setEError]=useState('')
+  const [eErrorReintentable,setEErrorReintentable]=useState(false)
 
   useEffect(()=>{loadData()},[])
   useEffect(()=>{if(assignModal)setTimeout(()=>assignRef.current?.focus(),50)},[assignModal])
@@ -1392,34 +1412,50 @@ function MesasPageInner() {
 
     setESaving(true)
     setEError('')
+    setEErrorReintentable(false)
 
-    await supabase.from('guests').update({
+    // Si algo no entra, el modal se queda abierto con los cambios y
+    // Reintentar vuelve a correr todo. El insert va al final a proposito: es
+    // la unica escritura que no es idempotente, y asi nunca se duplica a nadie.
+    const fallar = (prefijo: string, fallo: ReturnType<typeof describirFallo>) => {
+      if (fallo.tipo === 'interno') reportError(fallo.tecnico, { zona: 'planner' })
+      setEError(prefijo + ' ' + fallo.detalle)
+      setEErrorReintentable(fallo.reintentable)
+      setESaving(false)
+      loadTables()
+    }
+
+    const fGuest = falloDeEscritura(await supabase.from('guests').update({
       name: eName,
       phone: ePhone || null,
       email: eEmail || null,
       party_size: newPartySize,
       notes: eNotes || null,
       tags: eTags,
-    }).eq('id', editGuest.id)
+    }).eq('id', editGuest.id).select('id'))
+    if (fGuest) return fallar('No se guardó.', fGuest)
 
-    // Eliminar acompañantes removidos
+    const deAcomp = 'Se guardó a ' + eName + ' pero no sus acompañantes.'
     const keepIds = eMembers.filter(m => m.id).map(m => m.id as string)
     const toDel = editGuest.party_members.map(m => m.id).filter(id => !keepIds.includes(id))
-    if (toDel.length) await supabase.from('party_members').delete().in('id', toDel)
+    if (toDel.length) {
+      // Sin contar filas: en un reintento estos ya pueden estar borrados.
+      const { error } = await supabase.from('party_members').delete().in('id', toDel)
+      if (error) return fallar(deAcomp, describirFallo(error))
+    }
 
-    // Actualizar acompañantes existentes
     for (const m of eMembers.filter(m => m.id)) {
-      await supabase.from('party_members').update({
+      const fm = falloDeEscritura(await supabase.from('party_members').update({
         name: m.name,
         phone: m.phone || null,
         rsvp_status: m.rsvp_status,
-      }).eq('id', m.id!)
+      }).eq('id', m.id!).select('id'))
+      if (fm) return fallar(deAcomp, fm)
     }
 
-    // Insertar acompañantes nuevos
     const ins = eMembers.filter(m => !m.id)
     if (ins.length) {
-      await supabase.from('party_members').insert(
+      const fi = falloDeEscritura(await supabase.from('party_members').insert(
         ins.map(m => ({
           guest_id: editGuest.id,
           event_id: eventId as string,
@@ -1427,12 +1463,13 @@ function MesasPageInner() {
           phone: m.phone || null,
           rsvp_status: m.rsvp_status,
         }))
-      )
+      ).select('id'), ins.length)
+      if (fi) return fallar(deAcomp, fi)
     }
 
-    // Actualizar party_size en table_seats si está asignado
     if (seatRecord) {
-      await supabase.from('table_seats').update({ party_size: newPartySize }).eq('id', seatRecord.seatId)
+      const fs = falloDeEscritura(await supabase.from('table_seats').update({ party_size: newPartySize }).eq('id', seatRecord.seatId).select('id'))
+      if (fs) return fallar('Se guardó pero su lugar en la Mesa ' + seatRecord.tableNumber + ' no se actualizó.', fs)
     }
 
     await loadTables()
@@ -1440,12 +1477,28 @@ function MesasPageInner() {
     setESaving(false)
   }
 
-  const toggleCheckin=async(gId:string,cur:boolean)=>{
-    if (!permiso.editar) return
-    await supabase.from('guests').update({checked_in:!cur}).eq('id',gId);setTables(p=>p.map(t=>({...t,seats:t.seats.map(s=>s.guest?.id!==gId?s:{...s,guest:{...s.guest!,checked_in:!cur}})})))}
-  const toggleMemberCheckin=async(mId:string,gId:string,cur:boolean)=>{
-    if (!permiso.editar) return
-    await supabase.from('party_members').update({checked_in:!cur}).eq('id',mId);setTables(p=>p.map(t=>({...t,seats:t.seats.map(s=>{if(s.guest?.id!==gId)return s;return{...s,guest:{...s.guest!,party_members:s.guest!.party_members.map(m=>m.id===mId?{...m,checked_in:!cur}:m)}}})})))}
+  // Check-in: la palomita cambia al instante y regresa si la base no lo acepta.
+  const pintarCheckin=(gId:string,valor:boolean)=>setTables(p=>p.map(t=>({...t,seats:t.seats.map(s=>s.guest?.id!==gId?s:{...s,guest:{...s.guest!,checked_in:valor}})})))
+  const toggleCheckin=async(gId:string,cur:boolean):Promise<boolean>=>{
+    if (!permiso.editar) return false
+    pintarCheckin(gId,!cur)
+    const fallo=falloDeEscritura(await supabase.from('guests').update({checked_in:!cur}).eq('id',gId).select('id'))
+    if(!fallo)return true
+    pintarCheckin(gId,cur)
+    toast.fallo({titulo:'No se guardó el check-in de '+(guests.find(g=>g.id===gId)?.name??'el invitado'),fallo,reintentar:()=>toggleCheckin(gId,cur)})
+    return false
+  }
+  const pintarMemberCheckin=(mId:string,gId:string,valor:boolean)=>setTables(p=>p.map(t=>({...t,seats:t.seats.map(s=>{if(s.guest?.id!==gId)return s;return{...s,guest:{...s.guest!,party_members:s.guest!.party_members.map(m=>m.id===mId?{...m,checked_in:valor}:m)}}})})))
+  const toggleMemberCheckin=async(mId:string,gId:string,cur:boolean):Promise<boolean>=>{
+    if (!permiso.editar) return false
+    pintarMemberCheckin(mId,gId,!cur)
+    const fallo=falloDeEscritura(await supabase.from('party_members').update({checked_in:!cur}).eq('id',mId).select('id'))
+    if(!fallo)return true
+    pintarMemberCheckin(mId,gId,cur)
+    const nombre=guests.find(g=>g.id===gId)?.party_members.find(m=>m.id===mId)?.name||'el acompañante'
+    toast.fallo({titulo:'No se guardó el check-in de '+nombre,fallo,reintentar:()=>toggleMemberCheckin(mId,gId,cur)})
+    return false
+  }
 
   const openCreate=()=>{setEditTable(null);setMNum(String(nextNum()));setMName('');setMCap('8');setMShape('round');setMError('');setShowModal(true)}
   const openEditTable=(t:TableRecord)=>{setEditTable(t);setMNum(String(t.number));setMName(t.name||'');setMCap(String(t.capacity));setMShape(t.shape);setMError('');setShowModal(true)}
@@ -1469,7 +1522,13 @@ function MesasPageInner() {
         :'La mesa está vacía, no afecta a ningún invitado.',
     })
     if(!ok)return
-    await supabase.from('tables').delete().eq('id',t.id);setTables(p=>p.filter(x=>x.id!==t.id))
+    await borrarMesa(t)
+  }
+  const borrarMesa=async(t:TableRecord):Promise<boolean>=>{
+    const fallo=falloDeEscritura(await supabase.from('tables').delete().eq('id',t.id).select('id'))
+    if(fallo){toast.fallo({titulo:'No se eliminó la Mesa '+t.number,fallo,reintentar:()=>borrarMesa(t)});return false}
+    setTables(p=>p.filter(x=>x.id!==t.id))
+    return true
   }
 
   const previewNums=(count:number)=>{const u=new Set(tables.map(t=>t.number));const r:number[]=[];let n=1;while(r.length<count){if(!u.has(n))r.push(n);n++};return r}
@@ -1482,14 +1541,18 @@ function MesasPageInner() {
     await loadTables();setShowBulk(false);setBSaving(false)
   }
 
-  const doAssign=async(tableId:string,cap:number,guest:GuestFull)=>{
-    if (!permiso.editar) return
+  const doAssign=async(tableId:string,cap:number,guest:GuestFull):Promise<boolean>=>{
+    if (!permiso.editar) return false
     const t=tables.find(x=>x.id===tableId)!;const occ=getOccupied(t);const need=1+guest.party_members.length
-    if(need>cap-occ){alert(`Sin espacio. "${guest.name}" necesita ${need} asiento(s), solo hay ${cap-occ} libre(s).`);return}
+    // El buscador ya apaga a quien no cabe. Si llega aqui es que alguien mas
+    // lleno la mesa mientras tanto: se recarga y se dice, sin reintentar.
+    if(need>cap-occ){await loadTables();toast.error({titulo:`La Mesa ${t.number} ya no tiene lugar para ${need}`,detalle:'Alguien más la ocupó. La pantalla ya se actualizó.'});return false}
     const next=(t.seats.map(s=>s.seat_number).sort((a,b)=>b-a)[0]||0)+1
-    await supabase.from('table_seats').insert({table_id:tableId,event_id:eventId,seat_number:next,guest_id:guest.id,party_size:need})
+    const fallo=falloDeEscritura(await supabase.from('table_seats').insert({table_id:tableId,event_id:eventId,seat_number:next,guest_id:guest.id,party_size:need}).select('id'))
+    if(fallo){toast.fallo({titulo:`No se sentó a ${guest.name} en la Mesa ${t.number}`,fallo,reintentar:()=>doAssign(tableId,cap,guest)});return false}
     await loadTables()
     setAssignSearch('')
+    return true
   }
   const handleSelectGuest=(gId:string,tableId:string,cap:number)=>{
     const g=guests.find(x=>x.id===gId)!;const ex=gSeatMap.get(gId)
@@ -1499,13 +1562,22 @@ function MesasPageInner() {
   const handleMove=async()=>{
     if (!permiso.editar) return
     if(!moveModal)return;setMoveSaving(true)
-    const{guest,fromSeatId,toTableId,toTableCapacity}=moveModal
-    const t=tables.find(x=>x.id===toTableId)!;const need=1+guest.party_members.length
-    if(need>toTableCapacity-getOccupied(t)){alert('Sin espacio en mesa destino.');setMoveSaving(false);setMoveModal(null);return}
-    await supabase.from('table_seats').delete().eq('id',fromSeatId)
+    await moverAsiento(moveModal)
+    setMoveModal(null);setMoveSaving(false)
+  }
+  // Mover es UN solo cambio sobre el asiento que ya existe: entra completo o
+  // no entra. Antes se borraba el viejo y luego se creaba el nuevo, y si lo
+  // segundo fallaba el invitado se quedaba sin mesa sin que nadie lo viera.
+  const moverAsiento=async(mv:MoveModal):Promise<boolean>=>{
+    const{guest,fromSeatId,fromTableNumber,toTableId,toTableCapacity}=mv
+    const t=tables.find(x=>x.id===toTableId);if(!t)return false
+    const need=1+guest.party_members.length
+    if(need>toTableCapacity-getOccupied(t)){await loadTables();toast.error({titulo:`La Mesa ${t.number} ya no tiene lugar para ${need}`,detalle:'Alguien más la ocupó. La pantalla ya se actualizó.'});return false}
     const next=(t.seats.map(s=>s.seat_number).sort((a,b)=>b-a)[0]||0)+1
-    await supabase.from('table_seats').insert({table_id:toTableId,event_id:eventId,seat_number:next,guest_id:guest.id,party_size:need})
-    await loadTables();setMoveModal(null);setMoveSaving(false)
+    const fallo=falloDeEscritura(await supabase.from('table_seats').update({table_id:toTableId,seat_number:next,party_size:need}).eq('id',fromSeatId).select('id'))
+    if(fallo){toast.fallo({titulo:`No se movió a ${guest.name} a la Mesa ${t.number}`,fallo:{...fallo,detalle:fallo.detalle+` Sigue en la Mesa ${fromTableNumber}.`},reintentar:()=>moverAsiento(mv)});return false}
+    await loadTables()
+    return true
   }
   const removeGuest=async(seatId:string,name:string)=>{
     if (!permiso.editar) return
@@ -1515,17 +1587,39 @@ function MesasPageInner() {
       confirmLabel:'Quitar',
     })
     if(!ok)return
-    await supabase.from('table_seats').delete().eq('id',seatId);await loadTables()
+    await quitarDeMesa(seatId,name)
   }
-  const handlePosSave=async(id:string,x:number,y:number)=>{
-    if (!permiso.editar) return
-    await supabase.from('tables').update({position_x:x,position_y:y}).eq('id',id)
+  const quitarDeMesa=async(seatId:string,name:string):Promise<boolean>=>{
+    const fallo=falloDeEscritura(await supabase.from('table_seats').delete().eq('id',seatId).select('id'))
+    if(fallo){toast.fallo({titulo:`No se quitó a ${name} de la mesa`,fallo,reintentar:()=>quitarDeMesa(seatId,name)});return false}
+    await loadTables()
+    return true
+  }
+  // Posicion y giro del plano: si no se guardan, el plano regresa a lo que
+  // dice la base (resetKey) y el aviso ofrece volver a mandar lo mismo.
+  const handlePosSave=async(id:string,x:number,y:number):Promise<boolean>=>{
+    if (!permiso.editar) return false
+    const fallo=falloDeEscritura(await supabase.from('tables').update({position_x:x,position_y:y}).eq('id',id).select('id'))
+    if(fallo){
+      setCanvasResetKey(k=>k+1)
+      const num=tables.find(t=>t.id===id)?.number
+      toast.fallo({titulo:'No se guardó la posición de la Mesa '+(num??''),fallo,reintentar:async()=>{const ok=await handlePosSave(id,x,y);if(ok)setCanvasResetKey(k=>k+1);return ok},clave:'pos-'+id})
+      return false
+    }
     setTables(p=>p.map(t=>t.id===id?{...t,position_x:x,position_y:y}:t))
+    return true
   }
-  const handleRotSave=async(id:string,rotation:number)=>{
-    if (!permiso.editar) return
-    await supabase.from('tables').update({rotation}).eq('id',id)
+  const handleRotSave=async(id:string,rotation:number):Promise<boolean>=>{
+    if (!permiso.editar) return false
+    const fallo=falloDeEscritura(await supabase.from('tables').update({rotation}).eq('id',id).select('id'))
+    if(fallo){
+      setCanvasResetKey(k=>k+1)
+      const num=tables.find(t=>t.id===id)?.number
+      toast.fallo({titulo:'No se guardó el giro de la Mesa '+(num??''),fallo,reintentar:async()=>{const ok=await handleRotSave(id,rotation);if(ok)setCanvasResetKey(k=>k+1);return ok},clave:'rot-'+id})
+      return false
+    }
     setTables(p=>p.map(t=>t.id===id?{...t,rotation}:t))
+    return true
   }
 
   const handlePrint=()=>{
@@ -1548,7 +1642,7 @@ function MesasPageInner() {
   // ── CANVAS ──
   if(canvasMode)return(
     <>
-      <CanvasFullscreen tables={tables} getOccupied={getOccupied} onBack={()=>setCanvasMode(false)} onTableClick={t=>setCanvasDetailId(t.id)} onPositionSave={handlePosSave} onRotationSave={handleRotSave} onOpenCreate={openCreate} puedeEditar={permiso.editar}
+      <CanvasFullscreen tables={tables} getOccupied={getOccupied} onBack={()=>setCanvasMode(false)} onTableClick={t=>setCanvasDetailId(t.id)} onPositionSave={handlePosSave} onRotationSave={handleRotSave} onOpenCreate={openCreate} puedeEditar={permiso.editar} resetKey={canvasResetKey}
         decos={canvasDecos} setDecos={setCanvasDecos}
         decoRotations={canvasDecoRots} setDecoRotations={setCanvasDecoRots}
         tableColors={canvasTableColors} setTableColors={setCanvasTableColors}
@@ -1743,7 +1837,12 @@ function MesasPageInner() {
               <div className="border-t border-[#f0f0f0] pt-4"><MembersEditor value={eMembers} onChange={setEMembers} puedeEditar={permisoInvitados.editar}/></div>
             </div>
             </fieldset>
-            {eError&&<div className="mt-3 rounded-lg border border-[#ffc0c0] bg-[#fff0f0] p-2.5 text-xs text-[#cc3333]">{eError}</div>}
+            {eError&&(
+              <div className="mt-3 flex items-center justify-between gap-3 rounded-lg border border-[#ffc0c0] bg-[#fff0f0] p-2.5 text-xs text-[#cc3333]">
+                <span>{eError}</span>
+                {eErrorReintentable&&permisoInvitados.editar&&<button onClick={handleEditSave} disabled={eSaving} className="shrink-0 font-semibold text-[#1f8a75] hover:underline disabled:opacity-60">{eSaving?'Reintentando…':'Reintentar'}</button>}
+              </div>
+            )}
           </Modal.Body>
           <Modal.Footer>
             <button onClick={()=>setEditGuest(null)} className="flex-1 rounded-lg border border-[#e0e0e0] py-3 text-sm text-[#888]">{permisoInvitados.editar?'Cancelar':'Cerrar'}</button>

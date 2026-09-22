@@ -16,9 +16,11 @@ import { ImportStepsModal } from '@/app/components/ui/ImportStepsModal'
 import { Modal } from '@/app/components/ui/Modal'
 import PhoneInput from '@/app/components/ui/PhoneInput'
 import { useConfirm } from '@/app/components/ui/ConfirmModal'
+import { useToast } from '@/app/components/ui/Toast'
 import TagInput, { getTagColor } from '@/app/components/ui/TagInput'
 import { toWhatsApp, componerTelefono, componerDesdeLada } from '@/lib/phone'
 import { reportError } from '@/lib/observabilidad/report'
+import { falloDeEscritura, describirFallo, type Fallo } from '@/lib/escrituras/fallo'
 import { usePermiso } from '@/lib/event-access-context'
 import { Puede } from '@/lib/permisos/Puede'
 import * as XLSX from 'xlsx'
@@ -392,7 +394,7 @@ function SwipeableGuestCard({ guest, groupColor, isSelected, guestTags, availabl
           <input type="checkbox" checked={isSelected} onChange={onSelect} className="h-4 w-4 shrink-0 accent-[#48C9B0]" />
           {groupColor && <div className="h-8 w-[3px] shrink-0 rounded-full" style={{ background: groupColor }} />}
           <div className="shrink-0">
-            {guest.phone ? (
+            {guest.phone && toWhatsApp(guest.phone) ? (
               <button onTouchStart={e => { e.stopPropagation(); onWaLongPressStart(guest) }} onTouchEnd={e => { e.stopPropagation(); onWaLongPressEnd(guest) }} onTouchMove={e => { e.stopPropagation(); onWaTouchMove() }}
                 className="flex h-9 w-9 items-center justify-center rounded-xl border border-[#c0f0dc] bg-[#f0fff8]">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="#25D366">{WA_ICON}</svg>
@@ -497,9 +499,13 @@ type GuestModalShared = {
   onDeleteGroup: (g: string) => void
   onCreateAllergy: (a: string) => void
   onDeleteAllergy: (a: string) => void
-  onSubmit: (v: GuestFormValues) => Promise<string | null>
+  // Un string es un error de captura (nombre vacio, telefono repetido). Un
+  // ErrorGuardado es una escritura que no entro: el modal ofrece Reintentar.
+  onSubmit: (v: GuestFormValues) => Promise<string | ErrorGuardado | null>
   onClose: () => void
 }
+
+type ErrorGuardado = { mensaje: string; reintentable: boolean }
 
 function AddGuestModal({ availableTags, groupPool, allergyPool, onCreateTag, onDeleteTag, onCreateGroup, onDeleteGroup, onCreateAllergy, onDeleteAllergy, onSubmit, onClose }: GuestModalShared) {
   const [name, setName] = useState('')
@@ -521,7 +527,7 @@ function AddGuestModal({ availableTags, groupPool, allergyPool, onCreateTag, onD
   const submit = async () => {
     setSaving(true); setFormError('')
     const err = await onSubmit({ name, phone, email, notes, tags, side, allergies, members })
-    if (err) { setFormError(err); setSaving(false) }
+    if (err) { setFormError(typeof err === 'string' ? err : err.mensaje); setSaving(false) }
   }
 
   return (
@@ -571,7 +577,7 @@ function EditGuestModal({ guest, availableTags, groupPool, allergyPool, onCreate
   const [allergies, setAllergies] = useState<string[]>(guest.allergies || [])
   const [members, setMembers] = useState<EditMember[]>(guest.party_members.map(m => ({ id: m.id, name: m.name, phone: m.phone || '', rsvp_status: m.rsvp_status, allergies: m.allergies || [], tags: m.tags || [], notes: m.notes || '' })))
   const [saving, setSaving] = useState(false)
-  const [error, setError] = useState('')
+  const [error, setError] = useState<ErrorGuardado | null>(null)
 
   // Al borrar del pool, tambien quitar la seleccion local del formulario
   const handleDeleteTag = (t: string) => { setTags(prev => prev.filter(x => x !== t)); onDeleteTag(t) }
@@ -579,9 +585,9 @@ function EditGuestModal({ guest, availableTags, groupPool, allergyPool, onCreate
   const handleDeleteAllergy = (a: string) => { setAllergies(prev => prev.filter(x => x !== a)); onDeleteAllergy(a) }
 
   const submit = async () => {
-    setSaving(true); setError('')
+    setSaving(true); setError(null)
     const err = await onSubmit({ name, phone, email, notes, tags, side, allergies, members })
-    if (err) { setError(err); setSaving(false) }
+    if (err) { setError(typeof err === 'string' ? { mensaje: err, reintentable: false } : err); setSaving(false) }
   }
 
   return (
@@ -633,7 +639,14 @@ function EditGuestModal({ guest, availableTags, groupPool, allergyPool, onCreate
             Eliminar invitado
           </button>
         )}
-        {error && <div className="mt-4 rounded-lg border border-[#ffc0c0] bg-[#fff0f0] p-2.5 text-xs text-[#cc3333]">{error}</div>}
+        {error && (
+          <div className="mt-4 flex items-center justify-between gap-3 rounded-lg border border-[#ffc0c0] bg-[#fff0f0] p-2.5 text-xs text-[#cc3333]">
+            <span>{error.mensaje}</span>
+            {error.reintentable && puedeEditar && (
+              <button onClick={submit} disabled={saving} className="shrink-0 font-semibold text-[#1f8a75] hover:underline disabled:opacity-60">{saving ? 'Reintentando…' : 'Reintentar'}</button>
+            )}
+          </div>
+        )}
       </Modal.Body>
       <Modal.Footer>
         <button onClick={onClose} className="flex-1 rounded-lg border border-[#e0e0e0] py-3 text-sm text-[#888]">{puedeEditar ? 'Cancelar' : 'Cerrar'}</button>
@@ -650,6 +663,7 @@ export default function EventPage() {
   const router = useRouter()
   const permiso = usePermiso('invitados')
   const askConfirm = useConfirm()
+  const toast = useToast()
   const openConversation = (guestId: string) => router.push(`/events/${id}/mensajes?guest=${guestId}`)
 
   const { visible: statsVisible, toggle: toggleStats } = useStatsToggle(id as string, 'guests')
@@ -791,7 +805,7 @@ export default function EventPage() {
   }
 
   const handleWaLongPressStart = (guest: Guest) => { waLongPressTimer.current = setTimeout(() => { waLongPressTimer.current = null; setShowWaSheet(guest) }, 400) }
-  const handleWaLongPressEnd = (guest: Guest) => { if (waLongPressTimer.current) { clearTimeout(waLongPressTimer.current); waLongPressTimer.current = null; openWhatsApp(guest.phone!) } }
+  const handleWaLongPressEnd = (guest: Guest) => { if (waLongPressTimer.current) { clearTimeout(waLongPressTimer.current); waLongPressTimer.current = null; if (guest.phone) openWhatsApp(guest.phone) } }
   const handleWaTouchMove = () => { if (waLongPressTimer.current) { clearTimeout(waLongPressTimer.current); waLongPressTimer.current = null } }
 
   const loadEvent = async () => {
@@ -854,55 +868,84 @@ export default function EventPage() {
     setLoading(false)
   }
 
-  const updateStatus = async (guestId: string, status: RsvpStatus) => {
-    if (!permiso.editar) return
+  // Escrituras optimistas: la pantalla cambia primero y, si la base no lo
+  // acepta, regresa a como estaba y sale el aviso con Reintentar. Todas
+  // devuelven si entro, que es lo que el toast necesita para cerrarse solo.
+  const nombreDe = (guestId: string) => guests.find(g => g.id === guestId)?.name ?? 'el invitado'
+
+  const updateStatus = async (guestId: string, status: RsvpStatus): Promise<boolean> => {
+    if (!permiso.editar) return false
+    const antes = guests.find(g => g.id === guestId)?.rsvp_status
     setGuests(prev => prev.map(g => g.id === guestId ? { ...g, rsvp_status: status } : g))
-    await supabase.from('guests').update({ rsvp_status: status }).eq('id', guestId)
+    const fallo = falloDeEscritura(await supabase.from('guests').update({ rsvp_status: status }).eq('id', guestId).select('id'))
+    if (!fallo) return true
+    if (antes) setGuests(prev => prev.map(g => g.id === guestId ? { ...g, rsvp_status: antes } : g))
+    toast.fallo({ titulo: 'No se cambió el estatus de ' + nombreDe(guestId), fallo, reintentar: () => updateStatus(guestId, status) })
+    return false
   }
 
-  const confirmarPago = async (guest: Guest) => {
-    if (!permiso.editar) return
+  const confirmarPago = async (guest: Guest): Promise<boolean> => {
+    if (!permiso.editar) return false
     const nuevoTimestamp = new Date().toISOString()
-    const { error } = await supabase.from('guests').update({ paid_at: nuevoTimestamp }).eq('id', guest.id)
-    if (error) { alert('No se pudo confirmar el pago. Intenta de nuevo.'); return }
+    const fallo = falloDeEscritura(await supabase.from('guests').update({ paid_at: nuevoTimestamp }).eq('id', guest.id).select('id'))
+    if (fallo) { toast.fallo({ titulo: 'No se confirmó el pago de ' + guest.name, fallo, reintentar: () => confirmarPago(guest) }); return false }
     await logAction({ eventId: id as string, action: 'guest.payment_confirmed', entityType: 'guest', entityId: guest.id, entityLabel: guest.name, oldValue: { paid_at: guest.paid_at ?? null }, newValue: { paid_at: nuevoTimestamp } })
     await loadGuests()
+    return true
   }
 
-  const deshacerPago = async (guest: Guest) => {
-    if (!permiso.editar) return
-    const { error } = await supabase.from('guests').update({ paid_at: null }).eq('id', guest.id)
-    if (error) { alert('No se pudo deshacer el pago. Intenta de nuevo.'); return }
+  const deshacerPago = async (guest: Guest): Promise<boolean> => {
+    if (!permiso.editar) return false
+    const fallo = falloDeEscritura(await supabase.from('guests').update({ paid_at: null }).eq('id', guest.id).select('id'))
+    if (fallo) { toast.fallo({ titulo: 'No se deshizo el pago de ' + guest.name, fallo, reintentar: () => deshacerPago(guest) }); return false }
     await logAction({ eventId: id as string, action: 'guest.payment_undone', entityType: 'guest', entityId: guest.id, entityLabel: guest.name, oldValue: { paid_at: guest.paid_at ?? null }, newValue: { paid_at: null } })
     await loadGuests()
+    return true
   }
 
-  const updatePartyMemberStatus = async (memberId: string, guestId: string, status: RsvpStatus) => {
-    if (!permiso.editar) return
-    setGuests(prev => prev.map(g => g.id === guestId ? { ...g, party_members: g.party_members.map(m => m.id === memberId ? { ...m, rsvp_status: status } : m) } : g))
-    await supabase.from('party_members').update({ rsvp_status: status }).eq('id', memberId)
+  const updatePartyMemberStatus = async (memberId: string, guestId: string, status: RsvpStatus): Promise<boolean> => {
+    if (!permiso.editar) return false
+    const miembro = guests.find(g => g.id === guestId)?.party_members.find(m => m.id === memberId)
+    const antes = miembro?.rsvp_status
+    const aplicar = (s: RsvpStatus) => setGuests(prev => prev.map(g => g.id === guestId ? { ...g, party_members: g.party_members.map(m => m.id === memberId ? { ...m, rsvp_status: s } : m) } : g))
+    aplicar(status)
+    const fallo = falloDeEscritura(await supabase.from('party_members').update({ rsvp_status: status }).eq('id', memberId).select('id'))
+    if (!fallo) return true
+    if (antes) aplicar(antes)
+    toast.fallo({ titulo: 'No se cambió el estatus de ' + (miembro?.name || 'el acompañante'), fallo, reintentar: () => updatePartyMemberStatus(memberId, guestId, status) })
+    return false
   }
 
-  const resolveAttention = async (guestId: string) => {
-    if (!permiso.editar) return
-    setGuests(prev => prev.map(g => g.id === guestId ? { ...g, needs_attention: false, attention_reason: null, attention_detail: null } : g))
-    setEditGuest(prev => prev ? { ...prev, needs_attention: false, attention_reason: null, attention_detail: null } : null)
-    await supabase.from('guests').update({ needs_attention: false, attention_reason: null, attention_detail: null }).eq('id', guestId)
+  const resolveAttention = async (guestId: string): Promise<boolean> => {
+    if (!permiso.editar) return false
+    const antes = guests.find(g => g.id === guestId)
+    const limpio = { needs_attention: false, attention_reason: null, attention_detail: null }
+    setGuests(prev => prev.map(g => g.id === guestId ? { ...g, ...limpio } : g))
+    setEditGuest(prev => prev ? { ...prev, ...limpio } : null)
+    const fallo = falloDeEscritura(await supabase.from('guests').update(limpio).eq('id', guestId).select('id'))
+    if (!fallo) return true
+    if (antes) {
+      const previo = { needs_attention: antes.needs_attention, attention_reason: antes.attention_reason, attention_detail: antes.attention_detail }
+      setGuests(prev => prev.map(g => g.id === guestId ? { ...g, ...previo } : g))
+      setEditGuest(prev => prev && prev.id === guestId ? { ...prev, ...previo } : prev)
+    }
+    toast.fallo({ titulo: 'No se marcó como resuelta', fallo, reintentar: () => resolveAttention(guestId) })
+    return false
   }
 
-  const performDeleteGuest = async (guestId: string, conversationIds: string[], mode: 'unlink' | 'purge') => {
-    if (!permiso.borrar) return
+  const performDeleteGuest = async (guestId: string, conversationIds: string[], mode: 'unlink' | 'purge'): Promise<boolean> => {
+    if (!permiso.borrar) return false
     const ops = buildGuestDeletionOps(guestId, conversationIds, mode)
     const { ok, error } = await executeGuestDeletion(supabase, ops)
     if (!ok) {
-      reportError(error, { zona: 'planner' })
-      alert('No se pudo eliminar el invitado. Intenta de nuevo.' + (error ? ' (' + error + ')' : ''))
-      return
+      toast.fallo({ titulo: 'No se eliminó a ' + nombreDe(guestId), fallo: describirFallo({ message: error ?? '' }), reintentar: () => performDeleteGuest(guestId, conversationIds, mode) })
+      return false
     }
     await supabase.rpc('decrement_guests', { event_id_input: id })
     setGuests(prev => prev.filter(g => g.id !== guestId))
     setEvent(prev => prev ? { ...prev, total_guests: Math.max(0, prev.total_guests - 1) } : prev)
     setSelected(prev => { const n = new Set(prev); n.delete(guestId); return n })
+    return true
   }
 
   const deleteGuest = async (guestId: string) => {
@@ -924,8 +967,23 @@ export default function EventPage() {
   const deletePartyMember = async (memberId: string, guestId: string) => {
     if (!permiso.borrar) return
     if (!(await askConfirm({ title: '¿Eliminar este acompañante?' }))) return
-    await supabase.from('party_members').delete().eq('id', memberId)
-    setGuests(prev => prev.map(g => g.id === guestId ? { ...g, party_size: g.party_size - 1, party_members: g.party_members.filter(m => m.id !== memberId) } : g))
+    await borrarAcompanante(memberId, guestId)
+  }
+
+  const borrarAcompanante = async (memberId: string, guestId: string): Promise<boolean> => {
+    const g = guests.find(x => x.id === guestId)
+    const miembro = g?.party_members.find(m => m.id === memberId)
+    const fallo = falloDeEscritura(await supabase.from('party_members').delete().eq('id', memberId).select('id'))
+    if (fallo) {
+      toast.fallo({ titulo: 'No se eliminó a ' + (miembro?.name || 'el acompañante'), fallo, reintentar: () => borrarAcompanante(memberId, guestId) })
+      return false
+    }
+    setGuests(prev => prev.map(x => x.id === guestId ? { ...x, party_size: Math.max(1, x.party_size - 1), party_members: x.party_members.filter(m => m.id !== memberId) } : x))
+    // El tamano del grupo vive en guests.party_size y antes nunca se bajaba aqui.
+    const restantes = (g?.party_members.filter(m => m.id !== memberId).length ?? 0)
+    const f2 = falloDeEscritura(await supabase.from('guests').update({ party_size: 1 + restantes }).eq('id', guestId).select('id'))
+    if (f2) toast.fallo({ titulo: 'Se eliminó pero el tamaño del grupo no se actualizó', fallo: f2, reintentar: async () => !falloDeEscritura(await supabase.from('guests').update({ party_size: 1 + restantes }).eq('id', guestId).select('id')) })
+    return true
   }
 
   const openEdit = (guest: Guest) => setEditGuest(guest)
@@ -940,7 +998,7 @@ export default function EventPage() {
     return sortDirection === 'asc' ? ' ▲' : ' ▼'
   }
 
-  const submitEditGuest = async (guest: Guest, f: GuestFormValues): Promise<string | null> => {
+  const submitEditGuest = async (guest: Guest, f: GuestFormValues): Promise<string | ErrorGuardado | null> => {
     if (!permiso.editar) return null
     if (!f.name) return 'El nombre es obligatorio'
     if (f.phone) {
@@ -950,18 +1008,34 @@ export default function EventPage() {
         if (duplicate) return `Este WhatsApp ya está registrado para "${duplicate.name}"`
       }
     }
-    const { error } = await supabase.from('guests').update({ name: f.name, phone: f.phone || null, email: f.email || null, party_size: 1 + f.members.length, notes: f.notes || null, tags: f.tags, side: f.side || null, allergies: f.allergies.length > 0 ? f.allergies : null }).eq('id', guest.id)
-    if (error) {
-      reportError(error, { zona: 'planner' })
-      return 'Error: ' + error.message
+    const errorGuardado = (prefijo: string, fallo: Fallo): ErrorGuardado => {
+      if (fallo.tipo === 'interno') reportError(fallo.tecnico, { zona: 'planner' })
+      return { mensaje: prefijo + ' ' + fallo.detalle, reintentable: fallo.reintentable }
     }
+    const fGuest = falloDeEscritura(await supabase.from('guests').update({ name: f.name, phone: f.phone || null, email: f.email || null, party_size: 1 + f.members.length, notes: f.notes || null, tags: f.tags, side: f.side || null, allergies: f.allergies.length > 0 ? f.allergies : null }).eq('id', guest.id).select('id'))
+    if (fGuest) return errorGuardado('No se guardó.', fGuest)
+    // Acompanantes: si algo de aqui falla, el modal se queda abierto con los
+    // cambios y Reintentar vuelve a correr todo. Por eso el insert va al
+    // final: es la unica escritura que no es idempotente, y asi un segundo
+    // intento nunca duplica a nadie.
+    const acompFallo = (fallo: Fallo) => { loadGuests(); return errorGuardado('Se guardó a ' + f.name + ' pero no sus acompañantes.', fallo) }
     const existingIds = guest.party_members.map(m => m.id)
     const keepIds = f.members.filter(m => m.id).map(m => m.id as string)
     const toDelete = existingIds.filter(id => !keepIds.includes(id))
-    if (toDelete.length > 0) await supabase.from('party_members').delete().in('id', toDelete)
-    for (const m of f.members.filter(m => m.id)) await supabase.from('party_members').update({ name: m.name, phone: m.phone || null, rsvp_status: m.rsvp_status, allergies: m.allergies.length ? m.allergies : null, tags: m.tags.length ? m.tags : null, notes: m.notes || null }).eq('id', m.id!)
+    if (toDelete.length > 0) {
+      // Sin contar filas: en un reintento estos ya pueden estar borrados.
+      const { error } = await supabase.from('party_members').delete().in('id', toDelete)
+      if (error) return acompFallo(describirFallo(error))
+    }
+    for (const m of f.members.filter(m => m.id)) {
+      const fm = falloDeEscritura(await supabase.from('party_members').update({ name: m.name, phone: m.phone || null, rsvp_status: m.rsvp_status, allergies: m.allergies.length ? m.allergies : null, tags: m.tags.length ? m.tags : null, notes: m.notes || null }).eq('id', m.id!).select('id'))
+      if (fm) return acompFallo(fm)
+    }
     const toInsert = f.members.filter(m => !m.id)
-    if (toInsert.length > 0) await supabase.from('party_members').insert(toInsert.map(m => ({ guest_id: guest.id, event_id: id as string, name: m.name, phone: m.phone || null, rsvp_status: m.rsvp_status, allergies: m.allergies.length ? m.allergies : null, tags: m.tags.length ? m.tags : null, notes: m.notes || null })))
+    if (toInsert.length > 0) {
+      const fi = falloDeEscritura(await supabase.from('party_members').insert(toInsert.map(m => ({ guest_id: guest.id, event_id: id as string, name: m.name, phone: m.phone || null, rsvp_status: m.rsvp_status, allergies: m.allergies.length ? m.allergies : null, tags: m.tags.length ? m.tags : null, notes: m.notes || null }))).select('id'), toInsert.length)
+      if (fi) return acompFallo(fi)
+    }
     await loadGuests(); setEditGuest(null)
     return null
   }
@@ -998,12 +1072,25 @@ export default function EventPage() {
     lastCheckedIdx.current = null
   }
 
-  const bulkUpdateStatus = async (status: RsvpStatus) => {
-    if (!permiso.editar) return
+  const bulkUpdateStatus = async (status: RsvpStatus): Promise<boolean> => {
+    if (!permiso.editar) return false
     const ids = Array.from(selected)
     const memberIds = Array.from(selectedMembers)
-    if (ids.length > 0) await supabase.from('guests').update({ rsvp_status: status }).in('id', ids)
-    for (let i = 0; i < memberIds.length; i += 200) await supabase.from('party_members').update({ rsvp_status: status }).in('id', memberIds.slice(i, i + 200))
+    // Varias escrituras: si una falla, la verdad la tiene la base. Se recarga
+    // y la seleccion se conserva para que Reintentar aplique a los mismos.
+    const falloLote = async (fallo: Fallo) => {
+      await loadGuests()
+      toast.fallo({ titulo: 'No se cambió el estatus de la selección', fallo, reintentar: () => bulkUpdateStatus(status) })
+      return false
+    }
+    if (ids.length > 0) {
+      const f = falloDeEscritura(await supabase.from('guests').update({ rsvp_status: status }).in('id', ids).select('id'))
+      if (f) return falloLote(f)
+    }
+    for (let i = 0; i < memberIds.length; i += 200) {
+      const f = falloDeEscritura(await supabase.from('party_members').update({ rsvp_status: status }).in('id', memberIds.slice(i, i + 200)).select('id'))
+      if (f) return falloLote(f)
+    }
     setGuests(prev => prev.map(g => {
       const ng = selected.has(g.id) ? { ...g, rsvp_status: status } : g
       return g.party_members.some(m => selectedMembers.has(m.id))
@@ -1011,6 +1098,59 @@ export default function EventPage() {
         : ng
     }))
     setSelected(new Set()); setSelectedMembers(new Set()); setShowBulkMenu(false); setShowMobileBulkSheet(false)
+    return true
+  }
+
+  // Borra un lote de invitados y deja la pantalla como la base: los que
+  // sobreviven al fallo se quedan en la lista y el aviso ofrece reintentar
+  // solo con ellos.
+  const borrarLoteInvitados = async (guestIds: string[], convIds?: string[]): Promise<boolean> => {
+    if (guestIds.length === 0) return true
+    const conversaciones = convIds ?? (await guestConversationRowsForMany(supabase, guestIds)).map(r => r.id)
+    const ops = buildBulkGuestDeletionOps(guestIds, conversaciones, 'unlink')
+    const { ok, error } = await executeGuestDeletion(supabase, ops)
+    const survivors = ok ? new Set<string>() : new Set(await survivingGuestIds(supabase, guestIds))
+    const deletedIds = guestIds.filter(g => !survivors.has(g))
+    if (deletedIds.length > 0) {
+      await supabase.rpc('increment_guests_by', { event_id_input: id, amount: -deletedIds.length })
+      const deletedSet = new Set(deletedIds)
+      setGuests(prev => prev.filter(g => !deletedSet.has(g.id)))
+      setEvent(prev => prev ? { ...prev, total_guests: Math.max(0, prev.total_guests - deletedIds.length) } : prev)
+      setSelected(prev => { const n = new Set(prev); deletedIds.forEach(g => n.delete(g)); return n })
+    }
+    if (ok) return true
+    const faltan = guestIds.filter(g => survivors.has(g))
+    toast.fallo({
+      titulo: faltan.length === 1 ? 'No se eliminó a ' + nombreDe(faltan[0]) : 'No se eliminaron ' + faltan.length + ' de ' + guestIds.length + ' invitados',
+      fallo: describirFallo({ message: error ?? '' }),
+      reintentar: () => borrarLoteInvitados(faltan),
+      clave: 'borrar-lote',
+    })
+    return false
+  }
+
+  const borrarAcompanantesSueltos = async (memberIds: string[]): Promise<boolean> => {
+    const pendientes: string[] = []
+    let ultimo: Fallo | null = null
+    for (let i = 0; i < memberIds.length; i += 200) {
+      const trozo = memberIds.slice(i, i + 200)
+      const { error } = await supabase.from('party_members').delete().in('id', trozo)
+      if (error) { ultimo = describirFallo(error); pendientes.push(...trozo); continue }
+      const borrados = new Set(trozo)
+      setGuests(prev => prev.map(g => {
+        const removing = g.party_members.filter(m => borrados.has(m.id))
+        return removing.length === 0 ? g : { ...g, party_size: Math.max(1, g.party_size - removing.length), party_members: g.party_members.filter(m => !borrados.has(m.id)) }
+      }))
+      setSelectedMembers(prev => { const n = new Set(prev); trozo.forEach(m => n.delete(m)); return n })
+    }
+    if (pendientes.length === 0 || !ultimo) return true
+    toast.fallo({
+      titulo: pendientes.length === 1 ? 'No se eliminó 1 acompañante' : 'No se eliminaron ' + pendientes.length + ' acompañantes',
+      fallo: ultimo,
+      reintentar: () => borrarAcompanantesSueltos(pendientes),
+      clave: 'borrar-acompanantes-lote',
+    })
+    return false
   }
 
   const bulkDelete = async () => {
@@ -1062,32 +1202,10 @@ export default function EventPage() {
     if (!okBulk) return
 
     // Borrado por lote: ~pocas llamadas con .in(...) en vez de 8 por invitado.
-    let deletedIds = guestIds
-    if (guestIds.length > 0) {
-      const ops = buildBulkGuestDeletionOps(guestIds, convRows.map(r => r.id), 'unlink')
-      const { ok, error } = await executeGuestDeletion(supabase, ops)
-      if (!ok) {
-        // La DB es la fuente de verdad: los que sobreviven son los que fallaron.
-        reportError(error, { zona: 'planner' })
-        const survivors = new Set(await survivingGuestIds(supabase, guestIds))
-        deletedIds = guestIds.filter(g => !survivors.has(g))
-        alert('Algunos invitados no se pudieron eliminar y se conservaron en la lista.')
-      }
-    }
-    const deletedSet = new Set(deletedIds)
-    const okGuestCount = deletedIds.length
-    if (okGuestCount > 0) await supabase.rpc('increment_guests_by', { event_id_input: id, amount: -okGuestCount })
-
-    const looseArr = Array.from(new Set(looseMemberIds))
-    for (let i = 0; i < looseArr.length; i += 200) await supabase.from('party_members').delete().in('id', looseArr.slice(i, i + 200))
-
-    const looseSet = new Set(looseArr)
-    setGuests(prev => prev.filter(g => !deletedSet.has(g.id)).map(g => {
-      const removing = g.party_members.filter(m => looseSet.has(m.id))
-      return removing.length === 0 ? g : { ...g, party_size: Math.max(1, g.party_size - removing.length), party_members: g.party_members.filter(m => !looseSet.has(m.id)) }
-    }))
-    setEvent(prev => prev ? { ...prev, total_guests: Math.max(0, prev.total_guests - okGuestCount) } : prev)
-    setSelected(new Set()); setSelectedMembers(new Set()); setShowBulkMenu(false); setShowMobileBulkSheet(false)
+    const okInvitados = await borrarLoteInvitados(guestIds, convRows.map(r => r.id))
+    const okSueltos = await borrarAcompanantesSueltos(Array.from(new Set(looseMemberIds)))
+    setShowBulkMenu(false); setShowMobileBulkSheet(false)
+    if (okInvitados && okSueltos) { setSelected(new Set()); setSelectedMembers(new Set()) }
   }
 
   const bulkAddCompanions = async () => {
@@ -1183,7 +1301,8 @@ export default function EventPage() {
 
   const openWhatsApp = (phone: string, encodedText?: string) => {
     const num = toWhatsApp(phone)
-    if (!num) { alert('Este invitado no tiene un número de WhatsApp válido'); return }
+    // Los botones de WhatsApp se apagan cuando el numero no sirve; esto es el candado.
+    if (!num) return
     const isMobile = typeof navigator !== 'undefined' && /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)
     if (isMobile) {
       window.open('https://wa.me/' + num + (encodedText ? '?text=' + encodedText : ''), '_blank')
@@ -1487,42 +1606,58 @@ export default function EventPage() {
     const t = tag.trim()
     if (!t || availableTags.some(x => x.toLowerCase() === t.toLowerCase())) return
     const next = [...availableTags, t]
+    await guardarEtiquetas(next, availableTags, 'No se creó la etiqueta ' + t)
+  }
+  const guardarEtiquetas = async (next: string[], antes: string[], titulo: string): Promise<boolean> => {
     setEvent(prev => prev ? { ...prev, guest_tags: next } : prev)
-    await supabase.from('events').update({ guest_tags: next }).eq('id', id)
+    const fallo = falloDeEscritura(await supabase.from('events').update({ guest_tags: next }).eq('id', id).select('id'))
+    if (!fallo) return true
+    setEvent(prev => prev ? { ...prev, guest_tags: antes } : prev)
+    toast.fallo({ titulo, fallo, reintentar: () => guardarEtiquetas(next, antes, titulo) })
+    return false
+  }
+  // Quitar algo de varios invitados a la vez: cada uno es su propia escritura.
+  // Si alguna falla, la lista se recarga de la base y Reintentar aplica solo
+  // a los que se quedaron sin el cambio.
+  const quitarDeInvitados = async (ids: string[], cambio: (g: Guest) => Record<string, unknown>, titulo: string): Promise<boolean> => {
+    const porId = new Map(guests.map(g => [g.id, g]))
+    const resultados = await Promise.all(ids.map(async gid => {
+      const g = porId.get(gid)
+      if (!g) return { gid, fallo: null }
+      return { gid, fallo: falloDeEscritura(await supabase.from('guests').update(cambio(g)).eq('id', gid).select('id')) }
+    }))
+    const fallidos = resultados.filter(r => r.fallo)
+    if (fallidos.length === 0) return true
+    await loadGuests()
+    toast.fallo({ titulo, fallo: fallidos[0].fallo!, reintentar: () => quitarDeInvitados(fallidos.map(r => r.gid), cambio, titulo) })
+    return false
   }
   const deleteEventTag = async (tag: string) => {
     if (!permiso.borrar) return
-    const next = availableTags.filter(t => t !== tag)
-    setEvent(prev => prev ? { ...prev, guest_tags: next } : prev)
-    await supabase.from('events').update({ guest_tags: next }).eq('id', id)
+    const ok = await guardarEtiquetas(availableTags.filter(t => t !== tag), availableTags, 'No se eliminó la etiqueta ' + tag)
+    if (!ok) return
     const affected = guests.filter(g => (g.tags || []).includes(tag))
-    if (affected.length > 0) {
-      await Promise.all(affected.map(g => supabase.from('guests').update({ tags: (g.tags || []).filter(t => t !== tag) }).eq('id', g.id)))
-      setGuests(prev => prev.map(g => ({ ...g, tags: (g.tags || []).filter(t => t !== tag) })))
-    }
+    if (affected.length === 0) return
+    setGuests(prev => prev.map(g => ({ ...g, tags: (g.tags || []).filter(t => t !== tag) })))
+    await quitarDeInvitados(affected.map(g => g.id), g => ({ tags: (g.tags || []).filter(t => t !== tag) }), 'No se quitó la etiqueta ' + tag + ' de algunos invitados')
   }
   const createGroup = (group: string) => setGroupPool(prev => prev.includes(group) ? prev : [...prev, group])
   const deleteGroup = async (group: string) => {
     if (!permiso.borrar) return
     setGroupPool(prev => prev.filter(g => g !== group))
     const affected = guests.filter(g => g.side === group)
-    if (affected.length > 0) {
-      await Promise.all(affected.map(g => supabase.from('guests').update({ side: null }).eq('id', g.id)))
-      setGuests(prev => prev.map(g => g.side === group ? { ...g, side: undefined } : g))
-    }
+    if (affected.length === 0) return
+    setGuests(prev => prev.map(g => g.side === group ? { ...g, side: undefined } : g))
+    await quitarDeInvitados(affected.map(g => g.id), () => ({ side: null }), 'No se quitó el grupo ' + group + ' de algunos invitados')
   }
   const createAllergy = (a: string) => setAllergyPool(prev => prev.includes(a) ? prev : [...prev, a])
   const deleteAllergy = async (a: string) => {
     if (!permiso.borrar) return
     setAllergyPool(prev => prev.filter(x => x !== a))
     const affected = guests.filter(g => (g.allergies || []).includes(a))
-    if (affected.length > 0) {
-      await Promise.all(affected.map(g => {
-        const left = (g.allergies || []).filter(x => x !== a)
-        return supabase.from('guests').update({ allergies: left.length > 0 ? left : null }).eq('id', g.id)
-      }))
-      setGuests(prev => prev.map(g => ({ ...g, allergies: (g.allergies || []).filter(x => x !== a) })))
-    }
+    if (affected.length === 0) return
+    setGuests(prev => prev.map(g => ({ ...g, allergies: (g.allergies || []).filter(x => x !== a) })))
+    await quitarDeInvitados(affected.map(g => g.id), g => { const left = (g.allergies || []).filter(x => x !== a); return { allergies: left.length > 0 ? left : null } }, 'No se quitó la alergia ' + a + ' de algunos invitados')
   }
 
   const maxCanAdd = selected.size === 0 ? 15 : Math.max(0, 15 - Math.max(...Array.from(selected).map(gid => guests.find(g => g.id === gid)?.party_members.length ?? 0)))
@@ -1872,7 +2007,7 @@ export default function EventPage() {
                             <>
                               <span onClick={() => openEdit(guest)} className="cursor-pointer text-xs text-[#888] hover:text-[#1D1E20]">{guest.phone}</span>
                               <div className="relative">
-                                <button onClick={() => setShowWaMenu(showWaMenu === guest.id ? null : guest.id)} className="flex items-center p-0.5">
+                                <button onClick={() => setShowWaMenu(showWaMenu === guest.id ? null : guest.id)} disabled={!toWhatsApp(guest.phone)} title={toWhatsApp(guest.phone) ? undefined : 'Sin WhatsApp: el número no es válido'} className="flex items-center p-0.5 disabled:cursor-not-allowed disabled:opacity-30">
                                   <svg width="15" height="15" viewBox="0 0 24 24" fill="#25D366">{WA_ICON}</svg>
                                 </button>
                                 {showWaMenu === guest.id && (
