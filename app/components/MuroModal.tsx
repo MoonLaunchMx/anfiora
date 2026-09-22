@@ -328,9 +328,17 @@ function CampoCiudadMexico({ value, onChange }: { value: string; onChange: (next
     ? CIUDADES_MEXICO.filter(c => sinAcentos(c.nombre).includes(filtroNorm) || sinAcentos(c.estado).includes(filtroNorm))
     : CIUDADES_MEXICO
 
-  // El valor guardado es solo el nombre (asi vive el campo hoy): con nombres
-  // repetidos entre estados (Guadalupe en Nuevo Leon y en Zacatecas) se
-  // muestra el primero que calce, misma ambiguedad que ya tenia el <select>.
+  // Mexico tiene miles de municipios y la lista trae 283 (los comunes, no
+  // todos): si lo que escribe no es igual (sin acentos) a ninguna de la
+  // lista, se ofrece usarlo tal cual. Sin esta salida un pueblo chico deja a
+  // la persona sin poder mandar la solicitud, que es obligatoria.
+  const hayCoincidenciaExacta = filtroNorm !== '' && CIUDADES_MEXICO.some(c => sinAcentos(c.nombre) === filtroNorm)
+  const mostrarUsarTalCual = filtro.trim() !== '' && !hayCoincidenciaExacta
+
+  // El valor guardado es el nombre de la lista o, si se uso la salida, el
+  // texto libre tal cual se escribio: con nombres repetidos entre estados
+  // (Guadalupe en Nuevo Leon y en Zacatecas) se muestra el primero que
+  // calce, misma ambiguedad que ya tenia el <select>.
   const seleccionada = CIUDADES_MEXICO.find(c => c.nombre === value)
 
   const elegir = (nombre: string) => {
@@ -348,7 +356,7 @@ function CampoCiudadMexico({ value, onChange }: { value: string; onChange: (next
         className={`${inputCls} flex w-full items-center justify-between gap-2 text-left`}
       >
         <span className={`truncate ${value ? 'text-[#1D1E20]' : 'text-[#aaa]'}`}>
-          {seleccionada ? `${seleccionada.nombre} (${seleccionada.estado})` : 'Busca tu ciudad'}
+          {seleccionada ? `${seleccionada.nombre} (${seleccionada.estado})` : (value || 'Busca tu ciudad')}
         </span>
         <ChevronDown size={14} className={`shrink-0 text-[#999] transition ${open ? 'rotate-180' : ''}`} />
       </button>
@@ -364,7 +372,7 @@ function CampoCiudadMexico({ value, onChange }: { value: string; onChange: (next
             />
           </div>
           <div className="max-h-40 overflow-y-auto p-1.5">
-            {filtradas.length === 0 && (
+            {filtradas.length === 0 && !mostrarUsarTalCual && (
               <p className="px-2.5 py-2 text-sm text-[#999]">Sin resultados</p>
             )}
             {filtradas.map(c => (
@@ -380,6 +388,15 @@ function CampoCiudadMexico({ value, onChange }: { value: string; onChange: (next
                 <span className="shrink-0 text-xs text-[#999]">{c.estado}</span>
               </button>
             ))}
+            {mostrarUsarTalCual && (
+              <button
+                type="button"
+                onClick={() => elegir(filtro.trim())}
+                className="flex w-full items-center gap-1 rounded-md px-2.5 py-2 text-left text-sm font-medium text-[#1a9e88] transition hover:bg-[#f0fdfb]"
+              >
+                Usar «{filtro.trim()}»
+              </button>
+            )}
           </div>
         </div>
       )}
