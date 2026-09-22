@@ -47,14 +47,39 @@ export function limiteInvitados(plan: string | null | undefined, sello: unknown)
 // nada, no se pudo verificar el plan real — y el candado de verdad vive en
 // la base, asi que la interfaz nunca debe apretar un tope que no pudo
 // comprobar: sin tope.
-export function resolverLimiteInvitados(
+function resolverLimite(
+  limiteFn: (plan: string | null | undefined, sello: unknown) => number | null,
   rpcPlan: string | null,
   wsEncontrado: boolean,
   wsPlan: string | null,
   wsSello: unknown,
 ): number | null {
   const rpcPlanNormalizado = normalizarPlan(rpcPlan)
-  if (rpcPlanNormalizado !== 'free') return limiteInvitados(rpcPlanNormalizado, null)
-  if (wsEncontrado) return limiteInvitados(wsPlan, wsSello)
+  if (rpcPlanNormalizado !== 'free') return limiteFn(rpcPlanNormalizado, null)
+  if (wsEncontrado) return limiteFn(wsPlan, wsSello)
   return null
+}
+
+export function resolverLimiteInvitados(
+  rpcPlan: string | null,
+  wsEncontrado: boolean,
+  wsPlan: string | null,
+  wsSello: unknown,
+): number | null {
+  return resolverLimite(limiteInvitados, rpcPlan, wsEncontrado, wsPlan, wsSello)
+}
+
+// Mismo camino que resolverLimiteInvitados, para el muro de eventos: sin RPC
+// de cuenta que resolver aqui (get_account_capacity es justo lo que este
+// arreglo deja de requerir), asi que quien llama siempre manda rpcPlan=null y
+// el resultado depende solo de la lectura directa del workspace. Se conserva
+// el parametro para no bifurcar la logica en dos funciones que se puedan
+// desincronizar.
+export function resolverLimiteEventos(
+  rpcPlan: string | null,
+  wsEncontrado: boolean,
+  wsPlan: string | null,
+  wsSello: unknown,
+): number | null {
+  return resolverLimite(limiteEventos, rpcPlan, wsEncontrado, wsPlan, wsSello)
 }

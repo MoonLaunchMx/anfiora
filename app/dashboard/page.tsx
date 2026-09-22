@@ -10,8 +10,8 @@ import { NewEventModal } from '@/app/components/NewEventModal'
 import { EnlaceRolodex } from '@/app/components/EnlaceRolodex'
 import { OnboardingModal } from '@/app/components/OnboardingModal'
 import { misWorkspacesAdministrados } from '@/lib/workspace/cliente'
-import { esArchivado, estadoEvento } from '@/lib/events/estado'
-import { esErrorDeCupo, parseLimitError } from '@/lib/capacity'
+import { esArchivado, estadoEvento, ocupaLugar, type EventoParaEstado } from '@/lib/events/estado'
+import { esErrorDeCupo, parseLimitError, fetchAccountCapacity } from '@/lib/capacity'
 import { MuroModal } from '@/app/components/MuroModal'
 import { useConfirm } from '@/app/components/ui/ConfirmModal'
 
@@ -157,7 +157,7 @@ export default function Dashboard() {
     const [myRes, collabRes] = await Promise.all([
       supabase
         .from('events')
-        .select('id, name, event_date, event_end_date, event_time, venue, total_guests, event_status')
+        .select('id, name, event_date, event_end_date, event_time, venue, total_guests, event_status, user_id')
         .eq('user_id', userId)
         .order('event_date', { ascending: true }),
       supabase
@@ -292,6 +292,22 @@ export default function Dashboard() {
     e.stopPropagation()
     setOpenMenuId(null)
     if (event.is_shared) return
+
+    // Reactivar un evento archivado lo hace volver a ocupar lugar: se checa
+    // antes del update, sin depender del trigger de la base (el candado real
+    // vive ahi, pero mientras su SQL no corra en produccion esta es la unica
+    // pared). Mismo criterio que configuracion/page.tsx.
+    const antes: EventoParaEstado = { event_status: event.event_status, event_date: event.event_date ?? null, event_end_date: event.event_end_date ?? null }
+    const despues: EventoParaEstado = { event_status: newStatus, event_date: event.event_date ?? null, event_end_date: event.event_end_date ?? null }
+    const hoy = new Date()
+    if (!ocupaLugar(antes, hoy) && ocupaLugar(despues, hoy)) {
+      const cupo = await fetchAccountCapacity(event.user_id)
+      if (cupo && cupo.lim !== null && cupo.remaining !== null && cupo.remaining <= 0) {
+        setMuro({ limite: cupo.lim })
+        return
+      }
+    }
+
     const previousStatus = event.event_status
     setMyEvents(prev => prev.map(ev => ev.id === event.id ? { ...ev, event_status: newStatus } : ev))
     // Sin .select() un UPDATE filtrado por RLS (o rechazado por una regla

@@ -13,8 +13,8 @@ import { filtrarPorPermiso, moduloDeRutaNav, primeraRutaVisible } from '@/lib/pe
 import { SinAcceso } from '@/app/components/ui/SinAcceso'
 import { Cargando } from '@/app/components/ui/Cargando'
 import { misWorkspacesAdministrados } from '@/lib/workspace/cliente'
-import { esArchivado, estadoEvento } from '@/lib/events/estado'
-import { esErrorDeCupo, parseLimitError } from '@/lib/capacity'
+import { esArchivado, estadoEvento, ocupaLugar, type EventoParaEstado } from '@/lib/events/estado'
+import { esErrorDeCupo, parseLimitError, fetchAccountCapacity } from '@/lib/capacity'
 import { MuroModal } from '@/app/components/MuroModal'
 
 const EVENT_TYPE_LABELS: Record<string, string> = {
@@ -390,7 +390,7 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
     const loadEvent = async () => {
       const { data } = await supabase
         .from('events')
-        .select('id, name, event_date, event_end_date, venue, event_type, event_status')
+        .select('id, name, event_date, event_end_date, venue, event_type, event_status, user_id')
         .eq('id', id)
         .single()
       if (data) setEvent(data as any)
@@ -399,7 +399,21 @@ function EventLayoutInner({ children }: { children: React.ReactNode }) {
   }, [id, authChecked])
 
   const handleReactivar = async () => {
-    if (reactivando) return
+    if (reactivando || !event) return
+
+    // Igual que en dashboard y configuracion: se checa antes del update, sin
+    // depender del trigger de la base (su SQL todavia no corre en produccion).
+    const antes: EventoParaEstado = { event_status: event.event_status ?? null, event_date: event.event_date ?? null, event_end_date: event.event_end_date ?? null }
+    const despues: EventoParaEstado = { ...antes, event_status: 'active' }
+    const hoy = new Date()
+    if (!ocupaLugar(antes, hoy) && ocupaLugar(despues, hoy)) {
+      const cupo = await fetchAccountCapacity(event.user_id)
+      if (cupo && cupo.lim !== null && cupo.remaining !== null && cupo.remaining <= 0) {
+        setMuro({ limite: cupo.lim })
+        return
+      }
+    }
+
     setReactivando(true)
     const { error } = await supabase.from('events').update({ event_status: 'active' }).eq('id', id)
     if (error) {

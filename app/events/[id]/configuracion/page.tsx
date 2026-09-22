@@ -538,8 +538,24 @@ export default function ConfiguracionPage() {
   }
 
   const handleStatusChange = async (newStatus: EventStatus) => {
-    setStatusSaving(true)
     setShowStatusDropdown(false)
+
+    // Segundo disparador de la pared (el tercero esta en handleSave):
+    // reactivar un evento archivado lo hace volver a ocupar lugar. Se checa
+    // antes del update, igual que mover-fecha: la base ya puede no ser la
+    // unica que avisa (ver lib/capacity.ts).
+    const antes: EventoParaEstado = { event_status: eventStatus, event_date: eventDate || null, event_end_date: eventEndDate || null }
+    const despues: EventoParaEstado = { event_status: newStatus, event_date: eventDate || null, event_end_date: eventEndDate || null }
+    const hoy = new Date()
+    if (!ocupaLugar(antes, hoy) && ocupaLugar(despues, hoy) && eventOwnerId) {
+      const cupo = await fetchAccountCapacity(eventOwnerId)
+      if (cupo && cupo.lim !== null && cupo.remaining !== null && cupo.remaining <= 0) {
+        setMuro({ limite: cupo.lim, caso: 'reactivar-evento' })
+        return
+      }
+    }
+
+    setStatusSaving(true)
     const { error: err } = await supabase.from('events').update({ event_status: newStatus }).eq('id', id)
     if (!err) {
       setEventStatus(newStatus)

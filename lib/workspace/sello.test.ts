@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   normalizarSello, limiteEventos, limiteInvitados,
-  LUGARES_FUNDADOR, hayLugarDeFundador, resolverLimiteInvitados,
+  LUGARES_FUNDADOR, hayLugarDeFundador, resolverLimiteInvitados, resolverLimiteEventos,
 } from './sello'
 
 describe('sello de partner', () => {
@@ -80,4 +80,24 @@ describe('resolverLimiteInvitados: el plan de paga del RPC (el workspace DEL EVE
   // es la primera de este describe: ahi wsEncontrado es true con un plan
   // free en conflicto, y solo una implementacion que de verdad prioriza el
   // plan de paga del RPC (antes de mirar wsEncontrado) pasa esa prueba.
+})
+
+describe('resolverLimiteEventos: mismo camino que invitados, sin RPC de cuenta', () => {
+  it('sin lectura directa, no se pudo verificar: sin tope (fail open)', () => {
+    expect(resolverLimiteEventos(null, false, null, null)).toBeNull()
+  })
+
+  it('la lectura directa confirma un free real: 1 evento, o sin tope si trae el sello', () => {
+    expect(resolverLimiteEventos(null, true, 'free', null)).toBe(1)
+    expect(resolverLimiteEventos(null, true, 'free', 'fundador')).toBeNull()
+  })
+
+  it('la lectura directa trae un plan de paga: sin tope', () => {
+    expect(resolverLimiteEventos(null, true, 'pro', null)).toBeNull()
+    expect(resolverLimiteEventos(null, true, 'studio', null)).toBeNull()
+  })
+
+  it('un plan de paga confirmado por RPC manda igual que en invitados', () => {
+    expect(resolverLimiteEventos('agency', true, 'free', null)).toBeNull()
+  })
 })
