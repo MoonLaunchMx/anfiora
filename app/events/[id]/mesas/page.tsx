@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import FeatureGuard from '@/app/components/ui/FeatureGuard'
 import { Guest } from '@/lib/types'
-import { Plus, Trash2, ChevronDown, ChevronUp, X, List, Map as MapIcon, Printer, Search, LayoutGrid, ArrowLeft, LayoutPanelLeft, RotateCw } from 'lucide-react'
+import { Plus, Trash2, X, List, Map as MapIcon, Printer, Search, ArrowLeft, LayoutPanelLeft, RotateCw, Maximize2, CheckSquare } from 'lucide-react'
 import StatsCollapse, { StatsToggleButton, useStatsToggle } from '@/app/components/ui/StatsCollapse'
 import { Modal } from '@/app/components/ui/Modal'
 import { useConfirm } from '@/app/components/ui/ConfirmModal'
@@ -25,7 +25,7 @@ import { PersonaCard, ChipFantasma } from './PersonaItem'
 import MesaCard from './MesaCard'
 import MesaDroppable from './MesaDroppable'
 import SillasArrastrables from './SillasArrastrables'
-import { sillasDe, RADIO_SILLA } from '@/lib/mesas/sillas'
+import { sillasDe, RADIO_SILLA, FORMAS, NOMBRE_FORMA, type Forma, type Dibujo } from '@/lib/mesas/sillas'
 import { LeyendaEstatus } from './chips'
 import SinMesaPanel from './SinMesaPanel'
 import ModalAsignar from './ModalAsignar'
@@ -46,60 +46,40 @@ const TAG_COLORS = [
 const inp = 'w-full rounded-lg border border-[#e0e0e0] bg-[#f8f8f8] px-3 py-2.5 text-sm text-[#1D1E20] outline-none focus:border-[#48C9B0]'
 const EDIT_GUEST_INPUT_CLASS = 'w-full rounded-lg border border-[#e0e0e0] bg-[#f8f8f8] px-3.5 py-2.5 text-base text-[#1D1E20] outline-none'
 
-type TableShape = 'round' | 'rectangle' | 'square' | 'oval' | 'halfmoon' | 'row'
+type TableShape = Forma
+const SHAPE_LABELS: Record<TableShape, string> = NOMBRE_FORMA
 
-const SHAPE_LABELS: Record<TableShape, string> = {
-  round: 'Redonda', rectangle: 'Rectangular', square: 'Cuadrada',
-  oval: 'Ovalada', halfmoon: 'Media luna', row: 'Fila de sillas',
+// Cuerpo de una mesa a partir de su dibujo. Lo comparten el plano y los
+// iconos del selector de forma.
+function CuerpoSVG({ d, fill, stroke, sw }: { d: Dibujo; fill: string; stroke: string; sw: number }) {
+  const c = d.cuerpo
+  if (c.tipo === 'circulo') return <circle cx={d.cx} cy={d.cy} r={c.r} fill={fill} stroke={stroke} strokeWidth={sw}/>
+  if (c.tipo === 'elipse') return <ellipse cx={d.cx} cy={d.cy} rx={c.rx} ry={c.ry} fill={fill} stroke={stroke} strokeWidth={sw}/>
+  if (c.tipo === 'rect') return <rect x={d.cx - c.w/2} y={d.cy - c.h/2} width={c.w} height={c.h} rx={c.radio} fill={fill} stroke={stroke} strokeWidth={sw}/>
+  if (c.tipo === 'arco') return <path d={`M ${d.cx - c.r} ${d.cy} A ${c.r} ${c.r} 0 0 1 ${d.cx + c.r} ${d.cy} Z`} fill={fill} stroke={stroke} strokeWidth={sw}/>
+  if (c.tipo === 'linea') return <line x1={RADIO_SILLA} y1={d.cy + RADIO_SILLA + 4} x2={d.w - RADIO_SILLA} y2={d.cy + RADIO_SILLA + 4} stroke={stroke} strokeWidth={sw} strokeLinecap="round"/>
+  if (c.tipo === 'u') {
+    const x = d.cx - c.w/2, y = d.cy - c.h/2, g = c.grosor
+    return <path d={`M ${x} ${y} h ${c.w} v ${c.h} h ${-g} v ${-(c.h - g)} h ${-(c.w - g*2)} v ${c.h - g} h ${-g} Z`} fill={fill} stroke={stroke} strokeWidth={sw} strokeLinejoin="round"/>
+  }
+  return <>
+    <circle cx={d.cx} cy={d.cy} r={c.r + 9} fill="none" stroke={stroke} strokeWidth={1} strokeDasharray="3 3"/>
+    <circle cx={d.cx} cy={d.cy} r={c.r} fill={fill} stroke={stroke} strokeWidth={sw}/>
+  </>
 }
 
-const SHAPE_ICONS: Record<TableShape, React.ReactNode> = {
-  round: (
-    <svg viewBox="0 0 60 60" fill="none" width="44" height="44">
-      <circle cx="30" cy="30" r="14" stroke="#888" strokeWidth="1.5" fill="#f8f8f8"/>
-      {Array.from({length:8},(_,i)=>{const a=(2*Math.PI*i)/8-Math.PI/2;const ox=Math.cos(a)*22;const oy=Math.sin(a)*22;return<circle key={i} cx={30+ox} cy={30+oy} r="4" fill="#ddd" stroke="#bbb" strokeWidth="1"/>})}
+const CAP_ICONO: Record<TableShape, number> = { round: 8, oval: 8, rectangle: 8, square: 8, imperial: 12, herradura: 10, halfmoon: 5, row: 5, anfitriones: 2, coctel: 0 }
+function FormaIcono({ shape }: { shape: TableShape }) {
+  const d = sillasDe(shape, CAP_ICONO[shape])
+  const k = Math.min(52 / d.w, 40 / d.h)
+  return (
+    <svg viewBox={`0 0 ${d.w} ${d.h}`} width={Math.round(d.w * k)} height={Math.round(d.h * k)} fill="none">
+      {d.sillas.map((sl, i) => <circle key={i} cx={sl.x} cy={sl.y} r={RADIO_SILLA} fill="#e4e4e4" stroke="#bbb" strokeWidth="1.5"/>)}
+      <CuerpoSVG d={d} fill="#f8f8f8" stroke="#888" sw={2} />
     </svg>
-  ),
-  rectangle: (
-    <svg viewBox="0 0 70 50" fill="none" width="52" height="38">
-      <rect x="12" y="12" width="46" height="26" rx="4" stroke="#888" strokeWidth="1.5" fill="#f8f8f8"/>
-      {[18,30,42].map(x=><circle key={`t${x}`} cx={x} cy={6} r="4" fill="#ddd" stroke="#bbb" strokeWidth="1"/>)}
-      {[18,30,42].map(x=><circle key={`b${x}`} cx={x} cy={44} r="4" fill="#ddd" stroke="#bbb" strokeWidth="1"/>)}
-      <circle cx={6} cy={25} r="4" fill="#ddd" stroke="#bbb" strokeWidth="1"/>
-      <circle cx={64} cy={25} r="4" fill="#ddd" stroke="#bbb" strokeWidth="1"/>
-    </svg>
-  ),
-  square: (
-    <svg viewBox="0 0 54 54" fill="none" width="44" height="44">
-      <rect x="14" y="14" width="26" height="26" rx="3" stroke="#888" strokeWidth="1.5" fill="#f8f8f8"/>
-      <circle cx="27" cy="7" r="4" fill="#ddd" stroke="#bbb" strokeWidth="1"/>
-      <circle cx="27" cy="47" r="4" fill="#ddd" stroke="#bbb" strokeWidth="1"/>
-      <circle cx="7" cy="27" r="4" fill="#ddd" stroke="#bbb" strokeWidth="1"/>
-      <circle cx="47" cy="27" r="4" fill="#ddd" stroke="#bbb" strokeWidth="1"/>
-    </svg>
-  ),
-  oval: (
-    <svg viewBox="0 0 70 50" fill="none" width="52" height="38">
-      <ellipse cx="35" cy="25" rx="22" ry="13" stroke="#888" strokeWidth="1.5" fill="#f8f8f8"/>
-      {[20,35,50].map(x=><circle key={`t${x}`} cx={x} cy={7} r="4" fill="#ddd" stroke="#bbb" strokeWidth="1"/>)}
-      {[20,35,50].map(x=><circle key={`b${x}`} cx={x} cy={43} r="4" fill="#ddd" stroke="#bbb" strokeWidth="1"/>)}
-      <circle cx={8} cy={25} r="4" fill="#ddd" stroke="#bbb" strokeWidth="1"/>
-      <circle cx={62} cy={25} r="4" fill="#ddd" stroke="#bbb" strokeWidth="1"/>
-    </svg>
-  ),
-  halfmoon: (
-    <svg viewBox="0 0 60 50" fill="none" width="48" height="40">
-      <path d="M10 38 A 20 20 0 0 1 50 38 Z" stroke="#888" strokeWidth="1.5" fill="#f8f8f8"/>
-      {[15,22,30,38,45].map((x,i)=><circle key={i} cx={x} cy={44} r="4" fill="#ddd" stroke="#bbb" strokeWidth="1"/>)}
-    </svg>
-  ),
-  row: (
-    <svg viewBox="0 0 70 30" fill="none" width="56" height="24">
-      {[10,22,34,46,58].map(x=><circle key={x} cx={x} cy={10} r="5" fill="#ddd" stroke="#bbb" strokeWidth="1.5"/>)}
-      <line x1="5" y1="20" x2="65" y2="20" stroke="#888" strokeWidth="1.5" strokeLinecap="round"/>
-    </svg>
-  ),
+  )
 }
+const SHAPE_ICONS: Record<TableShape, React.ReactNode> = Object.fromEntries(FORMAS.map(f => [f, <FormaIcono key={f} shape={f} />])) as Record<TableShape, React.ReactNode>
 
 // ─── ICONOS DECO SVG ──────────────────────────
 const DECO_ICONS: Record<string, React.ReactNode> = {
@@ -166,38 +146,42 @@ const SEAT_COLORS: Record<string,{fill:string;stroke:string}> = {
 }
 const SEAT_EMPTY = { fill:'#f0f0f0', stroke:'#d0d0d0' }
 
-// Cada silla es una persona con su propio estatus (antes heredaban el del titular).
-function TableSVG({ table, ocupados, isSelected, isHighlighted, isDimmed, colorFill, colorBorder }: {
-  table: TableRecord; ocupados: Persona[]; isSelected: boolean; isHighlighted: boolean; isDimmed: boolean
+// Cada silla es una persona con su propio estatus. El borde dice el cupo de
+// lejos: gris vacia, teal con gente, verde llena, rojo con sobrecupo.
+function TableSVG({ table, ocupados, resaltar, isSelected, isHighlighted, isDimmed, colorFill, colorBorder }: {
+  table: TableRecord; ocupados: Persona[]; resaltar: Set<string> | null; isSelected: boolean; isHighlighted: boolean; isDimmed: boolean
   colorFill?: string; colorBorder?: string
 }) {
-  const cap = table.capacity; const occupied = ocupados.length; const isFull = occupied >= cap
-  const stroke = isHighlighted ? '#48C9B0' : isFull ? '#5DCAA5' : isSelected ? '#48C9B0' : (colorBorder||'#d0d0d0')
-  const sw = isHighlighted ? 3 : isSelected ? 2.5 : 1.5
-  const fill = colorFill && colorFill!=='#ffffff' ? colorFill : (isHighlighted ? '#f0fdfb' : isFull ? '#f0fff6' : '#fff')
-  const statColor = isFull ? '#0F6E56' : occupied > 0 ? '#48C9B0' : '#bbb'
+  const cap = table.capacity; const occupied = ocupados.length; const isFull = occupied >= cap; const sobre = occupied > cap
+  const stroke = isHighlighted || isSelected ? '#48C9B0' : sobre ? '#cc3333' : isFull ? '#2a7a50' : occupied > 0 ? '#48C9B0' : (colorBorder||'#d0d0d0')
+  const sw = isHighlighted ? 3 : isSelected ? 2.5 : occupied > 0 ? 2 : 1.5
+  const fill = colorFill && colorFill!=='#ffffff' ? colorFill : (isHighlighted ? '#f0fdfb' : isFull && !sobre ? '#f0fff6' : '#fff')
+  const statColor = sobre ? '#cc3333' : isFull ? '#0F6E56' : occupied > 0 ? '#48C9B0' : '#bbb'
   const opacity = isDimmed ? 0.2 : 1
   const d = sillasDe(table.shape, cap)
   const c = d.cuerpo
   const colorDe = (i: number) => i < occupied ? (SEAT_COLORS[ocupados[i].rsvp] || SEAT_COLORS.confirmed) : SEAT_EMPTY
-  const ty = c.tipo === 'arco' ? [d.cy - 14, d.cy - 2] : [d.cy - 5, d.cy + 9]
+  // El nombre cabe adentro cuando el cuerpo tiene alto; si no, va abajo del dibujo.
+  const nombreAdentro = !!table.name && (c.tipo === 'circulo' || c.tipo === 'elipse' || c.tipo === 'u' || (c.tipo === 'rect' && c.h >= 36))
+  const nombre = (table.name || '').length > 14 ? (table.name || '').slice(0, 13) + '…' : (table.name || '')
+  const base = c.tipo === 'arco' ? d.cy - 8 : c.tipo === 'u' ? d.cy - c.h/2 + c.grosor/2 + 4 : d.cy + 2
   return (
     <svg width={d.w} height={d.h} style={{display:'block',opacity,pointerEvents:'none'}}>
-      {d.sillas.map((sl, i) => { const col = colorDe(i); const k = RADIO_SILLA * 1.3 / 24; return (
-        <g key={i}>
-          <circle cx={sl.x} cy={sl.y} r={RADIO_SILLA} fill={col.fill} stroke={col.stroke} strokeWidth="1.5"/>
+      {d.sillas.map((sl, i) => { const col = colorDe(i); const k = RADIO_SILLA * 1.3 / 24; const apagada = resaltar && i < occupied && !resaltar.has(ocupados[i].clave); return (
+        <g key={i} opacity={apagada ? 0.25 : 1}>
+          <circle cx={sl.x} cy={sl.y} r={RADIO_SILLA} fill={col.fill} stroke={col.stroke} strokeWidth={resaltar && !apagada && i < occupied ? 2.5 : 1.5}/>
           {i < occupied && <path d={glifoDe(ocupados[i].rsvp)} transform={`translate(${sl.x - 12 * k} ${sl.y - 12 * k}) scale(${k})`} fill="none" stroke="#fff" strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round"/>}
         </g>
       )})}
-      {c.tipo === 'circulo' && <circle cx={d.cx} cy={d.cy} r={c.r} fill={fill} stroke={stroke} strokeWidth={sw}/>}
-      {c.tipo === 'elipse' && <ellipse cx={d.cx} cy={d.cy} rx={c.rx} ry={c.ry} fill={fill} stroke={stroke} strokeWidth={sw}/>}
-      {c.tipo === 'rect' && <rect x={d.cx - c.w/2} y={d.cy - c.h/2} width={c.w} height={c.h} rx={c.radio} fill={fill} stroke={stroke} strokeWidth={sw}/>}
-      {c.tipo === 'arco' && <path d={`M ${d.cx - c.r} ${d.cy} A ${c.r} ${c.r} 0 0 1 ${d.cx + c.r} ${d.cy} Z`} fill={fill} stroke={stroke} strokeWidth={sw}/>}
-      {c.tipo === 'linea' && <line x1={RADIO_SILLA} y1={d.cy + RADIO_SILLA + 4} x2={d.w - RADIO_SILLA} y2={d.cy + RADIO_SILLA + 4} stroke={stroke} strokeWidth={sw} strokeLinecap="round"/>}
-      {c.tipo !== 'linea' && <>
-        <text x={d.cx} y={ty[0]} textAnchor="middle" fontSize="12" fontWeight="700" fill="#1D1E20">#{table.number}</text>
-        <text x={d.cx} y={ty[1]} textAnchor="middle" fontSize="10" fill={statColor}>{occupied}/{cap}</text>
-      </>}
+      <CuerpoSVG d={d} fill={fill} stroke={stroke} sw={sw} />
+      {c.tipo !== 'linea' && (nombreAdentro ? <>
+        <text x={d.cx} y={base - 9} textAnchor="middle" fontSize="11" fontWeight="600" fill="#1D1E20">{nombre}</text>
+        <text x={d.cx} y={base + 3} textAnchor="middle" fontSize="11" fontWeight="700" fill="#555">#{table.number}</text>
+        <text x={d.cx} y={base + 15} textAnchor="middle" fontSize="10" fill={statColor}>{occupied}/{cap}</text>
+      </> : <>
+        <text x={d.cx} y={base - 5} textAnchor="middle" fontSize="12" fontWeight="700" fill="#1D1E20">#{table.number}</text>
+        <text x={d.cx} y={base + 8} textAnchor="middle" fontSize="10" fill={statColor}>{occupied}/{cap}</text>
+      </>)}
     </svg>
   )
 }
@@ -631,10 +615,23 @@ function CanvasFullscreen({ tables, getOccupied, enMesa, grupoDe, etiqueta, arra
 
   const searchLower=search.toLowerCase().trim()
   const hasSearch=searchLower.length>0
+  const coincide=useCallback((p:Persona)=>p.nombre.toLowerCase().includes(searchLower)||(p.titular||'').toLowerCase().includes(searchLower),[searchLower])
   const matchingIds=useMemo(()=>{
     if(!hasSearch)return new Set<string>()
-    return new Set(tables.filter(t=>t.seats.some(s=>s.guest&&(s.guest.name.toLowerCase().includes(searchLower)||s.guest.party_members.some(m=>m.name?.toLowerCase().includes(searchLower))))).map(t=>t.id))
-  },[hasSearch,searchLower,tables])
+    return new Set(tables.filter(t=>enMesa(t.id).some(coincide)).map(t=>t.id))
+  },[hasSearch,coincide,tables,enMesa])
+  const matchingClaves=useMemo(()=>{
+    if(!hasSearch)return null
+    const s=new Set<string>();for(const t of tables)for(const p of enMesa(t.id))if(coincide(p))s.add(p.clave);return s
+  },[hasSearch,coincide,tables,enMesa])
+  // Encuadra todas las mesas de un golpe.
+  const ajustar=()=>{
+    const area=canvasRef.current;if(!area||tables.length===0)return
+    let maxX=0,maxY=0
+    for(const t of tables){const pos=positions[t.id]||{x:80,y:80};const dm=getTableSvgDims(t);maxX=Math.max(maxX,pos.x+dm.w+40);maxY=Math.max(maxY,pos.y+dm.h+60)}
+    const z=Math.min(2,Math.max(0.3,Math.min(area.clientWidth/maxX,area.clientHeight/maxY)))
+    setZoom(z);area.scrollLeft=0;area.scrollTop=0
+  }
 
   const selectedTable=selectedId?tables.find(t=>t.id===selectedId):null
 
@@ -807,6 +804,7 @@ function CanvasFullscreen({ tables, getOccupied, enMesa, grupoDe, etiqueta, arra
               </div>
             )}
           </div>
+          <button onClick={ajustar} title="Encuadrar todas las mesas" className="flex items-center gap-1.5 rounded-lg border border-[#e0e0e0] px-3 py-1.5 text-xs font-medium text-[#666] hover:border-[#48C9B0] hover:text-[#48C9B0]"><Maximize2 width={12} height={12}/>Ajustar</button>
           <div className="flex overflow-hidden rounded-lg border border-[#e0e0e0]">
             <button onClick={()=>setZoom(z=>Math.min(2,z+0.1))} className="px-2.5 py-1.5 text-xs font-bold text-[#666] hover:bg-[#f5f5f5]">+</button>
             <span className="flex w-12 items-center justify-center border-x border-[#e0e0e0] text-xs text-[#888]">{Math.round(zoom*100)}%</span>
@@ -896,11 +894,11 @@ function CanvasFullscreen({ tables, getOccupied, enMesa, grupoDe, etiqueta, arra
                 )}
                 <MesaDroppable tableId={table.id} libres={puedeEditar?table.capacity-occ:0} ocupados={enMesa(table.id)} arrastrando={arrastrando} redonda={table.shape==='round'||table.shape==='oval'}>
                 <div style={{transform:`rotate(${rot}deg)`,transformOrigin:'center',display:'inline-block',position:'relative'}}>
-                  <TableSVG table={table} ocupados={enMesa(table.id)} isSelected={isActive} isHighlighted={isHL} isDimmed={isDim} colorFill={tableColor.fill} colorBorder={tableColor.border}/>
+                  <TableSVG table={table} ocupados={enMesa(table.id)} resaltar={matchingClaves} isSelected={isActive} isHighlighted={isHL} isDimmed={isDim} colorFill={tableColor.fill} colorBorder={tableColor.border}/>
                   <SillasArrastrables shape={table.shape} capacity={table.capacity} ocupados={enMesa(table.id)} grupoDe={grupoDe} etiqueta={etiqueta} puedeEditar={puedeEditar} onPersona={onPersona}/>
                 </div>
                 </MesaDroppable>
-                {table.name&&(
+                {table.name&&!['round','oval','rectangle','square','imperial','herradura'].includes(table.shape)&&(
                   <div style={{width:dims.w,textAlign:'center',marginTop:3,opacity:isDim?0.2:1,pointerEvents:'none'}}>
                     <span style={{fontSize:11,fontWeight:600,color:isSel?'#48C9B0':'#555',display:'block',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{table.name}</span>
                   </div>
@@ -1023,17 +1021,17 @@ function DonutChart({value,total}:{value:number;total:number}) {
 function ModalMesa({ visible=true, editTable, mNum, setMNum, mName, setMName, mCap, setMCap, mShape, setMShape, mError, mSaving, onSave, onClose, inp }: {
   visible?:boolean; editTable:TableRecord|null; mNum:string; setMNum:(v:string)=>void; mName:string; setMName:(v:string)=>void; mCap:string; setMCap:(v:string)=>void; mShape:string; setMShape:(v:string)=>void; mError:string; mSaving:boolean; onSave:()=>void; onClose:()=>void; inp:string
 }) {
-  const shapes: TableShape[] = ['round','oval','rectangle','square','halfmoon','row']
+  const shapes: TableShape[] = [...FORMAS]
   return(
     <Modal open={visible} onClose={onClose} size="sm">
       <Modal.Header title={editTable?'Editar mesa':'Nueva mesa'}/>
       <Modal.Body>
         <div className="flex flex-col gap-4">
+          <div><label className="mb-1.5 block text-xs font-medium text-[#555]">Nombre <span className="font-normal text-[#ccc]">(opcional)</span></label><input type="text" value={mName} onChange={e=>setMName(e.target.value)} className={inp} placeholder="Ej: Tíos, Primos, Trabajo…"/></div>
           <div className="grid grid-cols-2 gap-3">
-            <div><label className="mb-1.5 block text-xs font-medium text-[#555]"># Mesa *</label><input type="number" min="1" value={mNum} onChange={e=>setMNum(e.target.value)} className={inp} placeholder="1"/></div>
-            <div><label className="mb-1.5 block text-xs font-medium text-[#555]">Capacidad *</label><input type="number" min="1" max="100" value={mCap} onChange={e=>setMCap(e.target.value)} className={inp} placeholder="8"/></div>
+            <div><label className="mb-1.5 block text-xs font-medium text-[#555]">Número *</label><input type="number" min="1" value={mNum} onChange={e=>setMNum(e.target.value)} className={inp} placeholder="1"/></div>
+            <div><label className="mb-1.5 block text-xs font-medium text-[#555]">Lugares *</label><input type="number" min="1" max="100" value={mCap} onChange={e=>setMCap(e.target.value)} className={inp} placeholder="8"/></div>
           </div>
-          <div><label className="mb-1.5 block text-xs font-medium text-[#555]">Nombre <span className="font-normal text-[#ccc]">(opcional)</span></label><input type="text" value={mName} onChange={e=>setMName(e.target.value)} className={inp} placeholder="Ej: Mesa de honor…"/></div>
           <div>
             <label className="mb-2 block text-xs font-medium text-[#555]">Forma</label>
             <div className="grid grid-cols-3 gap-2">
@@ -1102,6 +1100,8 @@ function MesasPageInner() {
   const [arrastrando,setArrastrando]=useState<Persona[]|null>(null)
   // Palomeados en el panel para "Sentar aqui" sin arrastrar.
   const [marcados,setMarcados]=useState<Set<string>>(new Set())
+  // El dia del evento: renglones grandes con su cuadro y el arrastre apagado.
+  const [modoCheckin,setModoCheckin]=useState(false)
   const [panelBusqueda,setPanelBusqueda]=useState('')
   const [filas,setFilas]=useState<Fila[]>([])
   const canvasSaveTimer=useRef<ReturnType<typeof setTimeout>|null>(null)
@@ -1190,6 +1190,8 @@ function MesasPageInner() {
   const nextNum=()=>{if(!tables.length)return 1;const u=new Set(tables.map(t=>t.number));let n=1;while(u.has(n))n++;return n}
 
   const confirmed=personas.filter(p=>p.rsvp==='confirmed').length
+  const sentados=personas.filter(p=>mapa.has(p.clave)).length
+  const llegaron=personas.filter(p=>mapa.has(p.clave)&&p.checkedIn).length
   const unassigned=sinMesa.filter(p=>p.rsvp==='confirmed').length
   const totalSeats=tables.reduce((a,t)=>a+t.capacity,0)
   const totalFree=totalSeats-tables.reduce((a,t)=>a+ocupacion(t.id),0)
@@ -1379,7 +1381,7 @@ function MesasPageInner() {
   }
   const removeGuest=async(p:Persona)=>{
     if(!permiso.editar)return
-    const ok=await askConfirm({title:`¿Quitar a ${p.nombre} de esta mesa?`,message:'Vuelve a la lista de personas sin mesa. No se borra del evento.',confirmLabel:'Quitar'})
+    const ok=await askConfirm({title:`¿Quitar a ${p.nombre} de esta mesa?`,confirmLabel:'Quitar'})
     if(!ok)return
     await quitarPersona(p)
   }
@@ -1516,7 +1518,14 @@ function MesasPageInner() {
         <div className="mb-3 flex flex-wrap items-center gap-2">
           <div className="flex overflow-hidden rounded-lg border border-[#e0e0e0]">
             <button className="flex items-center gap-1.5 bg-[#1D1E20] px-3 py-1.5 text-xs font-medium text-white"><List width={13} height={13}/><span className="hidden sm:inline">Lista</span></button>
-            <button onClick={()=>setCanvasMode(true)} className="flex items-center gap-1.5 border-l border-[#e0e0e0] px-3 py-1.5 text-xs font-medium text-[#888] hover:bg-[#f5f5f5]"><MapIcon width={13} height={13}/><span className="hidden sm:inline">Canvas</span></button>
+            <button onClick={()=>setCanvasMode(true)} className="flex items-center gap-1.5 border-l border-[#e0e0e0] px-3 py-1.5 text-xs font-medium text-[#888] hover:bg-[#f5f5f5]"><MapIcon width={13} height={13}/><span className="hidden sm:inline">Plano</span></button>
+          </div>
+          <Puede modulo="mesas" accion="editar">
+            <button onClick={()=>setModoCheckin(v=>!v)} className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition ${modoCheckin?'border-[#48C9B0] bg-[#48C9B0] text-white':'border-[#e0e0e0] text-[#666] hover:border-[#48C9B0] hover:text-[#48C9B0]'}`}><CheckSquare width={13} height={13}/>Check-in{modoCheckin&&<span className="ml-1 rounded-full bg-white/25 px-1.5 text-[10px] tabular-nums">{llegaron} de {sentados}</span>}</button>
+          </Puede>
+          <div className="group relative">
+            <button type="button" aria-label="Qué significa cada ícono" className="flex h-7 w-7 items-center justify-center rounded-full border border-[#e0e0e0] text-xs font-bold text-[#888] hover:border-[#48C9B0] hover:text-[#48C9B0]">?</button>
+            <div className="invisible absolute left-0 top-9 z-30 w-max rounded-xl border border-[#e8e8e8] bg-white p-3 shadow-xl group-hover:visible group-focus-within:visible"><LeyendaEstatus className="max-w-[280px]" /></div>
           </div>
           <div className="relative flex-1 sm:max-w-xs"><Search width={13} height={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#bbb]"/><input type="text" value={listSearch} onChange={e=>setListSearch(e.target.value)} placeholder="Buscar invitado..." className="w-full rounded-lg border border-[#e0e0e0] bg-[#f8f8f8] py-1.5 pl-8 pr-3 text-xs text-[#1D1E20] outline-none focus:border-[#48C9B0]"/></div>
           <div className="ml-auto flex items-center gap-2">
@@ -1539,13 +1548,12 @@ function MesasPageInner() {
           <div className="mt-5 rounded-xl border border-dashed border-[#e0e0e0] px-6 py-14 text-center"><p className="text-sm text-[#888]">Sin mesas aún</p><p className="mt-1 text-xs text-[#bbb]">Crea tu primera mesa para empezar</p><div className="mt-4 flex items-center justify-center gap-2">{permiso.editar&&<button onClick={()=>setShowBulk(true)} className="rounded-lg border border-[#e0e0e0] px-4 py-2.5 text-sm text-[#666] hover:border-[#48C9B0] hover:text-[#48C9B0]">Agregar en bulk</button>}{permiso.editar&&<button onClick={openCreate} className="rounded-lg bg-[#48C9B0] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#3ab89f]">+ Nueva mesa</button>}</div></div>
         ):(
           <>
-            <LeyendaEstatus className="mb-3" />
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
               {filtered.map(table=>(
-                <MesaCard key={table.id} table={table} ocupados={enMesa(table.id)} etiqueta={etiqueta} puedeEditar={permiso.editar} puedeBorrar={permiso.borrar}
+                <MesaCard key={table.id} table={table} ocupados={enMesa(table.id)} etiqueta={etiqueta} puedeEditar={permiso.editar} puedeBorrar={permiso.borrar} modoCheckin={modoCheckin}
                   arrastrando={arrastrando} seleccion={seleccion}
                   onSentarSeleccion={()=>sentarSeleccion(table.id)} onEditar={()=>openEditTable(table)} onBorrar={()=>handleDeleteTable(table)} onAsignar={()=>setAssignModal({tableId:table.id,tableCapacity:table.capacity})}
-                  onPersona={p=>setPersonaMenu(p)} onQuitar={p=>removeGuest(p)} onCheckin={p=>p.memberId?toggleMemberCheckin(p.memberId,p.guestId,p.checkedIn):toggleCheckin(p.guestId,p.checkedIn)}/>
+                  onPersona={p=>setPersonaMenu(p)} onCheckin={p=>p.memberId?toggleMemberCheckin(p.memberId,p.guestId,p.checkedIn):toggleCheckin(p.guestId,p.checkedIn)}/>
               ))}
               {filtered.length===0&&<p className="col-span-full py-8 text-center text-sm text-[#bbb]">Nadie con ese nombre en una mesa</p>}
             </div>
@@ -1595,7 +1603,7 @@ function MesasPageInner() {
           <div className="flex flex-col gap-4">
             <div className="grid grid-cols-2 gap-3"><div><label className="mb-1.5 block text-xs font-medium text-[#555]">Cantidad *</label><input type="number" min="1" max="50" value={bCount} onChange={e=>setBCount(e.target.value)} className={inp} placeholder="5"/></div><div><label className="mb-1.5 block text-xs font-medium text-[#555]">Capacidad c/u *</label><input type="number" min="1" max="100" value={bCap} onChange={e=>setBCap(e.target.value)} className={inp} placeholder="8"/></div></div>
             <div><label className="mb-1.5 block text-xs font-medium text-[#555]">Forma</label>
-              <div className="grid grid-cols-3 gap-2">{(['round','oval','rectangle','square','halfmoon','row'] as TableShape[]).map(s=><button key={s} type="button" onClick={()=>setBShape(s)} className={`flex flex-col items-center gap-1 rounded-xl border py-2 text-[10px] font-medium transition ${bShape===s?'border-[#48C9B0] bg-[#f0fdfb] text-[#1a9e88]':'border-[#e0e0e0] text-[#888]'}`}><div className="flex h-8 w-full items-center justify-center">{SHAPE_ICONS[s]}</div>{SHAPE_LABELS[s]}</button>)}</div>
+              <div className="grid grid-cols-3 gap-2">{FORMAS.map(s=><button key={s} type="button" onClick={()=>setBShape(s)} className={`flex flex-col items-center gap-1 rounded-xl border py-2 text-[10px] font-medium transition ${bShape===s?'border-[#48C9B0] bg-[#f0fdfb] text-[#1a9e88]':'border-[#e0e0e0] text-[#888]'}`}><div className="flex h-8 w-full items-center justify-center">{SHAPE_ICONS[s]}</div>{SHAPE_LABELS[s]}</button>)}</div>
             </div>
             {(()=>{const c=parseInt(bCount);if(!c||c<1||c>50)return null;const ns=previewNums(c);const pv=ns.length<=8?ns.map(n=>`#${n}`).join(', '):`#${ns[0]}, #${ns[1]}... hasta #${ns[ns.length-1]}`;return<div className="rounded-lg border border-[#e8f8f4] bg-[#f0fdfb] px-3 py-2.5"><p className="text-[11px] font-semibold text-[#1a9e88]">Se crearán {c} mesas:</p><p className="mt-0.5 text-[11px] text-[#48C9B0]">{pv}</p></div>})()}
           </div>
