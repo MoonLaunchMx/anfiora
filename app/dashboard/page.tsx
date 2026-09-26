@@ -11,6 +11,7 @@ import { EnlaceRolodex } from '@/app/components/EnlaceRolodex'
 import { OnboardingModal } from '@/app/components/OnboardingModal'
 import { misWorkspacesAdministrados } from '@/lib/workspace/cliente'
 import { esArchivado, estadoEvento, ocupaLugar, type EventoParaEstado } from '@/lib/events/estado'
+import { fusionarEventosDelTablero } from '@/lib/events/tablero'
 import { esErrorDeCupo, parseLimitError, fetchAccountCapacity } from '@/lib/capacity'
 import { MuroModal, type MuroCaso } from '@/app/components/MuroModal'
 import { useConfirm } from '@/app/components/ui/ConfirmModal'
@@ -157,7 +158,23 @@ export default function Dashboard() {
   const loadData = async (user: User) => {
     const userId = user.id
 
-    const [myRes, collabRes] = await Promise.all([
+    // Los workspaces donde soy admin traen todos sus eventos, sin fila de
+    // colaborador. Postgres los deja pasar por is_event_member; hasta que corra
+    // ese SQL la consulta simplemente regresa menos filas, nunca un error.
+    // Va en paralelo con las otras dos: en serie sumaba tres viajes a la base
+    // antes de pintar nada.
+    const eventosDelWorkspace = async () => {
+      const workspaceIds = (await misWorkspacesAdministrados()).map(w => w.id)
+      if (workspaceIds.length === 0) return { data: [], error: null }
+      return supabase
+        .from('events')
+        .select('id, name, event_date, event_end_date, event_time, venue, total_guests, event_status, user_id, owner:user_id ( full_name )')
+        .in('workspace_id', workspaceIds)
+        .neq('user_id', userId)
+        .order('event_date', { ascending: true })
+    }
+
+    const [myRes, collabRes, wsRes] = await Promise.all([
       supabase
         .from('events')
         .select('id, name, event_date, event_end_date, event_time, venue, total_guests, event_status, user_id')
@@ -174,6 +191,7 @@ export default function Dashboard() {
         `)
         .eq('user_id', userId)
         .eq('status', 'active'),
+      eventosDelWorkspace(),
     ])
 
     const myEventsData = myRes.data || []
@@ -181,7 +199,7 @@ export default function Dashboard() {
     const collabRows = (collabRes.data || []) as any[]
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sharedRaw: any[] = collabRows
+    const sharedByRow: any[] = collabRows
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .map((c: any) => {
         if (!c.event) return null
@@ -193,6 +211,22 @@ export default function Dashboard() {
         }
       })
       .filter(Boolean)
+
+    if (wsRes.error) {
+      console.error('[dashboard] eventos del workspace no cargaron:', wsRes.error.message)
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const sharedByWorkspace: any[] = ((wsRes.data || []) as any[]).map(e => ({
+      ...e,
+      owner_name: e.owner?.full_name || null,
+    }))
+
+    const { compartidos: sharedRaw } = fusionarEventosDelTablero({
+      propios: myEventsData,
+      compartidos: sharedByRow,
+      delWorkspace: sharedByWorkspace,
+      yo: userId,
+    })
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const myIds = myEventsData.map((e: any) => e.id)
