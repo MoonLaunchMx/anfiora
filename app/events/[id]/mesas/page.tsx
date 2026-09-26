@@ -376,11 +376,12 @@ function TableDetailModal({ table, ocupados, ocupacion, etiqueta, onClose, onAss
 }
 
 // ─── CANVAS FULLSCREEN ────────────────────────
-function CanvasFullscreen({ tables, getOccupied, enMesa, grupoDe, etiqueta, arrastrando, onPersona, panel, onBack, onTableClick, onPositionSave, onRotationSave, onOpenCreate, puedeEditar, resetKey,
+function CanvasFullscreen({ tables, getOccupied, enMesa, grupoDe, etiqueta, arrastrando, onPersona, panel, search, setSearch, onBack, onTableClick, onPositionSave, onRotationSave, onOpenCreate, puedeEditar, resetKey,
   decos, setDecos, decoRotations, setDecoRotations, tableColors, setTableColors, decoColors, setDecoColors
 }: {
   tables: TableRecord[]; getOccupied:(t:TableRecord)=>number; onBack:()=>void
   enMesa:(tableId:string)=>Persona[]; grupoDe:(p:Persona)=>Persona[]; etiqueta:(p:Persona)=>string|null; arrastrando:Persona[]|null; onPersona:(p:Persona)=>void; panel:React.ReactNode
+  search:string; setSearch:(v:string)=>void
   onTableClick:(t:TableRecord)=>void; onPositionSave:(id:string,x:number,y:number)=>void
   onRotationSave:(id:string,rotation:number)=>void; onOpenCreate:()=>void
   puedeEditar: boolean
@@ -400,7 +401,6 @@ function CanvasFullscreen({ tables, getOccupied, enMesa, grupoDe, etiqueta, arra
   const [activeId,   setActiveId]   = useState<string|null>(null)
   const [activeDeco, setActiveDeco] = useState<string|null>(null)
   const [zoom,       setZoom]       = useState(1)
-  const [search,     setSearch]     = useState('')
   const [showDecoPicker, setShowDecoPicker] = useState(false)
   const [isPanning,  setIsPanning]  = useState(false)
   const [contextMenu, setContextMenu] = useState<ContextMenuState|null>(null)
@@ -773,7 +773,7 @@ function CanvasFullscreen({ tables, getOccupied, enMesa, grupoDe, etiqueta, arra
         </button>
         <div className="relative hidden sm:flex flex-1">
           <Search width={12} height={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#bbb]"/>
-          <input type="text" value={search} onChange={e=>setSearch(e.target.value)} placeholder="Buscar invitado…"
+          <input type="text" value={search} onChange={e=>setSearch(e.target.value)} placeholder="Buscar a alguien…"
             className="w-full rounded-lg border border-[#e0e0e0] bg-[#f8f8f8] py-1.5 pl-7 pr-3 text-xs outline-none focus:border-[#48C9B0]"/>
           {search&&<button onClick={()=>setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-[#bbb]"><X width={10} height={10}/></button>}
         </div>
@@ -923,7 +923,7 @@ function CanvasFullscreen({ tables, getOccupied, enMesa, grupoDe, etiqueta, arra
         {showSearch?(
           <div className="relative flex-1">
             <Search width={12} height={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#bbb]"/>
-            <input autoFocus type="text" value={search} onChange={e=>setSearch(e.target.value)} placeholder="Buscar invitado…"
+            <input autoFocus type="text" value={search} onChange={e=>setSearch(e.target.value)} placeholder="Buscar a alguien…"
               className="w-full rounded-lg border border-[#48C9B0] bg-[#f8f8f8] py-1.5 pl-7 pr-6 text-xs outline-none"/>
             <button onClick={()=>{setSearch('');setShowSearch(false)}} className="absolute right-2 top-1/2 -translate-y-1/2 text-[#bbb]"><X width={10} height={10}/></button>
           </div>
@@ -1105,7 +1105,10 @@ function MesasPageInner() {
   const [modoCheckin,setModoCheckin]=useState(false)
   const [menuMas,setMenuMas]=useState(false)
   const [leyendaAbierta,setLeyendaAbierta]=useState(false)
-  const [panelBusqueda,setPanelBusqueda]=useState('')
+  // Ancho del panel de sin mesa (escritorio): se jala y se recuerda por evento.
+  const [panelAncho,setPanelAnchoEstado]=useState(250)
+  useEffect(()=>{try{const v=Number(localStorage.getItem('anfiora_mesas_panel_'+eventId));if(v>=200&&v<=520)setPanelAnchoEstado(v)}catch{}},[eventId])
+  const setPanelAncho=useCallback((w:number)=>{setPanelAnchoEstado(w);try{localStorage.setItem('anfiora_mesas_panel_'+eventId,String(w))}catch{}},[eventId])
   const [filas,setFilas]=useState<Fila[]>([])
   const canvasSaveTimer=useRef<ReturnType<typeof setTimeout>|null>(null)
 
@@ -1460,7 +1463,7 @@ function MesasPageInner() {
   const TagChips=({tags}:{tags:string[]})=>(<>{tags.length===0?<span className="text-[11px] text-[#ddd]">—</span>:tags.map(tag=>{const i=eventTags.indexOf(tag);const c=TAG_COLORS[i>=0?i%TAG_COLORS.length:0];return<span key={tag} className="rounded-full border px-1.5 py-0.5 text-[9px] font-medium" style={{background:c.bg,borderColor:c.border,color:c.text}}>{tag}</span>})}</>)
 
   const mesaAsignar=assignModal?(tables.find(t=>t.id===assignModal.tableId)??null):null
-  const panelSinMesa=<SinMesaPanel sinMesa={sinMesa} busqueda={panelBusqueda} setBusqueda={setPanelBusqueda} puedeEditar={permiso.editar} arrastrando={arrastrando} marcados={marcados} onMarcar={onMarcar} onTap={p=>setPersonaMenu(p)}/>
+  const panelSinMesa=<SinMesaPanel sinMesa={sinMesa} busqueda={listSearch} ancho={panelAncho} setAncho={setPanelAncho} puedeEditar={permiso.editar} arrastrando={arrastrando} marcados={marcados} onMarcar={onMarcar} onTap={p=>setPersonaMenu(p)}/>
   const modalesPersona=(
     <>
       <ModalAsignar key={assignModal?.tableId??'ninguna'} table={mesaAsignar} personas={personas} mapa={mapa} ocupacion={ocupacion} numeroDeMesa={numeroDeMesa} onSentar={claves=>sentarPersonas(claves,assignModal!.tableId)} onClose={()=>setAssignModal(null)}/>
@@ -1479,7 +1482,7 @@ function MesasPageInner() {
   // ── CANVAS ──
   if(canvasMode)return(
     <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd} onDragCancel={onDragCancel}>
-      <CanvasFullscreen tables={tables} getOccupied={getOccupied} enMesa={enMesa} grupoDe={grupoDe} etiqueta={etiqueta} arrastrando={arrastrando} onPersona={p=>setPersonaMenu(p)} panel={panelSinMesa} onBack={()=>setCanvasMode(false)} onTableClick={t=>setCanvasDetailId(t.id)} onPositionSave={handlePosSave} onRotationSave={handleRotSave} onOpenCreate={openCreate} puedeEditar={permiso.editar} resetKey={canvasResetKey}
+      <CanvasFullscreen tables={tables} getOccupied={getOccupied} enMesa={enMesa} grupoDe={grupoDe} etiqueta={etiqueta} arrastrando={arrastrando} onPersona={p=>setPersonaMenu(p)} panel={panelSinMesa} search={listSearch} setSearch={setListSearch} onBack={()=>setCanvasMode(false)} onTableClick={t=>setCanvasDetailId(t.id)} onPositionSave={handlePosSave} onRotationSave={handleRotSave} onOpenCreate={openCreate} puedeEditar={permiso.editar} resetKey={canvasResetKey}
         decos={canvasDecos} setDecos={setCanvasDecos}
         decoRotations={canvasDecoRots} setDecoRotations={setCanvasDecoRots}
         tableColors={canvasTableColors} setTableColors={setCanvasTableColors}
@@ -1532,7 +1535,7 @@ function MesasPageInner() {
             <button type="button" aria-label="Qué significa cada ícono" className="flex h-7 w-7 items-center justify-center rounded-full border border-[#e0e0e0] text-xs font-bold text-[#888] hover:border-[#48C9B0] hover:text-[#48C9B0]">?</button>
             <div className="invisible absolute left-0 top-9 z-30 w-max rounded-xl border border-[#e8e8e8] bg-white p-3 shadow-xl group-hover:visible group-focus-within:visible"><LeyendaEstatus className="max-w-[280px]" /></div>
           </div>
-          <div className="relative flex-1 sm:max-w-xs"><Search width={13} height={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#bbb]"/><input type="text" value={listSearch} onChange={e=>setListSearch(e.target.value)} placeholder="Buscar invitado..." className="w-full rounded-lg border border-[#e0e0e0] bg-[#f8f8f8] py-1.5 pl-8 pr-3 text-xs text-[#1D1E20] outline-none focus:border-[#48C9B0]"/></div>
+          <div className="relative flex-1 sm:max-w-xs"><Search width={13} height={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#bbb]"/><input type="text" value={listSearch} onChange={e=>setListSearch(e.target.value)} placeholder="Buscar a alguien…" className="w-full rounded-lg border border-[#e0e0e0] bg-[#f8f8f8] py-1.5 pl-8 pr-3 text-xs text-[#1D1E20] outline-none focus:border-[#48C9B0]"/></div>
           <div className="ml-auto flex items-center gap-2">
             {tables.length>0&&<button onClick={handlePrint} className="hidden items-center gap-1.5 rounded-lg border border-[#e0e0e0] px-3 py-1.5 text-xs text-[#666] hover:border-[#48C9B0] hover:text-[#48C9B0] sm:flex"><Printer width={13} height={13}/>Imprimir lista</button>}
             <Puede modulo="mesas" accion="editar">
