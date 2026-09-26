@@ -161,7 +161,18 @@ export default function Dashboard() {
     // Los workspaces donde soy admin traen todos sus eventos, sin fila de
     // colaborador. Postgres los deja pasar por is_event_member; hasta que corra
     // ese SQL la consulta simplemente regresa menos filas, nunca un error.
-    const workspaceIds = (await misWorkspacesAdministrados()).map(w => w.id)
+    // Va en paralelo con las otras dos: en serie sumaba tres viajes a la base
+    // antes de pintar nada.
+    const eventosDelWorkspace = async () => {
+      const workspaceIds = (await misWorkspacesAdministrados()).map(w => w.id)
+      if (workspaceIds.length === 0) return { data: [], error: null }
+      return supabase
+        .from('events')
+        .select('id, name, event_date, event_end_date, event_time, venue, total_guests, event_status, user_id, owner:user_id ( full_name )')
+        .in('workspace_id', workspaceIds)
+        .neq('user_id', userId)
+        .order('event_date', { ascending: true })
+    }
 
     const [myRes, collabRes, wsRes] = await Promise.all([
       supabase
@@ -180,14 +191,7 @@ export default function Dashboard() {
         `)
         .eq('user_id', userId)
         .eq('status', 'active'),
-      workspaceIds.length === 0
-        ? Promise.resolve({ data: [], error: null })
-        : supabase
-            .from('events')
-            .select('id, name, event_date, event_end_date, event_time, venue, total_guests, event_status, user_id, owner:user_id ( full_name )')
-            .in('workspace_id', workspaceIds)
-            .neq('user_id', userId)
-            .order('event_date', { ascending: true }),
+      eventosDelWorkspace(),
     ])
 
     const myEventsData = myRes.data || []
