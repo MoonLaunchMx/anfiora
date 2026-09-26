@@ -835,6 +835,7 @@ function CanvasFullscreen({ tables, getOccupied, enMesa, grupoDe, etiqueta, arra
           <button onClick={e=>{e.stopPropagation();setZoom(z=>Math.min(2,z+0.1))}} style={{padding:'8px 12px',fontSize:15,fontWeight:700,color:'#555',background:'transparent',border:'none',cursor:'pointer',lineHeight:1}} onMouseDown={e=>e.stopPropagation()}>+</button>
           <span style={{display:'flex',alignItems:'center',justifyContent:'center',width:38,height:28,fontSize:10,color:'#888',borderTop:'1px solid #e0e0e0',borderBottom:'1px solid #e0e0e0'}}>{Math.round(zoom*100)}%</span>
           <button onClick={e=>{e.stopPropagation();setZoom(z=>Math.max(0.3,z-0.1))}} style={{padding:'8px 12px',fontSize:15,fontWeight:700,color:'#555',background:'transparent',border:'none',cursor:'pointer',lineHeight:1}} onMouseDown={e=>e.stopPropagation()}>−</button>
+          <button onClick={e=>{e.stopPropagation();ajustar()}} title="Encuadrar todas las mesas" style={{padding:'8px 8px',borderTop:'1px solid #e0e0e0',background:'transparent',border:'none',cursor:'pointer',color:'#555',display:'flex'}} onMouseDown={e=>e.stopPropagation()}><Maximize2 width={14} height={14}/></button>
         </div>
 
         <div style={{position:'absolute',inset:0,minWidth:2400,minHeight:1800,transformOrigin:'top left',transform:`scale(${zoom})`}}>
@@ -1102,6 +1103,8 @@ function MesasPageInner() {
   const [marcados,setMarcados]=useState<Set<string>>(new Set())
   // El dia del evento: renglones grandes con su cuadro y el arrastre apagado.
   const [modoCheckin,setModoCheckin]=useState(false)
+  const [menuMas,setMenuMas]=useState(false)
+  const [leyendaAbierta,setLeyendaAbierta]=useState(false)
   const [panelBusqueda,setPanelBusqueda]=useState('')
   const [filas,setFilas]=useState<Fila[]>([])
   const canvasSaveTimer=useRef<ReturnType<typeof setTimeout>|null>(null)
@@ -1463,6 +1466,10 @@ function MesasPageInner() {
       <ModalAsignar key={assignModal?.tableId??'ninguna'} table={mesaAsignar} personas={personas} mapa={mapa} ocupacion={ocupacion} numeroDeMesa={numeroDeMesa} onSentar={claves=>sentarPersonas(claves,assignModal!.tableId)} onClose={()=>setAssignModal(null)}/>
       <ModalElegirMesa abierto={elegirMesa} tables={tables} ocupacion={ocupacion} mapa={mapa} personas={personas} onElegir={tableId=>sentarPersonas(elegirMesa!.personas.map(p=>p.clave),tableId)} onClose={()=>setElegirMesa(null)}/>
       <PersonaMenu persona={personaMenu} sentado={!!personaMenu&&mapa.has(personaMenu.clave)} mesa={personaMenu&&mapa.get(personaMenu.clave)?nombreMesa(mapa.get(personaMenu.clave)!.tableId):'Sin mesa'} puedeEditar={permiso.editar} onMover={()=>personaMenu&&abrirMover(personaMenu)} onVer={()=>personaMenu&&verInvitado(personaMenu)} onQuitar={()=>personaMenu&&removeGuest(personaMenu)} onClose={()=>setPersonaMenu(null)}/>
+      <Modal open={leyendaAbierta} onClose={()=>setLeyendaAbierta(false)} size="sm">
+        <Modal.Header title="Qué significa cada ícono"/>
+        <Modal.Body><LeyendaEstatus className="flex-col !items-start !gap-y-3 text-[15px]"/></Modal.Body>
+      </Modal>
       <DragOverlay dropAnimation={null} zIndex={600}>{arrastrando&&<ChipFantasma personas={arrastrando}/>}</DragOverlay>
     </>
   )
@@ -1498,7 +1505,7 @@ function MesasPageInner() {
         <div className="mb-4 flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
             <h1 className="text-lg font-bold text-[#1D1E20] sm:text-xl lg:text-2xl">Mesas</h1>
-            <p className="mt-0.5 text-xs text-[#888] sm:text-sm">Organiza tus invitados por mesa</p>
+            <p className="mt-0.5 text-xs text-[#888] sm:text-sm"><span className="sm:hidden">{tables.length} {tables.length===1?'mesa':'mesas'} · {sinMesa.length} sin mesa</span><span className="hidden sm:inline">Organiza tus invitados por mesa</span></p>
           </div>
           <div className="lg:hidden shrink-0 pt-1">
             <StatsToggleButton visible={statsVisible} onClick={toggleStats} />
@@ -1515,7 +1522,7 @@ function MesasPageInner() {
           </div>
         </StatsCollapse>
 
-        <div className="mb-3 flex flex-wrap items-center gap-2">
+        <div className="mb-3 hidden flex-wrap items-center gap-2 sm:flex">
           <div className="flex overflow-hidden rounded-lg border border-[#e0e0e0]">
             <button className="flex items-center gap-1.5 bg-[#1D1E20] px-3 py-1.5 text-xs font-medium text-white"><List width={13} height={13}/><span className="hidden sm:inline">Lista</span></button>
             <button onClick={()=>setCanvasMode(true)} className="flex items-center gap-1.5 border-l border-[#e0e0e0] px-3 py-1.5 text-xs font-medium text-[#888] hover:bg-[#f5f5f5]"><MapIcon width={13} height={13}/><span className="hidden sm:inline">Plano</span></button>
@@ -1536,6 +1543,31 @@ function MesasPageInner() {
             <Puede modulo="mesas" accion="editar">
               <button onClick={openCreate} className="flex items-center gap-1.5 rounded-lg bg-[#48C9B0] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#3ab89f] sm:px-4 sm:text-sm"><Plus width={14} height={14}/>Nueva mesa</button>
             </Puede>
+          </div>
+        </div>
+        {/* Celular: el modo arriba a todo el ancho; buscar, ? y + abajo */}
+        <div className="mb-3 flex flex-col gap-2 sm:hidden">
+          <div className="flex overflow-hidden rounded-lg border border-[#e0e0e0] text-[13px] font-semibold">
+            <button className="flex-1 bg-[#1D1E20] py-2 text-white">Tablero</button>
+            <button onClick={()=>setCanvasMode(true)} className="flex-1 border-l border-[#e0e0e0] py-2 text-[#666]">Plano</button>
+            {permiso.editar&&<button onClick={()=>setModoCheckin(v=>!v)} className={`flex-1 border-l border-[#e0e0e0] py-2 ${modoCheckin?'bg-[#48C9B0] text-white':'text-[#1f8a75]'}`}>Check-in{modoCheckin&&<span className="ml-1 text-[11px] font-medium tabular-nums opacity-90">{llegaron}/{sentados}</span>}</button>}
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="relative flex-1"><Search width={14} height={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#bbb]"/><input type="text" value={listSearch} onChange={e=>setListSearch(e.target.value)} placeholder="Buscar a alguien…" className="w-full rounded-lg border border-[#e0e0e0] bg-[#f8f8f8] py-2 pl-9 pr-3 text-[15px] text-[#1D1E20] outline-none focus:border-[#48C9B0]"/></div>
+            <button type="button" onClick={()=>setLeyendaAbierta(true)} aria-label="Qué significa cada ícono" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[#e0e0e0] text-sm font-bold text-[#888]">?</button>
+            {permiso.editar&&(
+              <div className="relative shrink-0">
+                <button type="button" onClick={()=>setMenuMas(v=>!v)} aria-label="Agregar" className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#48C9B0] text-white"><Plus width={20} height={20}/></button>
+                {menuMas&&<>
+                  <div className="fixed inset-0 z-20" onClick={()=>setMenuMas(false)}/>
+                  <div className="absolute right-0 top-12 z-30 w-48 rounded-xl border border-[#e8e8e8] bg-white p-1 shadow-xl">
+                    <button type="button" onClick={()=>{setMenuMas(false);openCreate()}} className="w-full rounded-lg px-3 py-2.5 text-left text-[15px] text-[#1D1E20] hover:bg-[#f8f8f8]">Nueva mesa</button>
+                    <button type="button" onClick={()=>{setMenuMas(false);setShowBulk(true)}} className="w-full rounded-lg px-3 py-2.5 text-left text-[15px] text-[#1D1E20] hover:bg-[#f8f8f8]">Agregar en bulk</button>
+                    {tables.length>0&&<button type="button" onClick={()=>{setMenuMas(false);handlePrint()}} className="w-full rounded-lg px-3 py-2.5 text-left text-[15px] text-[#1D1E20] hover:bg-[#f8f8f8]">Imprimir lista</button>}
+                  </div>
+                </>}
+              </div>
+            )}
           </div>
         </div>
       </div>
