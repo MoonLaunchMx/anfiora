@@ -1525,7 +1525,7 @@ function MesasPageInner() {
         <div className="mb-3 hidden flex-wrap items-center gap-2 sm:flex">
           <div className="flex overflow-hidden rounded-lg border border-[#e0e0e0]">
             <button className="flex items-center gap-1.5 bg-[#1D1E20] px-3 py-1.5 text-xs font-medium text-white"><List width={13} height={13}/><span className="hidden sm:inline">Lista</span></button>
-            <button onClick={()=>setCanvasMode(true)} className="flex items-center gap-1.5 border-l border-[#e0e0e0] px-3 py-1.5 text-xs font-medium text-[#888] hover:bg-[#f5f5f5]"><MapIcon width={13} height={13}/><span className="hidden sm:inline">Plano</span></button>
+            <button onClick={()=>setCanvasMode(true)} className="flex items-center gap-1.5 border-l border-[#e0e0e0] px-3 py-1.5 text-xs font-medium text-[#888] hover:bg-[#f5f5f5]"><MapIcon width={13} height={13}/><span className="hidden sm:inline">Canvas</span></button>
           </div>
           <Puede modulo="mesas" accion="editar">
             <button onClick={()=>setModoCheckin(v=>!v)} className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition ${modoCheckin?'border-[#48C9B0] bg-[#48C9B0] text-white':'border-[#e0e0e0] text-[#666] hover:border-[#48C9B0] hover:text-[#48C9B0]'}`}><CheckSquare width={13} height={13}/>Check-in{modoCheckin&&<span className="ml-1 rounded-full bg-white/25 px-1.5 text-[10px] tabular-nums">{llegaron} de {sentados}</span>}</button>
@@ -1548,8 +1548,8 @@ function MesasPageInner() {
         {/* Celular: el modo arriba a todo el ancho; buscar, ? y + abajo */}
         <div className="mb-3 flex flex-col gap-2 sm:hidden">
           <div className="flex overflow-hidden rounded-lg border border-[#e0e0e0] text-[13px] font-semibold">
-            <button className="flex-1 bg-[#1D1E20] py-2 text-white">Tablero</button>
-            <button onClick={()=>setCanvasMode(true)} className="flex-1 border-l border-[#e0e0e0] py-2 text-[#666]">Plano</button>
+            <button className="flex-1 bg-[#1D1E20] py-2 text-white">Lista</button>
+            <button onClick={()=>setCanvasMode(true)} className="flex-1 border-l border-[#e0e0e0] py-2 text-[#666]">Canvas</button>
             {permiso.editar&&<button onClick={()=>setModoCheckin(v=>!v)} className={`flex-1 border-l border-[#e0e0e0] py-2 ${modoCheckin?'bg-[#48C9B0] text-white':'text-[#1f8a75]'}`}>Check-in{modoCheckin&&<span className="ml-1 text-[11px] font-medium tabular-nums opacity-90">{llegaron}/{sentados}</span>}</button>}
           </div>
           <div className="flex items-center gap-2">
