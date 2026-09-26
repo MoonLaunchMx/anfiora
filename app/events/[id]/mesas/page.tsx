@@ -1526,10 +1526,8 @@ function MesasPageInner() {
           <div className="flex overflow-hidden rounded-lg border border-[#e0e0e0]">
             <button className="flex items-center gap-1.5 bg-[#1D1E20] px-3 py-1.5 text-xs font-medium text-white"><List width={13} height={13}/><span className="hidden sm:inline">Lista</span></button>
             <button onClick={()=>setCanvasMode(true)} className="flex items-center gap-1.5 border-l border-[#e0e0e0] px-3 py-1.5 text-xs font-medium text-[#888] hover:bg-[#f5f5f5]"><MapIcon width={13} height={13}/><span className="hidden sm:inline">Canvas</span></button>
+            {permiso.editar&&<button onClick={()=>setModoCheckin(v=>!v)} className={`flex items-center gap-1.5 border-l border-[#e0e0e0] px-3 py-1.5 text-xs font-medium transition ${modoCheckin?'bg-[#48C9B0] text-white':'text-[#888] hover:bg-[#f5f5f5]'}`}><CheckSquare width={13} height={13}/>Check-in{modoCheckin&&<span className="ml-1 rounded-full bg-white/25 px-1.5 text-[10px] tabular-nums">{llegaron} de {sentados}</span>}</button>}
           </div>
-          <Puede modulo="mesas" accion="editar">
-            <button onClick={()=>setModoCheckin(v=>!v)} className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition ${modoCheckin?'border-[#48C9B0] bg-[#48C9B0] text-white':'border-[#e0e0e0] text-[#666] hover:border-[#48C9B0] hover:text-[#48C9B0]'}`}><CheckSquare width={13} height={13}/>Check-in{modoCheckin&&<span className="ml-1 rounded-full bg-white/25 px-1.5 text-[10px] tabular-nums">{llegaron} de {sentados}</span>}</button>
-          </Puede>
           <div className="group relative">
             <button type="button" aria-label="Qué significa cada ícono" className="flex h-7 w-7 items-center justify-center rounded-full border border-[#e0e0e0] text-xs font-bold text-[#888] hover:border-[#48C9B0] hover:text-[#48C9B0]">?</button>
             <div className="invisible absolute left-0 top-9 z-30 w-max rounded-xl border border-[#e8e8e8] bg-white p-3 shadow-xl group-hover:visible group-focus-within:visible"><LeyendaEstatus className="max-w-[280px]" /></div>
@@ -1550,7 +1548,7 @@ function MesasPageInner() {
           <div className="flex overflow-hidden rounded-lg border border-[#e0e0e0] text-[13px] font-semibold">
             <button className="flex-1 bg-[#1D1E20] py-2 text-white">Lista</button>
             <button onClick={()=>setCanvasMode(true)} className="flex-1 border-l border-[#e0e0e0] py-2 text-[#666]">Canvas</button>
-            {permiso.editar&&<button onClick={()=>setModoCheckin(v=>!v)} className={`flex-1 border-l border-[#e0e0e0] py-2 ${modoCheckin?'bg-[#48C9B0] text-white':'text-[#1f8a75]'}`}>Check-in{modoCheckin&&<span className="ml-1 text-[11px] font-medium tabular-nums opacity-90">{llegaron}/{sentados}</span>}</button>}
+            {permiso.editar&&<button onClick={()=>setModoCheckin(v=>!v)} className={`flex-1 border-l border-[#e0e0e0] py-2 ${modoCheckin?'bg-[#48C9B0] text-white':'text-[#666]'}`}>Check-in{modoCheckin&&<span className="ml-1 text-[11px] font-medium tabular-nums opacity-90">{llegaron}/{sentados}</span>}</button>}
           </div>
           <div className="flex items-center gap-2">
             <div className="relative flex-1"><Search width={14} height={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#bbb]"/><input type="text" value={listSearch} onChange={e=>setListSearch(e.target.value)} placeholder="Buscar a alguien…" className="w-full rounded-lg border border-[#e0e0e0] bg-[#f8f8f8] py-2 pl-9 pr-3 text-[15px] text-[#1D1E20] outline-none focus:border-[#48C9B0]"/></div>
