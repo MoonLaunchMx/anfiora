@@ -6,7 +6,7 @@ import { resolveFeatures, type FeatureKey } from '@/lib/features'
 import { esArchivado } from '@/lib/events/estado'
 import { logAction } from '@/lib/audit'
 import {
-  normalizarPermisos, nivelEfectivo, puede, resumir,
+  normalizarPermisos, nivelEfectivo, puede, resumir, esAdminDeCuenta,
   type RolCuenta, type ContextoPermiso,
 } from '@/lib/permisos/resolver'
 import type { Modulo, Nivel, PermisosEvento } from '@/lib/permisos/catalogo'
@@ -205,11 +205,15 @@ export function EventAccessProvider({
 
   // Derivar permisos del rol — una sola fuente de verdad
   const isOwner = role === 'owner'
-  const canAdmin = role === 'owner' || role === 'admin'
+  // El admin del workspace cuenta como admin de cada evento de su agencia
+  // aunque no tenga fila de colaborador: es el mismo paso 3 de la cascada
+  // nivelEfectivo, aplicado a las banderas legadas que abren Configuracion.
+  const adminDeLaCuenta = esAdminDeCuenta(rolCuenta)
+  const canAdmin = role === 'owner' || role === 'admin' || adminDeLaCuenta
   // Un evento archivado es solo lectura para todos, sin importar el rol: el
   // candado de edicion vive aqui, no en cada pantalla por separado.
-  const canEdit = !eventArchived && (role === 'owner' || role === 'admin' || role === 'editor')
-  const canInvite = role === 'owner' || role === 'admin'
+  const canEdit = !eventArchived && (role === 'owner' || role === 'admin' || role === 'editor' || adminDeLaCuenta)
+  const canInvite = role === 'owner' || role === 'admin' || adminDeLaCuenta
 
   const ctxPermiso = useMemo<ContextoPermiso>(
     () => ({ esDuenoDelEvento: isOwner, rolCuenta, permisos, features }),
