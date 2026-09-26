@@ -414,6 +414,9 @@ export type TableSeat = {
   event_id: string
   seat_number: number
   guest_id: string | null
+  // Una fila por persona: null = el titular, uuid = ese acompanante.
+  party_member_id?: string | null
+  party_size?: number
   created_at: string
   guest?: Pick<Guest, 'id' | 'name' | 'rsvp_status'>
 }
